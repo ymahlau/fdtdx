@@ -1,0 +1,7 @@
+name: fdtdx
+channels:
+  - conda-forge
+dependencies:
+  - ruff
+  - python=3.11
+  - pip

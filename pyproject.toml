@@ -1,0 +1,35 @@
+[project]
+name = "fdtdx"
+version = "0.1.0"
+description = "A Python package for FDTD simulations using Jax"
+
+dependencies = [
+    "pre-commit",
+    "loguru",
+    "seaborn",
+    "matplotlib",
+    "moviepy",
+    "SharedArray",
+    "optax",
+    "jaxopt",
+    "equinox",
+    "zstandard",
+    "rich",
+    "tidy3d",
+    "trimesh",
+    "numpy-stl",
+    "dm_pix",
+    "bpy",
+    "scikit-image",
+    "matfree",
+    "gdspy",
+    "pytreeclass",
+    "moviepy<2.0.0",
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["fdtdx"]
