@@ -11,6 +11,9 @@ planos
 scripts/configs/run_config.yaml
 .ragatouille
 *.jsonl
+.aider*
+.DS_Store
+site
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

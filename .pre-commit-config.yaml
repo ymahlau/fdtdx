@@ -2,23 +2,34 @@
 # See https://pre-commit.com/hooks.html for more hooks
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v5.0.0
     hooks:
-      - id: trailing-whitespace
       - id: check-yaml
-  - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
-    hooks:
-      - id: isort
-        name: isort (python)
-        args: ["--profile", "black", "--filter-files"]
-  - repo: https://github.com/psf/black
-    rev: 23.12.0
-    hooks:
-      - id: black
+      - id: check-added-large-files
+      - id: check-shebang-scripts-are-executable
+      - id: check-toml
+      - id: check-merge-conflict
+        args: [--assume-in-merge]
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
-    rev: v0.1.8
+    rev: v0.8.2
     hooks:
+      # Run the linter.
       - id: ruff
-        args: [--fix, --exit-non-zero-on-fix, --line-length, "120"]
+        args:
+          - --fix
+      # Run the formatter.
+      - id: ruff-format
+  - repo: local
+    hooks:
+      - id: mkdocs-build
+        name: mkdocs-build
+        entry: mkdocs build
+        language: system
+        pass_filenames: false # Or true if you want to pass files as arguments
+        always_run: true # Usually you want to build every time
+        stages: [pre-commit]
+  - repo: https://github.com/woodruffw/zizmor-pre-commit
+    rev: v0.9.2
+    hooks:
+      - id: zizmor

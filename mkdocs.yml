@@ -1,0 +1,105 @@
+site_name: fdtdx
+repo_url: https://github.com/ymahlau/fdtdx
+site_url: https://ymahlau.github.io/fdtdx
+site_description: A JAX framework for the finite-difference time-domain (FDTD) method for solving Maxwell's equations with a focus on inverse design of photonic devices.
+site_author: Yannik Mahlau and Frederik Schubert
+edit_uri: edit/main/docs/
+repo_name: ymahlau/fdtdx
+copyright: Maintained by Yannik Mahlau and Frederik Schubert
+
+nav:
+  - Home: index.md
+  - Tutorials:
+    - Object Placement: tutorials/object_placement.md
+    - Inverse Design: tutorials/inverse_design.md
+  - API Reference:
+    - Overview: api/index.md
+    - Core:
+      - Overview: api/core/index.md
+      - Arrays: api/core/arrays.md
+      - Configuration: api/core/config.md
+      - Distributed: api/core/distributed.md
+      - JAX Extensions: api/core/jax.md
+      - PyTree Extensions: api/core/pytree.md
+      - Types: api/core/types.md
+    - Constraints:
+      - Overview: api/constraints/index.md
+      - Binary: api/constraints/binary.md
+      - Discrete: api/constraints/discrete.md
+      - Mapping: api/constraints/mapping.md
+      - Modules: api/constraints/modules.md
+      - Utilities: api/constraints/utils.md
+    - FDTD:
+      - Overview: api/fdtd/index.md
+      - Core: api/fdtd/core.md
+      - Fields: api/fdtd/fields.md
+      - Interfaces: api/fdtd/interfaces.md
+      - Updates: api/fdtd/updates.md
+    - Objects:
+      - Overview: api/objects/index.md
+      - Base: api/objects/base.md
+      - Containers: api/objects/containers.md
+      - Initialization: api/objects/initialization.md
+      - Materials: api/objects/materials.md
+    - Physics:
+      - Overview: api/physics/index.md
+      - Constants: api/physics/constants.md
+      - Metrics: api/physics/metrics.md
+      - Modes: api/physics/modes.md
+    - Utilities:
+      - Overview: api/utils/index.md
+      - Image Processing: api/utils/image.md
+      - Visualization: api/utils/visualization.md
+      - File Conversion: api/utils/conversion.md
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            show_root_heading: true
+            show_source: true
+            docstring_style: google
+extra_css:
+  - stylesheets/extra.css
+theme:
+  name: material
+  feature:
+    tabs: true
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: astral-light
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: astral-dark
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+  icon:
+    repo: fontawesome/brands/github
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/ymahlau/fdtdx
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/fdtdx
+markdown_extensions:
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences

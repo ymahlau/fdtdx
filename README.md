@@ -1,23 +1,39 @@
-# This Repository is currently under construction. We will add proper Documentation and Installation Mid-December.
-
 # FDTDX
 
-FDTDX is a JAX implementation of the finite-difference time-domain FDTD method for solving Maxwell's equations.
-See the [Paper](https://arxiv.org/abs/2407.10273) for more details.
-Since this repository is currently under construction expect a lot of changes in the following weeks.
-The scripts folder already contains a few examples on how to use this respository.
+FDTDX is an efficient open-source Python package for the inverse design of three-dimensional photonic nanostructures using the Finite-Difference Time-Domain (FDTD) method. Built on JAX, it provides native GPU support and automatic differentiation capabilities, making it ideal for large-scale 3D design in nanophotonics.
+
+## Key Features
+
+- **High Performance**: GPU-accelerated FDTD simulations with multi-GPU scaling capabilities
+- **Memory Efficient**: Leverages time-reversibility in Maxwell's equations for efficient gradient computation
+- **Automatic Differentiation**: Built-in gradient-based optimization for complex 3D structures
+- **User-Friendly API**: Intuitive positioning and sizing of objects in absolute or relative coordinates
+- **Large-Scale Design**: Capable of handling simulations with billions of grid cells
+- **Open Source**: Freely available for research and development
+
+## Documentation
+
+Visit our [documentation](https://ymahlau.github.io/fdtdx) for:
+- Detailed API reference
+- Tutorial guides
+- Example simulations
+- Best practices
 
 
 ## Installation
 
+Install FDTDX using pip:
+
 ```bash
-# if you want faster env creation, use [mamba] as a drop-in replacement for conda
-# (https://mamba.readthedocs.io/en/latest/) 
-conda env create -f environment.yaml
-conda activate fdtdx
+pip install fdtdx
+```
+
+For development installation, clone the repository and install in editable mode:
+
+```bash
+git clone https://github.com/ymahlau/fdtdx
+cd fdtdx
 pip install -e .
-# GPUs are optional, but recommended
-pip install -U "jax[cuda12]"
 ```
 
 ## Multi-GPU
