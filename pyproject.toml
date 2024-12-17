@@ -31,8 +31,8 @@ Repository = "https://github.com/ymahlau/fdtdx"
 Documentation = "https://ymahlau.github.io/fdtdx/"
 
 [build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.ruff]
 target-version = "py312"
