@@ -33,6 +33,8 @@ pip install -e .
 - See the examples folder for complete scripts for inverse design in FDTDX
 - More guides will follow shortly
 
+Also check out our [whitepaper](https://arxiv.org/abs/2412.12360) for some examples and a comparison to other popular FDTD-frameworks.
+
 ## Citation
 
 If you find this repository helpful for your work, please consider citing:
