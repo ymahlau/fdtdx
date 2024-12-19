@@ -65,7 +65,7 @@ def init_sharded_dict(
     """
     data = {}
     for k, v in shape_dtypes.items():
-        num_devices = len(jax.devices(backend="gpu"))
+        num_devices = len(jax.devices(backend=backend))
         shape = v.shape
         if v.shape[0] % num_devices != 0:
             new_shape = list(v.shape)
