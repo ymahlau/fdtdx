@@ -6,14 +6,13 @@ from typing import Callable
 import matplotlib.pyplot as plt
 import moviepy as mpy
 import numpy as np
-import SharedArray as sa
 from rich.progress import Progress
 
 from fdtdx.objects.detectors.plotting.plot2d import plot_2d_from_slices
 
 
 def plot_from_slices(
-    t: int,
+    slice_tuple: tuple[np.ndarray, np.ndarray, np.ndarray],
     resolutions: tuple[float, float, float],
     minvals: tuple[float, float, float],
     maxvals: tuple[float, float, float],
@@ -23,7 +22,7 @@ def plot_from_slices(
     """Creates a figure from 2D slices at a specific timestep using shared memory arrays.
 
     Args:
-        t: Time step index to plot
+        slice_tuple: tuple of array slices in order xy, xz, yz
         resolutions: Tuple of (dx, dy, dz) spatial resolutions in meters
         minvals: Tuple of minimum values for colormap scaling
         maxvals: Tuple of maximum values for colormap scaling
@@ -33,9 +32,7 @@ def plot_from_slices(
     Returns:
         numpy.ndarray: RGB image data of the rendered figure
     """
-    xy_slice = sa.attach("shm://xy")[t, :, :]
-    xz_slice = sa.attach("shm://xz")[t, :, :]
-    yz_slice = sa.attach("shm://yz")[t, :, :]
+    xy_slice, xz_slice, yz_slice = slice_tuple
 
     fig = plot_2d_from_slices(
         xy_slice=xy_slice,
@@ -120,20 +117,6 @@ def generate_video_from_slices(
 
     _, path = tempfile.mkstemp(suffix=".mp4")
     with Pool(num_worker) as pool:
-        try:
-            sa.delete("xy")
-            sa.delete("xz")
-            sa.delete("yz")
-        except Exception:
-            pass
-
-        shared_xy = sa.create("shm://xy", xy_slice.shape)
-        shared_xy[:] = xy_slice[:]
-        shared_xz = sa.create("shm://xz", xz_slice.shape)
-        shared_xz[:] = xz_slice[:]
-        shared_yz = sa.create("shm://yz", yz_slice.shape)
-        shared_yz[:] = yz_slice[:]
-
         time_steps = xy_slice.shape[0]
         if progress is None:
             progress = Progress()
@@ -147,7 +130,8 @@ def generate_video_from_slices(
             plot_dpi=plot_dpi,
             plot_interpolation=plot_interpolation,
         )
-        for fig in pool.imap(partial_fn, range(time_steps)):
+        slice_arr_list = [(xy_slice[t], xz_slice[t], yz_slice[t]) for t in range(time_steps)]
+        for fig in pool.imap(partial_fn, slice_arr_list):
             precomputed_figs.append(fig)
             progress.update(task_id, advance=1)
         animation = mpy.VideoClip(
@@ -157,10 +141,4 @@ def generate_video_from_slices(
         animation.write_videofile(path, fps=fps, logger=None)
         progress.update(task_id, visible=False)
 
-    try:
-        sa.delete("xy")
-        sa.delete("xz")
-        sa.delete("yz")
-    except Exception as e:
-        print(e)
     return path

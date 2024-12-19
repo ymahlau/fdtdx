@@ -3,10 +3,10 @@ requires-python = ">=3.11, <3.13"
 resolution-markers = [
     "python_full_version < '3.12' and platform_system == 'Darwin'",
     "python_full_version >= '3.12' and platform_system == 'Darwin'",
-    "python_full_version < '3.12' and platform_system == 'Linux'",
     "python_full_version < '3.12' and platform_system != 'Darwin' and platform_system != 'Linux'",
-    "python_full_version >= '3.12' and platform_system == 'Linux'",
+    "python_full_version < '3.12' and platform_system == 'Linux'",
     "python_full_version >= '3.12' and platform_system != 'Darwin' and platform_system != 'Linux'",
+    "python_full_version >= '3.12' and platform_system == 'Linux'",
 ]
 
 [[package]]
@@ -648,7 +648,7 @@ epy = [
 
 [[package]]
 name = "fdtdx"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "equinox" },
@@ -662,7 +662,6 @@ dependencies = [
     { name = "pytreeclass" },
     { name = "rich" },
     { name = "seaborn" },
-    { name = "sharedarray" },
     { name = "tidy3d" },
     { name = "trimesh" },
     { name = "zstandard" },
@@ -696,7 +695,6 @@ requires-dist = [
     { name = "pytreeclass", specifier = ">=0.9.2" },
     { name = "rich", specifier = ">=13.9.4" },
     { name = "seaborn", specifier = ">=0.13.2" },
-    { name = "sharedarray", specifier = ">=3.2.4" },
     { name = "tidy3d", specifier = ">=2.7.8" },
     { name = "trimesh", specifier = ">=4.5.3" },
     { name = "zstandard", specifier = ">=0.23.0" },
@@ -1107,10 +1105,10 @@ name = "jaxlib"
 version = "0.4.34"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.12' and platform_system == 'Linux'",
     "python_full_version < '3.12' and platform_system != 'Darwin' and platform_system != 'Linux'",
-    "python_full_version >= '3.12' and platform_system == 'Linux'",
+    "python_full_version < '3.12' and platform_system == 'Linux'",
     "python_full_version >= '3.12' and platform_system != 'Darwin' and platform_system != 'Linux'",
+    "python_full_version >= '3.12' and platform_system == 'Linux'",
 ]
 dependencies = [
     { name = "ml-dtypes", version = "0.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12' and platform_system != 'Darwin'" },
@@ -1597,8 +1595,8 @@ version = "0.4.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
     "python_full_version >= '3.12' and platform_system == 'Darwin'",
-    "python_full_version >= '3.12' and platform_system == 'Linux'",
     "python_full_version >= '3.12' and platform_system != 'Darwin' and platform_system != 'Linux'",
+    "python_full_version >= '3.12' and platform_system == 'Linux'",
 ]
 dependencies = [
     { name = "numpy", marker = "python_full_version >= '3.12'" },
@@ -1621,8 +1619,8 @@ version = "0.5.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
     "python_full_version < '3.12' and platform_system == 'Darwin'",
-    "python_full_version < '3.12' and platform_system == 'Linux'",
     "python_full_version < '3.12' and platform_system != 'Darwin' and platform_system != 'Linux'",
+    "python_full_version < '3.12' and platform_system == 'Linux'",
 ]
 dependencies = [
     { name = "numpy", marker = "python_full_version < '3.12'" },
@@ -2680,15 +2678,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/6d/0a/f407509ab56825f39bf8cfce1fb410238da96cf096809c3e404e5bc71ea1/shapely-2.0.6-cp312-cp312-win32.whl", hash = "sha256:42fd4cd4834747e4990227e4cbafb02242c0cffe9ce7ef9971f53ac52d80d55f", size = 1295613 },
     { url = "https://files.pythonhosted.org/packages/7b/b3/857afd9dfbfc554f10d683ac412eac6fa260d1f4cd2967ecb655c57e831a/shapely-2.0.6-cp312-cp312-win_amd64.whl", hash = "sha256:665990c84aece05efb68a21b3523a6b2057e84a1afbef426ad287f0796ef8a48", size = 1442539 },
 ]
-
-[[package]]
-name = "sharedarray"
-version = "3.2.4"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "numpy" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/a6/d2/6818d35a7abba9b2410813f2160630e125b12a52ca11acfd1fb0959433ad/SharedArray-3.2.4.tar.gz", hash = "sha256:b8b8d189110c023b9de502f9396ff2591f660fb2c9637eb13fcaf233127e50be", size = 19584 }
 
 [[package]]
 name = "six"
