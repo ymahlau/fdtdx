@@ -64,3 +64,6 @@ If you find this repository helpful for you work, please consider citing:
   year={2024}
 }
 ```
+
+## Acknowledgement
+We would like to thank Floris Laporte for his work on a python [implementation](https://github.com/flaport/fdtd) of FDTD. This implementation was a major help for the implementation in JAX.
