@@ -1,3 +1,4 @@
+import os
 import time
 
 import jax
@@ -20,6 +21,41 @@ from fdtdx.objects.sources.plane_source import GaussianPlaneSource
 from fdtdx.shared.logger import Logger
 from fdtdx.shared.plot_setup import plot_setup
 
+def check_gpu_availability():
+    '''Check if GPU is available and set appropriate device.'''
+    try:
+        # Try to initialize GPU
+        jax.devices('gpu')
+        print("GPU found and will be used for computations")
+        jax.config.update('jax_platform_name', 'gpu')
+        os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+        os.environ['JAX_BACKEND'] = 'gpu'
+        return 'gpu'
+    except RuntimeError:
+        # If GPU initialization fails, use CPU
+        print("No GPU found. Using CPU for computations")
+        os.environ['JAX_PLATFORM_NAME'] = 'cpu'
+        os.environ['CUDA_VISIBLE_DEVICES'] = ''
+        os.environ['JAX_BACKEND'] = 'cpu'
+        jax.config.update('jax_platform_name', 'cpu')
+        return 'cpu'
+
+# Check device availability and set appropriate platform
+platform = check_gpu_availability()
+# Force JAX to initialize with the selected platform
+jax.devices(platform)
+print(f"JAX is using platform: {jax.default_backend()}")
+print(f"Available devices: {jax.devices()}")
+
+def get_simulation_config():
+    config = SimulationConfig(
+        time=100e-15,
+        resolution=100e-9,
+        dtype=jnp.float32,
+        courant_factor=0.9,
+        backend=os.environ.get('JAX_BACKEND', check_gpu_availability()),
+    )
+    return config
 
 def main():
     exp_logger = Logger(
@@ -30,12 +66,7 @@ def main():
     wavelength = 1.55e-6
     period = constants.wavelength_to_period(wavelength)
 
-    config = SimulationConfig(
-        time=100e-15,
-        resolution=100e-9,
-        dtype=jnp.float32,
-        courant_factor=0.9,
-    )
+    config = get_simulation_config()
 
     period_steps = round(period / config.time_step_duration)
     logger.info(f"{config.time_steps_total=}")
