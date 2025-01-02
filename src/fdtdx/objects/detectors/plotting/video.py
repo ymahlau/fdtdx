@@ -8,8 +8,21 @@ import numpy as np
 from rich.progress import Progress
 
 def plot_from_slices(slice_arr_tuple, **kwargs):
-    import matplotlib.pyplot as plt
+    """Creates a figure with three subplots showing XY, XZ, and YZ slices.
     
+    Args:
+        slice_arr_tuple: Tuple of (xy_slice, xz_slice, yz_slice) arrays to plot
+        **kwargs: Additional keyword arguments passed to imshow. Valid options include:
+            - cmap: Colormap for the plot
+            - norm: Normalization for the colormap
+            - aspect: Aspect ratio of the plot
+            - interpolation: Interpolation method for the plot
+            - alpha: Transparency of the plot
+    
+    Returns:
+        numpy.ndarray: RGB image data of the rendered figure
+    """
+
     # Unpack the tuple of arrays
     xy_slice, xz_slice, yz_slice = slice_arr_tuple
     
@@ -69,7 +82,35 @@ def generate_video_from_slices(
     plot_dpi: int | None = None,
     plot_interpolation: str = "gaussian",
 ):
-    """Generates an MP4 video from time-series slice data using matplotlib."""
+    """Generates an MP4 video from time-series slice data using matplotlib.
+    
+    Creates a video visualization of electromagnetic field evolution over time by rendering
+    2D slices through the XY, XZ and YZ planes for each timestep.
+    
+    Args:
+        xy_slice: 3D array containing XY plane slice data over time
+        xz_slice: 3D array containing XZ plane slice data over time
+        yz_slice: 3D array containing YZ plane slice data over time
+        plt_fn: Plotting function to generate each frame
+        resolutions: Tuple of (dx, dy, dz) spatial resolutions in meters
+        num_worker: Number of parallel worker processes (kept for API compatibility)
+        fps: Frames per second in output video
+        progress: Optional progress bar instance
+        minvals: Tuple of minimum values for colormap scaling. None values are auto-scaled.
+        maxvals: Tuple of maximum values for colormap scaling. None values are auto-scaled.
+        plot_dpi: DPI resolution for the figures. None uses default.
+        plot_interpolation: Interpolation method for imshow ('gaussian', 'nearest', etc)
+    
+    Returns:
+        str: Path to the generated MP4 video file, or to a PNG file if video creation fails
+    
+    Notes:
+        - Uses matplotlib's animation module to create the video
+        - Creates a figure with three subplots showing XY, XZ, and YZ slices
+        - Automatically scales the colormap if min/max values are not provided
+        - Falls back to saving a static PNG if video creation fails
+        - Progress is shown using the provided progress bar instance
+    """
     slices = [xy_slice, xz_slice, yz_slice]
     for a in range(3):
         if minvals[a] is None:
