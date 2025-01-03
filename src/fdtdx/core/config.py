@@ -1,7 +1,9 @@
 import math
 from typing import Literal
 
+import jax
 import jax.numpy as jnp
+from loguru import logger
 
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field
 from fdtdx.core.physics import constants
@@ -61,6 +63,20 @@ class SimulationConfig(ExtendedTreeClass):
     dtype: jnp.dtype = frozen_field(default=jnp.float32)
     courant_factor: float = 0.99
     gradient_config: GradientConfig | None = None
+
+    def __post_init__(self):
+        if self.backend in ["gpu", "tpu"]:
+            # Try to initialize GPU
+            try:
+                jax.devices(self.backend)
+                logger.info(f"{str.upper(self.backend)} found and will be used for computations")
+                jax.config.update("jax_platform_name", self.backend)
+            except RuntimeError:
+                logger.warning(f"{str.upper(self.backend)} not found, falling back to CPU!")
+                self.backend = "cpu"
+                jax.config.update("jax_platform_name", "cpu")
+        else:
+            jax.config.update("jax_platform_name", "cpu")
 
     @property
     def courant_number(self) -> float:

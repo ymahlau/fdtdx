@@ -47,8 +47,8 @@ pip install -e .
 ```bash
 # The following lines often lead to better memory usage in JAX
 # when using multiple GPU.
-export XLA_PYTHON_CLIENT_ALLOCATOR=platform
-export XLA_PYTHON_CLIENT_PREALLOCATE=false
+export XLA_PYTHON_CLIENT_ALLOCATOR="platform"
+export XLA_PYTHON_CLIENT_PREALLOCATE="false"
 export NCCL_LL128_BUFFSIZE="-2"
 export NCCL_LL_BUFFSIZE="-2"
 export NCCL_PROTO="SIMPLE,LL,LL128"
