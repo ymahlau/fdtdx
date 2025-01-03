@@ -32,6 +32,9 @@ def plot_from_slices(
     Returns:
         numpy.ndarray: RGB image data of the rendered figure
     """
+    # xy_slice = sa.attach("shm://xy")[t, :, :]
+    # xz_slice = sa.attach("shm://xz")[t, :, :]
+    # yz_slice = sa.attach("shm://yz")[t, :, :]
     xy_slice, xz_slice, yz_slice = slice_tuple
 
     fig = plot_2d_from_slices(
@@ -46,9 +49,18 @@ def plot_from_slices(
     )
     # Convert matplotlib figure to a numpy array
     fig.canvas.draw()
-    data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)  # type: ignore
-    data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-    plt.close()
+    # Get the canvas dimensions
+    width, height = fig.canvas.get_width_height()
+    try:
+        data = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8)  # type: ignore
+        data = data.reshape(height, width, 4)
+        data = data[:, :, :3]  # remove alpha channel
+    except AttributeError:
+        # Fall back to tostring_argb method
+        data = np.frombuffer(fig.canvas.tostring_argb(), dtype=np.uint8)  # type: ignore
+        data = data.reshape((height, width, 4))
+        data = data[:, :, 1:]  # Remove alpha channel
+    plt.close(fig)
     return data
 
 
