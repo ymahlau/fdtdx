@@ -1581,7 +1581,7 @@ FDTDX always uses metrical units, i.e. meters or grid positions referring to the
 </span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="p">)</span>
 </span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s2">&quot;empty_scene.png&quot;</span><span class="p">)</span>
 </span></code></pre></div></p>
-<p><img alt="image" src="/img/placement_tutorial/setup_0.png" /></p>
+<p><img alt="image" src="../../img/setup_0.png" /></p>
 <p>Now, we can start to position some objects in the simulation scene. 
 We start with a substrate at the bottom of simulation. 
 To this end, we specify a constraint that aligns the objects in the z-axis (axis 2).
@@ -1612,7 +1612,7 @@ This ensures that the substrate is placed exactly at the bottom of the simulatio
 </span></code></pre></div>
 <p>The margins and grid_margins arguments are optional and would allow to speficy a fixed distance between 
 the anchor points. The margins argument is in units of meters, the grid margins in units of yee-grid cells. Plotting this again results in</p>
-<p><img alt="image" src="/img/placement_tutorial/setup_1.png" /></p>
+<p><img alt="image" src="../../img/setup_1.png" /></p>
 <p>There exist a number of useful shorthands for rapid placements. Some of them are listed below that place 
 a cube in the scene. The name and colors argument are only used for plotting.</p>
 <p><div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># place an object on top (z-axis / 2) of another object</span>
@@ -1634,7 +1634,7 @@ a cube in the scene. The name and colors argument are only used for plotting.</p
 </span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>    <span class="p">)</span>
 </span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="p">)</span>
 </span></code></pre></div>
-<img alt="image" src="/img/placement_tutorial/setup_2.png" /></p>
+<img alt="image" src="../../img/setup_2.png" /></p>
 <h2 id="size-configuration">Size Configuration<a class="headerlink" href="#size-configuration" title="Permanent link">&para;</a></h2>
 <p>Object sizes can be specified in a number of ways. 
 Firstly, one can directly set the size of an object in the init method.
@@ -1645,7 +1645,7 @@ This can either be a specified in Yee-grid cells or metrical units (meter).</p>
 </span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="o">...</span>
 </span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="p">)</span>
 </span></code></pre></div>
-<img alt="image" src="/img/placement_tutorial/setup_3.png" /></p>
+<img alt="image" src="../../img/setup_3.png" /></p>
 <h3 id="size-in-grid-units">Size in grid units<a class="headerlink" href="#size-in-grid-units" title="Permanent link">&para;</a></h3>
 <p><div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># size in grid units (each 100nm as defined in config above)</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">cube</span> <span class="o">=</span> <span class="n">UniformMaterial</span><span class="p">(</span>
@@ -1653,7 +1653,7 @@ This can either be a specified in Yee-grid cells or metrical units (meter).</p>
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="o">...</span>
 </span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="p">)</span>
 </span></code></pre></div>
-<img alt="image" src="/img/placement_tutorial/setup_4.png" /></p>
+<img alt="image" src="../../img/setup_4.png" /></p>
 <h3 id="combination-of-grid-and-metrical-units">Combination of grid and metrical units<a class="headerlink" href="#combination-of-grid-and-metrical-units" title="Permanent link">&para;</a></h3>
 <p><div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># partial combination</span>
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">cube</span> <span class="o">=</span> <span class="n">UniformMaterial</span><span class="p">(</span>
@@ -1662,7 +1662,7 @@ This can either be a specified in Yee-grid cells or metrical units (meter).</p>
 </span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="o">...</span>
 </span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="p">)</span>
 </span></code></pre></div>
-<img alt="image" src="/img/placement_tutorial/setup_5.png" /></p>
+<img alt="image" src="../../img/setup_5.png" /></p>
 <h3 id="undefined-sizes-can-be-useful">Undefined Sizes can be useful<a class="headerlink" href="#undefined-sizes-can-be-useful" title="Permanent link">&para;</a></h3>
 <p>If the size of an object is only partially defined and does not have any constraints,
 the size is set to the size of the simulation volume in the respective axis. We actually already used this behavior to define the substrate above.</p>
@@ -1681,7 +1681,7 @@ Using this specification for the cube, we get the following error:
 <div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>Exception: Inconsisten grid shape (may be due to extension to infinity) at lower bound: 0 != 6 for axis=2, cube (&lt;class &#39;fdtdx.objects.material.UniformMaterial&#39;&gt;). Object has a position constraint that puts the lower boundary at 6, but the lower bound was alreay computed to be at 0. This could be due to a missing size constraint/specification, which resulted in an expansion of the object to the simulation boundary (default size) or another constraint on this object.
 </span></code></pre></div>
 The error occurs, because we tried to place the cube above the substrate, which is no longer possible if the z-size of the cube is the whole simulation size. When we remove the problematic placement constraint, we get the correct simulation scene.
-<img alt="image" src="/img/placement_tutorial/setup_6.png" /></p>
+<img alt="image" src="../../img/setup_6.png" /></p>
 <h2 id="relative-sizing-constraint">Relative Sizing constraint<a class="headerlink" href="#relative-sizing-constraint" title="Permanent link">&para;</a></h2>
 <p>The size of an object can also be set in relation to another object. To demonstrate this, we define a second cube, which should be placed above the substrate and have a 200nm distance to the other cube in the x-axis.
 <div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">cube2</span> <span class="o">=</span> <span class="n">UniformMaterial</span><span class="p">(</span>
@@ -1701,7 +1701,7 @@ The error occurs, because we tried to place the cube above the substrate, which 
 </span><span id="__span-9-15"><a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a>    <span class="p">)</span>
 </span><span id="__span-9-16"><a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="p">])</span>
 </span></code></pre></div>
-<img alt="image" src="/img/placement_tutorial/setup_7.png" /></p>
+<img alt="image" src="../../img/setup_7.png" /></p>
 <p>Now let's change the size definition of the second cube to a relative size constraint, which defines the y-size of the second cube as the size of the first cube in the z-axis.
 <div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">cube2</span> <span class="o">=</span> <span class="n">UniformMaterial</span><span class="p">(</span>
 </span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;cube2&quot;</span><span class="p">,</span>
@@ -1718,7 +1718,7 @@ The error occurs, because we tried to place the cube above the substrate, which 
 </span><span id="__span-10-13"><a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>    <span class="p">)</span>
 </span><span id="__span-10-14"><a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="p">)</span>
 </span></code></pre></div>
-<img alt="image" src="/img/placement_tutorial/setup_8.png" /></p>
+<img alt="image" src="../../img/setup_8.png" /></p>
 <p>Another useful convenience wrapper is the following:
 <div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">object1</span><span class="o">.</span><span class="n">same_size</span><span class="p">(</span><span class="n">object2</span><span class="p">,</span> <span class="n">axes</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">))</span>
 </span></code></pre></div></p>
@@ -1761,7 +1761,7 @@ The error occurs, because we tried to place the cube above the substrate, which 
 </span><span id="__span-12-35"><a id="__codelineno-12-35" name="__codelineno-12-35" href="#__codelineno-12-35"></a>    <span class="p">)</span>
 </span><span id="__span-12-36"><a id="__codelineno-12-36" name="__codelineno-12-36" href="#__codelineno-12-36"></a><span class="p">])</span>
 </span></code></pre></div>
-<img alt="image" src="/img/placement_tutorial/setup_9.png" />
+<img alt="image" src="../../img/setup_9.png" />
 This constrains the size of cube2 such that its upper boundary ("+") extends directly up to cube1 in the x-axis.</p>
 <p>See the <a href="../../api/objects/">Objects API Reference</a> for complete details on all positioning and sizing options.</p>
 
