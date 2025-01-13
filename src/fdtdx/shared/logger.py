@@ -41,7 +41,7 @@ def init_working_directory(experiment_name: str, wd_name: str | None) -> Path:
     cur_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S.%f")
     day, daytime = cur_time.split("_")
     new_cwd = (
-        Path(__file__).parents[2]
+        Path(__file__).parents[3]
         / "outputs"
         / "nobackup"
         / day

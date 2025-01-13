@@ -1,5 +1,7 @@
 # FDTDX Documentation
 
+![image](img/logo.png)
+
 FDTDX is a high-performance framework for electromagnetic simulations and inverse design of photonic devices. Built on JAX, it provides GPU-accelerated FDTD (Finite-Difference Time-Domain) simulations with automatic differentiation capabilities.
 
 ## Installation
@@ -32,8 +34,6 @@ pip install -e .
 - [Object Placement Guide](tutorials/object_placement.md) - Learn how to position and configure simulation objects
 - See the examples folder for complete scripts for inverse design in FDTDX
 - More guides will follow shortly
-
-Also check out our [whitepaper](https://arxiv.org/abs/2412.12360) for some examples and a comparison to other popular FDTD-frameworks.
 
 ## Citation
 

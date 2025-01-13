@@ -1,9 +1,10 @@
 
-# FDTDX
+
 [![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://ymahlau.github.io/fdtdx)
 [![arXiv](https://img.shields.io/badge/arXiv-2407.10273-b31b1b.svg)](https://arxiv.org/abs/2407.10273)
 [![arXiv](https://img.shields.io/badge/arXiv-2412.12360-b31b1b.svg)](https://arxiv.org/abs/2412.12360)
 
+![image](/docs/img/logo.png)
 
 FDTDX is an efficient open-source Python package for the inverse design of three-dimensional photonic nanostructures using the Finite-Difference Time-Domain (FDTD) method. Built on JAX, it provides native GPU support and automatic differentiation capabilities, making it ideal for large-scale 3D design in nanophotonics.
 
@@ -21,7 +22,6 @@ FDTDX is an efficient open-source Python package for the inverse design of three
 Visit our [documentation](https://ymahlau.github.io/fdtdx) for:
 - Detailed API reference
 - Tutorial guides
-- Example simulations
 - Best practices
 
 Also check out our [whitepaper](https://arxiv.org/abs/2412.12360) for some examples and a comparison to other popular FDTD-frameworks.
@@ -64,6 +64,3 @@ If you find this repository helpful for you work, please consider citing:
   year={2024}
 }
 ```
-
-## Acknowledgement
-We would like to thank Floris Laporte for his work on a python [implementation](https://github.com/flaport/fdtd) of FDTD. This implementation was a major help for the implementation in JAX.

@@ -1,6 +1,5 @@
 multirun
 outputs
-*.png
 tmp
 slurm-*
 .jax_cache
