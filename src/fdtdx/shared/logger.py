@@ -40,14 +40,7 @@ def init_working_directory(experiment_name: str, wd_name: str | None) -> Path:
     """
     cur_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S.%f")
     day, daytime = cur_time.split("_")
-    new_cwd = (
-        Path().cwd()
-        / "outputs"
-        / "nobackup"
-        / day
-        / experiment_name
-        / (daytime if wd_name is None else wd_name)
-    )
+    new_cwd = Path().cwd() / "outputs" / "nobackup" / day / experiment_name / (daytime if wd_name is None else wd_name)
     new_cwd.mkdir(parents=True)
     return new_cwd
 
