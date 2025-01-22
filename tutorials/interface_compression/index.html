@@ -12,22 +12,28 @@
         <meta name="author" content="Yannik Mahlau and Frederik Schubert">
       
       
+        <link rel="canonical" href="https://ymahlau.github.io/fdtdx/tutorials/interface_compression/">
       
       
+        <link rel="prev" href="../constraint_mapping/">
       
-      <link rel="icon" href="/fdtdx/assets/images/favicon.png">
+      
+        <link rel="next" href="../../api/">
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.48">
     
     
       
-        <title>fdtdx</title>
+        <title>Interface Compression - fdtdx</title>
       
     
     
-      <link rel="stylesheet" href="/fdtdx/assets/stylesheets/main.6f8fc17f.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.6f8fc17f.min.css">
       
         
-        <link rel="stylesheet" href="/fdtdx/assets/stylesheets/palette.06af60db.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
       
       
 
@@ -46,11 +52,11 @@
       
     
     
-      <link rel="stylesheet" href="/fdtdx/assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
     
-      <link rel="stylesheet" href="/fdtdx/stylesheets/extra.css">
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
     
-    <script>__md_scope=new URL("/fdtdx/",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -75,6 +81,11 @@
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
       
+        
+        <a href="#gradient-computation-by-time-reversibility" class="md-skip">
+          Skip to content
+        </a>
+      
     </div>
     <div data-md-component="announce">
       
@@ -87,7 +98,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="/fdtdx/." title="fdtdx" class="md-header__button md-logo" aria-label="fdtdx" data-md-component="logo">
+    <a href="../.." title="fdtdx" class="md-header__button md-logo" aria-label="fdtdx" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -107,7 +118,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              
+              Interface Compression
             
           </span>
         </div>
@@ -230,7 +241,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="/fdtdx/." title="fdtdx" class="md-nav__button md-logo" aria-label="fdtdx" data-md-component="logo">
+    <a href="../.." title="fdtdx" class="md-nav__button md-logo" aria-label="fdtdx" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -260,7 +271,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -277,17 +288,19 @@
       
   
   
+    
   
   
+  
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
         
           
           <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
@@ -301,7 +314,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
             Tutorials
@@ -315,7 +328,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/tutorials/object_placement/" class="md-nav__link">
+      <a href="../object_placement/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -336,7 +349,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/tutorials/materials/" class="md-nav__link">
+      <a href="../materials/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -357,7 +370,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/tutorials/constraint_mapping/" class="md-nav__link">
+      <a href="../constraint_mapping/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -375,10 +388,30 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="/fdtdx/tutorials/interface_compression/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Interface Compression
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   <span class="md-ellipsis">
@@ -387,6 +420,35 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#gradient-computation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Gradient Computation
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -441,7 +503,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/" class="md-nav__link">
+      <a href="../../api/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -497,7 +559,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/core/" class="md-nav__link">
+      <a href="../../api/core/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -518,7 +580,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/core/arrays/" class="md-nav__link">
+      <a href="../../api/core/arrays/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -539,7 +601,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/core/config/" class="md-nav__link">
+      <a href="../../api/core/config/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -560,7 +622,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/core/distributed/" class="md-nav__link">
+      <a href="../../api/core/distributed/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -581,7 +643,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/core/jax/" class="md-nav__link">
+      <a href="../../api/core/jax/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -602,7 +664,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/core/pytree/" class="md-nav__link">
+      <a href="../../api/core/pytree/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -623,7 +685,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/core/types/" class="md-nav__link">
+      <a href="../../api/core/types/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -687,7 +749,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/constraints/" class="md-nav__link">
+      <a href="../../api/constraints/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -708,7 +770,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/constraints/binary/" class="md-nav__link">
+      <a href="../../api/constraints/binary/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -729,7 +791,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/constraints/discrete/" class="md-nav__link">
+      <a href="../../api/constraints/discrete/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -750,7 +812,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/constraints/mapping/" class="md-nav__link">
+      <a href="../../api/constraints/mapping/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -771,7 +833,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/constraints/modules/" class="md-nav__link">
+      <a href="../../api/constraints/modules/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -792,7 +854,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/constraints/utils/" class="md-nav__link">
+      <a href="../../api/constraints/utils/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -856,7 +918,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/fdtd/" class="md-nav__link">
+      <a href="../../api/fdtd/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -877,7 +939,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/fdtd/core/" class="md-nav__link">
+      <a href="../../api/fdtd/core/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -898,7 +960,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/fdtd/fields/" class="md-nav__link">
+      <a href="../../api/fdtd/fields/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -919,7 +981,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/fdtd/interfaces/" class="md-nav__link">
+      <a href="../../api/fdtd/interfaces/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -940,7 +1002,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/fdtd/updates/" class="md-nav__link">
+      <a href="../../api/fdtd/updates/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1004,7 +1066,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/objects/" class="md-nav__link">
+      <a href="../../api/objects/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1025,7 +1087,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/objects/base/" class="md-nav__link">
+      <a href="../../api/objects/base/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1046,7 +1108,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/objects/containers/" class="md-nav__link">
+      <a href="../../api/objects/containers/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1067,7 +1129,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/objects/initialization/" class="md-nav__link">
+      <a href="../../api/objects/initialization/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1088,7 +1150,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/objects/materials/" class="md-nav__link">
+      <a href="../../api/objects/materials/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1152,7 +1214,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/physics/" class="md-nav__link">
+      <a href="../../api/physics/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1173,7 +1235,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/physics/constants/" class="md-nav__link">
+      <a href="../../api/physics/constants/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1194,7 +1256,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/physics/metrics/" class="md-nav__link">
+      <a href="../../api/physics/metrics/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1215,7 +1277,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/physics/modes/" class="md-nav__link">
+      <a href="../../api/physics/modes/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1279,7 +1341,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/utils/" class="md-nav__link">
+      <a href="../../api/utils/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1300,7 +1362,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/utils/image/" class="md-nav__link">
+      <a href="../../api/utils/image/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1321,7 +1383,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/utils/visualization/" class="md-nav__link">
+      <a href="../../api/utils/visualization/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1342,7 +1404,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/utils/conversion/" class="md-nav__link">
+      <a href="../../api/utils/conversion/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1388,6 +1450,25 @@
   
   
   
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#gradient-computation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Gradient Computation
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
   
 </nav>
                   </div>
@@ -1399,8 +1480,79 @@
             <div class="md-content" data-md-component="content">
               <article class="md-content__inner md-typeset">
                 
-  <h1>404 - Not found</h1>
+                  
 
+  
+  
+
+
+<h1 id="gradient-computation-by-time-reversibility">Gradient computation by time reversibility<a class="headerlink" href="#gradient-computation-by-time-reversibility" title="Permanent link">&para;</a></h1>
+<p>FDTDX implements automatic differentiation by exploiting the time-reversibility of Maxwell's equations. You can find more details about the time-reversible gradient computation in our <a href="https://arxiv.org/abs/2407.10273">paper</a>. </p>
+<p>For this tutorial, the important point to note is that during the forward simulation, the interface region between PML and actual simulation volume needs to be saved at every time step. Even though this is better than the standard implementation of AutoDiff (which would save the whole 3D volume at every time step), this can still lead to large memory requirements if the simulation is large or the simulation time long. </p>
+<p>As a remedy, we implement a compression mechanism for these saved fields. The compression settings can be adjusted in the simulation config:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span> <span class="nn">fdtdx.core.config</span> <span class="kn">import</span> <span class="n">GradientConfig</span><span class="p">,</span> <span class="n">SimulationConfig</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span> <span class="nn">fdtdx.interfaces.modules</span> <span class="kn">import</span> <span class="n">DtypeConversion</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="kn">from</span> <span class="nn">fdtdx.interfaces.recorder</span> <span class="kn">import</span> <span class="n">Recorder</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="kn">from</span> <span class="nn">fdtdx.interfaces.time_filter</span> <span class="kn">import</span> <span class="n">LinearReconstructEveryK</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="kn">import</span> <span class="nn">jax.numpy</span> <span class="k">as</span> <span class="nn">jnp</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="n">gradient_config</span> <span class="o">=</span> <span class="n">GradientConfig</span><span class="p">(</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">recorder</span><span class="o">=</span><span class="n">Recorder</span><span class="p">(</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>        <span class="n">modules</span><span class="o">=</span><span class="p">[</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>            <span class="n">LinearReconstructEveryK</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>            <span class="n">DtypeConversion</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float16</span><span class="p">),</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>        <span class="p">]</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="p">)</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="p">)</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="n">config</span> <span class="o">=</span> <span class="n">SimulationConfig</span><span class="p">(</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">time</span><span class="o">=</span><span class="mf">300e-15</span><span class="p">,</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">resolution</span><span class="o">=</span><span class="mf">100e-9</span><span class="p">,</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="n">courant_factor</span><span class="o">=</span><span class="mf">0.99</span><span class="p">,</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>    <span class="n">gradient_config</span><span class="o">=</span><span class="n">gradient_config</span><span class="p">,</span>  <span class="c1"># &lt;- This needs to be set for gradient computation</span>
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="p">)</span>
+</span></code></pre></div>
+Similarly to the <a href="../constraint_mapping/">constraint mappings</a>, the recorder of the gradient config is defined by a list of modules, which are applied consecutively. In this example, the following two modules are used:
+- LinearReconstructEveryK: Firstly, this module only saves the boundary fields at every second time step. During reconstruction, the missing values are recomputed by linearly interpolating between the saved time steps. The attribute k=2 defines the step size.
+- DtypeConversion: The output of the previous module is converted to a different data type. In our example, the simulation runs with 32 bit floating point precision and the module converts these values to 16 bit precision, again saving 50% of the required memory.</p>
+<p>At the moment, these are the only two important compression modules implemented. Experience has shown that in almost all cases 8bit precision is also sufficient, namely the data type "jnp.float8_e4m3fnuz". </p>
+<p>Regarding the number of time steps, a rule of thumb is that 10 time steps per period should be saved for accurate results. Often lower saving intervals also suffice, but one needs to make sure that this is actually the case. So for example, if the simulation performs 30 time steps per period (this depends on the Courant-Friedrichs-Levy Condition), then a compression of LinearReconstructEveryK(3) should be used to save 10 time steps. The number of time steps per period can be computed by:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span> <span class="nn">fdtdx.core.physics</span> <span class="kn">import</span> <span class="n">constants</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">wavelength</span> <span class="o">=</span> <span class="mf">1.55e-6</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">period</span> <span class="o">=</span> <span class="n">constants</span><span class="o">.</span><span class="n">wavelength_to_period</span><span class="p">(</span><span class="n">wavelength</span><span class="p">)</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">steps_per_period</span> <span class="o">=</span> <span class="n">period</span> <span class="o">/</span> <span class="n">config</span><span class="o">.</span><span class="n">time_step_duration</span>
+</span></code></pre></div></p>
+<h2 id="gradient-computation">Gradient Computation<a class="headerlink" href="#gradient-computation" title="Permanent link">&para;</a></h2>
+<p>The actual gradient computation can be invoked using the standard jax.grad method on the fdtd_reversible function call. In pseudocode this might look something like this:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">def</span> <span class="nf">loss_function</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">arrays</span><span class="p">,</span> <span class="n">new_objects</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="n">apply_params</span><span class="p">(</span><span class="n">arrays</span><span class="p">,</span> <span class="n">objects</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">_</span><span class="p">,</span> <span class="n">arrays</span> <span class="o">=</span> <span class="n">reversible_fdtd</span><span class="p">(</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>        <span class="n">arrays</span><span class="o">=</span><span class="n">arrays</span><span class="p">,</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>        <span class="n">objects</span><span class="o">=</span><span class="n">new_objects</span><span class="p">,</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>        <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>        <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="p">)</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>    <span class="n">loss</span> <span class="o">=</span> <span class="o">-</span> <span class="n">figure_of_merit</span><span class="p">(</span><span class="n">arrays</span><span class="o">.</span><span class="n">detector_states</span><span class="p">)</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>    <span class="k">return</span> <span class="n">loss</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="n">grad_function</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">grad</span><span class="p">(</span><span class="n">loss_fn</span><span class="p">)</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="n">grad_loss_wrt_params</span> <span class="o">=</span> <span class="n">grad_function</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
+</span></code></pre></div>
+Of course figure_of_merit can be any objective function that should be optimized. The apply_params function internally calls the <a href="../constraint_mapping/">constraint mapping</a> of the device and sets the proper inverse permittivities for the simulation.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
               </article>
             </div>
           
@@ -1464,10 +1616,10 @@
     </div>
     
     
-    <script id="__config" type="application/json">{"base": "/fdtdx/", "features": [], "search": "/fdtdx/assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="/fdtdx/assets/javascripts/bundle.83f73b43.min.js"></script>
+      <script src="../../assets/javascripts/bundle.83f73b43.min.js"></script>
       
     
   </body>

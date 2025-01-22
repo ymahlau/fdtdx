@@ -12,22 +12,28 @@
         <meta name="author" content="Yannik Mahlau and Frederik Schubert">
       
       
+        <link rel="canonical" href="https://ymahlau.github.io/fdtdx/tutorials/materials/">
       
       
+        <link rel="prev" href="../object_placement/">
       
-      <link rel="icon" href="/fdtdx/assets/images/favicon.png">
+      
+        <link rel="next" href="../constraint_mapping/">
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.48">
     
     
       
-        <title>fdtdx</title>
+        <title>Materials Guide - fdtdx</title>
       
     
     
-      <link rel="stylesheet" href="/fdtdx/assets/stylesheets/main.6f8fc17f.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.6f8fc17f.min.css">
       
         
-        <link rel="stylesheet" href="/fdtdx/assets/stylesheets/palette.06af60db.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
       
       
 
@@ -46,11 +52,11 @@
       
     
     
-      <link rel="stylesheet" href="/fdtdx/assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
     
-      <link rel="stylesheet" href="/fdtdx/stylesheets/extra.css">
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
     
-    <script>__md_scope=new URL("/fdtdx/",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -75,6 +81,11 @@
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
       
+        
+        <a href="#materials-guide" class="md-skip">
+          Skip to content
+        </a>
+      
     </div>
     <div data-md-component="announce">
       
@@ -87,7 +98,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="/fdtdx/." title="fdtdx" class="md-header__button md-logo" aria-label="fdtdx" data-md-component="logo">
+    <a href="../.." title="fdtdx" class="md-header__button md-logo" aria-label="fdtdx" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -107,7 +118,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              
+              Materials Guide
             
           </span>
         </div>
@@ -230,7 +241,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="/fdtdx/." title="fdtdx" class="md-nav__button md-logo" aria-label="fdtdx" data-md-component="logo">
+    <a href="../.." title="fdtdx" class="md-nav__button md-logo" aria-label="fdtdx" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -260,7 +271,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -277,17 +288,19 @@
       
   
   
+    
   
   
+  
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
         
           
           <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
@@ -301,7 +314,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
             Tutorials
@@ -315,7 +328,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/tutorials/object_placement/" class="md-nav__link">
+      <a href="../object_placement/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -333,10 +346,30 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="/fdtdx/tutorials/materials/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Materials Guide
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   <span class="md-ellipsis">
@@ -345,6 +378,44 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#uniformmaterial" class="md-nav__link">
+    <span class="md-ellipsis">
+      UniformMaterial
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#device" class="md-nav__link">
+    <span class="md-ellipsis">
+      Device
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -357,7 +428,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/tutorials/constraint_mapping/" class="md-nav__link">
+      <a href="../constraint_mapping/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -378,7 +449,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/tutorials/interface_compression/" class="md-nav__link">
+      <a href="../interface_compression/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -441,7 +512,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/" class="md-nav__link">
+      <a href="../../api/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -497,7 +568,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/core/" class="md-nav__link">
+      <a href="../../api/core/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -518,7 +589,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/core/arrays/" class="md-nav__link">
+      <a href="../../api/core/arrays/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -539,7 +610,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/core/config/" class="md-nav__link">
+      <a href="../../api/core/config/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -560,7 +631,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/core/distributed/" class="md-nav__link">
+      <a href="../../api/core/distributed/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -581,7 +652,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/core/jax/" class="md-nav__link">
+      <a href="../../api/core/jax/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -602,7 +673,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/core/pytree/" class="md-nav__link">
+      <a href="../../api/core/pytree/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -623,7 +694,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/core/types/" class="md-nav__link">
+      <a href="../../api/core/types/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -687,7 +758,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/constraints/" class="md-nav__link">
+      <a href="../../api/constraints/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -708,7 +779,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/constraints/binary/" class="md-nav__link">
+      <a href="../../api/constraints/binary/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -729,7 +800,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/constraints/discrete/" class="md-nav__link">
+      <a href="../../api/constraints/discrete/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -750,7 +821,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/constraints/mapping/" class="md-nav__link">
+      <a href="../../api/constraints/mapping/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -771,7 +842,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/constraints/modules/" class="md-nav__link">
+      <a href="../../api/constraints/modules/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -792,7 +863,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/constraints/utils/" class="md-nav__link">
+      <a href="../../api/constraints/utils/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -856,7 +927,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/fdtd/" class="md-nav__link">
+      <a href="../../api/fdtd/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -877,7 +948,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/fdtd/core/" class="md-nav__link">
+      <a href="../../api/fdtd/core/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -898,7 +969,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/fdtd/fields/" class="md-nav__link">
+      <a href="../../api/fdtd/fields/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -919,7 +990,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/fdtd/interfaces/" class="md-nav__link">
+      <a href="../../api/fdtd/interfaces/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -940,7 +1011,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/fdtd/updates/" class="md-nav__link">
+      <a href="../../api/fdtd/updates/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1004,7 +1075,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/objects/" class="md-nav__link">
+      <a href="../../api/objects/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1025,7 +1096,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/objects/base/" class="md-nav__link">
+      <a href="../../api/objects/base/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1046,7 +1117,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/objects/containers/" class="md-nav__link">
+      <a href="../../api/objects/containers/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1067,7 +1138,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/objects/initialization/" class="md-nav__link">
+      <a href="../../api/objects/initialization/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1088,7 +1159,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/objects/materials/" class="md-nav__link">
+      <a href="../../api/objects/materials/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1152,7 +1223,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/physics/" class="md-nav__link">
+      <a href="../../api/physics/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1173,7 +1244,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/physics/constants/" class="md-nav__link">
+      <a href="../../api/physics/constants/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1194,7 +1265,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/physics/metrics/" class="md-nav__link">
+      <a href="../../api/physics/metrics/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1215,7 +1286,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/physics/modes/" class="md-nav__link">
+      <a href="../../api/physics/modes/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1279,7 +1350,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/utils/" class="md-nav__link">
+      <a href="../../api/utils/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1300,7 +1371,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/utils/image/" class="md-nav__link">
+      <a href="../../api/utils/image/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1321,7 +1392,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/utils/visualization/" class="md-nav__link">
+      <a href="../../api/utils/visualization/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1342,7 +1413,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/fdtdx/api/utils/conversion/" class="md-nav__link">
+      <a href="../../api/utils/conversion/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1388,6 +1459,34 @@
   
   
   
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#uniformmaterial" class="md-nav__link">
+    <span class="md-ellipsis">
+      UniformMaterial
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#device" class="md-nav__link">
+    <span class="md-ellipsis">
+      Device
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
   
 </nav>
                   </div>
@@ -1399,8 +1498,64 @@
             <div class="md-content" data-md-component="content">
               <article class="md-content__inner md-typeset">
                 
-  <h1>404 - Not found</h1>
+                  
 
+  
+  
+
+
+<h1 id="materials-guide">Materials Guide<a class="headerlink" href="#materials-guide" title="Permanent link">&para;</a></h1>
+<p>In FDTDX, objects can have different permittivities and permeabilities. Currently, the conductivity of all materials is assumed to be zero, but we are planning to implement conductive materials in the very near future.</p>
+<p>Also, currently neither dispersion nor non-linear materials are implemented. The implementation of dispersion is scheduled in the near-mid future and afterwards an implementation of non-linear materials will follow.</p>
+<p>This guide is currently very short and will be expanded with them implementations mentioned above.</p>
+<h2 id="uniformmaterial">UniformMaterial<a class="headerlink" href="#uniformmaterial" title="Permanent link">&para;</a></h2>
+<p>The most basic and also probably most useful object is the UniformMaterial. As the name suggests, it has a single permittivity and permittivity.
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span> <span class="nn">fdtdx.core.physics</span> <span class="kn">import</span> <span class="n">constants</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span> <span class="nn">fdtdx.objects.material</span> <span class="kn">import</span> <span class="n">UniformMaterial</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="kn">from</span> <span class="nn">fdtdx.core.plotting</span> <span class="kn">import</span> <span class="n">colors</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">uniform_obj</span> <span class="o">=</span> <span class="n">UniformMaterial</span><span class="p">(</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">partial_real_shape</span><span class="o">=</span><span class="p">(</span><span class="mf">0.6e-6</span><span class="p">,</span> <span class="mf">0.6e-6</span><span class="p">,</span> <span class="mf">0.6e-6</span><span class="p">),</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">permittivity</span><span class="o">=</span><span class="n">constants</span><span class="o">.</span><span class="n">relative_permittivity_silica</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="c1"># permeability is one by default</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">permeability</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="o">.</span><span class="n">CYAN</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;uniform_obj&quot;</span><span class="p">,</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span>
+</span></code></pre></div>
+The name and color attribute are only used for plotting and do not have any effect on the simulation.</p>
+<h2 id="device">Device<a class="headerlink" href="#device" title="Permanent link">&para;</a></h2>
+<p>For inverse design, it is necessary to model objects that can either be one or the other materials. In some applications, it might even be necessary to model objects consisting of more than two materials.</p>
+<p>In this example, we create a device consisting of voxels that are either air or polymer.
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">permittivity_config</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="s2">&quot;Air&quot;</span><span class="p">:</span> <span class="n">constants</span><span class="o">.</span><span class="n">relative_permittivity_air</span><span class="p">,</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="s2">&quot;Polymer&quot;</span><span class="p">:</span> <span class="n">constants</span><span class="o">.</span><span class="n">relative_permittivity_ma_N_1400_series</span><span class="p">,</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="p">}</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">device_scatter</span> <span class="o">=</span> <span class="n">Device</span><span class="p">(</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;Device&quot;</span><span class="p">,</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="n">partial_real_shape</span><span class="o">=</span><span class="p">(</span><span class="mf">1e-6</span><span class="p">,</span> <span class="mf">1e-6</span><span class="p">,</span> <span class="mf">1e-6</span><span class="p">),</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="n">permittivity_config</span><span class="o">=</span><span class="n">permittivity_config</span><span class="p">,</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    <span class="n">constraint_mapping</span><span class="o">=...</span><span class="p">,</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>    <span class="n">partial_voxel_real_shape</span><span class="o">=</span><span class="p">(</span><span class="mf">0.2e-6</span><span class="p">,</span> <span class="mf">0.2e-6</span><span class="p">,</span> <span class="mf">0.2e-6</span><span class="p">),</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="p">)</span>
+</span></code></pre></div>
+The device has a permittivity config, which defines the different permittivity options. This is currently only implemented for permittivity, but we will expand it in the future to metallic materials as well. </p>
+<p>The partial_voxel_real_shape argument specifies the size of the uniform material voxels within the device. In this case, voxels, of 200nm^3 have a single permittivity. Since the device has a shape of 1µm^3, there are 5x5x5=125 of these voxels within the device. </p>
+<p>Importantly, the size of the device needs to be divisible by the voxel size. Additionally, the voxel size needs to be suffiently larger than the resolution of the Yee-grid in the simulation. For example, if the resolution of the Yee-grid is also 200nm, then this simulation will not produce accurate results. As a rule of thumb, the resolution of the Yee-grid should be at least three times smaller than the size of the voxels.</p>
+<p>The device has one latent parameter for every voxel. Initially, these latent parameters are uniformly random in the interval [0, 1]. The constraint mapping defines how these latent parameters are mapped to actual inverse permittivity choices. A detailed guide on this topic can be found <a href="../constraint_mapping/">here</a>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
               </article>
             </div>
           
@@ -1464,10 +1619,10 @@
     </div>
     
     
-    <script id="__config" type="application/json">{"base": "/fdtdx/", "features": [], "search": "/fdtdx/assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="/fdtdx/assets/javascripts/bundle.83f73b43.min.js"></script>
+      <script src="../../assets/javascripts/bundle.83f73b43.min.js"></script>
       
     
   </body>
