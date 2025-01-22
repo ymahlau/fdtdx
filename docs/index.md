@@ -45,8 +45,9 @@ If you find this repository helpful for your work, please consider citing:
 ```bibtex
 @article{schubert2024quantized,
   title={Quantized Inverse Design for Photonic Integrated Circuits},
-  author={Schubert, Frederik and Mahlau, Yannik  and Bethmann, Konrad and Hartmann, Fabian and Caspary, Reinhard and Munderloh, Marco and Ostermann, J{\"o}rn and Rosenhahn, Bodo},
+  author={Schubert, Frederik and Mahlau, Yannik and Bethmann, Konrad and Hartmann, Fabian and Caspary, Reinhard and Munderloh, Marco and Ostermann, J{\"o}rn and Rosenhahn, Bodo},
   journal={arXiv preprint arXiv:2407.10273},
   year={2024}
 }
 ```
+
