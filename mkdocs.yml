@@ -11,6 +11,9 @@ nav:
   - Home: index.md
   - Tutorials:
     - Object Placement: tutorials/object_placement.md
+    - Materials Guide: tutorials/materials.md
+    - Fabrication Constraints: tutorials/constraint_mapping.md
+    - Interface Compression: tutorials/interface_compression.md
   - API Reference:
     - Overview: api/index.md
     - Core:
