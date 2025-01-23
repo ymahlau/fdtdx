@@ -232,7 +232,7 @@ class PlaneSource(DirectionalPlaneSourceBase, ABC):
         e2 = jnp.asarray(e2_list, dtype=jnp.float32)
         e3 = jnp.asarray(e3_list, dtype=jnp.float32)
         global_to_raw_basis = jnp.stack((e1, e2, e3), axis=0)
-        raw_to_global_basis = jnp.linalg.inv(global_to_raw_basis)
+        raw_to_global_basis = jnp.transpose(global_to_raw_basis)
 
         # azimuth rotates horizontal around vertical axis
         az_matrix = self._get_single_directional_rotation_matrix(
