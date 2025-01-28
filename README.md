@@ -61,6 +61,7 @@ If you find this repository helpful for you work, please consider citing:
   title={Quantized Inverse Design for Photonic Integrated Circuits},
   author={Schubert, Frederik and Mahlau, Yannik and Bethmann, Konrad and Hartmann, Fabian and Caspary, Reinhard and Munderloh, Marco and Ostermann, J{\"o}rn and Rosenhahn, Bodo},
   journal={ACS Omega},
+  doi={10.1021/acsomega.4c10958},
   year={2025}
 }
 ```
