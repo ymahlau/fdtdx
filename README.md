@@ -65,3 +65,6 @@ If you find this repository helpful for you work, please consider citing:
   year={2025}
 }
 ```
+
+## Acknowedgement
+This project was developed at the [Institute of Information Processing](https://www.tnt.uni-hannover.de/) at Leibniz University Hannover, Germany and sponsored by the cluster of excellence [PhoenixD](https://www.phoenixd.uni-hannover.de/en/) (Photonics, Optics, Engineering, Innovation across Disciplines).
