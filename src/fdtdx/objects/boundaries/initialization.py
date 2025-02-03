@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Union
 
 import pytreeclass
 
@@ -6,18 +6,25 @@ from fdtdx.core.jax.pytrees import ExtendedTreeClass
 from fdtdx.core.jax.typing import PartialGridShape3D
 from fdtdx.objects.boundaries.boundary_utils import axis_direction_from_kind
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
+from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.object import PositionConstraint, SimulationObject
 
 
 @pytreeclass.autoinit
 class BoundaryConfig(ExtendedTreeClass):
-    """Configuration class for PML boundary conditions.
+    """Configuration class for boundary conditions.
 
-    This class stores thickness and kappa parameters for Perfectly Matched Layer (PML)
-    boundaries in all six directions (min/max x/y/z). The parameters control the absorption
+    This class stores parameters for boundary conditions in all six directions (min/max x/y/z).
+    Supports both PML and periodic boundaries. For PML, the parameters control the absorption
     properties and physical size of the PML regions.
 
     Attributes:
+        boundary_type_minx (str): Boundary type at minimum x ("pml" or "periodic"). Default "pml".
+        boundary_type_maxx (str): Boundary type at maximum x ("pml" or "periodic"). Default "pml".
+        boundary_type_miny (str): Boundary type at minimum y ("pml" or "periodic"). Default "pml".
+        boundary_type_maxy (str): Boundary type at maximum y ("pml" or "periodic"). Default "pml".
+        boundary_type_minz (str): Boundary type at minimum z ("pml" or "periodic"). Default "pml".
+        boundary_type_maxz (str): Boundary type at maximum z ("pml" or "periodic"). Default "pml".
         thickness_grid_minx (int): Number of grid cells for PML at minimum x boundary. Default 10.
         thickness_grid_maxx (int): Number of grid cells for PML at maximum x boundary. Default 10.
         thickness_grid_miny (int): Number of grid cells for PML at minimum y boundary. Default 10.
@@ -38,6 +45,12 @@ class BoundaryConfig(ExtendedTreeClass):
         kappa_end_maxz (float): Final kappa value at max z boundary. Default 1.5.
     """
 
+    boundary_type_minx: str = "pml"
+    boundary_type_maxx: str = "pml"
+    boundary_type_miny: str = "pml"
+    boundary_type_maxy: str = "pml"
+    boundary_type_minz: str = "pml"
+    boundary_type_maxz: str = "pml"
     thickness_grid_minx: int = 10
     thickness_grid_maxx: int = 10
     thickness_grid_miny: int = 10
@@ -71,6 +84,22 @@ class BoundaryConfig(ExtendedTreeClass):
             "max_y": self.thickness_grid_maxy,
             "min_z": self.thickness_grid_minz,
             "max_z": self.thickness_grid_maxz,
+        }
+
+    def get_type_dict(self) -> dict[str, str]:
+        """Gets a dictionary mapping boundary names to their boundary types.
+
+        Returns:
+            dict[str, str]: Dictionary with keys 'min_x', 'max_x', 'min_y', 'max_y', 'min_z', 'max_z'
+                mapping to their respective boundary types ("pml" or "periodic").
+        """
+        return {
+            "min_x": self.boundary_type_minx,
+            "max_x": self.boundary_type_maxx,
+            "min_y": self.boundary_type_miny,
+            "max_y": self.boundary_type_maxy,
+            "min_z": self.boundary_type_minz,
+            "max_z": self.boundary_type_maxz,
         }
 
     def get_kappa_dict(
@@ -119,25 +148,32 @@ class BoundaryConfig(ExtendedTreeClass):
         """
         return (
             slice(
-                self.thickness_grid_minx + 1,
-                -self.thickness_grid_maxx - 1,
+                self.thickness_grid_minx + 1 if self.boundary_type_minx == "pml" else 0,
+                -self.thickness_grid_maxx - 1 if self.boundary_type_maxx == "pml" else None,
             ),
             slice(
-                self.thickness_grid_miny + 1,
-                -self.thickness_grid_maxy - 1,
+                self.thickness_grid_miny + 1 if self.boundary_type_miny == "pml" else 0,
+                -self.thickness_grid_maxy - 1 if self.boundary_type_maxy == "pml" else None,
             ),
             slice(
-                self.thickness_grid_minz + 1,
-                -self.thickness_grid_maxz - 1,
+                self.thickness_grid_minz + 1 if self.boundary_type_minz == "pml" else 0,
+                -self.thickness_grid_maxz - 1 if self.boundary_type_maxz == "pml" else None,
             ),
         )
 
     @classmethod
-    def from_uniform_bound(cls, thickness: int, kappa_start: float = 1, kappa_end: float = 1.5):
+    def from_uniform_bound(
+        cls,
+        thickness: int = 10,
+        boundary_type: str = "pml",
+        kappa_start: float = 1,
+        kappa_end: float = 1.5,
+    ):
         """Creates a BoundaryConfig with uniform parameters for all boundaries.
 
         Args:
             thickness: Grid thickness to use for all PML boundaries
+            boundary_type: Type of boundary to use ("pml" or "periodic"). Defaults to "pml".
             kappa_start: Initial kappa value for all boundaries. Defaults to 1.0.
             kappa_end: Final kappa value for all boundaries. Defaults to 1.5.
 
@@ -145,6 +181,12 @@ class BoundaryConfig(ExtendedTreeClass):
             BoundaryConfig: New config object with uniform parameters
         """
         return cls(
+            boundary_type_minx=boundary_type,
+            boundary_type_maxx=boundary_type,
+            boundary_type_miny=boundary_type,
+            boundary_type_maxy=boundary_type,
+            boundary_type_minz=boundary_type,
+            boundary_type_maxz=boundary_type,
             thickness_grid_minx=thickness,
             thickness_grid_maxx=thickness,
             thickness_grid_miny=thickness,
@@ -166,54 +208,67 @@ class BoundaryConfig(ExtendedTreeClass):
         )
 
 
-def pml_objects_from_config(
+def boundary_objects_from_config(
     config: BoundaryConfig,
     volume: SimulationObject,
-) -> tuple[dict[str, PerfectlyMatchedLayer], list[PositionConstraint]]:
-    """Creates PML boundary objects from a boundary configuration.
+) -> tuple[dict[str, Union[PerfectlyMatchedLayer, PeriodicBoundary]], list[PositionConstraint]]:
+    """Creates boundary objects from a boundary configuration.
 
-    Creates PerfectlyMatchedLayer objects for all six boundaries (min/max x/y/z)
-    based on the provided configuration. Also generates position constraints to
-    properly place the PML objects relative to the simulation volume.
+    Creates PerfectlyMatchedLayer or PeriodicBoundary objects for all six boundaries
+    (min/max x/y/z) based on the provided configuration. Also generates position
+    constraints to properly place the boundary objects relative to the simulation volume.
 
     Args:
-        config: Configuration object containing PML parameters
-        volume: The main simulation volume object that the PMLs will surround
+        config: Configuration object containing boundary parameters
+        volume: The main simulation volume object that the boundaries will surround
 
     Returns:
         tuple containing:
-            - dict mapping boundary names ('min_x', 'max_x', etc) to PML objects
-            - list of PositionConstraint objects for placing the PMLs
+            - dict mapping boundary names ('min_x', 'max_x', etc) to boundary objects
+            - list of PositionConstraint objects for placing the boundaries
     """
     boundaries, constraints = {}, []
     thickness_dict = config.get_dict()
+    type_dict = config.get_type_dict()
     kappa_start_dict = config.get_kappa_dict("kappa_start")
-    kappa_end_dict = config.get_kappa_dict("kappa_start")
+    kappa_end_dict = config.get_kappa_dict("kappa_end")
 
     for kind, thickness in thickness_dict.items():
         axis, direction = axis_direction_from_kind(kind)
+        boundary_type = type_dict[kind]
         kappa_start, kappa_end = kappa_start_dict[kind], kappa_end_dict[kind]
 
         grid_shape_list: list[int | None] = [None, None, None]
-        grid_shape_list[axis] = thickness
+        grid_shape_list[axis] = thickness if boundary_type == "pml" else 1
         grid_shape: PartialGridShape3D = tuple(grid_shape_list)  # type: ignore
 
         other_axes = [0, 1, 2]
         del other_axes[axis]
 
-        cur_pml = PerfectlyMatchedLayer(
-            axis=axis, partial_grid_shape=grid_shape, kappa_start=kappa_start, kappa_end=kappa_end, direction=direction
-        )
+        if boundary_type == "pml":
+            cur_boundary = PerfectlyMatchedLayer(
+                axis=axis,
+                partial_grid_shape=grid_shape,
+                kappa_start=kappa_start,
+                kappa_end=kappa_end,
+                direction=direction,
+            )
+        else:  # periodic
+            cur_boundary = PeriodicBoundary(
+                axis=axis,
+                partial_grid_shape=grid_shape,
+                direction=direction,
+            )
 
         direction_int = -1 if direction == "-" else 1
-        pos_constraint = cur_pml.place_relative_to(
+        pos_constraint = cur_boundary.place_relative_to(
             volume,
             axes=(axis, other_axes[0], other_axes[1]),
             own_positions=(direction_int, 0, 0),
             other_positions=(direction_int, 0, 0),
         )
 
-        boundaries[kind] = cur_pml
+        boundaries[kind] = cur_boundary
         constraints.append(pos_constraint)
 
     return boundaries, constraints

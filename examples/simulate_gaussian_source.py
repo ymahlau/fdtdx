@@ -11,7 +11,7 @@ from fdtdx.fdtd.backward import full_backward
 from fdtdx.fdtd.fdtd import checkpointed_fdtd
 from fdtdx.interfaces.modules import DtypeConversion
 from fdtdx.interfaces.recorder import Recorder
-from fdtdx.objects.boundaries.initialization import BoundaryConfig, pml_objects_from_config
+from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.container import ArrayContainer, ParameterContainer
 from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.initialization import apply_params, place_objects
@@ -57,8 +57,12 @@ def main():
         partial_real_shape=(12.0e-6, 12e-6, 12e-6),
     )
 
-    bound_cfg = BoundaryConfig.from_uniform_bound(thickness=10)
-    bound_dict, c_list = pml_objects_from_config(bound_cfg, volume)
+    periodic = True
+    if periodic:
+        bound_cfg = BoundaryConfig.from_uniform_bound(boundary_type="periodic")
+    else:
+        bound_cfg = BoundaryConfig.from_uniform_bound(thickness=10, boundary_type="pml")
+    bound_dict, c_list = boundary_objects_from_config(bound_cfg, volume)
     constraints.extend(c_list)
 
     source = GaussianPlaneSource(

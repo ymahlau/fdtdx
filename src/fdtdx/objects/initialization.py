@@ -241,18 +241,18 @@ def _init_arrays(
 
     # boundary states
     boundary_states = {}
-    for pml in objects.pml_objects:
-        boundary_states[pml.name] = pml.init_state()
+    for boundary in objects.boundary_objects:
+        boundary_states[boundary.name] = boundary.init_state()
 
     # interfaces
     recording_state = None
     if config.gradient_config is not None and config.gradient_config.recorder is not None:
         input_shape_dtypes = {}
-        for pml in objects.pml_objects:
-            cur_shape = pml.boundary_interface_grid_shape()
+        for boundary in objects.boundary_objects:
+            cur_shape = boundary.boundary_interface_grid_shape()
             extended_shape = (3, *cur_shape)
-            input_shape_dtypes[f"{pml.name}_E"] = jax.ShapeDtypeStruct(shape=extended_shape, dtype=config.dtype)
-            input_shape_dtypes[f"{pml.name}_H"] = jax.ShapeDtypeStruct(shape=extended_shape, dtype=config.dtype)
+            input_shape_dtypes[f"{boundary.name}_E"] = jax.ShapeDtypeStruct(shape=extended_shape, dtype=config.dtype)
+            input_shape_dtypes[f"{boundary.name}_H"] = jax.ShapeDtypeStruct(shape=extended_shape, dtype=config.dtype)
         recorder = config.gradient_config.recorder
         recorder, recording_state = recorder.init_state(
             input_shape_dtypes=input_shape_dtypes,

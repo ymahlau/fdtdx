@@ -2,7 +2,7 @@
 
 This module provides container classes for organizing and managing simulation objects
 and array data within FDTD simulations. It includes support for different object types
-like sources, detectors, PML boundaries, and devices.
+like sources, detectors, PML boundaries, periodic boundaries, and devices.
 """
 
 from typing import Self
@@ -13,6 +13,7 @@ import pytreeclass as tc
 from fdtdx.core.jax.pytrees import ExtendedTreeClass
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.objects.boundaries.perfectly_matched_layer import BoundaryState, PerfectlyMatchedLayer
+from fdtdx.objects.boundaries.periodic import PeriodicBoundary, PeriodicBoundaryState
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 from fdtdx.objects.multi_material.device import Device
 from fdtdx.objects.object import SimulationObject
@@ -27,7 +28,7 @@ class ObjectContainer(ExtendedTreeClass):
     """Container for managing simulation objects and their relationships.
 
     This class provides a structured way to organize and access different types of simulation
-    objects like sources, detectors, PML boundaries and devices. It maintains object lists
+    objects like sources, detectors, PML/periodic boundaries and devices. It maintains object lists
     and provides filtered access to specific object types.
 
     Attributes:
@@ -74,6 +75,14 @@ class ObjectContainer(ExtendedTreeClass):
     def pml_objects(self) -> list[PerfectlyMatchedLayer]:
         return [o for o in self.objects if isinstance(o, PerfectlyMatchedLayer)]
 
+    @property
+    def periodic_objects(self) -> list[PeriodicBoundary]:
+        return [o for o in self.objects if isinstance(o, PeriodicBoundary)]
+
+    @property
+    def boundary_objects(self) -> list[PerfectlyMatchedLayer | PeriodicBoundary]:
+        return [o for o in self.objects if isinstance(o, (PerfectlyMatchedLayer, PeriodicBoundary))]
+
     def __iter__(self):
         return iter(self.object_list)
 
@@ -117,7 +126,7 @@ class ArrayContainer(ExtendedTreeClass):
     H: jax.Array
     inv_permittivities: jax.Array
     inv_permeabilities: jax.Array
-    boundary_states: dict[str, BoundaryState]
+    boundary_states: dict[str, BoundaryState | PeriodicBoundaryState]
     detector_states: dict[str, DetectorState]
     recording_state: RecordingState | None
 
@@ -150,8 +159,8 @@ def reset_array_container(
     H = arrays.H * 0
 
     boundary_states = {}
-    for pml in objects.pml_objects:
-        boundary_states[pml.name] = pml.reset_state(state=arrays.boundary_states[pml.name])
+    for boundary in objects.boundary_objects:
+        boundary_states[boundary.name] = boundary.reset_state(state=arrays.boundary_states[boundary.name])
 
     detector_states = arrays.detector_states
     if reset_detector_states:

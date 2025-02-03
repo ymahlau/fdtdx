@@ -5,8 +5,9 @@ import jax.numpy as jnp
 def interpolate_fields(
     E_field: jax.Array,
     H_field: jax.Array,
+    periodic_axes: tuple[bool, bool, bool] = (False, False, False),
 ) -> tuple[jax.Array, jax.Array]:
-    """Interpolates E and H fields onto E_z in a FDTD grid with PEC boundary conditions.
+    """Interpolates E and H fields onto E_z in a FDTD grid with PEC/periodic boundary conditions.
 
     Performs spatial interpolation of the electric and magnetic fields to align them
     onto the same grid points as E_z. This is necessary because E and H fields are
@@ -17,6 +18,8 @@ def interpolate_fields(
                 Dimensions are (width, depth, height, direction).
         H_field: 4D tensor representing the magnetic field.
                 Dimensions are (width, depth, height, direction).
+        periodic_axes: Tuple of booleans indicating which axes use periodic boundaries.
+                      (periodic_x, periodic_y, periodic_z)
 
     Returns:
         tuple[jax.Array, jax.Array]: A tuple (E_interp, H_interp) containing:
@@ -25,11 +28,20 @@ def interpolate_fields(
 
     Note:
         Uses PEC (Perfect Electric Conductor) boundary conditions where fields
-        at boundaries are set to zero.
+        at boundaries are zero, unless periodic boundaries are specified.
     """
-    # Apply PEC boundary conditions: fields at boundaries are zero, TODO: wrapped boundaries
-    E_field = jnp.pad(E_field, ((0, 0), (1, 1), (1, 1), (1, 1)), mode="constant")
-    H_field = jnp.pad(H_field, ((0, 0), (1, 1), (1, 1), (1, 1)), mode="constant")
+    # Apply boundary conditions: PEC (zero) or periodic for each axis separately
+    for i, periodic in enumerate(periodic_axes):
+        pad_mode = "wrap" if periodic else "constant"
+        # Create padding tuple for current axis
+        if i == 0:
+            pad_width = ((0, 0), (1, 1), (0, 0), (0, 0))
+        elif i == 1:
+            pad_width = ((0, 0), (0, 0), (1, 1), (0, 0))
+        else:  # i == 2
+            pad_width = ((0, 0), (0, 0), (0, 0), (1, 1))
+        E_field = jnp.pad(E_field, pad_width, mode=pad_mode)
+        H_field = jnp.pad(H_field, pad_width, mode=pad_mode)
 
     E_x, E_y, E_z = E_field[0], E_field[1], E_field[2]
     H_x, H_y, H_z = H_field[0], H_field[1], H_field[2]
@@ -58,7 +70,7 @@ def interpolate_fields(
     return E_interp, H_interp
 
 
-def curl_E(E: jax.Array) -> jax.Array:
+def curl_E(E: jax.Array, periodic_axes: tuple[bool, bool, bool] = (False, False, False)) -> jax.Array:
     """Transforms an E-type field into an H-type field by performing a curl operation.
 
     Computes the discrete curl of the electric field to obtain the corresponding
@@ -70,16 +82,25 @@ def curl_E(E: jax.Array) -> jax.Array:
         E: Electric field to take the curl of. A 4D tensor representing the E-type field
             located on the edges of the grid cell (integer gridpoints).
             Shape is (3, nx, ny, nz) for the 3 field components.
+        periodic_axes: Tuple of booleans indicating which axes use periodic boundaries.
+                      (periodic_x, periodic_y, periodic_z)
 
     Returns:
         jax.Array: The curl of E - an H-type field located on the faces of the grid
                   (half-integer grid points). Has same shape as input (3, nx, ny, nz).
-
-    Note:
-        Uses edge padding and roll operations to compute centered differences for the curl.
     """
-
-    E_pad = jnp.pad(E, ((0, 0), (1, 1), (1, 1), (1, 1)), mode="edge")
+    # Pad each axis separately based on boundary conditions
+    E_pad = E
+    for i, periodic in enumerate(periodic_axes):
+        pad_mode = "wrap" if periodic else "constant"
+        # Create padding tuple for current axis
+        if i == 0:
+            pad_width = ((0, 0), (1, 1), (0, 0), (0, 0))
+        elif i == 1:
+            pad_width = ((0, 0), (0, 0), (1, 1), (0, 0))
+        else:  # i == 2
+            pad_width = ((0, 0), (0, 0), (0, 0), (1, 1))
+        E_pad = jnp.pad(E_pad, pad_width, mode=pad_mode)
 
     curl_x = jnp.roll(E_pad[2], -1, axis=1) - E_pad[2] + E_pad[1] - jnp.roll(E_pad[1], -1, axis=2)
     curl_y = jnp.roll(E_pad[0], -1, axis=2) - E_pad[0] + E_pad[2] - jnp.roll(E_pad[2], -1, axis=0)
@@ -89,7 +110,7 @@ def curl_E(E: jax.Array) -> jax.Array:
     return curl
 
 
-def curl_H(H: jax.Array) -> jax.Array:
+def curl_H(H: jax.Array, periodic_axes: tuple[bool, bool, bool] = (False, False, False)) -> jax.Array:
     """Transforms an H-type field into an E-type field by performing a curl operation.
 
     Computes the discrete curl of the magnetic field to obtain the corresponding
@@ -101,16 +122,25 @@ def curl_H(H: jax.Array) -> jax.Array:
         H: Magnetic field to take the curl of. A 4D tensor representing the H-type field
             located on the faces of the grid (half-integer grid points).
             Shape is (3, nx, ny, nz) for the 3 field components.
+        periodic_axes: Tuple of booleans indicating which axes use periodic boundaries.
+                      (periodic_x, periodic_y, periodic_z)
 
     Returns:
         jax.Array: The curl of H - an E-type field located on the edges of the grid
                   (integer grid points). Has same shape as input (3, nx, ny, nz).
-
-    Note:
-        Uses edge padding and roll operations to compute centered differences for the curl.
-        The operation is complementary to curl_E(), allowing field updates in both directions.
     """
-    H_pad = jnp.pad(H, ((0, 0), (1, 1), (1, 1), (1, 1)), mode="edge")
+    # Pad each axis separately based on boundary conditions
+    H_pad = H
+    for i, periodic in enumerate(periodic_axes):
+        pad_mode = "wrap" if periodic else "constant"
+        # Create padding tuple for current axis
+        if i == 0:
+            pad_width = ((0, 0), (1, 1), (0, 0), (0, 0))
+        elif i == 1:
+            pad_width = ((0, 0), (0, 0), (1, 1), (0, 0))
+        else:  # i == 2
+            pad_width = ((0, 0), (0, 0), (0, 0), (1, 1))
+        H_pad = jnp.pad(H_pad, pad_width, mode=pad_mode)
 
     curl_x = H_pad[2] - jnp.roll(H_pad[2], 1, axis=1) - H_pad[1] + jnp.roll(H_pad[1], 1, axis=2)
     curl_y = H_pad[0] - jnp.roll(H_pad[0], 1, axis=2) - H_pad[2] + jnp.roll(H_pad[2], 1, axis=0)

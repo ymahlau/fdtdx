@@ -55,7 +55,7 @@ def plot_from_slices(
     if device_pixel_ratio != 1:
         width = int(width * device_pixel_ratio)
         height = int(height * device_pixel_ratio)
-    
+
     try:
         data = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8)  # type: ignore
         data = data.reshape(height, width, 4)
