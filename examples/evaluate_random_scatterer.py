@@ -9,7 +9,7 @@ from matplotlib.colors import LogNorm
 from fdtdx.core.config import SimulationConfig
 from fdtdx.core.physics import constants
 from fdtdx.fdtd.fdtd import reversible_fdtd
-from fdtdx.objects.boundaries.initialization import BoundaryConfig, pml_objects_from_config
+from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.container import ArrayContainer, ParameterContainer
 from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.detectors.phasor import PhasorDetector
@@ -56,7 +56,7 @@ def main(seed: int = 42):
     bound_cfg = bound_cfg.aset("kappa_end_miny", 1)
     bound_cfg = bound_cfg.aset("kappa_end_maxy", 1)
 
-    _, c_list = pml_objects_from_config(bound_cfg, volume)
+    _, c_list = boundary_objects_from_config(bound_cfg, volume)
     placement_constraints.extend(c_list)
 
     source = HardConstantAmplitudePlanceSource(

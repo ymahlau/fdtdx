@@ -18,7 +18,7 @@ from fdtdx.fdtd.fdtd import reversible_fdtd
 from fdtdx.interfaces.modules import DtypeConversion
 from fdtdx.interfaces.recorder import Recorder
 from fdtdx.interfaces.time_filter import LinearReconstructEveryK
-from fdtdx.objects.boundaries.initialization import BoundaryConfig, pml_objects_from_config
+from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.container import ArrayContainer, ParameterContainer
 from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.detectors.poynting_flux import PoyntingFluxDetector
@@ -82,7 +82,7 @@ def main(
     )
 
     bound_cfg = BoundaryConfig.from_uniform_bound(thickness=10)
-    _, c_list = pml_objects_from_config(bound_cfg, volume)
+    _, c_list = boundary_objects_from_config(bound_cfg, volume)
     placement_constraints.extend(c_list)
 
     substrate = Substrate(
