@@ -5,6 +5,7 @@ from matplotlib.patches import Patch, Rectangle
 
 from fdtdx.core.config import SimulationConfig
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
+from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.container import ObjectContainer
 from fdtdx.objects.object import SimulationObject
 
@@ -44,9 +45,9 @@ def plot_setup(
         The plots show object positions in micrometers, converting from simulation units.
         PML objects are automatically excluded from their respective boundary planes.
     """
-    # add pml to exclude lists
+    # add boundaries to exclude lists
     for o in objects.objects:
-        if not isinstance(o, PerfectlyMatchedLayer):
+        if not isinstance(o, (PerfectlyMatchedLayer, PeriodicBoundary)):
             continue
         if o.axis == 0:
             exclude_yz_plane_object_list.append(o)
@@ -109,6 +110,7 @@ def plot_setup(
                     (slices[1][1] - slices[1][0]) * resolution,
                     color=color,
                     alpha=0.5,
+                    linestyle="--" if isinstance(obj, PeriodicBoundary) else "-",
                 )
             )
 
@@ -121,6 +123,7 @@ def plot_setup(
                     (slices[2][1] - slices[2][0]) * resolution,
                     color=color,
                     alpha=0.5,
+                    linestyle="--" if isinstance(obj, PeriodicBoundary) else "-",
                 )
             )
 
@@ -133,24 +136,26 @@ def plot_setup(
                     (slices[2][1] - slices[2][0]) * resolution,
                     color=color,
                     alpha=0.5,
+                    linestyle="--" if isinstance(obj, PeriodicBoundary) else "-",
                 )
             )
 
+    # Set labels and titles
+    axs[0].set_xlabel("x (µm)")
+    axs[0].set_ylabel("y (µm)")
     axs[0].set_title("XY plane")
-    axs[0].set_xlabel("X axis (µm)")
-    axs[0].set_ylabel("Y axis (µm)")
     axs[0].set_xlim([0, volume.grid_shape[0] * resolution])
     axs[0].set_ylim([0, volume.grid_shape[1] * resolution])
 
+    axs[1].set_xlabel("x (µm)")
+    axs[1].set_ylabel("z (µm)")
     axs[1].set_title("XZ plane")
-    axs[1].set_xlabel("X axis (µm)")
-    axs[1].set_ylabel("Z axis (µm)")
     axs[1].set_xlim([0, volume.grid_shape[0] * resolution])
     axs[1].set_ylim([0, volume.grid_shape[2] * resolution])
 
+    axs[2].set_xlabel("y (µm)")
+    axs[2].set_ylabel("z (µm)")
     axs[2].set_title("YZ plane")
-    axs[2].set_xlabel("Y axis (µm)")
-    axs[2].set_ylabel("Z axis (µm)")
     axs[2].set_xlim([0, volume.grid_shape[1] * resolution])
     axs[2].set_ylim([0, volume.grid_shape[2] * resolution])
 
@@ -160,7 +165,6 @@ def plot_setup(
         ax.grid(True)
 
     if filename is not None:
-        plt.tight_layout()
-        plt.savefig(filename, dpi=300)
+        plt.savefig(filename, bbox_inches="tight", dpi=300)
         plt.close()
     return plt.gcf() if fig is None else fig

@@ -132,7 +132,9 @@ class Recorder(ExtendedTreeClass):
 
         def dummy_fn(m, values, state, latent_idx, key):
             del key
-            values = {k: jnp.zeros(v.shape, v.dtype) for k, v in m._output_shape_dtypes.items()}
+            # Only create zero arrays for keys that exist in the input values
+            # This ensures structure matching with helper_fn for periodic boundaries
+            values = {k: jnp.zeros(v.shape, v.dtype) for k, v in m._output_shape_dtypes.items() if k in values}
             check_shape_dtype(values, m._output_shape_dtypes)
             return values, state, latent_idx
 
@@ -144,8 +146,10 @@ class Recorder(ExtendedTreeClass):
             check_shape_dtype(values, m._output_shape_dtypes)
 
         def update_state_fn(state, values, latent_idx):
+            # Only update state data for keys that exist in values
             for k in state.data.keys():
-                state.data[k] = state.data[k].at[latent_idx].set(values[k])
+                if k in values:
+                    state.data[k] = state.data[k].at[latent_idx].set(values[k])
             return state
 
         def update_dummy_fn(state, values, latent_idx):

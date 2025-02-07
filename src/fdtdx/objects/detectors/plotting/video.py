@@ -49,8 +49,13 @@ def plot_from_slices(
     )
     # Convert matplotlib figure to a numpy array
     fig.canvas.draw()
-    # Get the canvas dimensions
+    # Get the canvas dimensions, accounting for device pixel ratio
     width, height = fig.canvas.get_width_height()
+    device_pixel_ratio = fig.canvas.device_pixel_ratio
+    if device_pixel_ratio != 1:
+        width = int(width * device_pixel_ratio)
+        height = int(height * device_pixel_ratio)
+
     try:
         data = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8)  # type: ignore
         data = data.reshape(height, width, 4)
