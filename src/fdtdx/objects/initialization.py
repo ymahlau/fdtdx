@@ -439,7 +439,7 @@ def _resolve_object_constraints(
                         resolved_something = True
                     elif slice_dict[o][axis][b_idx] != cur_size:
                         raise Exception(
-                            f"Inconsisten grid coordinates for object: "
+                            f"Inconsistent grid coordinates for object: "
                             f"{slice_dict[o][axis][b_idx]} != {cur_size} for {axis=} {o.name} ({o.__class__}). "
                         )
             # absolute real coordinate constraints
@@ -453,7 +453,7 @@ def _resolve_object_constraints(
                         resolved_something = True
                     elif slice_dict[o][axis][b_idx] != cur_size:
                         raise Exception(
-                            f"Inconsisten grid coordinates for object: "
+                            f"Inconsistent grid coordinates for object: "
                             f"{slice_dict[o][axis][b_idx]} != {cur_size} for {axis=} {o.name} ({o.__class__}). "
                         )
             # size constraints
@@ -479,7 +479,7 @@ def _resolve_object_constraints(
                         resolved_something = True
                     elif shape_dict[o][axis] != object_shape:
                         raise Exception(
-                            "Inconsisten grid shape for object: ",
+                            "Inconsistent grid shape for object: ",
                             f"{shape_dict[o][axis]} != {object_shape} for {axis=}, {o.name} ({o.__class__}). ",
                             "Please check if there are multiple constraints or sizes specified for the object.",
                         )
@@ -521,7 +521,7 @@ def _resolve_object_constraints(
                         resolved_something = True
                     elif old_b0 != b0:
                         raise Exception(
-                            f"Inconsisten grid shape (may be due to extension to infinity) at lower bound: "
+                            f"Inconsistent grid shape (may be due to extension to infinity) at lower bound: "
                             f"{old_b0} != {b0} for {axis=}, {o.name} ({o.__class__}). "
                             f"Object has a position constraint that puts the lower boundary at {b0}, "
                             f"but the lower bound was alreay computed to be at {old_b0}. "
@@ -534,7 +534,7 @@ def _resolve_object_constraints(
                         resolved_something = True
                     elif old_b1 != b1:
                         raise Exception(
-                            f"Inconsisten grid shape (may be due to extension to infinity) at lower bound: "
+                            f"Inconsistent grid shape (may be due to extension to infinity) at lower bound: "
                             f"{old_b1} != {b1} for {axis=}, {o.name} ({o.__class__}). "
                             f"Object has a position constraint that puts the upper boundary at {b1}, "
                             f"but the lower bound was alreay computed to be at {old_b1}. "
@@ -573,7 +573,7 @@ def _resolve_object_constraints(
                     resolved_something = True
                 elif old_val != other_anchor:
                     raise Exception(
-                        f"Inconsisten grid shape at bound {c.direction}: "
+                        f"Inconsistent grid shape at bound {c.direction}: "
                         f"{old_val} != {other_anchor} for {axis=}, "
                         f"{o.name} ({o.__class__})."
                     )
