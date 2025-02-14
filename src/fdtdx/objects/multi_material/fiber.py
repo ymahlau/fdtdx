@@ -6,7 +6,7 @@ import pytreeclass as tc
 
 from fdtdx.core.config import SimulationConfig
 from fdtdx.core.plotting.colors import LIGHT_GREY
-from fdtdx.core.typing import UNDEFINED_SHAPE_3D, PartialGridShape3D, PartialRealShape3D, SliceTuple3D
+from fdtdx.core.jax.typing import UNDEFINED_SHAPE_3D, PartialGridShape3D, PartialRealShape3D, SliceTuple3D
 from fdtdx.objects.multi_material.multi_material import MultiMaterial
 
 
