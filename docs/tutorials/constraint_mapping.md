@@ -3,14 +3,14 @@
 When using inverse design with FDTDX, fabrication constraints have to be specified. The basic building block for an object optimizable by inverse design is a Device:
 
 ```python
-from fdtdx.objects.multi_material.device import Device
+from fdtdx.objects.multi_material.device import DiscreteDevice
 from fdtdx.core.physics import constants
 
 permittivity_config = {
     "Air": constants.relative_permittivity_air,
     "Polymer": constants.relative_permittivity_ma_N_1400_series,
 }
-device_scatter = Device(
+device_scatter = DiscreteDevice(
     name="Device",
     partial_real_shape=(1e-6, 1e-6, 1e-6),
     permittivity_config=permittivity_config,

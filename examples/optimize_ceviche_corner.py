@@ -30,7 +30,7 @@ from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.detectors.poynting_flux import PoyntingFluxDetector
 from fdtdx.objects.initialization import apply_params, place_objects
 from fdtdx.objects.material import SimulationVolume, Substrate, WaveGuide
-from fdtdx.objects.multi_material.device import Device
+from fdtdx.objects.multi_material.device import DiscreteDevice
 from fdtdx.objects.object import SimulationObject
 from fdtdx.objects.sources.plane_source import ModePlaneSource
 from fdtdx.shared.logger import Logger
@@ -127,7 +127,7 @@ def main(
         ),
         IndicesToInversePermittivities(),
     ]
-    device = Device(
+    device = DiscreteDevice(
         name="Device",
         partial_real_shape=(1.6e-6, 1.6e-6, height),
         permittivity_config=permittivity_config,
@@ -408,7 +408,7 @@ def main(
                 ),
             )
             new_object_list = [
-                o if not isinstance(o, Device) else o.aset("constraint_mapping", new_constraints)
+                o if not isinstance(o, DiscreteDevice) else o.aset("constraint_mapping", new_constraints)
                 for o in objects.objects
             ]
             objects = objects.aset("object_list", new_object_list)

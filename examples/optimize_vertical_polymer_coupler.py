@@ -33,7 +33,7 @@ from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.detectors.poynting_flux import PoyntingFluxDetector
 from fdtdx.objects.initialization import apply_params, place_objects
 from fdtdx.objects.material import SimulationVolume, Substrate, WaveGuide
-from fdtdx.objects.multi_material.device import Device
+from fdtdx.objects.multi_material.device import DiscreteDevice
 from fdtdx.objects.object import SimulationObject
 from fdtdx.objects.sources.plane_source import GaussianPlaneSource
 from fdtdx.shared.logger import Logger
@@ -174,7 +174,7 @@ def main(
             ]
         )
 
-    device = Device(
+    device = DiscreteDevice(
         name="Device",
         permittivity_config=permittivity_config,
         partial_real_shape=(25.0e-6, 25.0e-6, device_z),

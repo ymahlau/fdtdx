@@ -15,7 +15,7 @@ from fdtdx.interfaces.state import RecordingState
 from fdtdx.objects.boundaries.perfectly_matched_layer import BoundaryState, PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary, PeriodicBoundaryState
 from fdtdx.objects.detectors.detector import Detector, DetectorState
-from fdtdx.objects.multi_material.device import Device
+from fdtdx.objects.multi_material.device import BaseDevice
 from fdtdx.objects.object import SimulationObject
 from fdtdx.objects.sources.source import Source
 
@@ -49,15 +49,15 @@ class ObjectContainer(ExtendedTreeClass):
 
     @property
     def static_material_objects(self) -> list[SimulationObject]:
-        return [o for o in self.objects if not isinstance(o, Device)]
+        return [o for o in self.objects if not isinstance(o, BaseDevice)]
 
     @property
     def sources(self) -> list[Source]:
         return [o for o in self.objects if isinstance(o, Source)]
 
     @property
-    def devices(self) -> list[Device]:
-        return [o for o in self.objects if isinstance(o, Device)]
+    def devices(self) -> list[BaseDevice]:
+        return [o for o in self.objects if isinstance(o, BaseDevice)]
 
     @property
     def detectors(self) -> list[Detector]:
