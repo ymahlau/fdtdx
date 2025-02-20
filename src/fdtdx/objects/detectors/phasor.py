@@ -4,7 +4,6 @@ import jax
 import jax.numpy as jnp
 
 from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
-from fdtdx.core.physics import constants
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 
@@ -39,7 +38,7 @@ class PhasorDetector(Detector):
     ):
         if self.dtype not in [jnp.complex64, jnp.complex128]:
             raise Exception(f"Invalid dtype in PhasorDetector: {self.dtype}")
-            
+
         # Precompute angular frequencies for vectorization
         self._angular_frequencies = 2 * jnp.pi * jnp.array(self.frequencies)
         self._scale = self._config.time_step_duration / jnp.sqrt(2 * jnp.pi)

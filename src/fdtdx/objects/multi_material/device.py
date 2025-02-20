@@ -1,8 +1,8 @@
+from abc import ABC, abstractmethod
 from typing import Self
 
 import jax
 import jax.numpy as jnp
-from abc import ABC, abstractmethod
 
 from fdtdx.constraints.mapping import ConstraintMapping
 from fdtdx.constraints.module import (
@@ -336,7 +336,7 @@ class ContinuousDevice(BaseDevice):
             Exception: If initial_values shapes don't match required shapes
         """
         shapes = self.constraint_mapping._input_interface.shapes
-        
+
         # If initial values are provided, validate and use them
         if initial_values is not None:
             for k, s in shapes.items():
@@ -344,8 +344,7 @@ class ContinuousDevice(BaseDevice):
                     raise Exception(f"Missing initial value for parameter {k}")
                 if initial_values[k].shape != s:
                     raise Exception(
-                        f"Shape mismatch for parameter {k}: "
-                        f"expected {s}, got {initial_values[k].shape}"
+                        f"Shape mismatch for parameter {k}: " f"expected {s}, got {initial_values[k].shape}"
                     )
             return initial_values
 
@@ -384,16 +383,14 @@ class ContinuousDevice(BaseDevice):
         """
         expected_shape = self.matrix_voxel_grid_shape
         if array.shape != expected_shape:
-            raise Exception(
-                f"Array shape {array.shape} doesn't match required shape {expected_shape}"
-            )
-        
+            raise Exception(f"Array shape {array.shape} doesn't match required shape {expected_shape}")
+
         # Ensure values are in [0,1] range
         array = jnp.clip(array, 0.0, 1.0)
-        
+
         # Convert to parameter dictionary format
         params = {"out": array.astype(self._config.dtype)}
-        
+
         return params
 
     def get_inv_permittivity(
