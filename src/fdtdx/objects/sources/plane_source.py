@@ -396,11 +396,9 @@ class PlaneSource(DirectionalPlaneSourceBase, ABC):
         inv_permittivity_slice = inv_permittivities[*self.grid_slice]
 
         # Calculate time points for E and H fields
-        time_E = (time_step - 0.5 + self._time_offset_E[self.vertical_axis]) * delta_t
         time_H = (time_step - 0.5 + self._time_offset_H[self.horizontal_axis]) * delta_t
 
         # Get temporal amplitudes from profile
-        amplitude_E = self.temporal_profile.get_amplitude(time_E, self.period, self.phase_shift)
         amplitude_H = self.temporal_profile.get_amplitude(time_H, self.period, self.phase_shift)
 
         # vertical incident wave part
@@ -450,11 +448,9 @@ class PlaneSource(DirectionalPlaneSourceBase, ABC):
 
         # Calculate time points for E and H fields
         time_E = (time_step - 0.5 + self._time_offset_E[self.horizontal_axis]) * delta_t
-        time_H = (time_step - 0.5 + self._time_offset_H[self.vertical_axis]) * delta_t
 
         # Get temporal amplitudes from profile
         amplitude_E = self.temporal_profile.get_amplitude(time_E, self.period, self.phase_shift)
-        amplitude_H = self.temporal_profile.get_amplitude(time_H, self.period, self.phase_shift)
 
         # horizontal incident wave part
         E_h_inc = self._E[self.horizontal_axis] * amplitude_E
