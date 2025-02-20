@@ -307,21 +307,21 @@ class ContinuousPermittivityTransition(ConstraintModule):
             raise Exception(
                 f"ContinuousPermittivityTransition only works with exactly 2 materials, got {len(self._allowed_permittivities)}"
             )
-            
+
         result = {}
         for k, v in input_params.items():
             # Scale input to [0, 1] range for interpolation
             v_scaled = (v - v.min()) / (v.max() - v.min())
-            
+
             # Get permittivity values for interpolation
             lower_perm = self._allowed_permittivities[0]
             upper_perm = self._allowed_permittivities[1]
-            
+
             # Interpolate in permittivity domain
             interpolated_perms = (1 - v_scaled) * lower_perm + v_scaled * upper_perm
-            
+
             # Convert to inverse permittivity
             interpolated_inv_perms = 1.0 / interpolated_perms
-            
+
             result[k] = interpolated_inv_perms.astype(self._config.dtype)
         return result
