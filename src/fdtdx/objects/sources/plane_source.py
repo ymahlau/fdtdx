@@ -395,21 +395,19 @@ class PlaneSource(DirectionalPlaneSourceBase, ABC):
         delta_t = self._config.time_step_duration
         inv_permittivity_slice = inv_permittivities[*self.grid_slice]
 
+        # Calculate time points for E and H fields
+        time_H = (time_step - 0.5 + self._time_offset_H[self.horizontal_axis]) * delta_t
+
+        # Get temporal amplitudes from profile
+        amplitude_H = self.temporal_profile.get_amplitude(time_H, self.period, self.phase_shift)
+
         # vertical incident wave part
-        time_phase_H_v = (
-            2 * jnp.pi * (time_step - 0.5 + self._time_offset_H[self.vertical_axis]) * delta_t / self.period
-            + self.phase_shift
-        )
-        H_v_inc = self._H[self.vertical_axis] * jnp.cos(time_phase_H_v)
+        H_v_inc = self._H[self.vertical_axis] * amplitude_H
         H_v_inc = H_v_inc * self._config.courant_factor * inv_permittivity_slice
         H_v_inc = jax.lax.stop_gradient(H_v_inc)
 
         # horizontal incident wave part
-        time_phase_H_h = (
-            2 * jnp.pi * (time_step - 0.5 + self._time_offset_H[self.horizontal_axis]) * delta_t / self.period
-            + self.phase_shift
-        )
-        H_h_inc = self._H[self.horizontal_axis] * jnp.cos(time_phase_H_h)
+        H_h_inc = self._H[self.horizontal_axis] * amplitude_H
         H_h_inc = H_h_inc * self._config.courant_factor * inv_permittivity_slice
         H_h_inc = jax.lax.stop_gradient(H_h_inc)
 
@@ -448,21 +446,19 @@ class PlaneSource(DirectionalPlaneSourceBase, ABC):
         delta_t = self._config.time_step_duration
         inv_permeability_slice = inv_permeabilities[*self.grid_slice]
 
+        # Calculate time points for E and H fields
+        time_E = (time_step - 0.5 + self._time_offset_E[self.horizontal_axis]) * delta_t
+
+        # Get temporal amplitudes from profile
+        amplitude_E = self.temporal_profile.get_amplitude(time_E, self.period, self.phase_shift)
+
         # horizontal incident wave part
-        time_phase_E_h = (
-            2 * jnp.pi * (time_step - 0.5 + self._time_offset_E[self.horizontal_axis]) * delta_t / self.period
-            + self.phase_shift
-        )
-        E_h_inc = self._E[self.horizontal_axis] * jnp.cos(time_phase_E_h)
+        E_h_inc = self._E[self.horizontal_axis] * amplitude_E
         E_h_inc = E_h_inc * self._config.courant_factor * inv_permeability_slice
         E_h_inc = jax.lax.stop_gradient(E_h_inc)
 
         # vertical incident wave part
-        time_phase_E_v = (
-            2 * jnp.pi * (time_step - 0.5 + self._time_offset_E[self.vertical_axis]) * delta_t / self.period
-            + self.phase_shift
-        )
-        E_v_inc = self._E[self.vertical_axis] * jnp.cos(time_phase_E_v)
+        E_v_inc = self._E[self.vertical_axis] * amplitude_E
         E_v_inc = E_v_inc * self._config.courant_factor * inv_permeability_slice
         E_v_inc = jax.lax.stop_gradient(E_v_inc)
 
