@@ -4,7 +4,6 @@ import jax
 import jax.numpy as jnp
 
 from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
-from fdtdx.core.physics import constants
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 
@@ -12,21 +11,20 @@ from fdtdx.objects.detectors.detector import Detector, DetectorState
 class PhasorDetector(Detector):
     """Detector for measuring phasor components of electromagnetic fields.
 
-    This detector computes complex phasor representations of the field components,
-    enabling frequency-domain analysis of the electromagnetic fields.
+    This detector computes complex phasor representations of the field components at specified
+    frequencies, enabling frequency-domain analysis of the electromagnetic fields.
 
     Attributes:
+        frequencies: Sequence of frequencies to analyze (in Hz)
         as_slices: If True, returns results as slices rather than full volume.
         reduce_volume: If True, reduces the volume of recorded data.
-        wavelength: Wavelength of the phasor analysis in meters. Either this or
-            period_length must be specified.
         components: Sequence of field components to measure. Can include any of:
             "Ex", "Ey", "Ez", "Hx", "Hy", "Hz".
     """
 
+    frequencies: Sequence[float] = (None,)
     as_slices: bool = False
     reduce_volume: bool = False
-    wavelength: float | None = None
     components: Sequence[Literal["Ex", "Ey", "Ez", "Hx", "Hy", "Hz"]] = frozen_field(
         default=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"),
     )
@@ -41,24 +39,9 @@ class PhasorDetector(Detector):
         if self.dtype not in [jnp.complex64, jnp.complex128]:
             raise Exception(f"Invalid dtype in PhasorDetector: {self.dtype}")
 
-    @property
-    def frequency(self) -> float:
-        """Calculate the frequency for phasor analysis.
-
-        Returns:
-            float: The frequency in Hz calculated from either wavelength or period_length.
-
-        Raises:
-            Exception: If neither wavelength nor period_length is specified.
-        """
-        if self.period_length is None and self.wavelength is None:
-            raise Exception("Specify either wavelength or period_length for PhasorDetector")
-        p = self.period_length
-        if p is None:
-            if self.wavelength is None:
-                raise Exception("this should never happen")
-            p = self.wavelength / constants.c
-        return 1 / p
+        # Precompute angular frequencies for vectorization
+        self._angular_frequencies = 2 * jnp.pi * jnp.array(self.frequencies)
+        self._scale = self._config.time_step_duration / jnp.sqrt(2 * jnp.pi)
 
     def _num_latent_time_steps(self) -> int:
         """Get number of time steps needed for latent computation.
@@ -75,12 +58,13 @@ class PhasorDetector(Detector):
 
         Returns:
             dict: Dictionary with 'phasor' key mapping to a ShapeDtypeStruct containing:
-                - shape: (num_components, *grid_shape)
+                - shape: (num_frequencies, num_components, *grid_shape)
                 - dtype: Complex64 or Complex128 depending on detector's dtype
         """
         field_dtype = jnp.complex128 if self.dtype == jnp.float64 else jnp.complex64
         num_components = len(self.components)
-        phasor_shape = (num_components, *self.grid_shape)
+        num_frequencies = len(self.frequencies)
+        phasor_shape = (num_frequencies, num_components, *self.grid_shape)
         return {"phasor": jax.ShapeDtypeStruct(shape=phasor_shape, dtype=field_dtype)}
 
     def update(
@@ -94,8 +78,8 @@ class PhasorDetector(Detector):
     ) -> DetectorState:
         """Update the phasor state with current field values.
 
-        Computes the phasor representation by multiplying field components with a complex
-        exponential at the detector's frequency.
+        Computes the phasor representation by multiplying field components with complex
+        exponentials at each of the detector's frequencies.
 
         Args:
             time_step: Current simulation time step
@@ -109,12 +93,7 @@ class PhasorDetector(Detector):
             DetectorState: Updated state containing new phasor values
         """
         del inv_permeability, inv_permittivity
-        delta_t = self._config.time_step_duration
-        scale = delta_t / jnp.sqrt(2 * jnp.pi)
-        angular_frequency = 2 * jnp.pi * self.frequency
-        time_passed = time_step * delta_t
-        phase_angle = angular_frequency * time_passed
-        phasor = jnp.exp(1j * phase_angle)
+        time_passed = time_step * self._config.time_step_duration
 
         E, H = E[:, *self.grid_slice], H[:, *self.grid_slice]
         fields = []
@@ -133,10 +112,18 @@ class PhasorDetector(Detector):
 
         EH = jnp.stack(fields, axis=0)
 
-        new_phasor = EH * phasor * scale
+        # Vectorized phasor calculation for all frequencies
+        phase_angles = self._angular_frequencies[:, None] * time_passed  # Shape: (num_freqs, 1)
+        phasors = jnp.exp(1j * phase_angles)  # Shape: (num_freqs, 1)
+        new_phasors = EH[None, ...] * phasors[..., None] * self._scale  # Broadcasting handles the multiplication
+
+        if self.reduce_volume:
+            # Average over all spatial dimensions
+            spatial_axes = tuple(range(2, new_phasors.ndim))  # Skip freq and component axes
+            new_phasors = new_phasors.mean(axis=spatial_axes) if spatial_axes else new_phasors
 
         if self.inverse:
-            result = state["phasor"] - new_phasor[None, ...]
+            result = state["phasor"] - new_phasors[None, ...]
         else:
-            result = state["phasor"] + new_phasor[None, ...]
+            result = state["phasor"] + new_phasors[None, ...]
         return {"phasor": result.astype(self.dtype)}
