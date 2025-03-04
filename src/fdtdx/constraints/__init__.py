@@ -14,18 +14,18 @@ and applied during the optimization process.
 """
 
 from .discrete import (
-    RemoveFloatingMaterial, 
-    ConnectHolesAndStructures,
-    BrushConstraint2D,
     BinaryMedianFilterModule,
+    BrushConstraint2D,
+    ConnectHolesAndStructures,
+    RemoveFloatingMaterial,
 )
 from .module import (
-    StandardToInversePermittivityRange,
-    StandardToCustomRange,
-    StandardToPlusOneMinusOneRange,
     ClosestIndex,
-    IndicesToInversePermittivities,
     ContinuousPermittivityTransition,
+    IndicesToInversePermittivities,
+    StandardToCustomRange,
+    StandardToInversePermittivityRange,
+    StandardToPlusOneMinusOneRange,
 )
 from .pillars import PillarMapping
 

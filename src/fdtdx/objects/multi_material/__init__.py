@@ -13,7 +13,7 @@ The constraints are implemented as modules that can be chained together
 and applied during the optimization process.
 """
 
-from .device import DiscreteDevice, ContinuousDevice
+from .device import ContinuousDevice, DiscreteDevice
 from .fiber import Fiber
 
 __all__ = [
