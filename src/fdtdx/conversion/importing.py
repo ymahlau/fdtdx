@@ -14,7 +14,7 @@ import jax.numpy as jnp
 import trimesh
 
 
-def load_stl(
+def import_stl(
     stl: str | trimesh.Trimesh,
     permittivity: float,
     target_shape: tuple[int, int, int],

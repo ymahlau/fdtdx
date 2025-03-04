@@ -96,7 +96,7 @@ def export_stl(
     )
     vertex_shape = (d0, d1, d2)
     num_vertices = d0 * d1 * d2
-    num_voxels = math.prod(matrix.shape)
+    num_voxels = int(math.prod(matrix.shape))
 
     matrix_shape = (matrix.shape[0], matrix.shape[1], matrix.shape[2])
     x, y, z = idx_to_xyz(np.arange(num_voxels), matrix_shape)
