@@ -42,10 +42,6 @@ exclude = ["examples", "slurm"]
 [tool.ruff.lint]
 extend-select = ["I"]
 
-[tool.ruff.format]
-line-ending-comma-magic = false
-skip-magic-trailing-comma = true
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
