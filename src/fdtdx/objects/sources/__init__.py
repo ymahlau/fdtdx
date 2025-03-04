@@ -14,17 +14,16 @@ and applied during the optimization process.
 """
 
 from .plane_source import (
-    LinearlyPolarizedPlaneSource, 
-    GaussianPlaneSource, 
     ConstantAmplitudePlaneSource,
+    GaussianPlaneSource,
     HardConstantAmplitudePlanceSource,
+    LinearlyPolarizedPlaneSource,
 )
-
-from .profile import SingleFrequencyProfile, GaussianPulseProfile
+from .profile import GaussianPulseProfile, SingleFrequencyProfile
 
 __all__ = [
     "LinearlyPolarizedPlaneSource",
-    "GaussianPlaneSource", 
+    "GaussianPlaneSource",
     "ConstantAmplitudePlaneSource",
     "HardConstantAmplitudePlanceSource",
     "SingleFrequencyProfile",
