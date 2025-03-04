@@ -6,7 +6,7 @@ import jax
 import jax.numpy as jnp
 from jax.experimental import mesh_utils
 
-from fdtdx.core.physics.constants import SHARD_STR
+from fdtdx.constants import SHARD_STR
 
 
 def get_named_sharding_from_shape(

@@ -3,7 +3,7 @@ from abc import ABC
 import jax
 import pytreeclass as tc
 
-from fdtdx.core.physics import constants
+from fdtdx import constants
 from fdtdx.objects.object import SimulationObject
 
 

@@ -7,7 +7,7 @@ from loguru import logger
 from matplotlib.colors import LogNorm
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.physics import constants
+from fdtdx import constants
 from fdtdx.fdtd.fdtd import reversible_fdtd
 from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.container import ArrayContainer, ParameterContainer

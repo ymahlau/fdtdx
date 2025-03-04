@@ -11,7 +11,7 @@ from loguru import logger
 from fdtdx.constraints.mapping import ConstraintMapping
 from fdtdx.constraints.module import ClosestIndex, IndicesToInversePermittivities, StandardToInversePermittivityRange
 from fdtdx.config import GradientConfig, SimulationConfig
-from fdtdx.core.physics import constants
+from fdtdx import constants
 from fdtdx.core.physics.losses import metric_efficiency
 from fdtdx.core.plotting import colors
 from fdtdx.fdtd.backward import full_backward

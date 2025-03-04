@@ -7,7 +7,7 @@ from loguru import logger
 
 from fdtdx.fdtd import checkpointed_fdtd, full_backward
 from fdtdx.config import GradientConfig, SimulationConfig
-from fdtdx.core.physics import constants
+from fdtdx import constants
 from fdtdx.interfaces import DtypeConversion, Recorder
 from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects import ArrayContainer, ParameterContainer, SimulationVolume

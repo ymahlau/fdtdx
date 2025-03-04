@@ -21,7 +21,7 @@ from fdtdx.constraints.module import (
 )
 from fdtdx.constraints.pillars import PillarMapping
 from fdtdx.config import GradientConfig, SimulationConfig
-from fdtdx.core.physics import constants
+from fdtdx import constants
 from fdtdx.core.physics.losses import metric_efficiency
 from fdtdx.fdtd.backward import full_backward
 from fdtdx.fdtd.fdtd import checkpointed_fdtd, reversible_fdtd

@@ -8,9 +8,9 @@ import numpy as np
 import pytreeclass as tc
 from matplotlib import pyplot as plt
 
+from fdtdx import constants
 from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
 from fdtdx.core.misc import linear_interpolated_indexing
-from fdtdx.core.physics import constants
 from fdtdx.core.physics.metrics import compute_energy, normalize_by_energy
 from fdtdx.core.physics.modes import compute_modes
 from fdtdx.objects.sources.source import DirectionalPlaneSourceBase
