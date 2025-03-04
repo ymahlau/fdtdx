@@ -1,4 +1,4 @@
 # Configuration
 
-::: fdtdx.core.config.GradientConfig
-::: fdtdx.core.config.SimulationConfig
+::: fdtdx.config.GradientConfig
+::: fdtdx.config.SimulationConfig

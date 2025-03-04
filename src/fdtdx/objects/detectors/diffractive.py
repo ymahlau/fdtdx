@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 import pytreeclass as tc
 
-from fdtdx.core.physics import constants
+from fdtdx import constants
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 

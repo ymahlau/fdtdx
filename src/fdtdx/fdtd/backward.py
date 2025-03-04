@@ -4,7 +4,7 @@ from typing import Sequence
 import equinox.internal as eqxi
 import jax
 
-from fdtdx.core.config import SimulationConfig
+from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.update import add_interfaces, update_detector_states, update_E_reverse, update_H_reverse
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.container import ObjectContainer, SimulationState

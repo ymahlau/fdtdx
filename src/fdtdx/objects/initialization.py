@@ -2,7 +2,7 @@ from typing import Any, Sequence
 
 import jax
 
-from fdtdx.core.config import SimulationConfig
+from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
 from fdtdx.core.jax.typing import SliceTuple3D
 from fdtdx.objects.container import ArrayContainer, ObjectContainer, ParameterContainer

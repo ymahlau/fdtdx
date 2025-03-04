@@ -5,8 +5,8 @@ import jax
 import jax.numpy as jnp
 from loguru import logger
 
+from fdtdx import constants
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field
-from fdtdx.core.physics import constants
 from fdtdx.interfaces.recorder import Recorder
 
 

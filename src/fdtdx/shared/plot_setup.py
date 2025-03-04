@@ -3,7 +3,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch, Rectangle
 
-from fdtdx.core.config import SimulationConfig
+from fdtdx.config import SimulationConfig
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.container import ObjectContainer

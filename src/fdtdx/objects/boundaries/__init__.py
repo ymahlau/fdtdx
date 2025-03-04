@@ -12,3 +12,10 @@ Key constraints include:
 The constraints are implemented as modules that can be chained together
 and applied during the optimization process.
 """
+
+from .initialization import BoundaryConfig, boundary_objects_from_config
+
+__all__ = [
+    "BoundaryConfig",
+    "boundary_objects_from_config",
+]

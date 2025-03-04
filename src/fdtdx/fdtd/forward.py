@@ -1,6 +1,6 @@
 import jax
 
-from fdtdx.core.config import SimulationConfig
+from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.update import collect_interfaces, update_detector_states, update_E, update_H
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.objects.boundaries.perfectly_matched_layer import BoundaryState
