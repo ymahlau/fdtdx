@@ -4,9 +4,9 @@ import jax
 import jax.numpy as jnp
 from loguru import logger
 
+from fdtdx.config import SimulationConfig
 from fdtdx.constraints.module import ConstraintInterface, ConstraintModule
 from fdtdx.constraints.utils import compute_allowed_indices, nearest_index
-from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, frozen_private_field
 from fdtdx.core.jax.ste import straight_through_estimator
 from fdtdx.core.misc import get_air_name

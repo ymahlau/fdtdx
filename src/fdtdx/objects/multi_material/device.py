@@ -4,13 +4,13 @@ from typing import Self
 import jax
 import jax.numpy as jnp
 
+from fdtdx.config import SimulationConfig
 from fdtdx.constraints.mapping import ConstraintMapping
 from fdtdx.constraints.module import (
     ConstraintInterface,
     ContinuousPermittivityTransition,
     StandardToInversePermittivityRange,
 )
-from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
 from fdtdx.core.jax.typing import SliceTuple3D
 from fdtdx.core.misc import expand_matrix
