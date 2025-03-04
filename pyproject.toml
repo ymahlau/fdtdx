@@ -23,7 +23,6 @@ dependencies = [
     "matplotlib>=3.9.4",
     "rich>=13.9.4",
     "zstandard>=0.23.0",
-    "gdspy>=1.6.13",
 ]
 
 [project.urls]
@@ -42,6 +41,10 @@ exclude = ["examples", "slurm"]
 
 [tool.ruff.lint]
 extend-select = ["I"]
+
+[tool.ruff.format]
+line-ending-comma-magic = false
+skip-magic-trailing-comma = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

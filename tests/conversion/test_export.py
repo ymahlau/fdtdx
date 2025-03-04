@@ -17,7 +17,7 @@ def test_arr_to_gds():
         ],
     ]).astype(bool)
     
-    mesh = export_stl(arr, "example.stl")
+    mesh = export_stl(arr)
     assert mesh.vertices.shape == (20, 3)
     
     
