@@ -8,10 +8,16 @@ method for electromagnetic wave propagation, including:
 - Custom forward FDTD that allows customizing the propagation behavior
 """
 
-from fdtdx.fdtd.fdtd import checkpointed_fdtd, custom_fdtd_forward, reversible_fdtd
+from fdtdx.fdtd.backward import full_backward
+from fdtdx.fdtd.fdtd import (
+    checkpointed_fdtd,
+    custom_fdtd_forward,
+    reversible_fdtd,
+)
 
 __all__ = [
     "reversible_fdtd",  # Time-reversible FDTD implementation
     "checkpointed_fdtd",  # FDTD with field state checkpointing
     "custom_fdtd_forward",  # Customizable FDTD forward propagation
+    "full_backward",
 ]

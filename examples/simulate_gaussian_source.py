@@ -5,18 +5,15 @@ import jax.numpy as jnp
 import pytreeclass as tc
 from loguru import logger
 
+from fdtdx.fdtd import checkpointed_fdtd, full_backward
 from fdtdx.core.config import GradientConfig, SimulationConfig
 from fdtdx.core.physics import constants
-from fdtdx.fdtd.backward import full_backward
-from fdtdx.fdtd.fdtd import checkpointed_fdtd
-from fdtdx.interfaces.modules import DtypeConversion
-from fdtdx.interfaces.recorder import Recorder
-from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
-from fdtdx.objects.container import ArrayContainer, ParameterContainer
-from fdtdx.objects.detectors.energy import EnergyDetector
+from fdtdx.interfaces import DtypeConversion, Recorder
+from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
+from fdtdx.objects import ArrayContainer, ParameterContainer, SimulationVolume
+from fdtdx.objects.detectors import EnergyDetector
 from fdtdx.objects.initialization import apply_params, place_objects
-from fdtdx.objects.material import SimulationVolume
-from fdtdx.objects.sources.plane_source import GaussianPlaneSource
+from fdtdx.objects.sources import GaussianPlaneSource
 from fdtdx.shared.logger import Logger
 from fdtdx.shared.plot_setup import plot_setup
 
