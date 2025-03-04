@@ -12,3 +12,33 @@ Key constraints include:
 The constraints are implemented as modules that can be chained together
 and applied during the optimization process.
 """
+
+from .discrete import (
+    RemoveFloatingMaterial, 
+    ConnectHolesAndStructures,
+    BrushConstraint2D,
+    BinaryMedianFilterModule,
+)
+from .module import (
+    StandardToInversePermittivityRange,
+    StandardToCustomRange,
+    StandardToPlusOneMinusOneRange,
+    ClosestIndex,
+    IndicesToInversePermittivities,
+    ContinuousPermittivityTransition,
+)
+from .pillars import PillarMapping
+
+__all__ = [
+    "RemoveFloatingMaterial",
+    "ConnectHolesAndStructures",
+    "BrushConstraint2D",
+    "BinaryMedianFilterModule",
+    "StandardToInversePermittivityRange",
+    "StandardToCustomRange",
+    "StandardToPlusOneMinusOneRange",
+    "ClosestIndex",
+    "IndicesToInversePermittivities",
+    "ContinuousPermittivityTransition",
+    "PillarMapping",
+]
