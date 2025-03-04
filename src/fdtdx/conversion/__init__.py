@@ -14,5 +14,4 @@ and applied during the optimization process.
 """
 
 from .export import export_stl
-from .importing import import_stl
-__all__ = ['export_stl', 'import_stl']
+__all__ = ['export_stl']

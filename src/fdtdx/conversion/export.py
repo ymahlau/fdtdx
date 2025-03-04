@@ -69,9 +69,9 @@ def xyz_to_idx(
 
 def export_stl(
     matrix: np.ndarray,
-    stl_filename: Path | str,
+    stl_filename: Path | str | None = None,
     voxel_grid_size: tuple[int, int, int] = (1, 1, 1),
-):
+) -> trimesh.Trimesh:
     """Export a 3D boolean matrix to an STL file.
 
     Converts a 3D boolean matrix into a mesh representation and saves it as an STL file.
@@ -166,4 +166,6 @@ def export_stl(
         faces=faces,
         validate=False,
     )
-    mesh.export(stl_filename)
+    if stl_filename is not None:
+        mesh.export(stl_filename)
+    return mesh
