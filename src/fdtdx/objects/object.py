@@ -280,35 +280,15 @@ class SimulationObject(ExtendedTreeClass, ABC):
             PositionConstraint: Positional constraint between this object and the other
         """
         if isinstance(axes, int):
-            axes = tuple(
-                [
-                    axes,
-                ]
-            )
+            axes = (axes,)
         if isinstance(own_positions, int | float):
-            own_positions = tuple(
-                [
-                    float(own_positions),
-                ]
-            )
+            own_positions = (float(own_positions),)
         if isinstance(other_positions, int | float):
-            other_positions = tuple(
-                [
-                    float(other_positions),
-                ]
-            )
+            other_positions = (float(other_positions),)
         if isinstance(margins, int | float):
-            margins = tuple(
-                [
-                    float(margins),
-                ]
-            )
+            margins = (float(margins),)
         if isinstance(grid_margins, int):
-            grid_margins = tuple(
-                [
-                    grid_margins,
-                ]
-            )
+            grid_margins = (grid_margins,)
         if margins is None:
             margins = tuple([0 for _ in axes])
         if grid_margins is None:
@@ -359,35 +339,15 @@ class SimulationObject(ExtendedTreeClass, ABC):
             SizeConstraint: Size constraint between this object and the other
         """
         if isinstance(axes, int):
-            axes = tuple(
-                [
-                    axes,
-                ]
-            )
+            axes = (axes,)
         if isinstance(other_axes, int):
-            other_axes = tuple(
-                [
-                    other_axes,
-                ]
-            )
+            other_axes = (other_axes,)
         if isinstance(proportions, int | float):
-            proportions = tuple(
-                [
-                    float(proportions),
-                ]
-            )
+            proportions = (float(proportions),)
         if isinstance(offsets, int | float):
-            offsets = tuple(
-                [
-                    float(offsets),
-                ]
-            )
+            offsets = (offsets,)
         if isinstance(grid_offsets, int):
-            grid_offsets = tuple(
-                [
-                    grid_offsets,
-                ]
-            )
+            grid_offsets = (grid_offsets,)
         if offsets is None:
             offsets = tuple([0 for _ in axes])
         if grid_offsets is None:
@@ -432,11 +392,7 @@ class SimulationObject(ExtendedTreeClass, ABC):
             SizeConstraint: Size constraint ensuring equal sizes between objects
         """
         if isinstance(axes, int):
-            axes = tuple(
-                [
-                    axes,
-                ]
-            )
+            axes = (axes,)
         proportions = tuple([1 for _ in axes])
         constraint = self.size_relative_to(
             other=other,
@@ -474,23 +430,7 @@ class SimulationObject(ExtendedTreeClass, ABC):
             PositionConstraint: Position constraint centering objects relative to each other
         """
         if isinstance(axes, int):
-            axes = tuple(
-                [
-                    axes,
-                ]
-            )
-        if isinstance(own_positions, int | float):
-            own_positions = tuple(
-                [
-                    float(own_positions),
-                ]
-            )
-        if isinstance(other_positions, int | float):
-            other_positions = tuple(
-                [
-                    float(other_positions),
-                ]
-            )
+            axes = (axes,)
         if own_positions is None:
             own_positions = tuple([0 for _ in axes])
         if other_positions is None:
@@ -553,11 +493,7 @@ class SimulationObject(ExtendedTreeClass, ABC):
             PositionConstraint: Position constraint aligning objects face-to-face in positive direction
         """
         if isinstance(axes, int):
-            axes = tuple(
-                [
-                    axes,
-                ]
-            )
+            axes = (axes,)
         own_positions = tuple([-1 for _ in axes])
         other_positions = tuple([1 for _ in axes])
         constraint = self.place_relative_to(
@@ -592,11 +528,7 @@ class SimulationObject(ExtendedTreeClass, ABC):
             PositionConstraint: Position constraint aligning objects face-to-face in negative direction
         """
         if isinstance(axes, int):
-            axes = tuple(
-                [
-                    axes,
-                ]
-            )
+            axes = (axes,)
         own_positions = tuple([1 for _ in axes])
         other_positions = tuple([-1 for _ in axes])
         constraint = self.place_relative_to(
@@ -681,19 +613,11 @@ class SimulationObject(ExtendedTreeClass, ABC):
             GridCoordinateConstraint: Constraint forcing alignment with specific grid coordinates
         """
         if isinstance(axes, int):
-            axes = tuple(
-                [
-                    axes,
-                ]
-            )
+            axes = (axes,)
         if isinstance(sides, str):
             sides = (sides,)
         if isinstance(coordinates, int):
-            coordinates = tuple(
-                [
-                    coordinates,
-                ]
-            )
+            coordinates = (coordinates,)
         if len(axes) != len(sides) or len(axes) != len(coordinates):
             raise Exception("All inputs need to have the same lengths!")
         return GridCoordinateConstraint(
@@ -723,19 +647,11 @@ class SimulationObject(ExtendedTreeClass, ABC):
             RealCoordinateConstraint: Constraint forcing alignment with specific real-space coordinates
         """
         if isinstance(axes, int):
-            axes = tuple(
-                [
-                    axes,
-                ]
-            )
+            axes = (axes,)
         if isinstance(sides, str):
             sides = (sides,)
         if isinstance(coordinates, int | float):
-            coordinates = tuple(
-                [
-                    float(coordinates),
-                ]
-            )
+            coordinates = (float(coordinates),)
         if len(axes) != len(sides) or len(axes) != len(coordinates):
             raise Exception("All inputs need to have the same lengths!")
         return RealCoordinateConstraint(

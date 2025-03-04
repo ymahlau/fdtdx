@@ -12,3 +12,7 @@ Key constraints include:
 The constraints are implemented as modules that can be chained together
 and applied during the optimization process.
 """
+
+from .export import export_stl
+
+__all__ = ["export_stl"]
