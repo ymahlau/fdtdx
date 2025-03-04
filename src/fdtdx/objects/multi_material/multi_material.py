@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 import pytreeclass as tc
 
-from fdtdx.core.config import SimulationConfig
+from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.typing import (
     INVALID_SHAPE_3D,
     UNDEFINED_SHAPE_3D,

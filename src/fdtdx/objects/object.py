@@ -6,7 +6,7 @@ from typing import Literal, Optional, Self
 import jax
 import pytreeclass as tc
 
-from fdtdx.core.config import DUMMY_SIMULATION_CONFIG, SimulationConfig
+from fdtdx.config import DUMMY_SIMULATION_CONFIG, SimulationConfig
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field, frozen_private_field
 from fdtdx.core.jax.typing import (
     INVALID_SLICE_TUPLE_3D,

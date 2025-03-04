@@ -10,7 +10,7 @@ from fdtdx.constraints.module import (
     ContinuousPermittivityTransition,
     StandardToInversePermittivityRange,
 )
-from fdtdx.core.config import SimulationConfig
+from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
 from fdtdx.core.jax.typing import SliceTuple3D
 from fdtdx.core.misc import expand_matrix

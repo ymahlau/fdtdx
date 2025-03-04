@@ -18,7 +18,7 @@ from rich.markup import escape
 from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn
 from rich.table import Table
 
-from fdtdx.core.conversion.export import export_stl as export_stl_fn
+from fdtdx.conversion import export_stl as export_stl_fn
 from fdtdx.core.misc import cast_floating_to_numpy
 from fdtdx.core.plotting.device_permittivity_index_utils import device_matrix_index_figure
 from fdtdx.objects.container import ObjectContainer, ParameterContainer

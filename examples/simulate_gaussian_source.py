@@ -6,7 +6,7 @@ import pytreeclass as tc
 from loguru import logger
 
 from fdtdx.fdtd import checkpointed_fdtd, full_backward
-from fdtdx.core.config import GradientConfig, SimulationConfig
+from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.core.physics import constants
 from fdtdx.interfaces import DtypeConversion, Recorder
 from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config

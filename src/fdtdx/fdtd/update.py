@@ -1,7 +1,7 @@
 import jax
 import pytreeclass as tc
 
-from fdtdx.core.config import SimulationConfig
+from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.curl import curl_E, curl_H, interpolate_fields
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.container import ArrayContainer, ObjectContainer

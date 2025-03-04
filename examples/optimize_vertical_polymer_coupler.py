@@ -20,7 +20,7 @@ from fdtdx.constraints.module import (
     StandardToInversePermittivityRange,
 )
 from fdtdx.constraints.pillars import PillarMapping
-from fdtdx.core.config import GradientConfig, SimulationConfig
+from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.core.physics import constants
 from fdtdx.core.physics.losses import metric_efficiency
 from fdtdx.fdtd.backward import full_backward

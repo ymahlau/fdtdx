@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 import pytreeclass as tc
 
-from fdtdx.core.config import SimulationConfig
+from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.typing import UNDEFINED_SHAPE_3D, PartialGridShape3D, PartialRealShape3D, SliceTuple3D
 from fdtdx.core.plotting.colors import LIGHT_GREY
 from fdtdx.objects.multi_material.multi_material import MultiMaterial

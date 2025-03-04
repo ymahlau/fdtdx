@@ -3,7 +3,7 @@ from typing import Self, Sequence
 import jax
 
 from fdtdx.constraints.module import ConstraintInterface, ConstraintModule, check_interface_compliance
-from fdtdx.core.config import SimulationConfig
+from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field, frozen_private_field
 
 

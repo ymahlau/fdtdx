@@ -8,7 +8,7 @@ import jax.numpy as jnp
 import pytreeclass as tc
 from jax.experimental import io_callback
 
-from fdtdx.core.config import SimulationConfig
+from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
 from fdtdx.core.jax.typing import UNDEFINED_SHAPE_3D, PartialGridShape3D, PartialRealShape3D, SliceTuple3D
 from fdtdx.core.plotting.colors import PINK

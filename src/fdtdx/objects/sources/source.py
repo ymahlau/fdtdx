@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 import pytreeclass as tc
 
-from fdtdx.core.config import SimulationConfig
+from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.typing import SliceTuple3D
 from fdtdx.core.misc import is_on_at_time_step
 from fdtdx.core.plotting.colors import ORANGE

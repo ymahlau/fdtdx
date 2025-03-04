@@ -4,7 +4,7 @@ import equinox.internal as eqxi
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.config import SimulationConfig
+from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.backward import backward
 from fdtdx.fdtd.forward import forward, forward_single_args_wrapper
 from fdtdx.interfaces.state import RecordingState
