@@ -2,15 +2,15 @@ from typing import Literal
 
 import jax
 import jax.numpy as jnp
-import pytreeclass as tc
 
+from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
 from fdtdx.core.jax.typing import GridShape3D, Slice3D, SliceTuple3D
 from fdtdx.core.plotting.colors import LIGHT_BLUE
-from fdtdx.objects.material import NoMaterial
+from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState
 
 
-@tc.autoinit
-class PeriodicBoundaryState(tc.TreeClass):
+@extended_autoinit
+class PeriodicBoundaryState(BaseBoundaryState):
     """State container for periodic boundary conditions.
 
     Stores the field values at the opposite boundary for periodic wrapping.
@@ -24,8 +24,8 @@ class PeriodicBoundaryState(tc.TreeClass):
     H_opposite: jax.Array
 
 
-@tc.autoinit
-class PeriodicBoundary(NoMaterial):
+@extended_autoinit
+class PeriodicBoundary(BaseBoundary):
     """Implements periodic boundary conditions.
 
     The periodic boundary connects opposite sides of the simulation domain,
@@ -37,13 +37,8 @@ class PeriodicBoundary(NoMaterial):
         color: RGB color tuple for visualization
     """
 
-    axis: int = tc.field(init=True, kind="KW_ONLY")  # type: ignore
-    direction: Literal["+", "-"] = tc.field(  # type: ignore
-        init=True,
-        kind="KW_ONLY",
-        on_getattr=[tc.unfreeze],
-        on_setattr=[tc.freeze],
-    )
+    axis: int = field(kind="KW_ONLY")
+    direction: Literal["+", "-"] = frozen_field(kind="KW_ONLY")  # type: ignore
     color: tuple[float, float, float] = LIGHT_BLUE
 
     @property

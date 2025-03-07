@@ -12,8 +12,9 @@ import pytreeclass as tc
 
 from fdtdx.core.jax.pytrees import ExtendedTreeClass
 from fdtdx.interfaces.state import RecordingState
-from fdtdx.objects.boundaries.perfectly_matched_layer import BoundaryState, PerfectlyMatchedLayer
-from fdtdx.objects.boundaries.periodic import PeriodicBoundary, PeriodicBoundaryState
+from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState
+from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
+from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 from fdtdx.objects.multi_material.device import BaseDevice
 from fdtdx.objects.object import SimulationObject
@@ -80,7 +81,7 @@ class ObjectContainer(ExtendedTreeClass):
         return [o for o in self.objects if isinstance(o, PeriodicBoundary)]
 
     @property
-    def boundary_objects(self) -> list[PerfectlyMatchedLayer | PeriodicBoundary]:
+    def boundary_objects(self) -> list[BaseBoundary]:
         return [o for o in self.objects if isinstance(o, (PerfectlyMatchedLayer, PeriodicBoundary))]
 
     def __iter__(self):
@@ -126,7 +127,7 @@ class ArrayContainer(ExtendedTreeClass):
     H: jax.Array
     inv_permittivities: jax.Array
     inv_permeabilities: jax.Array
-    boundary_states: dict[str, BoundaryState | PeriodicBoundaryState]
+    boundary_states: dict[str, BaseBoundaryState]
     detector_states: dict[str, DetectorState]
     recording_state: RecordingState | None
 

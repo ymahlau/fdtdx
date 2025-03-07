@@ -7,34 +7,26 @@ import optax
 import pytreeclass as tc
 from loguru import logger
 
-from fdtdx.constraints.discrete import BrushConstraint2D, circular_brush
-from fdtdx.constraints.mapping import ConstraintMapping
-from fdtdx.constraints.module import (
+from fdtdx.constraints import (
     ClosestIndex,
     ConstraintInterface,
     IndicesToInversePermittivities,
     StandardToInversePermittivityRange,
     StandardToPlusOneMinusOneRange,
+    ConstraintMapping,
+    BrushConstraint2D,
+    circular_brush,
 )
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx import constants
-from fdtdx.core.physics.losses import metric_efficiency
-from fdtdx.fdtd.backward import full_backward
-from fdtdx.fdtd.fdtd import reversible_fdtd
-from fdtdx.interfaces.modules import DtypeConversion
-from fdtdx.interfaces.recorder import Recorder
-from fdtdx.interfaces.time_filter import LinearReconstructEveryK
-from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
-from fdtdx.objects.container import ArrayContainer, ParameterContainer
-from fdtdx.objects.detectors.energy import EnergyDetector
-from fdtdx.objects.detectors.poynting_flux import PoyntingFluxDetector
-from fdtdx.objects.initialization import apply_params, place_objects
-from fdtdx.objects.material import SimulationVolume, Substrate, WaveGuide
-from fdtdx.objects.multi_material.device import DiscreteDevice
-from fdtdx.objects.object import SimulationObject
-from fdtdx.objects.sources.plane_source import ModePlaneSource
-from fdtdx.shared.logger import Logger
-from fdtdx.shared.plot_setup import plot_setup
+from fdtdx.fdtd import full_backward, reversible_fdtd, ArrayContainer, ParameterContainer, apply_params, place_objects
+from fdtdx.interfaces import DtypeConversion, Recorder, LinearReconstructEveryK
+from fdtdx.objects import SimulationVolume, Substrate, WaveGuide, SimulationObject
+from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
+from fdtdx.objects.detectors import EnergyDetector, PoyntingFluxDetector
+from fdtdx.objects.multi_material import DiscreteDevice
+from fdtdx.objects.sources import ModePlaneSource
+from fdtdx.utils import metric_efficiency, Logger, plot_setup
 
 
 def main(

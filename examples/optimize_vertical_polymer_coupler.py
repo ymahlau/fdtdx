@@ -11,33 +11,34 @@ import optax
 import pytreeclass as tc
 from loguru import logger
 
-from fdtdx.constraints.discrete import ConnectHolesAndStructures
-from fdtdx.constraints.mapping import ConstraintMapping
-from fdtdx.constraints.module import (
+from fdtdx.constraints import (
     ClosestIndex,
     ConstraintModule,
     IndicesToInversePermittivities,
     StandardToInversePermittivityRange,
+    ConnectHolesAndStructures,
+    ConstraintMapping,
+    PillarMapping,
 )
-from fdtdx.constraints.pillars import PillarMapping
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx import constants
-from fdtdx.core.physics.losses import metric_efficiency
-from fdtdx.fdtd.backward import full_backward
-from fdtdx.fdtd.fdtd import checkpointed_fdtd, reversible_fdtd
-from fdtdx.interfaces.modules import DtypeConversion
-from fdtdx.interfaces.recorder import Recorder
-from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
-from fdtdx.objects.container import ArrayContainer, ParameterContainer
-from fdtdx.objects.detectors.energy import EnergyDetector
-from fdtdx.objects.detectors.poynting_flux import PoyntingFluxDetector
-from fdtdx.objects.initialization import apply_params, place_objects
+from fdtdx.fdtd import (
+    checkpointed_fdtd, 
+    reversible_fdtd, 
+    apply_params, 
+    place_objects, 
+    full_backward, 
+    ArrayContainer, 
+    ParameterContainer
+)
+from fdtdx.interfaces import DtypeConversion, Recorder
+from fdtdx.objects import SimulationObject
+from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
+from fdtdx.objects.detectors import EnergyDetector, PoyntingFluxDetector
 from fdtdx.objects.material import SimulationVolume, Substrate, WaveGuide
-from fdtdx.objects.multi_material.device import DiscreteDevice
-from fdtdx.objects.object import SimulationObject
-from fdtdx.objects.sources.plane_source import GaussianPlaneSource
-from fdtdx.shared.logger import Logger
-from fdtdx.shared.plot_setup import plot_setup
+from fdtdx.objects.multi_material import DiscreteDevice
+from fdtdx.objects.sources import GaussianPlaneSource
+from fdtdx.utils import metric_efficiency, Logger, plot_setup
 
 
 def str2bool(v):

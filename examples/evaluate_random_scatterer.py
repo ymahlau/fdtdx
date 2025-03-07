@@ -10,16 +10,16 @@ from fdtdx.config import SimulationConfig
 from fdtdx import constants
 from fdtdx.fdtd.fdtd import reversible_fdtd
 from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
-from fdtdx.objects.container import ArrayContainer, ParameterContainer
+from fdtdx.fdtd.container import ArrayContainer, ParameterContainer
 from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.detectors.phasor import PhasorDetector
-from fdtdx.objects.initialization import apply_params, place_objects
+from fdtdx.fdtd.initialization import apply_params, place_objects
 from fdtdx.objects.material import SimulationVolume
 from fdtdx.objects.multi_material.random_scatterer import RandomScatterer
 from fdtdx.objects.object import SimulationObject
 from fdtdx.objects.sources.plane_source import HardConstantAmplitudePlanceSource
-from fdtdx.shared.logger import Logger
-from fdtdx.shared.plot_setup import plot_setup
+from fdtdx.utils.logger import Logger
+from fdtdx.utils.plot_setup import plot_setup
 
 
 def main(seed: int = 42):
@@ -110,7 +110,7 @@ def main(seed: int = 42):
     detector_phasor = PhasorDetector(
         name="Phasor",
         partial_real_shape=(None, None, None),
-        wavelength=wavelength,
+        wavelength=(wavelength,),
         components=["Ex", "Ey", "Ez"],
     )
     placement_constraints.extend(

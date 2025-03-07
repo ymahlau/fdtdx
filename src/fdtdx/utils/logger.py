@@ -21,8 +21,9 @@ from rich.table import Table
 from fdtdx.conversion import export_stl as export_stl_fn
 from fdtdx.core.misc import cast_floating_to_numpy
 from fdtdx.core.plotting.device_permittivity_index_utils import device_matrix_index_figure
-from fdtdx.objects.container import ObjectContainer, ParameterContainer
+from fdtdx.fdtd.container import ObjectContainer, ParameterContainer
 from fdtdx.objects.detectors.detector import DetectorState
+from fdtdx.objects.multi_material.device import DiscreteDevice
 
 
 def init_working_directory(experiment_name: str, wd_name: str | None) -> Path:
@@ -270,6 +271,8 @@ class Logger:
         """
         changed_voxels = 0
         for device in objects.devices:
+            if not isinstance(device, DiscreteDevice):
+                continue
             device_params = params[device.name]
             indices = device.get_indices(device_params)
 

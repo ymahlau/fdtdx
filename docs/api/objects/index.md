@@ -4,8 +4,6 @@ This section documents the core simulation objects and their management in the p
 
 ## Contents
 
-- [Containers](containers.md) - Object and array containers for simulation management
 - [Base Classes](base.md) - Core object classes and positioning constraints
 - [Materials](materials.md) - Material definitions and properties
-- [Initialization](initialization.md) - Object placement and initialization
 - [Sources](sources.md) - Source objects for inducing light into a simulation

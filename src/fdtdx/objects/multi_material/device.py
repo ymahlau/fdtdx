@@ -11,7 +11,7 @@ from fdtdx.constraints.module import (
     ContinuousPermittivityTransition,
     StandardToInversePermittivityRange,
 )
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
+from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, frozen_private_field
 from fdtdx.core.jax.typing import SliceTuple3D
 from fdtdx.core.misc import expand_matrix
 from fdtdx.core.plotting.colors import PINK
@@ -266,12 +266,8 @@ class ContinuousDevice(BaseDevice):
         color: RGB color tuple for visualization, defaults to pink
     """
 
-    name: str = frozen_field(default=None, kind="KW_ONLY")  # type: ignore
-    dtype: jnp.dtype = frozen_field(
-        default=jnp.float32,
-        kind="KW_ONLY",
-    )
     color: tuple[float, float, float] = frozen_field(default=PINK)
+    constraint_mapping: ConstraintMapping = frozen_private_field()
 
     def place_on_grid(
         self: Self,

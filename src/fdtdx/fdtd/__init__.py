@@ -9,15 +9,23 @@ method for electromagnetic wave propagation, including:
 """
 
 from fdtdx.fdtd.backward import full_backward
+from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, ParameterContainer, SimulationState
 from fdtdx.fdtd.fdtd import (
     checkpointed_fdtd,
     custom_fdtd_forward,
     reversible_fdtd,
 )
+from fdtdx.fdtd.initialization import apply_params, place_objects
 
 __all__ = [
     "reversible_fdtd",  # Time-reversible FDTD implementation
     "checkpointed_fdtd",  # FDTD with field state checkpointing
     "custom_fdtd_forward",  # Customizable FDTD forward propagation
     "full_backward",
+    "ArrayContainer",
+    "ParameterContainer",
+    "ObjectContainer",
+    "SimulationState",
+    "apply_params",
+    "place_objects",
 ]

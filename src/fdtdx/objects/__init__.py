@@ -13,28 +13,18 @@ The objects module enables intuitive positioning and sizing of elements in absol
 or relative coordinates within the simulation scene, with automatic constraint resolution.
 """
 
-from .container import (
-    ArrayContainer,
-    ObjectContainer,
-    ParameterContainer,
-    SimulationState,
-)
-from .initialization import place_objects
 from .material import (
     SimulationVolume,
     Substrate,
     UniformMaterial,
     WaveGuide,
 )
+from .object import SimulationObject
 
 __all__ = [
     "SimulationVolume",
     "UniformMaterial",
     "Substrate",
     "WaveGuide",
-    "place_objects",
-    "ParameterContainer",
-    "SimulationState",
-    "ArrayContainer",
-    "ObjectContainer",
+    "SimulationObject",
 ]

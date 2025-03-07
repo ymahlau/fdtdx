@@ -18,6 +18,7 @@ from .plane_source import (
     GaussianPlaneSource,
     HardConstantAmplitudePlanceSource,
     LinearlyPolarizedPlaneSource,
+    ModePlaneSource,
 )
 from .profile import GaussianPulseProfile, SingleFrequencyProfile
 
@@ -28,4 +29,5 @@ __all__ = [
     "HardConstantAmplitudePlanceSource",
     "SingleFrequencyProfile",
     "GaussianPulseProfile",
+    "ModePlaneSource",
 ]

@@ -5,9 +5,9 @@ import equinox.internal as eqxi
 import jax
 
 from fdtdx.config import SimulationConfig
+from fdtdx.fdtd.container import ObjectContainer, SimulationState
 from fdtdx.fdtd.update import add_interfaces, update_detector_states, update_E_reverse, update_H_reverse
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
-from fdtdx.objects.container import ObjectContainer, SimulationState
 
 
 def cond_fn(state, start_time_step: int) -> bool:

@@ -12,6 +12,7 @@ scripts/configs/run_config.yaml
 *.jsonl
 .aider*
 .DS_Store
+*.typed
 .cursorignore
 site
 

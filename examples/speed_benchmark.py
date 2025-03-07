@@ -14,25 +14,24 @@ import jax.profiler
 import pytreeclass as tc
 from loguru import logger
 
-from fdtdx.constraints.mapping import ConstraintMapping
-from fdtdx.constraints.module import ClosestIndex, IndicesToInversePermittivities, StandardToInversePermittivityRange
+from fdtdx.constraints import (
+    ClosestIndex, 
+    IndicesToInversePermittivities, 
+    StandardToInversePermittivityRange,
+    ConstraintMapping,
+)
 from fdtdx import constants
 from fdtdx.config import GradientConfig, SimulationConfig
-from fdtdx.core.physics.losses import metric_efficiency
 from fdtdx.core.plotting import colors
-from fdtdx.fdtd.fdtd import custom_fdtd_forward
+from fdtdx.fdtd import custom_fdtd_forward, ArrayContainer, apply_params, place_objects
 from fdtdx.interfaces.recorder import Recorder
 from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
-from fdtdx.objects.container import ArrayContainer
-from fdtdx.objects.detectors.energy import EnergyDetector
-from fdtdx.objects.detectors.poynting_flux import PoyntingFluxDetector
-from fdtdx.objects.initialization import apply_params, place_objects
-from fdtdx.objects.material import SimulationVolume, Substrate, WaveGuide
-from fdtdx.objects.multi_material.device import DiscreteDevice
-from fdtdx.objects.object import SimulationObject
-from fdtdx.objects.sources.plane_source import ConstantAmplitudePlaneSource
-from fdtdx.shared.logger import Logger
-from fdtdx.shared.plot_setup import plot_setup
+from fdtdx.objects import SimulationObject, SimulationVolume, Substrate, WaveGuide
+from fdtdx.objects.detectors import EnergyDetector, PoyntingFluxDetector
+from fdtdx.objects.multi_material import DiscreteDevice
+from fdtdx.objects.sources import ConstantAmplitudePlaneSource
+from fdtdx.utils import metric_efficiency, Logger, plot_setup
+
 
 # Design of Shen et al.: https://opg.optica.org/oe/fulltext.cfm?uri=oe-22-22-27175&id=303419
 # Note that we are unable to reproduce the reported efficiency of their coupling device.
