@@ -13,6 +13,7 @@ The constraints are implemented as modules that can be chained together
 and applied during the optimization process.
 """
 
+from .diffractive import DiffractiveDetector
 from .energy import EnergyDetector
 from .phasor import PhasorDetector
 from .poynting_flux import PoyntingFluxDetector
@@ -21,4 +22,5 @@ __all__ = [
     "EnergyDetector",
     "PhasorDetector",
     "PoyntingFluxDetector",
+    "DiffractiveDetector",
 ]
