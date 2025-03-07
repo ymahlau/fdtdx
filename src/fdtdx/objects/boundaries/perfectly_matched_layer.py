@@ -66,8 +66,8 @@ class PerfectlyMatchedLayer(BaseBoundary):
         color: RGB color tuple for visualization
     """
 
-    axis: int = field()
-    direction: Literal["+", "-"] = frozen_field()  # type: ignore
+    axis: int = field(kind="KW_ONLY")
+    direction: Literal["+", "-"] = frozen_field(kind="KW_ONLY")  # type: ignore
     alpha: float = 1.0e-8
     kappa_start: float = 1.0
     kappa_end: float = 1.5
