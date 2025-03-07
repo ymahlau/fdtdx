@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit
 from fdtdx.objects.material import NoMaterial
 
@@ -10,7 +11,6 @@ class BaseBoundaryState(ExtendedTreeClass):
 
 @extended_autoinit
 class BaseBoundary(NoMaterial, ABC):
-    
     @abstractmethod
     def init_state(
         self,
@@ -18,8 +18,5 @@ class BaseBoundary(NoMaterial, ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def reset_state(
-        self, 
-        state: BaseBoundaryState
-    ) -> BaseBoundaryState:
+    def reset_state(self, state: BaseBoundaryState) -> BaseBoundaryState:
         raise NotImplementedError()

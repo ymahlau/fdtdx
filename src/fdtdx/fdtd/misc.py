@@ -2,8 +2,8 @@ from typing import Sequence
 
 import jax
 
-from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.fdtd.container import ArrayContainer
+from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 
 
 def collect_boundary_interfaces(
