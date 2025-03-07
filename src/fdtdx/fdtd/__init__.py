@@ -9,7 +9,7 @@ method for electromagnetic wave propagation, including:
 """
 
 from fdtdx.fdtd.backward import full_backward
-from fdtdx.fdtd.container import ArrayContainer, ParameterContainer, ObjectContainer, SimulationState
+from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, ParameterContainer, SimulationState
 from fdtdx.fdtd.fdtd import (
     checkpointed_fdtd,
     custom_fdtd_forward,

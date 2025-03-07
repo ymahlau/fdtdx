@@ -1,12 +1,10 @@
 import itertools
 import math
-from functools import partial
 from typing import Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-from matfree import eig
 
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field
 
@@ -264,124 +262,6 @@ def batched_diag_construct(arr: jax.Array):
     result = jax.vmap(_map_fn)(arr.reshape(-1, arr.shape[-1]))
     result_reshaped = result.reshape(*arr.shape[:-1], arr.shape[-1], arr.shape[-1])
     return result_reshaped
-
-
-@partial(jax.jit, static_argnames=["use_lanczos", "lanczos_factor", "index"])
-def safe_svd(
-    arr: jax.Array,
-    key: jax.Array,
-    index: int,
-    use_lanczos: bool = False,
-    lanczos_factor: float = 2,
-    lanczos_bias: int = 10,
-):
-    """Performs SVD decomposition with safety checks and optional Lanczos algorithm.
-
-    Args:
-        arr: Input array for SVD
-        key: JAX random key for Lanczos initialization
-        index: Number of singular values/vectors to compute
-        use_lanczos: Whether to use Lanczos algorithm instead of full SVD
-        lanczos_factor: Factor for determining Lanczos iteration depth
-        lanczos_bias: Bias term for Lanczos iteration depth
-
-    Returns:
-        tuple: (U, S, Vh) matrices from SVD decomposition
-    """
-    remove_dim = False
-    if len(arr.shape) == 2:
-        arr = arr[None, ...]
-        remove_dim = True
-    if len(arr.shape) != 3:
-        raise Exception("Save svd only works with batched 3dims")
-
-    def _zero_result(idx: int):
-        del idx
-        # min_rank = min(arr.shape[-2], arr.shape[-1])
-        u = jnp.zeros(
-            shape=tuple([*arr.shape[1:-2], arr.shape[-2], index]),
-            dtype=arr.dtype,
-        )
-        s = jnp.zeros(
-            shape=tuple([*arr.shape[1:-2], index]),
-            dtype=arr.dtype,
-        )
-        vT = jnp.zeros(
-            shape=tuple([*arr.shape[1:-2], index, arr.shape[-1]]),
-            dtype=arr.dtype,
-        )
-        return u, s, vT
-
-    def svd_normal(idx: int):
-        if use_lanczos:
-            u, s, vT = svd_lanczos(
-                arr[idx],
-                index=index,
-                key=key,
-                lanczos_factor=lanczos_factor,
-                lanczos_bias=lanczos_bias,
-            )
-        else:
-            u, s, vT = jnp.linalg.svd(arr[idx], full_matrices=False)
-        return u[..., :index], s[..., :index], vT[..., :index, :]
-
-    u_list, s_list, vT_list = [], [], []
-    for idx in range(arr.shape[0]):
-        u_i, s_i, vT_i = jax.lax.cond(jnp.allclose(arr[idx], 0, rtol=0, atol=1e-10), _zero_result, svd_normal, idx)
-        # u_i, s_i, vT_i = svd_normal(idx)
-
-        u_list.append(u_i)
-        s_list.append(s_i)
-        vT_list.append(vT_i)
-
-    result_u = jnp.stack(u_list, axis=0)
-    result_s = jnp.stack(s_list, axis=0)
-    result_vT = jnp.stack(vT_list, axis=0)
-    if remove_dim:
-        result_u = result_u[0]
-        result_s = result_s[0]
-        result_vT = result_vT[0]
-    return result_u, result_s, result_vT
-
-
-def svd_lanczos(
-    arr: jax.Array,
-    index: int,
-    key: jax.Array,
-    lanczos_factor: float = 2,
-    lanczos_bias: int = 10,
-):
-    """Performs SVD using the Lanczos algorithm for improved efficiency on large matrices.
-
-    Args:
-        arr: Input array for SVD
-        index: Number of singular values/vectors to compute
-        key: JAX random key for initialization
-        lanczos_factor: Factor for determining iteration depth
-        lanczos_bias: Bias term for iteration depth
-
-    Returns:
-        tuple: (U, S, Vh) matrices from SVD decomposition
-    """
-    if len(arr.shape) != 2:
-        raise Exception(f"Invalid array shape: {arr.shape}")
-    orig_dtype = arr.dtype
-    arr = arr.astype(jnp.float32)
-    # random initial vector
-    m, n = arr.shape[-2], arr.shape[-1]
-    v0 = jax.random.uniform(key, shape=(n,), dtype=arr.dtype)
-    # Heuristic: Keep a few extra for better accuracy
-    depth = min(m - 1, n - 1, round(lanczos_factor * index + lanczos_bias))
-
-    def Av(x):
-        return arr @ x
-
-    def vA(x):
-        return x @ arr
-
-    U, S, Vh = eig.svd_partial(v0, depth, Av, vA, arr.shape)
-    U, S, Vh = U.astype(orig_dtype), S.astype(orig_dtype), Vh.astype(orig_dtype)
-    return U, S, Vh
 
 
 def invert_dict(d: dict):

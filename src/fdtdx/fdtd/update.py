@@ -2,11 +2,11 @@ import jax
 import pytreeclass as tc
 
 from fdtdx.config import SimulationConfig
-from fdtdx.fdtd.curl import curl_E, curl_H, interpolate_fields
-from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
+from fdtdx.fdtd.curl import curl_E, curl_H, interpolate_fields
+from fdtdx.fdtd.misc import add_boundary_interfaces, collect_boundary_interfaces
+from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.detectors.detector import Detector
-from fdtdx.shared.misc import add_boundary_interfaces, collect_boundary_interfaces
 
 
 def get_periodic_axes(objects: ObjectContainer) -> tuple[bool, bool, bool]:

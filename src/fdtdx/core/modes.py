@@ -19,7 +19,7 @@ from typing import List, Literal
 import numpy as np
 from tidy3d.plugins.mode.solver import compute_modes as _compute_modes
 
-from fdtdx.core import constants
+from fdtdx import constants
 
 ModeTupleType = namedtuple("Mode", ["neff", "Ex", "Ey", "Ez", "Hx", "Hy", "Hz"])
 """A named tuple representing an electromagnetic mode.

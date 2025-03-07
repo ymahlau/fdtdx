@@ -6,12 +6,12 @@ import pytreeclass as tc
 from loguru import logger
 
 from fdtdx.fdtd import (
-    checkpointed_fdtd, 
-    full_backward, 
-    ArrayContainer, 
-    ParameterContainer, 
-    apply_params, 
-    place_objects
+    checkpointed_fdtd,
+    full_backward,
+    ArrayContainer,
+    ParameterContainer,
+    apply_params,
+    place_objects,
 )
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx import constants
@@ -20,8 +20,7 @@ from fdtdx.objects import  SimulationVolume
 from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.detectors import EnergyDetector
 from fdtdx.objects.sources import GaussianPlaneSource
-from fdtdx.shared.logger import Logger
-from fdtdx.shared.plot_setup import plot_setup
+from fdtdx.utils import Logger, plot_setup
 
 
 def main():

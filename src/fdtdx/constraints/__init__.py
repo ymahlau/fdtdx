@@ -14,13 +14,18 @@ and applied during the optimization process.
 """
 
 from .discrete import (
+    BOTTOM_Z_PADDING_CONFIG_REPEAT,
     BinaryMedianFilterModule,
     BrushConstraint2D,
     ConnectHolesAndStructures,
     RemoveFloatingMaterial,
+    circular_brush,
 )
+from .mapping import ConstraintMapping
 from .module import (
     ClosestIndex,
+    ConstraintInterface,
+    ConstraintModule,
     ContinuousPermittivityTransition,
     IndicesToInversePermittivities,
     StandardToCustomRange,
@@ -41,4 +46,9 @@ __all__ = [
     "IndicesToInversePermittivities",
     "ContinuousPermittivityTransition",
     "PillarMapping",
+    "ConstraintMapping",
+    "ConstraintInterface",
+    "circular_brush",
+    "ConstraintModule",
+    "BOTTOM_Z_PADDING_CONFIG_REPEAT",
 ]

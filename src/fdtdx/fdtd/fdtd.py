@@ -6,10 +6,10 @@ import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.backward import backward
+from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, SimulationState, reset_array_container
 from fdtdx.fdtd.forward import forward, forward_single_args_wrapper
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.objects.boundaries.perfectly_matched_layer import BoundaryState
-from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, SimulationState, reset_array_container
 from fdtdx.objects.detectors.detector import DetectorState
 
 

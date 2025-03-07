@@ -2,19 +2,19 @@ from typing import Literal
 
 import jax
 import jax.numpy as jnp
-import pytreeclass as tc
 
+from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
 from fdtdx.core.jax.typing import GridShape3D, Slice3D, SliceTuple3D
 from fdtdx.core.plotting.colors import DARK_GREY
-from fdtdx.objects.boundaries.boundary_utils import (
+from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState
+from fdtdx.objects.boundaries.utils import (
     kappa_from_direction_axis,
     standard_sigma_from_direction_axis,
 )
-from fdtdx.objects.material import NoMaterial
 
 
-@tc.autoinit
-class BoundaryState(tc.TreeClass):
+@extended_autoinit
+class BoundaryState(BaseBoundaryState):
     """State container for PML boundary conditions.
 
     Stores the auxiliary field variables and coefficients needed to implement
@@ -49,8 +49,8 @@ class BoundaryState(tc.TreeClass):
     kappa: jax.Array
 
 
-@tc.autoinit
-class PerfectlyMatchedLayer(NoMaterial):
+@extended_autoinit
+class PerfectlyMatchedLayer(BaseBoundary):
     """Implements a Convolutional Perfectly Matched Layer (CPML) boundary condition.
 
     The CPML absorbs outgoing electromagnetic waves with minimal reflection by using
@@ -66,13 +66,8 @@ class PerfectlyMatchedLayer(NoMaterial):
         color: RGB color tuple for visualization
     """
 
-    axis: int = tc.field(init=True, kind="KW_ONLY")  # type: ignore
-    direction: Literal["+", "-"] = tc.field(  # type: ignore
-        init=True,
-        kind="KW_ONLY",
-        on_getattr=[tc.unfreeze],
-        on_setattr=[tc.freeze],
-    )
+    axis: int = field()
+    direction: Literal["+", "-"] = frozen_field()  # type: ignore
     alpha: float = 1.0e-8
     kappa_start: float = 1.0
     kappa_end: float = 1.5

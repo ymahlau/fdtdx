@@ -19,10 +19,12 @@ from .material import (
     UniformMaterial,
     WaveGuide,
 )
+from .object import SimulationObject
 
 __all__ = [
     "SimulationVolume",
     "UniformMaterial",
     "Substrate",
     "WaveGuide",
+    "SimulationObject",
 ]

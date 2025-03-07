@@ -5,6 +5,7 @@ import jax.numpy as jnp
 import pytreeclass as tc
 
 from fdtdx import constants
+from fdtdx.core.jax.pytrees import field, frozen_field
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 
@@ -22,18 +23,10 @@ class DiffractiveDetector(Detector):
         direction: Direction of diffraction analysis ("+" or "-") along propagation axis
     """
 
-    frequencies: Sequence[float] = 0.0
+    frequencies: Sequence[float] = field(kind="KW_ONLY")
     orders: Sequence[Tuple[int, int]] = ((0, 0),)
-    direction: Literal["+", "-"] = tc.field(  # type: ignore
-        init=True,
-        kind="KW_ONLY",
-        on_getattr=[tc.unfreeze],
-        on_setattr=[tc.freeze],
-    )
-    dtype: jnp.dtype = tc.field(
-        default=jnp.complex64,
-        kind="KW_ONLY",
-    )
+    direction: Literal["+", "-"] = frozen_field(kind="KW_ONLY")
+    dtype: jnp.dtype = frozen_field(default=jnp.complex64, kind="KW_ONLY")
 
     def __post_init__(self):
         if self.dtype not in [jnp.complex64, jnp.complex128]:
@@ -57,35 +50,35 @@ class DiffractiveDetector(Detector):
             raise Exception(f"Invalid diffractive detector shape: {self.grid_shape}")
         return self.grid_shape.index(1)
 
-    def _validate_orders(self, wavelength: float) -> None:
-        """Validate that requested diffraction orders are physically realizable.
+    # def _validate_orders(self, wavelength: float) -> None:
+    #     """Validate that requested diffraction orders are physically realizable.
 
-        Args:
-            wavelength: Wavelength of the light in meters
+    #     Args:
+    #         wavelength: Wavelength of the light in meters
 
-        Raises:
-            Exception: If any requested order is not physically realizable
-        """
-        if self._Nx is None:
-            raise Exception("Order info not yet computed. Run update first.")
+    #     Raises:
+    #         Exception: If any requested order is not physically realizable
+    #     """
+    #     if self._Nx is None:
+    #         raise Exception("Order info not yet computed. Run update first.")
 
-        # Maximum possible orders based on grid
-        max_nx = self._Nx // 2
-        max_ny = self._Ny // 2
+    #     # Maximum possible orders based on grid
+    #     max_nx = self._Nx // 2
+    #     max_ny = self._Ny // 2
 
-        # Check Nyquist limits for all orders at once
-        nx_valid = jnp.all(jnp.abs(jnp.array([o[0] for o in self.orders])) <= max_nx)
-        ny_valid = jnp.all(jnp.abs(jnp.array([o[1] for o in self.orders])) <= max_ny)
+    #     # Check Nyquist limits for all orders at once
+    #     nx_valid = jnp.all(jnp.abs(jnp.array([o[0] for o in self.orders])) <= max_nx)
+    #     ny_valid = jnp.all(jnp.abs(jnp.array([o[1] for o in self.orders])) <= max_ny)
 
-        if not (nx_valid and ny_valid):
-            raise Exception(f"Some orders exceed Nyquist limit for grid size ({self._Nx}, {self._Ny})")
+    #     if not (nx_valid and ny_valid):
+    #         raise Exception(f"Some orders exceed Nyquist limit for grid size ({self._Nx}, {self._Ny})")
 
-        # Check physical realizability for all orders at once
-        k0 = 2 * jnp.pi / wavelength
-        kt_squared = self._kx_normalized**2 + self._ky_normalized**2
+    #     # Check physical realizability for all orders at once
+    #     k0 = 2 * jnp.pi / wavelength
+    #     kt_squared = self._kx_normalized**2 + self._ky_normalized**2
 
-        if jnp.any(kt_squared > k0**2):
-            raise Exception(f"Some orders are evanescent at wavelength {wavelength*1e9:.1f}nm")
+    #     if jnp.any(kt_squared > k0**2):
+    #         raise Exception(f"Some orders are evanescent at wavelength {wavelength*1e9:.1f}nm")
 
     def _shape_dtype_single_time_step(self) -> dict[str, jax.ShapeDtypeStruct]:
         """Define shape and dtype for a single time step of diffractive data.

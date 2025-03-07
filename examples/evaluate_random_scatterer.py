@@ -18,8 +18,8 @@ from fdtdx.objects.material import SimulationVolume
 from fdtdx.objects.multi_material.random_scatterer import RandomScatterer
 from fdtdx.objects.object import SimulationObject
 from fdtdx.objects.sources.plane_source import HardConstantAmplitudePlanceSource
-from fdtdx.shared.logger import Logger
-from fdtdx.shared.plot_setup import plot_setup
+from fdtdx.utils.logger import Logger
+from fdtdx.utils.plot_setup import plot_setup
 
 
 def main(seed: int = 42):
@@ -110,7 +110,7 @@ def main(seed: int = 42):
     detector_phasor = PhasorDetector(
         name="Phasor",
         partial_real_shape=(None, None, None),
-        wavelength=wavelength,
+        wavelength=(wavelength,),
         components=["Ex", "Ey", "Ez"],
     )
     placement_constraints.extend(
