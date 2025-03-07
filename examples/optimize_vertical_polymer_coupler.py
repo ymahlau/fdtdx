@@ -31,7 +31,7 @@ from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_obj
 from fdtdx.fdtd.container import ArrayContainer, ParameterContainer
 from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.detectors.poynting_flux import PoyntingFluxDetector
-from fdtdx.objects.initialization import apply_params, place_objects
+from fdtdx.fdtd.initialization import apply_params, place_objects
 from fdtdx.objects.material import SimulationVolume, Substrate, WaveGuide
 from fdtdx.objects.multi_material.device import DiscreteDevice
 from fdtdx.objects.object import SimulationObject

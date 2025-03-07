@@ -13,7 +13,7 @@ from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_obj
 from fdtdx.fdtd.container import ArrayContainer, ParameterContainer
 from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.detectors.phasor import PhasorDetector
-from fdtdx.objects.initialization import apply_params, place_objects
+from fdtdx.fdtd.initialization import apply_params, place_objects
 from fdtdx.objects.material import SimulationVolume
 from fdtdx.objects.multi_material.random_scatterer import RandomScatterer
 from fdtdx.objects.object import SimulationObject

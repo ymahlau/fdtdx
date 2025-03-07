@@ -15,6 +15,7 @@ from fdtdx.fdtd.fdtd import (
     custom_fdtd_forward,
     reversible_fdtd,
 )
+from fdtdx.fdtd.initialization import apply_params, place_objects
 
 __all__ = [
     "reversible_fdtd",  # Time-reversible FDTD implementation
@@ -25,4 +26,6 @@ __all__ = [
     "ParameterContainer",
     "ObjectContainer",
     "SimulationState",
+    "apply_params",
+    "place_objects",
 ]
