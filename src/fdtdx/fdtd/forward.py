@@ -4,7 +4,7 @@ from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.update import collect_interfaces, update_detector_states, update_E, update_H
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.objects.boundaries.perfectly_matched_layer import BoundaryState
-from fdtdx.objects.container import ArrayContainer, ObjectContainer, SimulationState
+from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, SimulationState
 from fdtdx.objects.detectors.detector import DetectorState
 
 

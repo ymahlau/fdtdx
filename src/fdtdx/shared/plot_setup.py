@@ -6,7 +6,7 @@ from matplotlib.patches import Patch, Rectangle
 from fdtdx.config import SimulationConfig
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
-from fdtdx.objects.container import ObjectContainer
+from fdtdx.fdtd.container import ObjectContainer
 from fdtdx.objects.object import SimulationObject
 
 

@@ -19,7 +19,7 @@ from fdtdx.interfaces.modules import DtypeConversion
 from fdtdx.interfaces.recorder import Recorder
 from fdtdx.interfaces.time_filter import LinearReconstructEveryK
 from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
-from fdtdx.objects.container import ArrayContainer, ParameterContainer
+from fdtdx.fdtd.container import ArrayContainer, ParameterContainer
 from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.detectors.poynting_flux import PoyntingFluxDetector
 from fdtdx.objects.initialization import apply_params, place_objects

@@ -10,7 +10,7 @@ from fdtdx.config import SimulationConfig
 from fdtdx import constants
 from fdtdx.fdtd.fdtd import reversible_fdtd
 from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
-from fdtdx.objects.container import ArrayContainer, ParameterContainer
+from fdtdx.fdtd.container import ArrayContainer, ParameterContainer
 from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.detectors.phasor import PhasorDetector
 from fdtdx.objects.initialization import apply_params, place_objects

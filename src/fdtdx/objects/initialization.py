@@ -5,7 +5,7 @@ import jax
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
 from fdtdx.core.jax.typing import SliceTuple3D
-from fdtdx.objects.container import ArrayContainer, ObjectContainer, ParameterContainer
+from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, ParameterContainer
 from fdtdx.objects.object import (
     GridCoordinateConstraint,
     PositionConstraint,

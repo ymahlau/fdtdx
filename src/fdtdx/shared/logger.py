@@ -21,7 +21,7 @@ from rich.table import Table
 from fdtdx.conversion import export_stl as export_stl_fn
 from fdtdx.core.misc import cast_floating_to_numpy
 from fdtdx.core.plotting.device_permittivity_index_utils import device_matrix_index_figure
-from fdtdx.objects.container import ObjectContainer, ParameterContainer
+from fdtdx.fdtd.container import ObjectContainer, ParameterContainer
 from fdtdx.objects.detectors.detector import DetectorState
 
 
