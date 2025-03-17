@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from typing import List, Literal
 
 import numpy as np
-from tidy3d.plugins.mode.solver import compute_modes as _compute_modes
+from tidy3d.components.mode.solver import compute_modes as _compute_modes
 
 ModeTupleType = namedtuple("Mode", ["neff", "Ex", "Ey", "Ez", "Hx", "Hy", "Hz"])
 """A named tuple containing the mode fields and effective index.
