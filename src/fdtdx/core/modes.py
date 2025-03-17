@@ -17,7 +17,7 @@ from types import SimpleNamespace
 from typing import List, Literal
 
 import numpy as np
-from tidy3d.plugins.mode.solver import compute_modes as _compute_modes
+from tidy3d.components.mode.solver import compute_modes as _compute_modes
 
 from fdtdx import constants
 
