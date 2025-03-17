@@ -7,6 +7,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field
+from fdtdx.materials import Material
 
 
 def is_on_at_time_step(
@@ -553,11 +554,11 @@ def linear_interpolated_indexing(
     return result
 
 
-def get_air_name(permittivity_config: dict[str, float]):
-    for k, v in permittivity_config.items():
-        if v == 1:
+def get_air_name(materials: dict[str, Material]):
+    for k, v in materials.items():
+        if v.permittivity == 1 and v.permeability == 1 and v.conductivity == 0:
             return k
-    raise Exception(f"Could not find air in: {permittivity_config}")
+    raise Exception(f"Could not find air in: {materials}")
 
 
 @extended_autoinit

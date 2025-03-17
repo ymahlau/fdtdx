@@ -10,6 +10,7 @@ from fdtdx.constraints.utils import compute_allowed_indices, nearest_index
 from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, frozen_private_field
 from fdtdx.core.jax.ste import straight_through_estimator
 from fdtdx.core.misc import get_air_name
+from fdtdx.materials import Material
 
 
 @extended_autoinit
@@ -64,7 +65,7 @@ class PillarMapping(ConstraintModule):
     def init_module(
         self: Self,
         config: SimulationConfig,
-        permittivity_config: dict[str, float],
+        materials: dict[str, Material],
         output_interface: ConstraintInterface,
     ) -> Self:
         """Initialize the pillar mapping module.
@@ -82,11 +83,11 @@ class PillarMapping(ConstraintModule):
         """
         self = super().init_module(
             config=config,
-            permittivity_config=permittivity_config,
+            materials=materials,
             output_interface=output_interface,
         )
 
-        air_name = get_air_name(self._permittivity_config)
+        air_name = get_air_name(self._materials)
         air_index = self._permittivity_names.index(air_name)
         allowed_columns = compute_allowed_indices(
             num_layers=list(self._output_interface.shapes.values())[0][self.axis],

@@ -3,7 +3,7 @@ import numpy as np
 from fdtdx.conversion import export_stl
 
 
-def test_arr_to_gds():
+def test_arr_to_stl():
     # fmt: off
     arr = np.asarray([
         [

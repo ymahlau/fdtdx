@@ -14,10 +14,10 @@ and applied during the optimization process.
 """
 
 from .device import ContinuousDevice, DiscreteDevice
-from .fiber import Fiber
+from .cylinder import Cylinder
 
 __all__ = [
     "DiscreteDevice",
     "ContinuousDevice",
-    "Fiber",
+    "Cylinder",
 ]

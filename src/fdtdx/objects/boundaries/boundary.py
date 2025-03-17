@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit
-from fdtdx.objects.material import NoMaterial
 
 
 @extended_autoinit

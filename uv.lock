@@ -694,7 +694,7 @@ requires-dist = [
     { name = "pytreeclass", specifier = ">=0.11" },
     { name = "rich", specifier = ">=13.9.4" },
     { name = "seaborn", specifier = ">=0.13.2" },
-    { name = "tidy3d", specifier = ">=2.7.8" },
+    { name = "tidy3d", specifier = ">=2.8.0" },
     { name = "trimesh", specifier = ">=4.5.3" },
     { name = "zstandard", specifier = ">=0.23.0" },
 ]
@@ -2720,7 +2720,7 @@ wheels = [
 
 [[package]]
 name = "tidy3d"
-version = "2.7.8"
+version = "2.8.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "autograd" },
@@ -2746,9 +2746,9 @@ dependencies = [
     { name = "toml" },
     { name = "xarray" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4e/58/db46547e24e9d7a956901903aa25c44ce7cc641b42401e6fe52eeba1de54/tidy3d-2.7.8.tar.gz", hash = "sha256:7800ea4fa19df82e75faf8404005b7b6780987ea396aa2ed585b64a82b0e580f", size = 922046 }
+sdist = { url = "https://files.pythonhosted.org/packages/4e/d1/69484269708e534c8734518d6b8cb293fe2eea2aa95905d5a4a2af8bd7fd/tidy3d-2.8.0.tar.gz", hash = "sha256:bb5e1e903c07371b22f18fee6fb624223435853f6519171f2908ca28e4a92eae", size = 1063113 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/23/59/04543a0368bc2da42e2dd39e05edfd3622aaea752adf2c358d4ed540323d/tidy3d-2.7.8-py3-none-any.whl", hash = "sha256:bf161f897bec0e3f0b7433a81d12bdae32af2e6e98f0f7e825f6dec805161709", size = 1024882 },
+    { url = "https://files.pythonhosted.org/packages/6a/48/7e2dbf123a11861f95cefe3bcbbda7b7e0dce12b9bfee6b450a2016fb7dc/tidy3d-2.8.0-py3-none-any.whl", hash = "sha256:eff39dcc889cdad72f6c4c7c04bf8abd1c701d5480eb43f77669ee597a3929f8", size = 1207370 },
 ]
 
 [[package]]

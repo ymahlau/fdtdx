@@ -12,11 +12,11 @@ from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
 from fdtdx.core.jax.typing import UNDEFINED_SHAPE_3D, PartialGridShape3D, PartialRealShape3D, SliceTuple3D
 from fdtdx.core.plotting.colors import PINK
-from fdtdx.objects.multi_material.multi_material import MultiMaterial
+from fdtdx.objects.multi_material.multi_material import MultiMaterialObject
 
 
 @extended_autoinit
-class RandomScatterer(MultiMaterial):
+class RandomScatterer(MultiMaterialObject):
     """A class for simulating random scattering objects in FDTD simulations.
 
     This class loads pre-computed scattering designs and fields from HDF5 datasets

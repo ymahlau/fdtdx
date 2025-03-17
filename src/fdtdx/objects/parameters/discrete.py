@@ -1,19 +1,36 @@
 import math
+from typing import Self
 
 import equinox.internal as eqxi
 import jax
 import jax.numpy as jnp
 
-from fdtdx.constraints.binary_transform import (
+from fdtdx.config import SimulationConfig
+from fdtdx.materials import Material
+from fdtdx.objects.parameters.binary_transform import (
     binary_median_filter,
     connect_holes_and_structures,
     dilate_jax,
     remove_floating_polymer,
 )
-from fdtdx.constraints.module import ConstraintInterface, ConstraintModule
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
+from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field, frozen_private_field
 from fdtdx.core.jax.ste import straight_through_estimator
 from fdtdx.core.misc import PaddingConfig, get_air_name
+
+
+@extended_autoinit
+class DiscreteTransformation(ExtendedTreeClass):
+    _materials: dict[str, Material] = frozen_private_field()
+    _config: SimulationConfig = frozen_private_field()
+    
+    def init_module(
+        self: Self,
+        config: SimulationConfig,
+        materials: dict[str, Material],
+    ) -> Self:
+        self = self.aset("_config", config)
+        self = self.aset("_materials", materials)
+        return self
 
 
 @extended_autoinit
@@ -32,23 +49,10 @@ class RemoveFloatingMaterial(ConstraintModule):
         self,
         input_params: dict[str, jax.Array],
     ) -> dict[str, jax.Array]:
-        """Transforms input parameters by removing floating material regions.
 
-        Args:
-            input_params: Dictionary mapping parameter names to their values as JAX arrays.
-                Expected to contain a single array with material indices.
-
-        Returns:
-            Dictionary with same structure as input but with floating material regions
-            converted to air index.
-
-        Raises:
-            NotImplementedError: If more than 2 permittivities are specified.
-            Exception: If input contains more than one array.
-        """
         if len(self._allowed_permittivities) != 2:
             raise NotImplementedError("Remove floating material currently only implemented for single material")
-        air_name = get_air_name(self._permittivity_config)
+        air_name = get_air_name(self._materials)
         air_idx = self._permittivity_names.index(air_name)
         arr = list(input_params.values())[0]
         is_material_matrix = arr != air_idx
@@ -118,7 +122,7 @@ class ConnectHolesAndStructures(ConstraintModule):
         input_params: dict[str, jax.Array],
     ) -> dict[str, jax.Array]:
         arr = list(input_params.values())[0]
-        air_name = get_air_name(self._permittivity_config)
+        air_name = get_air_name(self._materials)
         air_idx = self._permittivity_names.index(air_name)
         is_material_matrix = arr != air_idx
         feasible_material_matrix = connect_holes_and_structures(is_material_matrix)
@@ -209,7 +213,7 @@ class BrushConstraint2D(ConstraintModule):
             # with jax.disable_jit():
             cur_result = 1 - self._generator(arr_2d)
 
-            air_name = get_air_name(self._permittivity_config)
+            air_name = get_air_name(self._materials)
             air_idx = self._permittivity_names.index(air_name)
             if air_idx != 0:
                 cur_result = 1 - cur_result

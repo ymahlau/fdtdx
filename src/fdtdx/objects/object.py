@@ -174,7 +174,6 @@ class RealCoordinateConstraint:
 class SimulationObject(ExtendedTreeClass, ABC):
     partial_real_shape: PartialRealShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
     partial_grid_shape: PartialGridShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
-    placement_order: int = frozen_field(default=0)
     color: tuple[float, float, float] | None = frozen_field(default=None)  # RGB, interval[0, 1]
     name: str = frozen_field(  # type: ignore
         default=None,
@@ -238,22 +237,6 @@ class SimulationObject(ExtendedTreeClass, ABC):
         self = self.aset("_config", config)
 
         return self
-
-    @abc.abstractmethod
-    def get_inv_permittivity(
-        self,
-        prev_inv_permittivity: jax.Array,
-        params: dict[str, jax.Array] | None,
-    ) -> tuple[jax.Array, dict]:  # permittivity and info dict
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def get_inv_permeability(
-        self,
-        prev_inv_permeability: jax.Array,
-        params: dict[str, jax.Array] | None,
-    ) -> tuple[jax.Array, dict]:  # permeability and info dict
-        raise NotImplementedError()
 
     def place_relative_to(
         self,

@@ -1,10 +1,10 @@
+from abc import ABC, abstractmethod
 from typing import Self
 
 import jax
-import jax.numpy as jnp
-import pytreeclass as tc
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
 from fdtdx.core.jax.typing import (
     INVALID_SHAPE_3D,
     UNDEFINED_SHAPE_3D,
@@ -15,11 +15,12 @@ from fdtdx.core.jax.typing import (
     SliceTuple3D,
 )
 from fdtdx.core.misc import is_float_divisible
+from fdtdx.materials import ContinuousMaterialRange, Material
 from fdtdx.objects.object import SimulationObject
 
 
-@tc.autoinit
-class MultiMaterial(SimulationObject):
+@extended_autoinit
+class MultiMaterialObject(SimulationObject, ABC):
     """A simulation object with configurable material permittivities.
 
     This class represents objects with multiple permittivity values arranged in a grid.
@@ -27,18 +28,14 @@ class MultiMaterial(SimulationObject):
     to access and manipulate the permittivity distribution.
 
     Attributes:
-        permittivity_config: Dictionary mapping material names to permittivity values.
+        materials: Dictionary mapping material names to material values.
         partial_voxel_grid_shape: Shape of voxels in grid coordinates (optional).
         partial_voxel_real_shape: Shape of voxels in real coordinates (optional).
         _single_voxel_grid_shape: Internal shape of a single voxel in grid coordinates.
     """
-
-    permittivity_config: dict[str, float] = tc.field(  # type: ignore
-        init=True, kind="KW_ONLY", on_getattr=[tc.unfreeze], on_setattr=[tc.freeze]
-    )
-    partial_voxel_grid_shape: PartialGridShape3D = tc.field(default=UNDEFINED_SHAPE_3D, init=True)  # type: ignore
-    partial_voxel_real_shape: PartialRealShape3D = tc.field(default=UNDEFINED_SHAPE_3D, init=True)  # type: ignore
-    _single_voxel_grid_shape: GridShape3D = tc.field(default=INVALID_SHAPE_3D, init=False)  # type: ignore
+    partial_voxel_grid_shape: PartialGridShape3D = field(default=UNDEFINED_SHAPE_3D)
+    partial_voxel_real_shape: PartialRealShape3D = field(default=UNDEFINED_SHAPE_3D)
+    _single_voxel_grid_shape: GridShape3D = field(default=INVALID_SHAPE_3D, init=False)
 
     @property
     def matrix_voxel_grid_shape(self) -> GridShape3D:
@@ -82,37 +79,6 @@ class MultiMaterial(SimulationObject):
             grid_shape[1] * self._config.resolution,
             grid_shape[2] * self._config.resolution,
         )
-
-    @property
-    def ordered_permittivity_tuples(self) -> list[tuple[str, float]]:
-        """Get permittivity values sorted by magnitude.
-
-        Returns:
-            List of (name, value) tuples sorted by increasing permittivity value.
-        """
-        kv = list(self.permittivity_config.items())
-        kv_sorted = sorted(kv, key=lambda x: x[1])
-        return kv_sorted
-
-    @property
-    def allowed_permittivities(self):
-        """Get array of allowed permittivity values.
-
-        Returns:
-            JAX array containing the permittivity values sorted by magnitude.
-        """
-        name_val_list = self.ordered_permittivity_tuples
-        perms = jnp.asarray([v[1] for v in name_val_list], dtype=jnp.float32)
-        return perms
-
-    @property
-    def allowed_inverse_permittivities(self):
-        """Get array of inverse permittivity values.
-
-        Returns:
-            JAX array containing 1/permittivity for each allowed permittivity value.
-        """
-        return 1.0 / self.allowed_permittivities
 
     def place_on_grid(
         self: Self,
@@ -167,3 +133,48 @@ class MultiMaterial(SimulationObject):
                     f"{self.grid_shape=}, {self.matrix_voxel_grid_shape=}"
                 )
         return self
+    
+    
+    @abstractmethod
+    def get_voxel_mask_for_shape(self) -> jax.Array:
+        """Get a binary mask of the objects shape. Everything voxel not in the mask, will not be updated by
+        this object. For example, can be used to approximate a round shape.
+        The mask is calculated in device voxel size, not in simulation voxels.
+
+        Returns:
+            jax.Array: Binary mask representing the voxels occupied by the object
+        """
+        raise NotImplementedError()
+
+
+
+@extended_autoinit
+class DiscreteMultiMaterialObject(MultiMaterialObject, ABC):
+    materials: dict[str, Material] = frozen_field(kind="KW_ONLY")  # type: ignore
+    
+    @abstractmethod
+    def get_material_mapping(self) -> jax.Array:
+        """Returns an array, which represents the material index at every voxel. Specifically, it returns the 
+        index of the ordered material list.
+
+        Returns:
+            jax.Array: Index array
+        """
+        raise NotImplementedError()
+
+
+@extended_autoinit
+class ContinuousMultiMaterialObject(MultiMaterialObject, ABC):
+    material_range: ContinuousMaterialRange = frozen_field(kind="KW_ONLY")  # type:ignore
+    
+    @abstractmethod
+    def get_material_mapping(self) -> jax.Array:
+        """Returns an array, which represents the material at every voxel. Specifically, it returns a value between 
+        0 and 1 representing the linear interpolation between the start and end material of the continous material
+        range.
+
+        Returns:
+            jax.Array: Index array
+        """
+        raise NotImplementedError()
+

@@ -13,18 +13,20 @@ The objects module enables intuitive positioning and sizing of elements in absol
 or relative coordinates within the simulation scene, with automatic constraint resolution.
 """
 
-from .material import (
+from .uniform import (
     SimulationVolume,
     Substrate,
-    UniformMaterial,
+    UniformMaterialObject,
     WaveGuide,
 )
 from .object import SimulationObject
+from .wavelength import WaveCharacter
 
 __all__ = [
     "SimulationVolume",
-    "UniformMaterial",
+    "UniformMaterialObject",
     "Substrate",
     "WaveGuide",
     "SimulationObject",
+    "WaveCharacter",
 ]

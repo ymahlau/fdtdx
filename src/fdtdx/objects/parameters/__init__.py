@@ -22,7 +22,7 @@ from .discrete import (
     circular_brush,
 )
 from .mapping import ConstraintMapping
-from .module import (
+from .latent import (
     ClosestIndex,
     ConstraintInterface,
     ConstraintModule,
