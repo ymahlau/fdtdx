@@ -143,7 +143,7 @@ class BaseDevice(OrderableObject, ABC):
     def init_params(
         self,
         key: jax.Array,
-    ) -> dict[str, jax.Array]:
+    ) -> dict[str, jax.Array] | jax.Array:
         """Initializes optimization parameters for the device.
 
         Args:
@@ -198,7 +198,7 @@ class DiscreteDevice(BaseDevice):
     def init_params(
         self,
         key: jax.Array,
-    ) -> dict[str, jax.Array]:
+    ) -> dict[str, jax.Array] | jax.Array:
         """Initializes optimization parameters for the device.
 
         Creates random initial parameters between 0 and 1 for each input shape
@@ -211,6 +211,8 @@ class DiscreteDevice(BaseDevice):
             Dictionary mapping parameter names to their initial values
         """
         shape_dtypes = self.parameter_mapping._input_shape_dtypes
+        if not isinstance(shape_dtypes, dict):
+            shape_dtypes = {'dummy': shape_dtypes}
         params = {}
         for k, sd in shape_dtypes.items():
             key, subkey = jax.random.split(key)
@@ -222,14 +224,27 @@ class DiscreteDevice(BaseDevice):
                 dtype=sd.dtype,
             )
             params[k] = p
+        if len(params) == 1:
+            params = list(params.values())[0]
         return params
     
     def get_material_mapping(
         self,
-        params: dict[str, jax.Array],
+        params: dict[str, jax.Array] | jax.Array,
     ) -> jax.Array:
         indices = self.parameter_mapping(params)
         return indices
+    
+    def get_expanded_material_mapping(
+        self,
+        params: dict[str, jax.Array] | jax.Array,
+    ) -> jax.Array:
+        indices = self.get_material_mapping(params)
+        expanded_indices = expand_matrix(
+            matrix=indices,
+            grid_points_per_voxel=self.single_voxel_grid_shape,
+        )
+        return expanded_indices
 
 
 # @extended_autoinit

@@ -25,6 +25,9 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 
+from fdtdx.core.misc import get_air_name
+from fdtdx.materials import Material, compute_ordered_names
+
 
 def index_matrix_to_str(indices: jax.Array) -> str:
     """Converts a 2D matrix of indices to a formatted string representation.
@@ -46,7 +49,7 @@ def index_matrix_to_str(indices: jax.Array) -> str:
 
 def device_matrix_index_figure(
     device_matrix_indices: jax.Array,
-    permittivity_configs: tuple[tuple[str, float], ...],
+    material: dict[str, Material],
 ) -> Figure:
     """Creates a visualization figure of device matrix indices with permittivity configurations.
 
@@ -72,16 +75,14 @@ def device_matrix_index_figure(
     device_matrix_indices = device_matrix_indices.astype(np.int32)
     fig, ax = cast(tuple[Figure, Axes], plt.subplots(figsize=(12, 12)))
     image_palette = sns.color_palette("YlOrBr", as_cmap=True)
+    air_name = get_air_name(material)
+    ordered_name_list = compute_ordered_names(material)
+    air_index = ordered_name_list.index(air_name)
     if device_matrix_indices.shape[-1] == 1:
         device_matrix_indices = device_matrix_indices[..., 0]
         matrix_inverse_permittivity_indices_sorted = device_matrix_indices
         indices = np.unique(device_matrix_indices)
-    else:
-        air_index = None
-        for i, cfg in enumerate(permittivity_configs):
-            if cfg[0] == "Air":
-                air_index = i
-                break
+    else:        
         device_matrix_indices_flat = np.reshape(device_matrix_indices, (-1, device_matrix_indices.shape[-1]))
         indices = np.unique(
             device_matrix_indices_flat,
@@ -120,7 +121,7 @@ def device_matrix_index_figure(
         legend_elements = [
             Patch(
                 facecolor=cax.cmap(cax.norm(int(i))),
-                label=f"({i}) {permittivity_configs[int(i)][0]}",
+                label=f"({i}) {ordered_name_list[int(i)]}",
             )
             for i in indices
         ]
@@ -128,7 +129,7 @@ def device_matrix_index_figure(
         legend_elements = [
             Patch(
                 facecolor=cax.cmap(cax.norm(int(i))),
-                label=f"({i}) " + "|".join([permittivity_configs[int(e)][0] for e in indices[i]]),
+                label=f"({i}) " + "|".join([ordered_name_list[int(e)] for e in indices[i]]),
             )
             for i in np.unique(matrix_inverse_permittivity_indices_sorted)
         ]

@@ -203,13 +203,7 @@ def main(
             in_detector.place_relative_to(
                 source, axes=(2,), own_positions=(1,), other_positions=(-1,), grid_margins=(-3,)
             ),
-            in_detector.size_relative_to(
-                device,
-                axes=(
-                    0,
-                    1,
-                ),
-            ),
+            in_detector.size_relative_to(device, axes=(0, 1)),
         ]
     )
 
@@ -276,7 +270,7 @@ def main(
     )
 
     if use_reference_grid:
-        params["Device"]["out"] = REFERENCE_DESIGN_GRID
+        params[device.name] = REFERENCE_DESIGN_GRID
 
     logger.info(tc.tree_summary(arrays, depth=2))
     print(tc.tree_diagram(config, depth=4))

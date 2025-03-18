@@ -21,7 +21,7 @@ from fdtdx.objects.sources.source import Source
 from fdtdx.objects.static_material.static import StaticMaterialObject
 
 # Type alias for parameter dictionaries containing JAX arrays
-ParameterContainer = dict[str, dict[str, jax.Array]]
+ParameterContainer = dict[str, dict[str, jax.Array] | jax.Array]
 
 
 @extended_autoinit

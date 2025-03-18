@@ -3,10 +3,19 @@ import jax
 
 
 def check_shape_dtype(
-    arrays: dict[str, jax.Array],
-    expected_shape_dtypes: dict[str, jax.ShapeDtypeStruct],
+    arrays: dict[str, jax.Array] | jax.Array,
+    expected_shape_dtypes: dict[str, jax.ShapeDtypeStruct] | jax.ShapeDtypeStruct,
     method: Literal["exact", "arrays_only"] = "exact"
 ):
+    if isinstance(arrays, jax.Array) == isinstance(expected_shape_dtypes, dict):
+        arr_str = f"{arrays.shape}" if isinstance(arrays, jax.Array) else str(arrays.keys())
+        raise Exception(
+            f"Got different structures in arrays: {expected_shape_dtypes=}, \n{arr_str=}"
+        )
+    if not isinstance(arrays, dict):
+        arrays = {'dummy': arrays}
+    if not isinstance(expected_shape_dtypes, dict):
+        expected_shape_dtypes = {'dummy': expected_shape_dtypes}
     if method == "exact" and len(arrays) != len(expected_shape_dtypes):
         raise Exception(
             f"Arrays and expected dict have different lengths: "

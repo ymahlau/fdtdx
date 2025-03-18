@@ -20,7 +20,7 @@ class LatentParamsTransformation(ExtendedTreeClass, ABC):
     @abstractmethod
     def transform(
         self,
-        input_params: dict[str, jax.Array],
+        input_params: dict[str, jax.Array] | jax.Array,
     ) -> dict[str, jax.Array]:
         del input_params
         raise NotImplementedError()
@@ -28,15 +28,15 @@ class LatentParamsTransformation(ExtendedTreeClass, ABC):
     @abstractmethod
     def _compute_input_shape_dtypes(
         self,
-        output_shape_dtypes: dict[str, jax.ShapeDtypeStruct],
-    ) -> dict[str, jax.ShapeDtypeStruct]:
+        output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] | jax.ShapeDtypeStruct,
+    ) -> dict[str, jax.ShapeDtypeStruct] | jax.ShapeDtypeStruct:
         raise NotImplementedError()
 
     def init_module(
         self: Self,
         config: SimulationConfig,
         material: dict[str, Material] | ContinuousMaterialRange,
-        output_shape_dtypes: dict[str, jax.ShapeDtypeStruct],
+        output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] | jax.ShapeDtypeStruct,
     ) -> Self:
         self = self.aset("_config", config)
         self = self.aset("_material", material)
@@ -50,8 +50,8 @@ class LatentParamsTransformation(ExtendedTreeClass, ABC):
 class SameShapeDtypeLatentTransform(LatentParamsTransformation, ABC):
     def _compute_input_shape_dtypes(
         self,
-        output_shape_dtypes: dict[str, jax.ShapeDtypeStruct],
-    ) -> dict[str, jax.ShapeDtypeStruct]:
+        output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] | jax.ShapeDtypeStruct,
+    ) -> dict[str, jax.ShapeDtypeStruct] | jax.ShapeDtypeStruct:
         return output_shape_dtypes
 
 
@@ -65,8 +65,8 @@ class StandardToInversePermittivityRange(SameShapeDtypeLatentTransform):
 
     def transform(
         self,
-        input_params: dict[str, jax.Array],
-    ) -> dict[str, jax.Array]:
+        input_params: dict[str, jax.Array] | jax.Array,
+    ) -> dict[str, jax.Array] | jax.Array:
         # determine minimum and maximum allowed permittivity
         max_inv_perm, min_inv_perm = -math.inf, math.inf
         if isinstance(self._material, dict):
@@ -82,10 +82,13 @@ class StandardToInversePermittivityRange(SameShapeDtypeLatentTransform):
             min_inv_perm = min(start_perm, end_perm)
 
         # transform
-        result = {}
-        for k, v in input_params.items():
-            mapped = v * (max_inv_perm - min_inv_perm) + min_inv_perm
-            result[k] = mapped
+        if isinstance(input_params, dict):
+            result = {}
+            for k, v in input_params.items():
+                mapped = v * (max_inv_perm - min_inv_perm) + min_inv_perm
+                result[k] = mapped
+        else:
+            result = input_params * (max_inv_perm - min_inv_perm) + min_inv_perm
         return result
 
 
@@ -106,19 +109,16 @@ class StandardToCustomRange(SameShapeDtypeLatentTransform):
 
     def transform(
         self,
-        input_params: dict[str, jax.Array],
-    ) -> dict[str, jax.Array]:
-        result = {}
-        for k, v in input_params.items():
-            mapped = v * (self.max_value - self.min_value) + self.min_value
-            result[k] = mapped
+        input_params: dict[str, jax.Array] | jax.Array,
+    ) -> dict[str, jax.Array] | jax.Array:
+        if isinstance(input_params, dict):
+            result = {}
+            for k, v in input_params.items():
+                mapped = v * (self.max_value - self.min_value) + self.min_value
+                result[k] = mapped
+        else:
+            result = input_params * (self.max_value - self.min_value) + self.min_value
         return result
-
-    def _compute_input_shape_dtypes(
-        self,
-        output_shape_dtypes: dict[str, jax.ShapeDtypeStruct],
-    ) -> dict[str, jax.ShapeDtypeStruct]:
-        return output_shape_dtypes
 
 
 @extended_autoinit

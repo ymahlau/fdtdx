@@ -32,13 +32,13 @@ class Discretization(ExtendedTreeClass, ABC):
     def _compute_input_shape_dtypes(
         self,
         output_shape_dtype: jax.ShapeDtypeStruct,
-    ) -> dict[str, jax.ShapeDtypeStruct]:
+    ) -> dict[str, jax.ShapeDtypeStruct] | jax.ShapeDtypeStruct:
         raise NotImplementedError()
     
     @abstractmethod
     def __call__(
         self,
-        values: dict[str, jax.Array],
+        values: dict[str, jax.Array] | jax.Array,
     ) -> jax.Array:
         raise NotImplementedError()
 
@@ -54,11 +54,11 @@ class ClosestIndex(Discretization):
 
     def __call__(
         self,
-        input_params: dict[str, jax.Array],
+        input_params: dict[str, jax.Array] | jax.Array,
     ) -> jax.Array:
-        if len(input_params) != 1:
+        if not isinstance(input_params, jax.Array):
             raise Exception(f"Closest Index cannot be used with latent parameters that contain multiple entries")
-        arr = input_params['latent']
+        arr = input_params
         allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(self._material))
         dist = jnp.abs(arr[..., None] - allowed_inv_perms)
         discrete = jnp.argmin(dist, axis=-1)
@@ -68,13 +68,11 @@ class ClosestIndex(Discretization):
     def _compute_input_shape_dtypes(
         self,
         output_shape_dtype: jax.ShapeDtypeStruct,
-    ) -> dict[str, jax.ShapeDtypeStruct]:
-        return {
-            'latent': jax.ShapeDtypeStruct(
-                shape=output_shape_dtype,
-                dtype=self._config.dtype,
-            )
-        }
+    ) -> jax.ShapeDtypeStruct:
+        return jax.ShapeDtypeStruct(
+            shape=output_shape_dtype.shape,
+            dtype=self._config.dtype,
+        )
         
         
 # @extended_autoinit

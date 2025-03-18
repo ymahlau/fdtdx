@@ -137,7 +137,7 @@ def apply_params(
     info = {}
     # apply parameter to devices
     for device in objects.discrete_devices:
-        cur_material_indices = device.get_material_mapping(params[device.name])
+        cur_material_indices = device.get_expanded_material_mapping(params[device.name])
         allowed_perm_list = compute_allowed_permittivities(device.material)
         new_perm_slice = jnp.asarray(allowed_perm_list)[cur_material_indices.astype(jnp.int32)]
         new_perm_slice = straight_through_estimator(cur_material_indices, new_perm_slice)

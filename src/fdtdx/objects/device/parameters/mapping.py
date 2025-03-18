@@ -17,12 +17,12 @@ class LatentParameterMapping(ExtendedTreeClass):
         kind="KW_ONLY", 
         default=(StandardToInversePermittivityRange(),)
     )
-    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field()
+    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] | jax.ShapeDtypeStruct = frozen_private_field()
 
     def __call__(
         self,
-        input_params: dict[str, jax.Array],
-    ) -> dict[str, jax.Array]:
+        input_params: dict[str, jax.Array] | jax.Array,
+    ) -> dict[str, jax.Array] | jax.Array:
         check_shape_dtype(input_params, self._input_shape_dtypes)
         # walk through modules
         x = input_params
@@ -36,7 +36,7 @@ class LatentParameterMapping(ExtendedTreeClass):
         self: Self,
         config: SimulationConfig,
         material: dict[str, Material] | ContinuousMaterialRange,
-        output_shape_dtypes: dict[str, jax.ShapeDtypeStruct],
+        output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] | jax.ShapeDtypeStruct,
     ) -> Self:
         # init list of modules
         cur_output_shape_dtypes, new_modules = output_shape_dtypes, []
@@ -78,20 +78,32 @@ class DiscreteParameterMapping(LatentParameterMapping):
             material=material,
             output_shape_dtype=output_shape_dtype,
         )
+        
+        new_latent_transforms = []
+        cur_output_shape_dtype = new_discretization._input_shape_dtypes
+        for m in self.latent_transforms:
+            m_new = m.init_module(
+                config=config,
+                material=material,
+                output_shape_dtypes=cur_output_shape_dtype,
+            )
+            new_latent_transforms.append(m_new)
+            cur_output_shape_dtype = m_new._input_shape_dtypes
         self = super().init_modules(
             config=config,
             material=material,
-            output_shape_dtypes=new_discretization._input_shape_dtypes,
-        )        
+            output_shape_dtypes=cur_output_shape_dtype,
+        )
+        self = self.aset("latent_transforms", new_latent_transforms)
         self = self.aset("discretization", new_discretization)
         self = self.aset("post_transforms", new_post_transforms)
         return self
     
     def __call__(
         self,
-        input_params: dict[str, jax.Array],
+        input_params: dict[str, jax.Array] | jax.Array,
     ) -> jax.Array:
-        latent = super()(
+        latent = super().__call__(
             input_params=input_params,
         )
         discretized = self.discretization(latent)
