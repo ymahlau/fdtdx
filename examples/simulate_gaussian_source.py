@@ -20,7 +20,7 @@ from fdtdx.objects import  SimulationVolume
 from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.detectors import EnergyDetector
 from fdtdx.objects.sources import GaussianPlaneSource
-from fdtdx.objects.wavelength import WaveCharacter
+from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.utils import Logger, plot_setup
 
 
@@ -101,7 +101,6 @@ def main():
         as_slices=True,
         interval=3,
         exact_interpolation=True,
-        plot_interpolation="nearest",
     )
     constraints.extend(video_energy_detector.same_position_and_size(volume))
 

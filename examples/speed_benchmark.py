@@ -14,22 +14,23 @@ import jax.profiler
 import pytreeclass as tc
 from loguru import logger
 
-from fdtdx.constraints import (
-    ClosestIndex, 
-    IndicesToInversePermittivities, 
-    StandardToInversePermittivityRange,
-    ConstraintMapping,
-)
 from fdtdx import constants
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.core.plotting import colors
 from fdtdx.fdtd import custom_fdtd_forward, ArrayContainer, apply_params, place_objects
-from fdtdx.interfaces.recorder import Recorder
-from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
+from fdtdx.interfaces import Recorder
+from fdtdx.materials import Material
 from fdtdx.objects import SimulationObject, SimulationVolume, Substrate, WaveGuide
+from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.detectors import EnergyDetector, PoyntingFluxDetector
-from fdtdx.objects.static_material import DiscreteDevice
+from fdtdx.objects.device import (
+    DiscreteDevice, 
+    DiscreteParameterMapping, 
+    ClosestIndex, 
+    StandardToInversePermittivityRange,
+)
 from fdtdx.objects.sources import ConstantAmplitudePlaneSource
+from fdtdx.core import WaveCharacter
 from fdtdx.utils import metric_efficiency, Logger, plot_setup
 
 
@@ -127,7 +128,7 @@ def main(
         name="Silica",
         color=colors.LIGHT_BROWN,
         partial_real_shape=(None, None, 0.5e-6),
-        permittivity=permittivity_silica,
+        material=Material(permittivity=permittivity_silica)
     )
     placement_constraints.append(
         dioxide_substrate.place_relative_to(
@@ -139,20 +140,18 @@ def main(
     )
 
     permittivity_config = {
-        "Air": constants.relative_permittivity_air,
-        "Silicon": permittivity_silicon,
+        "Air": Material(permittivity=constants.relative_permittivity_air),
+        "Silicon": Material(permittivity=permittivity_silicon),
     }
     
     device = DiscreteDevice(
         name="Device",
         partial_real_shape=(3e-6, 3e-6, 300e-9),
-        permittivity_config=permittivity_config,
-        constraint_mapping=ConstraintMapping(
-            modules=[
-                StandardToInversePermittivityRange(),
-                ClosestIndex(),
-                IndicesToInversePermittivities(),
-            ],
+        material=permittivity_config,
+        parameter_mapping=DiscreteParameterMapping(
+            latent_transforms=[StandardToInversePermittivityRange()],
+            discretization=ClosestIndex(),
+            post_transforms=[],
         ),
         partial_voxel_real_shape=(100e-9, 100e-9, 300e-9),
     )
@@ -170,7 +169,7 @@ def main(
     source = ConstantAmplitudePlaneSource(
         partial_real_shape=(None, None, None),
         partial_grid_shape=(None, None, 1),
-        wavelength=1.550e-6,
+        wave_character=WaveCharacter(wavelength=1.550e-6),
         direction="-",
         fixed_E_polarization_vector=(0, 1, 0),
     )
@@ -216,7 +215,7 @@ def main(
 
     waveguide = WaveGuide(
         partial_real_shape=(None, 0.4e-6, 0.3e-6),
-        permittivity=permittivity_silicon,
+        material=Material(permittivity=permittivity_silicon),
     )
     placement_constraints.extend(
         [

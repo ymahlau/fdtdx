@@ -19,7 +19,7 @@ from fdtdx.typing import (
 from fdtdx.core.misc import expand_matrix, is_float_divisible
 from fdtdx.core.plotting.colors import PINK
 from fdtdx.objects.object import OrderableObject
-from fdtdx.objects.parameters.mapping import DiscreteParameterMapping
+from fdtdx.objects.device.parameters.mapping import DiscreteParameterMapping
 
 
 @extended_autoinit

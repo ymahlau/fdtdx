@@ -6,9 +6,9 @@ from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field, frozen_private_field
 from fdtdx.core.jax.utils import check_shape_dtype
 from fdtdx.materials import ContinuousMaterialRange, Material
-from fdtdx.objects.parameters.discrete import DiscreteTransformation
-from fdtdx.objects.parameters.discretization import Discretization
-from fdtdx.objects.parameters.latent import LatentParamsTransformation, StandardToInversePermittivityRange
+from fdtdx.objects.device.parameters.discrete import DiscreteTransformation
+from fdtdx.objects.device.parameters.discretization import ClosestIndex, Discretization
+from fdtdx.objects.device.parameters.latent import LatentParamsTransformation, StandardToInversePermittivityRange
 
 
 @extended_autoinit
@@ -57,7 +57,7 @@ class LatentParameterMapping(ExtendedTreeClass):
 
 @extended_autoinit
 class DiscreteParameterMapping(LatentParameterMapping):
-    discretization: Discretization = frozen_field(kind="KW_ONLY")  # type: ignore
+    discretization: Discretization = frozen_field(kind="KW_ONLY", default=ClosestIndex())
     post_transforms: Sequence[DiscreteTransformation] = frozen_field(default=tuple([]), kind="KW_ONLY")
     
     def init_modules(

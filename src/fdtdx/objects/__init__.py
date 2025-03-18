@@ -20,7 +20,6 @@ from .static_material.uniform import (
     WaveGuide,
 )
 from .object import SimulationObject
-from .wavelength import WaveCharacter
 
 __all__ = [
     "SimulationVolume",
@@ -28,5 +27,4 @@ __all__ = [
     "Substrate",
     "WaveGuide",
     "SimulationObject",
-    "WaveCharacter",
 ]

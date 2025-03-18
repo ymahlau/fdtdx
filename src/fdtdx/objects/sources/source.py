@@ -3,13 +3,10 @@ from typing import Literal, Self
 
 import jax
 import jax.numpy as jnp
-import pytreeclass as tc
 
-from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
 from fdtdx.objects.object import SimulationObject
-from fdtdx.objects.wavelength import WaveCharacter
-from fdtdx.typing import SliceTuple3D
+from fdtdx.core import WaveCharacter
 from fdtdx.core.plotting.colors import ORANGE
 from fdtdx.objects.sources.profile import SingleFrequencyProfile, TemporalProfile
 

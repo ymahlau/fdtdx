@@ -8,7 +8,7 @@ import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
 from fdtdx.materials import Material, compute_ordered_names
-from fdtdx.objects.parameters.binary_transform import (
+from fdtdx.objects.device.parameters.binary_transform import (
     binary_median_filter,
     connect_holes_and_structures,
     dilate_jax,
