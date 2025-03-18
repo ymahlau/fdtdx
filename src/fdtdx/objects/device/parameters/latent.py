@@ -71,10 +71,11 @@ class StandardToInversePermittivityRange(SameShapeDtypeLatentTransform):
         max_inv_perm, min_inv_perm = -math.inf, math.inf
         if isinstance(self._material, dict):
             for k, v in self._material.items():
-                if v.permittivity > max_inv_perm:
-                    max_inv_perm = v.permittivity
-                if v.permittivity < min_inv_perm:
-                    min_inv_perm = v.permittivity
+                p = 1 / v.permittivity
+                if p > max_inv_perm:
+                    max_inv_perm = p
+                if p < min_inv_perm:
+                    min_inv_perm = p
         elif isinstance(self._material, ContinuousMaterialRange):
             start_perm = self._material.start_material.permittivity
             end_perm = self._material.end_material.permittivity

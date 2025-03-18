@@ -79,12 +79,10 @@ def main(
 ):
     evaluation: bool = True
     use_reference_grid: bool = True
-    backward: bool = False  # only used when evaluation is true
 
     logger.info(f"{seed=}")
     logger.info(f"{evaluation=}")
     logger.info(f"{use_reference_grid=}")
-    logger.info(f"{backward=}")
 
     permittivity_silicon = 12.25
     permittivity_silica = 2.25
@@ -109,10 +107,6 @@ def main(
     logger.info(f"{config.time_steps_total=}")
     logger.info(f"{period_steps=}")
     logger.info(f"{config.max_travel_distance=}")
-
-    if not evaluation or backward:
-        gradient_config = GradientConfig(recorder=Recorder(modules=[]))
-        config = config.aset("gradient_config", gradient_config)
 
     placement_constraints = []
 
@@ -258,8 +252,18 @@ def main(
         time_steps=[-1],
     )
     placement_constraints.extend([*energy_last_step.same_position_and_size(volume)])
-
+    
     exclude_object_list: list[SimulationObject] = [energy_last_step]
+    
+    if evaluation:
+        video_energy_detector = EnergyDetector(
+            name="Energy Video",
+            as_slices=True,
+            interval=10,
+            exact_interpolation=True,
+        )
+        placement_constraints.extend(video_energy_detector.same_position_and_size(volume))
+        exclude_object_list.append(video_energy_detector)
 
     key, subkey = jax.random.split(key)
     objects, arrays, params, config, _ = place_objects(
