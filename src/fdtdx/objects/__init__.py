@@ -13,7 +13,7 @@ The objects module enables intuitive positioning and sizing of elements in absol
 or relative coordinates within the simulation scene, with automatic constraint resolution.
 """
 
-from .uniform import (
+from .static_material.uniform import (
     SimulationVolume,
     Substrate,
     UniformMaterialObject,

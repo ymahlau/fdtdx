@@ -4,6 +4,7 @@ import jax
 import pytreeclass as tc
 
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
+from fdtdx.typing import BackendOption
 
 
 @tc.autoinit
@@ -24,7 +25,7 @@ class RecordingState(tc.TreeClass):
 def init_recording_state(
     data_shape_dtypes: dict[str, jax.ShapeDtypeStruct],
     state_shape_dtypes: dict[str, jax.ShapeDtypeStruct],
-    backend: Literal["gpu", "tpu", "cpu"],
+    backend: BackendOption,
 ) -> RecordingState:
     """Initialize a new recording state with sharded arrays.
 
@@ -49,7 +50,7 @@ def init_recording_state(
 
 def init_sharded_dict(
     shape_dtypes: dict[str, jax.ShapeDtypeStruct],
-    backend: Literal["gpu", "tpu", "cpu"],
+    backend: BackendOption,
 ) -> dict[str, jax.Array]:
     """Initialize a dictionary of sharded arrays.
 

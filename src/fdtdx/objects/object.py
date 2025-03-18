@@ -8,7 +8,7 @@ import pytreeclass as tc
 
 from fdtdx.config import DUMMY_SIMULATION_CONFIG, SimulationConfig
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field, frozen_private_field
-from fdtdx.core.jax.typing import (
+from fdtdx.typing import (
     INVALID_SLICE_TUPLE_3D,
     UNDEFINED_SHAPE_3D,
     GridShape3D,
@@ -708,3 +708,8 @@ class SimulationObject(ExtendedTreeClass, ABC):
 
     def __hash__(self) -> int:
         return hash(self.name)
+
+
+@extended_autoinit
+class OrderableObject(SimulationObject):
+    placement_order: int = frozen_field(default=0)

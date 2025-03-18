@@ -51,7 +51,7 @@ class SimulationConfig(ExtendedTreeClass):
     Attributes:
         time: Total simulation time in seconds.
         resolution: Spatial resolution of the simulation grid in meters.
-        backend: Computation backend ('gpu', 'tpu', or 'cpu').
+        backend: Computation backend ('gpu', 'tpu', 'cpu' or 'METAL').
         dtype: Data type for numerical computations.
         courant_factor: Safety factor for the Courant condition (default: 0.99).
         gradient_config: Optional configuration for gradient computation.

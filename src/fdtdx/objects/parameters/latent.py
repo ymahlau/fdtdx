@@ -12,7 +12,7 @@ from fdtdx.materials import ContinuousMaterialRange, Material
 
 @extended_autoinit
 class LatentParamsTransformation(ExtendedTreeClass, ABC):
-    _materials: dict[str, Material] | ContinuousMaterialRange = frozen_private_field()
+    _material: dict[str, Material] | ContinuousMaterialRange = frozen_private_field()
     _config: SimulationConfig = frozen_private_field()
     _output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field()
     _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field()
@@ -35,11 +35,11 @@ class LatentParamsTransformation(ExtendedTreeClass, ABC):
     def init_module(
         self: Self,
         config: SimulationConfig,
-        materials: dict[str, Material] | ContinuousMaterialRange,
+        material: dict[str, Material] | ContinuousMaterialRange,
         output_shape_dtypes: dict[str, jax.ShapeDtypeStruct],
     ) -> Self:
         self = self.aset("_config", config)
-        self = self.aset("_materials", materials)
+        self = self.aset("_material", material)
         self = self.aset("_output_shape_dtypes", output_shape_dtypes)
         input_shape_dtypes = self._compute_input_shape_dtypes(self._output_shape_dtypes)
         self = self.aset("_input_shape_dtypes", input_shape_dtypes)
@@ -69,15 +69,15 @@ class StandardToInversePermittivityRange(SameShapeDtypeLatentTransform):
     ) -> dict[str, jax.Array]:
         # determine minimum and maximum allowed permittivity
         max_inv_perm, min_inv_perm = -math.inf, math.inf
-        if isinstance(self._materials, dict):
-            for k, v in self._materials.items():
+        if isinstance(self._material, dict):
+            for k, v in self._material.items():
                 if v.permittivity > max_inv_perm:
                     max_inv_perm = v.permittivity
                 if v.permittivity < min_inv_perm:
                     min_inv_perm = v.permittivity
-        elif isinstance(self._materials, ContinuousMaterialRange):
-            start_perm = self._materials.start_material.permittivity
-            end_perm = self._materials.end_material.permittivity
+        elif isinstance(self._material, ContinuousMaterialRange):
+            start_perm = self._material.start_material.permittivity
+            end_perm = self._material.end_material.permittivity
             max_inv_perm = max(start_perm, end_perm)
             min_inv_perm = min(start_perm, end_perm)
 

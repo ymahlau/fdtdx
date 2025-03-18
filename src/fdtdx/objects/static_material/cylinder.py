@@ -5,14 +5,14 @@ import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_private_field
-from fdtdx.core.jax.typing import UNDEFINED_SHAPE_3D, PartialGridShape3D, PartialRealShape3D, SliceTuple3D
+from fdtdx.objects.static_material.multi_material import StaticMultiMaterialObject
+from fdtdx.typing import UNDEFINED_SHAPE_3D, PartialGridShape3D, PartialRealShape3D, SliceTuple3D
 from fdtdx.core.plotting.colors import LIGHT_GREY
 from fdtdx.materials import Material
-from fdtdx.objects.multi_material.multi_material import DiscreteMultiMaterialObject
 
 
 @extended_autoinit
-class Cylinder(DiscreteMultiMaterialObject):
+class Cylinder(StaticMultiMaterialObject):
     """A cylindrical optical fiber with configurable properties.
 
     This class represents a cylindrical fiber with customizable radius, permittivity,
@@ -79,12 +79,6 @@ class Cylinder(DiscreteMultiMaterialObject):
         Returns:
             Self: Updated instance with grid placement configured.
         """
-        voxel_grid_shape = (
-            config.resolution,
-            config.resolution,
-            config.resolution,
-        )
-        self = self.aset("partial_voxel_real_shape", voxel_grid_shape)
         self = super().place_on_grid(
             grid_slice_tuple=grid_slice_tuple,
             config=config,
@@ -98,8 +92,8 @@ class Cylinder(DiscreteMultiMaterialObject):
     
     
     def get_voxel_mask_for_shape(self) -> jax.Array:
-        width = self.matrix_voxel_grid_shape[self.vertical_axis]
-        height = self.matrix_voxel_grid_shape[self.horizontal_axis]
+        width = self.grid_shape[self.vertical_axis]
+        height = self.grid_shape[self.horizontal_axis]
         center = (height / 2, width / 2)
         grid_radius_exact = self.radius / self._config.resolution
         grid = (
@@ -112,8 +106,10 @@ class Cylinder(DiscreteMultiMaterialObject):
         mask = jnp.expand_dims(mask, axis=self.axis)
         return mask
     
-    def get_material_mapping(self) -> jax.Array:
+    def get_material_mapping(
+        self,
+    ) -> jax.Array:
         return jnp.zeros(
-            self.matrix_voxel_grid_shape,
+            self.grid_shape,
             dtype=jnp.int32,
         )

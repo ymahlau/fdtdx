@@ -385,12 +385,12 @@ class PlaneSource(DirectionalPlaneSourceBase, ABC):
         del inv_permeabilities
         if self._E is None or self._H is None or self._time_offset_E is None or self._time_offset_H is None:
             raise Exception("Need to apply random key before calling update")
-        time_step = linear_interpolated_indexing(
-            time_step.reshape(
-                1,
-            ),
-            self._time_step_to_on_idx,
-        )
+        # time_step = linear_interpolated_indexing(
+        #     time_step.reshape(
+        #         1,
+        #     ),
+        #     self._time_step_to_on_idx,
+        # )
 
         delta_t = self._config.time_step_duration
         inv_permittivity_slice = inv_permittivities[*self.grid_slice]
@@ -399,7 +399,11 @@ class PlaneSource(DirectionalPlaneSourceBase, ABC):
         time_H = (time_step - 0.5 + self._time_offset_H[self.horizontal_axis]) * delta_t
 
         # Get temporal amplitudes from profile
-        amplitude_H = self.temporal_profile.get_amplitude(time_H, self.period, self.phase_shift)
+        amplitude_H = self.temporal_profile.get_amplitude(
+            time=time_H, 
+            period=self.wave_character.period, 
+            phase_shift=self.wave_character.phase_shift
+        )
 
         # vertical incident wave part
         H_v_inc = self._H[self.vertical_axis] * amplitude_H
@@ -436,12 +440,6 @@ class PlaneSource(DirectionalPlaneSourceBase, ABC):
         del inv_permittivities
         if self._E is None or self._H is None or self._time_offset_E is None or self._time_offset_H is None:
             raise Exception("Need to apply random key before calling update")
-        time_step = linear_interpolated_indexing(
-            time_step.reshape(
-                1,
-            ),
-            self._time_step_to_on_idx,
-        )
 
         delta_t = self._config.time_step_duration
         inv_permeability_slice = inv_permeabilities[*self.grid_slice]
@@ -450,7 +448,11 @@ class PlaneSource(DirectionalPlaneSourceBase, ABC):
         time_E = (time_step - 0.5 + self._time_offset_E[self.horizontal_axis]) * delta_t
 
         # Get temporal amplitudes from profile
-        amplitude_E = self.temporal_profile.get_amplitude(time_E, self.period, self.phase_shift)
+        amplitude_E = self.temporal_profile.get_amplitude(
+            time=time_E, 
+            period=self.wave_character.period, 
+            phase_shift=self.wave_character.phase_shift
+        )
 
         # horizontal incident wave part
         E_h_inc = self._E[self.horizontal_axis] * amplitude_E
@@ -687,7 +689,7 @@ class ModePlaneSource(PlaneSource):
 
         def mode_helper(permittivity):
             modes = compute_modes(
-                frequency=self.frequency,
+                frequency=self.wave_character.frequency,
                 permittivity_cross_section=permittivity,  # type: ignore
                 coords=coords,
                 num_modes=self.mode_index + 1,
@@ -771,33 +773,6 @@ class ModePlaneSource(PlaneSource):
             inv_permittivity=inv_permittivity_slice,
             inv_permeability=inv_permeability_slice,
         )
-
-        # energy = compute_energy(
-        #     E=mode_E,
-        #     H=mode_H,
-        #     inv_permittivity=inv_permittivity_slice,
-        #     inv_permeability=inv_permeability_slice,
-        # )
-
-        # E_l2 = jnp.linalg.norm(mode_E, axis=0)
-        # H_l2 = jnp.linalg.norm(mode_H, axis=0)
-
-        # E_normalized = mode_E / (E_l2[None, ...] + 1e-12)
-        # H_normalized = mode_H / (H_l2[None, ...] + 1e-12)
-
-        # mode_E2 = E_normalized * jnp.sqrt(energy)
-        # mode_H2 = H_normalized * jnp.sqrt(energy)
-
-        # energy2 = compute_energy(
-        #     E=mode_E2,
-        #     H=mode_H2,
-        #     inv_permittivity=inv_permittivity_slice,
-        #     inv_permeability=inv_permeability_slice,
-        # )
-        # energy_root = jnp.sqrt(jnp.sum(energy2))
-
-        # mode_E2_norm = mode_E2 / energy_root
-        # mode_H2_norm = mode_H2 / energy_root
 
         return mode_E2_norm, mode_H2_norm, time_offset_E, time_offset_H
 
@@ -884,7 +859,7 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
         if inverse:
             return E
         delta_t = self._config.time_step_duration
-        time_phase = 2 * jnp.pi * time_step * delta_t / self.period + self.phase_shift
+        time_phase = 2 * jnp.pi * time_step * delta_t / self.wave_character.period + self.wave_character.phase_shift
         magnitude = jnp.real(self.amplitude * jnp.exp(-1j * time_phase))
         e_pol, _ = self._get_raw_EH_polarization()
         E_update = e_pol[:, None, None, None] * magnitude
@@ -904,7 +879,7 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
         if inverse:
             return H
         delta_t = self._config.time_step_duration
-        time_phase = 2 * jnp.pi * time_step * delta_t / self.period + self.phase_shift
+        time_phase = 2 * jnp.pi * time_step * delta_t / self.wave_character.period + self.wave_character.phase_shift
         magnitude = jnp.real(self.amplitude * jnp.exp(-1j * time_phase))
         _, h_pol = self._get_raw_EH_polarization()
         H_update = h_pol[:, None, None, None] * magnitude

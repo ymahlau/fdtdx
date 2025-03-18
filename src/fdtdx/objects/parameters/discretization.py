@@ -6,24 +6,37 @@ import jax.numpy as jnp
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_private_field
 from fdtdx.core.jax.ste import straight_through_estimator
-from fdtdx.materials import Material, allowed_permittivities
+from fdtdx.materials import Material, compute_allowed_permittivities
 
 
 class Discretization(ExtendedTreeClass, ABC):
-    _materials: dict[str, Material] = frozen_private_field()
+    _material: dict[str, Material] = frozen_private_field()
     _config: SimulationConfig = frozen_private_field()
+    _output_shape_dtype: jax.ShapeDtypeStruct = frozen_private_field()
+    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field()
     
     def init_module(
         self: Self,
         config: SimulationConfig,
-        materials: dict[str, Material],
+        material: dict[str, Material],
+        output_shape_dtype: jax.ShapeDtypeStruct,
     ) -> Self:
         self = self.aset("_config", config)
-        self = self.aset("_materials", materials)
+        self = self.aset("_material", material)
+        input_shape_dtypes = self._compute_input_shape_dtypes(output_shape_dtype)
+        self = self.aset("_output_shape_dtype", output_shape_dtype)
+        self = self.aset("_input_shape_dtypes", input_shape_dtypes)
         return self
     
     @abstractmethod
-    def discretize(
+    def _compute_input_shape_dtypes(
+        self,
+        output_shape_dtype: jax.ShapeDtypeStruct,
+    ) -> dict[str, jax.ShapeDtypeStruct]:
+        raise NotImplementedError()
+    
+    @abstractmethod
+    def __call__(
         self,
         values: dict[str, jax.Array],
     ) -> jax.Array:
@@ -39,17 +52,29 @@ class ClosestIndex(Discretization):
     differentiability.
     """
 
-    def transform(
+    def __call__(
         self,
         input_params: dict[str, jax.Array],
-    ) -> dict[str, jax.Array]:
-        result = {}
-        allowed_inv_perms = 1 / jnp.asarray(allowed_permittivities(self._materials))
-        for k, v in input_params.items():
-            dist = jnp.abs(v[..., None] - allowed_inv_perms)
-            discrete = jnp.argmin(dist, axis=-1)
-            result[k] = straight_through_estimator(v, discrete)
+    ) -> jax.Array:
+        if len(input_params) != 1:
+            raise Exception(f"Closest Index cannot be used with latent parameters that contain multiple entries")
+        arr = input_params['latent']
+        allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(self._material))
+        dist = jnp.abs(arr[..., None] - allowed_inv_perms)
+        discrete = jnp.argmin(dist, axis=-1)
+        result = straight_through_estimator(arr, discrete)
         return result
+    
+    def _compute_input_shape_dtypes(
+        self,
+        output_shape_dtype: jax.ShapeDtypeStruct,
+    ) -> dict[str, jax.ShapeDtypeStruct]:
+        return {
+            'latent': jax.ShapeDtypeStruct(
+                shape=output_shape_dtype,
+                dtype=self._config.dtype,
+            )
+        }
         
         
 # @extended_autoinit

@@ -24,7 +24,7 @@ from fdtdx.objects import SimulationVolume, Substrate, WaveGuide
 from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.detectors.poynting_flux import PoyntingFluxDetector
-from fdtdx.objects.multi_material.device import DiscreteDevice
+from fdtdx.objects.device import DiscreteDevice
 from fdtdx.objects.object import SimulationObject
 from fdtdx.objects.sources import ModePlaneSource
 from fdtdx.utils import metric_efficiency, Logger, plot_setup

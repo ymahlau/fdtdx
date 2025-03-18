@@ -3,7 +3,7 @@ from typing import Literal, Union
 import pytreeclass
 
 from fdtdx.core.jax.pytrees import ExtendedTreeClass
-from fdtdx.core.jax.typing import PartialGridShape3D
+from fdtdx.typing import PartialGridShape3D
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.boundaries.utils import axis_direction_from_kind

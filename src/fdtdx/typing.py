@@ -5,7 +5,7 @@ shapes, grids and array slicing in FDTD simulations. It includes types for both
 real-valued (physical) and integer-valued (grid) coordinates.
 """
 
-from typing import Optional
+from typing import Literal, Optional
 
 # Real-valued shapes (physical dimensions)
 RealShape3D = tuple[float, float, float]
@@ -56,3 +56,6 @@ OptionalAxisSlice = Optional[slice]
 
 PartialSlice3D = tuple[OptionalAxisSlice, OptionalAxisSlice, OptionalAxisSlice]
 """Partial 3D slice where some axes may be undefined (None)."""
+
+BackendOption = Literal["gpu", "tpu", "cpu", "METAL"]
+"""Backend options for JAX. Can be either gpu, tpu, cpu or METAL"""

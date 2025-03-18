@@ -2,16 +2,16 @@ from typing import Literal, Self, Sequence
 
 import jax
 import jax.numpy as jnp
-import pytreeclass as tc
 
-from fdtdx.core.jax.pytrees import ExtendedTreeClass
+from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_private_field
+from fdtdx.typing import BackendOption
 from fdtdx.core.jax.utils import check_shape_dtype
 from fdtdx.interfaces.modules import CompressionModule
 from fdtdx.interfaces.state import RecordingState, init_recording_state
 from fdtdx.interfaces.time_filter import CollateTimeSteps, TimeStepFilter
 
 
-@tc.autoinit
+@extended_autoinit
 class Recorder(ExtendedTreeClass):
     """Records and compresses simulation data over time using a sequence of processing modules.
 
@@ -27,26 +27,16 @@ class Recorder(ExtendedTreeClass):
     """
 
     modules: Sequence[CompressionModule | TimeStepFilter]
-    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = tc.field(
-        default=None,
-        init=False,
-        on_setattr=[tc.freeze],
-        on_getattr=[tc.unfreeze],
-    )  # type:ignore
-    _output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = tc.field(
-        default=None,
-        init=False,
-        on_setattr=[tc.freeze],
-        on_getattr=[tc.unfreeze],
-    )  # type:ignore
-    _max_time_steps: int = tc.field(default=-1, init=False)  # type: ignore
-    _latent_array_size: int = tc.field(default=-1, init=False)  # type: ignore
+    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field(default=None)  # type:ignore
+    _output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field(default=None)  # type:ignore
+    _max_time_steps: int = frozen_private_field(default=-1)
+    _latent_array_size: int = frozen_private_field(default=-1, init=False)
 
     def init_state(
         self: Self,
         input_shape_dtypes: dict[str, jax.ShapeDtypeStruct],
         max_time_steps: int,
-        backend: Literal["gpu", "tpu", "cpu"],
+        backend: BackendOption,
     ) -> tuple[Self, RecordingState]:
         """Initializes the recorder and its modules for a simulation.
 

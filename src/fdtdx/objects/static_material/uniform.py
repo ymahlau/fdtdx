@@ -1,25 +1,12 @@
 from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
 from fdtdx.core.plotting.colors import LIGHT_BLUE, LIGHT_BROWN, LIGHT_GREY
 from fdtdx.materials import Material
-from fdtdx.objects.object import SimulationObject
+from fdtdx.objects.static_material.static import StaticMaterialObject
 
 
 @extended_autoinit
-class UniformMaterialObject(SimulationObject):
-    """Object with uniform permittivity and permeability throughout its volume.
-
-    A material object that applies constant permittivity and permeability values
-    to its entire volume in the simulation grid. Used as base class for specific
-    material implementations.
-
-    Attributes:
-        permittivity: Relative permittivity (εᵣ) of the material
-        permeability: Relative permeability (μᵣ) of the material, defaults to 1.0
-        color: RGB tuple for visualization, defaults to light grey
-    """
-
-    material: Material = field(kind="KW_ONLY")
-    placement_order: int = frozen_field(default=0)
+class UniformMaterialObject(StaticMaterialObject):
+    material: Material = field(kind="KW_ONLY")  # type: ignore
     color: tuple[float, float, float] = LIGHT_GREY
 
 
@@ -31,10 +18,13 @@ class SimulationVolume(UniformMaterialObject):
     Usually represents air/vacuum with εᵣ=1.0 and μᵣ=1.0.
     """
     placement_order = -1000
-    material = Material(
-        permittivity=1.0,
-        permeability=1.0,
-        conductivity=0.0,
+    material: Material = field(
+        default = Material(
+            permittivity=1.0,
+            permeability=1.0,
+            conductivity=0.0,
+        ),
+        kind="KW_ONLY",
     )
 
 

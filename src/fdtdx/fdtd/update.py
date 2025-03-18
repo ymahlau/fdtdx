@@ -22,7 +22,7 @@ def get_periodic_axes(objects: ObjectContainer) -> tuple[bool, bool, bool]:
     for boundary in objects.boundary_objects:
         if isinstance(boundary, PeriodicBoundary):
             periodic_axes[boundary.axis] = True
-    return tuple(periodic_axes)
+    return tuple(periodic_axes)  # type: ignore
 
 
 def update_E(
@@ -62,7 +62,6 @@ def update_E(
     E = arrays.E + config.courant_number * curl_H(arrays.H, periodic_axes) * arrays.inv_permittivities
 
     for source in objects.sources:
-
         def _update():
             return source.update_E(
                 E=E,
@@ -72,11 +71,12 @@ def update_E(
                 inverse=False,
             )
 
-        E = jax.lax.cond(
-            source._is_on_at_time_step_arr[time_step],
-            _update,
-            lambda: E,
-        )
+        E = _update()
+        # E = jax.lax.cond(
+        #     source._is_on_at_time_step_arr[time_step],
+        #     _update,
+        #     lambda: E,
+        # )
 
     if simulate_boundaries:
         for boundary in objects.boundary_objects:
@@ -126,11 +126,12 @@ def update_E_reverse(
                 inverse=True,
             )
 
-        E = jax.lax.cond(
-            source._is_on_at_time_step_arr[time_step],
-            _update,
-            lambda: E,
-        )
+        E = _update()
+        # E = jax.lax.cond(
+        #     source._is_on_at_time_step_arr[time_step],
+        #     _update,
+        #     lambda: E,
+        # )
 
     # Get periodic axes for curl operation
     periodic_axes = get_periodic_axes(objects)
@@ -191,11 +192,12 @@ def update_H(
                 inverse=False,
             )
 
-        H = jax.lax.cond(
-            source._is_on_at_time_step_arr[time_step],
-            _update,
-            lambda: H,
-        )
+        H = _update()
+        # H = jax.lax.cond(
+        #     source._is_on_at_time_step_arr[time_step],
+        #     _update,
+        #     lambda: H,
+        # )
 
     if simulate_boundaries:
         for boundary in objects.boundary_objects:
@@ -245,11 +247,12 @@ def update_H_reverse(
                 inverse=True,
             )
 
-        H = jax.lax.cond(
-            source._is_on_at_time_step_arr[time_step],
-            _update,
-            lambda: H,
-        )
+        H = _update()
+        # H = jax.lax.cond(
+        #     source._is_on_at_time_step_arr[time_step],
+        #     _update,
+        #     lambda: H,
+        # )
 
     # Get periodic axes for curl operation
     periodic_axes = get_periodic_axes(objects)

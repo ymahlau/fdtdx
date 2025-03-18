@@ -20,6 +20,7 @@ from fdtdx.objects import  SimulationVolume
 from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.detectors import EnergyDetector
 from fdtdx.objects.sources import GaussianPlaneSource
+from fdtdx.objects.wavelength import WaveCharacter
 from fdtdx.utils import Logger, plot_setup
 
 
@@ -77,14 +78,13 @@ def main():
         partial_grid_shape=(None, 1, None),
         partial_real_shape=(10e-6, None, 10e-6),
         fixed_E_polarization_vector=(1, 0, 0),
-        wavelength=1.550e-6,
+        wave_character=WaveCharacter(wavelength=1.550e-6),
         radius=4e-6,
         std=1 / 3,
         direction="-",
         # azimuth_angle=20.0,
         elevation_angle=-20.0,
     )
-
     constraints.extend(
         [
             source.place_relative_to(

@@ -23,7 +23,7 @@ from fdtdx.core.misc import cast_floating_to_numpy
 from fdtdx.core.plotting.device_permittivity_index_utils import device_matrix_index_figure
 from fdtdx.fdtd.container import ObjectContainer, ParameterContainer
 from fdtdx.objects.detectors.detector import DetectorState
-from fdtdx.objects.multi_material.device import DiscreteDevice
+from fdtdx.objects.device import DiscreteDevice
 
 
 def init_working_directory(experiment_name: str, wd_name: str | None) -> Path:

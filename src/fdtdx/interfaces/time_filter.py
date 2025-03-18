@@ -429,7 +429,7 @@ class CollateTimeSteps(TimeStepFilter):
         arr_indices: jax.Array,
         time_idx: jax.Array,  # scalar
         key: jax.Array,
-    ) -> dict[str, jax.Array]:  # reconstructed value
+    ) -> tuple[dict[str, jax.Array], RecordingState]:  # reconstructed value
         del key
         arr_idx = time_idx % self.num_steps
         result: dict[str, jax.Array] = {}
@@ -437,7 +437,7 @@ class CollateTimeSteps(TimeStepFilter):
             result[k] = v[arr_idx]
             state.state[self._state_name_map[k]] = v
         state.state["cached_arr_idx"] = arr_indices
-        return result
+        return result, state
 
 
 @tc.autoinit
@@ -565,12 +565,12 @@ class RepeatingTimeStepFilter(TimeStepFilter):
         arr_indices: jax.Array,
         time_idx: jax.Array,  # scalar
         key: jax.Array,
-    ) -> dict[str, jax.Array]:  # reconstructed value
-        del state, arr_indices, key
+    ) -> tuple[dict[str, jax.Array], RecordingState]:  # reconstructed value
+        del arr_indices, key
         rel_pos = self._relative_pos[time_idx]
         result = {}
         for k in values[0].keys():
             arr0, arr1 = values[0][k], values[1][k]
             interp = (1 - rel_pos) * arr0 + rel_pos * arr1
             result[k] = interp
-        return result
+        return result, state

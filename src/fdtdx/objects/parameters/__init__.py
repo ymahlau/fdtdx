@@ -21,18 +21,12 @@ from .discrete import (
     RemoveFloatingMaterial,
     circular_brush,
 )
-from .mapping import ConstraintMapping
+from .discretization import ClosestIndex, Discretization
 from .latent import (
-    ClosestIndex,
-    ConstraintInterface,
-    ConstraintModule,
-    ContinuousPermittivityTransition,
-    IndicesToInversePermittivities,
     StandardToCustomRange,
     StandardToInversePermittivityRange,
     StandardToPlusOneMinusOneRange,
 )
-from .pillars import PillarMapping
 
 __all__ = [
     "RemoveFloatingMaterial",
@@ -43,12 +37,7 @@ __all__ = [
     "StandardToCustomRange",
     "StandardToPlusOneMinusOneRange",
     "ClosestIndex",
-    "IndicesToInversePermittivities",
-    "ContinuousPermittivityTransition",
-    "PillarMapping",
-    "ConstraintMapping",
-    "ConstraintInterface",
+    "Discretization",
     "circular_brush",
-    "ConstraintModule",
     "BOTTOM_Z_PADDING_CONFIG_REPEAT",
 ]

@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 import math
 from typing import Self
 
@@ -6,7 +7,7 @@ import jax
 import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
-from fdtdx.materials import Material
+from fdtdx.materials import Material, compute_ordered_names
 from fdtdx.objects.parameters.binary_transform import (
     binary_median_filter,
     connect_holes_and_structures,
@@ -19,22 +20,30 @@ from fdtdx.core.misc import PaddingConfig, get_air_name
 
 
 @extended_autoinit
-class DiscreteTransformation(ExtendedTreeClass):
-    _materials: dict[str, Material] = frozen_private_field()
+class DiscreteTransformation(ExtendedTreeClass, ABC):
+    _material: dict[str, Material] = frozen_private_field()
     _config: SimulationConfig = frozen_private_field()
     
     def init_module(
         self: Self,
         config: SimulationConfig,
-        materials: dict[str, Material],
+        material: dict[str, Material],
     ) -> Self:
         self = self.aset("_config", config)
-        self = self.aset("_materials", materials)
+        self = self.aset("_material", material)
         return self
+
+    @abstractmethod
+    def __call__(
+        self,
+        material_indices: jax.Array,
+    ) -> jax.Array:
+        raise NotImplementedError()
+        
 
 
 @extended_autoinit
-class RemoveFloatingMaterial(ConstraintModule):
+class RemoveFloatingMaterial(DiscreteTransformation):
     """Finds all material that floats in the air and sets their permittivity to air.
 
     This constraint module identifies regions of material that are not connected to any
@@ -45,51 +54,26 @@ class RemoveFloatingMaterial(ConstraintModule):
     material represents air.
     """
 
-    def transform(
+    def __call__(
         self,
-        input_params: dict[str, jax.Array],
-    ) -> dict[str, jax.Array]:
+        material_indices: jax.Array,
+    ) -> jax.Array:
 
-        if len(self._allowed_permittivities) != 2:
+        if len(self._material) != 2:
             raise NotImplementedError("Remove floating material currently only implemented for single material")
-        air_name = get_air_name(self._materials)
-        air_idx = self._permittivity_names.index(air_name)
-        arr = list(input_params.values())[0]
-        is_material_matrix = arr != air_idx
-        result = remove_floating_polymer(is_material_matrix)
-        # result = result.astype(arr.dtype)
-        result = straight_through_estimator(arr, result)
-        return {list(input_params.keys())[0]: result}
-
-    def input_interface(
-        self,
-        output_interface: ConstraintInterface,
-    ) -> ConstraintInterface:
-        """Validates and processes the input interface specification.
-
-        Args:
-            output_interface: Interface specification from the next module in the chain.
-
-        Returns:
-            The validated interface specification.
-
-        Raises:
-            Exception: If output interface has multiple shapes or wrong type.
-            NotImplementedError: If more than 2 permittivities are specified.
-        """
-        if len(output_interface.shapes) != 1:
-            raise Exception(
-                f"RemoveFloatingMaterial expects a single array as output, but got {output_interface.shapes}"
-            )
-        if output_interface.type != "index":
-            raise Exception("RemoveFloatingMaterial can only be followed by a module using indices")
-        if len(self._allowed_permittivities) != 2:
-            raise NotImplementedError("RemoveFloatingMaterial currently only implemented for single material")
-        return output_interface
+        air_name = get_air_name(self._material)
+        ordered_name_list = compute_ordered_names(self._material)
+        air_idx = ordered_name_list.index(air_name)
+        
+        is_material_matrix = material_indices != air_idx
+        is_material_after_removal = remove_floating_polymer(is_material_matrix)
+        result = (1 - air_idx) * is_material_after_removal + air_idx * ~is_material_after_removal
+        result = straight_through_estimator(material_indices, result)
+        return result
 
 
 @extended_autoinit
-class ConnectHolesAndStructures(ConstraintModule):
+class ConnectHolesAndStructures(DiscreteTransformation):
     """Connects floating polymer regions and ensures air holes connect to outside.
 
     This constraint module ensures physical realizability of designs by:
@@ -105,29 +89,21 @@ class ConnectHolesAndStructures(ConstraintModule):
 
     fill_material: str | None = frozen_field(default=None)
 
-    def input_interface(
+    def __call__(
         self,
-        output_interface: ConstraintInterface,
-    ) -> ConstraintInterface:
-        if len(self._allowed_permittivities) > 2 and self.fill_material is None:
+        material_indices: jax.Array,
+    ) -> jax.Array:
+        if len(self._material) > 2 and self.fill_material is None:
             raise Exception(
                 "ConnectHolesAndStructures: Need to specify fill material when working with more than a single material"
             )
-        if output_interface.type != "index":
-            raise Exception("ConnectHolesAndStructures can only be followed by a module using indices")
-        return output_interface
-
-    def transform(
-        self,
-        input_params: dict[str, jax.Array],
-    ) -> dict[str, jax.Array]:
-        arr = list(input_params.values())[0]
-        air_name = get_air_name(self._materials)
-        air_idx = self._permittivity_names.index(air_name)
-        is_material_matrix = arr != air_idx
+        air_name = get_air_name(self._material)
+        ordered_name_list = compute_ordered_names(self._material)
+        air_idx = ordered_name_list.index(air_name)
+        is_material_matrix = material_indices != air_idx
         feasible_material_matrix = connect_holes_and_structures(is_material_matrix)
 
-        result = jnp.empty_like(arr)
+        result = jnp.empty_like(material_indices)
         # set air
         result = jnp.where(
             feasible_material_matrix,
@@ -135,21 +111,19 @@ class ConnectHolesAndStructures(ConstraintModule):
             air_idx,
         )
         # material where previously was material
-        result = jnp.where(feasible_material_matrix & is_material_matrix, arr, result)
+        result = jnp.where(feasible_material_matrix & is_material_matrix, material_indices, result)
 
         # material, where previously was air
         fill_name = self.fill_material
         if fill_name is None:
-            if len(self._allowed_permittivities) > 2:
-                raise Exception("This should never happen")
-            fill_name = self._permittivity_names[1 - air_idx]
-        fill_idx = self._permittivity_names.index(fill_name)
+            fill_name = ordered_name_list[1 - air_idx]
+        fill_idx = ordered_name_list.index(fill_name)
         result = jnp.where(
             feasible_material_matrix & ~is_material_matrix,
             fill_idx,
             result,
         )
-        return {list(input_params.keys())[0]: result}
+        return result
 
 
 def circular_brush(
@@ -174,14 +148,13 @@ def circular_brush(
         size = s
     xy = jnp.stack(jnp.meshgrid(*map(jnp.arange, (size, size)), indexing="xy"), axis=-1) - jnp.asarray((size / 2) - 0.5)
     euc_dist = jnp.sqrt((xy**2).sum(axis=-1))
-    # the less EQUAL here is important, because otherwise design may be infeasible
-    # due to discretization errors
+    # the less EQUAL here is important, because otherwise design may be infeasible due to discretization errors
     mask = euc_dist <= (diameter / 2)
     return mask
 
 
 @extended_autoinit
-class BrushConstraint2D(ConstraintModule):
+class BrushConstraint2D(DiscreteTransformation):
     """Applies 2D brush-based constraints to ensure minimum feature sizes.
 
     Implements the brush-based constraint method described in:
@@ -198,27 +171,36 @@ class BrushConstraint2D(ConstraintModule):
     brush: jax.Array = frozen_field()
     axis: int = frozen_field()
 
-    def transform(
+    def __call__(
         self,
-        input_params: dict[str, jax.Array],
-    ) -> dict[str, jax.Array]:
-        result = {}
-        for k, v in input_params.items():
-            arr_2d = jnp.take(
-                v,
-                jnp.asarray(0),
-                axis=self.axis,
+        material_indices: jax.Array,
+    ) -> jax.Array:
+        if len(self._material) > 2:
+            raise Exception("BrushConstraint2D currently only implemented for single material and air")
+        s = material_indices.shape
+        if len(s) != 3:
+            raise Exception(
+                f"BrushConstraint2D Generator can only work with 2D-Arrays, got {s=}"
             )
+        if s[self.axis] != 1:
+            raise Exception(
+                f"BrushConstraint2D Generator needs array size 1 in axis, but got {s=}"
+            )
+        arr_2d = jnp.take(
+            material_indices,
+            jnp.asarray(0),
+            axis=self.axis,
+        )
 
-            # with jax.disable_jit():
-            cur_result = 1 - self._generator(arr_2d)
+        cur_result = 1 - self._generator(arr_2d)
 
-            air_name = get_air_name(self._materials)
-            air_idx = self._permittivity_names.index(air_name)
-            if air_idx != 0:
-                cur_result = 1 - cur_result
-            cur_result = jnp.expand_dims(cur_result, axis=self.axis)
-            result[k] = straight_through_estimator(v, cur_result)
+        air_name = get_air_name(self._material)
+        ordered_name_list = compute_ordered_names(self._material)
+        air_idx = ordered_name_list.index(air_name)
+        if air_idx != 0:
+            cur_result = 1 - cur_result
+        cur_result = jnp.expand_dims(cur_result, axis=self.axis)
+        result = straight_through_estimator(material_indices, cur_result)
         return result
 
     def _generator(
@@ -330,28 +312,6 @@ class BrushConstraint2D(ConstraintModule):
         pixel_existing_solid = dilate_jax(res_arrs[1], self.brush)
         return pixel_existing_solid.astype(jnp.int32)
 
-    def input_interface(
-        self,
-        output_interface: ConstraintInterface,
-    ) -> ConstraintInterface:
-        if len(self._allowed_permittivities) > 2:
-            raise Exception("BrushConstraint2D currently only implemented for single material and air")
-        if output_interface.type != "index":
-            raise Exception("BrushConstraint2D has to be followed by a module using indices")
-        for s in output_interface.shapes.values():
-            if len(s) != 3:
-                raise Exception(
-                    f"BrushConstraint2D Generator can only work with 2D-Arrays, got {output_interface.shapes=}"
-                )
-            if s[self.axis] != 1:
-                raise Exception(
-                    f"BrushConstraint2D Generator needs array size 1 in axis, but got {output_interface.shapes=}"
-                )
-        return ConstraintInterface(
-            type="latent",
-            shapes=output_interface.shapes,
-        )
-
 
 BOTTOM_Z_PADDING_CONFIG_REPEAT = PaddingConfig(
     modes=("edge", "edge", "edge", "edge", "constant", "edge"), widths=(20,), values=(1,)
@@ -365,7 +325,7 @@ BOTTOM_Z_PADDING_CONFIG = PaddingConfig(
 
 
 @extended_autoinit
-class BinaryMedianFilterModule(ConstraintModule):
+class BinaryMedianFilterModule(DiscreteTransformation):
     """Performs 3D binary median filtering on the design.
 
     Applies a 3D median filter to smooth and clean up binary material distributions.
@@ -381,31 +341,18 @@ class BinaryMedianFilterModule(ConstraintModule):
     kernel_sizes: tuple[int, int, int] = frozen_field()
     num_repeats: int = frozen_field(default=1)
 
-    def input_interface(
+    def __call__(
         self,
-        output_interface: ConstraintInterface,
-    ) -> ConstraintInterface:
-        if output_interface.type != "index":
-            raise Exception("BinaryMedianFilterModule has to be followed by a module using indices")
-        if len(self._allowed_permittivities) != 2:
-            raise Exception("BinaryMedianFilterModule only works for single materials")
-        for s in output_interface.shapes.values():
-            if len(s) != 3:
-                raise Exception(f"Parameter shape has to have 3 dims, got {output_interface.shapes=}")
-        return output_interface
-
-    def transform(
-        self,
-        input_params: dict[str, jax.Array],
-    ) -> dict[str, jax.Array]:
-        result = {}
-        for k, v in input_params.items():
-            cur_arr = v
-            for _ in range(self.num_repeats):
-                cur_arr = binary_median_filter(
-                    arr_3d=cur_arr,
-                    kernel_sizes=self.kernel_sizes,
-                    padding_cfg=self.padding_cfg,
-                )
-            result[k] = straight_through_estimator(v, cur_arr)
+        material_indices: jax.Array,
+    ) -> jax.Array:
+        if len(self._material) != 2:
+            raise Exception("BinaryMedianFilterModule only works for two materials!")
+        cur_arr = material_indices
+        for _ in range(self.num_repeats):
+            cur_arr = binary_median_filter(
+                arr_3d=cur_arr,
+                kernel_sizes=self.kernel_sizes,
+                padding_cfg=self.padding_cfg,
+            )
+        result = straight_through_estimator(material_indices, cur_arr)
         return result

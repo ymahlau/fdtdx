@@ -28,7 +28,7 @@ from fdtdx.interfaces.recorder import Recorder
 from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects import SimulationObject, SimulationVolume, Substrate, WaveGuide
 from fdtdx.objects.detectors import EnergyDetector, PoyntingFluxDetector
-from fdtdx.objects.multi_material import DiscreteDevice
+from fdtdx.objects.static_material import DiscreteDevice
 from fdtdx.objects.sources import ConstantAmplitudePlaneSource
 from fdtdx.utils import metric_efficiency, Logger, plot_setup
 
