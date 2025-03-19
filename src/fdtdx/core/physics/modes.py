@@ -86,6 +86,7 @@ def compute_modes(
         # freq=tidy3d.C_0 / (wavelength / 1e-6),
         mode_spec=mode_spec,
         direction=direction,
+        precision=precision,
     )
     ((Ex, Ey, Ez), (Hx, Hy, Hz)) = EH.squeeze()
 
