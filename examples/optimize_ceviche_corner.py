@@ -60,7 +60,7 @@ def main(
         gradient_config = GradientConfig(
             recorder=Recorder(
                 modules=[
-                    # LinearReconstructEveryK(2),
+                    LinearReconstructEveryK(2),
                     DtypeConversion(dtype=jnp.float16),
                     # LinearReconstructEveryK(5),
                     # DtypeConversion(dtype=jnp.float8_e4m3fnuz),

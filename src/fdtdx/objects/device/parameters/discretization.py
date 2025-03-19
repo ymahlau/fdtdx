@@ -1,22 +1,24 @@
 from abc import ABC, abstractmethod
-from typing import Self
+from typing import Literal, Self
 
 import equinox.internal as eqxi
 import jax
 import jax.numpy as jnp
+from loguru import logger
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field, frozen_private_field
 from fdtdx.core.jax.ste import straight_through_estimator
 from fdtdx.core.misc import get_air_name
 from fdtdx.materials import Material, compute_allowed_permittivities, compute_ordered_names
 from fdtdx.objects.device.parameters.binary_transform import dilate_jax
+from fdtdx.objects.device.parameters.utils import compute_allowed_indices, nearest_index
 
 
 class Discretization(ExtendedTreeClass, ABC):
     _material: dict[str, Material] = frozen_private_field()
     _config: SimulationConfig = frozen_private_field()
     _output_shape_dtype: jax.ShapeDtypeStruct = frozen_private_field()
-    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field()
+    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] | jax.ShapeDtypeStruct = frozen_private_field()
     
     def init_module(
         self: Self,
@@ -233,35 +235,84 @@ class BrushConstraint2D(Discretization):
         return pixel_existing_solid
 
 
-# @extended_autoinit
-# class IndicesToInversePermittivities(ConstraintModule):
-#     """Maps material indices to their inverse permittivity values.
 
-#     Converts discrete material indices into their corresponding inverse
-#     permittivity values from the allowed materials list. Uses straight-through
-#     gradient estimation to maintain differentiability.
-#     """
+@extended_autoinit
+class PillarDiscretization(Discretization):
+    """Constraint module for mapping pillar structures to allowed configurations.
 
-#     def transform(
-#         self,
-#         input_params: dict[str, jax.Array],
-#     ) -> dict[str, jax.Array]:
-#         result = {}
-#         for k, v in input_params.items():
-#             out = self._allowed_inverse_permittivities[v.astype(jnp.int32)]
-#             out = out.astype(self._config.dtype)
-#             result[k] = straight_through_estimator(v, out)
-#         return result
+    Maps arbitrary pillar structures to the nearest allowed configurations based on
+    material constraints and geometry requirements. Ensures structures meet fabrication
+    rules like single polymer columns and no trapped air holes.
 
-#     def input_interface(
-#         self,
-#         output_interface: ConstraintInterface,
-#     ) -> ConstraintInterface:
-#         if output_interface.type != "inv_permittivity":
-#             raise Exception(
-#                 "After IndicesToInversePermittivities can only follow a module using" "Inverse permittivities"
-#             )
-#         return ConstraintInterface(
-#             type="index",
-#             shapes=output_interface.shapes,
-#         )
+    Attributes:
+        axis: Axis along which to enforce pillar constraints (0=x, 1=y, 2=z).
+        single_polymer_columns: If True, restrict to single polymer columns.
+        distance_metric: Method to compute distances between material distributions:
+            - "euclidean": Standard Euclidean distance between permittivity values
+            - "permittivity_differences_plus_average_permittivity": Weighted combination
+              of permittivity differences and average permittivity values, optimized
+              for material distribution comparisons
+    """
+
+    axis: int = frozen_field(kind="KW_ONLY")
+    single_polymer_columns: bool = frozen_field(kind="KW_ONLY")
+
+    distance_metric: Literal["euclidean", "permittivity_differences_plus_average_permittivity"] = frozen_field(
+        default="permittivity_differences_plus_average_permittivity",
+    )
+    _allowed_indices: jax.Array = frozen_private_field()
+
+    def init_module(
+        self: Self,
+        config: SimulationConfig,
+        material: dict[str, Material],
+        output_shape_dtype: jax.ShapeDtypeStruct,
+    ) -> Self:
+        self = super().init_module(
+            config=config,
+            material=material,
+            output_shape_dtype=output_shape_dtype,
+        )
+        air_name = get_air_name(self._material)
+        ordered_name_list = compute_ordered_names(self._material)
+        air_idx = ordered_name_list.index(air_name)
+        
+        allowed_columns = compute_allowed_indices(
+            num_layers=output_shape_dtype.shape[self.axis],
+            indices=list(range(len(material))),
+            fill_holes_with_index=[air_idx],
+            single_polymer_columns=self.single_polymer_columns,
+        )
+        self = self.aset("_allowed_indices", allowed_columns)
+        logger.info(f"{allowed_columns=}")
+        logger.info(f"{allowed_columns.shape=}")
+        return self
+    
+    def __call__(
+        self,
+        input_params: dict[str, jax.Array] | jax.Array,
+    ) -> jax.Array:
+        if not isinstance(input_params, jax.Array):
+            raise Exception(f"BrushConstraint2D cannot be used with latent parameters that contain multiple entries")
+        
+        allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(self._material))
+        
+        nearest_allowed_index = nearest_index(
+            values=input_params,
+            allowed_values=allowed_inv_perms,
+            axis=self.axis,
+            distance_metric=self.distance_metric,
+            allowed_indices=self._allowed_indices,
+            return_distances=False,
+        )
+        result_index = self._allowed_indices[nearest_allowed_index]
+        if self.axis == 2:
+            pass  # no transposition needed
+        elif self.axis == 1:
+            result_index = jnp.transpose(result_index, axes=(0, 2, 1))
+        elif self.axis == 0:
+            result_index = jnp.transpose(result_index, axes=(2, 0, 1))
+        else:
+            raise Exception(f"invalid axis: {self.axis}")
+        result_index = straight_through_estimator(input_params, result_index)
+        return result_index

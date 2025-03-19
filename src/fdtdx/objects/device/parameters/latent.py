@@ -14,8 +14,8 @@ from fdtdx.materials import ContinuousMaterialRange, Material
 class LatentParamsTransformation(ExtendedTreeClass, ABC):
     _material: dict[str, Material] | ContinuousMaterialRange = frozen_private_field()
     _config: SimulationConfig = frozen_private_field()
-    _output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field()
-    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field()
+    _output_shape_dtypes: dict[str, jax.ShapeDtypeStruct]| jax.ShapeDtypeStruct = frozen_private_field()
+    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct]| jax.ShapeDtypeStruct = frozen_private_field()
 
     @abstractmethod
     def transform(

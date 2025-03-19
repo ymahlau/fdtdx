@@ -18,6 +18,9 @@ from fdtdx.objects.device import (
     ClosestIndex,
     StandardToInversePermittivityRange,
     ConnectHolesAndStructures,
+    DiscreteParameterMapping,
+    PillarDiscretization,
+    DiscreteDevice,
 )
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx import constants
@@ -34,8 +37,6 @@ from fdtdx.objects import SimulationObject
 from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.detectors import EnergyDetector, PoyntingFluxDetector
 from fdtdx.objects import SimulationVolume, Substrate, WaveGuide
-from fdtdx.objects.device import DiscreteDevice
-from fdtdx.objects.device.parameters.mapping import DiscreteParameterMapping
 from fdtdx.objects.sources import GaussianPlaneSource
 from fdtdx.utils import metric_efficiency, Logger, plot_setup
 
@@ -59,13 +60,13 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
 
-    parser.add_argument("--evaluation", type=str2bool, default=False, help="Whether to run in evaluation mode")
+    parser.add_argument("--evaluation", type=str2bool, default=True, help="Whether to run in evaluation mode")
 
     parser.add_argument(
         "--dim",
         type=str,
         choices=["2d", "2_5d", "3d"],
-        default="3d",
+        default="2_5d",
         help="Dimensionality of the output (2d, 2.5d, or 3d)",
     )
 
@@ -166,7 +167,10 @@ def main(
         partial_real_shape=(25.0e-6, 25.0e-6, device_z),
         parameter_mapping=DiscreteParameterMapping(
             latent_transforms=[StandardToInversePermittivityRange()],
-            discretization=ClosestIndex() if dim == "3d" else PillarDiscretization(),
+            discretization=ClosestIndex() if dim == "3d" else PillarDiscretization(
+                    axis=2,
+                    single_polymer_columns=not multi_material,
+                ),
             post_transforms=(
                 [ConnectHolesAndStructures(fill_material="SZ2080" if multi_material else "maN1400")]
                 if dim != "3d" else []

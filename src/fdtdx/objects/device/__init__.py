@@ -6,8 +6,9 @@ from .parameters.discrete import (
     ConnectHolesAndStructures,
     RemoveFloatingMaterial,
     circular_brush,
+    
 )
-from .parameters.discretization import ClosestIndex, Discretization, BrushConstraint2D
+from .parameters.discretization import ClosestIndex, Discretization, BrushConstraint2D, PillarDiscretization
 from .parameters.latent import (
     StandardToCustomRange,
     StandardToInversePermittivityRange,
@@ -29,6 +30,7 @@ __all__ = [
     "ClosestIndex",
     "Discretization",
     "BrushConstraint2D",
+    "PillarDiscretization",
     # latent transform
     "StandardToCustomRange",
     "StandardToInversePermittivityRange",
