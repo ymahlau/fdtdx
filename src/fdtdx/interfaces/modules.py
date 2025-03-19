@@ -1,15 +1,14 @@
 from abc import ABC, abstractmethod
-from typing import Callable, Self
+from typing import Callable, Self, Sequence
 
 import jax
 import jax.numpy as jnp
-import pytreeclass as tc
 
-from fdtdx.core.jax.pytrees import ExtendedTreeClass
+from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field, frozen_private_field
 from fdtdx.interfaces.state import RecordingState
 
 
-@tc.autoinit
+@extended_autoinit
 class CompressionModule(ExtendedTreeClass, ABC):
     """Abstract base class for compression modules that process simulation data.
 
@@ -22,18 +21,8 @@ class CompressionModule(ExtendedTreeClass, ABC):
         _output_shape_dtypes: Dictionary mapping field names to their output shapes/dtypes.
     """
 
-    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = tc.field(
-        default=None,
-        on_getattr=[tc.unfreeze],
-        on_setattr=[tc.freeze],
-        init=False,
-    )  # type: ignore
-    _output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = tc.field(
-        default=None,
-        on_getattr=[tc.unfreeze],
-        on_setattr=[tc.freeze],
-        init=False,
-    )  # type: ignore
+    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field(default=None)  # type: ignore
+    _output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field(default=None)  # type: ignore
 
     @abstractmethod
     def init_shapes(
@@ -108,69 +97,7 @@ class CompressionModule(ExtendedTreeClass, ABC):
         raise NotImplementedError()
 
 
-@tc.autoinit
-class SameSizeCompressionModule(CompressionModule):
-    """Compression module that maintains input/output tensor sizes.
-
-    This module applies compression while preserving tensor dimensions,
-    using user-provided compression and decompression functions.
-
-    Attributes:
-        compress_fn: Function to compress input values.
-        decompress_fn: Function to decompress compressed values.
-    """
-
-    compress_fn: Callable = tc.field(
-        init=True,
-        kind="KW_ONLY",
-        on_getattr=[tc.unfreeze],
-        on_setattr=[tc.freeze],
-    )  # type: ignore
-    decompress_fn: Callable = tc.field(
-        init=True,
-        kind="KW_ONLY",
-        on_getattr=[tc.unfreeze],
-        on_setattr=[tc.freeze],
-    )  # type: ignore
-
-    def init_shapes(
-        self,
-        input_shape_dtypes: dict[str, jax.ShapeDtypeStruct],
-    ) -> tuple[
-        Self,
-        dict[str, jax.ShapeDtypeStruct],  # data
-        dict[str, jax.ShapeDtypeStruct],  # state shapes/dtypes
-    ]:
-        self = self.aset("_input_shape_dtypes", input_shape_dtypes)
-        self = self.aset("_output_shape_dtypes", input_shape_dtypes)
-
-        return self, self._output_shape_dtypes, {}
-
-    def compress(
-        self,
-        values: dict[str, jax.Array],
-        state: RecordingState,
-        key: jax.Array,
-    ) -> tuple[
-        dict[str, jax.Array],
-        RecordingState,  # updated recording state
-    ]:
-        del key
-        out_vals = {k: self.compress_fn(v).astype(self._output_shape_dtypes[k].dtype) for k, v in values.items()}
-        return out_vals, state
-
-    def decompress(
-        self,
-        values: dict[str, jax.Array],
-        state: RecordingState,
-        key: jax.Array,
-    ) -> dict[str, jax.Array]:
-        del key, state
-        out_vals = {k: self.decompress_fn(v).astype(self._input_shape_dtypes[k].dtype) for k, v in values.items()}
-        return out_vals
-
-
-@tc.autoinit
+@extended_autoinit
 class DtypeConversion(CompressionModule):
     """Compression module that converts data types of field values.
 
@@ -182,8 +109,8 @@ class DtypeConversion(CompressionModule):
         exclude_filter: List of field names to exclude from conversion.
     """
 
-    dtype: jnp.dtype = tc.field(init=True, kind="KW_ONLY", on_getattr=[tc.unfreeze], on_setattr=[tc.freeze])  # type: ignore
-    exclude_filter: list[str] = tc.field(default=None, init=False)  # type: ignore
+    dtype: jnp.dtype = frozen_field(kind="KW_ONLY")  # type: ignore
+    exclude_filter: Sequence[str] = frozen_field(default=tuple([]), kind="KW_ONLY")
 
     def init_shapes(
         self,
@@ -212,8 +139,10 @@ class DtypeConversion(CompressionModule):
         RecordingState,
     ]:
         del key
-        exclude = [] if self.exclude_filter is None else self.exclude_filter
-        out_vals = {k: (v.astype(self.dtype) if not any(e in k for e in exclude) else v) for k, v in values.items()}
+        out_vals = {
+            k: (v.astype(self.dtype) if not any(e in k for e in self.exclude_filter) else v) 
+            for k, v in values.items()
+        }
         return out_vals, state
 
     def decompress(

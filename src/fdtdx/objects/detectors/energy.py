@@ -1,11 +1,11 @@
 import jax
-import pytreeclass as tc
 
+from fdtdx.core.jax.pytrees import extended_autoinit
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 
-@tc.autoinit
+@extended_autoinit
 class EnergyDetector(Detector):
     """Detector for measuring electromagnetic energy distribution.
 

@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import Literal, Optional, Self
 
 import jax
-import pytreeclass as tc
 
 from fdtdx.config import DUMMY_SIMULATION_CONFIG, SimulationConfig
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field, frozen_private_field
@@ -23,7 +22,7 @@ from fdtdx.core.misc import ensure_slice_tuple
 _GLOBAL_COUNTER = 0
 
 
-@tc.autoinit
+@extended_autoinit
 class UniqueName(ExtendedTreeClass):
     """Generates unique names for simulation objects.
 

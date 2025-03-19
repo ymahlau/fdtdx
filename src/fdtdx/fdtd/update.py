@@ -1,4 +1,5 @@
 import jax
+
 import pytreeclass as tc
 
 from fdtdx.config import SimulationConfig

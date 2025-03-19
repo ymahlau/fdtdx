@@ -84,6 +84,7 @@ def compute_modes(
         coords=coords,
         freq=frequency,
         # freq=tidy3d.C_0 / (wavelength / 1e-6),
+        precision=precision,
         mode_spec=mode_spec,
         direction=direction,
     )

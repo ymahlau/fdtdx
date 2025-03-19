@@ -3,12 +3,11 @@ from .device import BaseDevice, DiscreteDevice
 from .parameters.discrete import (
     BOTTOM_Z_PADDING_CONFIG_REPEAT,
     BinaryMedianFilterModule,
-    BrushConstraint2D,
     ConnectHolesAndStructures,
     RemoveFloatingMaterial,
     circular_brush,
 )
-from .parameters.discretization import ClosestIndex, Discretization
+from .parameters.discretization import ClosestIndex, Discretization, BrushConstraint2D
 from .parameters.latent import (
     StandardToCustomRange,
     StandardToInversePermittivityRange,
@@ -23,13 +22,13 @@ __all__ = [
     # discrete postprocessing
     "BOTTOM_Z_PADDING_CONFIG_REPEAT",
     "BinaryMedianFilterModule",
-    "BrushConstraint2D",
     "ConnectHolesAndStructures",
     "RemoveFloatingMaterial",
     "circular_brush",
     # discretization
     "ClosestIndex",
     "Discretization",
+    "BrushConstraint2D",
     # latent transform
     "StandardToCustomRange",
     "StandardToInversePermittivityRange",

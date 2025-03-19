@@ -9,6 +9,7 @@ from fdtdx.fdtd.backward import backward
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, SimulationState, reset_array_container
 from fdtdx.fdtd.forward import forward, forward_single_args_wrapper
 from fdtdx.interfaces.state import RecordingState
+from fdtdx.objects.boundaries.boundary import BaseBoundaryState
 from fdtdx.objects.boundaries.perfectly_matched_layer import BoundaryState
 from fdtdx.objects.detectors.detector import DetectorState
 
@@ -99,7 +100,7 @@ def reversible_fdtd(
         H: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array,
-        boundary_states: dict[str, BoundaryState],
+        boundary_states: dict[str, BaseBoundaryState],
         detector_states: dict[str, DetectorState],
         recording_state: RecordingState | None,
     ):
@@ -231,7 +232,7 @@ def reversible_fdtd(
         H: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array,
-        boundary_states: dict[str, BoundaryState],
+        boundary_states: dict[str, BaseBoundaryState],
         detector_states: dict[str, DetectorState],
         recording_state: RecordingState | None,
     ):

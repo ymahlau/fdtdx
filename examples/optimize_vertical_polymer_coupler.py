@@ -12,6 +12,7 @@ import pytreeclass as tc
 from loguru import logger
 
 from fdtdx.core.wavelength import WaveCharacter
+from fdtdx.interfaces.time_filter import LinearReconstructEveryK
 from fdtdx.materials import Material
 from fdtdx.objects.device import (
     ClosestIndex,
@@ -21,7 +22,6 @@ from fdtdx.objects.device import (
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx import constants
 from fdtdx.fdtd import (
-    checkpointed_fdtd, 
     reversible_fdtd, 
     apply_params, 
     place_objects, 
@@ -59,7 +59,7 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
 
-    parser.add_argument("--evaluation", type=str2bool, default=True, help="Whether to run in evaluation mode")
+    parser.add_argument("--evaluation", type=str2bool, default=False, help="Whether to run in evaluation mode")
 
     parser.add_argument(
         "--dim",
@@ -99,7 +99,7 @@ def main(
     period = constants.wavelength_to_period(wavelength)
 
     config = SimulationConfig(
-        time=250e-15,
+        time=150e-15,
         resolution=100e-9,
         dtype=jnp.float32,
         courant_factor=0.99,
@@ -114,7 +114,9 @@ def main(
     gradient_config = GradientConfig(
         recorder=Recorder(
             modules=[
+                # LinearReconstructEveryK(2),
                 DtypeConversion(dtype=jnp.float16),
+                # DtypeConversion(dtype=jnp.float32),
             ]
         )
     )
@@ -346,8 +348,7 @@ def main(
     ):
         arrays, new_objects, info = apply_params(arrays, objects, params, key)
 
-        fdtd_fn = checkpointed_fdtd if evaluation else reversible_fdtd
-        final_state = fdtd_fn(
+        final_state = reversible_fdtd(
             arrays=arrays,
             objects=new_objects,
             config=config,

@@ -11,15 +11,6 @@ from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 
 
 def cond_fn(state, start_time_step: int) -> bool:
-    """Check if current time step is greater than start time step.
-
-    Args:
-        state: Tuple containing (time_step, arrays)
-        start_time_step: Starting time step to compare against
-
-    Returns:
-        bool: True if current time step > start_time_step
-    """
     time_step = state[0]
     return time_step > start_time_step
 

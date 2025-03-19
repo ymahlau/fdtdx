@@ -1,7 +1,6 @@
 from abc import ABC
 
 import jax
-import pytreeclass as tc
 
 from fdtdx import constants
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, field

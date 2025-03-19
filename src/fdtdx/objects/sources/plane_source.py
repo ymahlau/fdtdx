@@ -5,7 +5,6 @@ from typing import Literal, Self
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytreeclass as tc
 from matplotlib import pyplot as plt
 
 from fdtdx import constants
@@ -479,7 +478,7 @@ class PlaneSource(DirectionalPlaneSourceBase, ABC):
         return H
 
 
-@tc.autoinit
+@extended_autoinit
 class LinearlyPolarizedPlaneSource(PlaneSource, ABC):
     fixed_E_polarization_vector: tuple[float, float, float] | None = None
     fixed_H_polarization_vector: tuple[float, float, float] | None = None
@@ -590,10 +589,10 @@ class LinearlyPolarizedPlaneSource(PlaneSource, ABC):
         raise NotImplementedError()
 
 
-@tc.autoinit
+@extended_autoinit
 class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
-    radius: float = tc.field(init=True, kind="KW_ONLY")  # type: ignore
-    std: float = 1 / 3  # relative to radius
+    radius: float = frozen_field(kind="KW_ONLY")  # type: ignore
+    std: float = frozen_field(kind="KW_ONLY", default=1 / 3)  # relative to radius
 
     @staticmethod
     def _gauss_profile(
@@ -806,7 +805,7 @@ class ModePlaneSource(PlaneSource):
         plt.close(fig)
 
 
-@tc.autoinit
+@extended_autoinit
 class ConstantAmplitudePlaneSource(LinearlyPolarizedPlaneSource):
     amplitude: float = 1.0
 
@@ -819,7 +818,7 @@ class ConstantAmplitudePlaneSource(LinearlyPolarizedPlaneSource):
         return result
 
 
-@tc.autoinit
+@extended_autoinit
 class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
     amplitude: float = 1.0
     fixed_E_polarization_vector: tuple[float, float, float] | None = None

@@ -1,14 +1,14 @@
 from typing import Literal
 
 import jax
-import pytreeclass as tc
 
+from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
 from fdtdx.typing import BackendOption
 
 
-@tc.autoinit
-class RecordingState(tc.TreeClass):
+@extended_autoinit
+class RecordingState(ExtendedTreeClass):
     """Container for simulation recording state data.
 
     Holds field data and state information for FDTD simulations.
