@@ -102,6 +102,7 @@ def compute_modes(
         freq=constants.c / (wavelength),
         mode_spec=mode_spec,
         direction=direction,
+        precision=precision,
     )
     ((Ex, Ey, Ez), (Hx, Hy, Hz)) = EH.squeeze()
 
