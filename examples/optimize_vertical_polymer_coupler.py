@@ -64,7 +64,7 @@ def parse_args() -> argparse.Namespace:
         "--dim",
         type=str,
         choices=["2d", "2_5d", "3d"],
-        default="2_5d",
+        default="3d",
         help="Dimensionality of the output (2d, 2.5d, or 3d)",
     )
 

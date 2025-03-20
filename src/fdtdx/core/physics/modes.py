@@ -87,7 +87,6 @@ def compute_modes(
         precision=precision,
         mode_spec=mode_spec,
         direction=direction,
-        precision=precision,
     )
     ((Ex, Ey, Ez), (Hx, Hy, Hz)) = EH.squeeze()
 
