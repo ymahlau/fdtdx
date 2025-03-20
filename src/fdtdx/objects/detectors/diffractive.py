@@ -2,14 +2,13 @@ from typing import Literal, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
-import pytreeclass as tc
 
 from fdtdx import constants
-from fdtdx.core.jax.pytrees import field, frozen_field
+from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 
-@tc.autoinit
+@extended_autoinit
 class DiffractiveDetector(Detector):
     """Detector for computing Fourier transforms of fields at specific frequencies and diffraction orders.
 
@@ -23,9 +22,9 @@ class DiffractiveDetector(Detector):
         direction: Direction of diffraction analysis ("+" or "-") along propagation axis
     """
 
-    frequencies: Sequence[float] = field(kind="KW_ONLY")
+    frequencies: Sequence[float] = field(kind="KW_ONLY")  # type: ignore
     orders: Sequence[Tuple[int, int]] = ((0, 0),)
-    direction: Literal["+", "-"] = frozen_field(kind="KW_ONLY")
+    direction: Literal["+", "-"] = frozen_field(kind="KW_ONLY")  # type: ignore
     dtype: jnp.dtype = frozen_field(default=jnp.complex64, kind="KW_ONLY")
 
     def __post_init__(self):

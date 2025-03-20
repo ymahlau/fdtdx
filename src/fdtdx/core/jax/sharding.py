@@ -78,7 +78,7 @@ def create_named_sharded_matrix(
     value: float,
     sharding_axis: int,
     dtype: jnp.dtype,
-    backend: Literal["gpu", "tpu", "cpu"],
+    backend: Literal["gpu", "tpu", "cpu", "METAL"],
 ) -> jax.Array:
     """Creates a sharded matrix distributed across available devices.
 

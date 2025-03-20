@@ -125,11 +125,7 @@ def field(
     on_getattr: Sequence[Any] = (),
     alias: str | None = None,
 ) -> Any:
-    """Creates a field that automatically freezes on set and unfreezes on get.
-
-    This field behaves like a regular pytreeclass field but ensures values are
-    frozen when stored and unfrozen when accessed.
-
+    """
     Args:
         default: The default value for the field
         init: Whether to include the field in __init__
@@ -292,7 +288,7 @@ def frozen_private_field(
     )
 
 
-@dataclass_transform(field_specifiers=(Field, tc_field, frozen_field, frozen_private_field))
+@dataclass_transform(field_specifiers=(Field, tc_field, frozen_field, frozen_private_field, field))
 def extended_autoinit(klass: type[T]) -> type[T]:
     """Wrapper around tc.autoinit that preserves parameter requirement information"""
     return (

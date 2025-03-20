@@ -1,16 +1,14 @@
 from typing import Literal, Union
 
-import pytreeclass
-
-from fdtdx.core.jax.pytrees import ExtendedTreeClass
-from fdtdx.core.jax.typing import PartialGridShape3D
+from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.boundaries.utils import axis_direction_from_kind
 from fdtdx.objects.object import PositionConstraint, SimulationObject
+from fdtdx.typing import PartialGridShape3D
 
 
-@pytreeclass.autoinit
+@extended_autoinit
 class BoundaryConfig(ExtendedTreeClass):
     """Configuration class for boundary conditions.
 
@@ -168,7 +166,7 @@ class BoundaryConfig(ExtendedTreeClass):
         boundary_type: str = "pml",
         kappa_start: float = 1,
         kappa_end: float = 1.5,
-    ):
+    ) -> "BoundaryConfig":
         """Creates a BoundaryConfig with uniform parameters for all boundaries.
 
         Args:

@@ -1,13 +1,13 @@
 from typing import Literal
 
 import jax
-import pytreeclass as tc
 
+from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
 from fdtdx.core.physics.metrics import poynting_flux
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 
-@tc.autoinit
+@extended_autoinit
 class PoyntingFluxDetector(Detector):
     """Detector for measuring Poynting flux in electromagnetic simulations.
 
@@ -23,12 +23,7 @@ class PoyntingFluxDetector(Detector):
             over the detection surface. If False, maintains spatial distribution.
     """
 
-    direction: Literal["+", "-"] = tc.field(  # type: ignore
-        init=True,
-        kind="KW_ONLY",
-        on_getattr=[tc.unfreeze],
-        on_setattr=[tc.freeze],
-    )
+    direction: Literal["+", "-"] = frozen_field(kind="KW_ONLY")  # type: ignore
     reduce_volume: bool = True
 
     @property

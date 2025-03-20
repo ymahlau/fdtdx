@@ -6,10 +6,12 @@ For this tutorial, the important point to note is that during the forward simula
 
 As a remedy, we implement a compression mechanism for these saved fields. The compression settings can be adjusted in the simulation config:
 ```python
-from fdtdx.core.config import GradientConfig, SimulationConfig
-from fdtdx.interfaces.modules import DtypeConversion
-from fdtdx.interfaces.recorder import Recorder
-from fdtdx.interfaces.time_filter import LinearReconstructEveryK
+from fdtdx.config import GradientConfig, SimulationConfig
+from fdtdx.interfaces import (
+    DtypeConversion,
+    Recorder,
+    LinearReconstructEveryK
+)
 import jax.numpy as jnp
 
 gradient_config = GradientConfig(
@@ -28,7 +30,7 @@ config = SimulationConfig(
     gradient_config=gradient_config,  # <- This needs to be set for gradient computation
 )
 ```
-Similarly to the [constraint mappings](./constraint_mapping.md), the recorder of the gradient config is defined by a list of modules, which are applied consecutively. In this example, the following two modules are used:
+Similarly to the [constraint mappings](./parameter_mapping.md), the recorder of the gradient config is defined by a list of modules, which are applied consecutively. In this example, the following two modules are used:
 - LinearReconstructEveryK: Firstly, this module only saves the boundary fields at every second time step. During reconstruction, the missing values are recomputed by linearly interpolating between the saved time steps. The attribute k=2 defines the step size.
 - DtypeConversion: The output of the previous module is converted to a different data type. In our example, the simulation runs with 32 bit floating point precision and the module converts these values to 16 bit precision, again saving 50% of the required memory.
 
@@ -36,7 +38,7 @@ At the moment, these are the only two important compression modules implemented.
 
 Regarding the number of time steps, a rule of thumb is that 10 time steps per period should be saved for accurate results. Often lower saving intervals also suffice, but one needs to make sure that this is actually the case. So for example, if the simulation performs 30 time steps per period (this depends on the Courant-Friedrichs-Levy Condition), then a compression of LinearReconstructEveryK(3) should be used to save 10 time steps. The number of time steps per period can be computed by:
 ```python
-from fdtdx.core.physics import constants
+from fdtdx import constants
 wavelength = 1.55e-6
 period = constants.wavelength_to_period(wavelength)
 steps_per_period = period / config.time_step_duration
@@ -61,4 +63,4 @@ def loss_function(params, ...)
 grad_function = jax.grad(loss_fn)
 grad_loss_wrt_params = grad_function(params)
 ```
-Of course figure_of_merit can be any objective function that should be optimized. The apply_params function internally calls the [constraint mapping](./constraint_mapping.md) of the device and sets the proper inverse permittivities for the simulation.
+Of course figure_of_merit can be any objective function that should be optimized. The apply_params function internally calls the [Parameter mapping](./parameter_mapping.md) of the device and sets the proper inverse permittivities for the simulation.

@@ -4,13 +4,13 @@ import jax
 import jax.numpy as jnp
 
 from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
-from fdtdx.core.jax.typing import GridShape3D, Slice3D, SliceTuple3D
 from fdtdx.core.plotting.colors import DARK_GREY
 from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState
 from fdtdx.objects.boundaries.utils import (
     kappa_from_direction_axis,
     standard_sigma_from_direction_axis,
 )
+from fdtdx.typing import GridShape3D, Slice3D, SliceTuple3D
 
 
 @extended_autoinit
@@ -66,7 +66,7 @@ class PerfectlyMatchedLayer(BaseBoundary):
         color: RGB color tuple for visualization
     """
 
-    axis: int = field(kind="KW_ONLY")
+    axis: int = field(kind="KW_ONLY")  # type: ignore
     direction: Literal["+", "-"] = frozen_field(kind="KW_ONLY")  # type: ignore
     alpha: float = 1.0e-8
     kappa_start: float = 1.0
@@ -354,7 +354,7 @@ class PerfectlyMatchedLayer(BaseBoundary):
         E: jax.Array,
         boundary_state: BoundaryState,
         inverse_permittivity: jax.Array,
-    ):
+    ) -> jax.Array:
         """Updates the electric field components in the PML region.
 
         Applies the PML update equations to modify the electric field values
@@ -384,7 +384,7 @@ class PerfectlyMatchedLayer(BaseBoundary):
         H: jax.Array,
         boundary_state: BoundaryState,
         inverse_permeability: jax.Array,
-    ):
+    ) -> jax.Array:
         """Updates the magnetic field components in the PML region.
 
         Applies the PML update equations to modify the magnetic field values

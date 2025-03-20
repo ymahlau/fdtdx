@@ -4,7 +4,7 @@ from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, SimulationState
 from fdtdx.fdtd.update import collect_interfaces, update_detector_states, update_E, update_H
 from fdtdx.interfaces.state import RecordingState
-from fdtdx.objects.boundaries.perfectly_matched_layer import BoundaryState
+from fdtdx.objects.boundaries.boundary import BaseBoundaryState
 from fdtdx.objects.detectors.detector import DetectorState
 
 
@@ -14,7 +14,7 @@ def forward_single_args_wrapper(
     H: jax.Array,
     inv_permittivities: jax.Array,
     inv_permeabilities: jax.Array,
-    boundary_states: dict[str, BoundaryState],
+    boundary_states: dict[str, BaseBoundaryState],
     detector_states: dict[str, DetectorState],
     recording_state: RecordingState | None,
     config: SimulationConfig,
@@ -29,7 +29,7 @@ def forward_single_args_wrapper(
     jax.Array,
     jax.Array,
     jax.Array,
-    dict[str, BoundaryState],
+    dict[str, BaseBoundaryState],
     dict[str, DetectorState],
     RecordingState | None,
 ]:

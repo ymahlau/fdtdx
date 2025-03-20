@@ -1,14 +1,13 @@
-import abc
 from abc import ABC
 from dataclasses import dataclass
 from typing import Literal, Optional, Self
 
 import jax
-import pytreeclass as tc
 
 from fdtdx.config import DUMMY_SIMULATION_CONFIG, SimulationConfig
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field, frozen_private_field
-from fdtdx.core.jax.typing import (
+from fdtdx.core.misc import ensure_slice_tuple
+from fdtdx.typing import (
     INVALID_SLICE_TUPLE_3D,
     UNDEFINED_SHAPE_3D,
     GridShape3D,
@@ -18,12 +17,11 @@ from fdtdx.core.jax.typing import (
     Slice3D,
     SliceTuple3D,
 )
-from fdtdx.core.misc import ensure_slice_tuple
 
 _GLOBAL_COUNTER = 0
 
 
-@tc.autoinit
+@extended_autoinit
 class UniqueName(ExtendedTreeClass):
     """Generates unique names for simulation objects.
 
@@ -174,7 +172,6 @@ class RealCoordinateConstraint:
 class SimulationObject(ExtendedTreeClass, ABC):
     partial_real_shape: PartialRealShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
     partial_grid_shape: PartialGridShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
-    placement_order: int = frozen_field(default=0)
     color: tuple[float, float, float] | None = frozen_field(default=None)  # RGB, interval[0, 1]
     name: str = frozen_field(  # type: ignore
         default=None,
@@ -238,22 +235,6 @@ class SimulationObject(ExtendedTreeClass, ABC):
         self = self.aset("_config", config)
 
         return self
-
-    @abc.abstractmethod
-    def get_inv_permittivity(
-        self,
-        prev_inv_permittivity: jax.Array,
-        params: dict[str, jax.Array] | None,
-    ) -> tuple[jax.Array, dict]:  # permittivity and info dict
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def get_inv_permeability(
-        self,
-        prev_inv_permeability: jax.Array,
-        params: dict[str, jax.Array] | None,
-    ) -> tuple[jax.Array, dict]:  # permeability and info dict
-        raise NotImplementedError()
 
     def place_relative_to(
         self,
@@ -725,3 +706,8 @@ class SimulationObject(ExtendedTreeClass, ABC):
 
     def __hash__(self) -> int:
         return hash(self.name)
+
+
+@extended_autoinit
+class OrderableObject(SimulationObject):
+    placement_order: int = frozen_field(default=0)

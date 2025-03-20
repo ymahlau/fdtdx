@@ -1,5 +1,6 @@
 import sys
 
+# these options will make the code slower, but more memory efficient
 # os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = "platform"
 # os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 # os.environ["NCCL_LL128_BUFFSIZE"] = "-2"
@@ -14,23 +15,23 @@ import jax.profiler
 import pytreeclass as tc
 from loguru import logger
 
-from fdtdx.constraints import (
-    ClosestIndex, 
-    IndicesToInversePermittivities, 
-    StandardToInversePermittivityRange,
-    ConstraintMapping,
-)
 from fdtdx import constants
-from fdtdx.config import GradientConfig, SimulationConfig
+from fdtdx.config import SimulationConfig
 from fdtdx.core.plotting import colors
 from fdtdx.fdtd import custom_fdtd_forward, ArrayContainer, apply_params, place_objects
-from fdtdx.interfaces.recorder import Recorder
-from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
-from fdtdx.objects import SimulationObject, SimulationVolume, Substrate, WaveGuide
+from fdtdx.materials import Material
+from fdtdx.objects import SimulationObject, SimulationVolume, Substrate, Waveguide
+from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.detectors import EnergyDetector, PoyntingFluxDetector
-from fdtdx.objects.multi_material import DiscreteDevice
+from fdtdx.objects.device import (
+    DiscreteDevice, 
+    DiscreteParameterMapping, 
+    ClosestIndex, 
+    StandardToInversePermittivityRange,
+)
 from fdtdx.objects.sources import ConstantAmplitudePlaneSource
-from fdtdx.utils import metric_efficiency, Logger, plot_setup
+from fdtdx.core import WaveCharacter, metric_efficiency
+from fdtdx.utils import Logger, plot_setup
 
 
 # Design of Shen et al.: https://opg.optica.org/oe/fulltext.cfm?uri=oe-22-22-27175&id=303419
@@ -78,12 +79,10 @@ def main(
 ):
     evaluation: bool = True
     use_reference_grid: bool = True
-    backward: bool = False  # only used when evaluation is true
 
     logger.info(f"{seed=}")
     logger.info(f"{evaluation=}")
     logger.info(f"{use_reference_grid=}")
-    logger.info(f"{backward=}")
 
     permittivity_silicon = 12.25
     permittivity_silica = 2.25
@@ -109,10 +108,6 @@ def main(
     logger.info(f"{period_steps=}")
     logger.info(f"{config.max_travel_distance=}")
 
-    if not evaluation or backward:
-        gradient_config = GradientConfig(recorder=Recorder(modules=[]))
-        config = config.aset("gradient_config", gradient_config)
-
     placement_constraints = []
 
     volume = SimulationVolume(
@@ -127,7 +122,7 @@ def main(
         name="Silica",
         color=colors.LIGHT_BROWN,
         partial_real_shape=(None, None, 0.5e-6),
-        permittivity=permittivity_silica,
+        material=Material(permittivity=permittivity_silica)
     )
     placement_constraints.append(
         dioxide_substrate.place_relative_to(
@@ -139,20 +134,18 @@ def main(
     )
 
     permittivity_config = {
-        "Air": constants.relative_permittivity_air,
-        "Silicon": permittivity_silicon,
+        "Air": Material(permittivity=constants.relative_permittivity_air),
+        "Silicon": Material(permittivity=permittivity_silicon),
     }
     
     device = DiscreteDevice(
         name="Device",
         partial_real_shape=(3e-6, 3e-6, 300e-9),
-        permittivity_config=permittivity_config,
-        constraint_mapping=ConstraintMapping(
-            modules=[
-                StandardToInversePermittivityRange(),
-                ClosestIndex(),
-                IndicesToInversePermittivities(),
-            ],
+        material=permittivity_config,
+        parameter_mapping=DiscreteParameterMapping(
+            latent_transforms=[StandardToInversePermittivityRange()],
+            discretization=ClosestIndex(),
+            post_transforms=[],
         ),
         partial_voxel_real_shape=(100e-9, 100e-9, 300e-9),
     )
@@ -170,7 +163,7 @@ def main(
     source = ConstantAmplitudePlaneSource(
         partial_real_shape=(None, None, None),
         partial_grid_shape=(None, None, 1),
-        wavelength=1.550e-6,
+        wave_character=WaveCharacter(wavelength=1.550e-6),
         direction="-",
         fixed_E_polarization_vector=(0, 1, 0),
     )
@@ -204,19 +197,13 @@ def main(
             in_detector.place_relative_to(
                 source, axes=(2,), own_positions=(1,), other_positions=(-1,), grid_margins=(-3,)
             ),
-            in_detector.size_relative_to(
-                device,
-                axes=(
-                    0,
-                    1,
-                ),
-            ),
+            in_detector.size_relative_to(device, axes=(0, 1)),
         ]
     )
 
-    waveguide = WaveGuide(
+    waveguide = Waveguide(
         partial_real_shape=(None, 0.4e-6, 0.3e-6),
-        permittivity=permittivity_silicon,
+        material=Material(permittivity=permittivity_silicon),
     )
     placement_constraints.extend(
         [
@@ -265,8 +252,18 @@ def main(
         time_steps=[-1],
     )
     placement_constraints.extend([*energy_last_step.same_position_and_size(volume)])
-
+    
     exclude_object_list: list[SimulationObject] = [energy_last_step]
+    
+    if evaluation:
+        video_energy_detector = EnergyDetector(
+            name="Energy Video",
+            as_slices=True,
+            interval=10,
+            exact_interpolation=True,
+        )
+        placement_constraints.extend(video_energy_detector.same_position_and_size(volume))
+        exclude_object_list.append(video_energy_detector)
 
     key, subkey = jax.random.split(key)
     objects, arrays, params, config, _ = place_objects(
@@ -277,7 +274,7 @@ def main(
     )
 
     if use_reference_grid:
-        params["Device"]["out"] = REFERENCE_DESIGN_GRID
+        params[device.name] = REFERENCE_DESIGN_GRID
 
     logger.info(tc.tree_summary(arrays, depth=2))
     print(tc.tree_diagram(config, depth=4))

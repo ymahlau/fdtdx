@@ -7,6 +7,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field
+from fdtdx.materials import Material
 
 
 def is_on_at_time_step(
@@ -120,7 +121,7 @@ def is_on_at_time_step(
     return on
 
 
-def expand_matrix(matrix: jax.Array, grid_points_per_voxel: tuple[int, ...], add_channels: bool = True) -> jax.Array:
+def expand_matrix(matrix: jax.Array, grid_points_per_voxel: tuple[int, ...]) -> jax.Array:
     """Expands a matrix by repeating values along spatial dimensions and optionally adding channels.
 
     Used to upsample a coarse grid to a finer simulation grid by repeating values. Can also add
@@ -129,17 +130,6 @@ def expand_matrix(matrix: jax.Array, grid_points_per_voxel: tuple[int, ...], add
     Args:
         matrix: Input matrix to expand
         grid_points_per_voxel: Number of grid points to expand each voxel into along each dimension
-        add_channels: If True, adds and tiles 3 channels for vector field components
-
-    Returns:
-        jax.Array: Expanded matrix with repeated values and optional channels
-    """
-    """Expands a matrix by repeating values along spatial dimensions and optionally adding channels.
-
-    Args:
-        matrix: Input matrix to expand
-        grid_points_per_voxel: Number of grid points to expand each voxel into along each dimension
-        add_channels: If True, adds and tiles 3 channels for vector field components
 
     Returns:
         jax.Array: Expanded matrix with repeated values and optional channels
@@ -149,10 +139,6 @@ def expand_matrix(matrix: jax.Array, grid_points_per_voxel: tuple[int, ...], add
     expanded_matrix = jnp.repeat(matrix, grid_points_per_voxel[0], axis=0)
     expanded_matrix = jnp.repeat(expanded_matrix, grid_points_per_voxel[1], axis=1)
     expanded_matrix = jnp.repeat(expanded_matrix, grid_points_per_voxel[2], axis=2)
-    if add_channels:
-        if matrix.ndim == 3:
-            expanded_matrix = jnp.expand_dims(expanded_matrix, axis=-1)
-        expanded_matrix = jnp.tile(expanded_matrix, tuple(1 for _ in grid_points_per_voxel) + (3,))
     return expanded_matrix
 
 
@@ -553,11 +539,11 @@ def linear_interpolated_indexing(
     return result
 
 
-def get_air_name(permittivity_config: dict[str, float]):
-    for k, v in permittivity_config.items():
-        if v == 1:
+def get_air_name(materials: dict[str, Material]):
+    for k, v in materials.items():
+        if v.permittivity == 1 and v.permeability == 1 and v.conductivity == 0:
             return k
-    raise Exception(f"Could not find air in: {permittivity_config}")
+    raise Exception(f"Could not find air in: {materials}")
 
 
 @extended_autoinit

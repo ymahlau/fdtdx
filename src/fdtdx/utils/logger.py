@@ -19,11 +19,12 @@ from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn
 from rich.table import Table
 
 from fdtdx.conversion import export_stl as export_stl_fn
-from fdtdx.core.misc import cast_floating_to_numpy
+from fdtdx.core.misc import cast_floating_to_numpy, get_air_name
 from fdtdx.core.plotting.device_permittivity_index_utils import device_matrix_index_figure
 from fdtdx.fdtd.container import ObjectContainer, ParameterContainer
+from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.detectors.detector import DetectorState
-from fdtdx.objects.multi_material.device import DiscreteDevice
+from fdtdx.objects.device import DiscreteDevice
 
 
 def init_working_directory(experiment_name: str, wd_name: str | None) -> Path:
@@ -271,11 +272,19 @@ class Logger:
         """
         changed_voxels = 0
         for device in objects.devices:
+            device_params = params[device.name]
+            indices = device.get_material_mapping(device_params)
+
+            # raw parameters and indices
+            if isinstance(device_params, dict):
+                for k, v in device_params.items():
+                    jnp.save(self.params_dir / f"params_{iter_idx}_{device.name}_{k}.npy", v)
+            else:
+                jnp.save(self.params_dir / f"params_{iter_idx}_{device.name}.npy", device_params)
+            jnp.save(self.params_dir / f"matrix_{iter_idx}_{device.name}.npy", indices)
+
             if not isinstance(device, DiscreteDevice):
                 continue
-            device_params = params[device.name]
-            indices = device.get_indices(device_params)
-
             has_previous = self.last_indices[device.name] is not None
             cur_changed_voxels = 0
             if has_previous:
@@ -286,17 +295,19 @@ class Logger:
             if cur_changed_voxels == 0 and has_previous:
                 continue
             if export_stl:
-                air_idx = list(device.allowed_permittivities).index(1)
-                for idx in range(len(device.allowed_permittivities)):
+                air_name = get_air_name(device.material)
+                ordered_name_list = compute_ordered_names(device.material)
+                air_idx = ordered_name_list.index(air_name)
+                for idx in range(len(device.material)):
                     if idx == air_idx and not export_air_stl:
                         continue
-                    name = device.ordered_permittivity_tuples[idx][0]
+                    name = ordered_name_list[idx]
                     export_stl_fn(
                         matrix=np.asarray(indices) == idx,
                         stl_filename=self.stl_dir / f"matrix_{iter_idx}_{device.name}_{name}.stl",
                         voxel_grid_size=device.single_voxel_grid_shape,
                     )
-                if len(device.allowed_permittivities) > 2:
+                if len(device.material) > 2:
                     export_stl_fn(
                         matrix=np.asarray(indices) != air_idx,
                         stl_filename=self.stl_dir / f"matrix_{iter_idx}_{device.name}_non_air.stl",
@@ -306,8 +317,8 @@ class Logger:
             # image of indices
             if export_figure:
                 fig = device_matrix_index_figure(
-                    indices,
-                    tuple(device.ordered_permittivity_tuples),
+                    device_matrix_indices=indices,
+                    material=device.material,
                 )
                 self.savefig(
                     self.cwd / "device",
@@ -315,10 +326,5 @@ class Logger:
                     fig,
                     dpi=72,
                 )
-
-            # raw permittivities and parameters
-            jnp.save(self.params_dir / f"matrix_{iter_idx}_{device.name}.npy", indices)
-            for k, v in device_params.items():
-                jnp.save(self.params_dir / f"params_{iter_idx}_{device.name}_{k}.npy", v)
 
         return changed_voxels

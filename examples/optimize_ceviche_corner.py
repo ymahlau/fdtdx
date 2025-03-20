@@ -7,44 +7,37 @@ import optax
 import pytreeclass as tc
 from loguru import logger
 
-from fdtdx.constraints import (
-    ClosestIndex,
-    ConstraintInterface,
-    IndicesToInversePermittivities,
-    StandardToInversePermittivityRange,
+from fdtdx.core.wavelength import WaveCharacter
+from fdtdx.materials import Material
+from fdtdx.objects.device import (
     StandardToPlusOneMinusOneRange,
-    ConstraintMapping,
     BrushConstraint2D,
     circular_brush,
+    DiscreteDevice
 )
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx import constants
 from fdtdx.fdtd import full_backward, reversible_fdtd, ArrayContainer, ParameterContainer, apply_params, place_objects
 from fdtdx.interfaces import DtypeConversion, Recorder, LinearReconstructEveryK
-from fdtdx.objects import SimulationVolume, Substrate, WaveGuide, SimulationObject
+from fdtdx.objects import SimulationVolume, Substrate, Waveguide, SimulationObject
 from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.detectors import EnergyDetector, PoyntingFluxDetector
-from fdtdx.objects.multi_material import DiscreteDevice
+from fdtdx.objects.device.parameters.mapping import DiscreteParameterMapping
 from fdtdx.objects.sources import ModePlaneSource
-from fdtdx.utils import metric_efficiency, Logger, plot_setup
+from fdtdx.core import metric_efficiency
+from fdtdx.utils import Logger, plot_setup
 
 
 def main(
     seed: int,
-    fixed_names: bool = False,
     evaluation: bool = True,
     backward: bool = True,
-    pretraining_ratio: float = 0.5,
 ):
     logger.info(f"{seed=}")
 
-    name = None
-    if fixed_names:
-        formatted_ratio = f"{pretraining_ratio:.2f}".replace(".", "_")
-        name = f"ceviche_corner_{seed}_{formatted_ratio}"
     exp_logger = Logger(
         experiment_name="ceviche_corner",
-        name=name,
+        name=None,
     )
     key = jax.random.PRNGKey(seed=seed)
 
@@ -89,7 +82,7 @@ def main(
 
     substrate = Substrate(
         partial_real_shape=(None, None, 0.6e-6),
-        permittivity=constants.relative_permittivity_silica,
+        material=Material(permittivity=constants.relative_permittivity_silica),
     )
     placement_constraints.append(
         substrate.place_relative_to(
@@ -101,30 +94,21 @@ def main(
     )
 
     height = 400e-9
-    permittivity_config = {
-        "Air": constants.relative_permittivity_air,
-        "Silicon": constants.relative_permittivity_silicon,
+    material_config = {
+        "Air": Material(permittivity=constants.relative_permittivity_air),
+        "Silicon": Material(permittivity=constants.relative_permittivity_silicon),
     }
     brush_diameter = round(100e-9 / config.resolution)
-    modules_pretrain = [
-        StandardToInversePermittivityRange(),
-        ClosestIndex(),
-        IndicesToInversePermittivities(),
-    ]
-    modules_finetune = [
-        StandardToPlusOneMinusOneRange(),
-        BrushConstraint2D(
-            brush=circular_brush(diameter=brush_diameter),
-            axis=2,
-        ),
-        IndicesToInversePermittivities(),
-    ]
     device = DiscreteDevice(
         name="Device",
         partial_real_shape=(1.6e-6, 1.6e-6, height),
-        permittivity_config=permittivity_config,
-        constraint_mapping=ConstraintMapping(
-            modules=modules_pretrain,
+        material=material_config,
+        parameter_mapping=DiscreteParameterMapping(
+            latent_transforms=[StandardToPlusOneMinusOneRange(),],
+            discretization=BrushConstraint2D(
+                brush=circular_brush(diameter=brush_diameter),
+                axis=2,
+            ),
         ),
         partial_voxel_real_shape=(config.resolution, config.resolution, height),
     )
@@ -139,9 +123,9 @@ def main(
         )
     )
 
-    waveguide_in = WaveGuide(
+    waveguide_in = Waveguide(
         partial_real_shape=(None, 0.4e-6, height),
-        permittivity=permittivity_config["Silicon"],
+        material=material_config["Silicon"],
     )
     placement_constraints.extend(
         [
@@ -160,7 +144,7 @@ def main(
 
     source = ModePlaneSource(
         partial_grid_shape=(1, None, None),
-        wavelength=wavelength,
+        wave_character=WaveCharacter(wavelength=wavelength),
         direction="+",
     )
     placement_constraints.extend(
@@ -198,9 +182,9 @@ def main(
         ]
     )
 
-    waveguide_out = WaveGuide(
+    waveguide_out = Waveguide(
         partial_real_shape=(0.4e-6, None, height),
-        permittivity=permittivity_config["Silicon"],
+        material=material_config["Silicon"],
     )
     placement_constraints.extend(
         [
@@ -341,28 +325,13 @@ def main(
         return -objective, (arrays, new_info)
 
     epochs = 501 if not evaluation else 1
-    pretrain_epochs = round(epochs * pretraining_ratio)
-    finetune_epochs = epochs - pretrain_epochs
     if not evaluation:
-        if pretrain_epochs > 0:
-            schedule_pretrain: optax.Schedule = optax.warmup_cosine_decay_schedule(
-                init_value=0.0005,
-                peak_value=0.005,
-                end_value=0.0005,
-                warmup_steps=10 if pretrain_epochs >= 10 else 1,
-                decay_steps=round(0.9 * pretrain_epochs),
-            )
-            optimizer_pretrain = optax.inject_hyperparams(optax.nadam)(learning_rate=schedule_pretrain)
-
-            optimizer_pretrain = optax.MultiSteps(optimizer_pretrain, every_k_schedule=1)
-            opt_state_pretrain: optax.OptState = optimizer_pretrain.init(params)
-
         schedule_finetune: optax.Schedule = optax.warmup_cosine_decay_schedule(
             init_value=0.0005,
             peak_value=0.005,
             end_value=0.0005,
             warmup_steps=10,
-            decay_steps=round(0.9 * finetune_epochs),
+            decay_steps=round(0.9 * epochs),
         )
         optimizer_finetune = optax.inject_hyperparams(optax.nadam)(learning_rate=schedule_finetune)
 
@@ -384,34 +353,6 @@ def main(
 
     optim_task_id = exp_logger.progress.add_task("Optimization", total=epochs)
     for epoch in range(epochs):
-        if epoch == pretrain_epochs:
-            # recompile with fintuning constraints using minimum feature size
-            new_constraints = ConstraintMapping(
-                modules=modules_finetune,
-            )
-            new_constraints = new_constraints.init_modules(
-                config=config,
-                permittivity_config=permittivity_config,
-                output_interface=ConstraintInterface(
-                    shapes={
-                        "out": objects.devices[0].matrix_voxel_grid_shape,
-                    },
-                    type="inv_permittivity",
-                ),
-            )
-            new_object_list = [
-                o if not isinstance(o, DiscreteDevice) else o.aset("constraint_mapping", new_constraints)
-                for o in objects.objects
-            ]
-            objects = objects.aset("object_list", new_object_list)
-            if evaluation:
-                jitted_loss = jax.jit(loss_func, donate_argnames=["arrays"]).lower(params, arrays, key).compile()
-            else:
-                jitted_loss = (
-                    jax.jit(jax.value_and_grad(loss_func, has_aux=True), donate_argnames=["arrays"])
-                    .lower(params, arrays, key)
-                    .compile()
-                )
 
         run_start_time = time.time()
         key, subkey = jax.random.split(key)
@@ -420,13 +361,8 @@ def main(
         else:
             (loss, (arrays, info)), grads = jitted_loss(params, arrays, subkey)
 
-            # update
-            if epoch < pretrain_epochs:
-                updates, opt_state_pretrain = optimizer_pretrain.update(grads, opt_state_pretrain, params)
-                info["lr"] = opt_state_pretrain.inner_opt_state.hyperparams["learning_rate"]
-            else:
-                updates, opt_state_finetune = optimizer_finetune.update(grads, opt_state_finetune, params)
-                info["lr"] = opt_state_finetune.inner_opt_state.hyperparams["learning_rate"]
+            updates, opt_state_finetune = optimizer_finetune.update(grads, opt_state_finetune, params)
+            info["lr"] = opt_state_finetune.inner_opt_state.hyperparams["learning_rate"]
             params = optax.apply_updates(params, updates)
             params = jax.tree_util.tree_map(lambda p: jnp.clip(p, 0, 1), params)
             info["grad_norm"] = optax.global_norm(grads)
@@ -459,19 +395,13 @@ def main(
 
 if __name__ == "__main__":
     seed = 42
-    fixed_names: bool = False
-    evaluation = False
+    evaluation = True
     backward = True
-    pretraining_ratio = 0.5
     if len(sys.argv) > 1:
         seed = int(sys.argv[1])
-        pretraining_ratio = float(sys.argv[2])
-        fixed_names = True
         evaluation = False
     main(
         seed,
         evaluation=evaluation,
-        fixed_names=fixed_names,
         backward=backward,
-        pretraining_ratio=pretraining_ratio,
     )

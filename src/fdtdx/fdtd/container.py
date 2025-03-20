@@ -8,23 +8,24 @@ like sources, detectors, PML boundaries, periodic boundaries, and devices.
 from typing import Self
 
 import jax
-import pytreeclass as tc
 
-from fdtdx.core.jax.pytrees import ExtendedTreeClass
+from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.detectors.detector import Detector, DetectorState
-from fdtdx.objects.multi_material.device import BaseDevice
+from fdtdx.objects.device import BaseDevice, DiscreteDevice
+from fdtdx.objects.device.device import ContinuousDevice
 from fdtdx.objects.object import SimulationObject
 from fdtdx.objects.sources.source import Source
+from fdtdx.objects.static_material.static import StaticMaterialObject
 
 # Type alias for parameter dictionaries containing JAX arrays
-ParameterContainer = dict[str, dict[str, jax.Array]]
+ParameterContainer = dict[str, dict[str, jax.Array] | jax.Array]
 
 
-@tc.autoinit
+@extended_autoinit
 class ObjectContainer(ExtendedTreeClass):
     """Container for managing simulation objects and their relationships.
 
@@ -49,8 +50,8 @@ class ObjectContainer(ExtendedTreeClass):
         return self.object_list
 
     @property
-    def static_material_objects(self) -> list[SimulationObject]:
-        return [o for o in self.objects if not isinstance(o, BaseDevice)]
+    def static_material_objects(self) -> list[StaticMaterialObject]:
+        return [o for o in self.objects if isinstance(o, StaticMaterialObject)]
 
     @property
     def sources(self) -> list[Source]:
@@ -59,6 +60,14 @@ class ObjectContainer(ExtendedTreeClass):
     @property
     def devices(self) -> list[BaseDevice]:
         return [o for o in self.objects if isinstance(o, BaseDevice)]
+
+    @property
+    def discrete_devices(self) -> list[DiscreteDevice]:
+        return [o for o in self.objects if isinstance(o, DiscreteDevice)]
+
+    @property
+    def continous_devices(self) -> list[ContinuousDevice]:
+        return [o for o in self.objects if isinstance(o, ContinuousDevice)]
 
     @property
     def detectors(self) -> list[Detector]:
@@ -105,7 +114,7 @@ class ObjectContainer(ExtendedTreeClass):
         return self
 
 
-@tc.autoinit
+@extended_autoinit
 class ArrayContainer(ExtendedTreeClass):
     """Container for simulation field arrays and states.
 

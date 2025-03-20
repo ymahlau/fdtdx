@@ -2,10 +2,11 @@ from abc import ABC, abstractmethod
 
 import jax
 import jax.numpy as jnp
-import pytreeclass as tc
+
+from fdtdx.core.jax.pytrees import extended_autoinit
 
 
-@tc.autoinit
+@extended_autoinit
 class TemporalProfile(ABC):
     """Base class for temporal profiles of sources.
 
@@ -32,7 +33,7 @@ class TemporalProfile(ABC):
         raise NotImplementedError()
 
 
-@tc.autoinit
+@extended_autoinit
 class SingleFrequencyProfile(TemporalProfile):
     """Simple sinusoidal temporal profile at a single frequency."""
 
@@ -46,7 +47,7 @@ class SingleFrequencyProfile(TemporalProfile):
         return jnp.cos(time_phase)
 
 
-@tc.autoinit
+@extended_autoinit
 class GaussianPulseProfile(TemporalProfile):
     """Gaussian pulse temporal profile with carrier wave."""
 

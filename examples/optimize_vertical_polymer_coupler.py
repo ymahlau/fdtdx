@@ -11,19 +11,19 @@ import optax
 import pytreeclass as tc
 from loguru import logger
 
-from fdtdx.constraints import (
+from fdtdx.core import WaveCharacter, metric_efficiency
+from fdtdx.materials import Material
+from fdtdx.objects.device import (
     ClosestIndex,
-    ConstraintModule,
-    IndicesToInversePermittivities,
     StandardToInversePermittivityRange,
     ConnectHolesAndStructures,
-    ConstraintMapping,
-    PillarMapping,
+    DiscreteParameterMapping,
+    PillarDiscretization,
+    DiscreteDevice,
 )
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx import constants
 from fdtdx.fdtd import (
-    checkpointed_fdtd, 
     reversible_fdtd, 
     apply_params, 
     place_objects, 
@@ -32,13 +32,11 @@ from fdtdx.fdtd import (
     ParameterContainer
 )
 from fdtdx.interfaces import DtypeConversion, Recorder
-from fdtdx.objects import SimulationObject
+from fdtdx.objects import SimulationObject, SimulationVolume, Substrate, Waveguide
 from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.detectors import EnergyDetector, PoyntingFluxDetector
-from fdtdx.objects.material import SimulationVolume, Substrate, WaveGuide
-from fdtdx.objects.multi_material import DiscreteDevice
 from fdtdx.objects.sources import GaussianPlaneSource
-from fdtdx.utils import metric_efficiency, Logger, plot_setup
+from fdtdx.utils import Logger, plot_setup
 
 
 def str2bool(v):
@@ -100,7 +98,7 @@ def main(
     period = constants.wavelength_to_period(wavelength)
 
     config = SimulationConfig(
-        time=250e-15,
+        time=150e-15,
         resolution=100e-9,
         dtype=jnp.float32,
         courant_factor=0.99,
@@ -115,7 +113,9 @@ def main(
     gradient_config = GradientConfig(
         recorder=Recorder(
             modules=[
+                # LinearReconstructEveryK(2),
                 DtypeConversion(dtype=jnp.float16),
+                # DtypeConversion(dtype=jnp.float32),
             ]
         )
     )
@@ -132,7 +132,7 @@ def main(
     placement_constraints.extend(c_list)
 
     substrate = Substrate(
-        permittivity=constants.relative_permittivity_substrate,
+        material=Material(permittivity=constants.relative_permittivity_substrate),
         partial_real_shape=(None, None, 2e-6),
     )
     placement_constraints.append(
@@ -145,41 +145,35 @@ def main(
     )
 
     if multi_material:
-        permittivity_config = {
-            "Air": constants.relative_permittivity_air,
-            "SZ2080": constants.relative_permittivity_SZ_2080,
-            "maN1400": constants.relative_permittivity_ma_N_1400_series,
+        material = {
+            "Air": Material(permittivity=constants.relative_permittivity_air),
+            "SZ2080": Material(permittivity=constants.relative_permittivity_SZ_2080),
+            "maN1400":  Material(permittivity=constants.relative_permittivity_ma_N_1400_series),
         }
     else:
-        permittivity_config = {
-            "Air": constants.relative_permittivity_air,
-            "maN1400": constants.relative_permittivity_ma_N_1400_series,
+        material = {
+            "Air": Material(permittivity=constants.relative_permittivity_air),
+            "maN1400": Material(permittivity=constants.relative_permittivity_ma_N_1400_series),
         }
     voxel_size = 0.5e-6
     device_z = 6.0e-6
     voxel_z = voxel_size if dim in ("2_5d", "3d") else device_z
-    module_list: list[ConstraintModule] = [StandardToInversePermittivityRange()]
-    if dim != "3d":
-        module_list.append(
-            PillarMapping(
-                axis=2,
-                single_polymer_columns=False,
-            )
-        )
-    else:
-        module_list.extend(
-            [
-                ClosestIndex(),
-                ConnectHolesAndStructures(fill_material="SZ2080" if multi_material else "maN1400"),
-                IndicesToInversePermittivities(),
-            ]
-        )
 
     device = DiscreteDevice(
         name="Device",
-        permittivity_config=permittivity_config,
+        material=material,
         partial_real_shape=(25.0e-6, 25.0e-6, device_z),
-        constraint_mapping=ConstraintMapping(modules=module_list),
+        parameter_mapping=DiscreteParameterMapping(
+            latent_transforms=[StandardToInversePermittivityRange()],
+            discretization=ClosestIndex() if dim == "3d" else PillarDiscretization(
+                    axis=2,
+                    single_polymer_columns=not multi_material,
+                ),
+            post_transforms=(
+                [ConnectHolesAndStructures(fill_material="SZ2080" if multi_material else "maN1400")]
+                if dim != "3d" else []
+            ),
+        ),
         partial_voxel_real_shape=(voxel_size, voxel_size, voxel_z),
     )
     placement_constraints.append(
@@ -196,7 +190,7 @@ def main(
     source = GaussianPlaneSource(
         partial_real_shape=(12.0e-6, 12.0e-6, None),
         partial_grid_shape=(None, None, 1),
-        wavelength=1.550e-6,
+        wave_character=WaveCharacter(wavelength=1.550e-6),
         radius=4.0e-6,
         direction="-",
         fixed_E_polarization_vector=(1, 0, 0),
@@ -243,9 +237,9 @@ def main(
         ]
     )
 
-    waveguide = WaveGuide(
+    waveguide = Waveguide(
         partial_real_shape=(None, 1.0e-6, 1.0e-6),
-        permittivity=permittivity_config["maN1400"],
+        material=material["maN1400"],
     )
     placement_constraints.extend(
         [
@@ -356,8 +350,7 @@ def main(
     ):
         arrays, new_objects, info = apply_params(arrays, objects, params, key)
 
-        fdtd_fn = checkpointed_fdtd if evaluation else reversible_fdtd
-        final_state = fdtd_fn(
+        final_state = reversible_fdtd(
             arrays=arrays,
             objects=new_objects,
             config=config,

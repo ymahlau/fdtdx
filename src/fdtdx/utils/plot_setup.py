@@ -1,6 +1,8 @@
 from pathlib import Path
+from typing import Any, Sequence
 
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 from matplotlib.patches import Patch, Rectangle
 
 from fdtdx.config import SimulationConfig
@@ -15,12 +17,12 @@ def plot_setup(
     objects: ObjectContainer,
     exclude_object_list: list[SimulationObject] = [],
     filename: str | Path | None = None,
-    axs=None,
+    axs: Sequence[Any] | None = None,
     plot_legend: bool = True,
     exclude_xy_plane_object_list: list[SimulationObject] = [],
     exclude_yz_plane_object_list: list[SimulationObject] = [],
     exclude_xz_plane_object_list: list[SimulationObject] = [],
-):
+) -> Figure:
     """Creates a visualization of the simulation setup showing objects in XY, XZ and YZ planes.
 
     Generates three subplots showing cross-sections of the simulation volume and the objects
@@ -64,6 +66,7 @@ def plot_setup(
         fig, axs = plt.subplots(1, 3, figsize=(15, 5))
     else:
         fig = None
+    assert axs is not None
     resolution = config.resolution / 1.0e-6  # Convert to µm
 
     # get a color map

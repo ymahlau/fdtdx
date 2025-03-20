@@ -4,24 +4,24 @@ from typing import Self
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytreeclass as tc
 from matplotlib.figure import Figure
 from rich.progress import Progress
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.typing import SliceTuple3D
+from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
 from fdtdx.core.misc import is_on_at_time_step
 from fdtdx.core.plotting.colors import LIGHT_GREEN
 from fdtdx.objects.detectors.plotting.line_plot import plot_line_over_time
 from fdtdx.objects.detectors.plotting.plot2d import plot_2d_from_slices
 from fdtdx.objects.detectors.plotting.video import generate_video_from_slices, plot_from_slices
-from fdtdx.objects.material import NoMaterial
+from fdtdx.objects.object import SimulationObject
+from fdtdx.typing import SliceTuple3D
 
 DetectorState = dict[str, jax.Array]
 
 
-@tc.autoinit
-class Detector(NoMaterial, ABC):
+@extended_autoinit
+class Detector(SimulationObject, ABC):
     """Base class for electromagnetic field detectors in FDTD simulations.
 
     This class provides core functionality for recording and analyzing electromagnetic field data
@@ -50,19 +50,8 @@ class Detector(NoMaterial, ABC):
         plot_dpi (int, optional): DPI resolution for plots.
     """
 
-    name: str = tc.field(  # type: ignore
-        init=True,
-        kind="KW_ONLY",
-        on_getattr=[tc.unfreeze],
-        on_setattr=[tc.freeze],
-    )
-    dtype: jnp.dtype = tc.field(  # type: ignore
-        init=True,
-        default=jnp.float32,
-        kind="KW_ONLY",
-        on_getattr=[tc.unfreeze],
-        on_setattr=[tc.freeze],
-    )
+    name: str = frozen_field(kind="KW_ONLY")  # type: ignore
+    dtype: jnp.dtype = frozen_field(kind="KW_ONLY", default=jnp.float32)  # type: ignore
     exact_interpolation: bool = False
     inverse: bool = False
     interval: int = 1
@@ -73,28 +62,16 @@ class Detector(NoMaterial, ABC):
     end_time: float | None = None
     on_for_time: float | None = None
     on_for_periods: float | None = None
-    time_steps: list[int] = tc.field(default=None, init=True)  # type: ignore
+    time_steps: list[int] = field(default=None)  # type: ignore
     plot: bool = True
     if_inverse_plot_backwards: bool = True
     num_video_workers: int = 8  # only used when generating video
-    _is_on_at_time_step_arr: jax.Array = tc.field(default=None, init=False)  # type: ignore
-    _time_step_to_arr_idx: jax.Array = tc.field(default=None, init=False)  # type: ignore
-    _num_time_steps_on: int = tc.field(default=None, init=False)  # type: ignore
+    _is_on_at_time_step_arr: jax.Array = field(default=None, init=False)  # type: ignore
+    _time_step_to_arr_idx: jax.Array = field(default=None, init=False)  # type: ignore
+    _num_time_steps_on: int = field(default=None, init=False)  # type: ignore
     color: tuple[float, float, float] = LIGHT_GREEN
-    plot_interpolation: str = tc.field(  # type: ignore
-        init=True,
-        default="gaussian",
-        kind="KW_ONLY",
-        on_getattr=[tc.unfreeze],
-        on_setattr=[tc.freeze],
-    )
-    plot_dpi: int | None = tc.field(  # type: ignore
-        init=True,
-        default=None,
-        kind="KW_ONLY",
-        on_getattr=[tc.unfreeze],
-        on_setattr=[tc.freeze],
-    )
+    plot_interpolation: str = frozen_field(kind="KW_ONLY", default="gaussian")
+    plot_dpi: int | None = frozen_field(kind="KW_ONLY", default=None)
 
     @property
     def num_time_steps_recorded(self) -> int:
@@ -355,7 +332,10 @@ class Detector(NoMaterial, ABC):
                 )
                 figs["sliced_video"] = path
             else:
-                raise Exception(f"Cannot plot {squeezed_arrs.keys()}")
+                raise Exception(
+                    f"Cannot plot {squeezed_arrs.keys()}. "
+                    f"Consider setting plot=False for Object {self.name} ({self.__class__=})"
+                )
         elif sqeezed_ndim == 3 and self.num_time_steps_recorded == 1:
             # single step, 3d-plot. # TODO: do as mean over planes
             for k, v in squeezed_arrs.items():

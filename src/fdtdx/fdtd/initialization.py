@@ -1,11 +1,13 @@
 from typing import Any, Sequence
 
 import jax
+import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
-from fdtdx.core.jax.typing import SliceTuple3D
+from fdtdx.core.jax.ste import straight_through_estimator
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, ParameterContainer
+from fdtdx.materials import ContinuousMaterialRange, compute_allowed_permeabilities, compute_allowed_permittivities
 from fdtdx.objects.object import (
     GridCoordinateConstraint,
     PositionConstraint,
@@ -14,6 +16,9 @@ from fdtdx.objects.object import (
     SizeConstraint,
     SizeExtensionConstraint,
 )
+from fdtdx.objects.static_material.multi_material import StaticMultiMaterialObject
+from fdtdx.objects.static_material.uniform import UniformMaterialObject
+from fdtdx.typing import SliceTuple3D
 
 
 def place_objects(
@@ -131,14 +136,21 @@ def apply_params(
     """
     info = {}
     # apply parameter to devices
-    for device in objects.devices:
-        prev_slice = arrays.inv_permittivities[*device.grid_slice]
-        inv_perm_at_slice, cur_info = device.get_inv_permittivity(
-            prev_inv_permittivity=prev_slice,
-            params=params[device.name],
-        )
-        info.update(cur_info)
-        new_perm = arrays.inv_permittivities.at[*device.grid_slice].set(inv_perm_at_slice)
+    for device in objects.discrete_devices:
+        cur_material_indices = device.get_expanded_material_mapping(params[device.name])
+        allowed_perm_list = compute_allowed_permittivities(device.material)
+        new_perm_slice = (1.0 / jnp.asarray(allowed_perm_list))[cur_material_indices.astype(jnp.int32)]
+        new_perm_slice = straight_through_estimator(cur_material_indices, new_perm_slice)
+        new_perm = arrays.inv_permittivities.at[*device.grid_slice].set(new_perm_slice)
+        arrays = arrays.at["inv_permittivities"].set(new_perm)
+
+    # apply parameters to continous devices
+    for device in objects.continous_devices:
+        cur_material_indices = device.get_expanded_material_mapping(params[device.name])
+        new_perm_slice = (1 - cur_material_indices) * (
+            1 / device.material.start_material.permittivity
+        ) + cur_material_indices * (1 / device.material.end_material.permittivity)
+        new_perm = arrays.inv_permittivities.at[*device.grid_slice].set(new_perm_slice)
         arrays = arrays.at["inv_permittivities"].set(new_perm)
 
     # apply random key to sources
@@ -218,21 +230,23 @@ def _init_arrays(
     )
     info = {}
     for o in sorted_obj:
-        prev_slice = inv_permittivities[*o.grid_slice]
-        update, cur_info = o.get_inv_permittivity(
-            prev_inv_permittivity=prev_slice,
-            params=None,
-        )
-        inv_permittivities = inv_permittivities.at[*o.grid_slice].set(update)
-        info.update(cur_info)
+        if isinstance(o, UniformMaterialObject):
+            inv_permittivities = inv_permittivities.at[*o.grid_slice].set(1 / o.material.permittivity)
+            inv_permeabilities = inv_permeabilities.at[*o.grid_slice].set(1 / o.material.permeability)
+        elif isinstance(o, StaticMultiMaterialObject):
+            indices = o.get_material_mapping()
+            if isinstance(o.material, dict):
+                allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(o.material))
+                update = allowed_inv_perms[indices]
+                inv_permittivities = inv_permittivities.at[*o.grid_slice].set(update)
 
-        prev_slice = inv_permeabilities[*o.grid_slice]
-        update, cur_info = o.get_inv_permeability(
-            prev_inv_permeability=prev_slice,
-            params=None,
-        )
-        inv_permeabilities = inv_permeabilities.at[*o.grid_slice].set(update)
-        info.update(cur_info)
+                allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permeabilities(o.material))
+                update = allowed_inv_perms[indices]
+                inv_permeabilities = inv_permeabilities.at[*o.grid_slice].set(update)
+            elif isinstance(o.material, ContinuousMaterialRange):
+                raise NotImplementedError()
+        else:
+            raise Exception(f"Unknown object type: {o}")
 
     # detector states
     detector_states = {}
@@ -248,7 +262,7 @@ def _init_arrays(
     recording_state = None
     if config.gradient_config is not None and config.gradient_config.recorder is not None:
         input_shape_dtypes = {}
-        for boundary in objects.boundary_objects:
+        for boundary in objects.pml_objects:
             cur_shape = boundary.boundary_interface_grid_shape()
             extended_shape = (3, *cur_shape)
             input_shape_dtypes[f"{boundary.name}_E"] = jax.ShapeDtypeStruct(shape=extended_shape, dtype=config.dtype)
@@ -292,11 +306,8 @@ def _init_params(
     """
     params = {}
     for d in objects.devices:
-        # device and aparameters
         key, subkey = jax.random.split(key)
-        cur_dict = d.init_params(
-            key=subkey,
-        )
+        cur_dict = d.init_params(key=subkey)
         params[d.name] = cur_dict
     return params
 

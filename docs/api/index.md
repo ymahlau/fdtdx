@@ -2,44 +2,35 @@
 
 The FDTDX API is organized into several main components:
 
-## Core Package
-The [Core](core/index.md) package provides fundamental data structures and utilities:
-- Configuration management
-- JAX integration
-- Array operations
-- Distributed computing support
-
-## Constraints
-The [Constraints](constraints/index.md) package handles material and geometry constraints:
-- Material property mapping
-- Feature size control
-- Connectivity constraints
-- Binary operations
-
 ## Objects
 The [Objects](objects/index.md) package defines simulation components:
-- Material definitions
 - Sources and detectors
 - Boundary conditions
 - Object positioning
-
-## Physics
-The [Physics](physics/index.md) package implements electromagnetic calculations:
-- Physical constants
-- Material properties
-- Field metrics
-- Mode solvers
+- Devices with a variable shape that can be optimized
 
 ## FDTD
-The [FDTD](fdtd/index.md) package provides simulation algorithms:
-- Forward/backward propagation
+The [FDTD](fdtd.md) package provides simulation algorithms:
 - FDTD implementations
-- Field updates
-- Curl operations
+- Memory efficient simulations for automatic differentiation
 
-## Utilities
-The [Utilities](utils/index.md) package contains support functions:
-- Visualization tools
-- File conversion
-- Image processing
-- Debugging utilities
+## Config
+The [Config](config.md) package provides configuration files for specifying simulation parameters
+
+## Constants
+The [Constants](constants.md) package provides a small list of commonly used material constants
+
+## Interfaces
+The [Interfaces](interfaces.md) package contains functions for interface compression, enabling memory efficient autodiff.
+
+## Materials
+The [Materials](materials.md) package contains the basic structure for defining a material in FDTDX.
+
+## Typing
+The [Typing](materials.md) package contains a number of type hints used throughout the FDTDX package
+
+## Utils
+The [Utility](utils.md) package contains utility functions for logging and plotting simulations
+
+## Core Package
+The [Core](core.md) package provides fundamental data structures and utilities used mostly internally by FDTDX

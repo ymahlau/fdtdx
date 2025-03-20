@@ -65,9 +65,9 @@ This ensures that the substrate is placed exactly at the bottom of the simulatio
 # create list of constraints
 placement_constraints = []
 # create substrate
-substrate = UniformMaterial(
+substrate = UniformMaterialObject(
     partial_real_shape=(None, None, 0.6e-6),
-    permittivity=constants.relative_permittivity_silica,
+    material=Material(permittivity=constants.relative_permittivity_silica),
 )
 # place at the bottom of simulation volume
 constraint = substrate.place_relative_to(
@@ -91,11 +91,11 @@ a cube in the scene. The name and colors argument are only used for plotting.
 
 ```python
 # place an object on top (z-axis / 2) of another object
-cube1 = UniformMaterial(
+cube1 = UniformMaterialObject(
     name="cube",
     color=colors.GREEN,
     partial_real_shape=(0.5e-6, 0.5e-6, 0.5e-6),
-    permittivity=constants.relative_permittivity_silicon,
+    material=Material(permittivity=constants.relative_permittivity_silicon),
 )
 placement_constraints.append(
     cube1.place_above(substrate)
@@ -120,7 +120,7 @@ This can either be a specified in Yee-grid cells or metrical units (meter).
 
 ```python
 # size in meters
-cube = UniformMaterial(
+cube = UniformMaterialObject(
     partial_real_shape=(0.3e-6, 1.0e-6, 0.7e-6),
     ...
 )
@@ -131,7 +131,7 @@ cube = UniformMaterial(
 ### Size in grid units
 ```python
 # size in grid units (each 100nm as defined in config above)
-cube = UniformMaterial(
+cube = UniformMaterialObject(
     partial_grid_shape=(4, 10, 2),
     ...
 )
@@ -141,7 +141,7 @@ cube = UniformMaterial(
 ### Combination of grid and metrical units
 ```python
 # partial combination
-cube = UniformMaterial(
+cube = UniformMaterialObject(
     partial_real_shape=(None, 0.5e-6, None),
     partial_grid_shape=(3, None, 1),
     ...
@@ -155,7 +155,7 @@ the size is set to the size of the simulation volume in the respective axis. We 
 
 ```python
 # z-axis is undefined, size is extended to simulation size
-cube = UniformMaterial(
+cube = UniformMaterialObject(
     partial_real_shape=(None, 0.5e-6, None),
     partial_grid_shape=(3, None, None),
     ...
@@ -167,7 +167,7 @@ placement_constraints.append(
 ```
 Using this specification for the cube, we get the following error:
 ```
-Exception: Inconsisten grid shape (may be due to extension to infinity) at lower bound: 0 != 6 for axis=2, cube (<class 'fdtdx.objects.material.UniformMaterial'>). Object has a position constraint that puts the lower boundary at 6, but the lower bound was alreay computed to be at 0. This could be due to a missing size constraint/specification, which resulted in an expansion of the object to the simulation boundary (default size) or another constraint on this object.
+Exception: Inconsisten grid shape (may be due to extension to infinity) at lower bound: 0 != 6 for axis=2, cube (<class 'fdtdx.objects.material.UniformMaterialObject'>). Object has a position constraint that puts the lower boundary at 6, but the lower bound was alreay computed to be at 0. This could be due to a missing size constraint/specification, which resulted in an expansion of the object to the simulation boundary (default size) or another constraint on this object.
 ```
 The error occurs, because we tried to place the cube above the substrate, which is no longer possible if the z-size of the cube is the whole simulation size. When we remove the problematic placement constraint, we get the correct simulation scene.
 ![image](../img/setup_6.png)
@@ -175,11 +175,11 @@ The error occurs, because we tried to place the cube above the substrate, which 
 ## Relative Sizing constraint
 The size of an object can also be set in relation to another object. To demonstrate this, we define a second cube, which should be placed above the substrate and have a 200nm distance to the other cube in the x-axis.
 ```python
-cube2 = UniformMaterial(
+cube2 = UniformMaterialObject(
     name="cube2",
     color=colors.GREEN,
     partial_real_shape=(0.5e-6, 0.5e-6, 0.5e-6),
-    permittivity=constants.relative_permittivity_silicon,
+    material=Material(permittivity=constants.relative_permittivity_silicon),
 )
 placement_constraints.extend([
     cube2.place_above(substrate),
@@ -196,11 +196,11 @@ placement_constraints.extend([
 
 Now let's change the size definition of the second cube to a relative size constraint, which defines the y-size of the second cube as the size of the first cube in the z-axis.
 ```python
-cube2 = UniformMaterial(
+cube2 = UniformMaterialObject(
     name="cube2",
     color=colors.GREEN,
     partial_real_shape=(0.5e-6, None, 0.5e-6),
-    permittivity=constants.relative_permittivity_silicon,
+    material=Material(permittivity=constants.relative_permittivity_silicon),
 )
 placement_constraints.append(
     cube2.size_relative_to(
@@ -223,11 +223,11 @@ The last method to set the size of an object is to constrain the size, such that
 
 ```python
 # definition of first cube
-cube1 = UniformMaterial(
+cube1 = UniformMaterialObject(
     partial_real_shape=(0.5e-6, 0.5e-6, 0.5e-6),
     name="cube",
     color=colors.GREEN,
-    permittivity=constants.relative_permittivity_silicon,
+    material=Material(permittivity=constants.relative_permittivity_silicon),
 )
 placement_constraints.append(
     cube1.place_above(substrate)
@@ -238,11 +238,11 @@ placement_constraints.append(
         axes=(0, 1),
     )
 )
-cube2 = UniformMaterial(
+cube2 = UniformMaterialObject(
     name="cube2",
     color=colors.MAGENTA,
     partial_real_shape=(None, 0.5e-6, 0.5e-6),
-    permittivity=constants.relative_permittivity_silicon,
+    material=Material(permittivity=constants.relative_permittivity_silicon),
 )
 placement_constraints.extend([
     cube2.place_above(substrate),
