@@ -1,4 +1,4 @@
-from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
+from fdtdx.core.jax.pytrees import extended_autoinit, field
 from fdtdx.core.plotting.colors import LIGHT_BLUE, LIGHT_BROWN, LIGHT_GREY
 from fdtdx.materials import Material
 from fdtdx.objects.static_material.static import StaticMaterialObject
@@ -17,9 +17,10 @@ class SimulationVolume(UniformMaterialObject):
     Defines the default material properties for the simulation background.
     Usually represents air/vacuum with εᵣ=1.0 and μᵣ=1.0.
     """
+
     placement_order = -1000
     material: Material = field(
-        default = Material(
+        default=Material(
             permittivity=1.0,
             permeability=1.0,
             conductivity=0.0,
@@ -50,5 +51,5 @@ class Waveguide(UniformMaterialObject):
         permittivity: Required relative permittivity of the waveguide material
         color: RGB tuple for visualization, defaults to light blue
     """
-    
+
     color: tuple[float, float, float] = LIGHT_BLUE

@@ -10,18 +10,18 @@ class Material(ExtendedTreeClass):
 
 def compute_ordered_material_name_tuples(
     materials: dict[str, Material],
-) ->  list[tuple[str, Material]]:
+) -> list[tuple[str, Material]]:
     """
     Returns a list of materials ordered by their properties.
-    
+
     The ordering priority is:
     1. Permittivity (descending)
     2. Permeability (descending)
     3. Conductivity (descending)
-    
+
     Args:
         materials: Dictionary mapping material names to Material objects
-        
+
     Returns:
         List of Material objects ordered by their properties
     """
@@ -31,11 +31,13 @@ def compute_ordered_material_name_tuples(
         reverse=True,
     )
 
+
 def compute_allowed_permittivities(
     materials: dict[str, Material],
 ) -> list[float]:
     ordered_materials = compute_ordered_material_name_tuples(materials)
     return [o[1].permittivity for o in ordered_materials]
+
 
 def compute_allowed_permeabilities(
     materials: dict[str, Material],
@@ -52,12 +54,12 @@ def compute_ordered_names(
 
 
 def compute_ordered_materials(
-        materials: dict[str, Material],
+    materials: dict[str, Material],
 ) -> list[Material]:
     ordered_materials = compute_ordered_material_name_tuples(materials)
     return [o[1] for o in ordered_materials]
 
-    
+
 @extended_autoinit
 class ContinuousMaterialRange(ExtendedTreeClass):
     start_material: Material

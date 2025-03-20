@@ -13,13 +13,13 @@ The objects module enables intuitive positioning and sizing of elements in absol
 or relative coordinates within the simulation scene, with automatic constraint resolution.
 """
 
+from .object import SimulationObject
 from .static_material.uniform import (
     SimulationVolume,
     Substrate,
     UniformMaterialObject,
     Waveguide,
 )
-from .object import SimulationObject
 
 __all__ = [
     "SimulationVolume",

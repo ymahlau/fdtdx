@@ -4,10 +4,10 @@ from typing import Literal, Self
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
-from fdtdx.objects.object import SimulationObject
 from fdtdx.core import WaveCharacter
+from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
 from fdtdx.core.plotting.colors import ORANGE
+from fdtdx.objects.object import SimulationObject
 from fdtdx.objects.sources.profile import SingleFrequencyProfile, TemporalProfile
 
 

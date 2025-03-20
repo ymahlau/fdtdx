@@ -1,11 +1,11 @@
 from typing import Literal, Union
 
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit
-from fdtdx.typing import PartialGridShape3D
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.boundaries.utils import axis_direction_from_kind
 from fdtdx.objects.object import PositionConstraint, SimulationObject
+from fdtdx.typing import PartialGridShape3D
 
 
 @extended_autoinit

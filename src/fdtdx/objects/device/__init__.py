@@ -1,24 +1,23 @@
-
-from .device import BaseDevice, DiscreteDevice, ContinuousDevice
+from .device import BaseDevice, ContinuousDevice, DiscreteDevice
 from .parameters.discrete import (
     BOTTOM_Z_PADDING_CONFIG_REPEAT,
     BinaryMedianFilterModule,
     ConnectHolesAndStructures,
-    RemoveFloatingMaterial,    
+    RemoveFloatingMaterial,
 )
 from .parameters.discretization import (
-    ClosestIndex, 
-    Discretization, 
-    BrushConstraint2D, 
+    BrushConstraint2D,
+    ClosestIndex,
+    Discretization,
     PillarDiscretization,
-    circular_brush
+    circular_brush,
 )
 from .parameters.latent import (
     StandardToCustomRange,
     StandardToInversePermittivityRange,
     StandardToPlusOneMinusOneRange,
 )
-from .parameters.mapping import LatentParameterMapping, DiscreteParameterMapping
+from .parameters.mapping import DiscreteParameterMapping, LatentParameterMapping
 
 __all__ = [
     # devices

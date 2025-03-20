@@ -2,8 +2,8 @@ from pathlib import Path
 from typing import Any, Sequence
 
 import matplotlib.pyplot as plt
-from matplotlib.patches import Patch, Rectangle
 from matplotlib.figure import Figure
+from matplotlib.patches import Patch, Rectangle
 
 from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.container import ObjectContainer

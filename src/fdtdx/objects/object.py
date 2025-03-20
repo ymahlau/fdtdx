@@ -1,4 +1,3 @@
-import abc
 from abc import ABC
 from dataclasses import dataclass
 from typing import Literal, Optional, Self
@@ -7,6 +6,7 @@ import jax
 
 from fdtdx.config import DUMMY_SIMULATION_CONFIG, SimulationConfig
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field, frozen_private_field
+from fdtdx.core.misc import ensure_slice_tuple
 from fdtdx.typing import (
     INVALID_SLICE_TUPLE_3D,
     UNDEFINED_SHAPE_3D,
@@ -17,7 +17,6 @@ from fdtdx.typing import (
     Slice3D,
     SliceTuple3D,
 )
-from fdtdx.core.misc import ensure_slice_tuple
 
 _GLOBAL_COUNTER = 0
 

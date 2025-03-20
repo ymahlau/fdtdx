@@ -82,7 +82,7 @@ def device_matrix_index_figure(
         device_matrix_indices = device_matrix_indices[..., 0]
         matrix_inverse_permittivity_indices_sorted = device_matrix_indices
         indices = np.unique(device_matrix_indices)
-    else:        
+    else:
         device_matrix_indices_flat = np.reshape(device_matrix_indices, (-1, device_matrix_indices.shape[-1]))
         indices = np.unique(
             device_matrix_indices_flat,

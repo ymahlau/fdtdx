@@ -1,9 +1,8 @@
-from abc import ABC, abstractmethod
 import math
+from abc import ABC, abstractmethod
 from typing import Self
 
 import jax
-import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field, frozen_private_field
@@ -14,8 +13,8 @@ from fdtdx.materials import ContinuousMaterialRange, Material
 class LatentParamsTransformation(ExtendedTreeClass, ABC):
     _material: dict[str, Material] | ContinuousMaterialRange = frozen_private_field()
     _config: SimulationConfig = frozen_private_field()
-    _output_shape_dtypes: dict[str, jax.ShapeDtypeStruct]| jax.ShapeDtypeStruct = frozen_private_field()
-    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct]| jax.ShapeDtypeStruct = frozen_private_field()
+    _output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] | jax.ShapeDtypeStruct = frozen_private_field()
+    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] | jax.ShapeDtypeStruct = frozen_private_field()
 
     @abstractmethod
     def transform(
@@ -137,62 +136,3 @@ class StandardToPlusOneMinusOneRange(StandardToCustomRange):
     min_value: float = frozen_field(default=-1, init=False)
     max_value: float = frozen_field(default=1, init=False)
 
-
-
-# @extended_autoinit
-# class ContinuousPermittivityTransition(ConstraintModule):
-#     """Maps continuous values to smoothly interpolated permittivity values.
-
-#     Instead of discretizing to the nearest material index, this module performs
-#     smooth interpolation between the allowed permittivity values based on the
-#     input parameters. This enables continuous transitions between materials.
-
-#     The interpolation is done in the permittivity domain (not inverse permittivity)
-#     to maintain physical correctness of the material properties.
-
-#     Note: This module only works with exactly two materials (e.g. air and silicon).
-#     """
-
-#     def input_interface(
-#         self,
-#         output_interface: ConstraintInterface,
-#     ) -> ConstraintInterface:
-#         if output_interface.type != "inv_permittivity":
-#             raise Exception(
-#                 "After ContinuousPermittivityTransition can only follow a module using inverse permittivities"
-#             )
-#         if len(self._allowed_permittivities) != 2:
-#             raise Exception(
-#                 f"ContinuousPermittivityTransition only works with exactly 2 materials, got {len(self._allowed_permittivities)}"
-#             )
-#         return ConstraintInterface(
-#             type="latent",
-#             shapes=output_interface.shapes,
-#         )
-
-#     def transform(
-#         self,
-#         input_params: dict[str, jax.Array],
-#     ) -> dict[str, jax.Array]:
-#         if len(self._allowed_permittivities) != 2:
-#             raise Exception(
-#                 f"ContinuousPermittivityTransition only works with exactly 2 materials, got {len(self._allowed_permittivities)}"
-#             )
-
-#         result = {}
-#         for k, v in input_params.items():
-#             # Scale input to [0, 1] range for interpolation
-#             v_scaled = (v - v.min()) / (v.max() - v.min())
-
-#             # Get permittivity values for interpolation
-#             lower_perm = self._allowed_permittivities[0]
-#             upper_perm = self._allowed_permittivities[1]
-
-#             # Interpolate in permittivity domain
-#             interpolated_perms = (1 - v_scaled) * lower_perm + v_scaled * upper_perm
-
-#             # Convert to inverse permittivity
-#             interpolated_inv_perms = 1.0 / interpolated_perms
-
-#             result[k] = interpolated_inv_perms.astype(self._config.dtype)
-#         return result

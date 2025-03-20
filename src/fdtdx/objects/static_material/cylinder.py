@@ -5,10 +5,10 @@ import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_private_field
-from fdtdx.objects.static_material.multi_material import StaticMultiMaterialObject
-from fdtdx.typing import UNDEFINED_SHAPE_3D, PartialGridShape3D, PartialRealShape3D, SliceTuple3D
 from fdtdx.core.plotting.colors import LIGHT_GREY
 from fdtdx.materials import Material
+from fdtdx.objects.static_material.multi_material import StaticMultiMaterialObject
+from fdtdx.typing import UNDEFINED_SHAPE_3D, PartialGridShape3D, PartialRealShape3D, SliceTuple3D
 
 
 @extended_autoinit
@@ -89,8 +89,7 @@ class Cylinder(StaticMultiMaterialObject):
         }
         self = self.aset("permittivity_config", permittivity_config)
         return self
-    
-    
+
     def get_voxel_mask_for_shape(self) -> jax.Array:
         width = self.grid_shape[self.vertical_axis]
         height = self.grid_shape[self.horizontal_axis]
@@ -105,7 +104,7 @@ class Cylinder(StaticMultiMaterialObject):
         mask = (grid**2).sum(axis=-1) < 1
         mask = jnp.expand_dims(mask, axis=self.axis)
         return mask
-    
+
     def get_material_mapping(
         self,
     ) -> jax.Array:

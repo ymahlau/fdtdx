@@ -9,13 +9,13 @@ from rich.progress import Progress
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
-from fdtdx.objects.object import SimulationObject
-from fdtdx.typing import SliceTuple3D
 from fdtdx.core.misc import is_on_at_time_step
 from fdtdx.core.plotting.colors import LIGHT_GREEN
 from fdtdx.objects.detectors.plotting.line_plot import plot_line_over_time
 from fdtdx.objects.detectors.plotting.plot2d import plot_2d_from_slices
 from fdtdx.objects.detectors.plotting.video import generate_video_from_slices, plot_from_slices
+from fdtdx.objects.object import SimulationObject
+from fdtdx.typing import SliceTuple3D
 
 DetectorState = dict[str, jax.Array]
 

@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Self
 
 import jax
 
@@ -11,7 +10,7 @@ from fdtdx.objects.object import OrderableObject
 @extended_autoinit
 class StaticMultiMaterialObject(OrderableObject, ABC):
     material: dict[str, Material] | ContinuousMaterialRange = frozen_field(kind="KW_ONLY")  # type: ignore
-    
+
     @abstractmethod
     def get_voxel_mask_for_shape(self) -> jax.Array:
         """Get a binary mask of the objects shape. Everything voxel not in the mask, will not be updated by
@@ -22,12 +21,12 @@ class StaticMultiMaterialObject(OrderableObject, ABC):
             jax.Array: Binary mask representing the voxels occupied by the object
         """
         raise NotImplementedError()
-    
+
     @abstractmethod
     def get_material_mapping(
         self,
     ) -> jax.Array:
-        """Returns an array, which represents the material index at every voxel. Specifically, it returns the 
+        """Returns an array, which represents the material index at every voxel. Specifically, it returns the
         index of the ordered material list.
 
         Returns:

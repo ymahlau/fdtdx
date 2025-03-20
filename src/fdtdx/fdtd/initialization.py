@@ -6,9 +6,6 @@ import jax.numpy as jnp
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
 from fdtdx.core.jax.ste import straight_through_estimator
-from fdtdx.objects.static_material.multi_material import StaticMultiMaterialObject
-from fdtdx.objects.static_material.uniform import UniformMaterialObject
-from fdtdx.typing import SliceTuple3D
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, ParameterContainer
 from fdtdx.materials import ContinuousMaterialRange, compute_allowed_permeabilities, compute_allowed_permittivities
 from fdtdx.objects.object import (
@@ -19,6 +16,9 @@ from fdtdx.objects.object import (
     SizeConstraint,
     SizeExtensionConstraint,
 )
+from fdtdx.objects.static_material.multi_material import StaticMultiMaterialObject
+from fdtdx.objects.static_material.uniform import UniformMaterialObject
+from fdtdx.typing import SliceTuple3D
 
 
 def place_objects(
@@ -139,21 +139,19 @@ def apply_params(
     for device in objects.discrete_devices:
         cur_material_indices = device.get_expanded_material_mapping(params[device.name])
         allowed_perm_list = compute_allowed_permittivities(device.material)
-        new_perm_slice = (1. / jnp.asarray(allowed_perm_list))[cur_material_indices.astype(jnp.int32)]
+        new_perm_slice = (1.0 / jnp.asarray(allowed_perm_list))[cur_material_indices.astype(jnp.int32)]
         new_perm_slice = straight_through_estimator(cur_material_indices, new_perm_slice)
         new_perm = arrays.inv_permittivities.at[*device.grid_slice].set(new_perm_slice)
         arrays = arrays.at["inv_permittivities"].set(new_perm)
-        
+
     # apply parameters to continous devices
     for device in objects.continous_devices:
         cur_material_indices = device.get_expanded_material_mapping(params[device.name])
-        new_perm_slice = (
-            (1 - cur_material_indices) *  (1 / device.material.start_material.permittivity)
-            + cur_material_indices * (1 / device.material.end_material.permittivity)
-        )
+        new_perm_slice = (1 - cur_material_indices) * (
+            1 / device.material.start_material.permittivity
+        ) + cur_material_indices * (1 / device.material.end_material.permittivity)
         new_perm = arrays.inv_permittivities.at[*device.grid_slice].set(new_perm_slice)
         arrays = arrays.at["inv_permittivities"].set(new_perm)
-        
 
     # apply random key to sources
     new_sources = []
@@ -241,7 +239,7 @@ def _init_arrays(
                 allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(o.material))
                 update = allowed_inv_perms[indices]
                 inv_permittivities = inv_permittivities.at[*o.grid_slice].set(update)
-                
+
                 allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permeabilities(o.material))
                 update = allowed_inv_perms[indices]
                 inv_permeabilities = inv_permeabilities.at[*o.grid_slice].set(update)
@@ -249,7 +247,7 @@ def _init_arrays(
                 raise NotImplementedError()
         else:
             raise Exception(f"Unknown object type: {o}")
-            
+
     # detector states
     detector_states = {}
     for d in objects.detectors:

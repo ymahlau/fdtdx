@@ -1,5 +1,4 @@
 import jax
-
 import pytreeclass as tc
 
 from fdtdx.config import SimulationConfig
@@ -63,6 +62,7 @@ def update_E(
     E = arrays.E + config.courant_number * curl_H(arrays.H, periodic_axes) * arrays.inv_permittivities
 
     for source in objects.sources:
+
         def _update():
             return source.update_E(
                 E=E,

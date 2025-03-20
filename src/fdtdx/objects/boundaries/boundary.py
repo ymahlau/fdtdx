@@ -23,7 +23,7 @@ class BaseBoundary(SimulationObject, ABC):
     @abstractmethod
     def reset_state(self, state: BaseBoundaryState) -> BaseBoundaryState:
         raise NotImplementedError()
-    
+
     @abstractmethod
     def update_E_boundary_state(
         self,
@@ -31,7 +31,7 @@ class BaseBoundary(SimulationObject, ABC):
         H: jax.Array,
     ) -> BaseBoundaryState:
         raise NotImplementedError()
-    
+
     @abstractmethod
     def update_H_boundary_state(
         self,
@@ -39,7 +39,7 @@ class BaseBoundary(SimulationObject, ABC):
         E: jax.Array,
     ) -> BaseBoundaryState:
         raise NotImplementedError()
-    
+
     @abstractmethod
     def update_E(
         self,
@@ -48,7 +48,7 @@ class BaseBoundary(SimulationObject, ABC):
         inverse_permittivity: jax.Array,
     ) -> jax.Array:
         raise NotImplementedError()
-    
+
     @abstractmethod
     def update_H(
         self,
@@ -57,8 +57,7 @@ class BaseBoundary(SimulationObject, ABC):
         inverse_permeability: jax.Array,
     ) -> jax.Array:
         raise NotImplementedError()
-    
+
     @abstractmethod
     def boundary_interface_grid_shape(self) -> GridShape3D:
         raise NotImplementedError()
-        

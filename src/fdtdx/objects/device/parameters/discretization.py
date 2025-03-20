@@ -1,11 +1,12 @@
-from abc import ABC, abstractmethod
 import math
+from abc import ABC, abstractmethod
 from typing import Literal, Self
 
 import equinox.internal as eqxi
 import jax
 import jax.numpy as jnp
 from loguru import logger
+
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field, frozen_private_field
 from fdtdx.core.jax.ste import straight_through_estimator
@@ -20,7 +21,7 @@ class Discretization(ExtendedTreeClass, ABC):
     _config: SimulationConfig = frozen_private_field()
     _output_shape_dtype: jax.ShapeDtypeStruct = frozen_private_field()
     _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] | jax.ShapeDtypeStruct = frozen_private_field()
-    
+
     def init_module(
         self: Self,
         config: SimulationConfig,
@@ -33,7 +34,7 @@ class Discretization(ExtendedTreeClass, ABC):
         self = self.aset("_output_shape_dtype", output_shape_dtype)
         self = self.aset("_input_shape_dtypes", input_shape_dtypes)
         return self
-    
+
     def _compute_input_shape_dtypes(
         self,
         output_shape_dtype: jax.ShapeDtypeStruct,
@@ -42,7 +43,7 @@ class Discretization(ExtendedTreeClass, ABC):
             shape=output_shape_dtype.shape,
             dtype=self._config.dtype,
         )
-    
+
     @abstractmethod
     def __call__(
         self,
@@ -65,14 +66,14 @@ class ClosestIndex(Discretization):
         input_params: dict[str, jax.Array] | jax.Array,
     ) -> jax.Array:
         if not isinstance(input_params, jax.Array):
-            raise Exception(f"Closest Index cannot be used with latent parameters that contain multiple entries")
+            raise Exception("Closest Index cannot be used with latent parameters that contain multiple entries")
         arr = input_params
         allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(self._material))
         dist = jnp.abs(arr[..., None] - allowed_inv_perms)
         discrete = jnp.argmin(dist, axis=-1)
         result = straight_through_estimator(arr, discrete)
         return result
-        
+
 
 @extended_autoinit
 class BrushConstraint2D(Discretization):
@@ -97,18 +98,14 @@ class BrushConstraint2D(Discretization):
         input_params: dict[str, jax.Array] | jax.Array,
     ) -> jax.Array:
         if not isinstance(input_params, jax.Array):
-            raise Exception(f"BrushConstraint2D cannot be used with latent parameters that contain multiple entries")
+            raise Exception("BrushConstraint2D cannot be used with latent parameters that contain multiple entries")
         if len(self._material) > 2:
             raise Exception("BrushConstraint2D currently only implemented for single material and air")
         s = input_params.shape
         if len(s) != 3:
-            raise Exception(
-                f"BrushConstraint2D Generator can only work with 2D-Arrays, got {s=}"
-            )
+            raise Exception(f"BrushConstraint2D Generator can only work with 2D-Arrays, got {s=}")
         if s[self.axis] != 1:
-            raise Exception(
-                f"BrushConstraint2D Generator needs array size 1 in axis, but got {s=}"
-            )
+            raise Exception(f"BrushConstraint2D Generator needs array size 1 in axis, but got {s=}")
         arr_2d = jnp.take(
             input_params,
             jnp.asarray(0),
@@ -303,7 +300,7 @@ class PillarDiscretization(Discretization):
         air_name = get_air_name(self._material)
         ordered_name_list = compute_ordered_names(self._material)
         air_idx = ordered_name_list.index(air_name)
-        
+
         allowed_columns = compute_allowed_indices(
             num_layers=output_shape_dtype.shape[self.axis],
             indices=list(range(len(material))),
@@ -314,16 +311,16 @@ class PillarDiscretization(Discretization):
         logger.info(f"{allowed_columns=}")
         logger.info(f"{allowed_columns.shape=}")
         return self
-    
+
     def __call__(
         self,
         input_params: dict[str, jax.Array] | jax.Array,
     ) -> jax.Array:
         if not isinstance(input_params, jax.Array):
-            raise Exception(f"BrushConstraint2D cannot be used with latent parameters that contain multiple entries")
-        
+            raise Exception("BrushConstraint2D cannot be used with latent parameters that contain multiple entries")
+
         allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(self._material))
-        
+
         nearest_allowed_index = nearest_index(
             values=input_params,
             allowed_values=allowed_inv_perms,

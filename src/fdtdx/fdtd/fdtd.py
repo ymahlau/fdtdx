@@ -10,7 +10,6 @@ from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, SimulationStat
 from fdtdx.fdtd.forward import forward, forward_single_args_wrapper
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.objects.boundaries.boundary import BaseBoundaryState
-from fdtdx.objects.boundaries.perfectly_matched_layer import BoundaryState
 from fdtdx.objects.detectors.detector import DetectorState
 
 

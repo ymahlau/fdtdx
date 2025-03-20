@@ -282,7 +282,7 @@ class Logger:
             else:
                 jnp.save(self.params_dir / f"params_{iter_idx}_{device.name}.npy", device_params)
             jnp.save(self.params_dir / f"matrix_{iter_idx}_{device.name}.npy", indices)
-            
+
             if not isinstance(device, DiscreteDevice):
                 continue
             has_previous = self.last_indices[device.name] is not None
@@ -326,7 +326,5 @@ class Logger:
                     fig,
                     dpi=72,
                 )
-
-            
 
         return changed_voxels

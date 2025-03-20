@@ -1,27 +1,26 @@
 from abc import ABC, abstractmethod
-import math
 from typing import Self
 
 import jax
 import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field, frozen_private_field
+from fdtdx.core.jax.ste import straight_through_estimator
+from fdtdx.core.misc import PaddingConfig, get_air_name
 from fdtdx.materials import Material, compute_ordered_names
 from fdtdx.objects.device.parameters.binary_transform import (
     binary_median_filter,
     connect_holes_and_structures,
     remove_floating_polymer,
 )
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field, frozen_private_field
-from fdtdx.core.jax.ste import straight_through_estimator
-from fdtdx.core.misc import PaddingConfig, get_air_name
 
 
 @extended_autoinit
 class DiscreteTransformation(ExtendedTreeClass, ABC):
     _material: dict[str, Material] = frozen_private_field()
     _config: SimulationConfig = frozen_private_field()
-    
+
     def init_module(
         self: Self,
         config: SimulationConfig,
@@ -37,7 +36,6 @@ class DiscreteTransformation(ExtendedTreeClass, ABC):
         material_indices: jax.Array,
     ) -> jax.Array:
         raise NotImplementedError()
-        
 
 
 @extended_autoinit
@@ -56,13 +54,12 @@ class RemoveFloatingMaterial(DiscreteTransformation):
         self,
         material_indices: jax.Array,
     ) -> jax.Array:
-
         if len(self._material) != 2:
             raise NotImplementedError("Remove floating material currently only implemented for single material")
         air_name = get_air_name(self._material)
         ordered_name_list = compute_ordered_names(self._material)
         air_idx = ordered_name_list.index(air_name)
-        
+
         is_material_matrix = material_indices != air_idx
         is_material_after_removal = remove_floating_polymer(is_material_matrix)
         result = (1 - air_idx) * is_material_after_removal + air_idx * ~is_material_after_removal
