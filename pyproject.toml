@@ -47,7 +47,6 @@ testpaths = ["tests"]
 
 [dependency-groups]
 dev = [
-    "aider-chat>=0.69.0",
     "black>=24.10.0",
     "mkdocs>=1.6.1",
     "mkdocs-material>=9.5.48",
