@@ -30,9 +30,9 @@ class Cylinder(StaticMultiMaterialObject):
         color: RGB color tuple for visualization (default=LIGHT_GREY).
     """
 
-    radius: float = field(kind="KW_ONLY")
-    material: Material = field(kind="KW_ONLY")
-    axis: int = field(kind="KW_ONLY")
+    radius: float = field(kind="KW_ONLY")  # type: ignore
+    material: Material = field(kind="KW_ONLY")  # type: ignore
+    axis: int = field(kind="KW_ONLY")  # type: ignore
     permittivity_config: dict[str, Material] = frozen_private_field()
     partial_voxel_grid_shape: PartialGridShape3D = frozen_private_field(default=UNDEFINED_SHAPE_3D)
     partial_voxel_real_shape: PartialRealShape3D = frozen_private_field(default=UNDEFINED_SHAPE_3D)

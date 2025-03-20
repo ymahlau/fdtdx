@@ -4,11 +4,11 @@ import jax
 
 from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
 from fdtdx.materials import ContinuousMaterialRange, Material
-from fdtdx.objects.object import OrderableObject
+from fdtdx.objects.static_material.static import StaticMaterialObject
 
 
 @extended_autoinit
-class StaticMultiMaterialObject(OrderableObject, ABC):
+class StaticMultiMaterialObject(StaticMaterialObject, ABC):
     material: dict[str, Material] | ContinuousMaterialRange = frozen_field(kind="KW_ONLY")  # type: ignore
 
     @abstractmethod
