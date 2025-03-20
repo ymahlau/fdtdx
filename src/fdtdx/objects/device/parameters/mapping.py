@@ -14,8 +14,7 @@ from fdtdx.objects.device.parameters.latent import LatentParamsTransformation, S
 @extended_autoinit
 class LatentParameterMapping(ExtendedTreeClass):
     latent_transforms: Sequence[LatentParamsTransformation] = frozen_field(
-        kind="KW_ONLY", 
-        default=(StandardToInversePermittivityRange(),)
+        kind="KW_ONLY", default=(StandardToInversePermittivityRange(),)
     )
     _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] | jax.ShapeDtypeStruct = frozen_private_field()
 

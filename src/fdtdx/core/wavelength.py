@@ -25,7 +25,7 @@ class WaveCharacter(ExtendedTreeClass):
     def _check_input(self):
         if sum([self._period is not None, self._frequency is not None, self._wavelength is not None]) != 1:
             raise Exception("Need to set exactly one of Period, Frequency or Wavelength in WaveCharacter")
-    
+
     @property
     def period(self) -> float:
         """Gets the period in seconds.
