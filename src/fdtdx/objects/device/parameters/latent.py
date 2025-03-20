@@ -135,4 +135,3 @@ class StandardToPlusOneMinusOneRange(StandardToCustomRange):
 
     min_value: float = frozen_field(default=-1, init=False)
     max_value: float = frozen_field(default=1, init=False)
-

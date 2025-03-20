@@ -256,4 +256,3 @@ class ContinuousDevice(BaseDevice):
         )
         self = self.aset("parameter_mapping", mapping)
         return self
-

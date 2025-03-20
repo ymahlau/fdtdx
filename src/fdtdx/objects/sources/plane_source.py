@@ -399,9 +399,7 @@ class PlaneSource(DirectionalPlaneSourceBase, ABC):
 
         # Get temporal amplitudes from profile
         amplitude_H = self.temporal_profile.get_amplitude(
-            time=time_H, 
-            period=self.wave_character.period, 
-            phase_shift=self.wave_character.phase_shift
+            time=time_H, period=self.wave_character.period, phase_shift=self.wave_character.phase_shift
         )
 
         # vertical incident wave part
@@ -448,9 +446,7 @@ class PlaneSource(DirectionalPlaneSourceBase, ABC):
 
         # Get temporal amplitudes from profile
         amplitude_E = self.temporal_profile.get_amplitude(
-            time=time_E, 
-            period=self.wave_character.period, 
-            phase_shift=self.wave_character.phase_shift
+            time=time_E, period=self.wave_character.period, phase_shift=self.wave_character.phase_shift
         )
 
         # horizontal incident wave part

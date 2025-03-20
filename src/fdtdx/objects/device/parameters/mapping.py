@@ -59,7 +59,7 @@ class LatentParameterMapping(ExtendedTreeClass):
 class DiscreteParameterMapping(LatentParameterMapping):
     discretization: Discretization = frozen_field(kind="KW_ONLY", default=ClosestIndex())
     post_transforms: Sequence[DiscreteTransformation] = frozen_field(default=tuple([]), kind="KW_ONLY")
-    
+
     def init_modules(
         self: Self,
         config: SimulationConfig,
@@ -78,7 +78,7 @@ class DiscreteParameterMapping(LatentParameterMapping):
             material=material,
             output_shape_dtype=output_shape_dtype,
         )
-        
+
         new_latent_transforms = []
         cur_output_shape_dtype = new_discretization._input_shape_dtypes
         for m in self.latent_transforms:
@@ -98,7 +98,7 @@ class DiscreteParameterMapping(LatentParameterMapping):
         self = self.aset("discretization", new_discretization)
         self = self.aset("post_transforms", new_post_transforms)
         return self
-    
+
     def __call__(
         self,
         input_params: dict[str, jax.Array] | jax.Array,
@@ -111,4 +111,3 @@ class DiscreteParameterMapping(LatentParameterMapping):
         for transform in self.post_transforms:
             cur_arr = transform(cur_arr)
         return cur_arr
-    

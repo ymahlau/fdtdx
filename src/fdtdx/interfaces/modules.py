@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Callable, Self, Sequence
+from typing import Self, Sequence
 
 import jax
 import jax.numpy as jnp
@@ -140,8 +140,7 @@ class DtypeConversion(CompressionModule):
     ]:
         del key
         out_vals = {
-            k: (v.astype(self.dtype) if not any(e in k for e in self.exclude_filter) else v) 
-            for k, v in values.items()
+            k: (v.astype(self.dtype) if not any(e in k for e in self.exclude_filter) else v) for k, v in values.items()
         }
         return out_vals, state
 

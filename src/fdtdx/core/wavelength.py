@@ -1,7 +1,3 @@
-from abc import ABC
-
-import jax
-
 from fdtdx import constants
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, field
 
@@ -25,16 +21,10 @@ class WaveCharacter(ExtendedTreeClass):
         self,
     ):
         self._check_input()
-    
+
     def _check_input(self):
-        if sum([
-            self._period is not None,
-            self._frequency is not None,
-            self._wavelength is not None,
-        ]) != 1:
-            raise Exception(
-                f"Need to set exactly one of Period, Frequency or Wavelength in WaveCharacter"
-            )
+        if sum([self._period is not None, self._frequency is not None, self._wavelength is not None]) != 1:
+            raise Exception("Need to set exactly one of Period, Frequency or Wavelength in WaveCharacter")
     
     @property
     def period(self) -> float:
@@ -73,7 +63,7 @@ class WaveCharacter(ExtendedTreeClass):
         if self._frequency is not None:
             return constants.c / self._frequency
         raise Exception("This should never happen")
-    
+
     @property
     def frequency(self) -> float:
         """Gets the frequency in Hz.
@@ -89,4 +79,3 @@ class WaveCharacter(ExtendedTreeClass):
         if self._frequency is not None:
             return self._frequency
         raise Exception("This should never happen")
-
