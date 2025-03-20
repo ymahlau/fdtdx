@@ -1,5 +1,6 @@
 import sys
 
+# these options will make the code slower, but more memory efficient
 # os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = "platform"
 # os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 # os.environ["NCCL_LL128_BUFFSIZE"] = "-2"
@@ -15,10 +16,9 @@ import pytreeclass as tc
 from loguru import logger
 
 from fdtdx import constants
-from fdtdx.config import GradientConfig, SimulationConfig
+from fdtdx.config import SimulationConfig
 from fdtdx.core.plotting import colors
 from fdtdx.fdtd import custom_fdtd_forward, ArrayContainer, apply_params, place_objects
-from fdtdx.interfaces import Recorder
 from fdtdx.materials import Material
 from fdtdx.objects import SimulationObject, SimulationVolume, Substrate, WaveGuide
 from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config

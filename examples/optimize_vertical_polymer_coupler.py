@@ -12,7 +12,6 @@ import pytreeclass as tc
 from loguru import logger
 
 from fdtdx.core.wavelength import WaveCharacter
-from fdtdx.interfaces.time_filter import LinearReconstructEveryK
 from fdtdx.materials import Material
 from fdtdx.objects.device import (
     ClosestIndex,
@@ -33,10 +32,9 @@ from fdtdx.fdtd import (
     ParameterContainer
 )
 from fdtdx.interfaces import DtypeConversion, Recorder
-from fdtdx.objects import SimulationObject
+from fdtdx.objects import SimulationObject, SimulationVolume, Substrate, WaveGuide
 from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.detectors import EnergyDetector, PoyntingFluxDetector
-from fdtdx.objects import SimulationVolume, Substrate, WaveGuide
 from fdtdx.objects.sources import GaussianPlaneSource
 from fdtdx.utils import metric_efficiency, Logger, plot_setup
 
