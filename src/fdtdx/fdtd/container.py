@@ -16,6 +16,7 @@ from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLay
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 from fdtdx.objects.device import DiscreteDevice, BaseDevice
+from fdtdx.objects.device.device import ContinuousDevice
 from fdtdx.objects.object import SimulationObject
 from fdtdx.objects.sources.source import Source
 from fdtdx.objects.static_material.static import StaticMaterialObject
@@ -63,6 +64,10 @@ class ObjectContainer(ExtendedTreeClass):
     @property
     def discrete_devices(self) -> list[DiscreteDevice]:
         return [o for o in self.objects if isinstance(o, DiscreteDevice)]
+    
+    @property
+    def continous_devices(self) -> list[ContinuousDevice]:
+        return [o for o in self.objects if isinstance(o, ContinuousDevice)]
 
     @property
     def detectors(self) -> list[Detector]:

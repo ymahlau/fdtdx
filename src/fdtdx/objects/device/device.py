@@ -1,11 +1,11 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Self
 
 import jax
 import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, field, frozen_field, frozen_private_field
+from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
 from fdtdx.materials import ContinuousMaterialRange, Material
 from fdtdx.typing import (
     INVALID_SHAPE_3D,
@@ -19,7 +19,7 @@ from fdtdx.typing import (
 from fdtdx.core.misc import expand_matrix, is_float_divisible
 from fdtdx.core.plotting.colors import PINK
 from fdtdx.objects.object import OrderableObject
-from fdtdx.objects.device.parameters.mapping import DiscreteParameterMapping
+from fdtdx.objects.device.parameters.mapping import DiscreteParameterMapping, LatentParameterMapping
 
 
 @extended_autoinit
@@ -34,10 +34,9 @@ class BaseDevice(OrderableObject, ABC):
         dtype: Data type for device parameters, defaults to float32
         color: RGB color tuple for visualization, defaults to pink
     """
-
-    name: str = frozen_field(default=None, kind="KW_ONLY")  # type: ignore
     material: dict[str, Material] | ContinuousMaterialRange = frozen_field(kind="KW_ONLY")  # type: ignore
     color: tuple[float, float, float] = frozen_field(default=PINK)
+    parameter_mapping: DiscreteParameterMapping | LatentParameterMapping = frozen_field(kind="KW_ONLY")  # type:ignore
     partial_voxel_grid_shape: PartialGridShape3D = field(default=UNDEFINED_SHAPE_3D)
     partial_voxel_real_shape: PartialRealShape3D = field(default=UNDEFINED_SHAPE_3D)
     _single_voxel_grid_shape: GridShape3D = field(default=INVALID_SHAPE_3D, init=False)
@@ -139,20 +138,50 @@ class BaseDevice(OrderableObject, ABC):
                 )
         return self
     
-    @abstractmethod
     def init_params(
         self,
         key: jax.Array,
     ) -> dict[str, jax.Array] | jax.Array:
-        """Initializes optimization parameters for the device.
-
-        Args:
-            key: JAX random key for parameter initialization
-
-        Returns:
-            Dictionary mapping parameter names to their initial values
-        """
-        raise NotImplementedError()
+        shape_dtypes = self.parameter_mapping._input_shape_dtypes
+        if not isinstance(shape_dtypes, dict):
+            shape_dtypes = {'dummy': shape_dtypes}
+        params = {}
+        for k, sd in shape_dtypes.items():
+            key, subkey = jax.random.split(key)
+            p = jax.random.uniform(
+                key=subkey,
+                shape=sd.shape,
+                minval=0,  # parameter always live between 0 and 1
+                maxval=1,
+                dtype=sd.dtype,
+            )
+            params[k] = p
+        if len(params) == 1:
+            params = list(params.values())[0]
+        return params
+    
+    def get_material_mapping(
+        self,
+        params: dict[str, jax.Array] | jax.Array,
+    ) -> jax.Array:
+        indices = self.parameter_mapping(params)
+        if not isinstance(indices, jax.Array):
+            raise Exception(
+                f"The parameter mapping should return a single array of indices. If using a continous device, please"
+                " make sure that the latent transformations abide to this rule."
+            )
+        return indices
+    
+    def get_expanded_material_mapping(
+        self,
+        params: dict[str, jax.Array] | jax.Array,
+    ) -> jax.Array:
+        indices = self.get_material_mapping(params)
+        expanded_indices = expand_matrix(
+            matrix=indices,
+            grid_points_per_voxel=self.single_voxel_grid_shape,
+        )
+        return expanded_indices
         
 
 @extended_autoinit
@@ -194,58 +223,38 @@ class DiscreteDevice(BaseDevice):
         )
         self = self.aset("parameter_mapping", mapping)
         return self
-    
-    def init_params(
-        self,
+
+
+@extended_autoinit
+class ContinuousDevice(BaseDevice):
+    material: ContinuousMaterialRange = frozen_field(kind="KW_ONLY")  # type: ignore
+    parameter_mapping: LatentParameterMapping = frozen_field(
+        kind="KW_ONLY",
+        default=LatentParameterMapping(latent_transforms=[]),
+    )
+
+    def place_on_grid(
+        self: Self,
+        grid_slice_tuple: SliceTuple3D,
+        config: SimulationConfig,
         key: jax.Array,
-    ) -> dict[str, jax.Array] | jax.Array:
-        """Initializes optimization parameters for the device.
-
-        Creates random initial parameters between 0 and 1 for each input shape
-        defined in the constraint mapping interface.
-
-        Args:
-            key: JAX random key for parameter initialization
-
-        Returns:
-            Dictionary mapping parameter names to their initial values
-        """
-        shape_dtypes = self.parameter_mapping._input_shape_dtypes
-        if not isinstance(shape_dtypes, dict):
-            shape_dtypes = {'dummy': shape_dtypes}
-        params = {}
-        for k, sd in shape_dtypes.items():
-            key, subkey = jax.random.split(key)
-            p = jax.random.uniform(
-                key=subkey,
-                shape=sd.shape,
-                minval=0,  # parameter always live between 0 and 1
-                maxval=1,
-                dtype=sd.dtype,
-            )
-            params[k] = p
-        if len(params) == 1:
-            params = list(params.values())[0]
-        return params
-    
-    def get_material_mapping(
-        self,
-        params: dict[str, jax.Array] | jax.Array,
-    ) -> jax.Array:
-        indices = self.parameter_mapping(params)
-        return indices
-    
-    def get_expanded_material_mapping(
-        self,
-        params: dict[str, jax.Array] | jax.Array,
-    ) -> jax.Array:
-        indices = self.get_material_mapping(params)
-        expanded_indices = expand_matrix(
-            matrix=indices,
-            grid_points_per_voxel=self.single_voxel_grid_shape,
+    ) -> Self:
+        self = super().place_on_grid(
+            grid_slice_tuple=grid_slice_tuple,
+            config=config,
+            key=key,
         )
-        return expanded_indices
-
+        mapping = self.parameter_mapping.init_modules(
+            config=config,
+            material=self.material,
+            output_shape_dtypes=jax.ShapeDtypeStruct(
+                shape=self.matrix_voxel_grid_shape,
+                dtype=self._config.dtype,
+            ),
+        )
+        self = self.aset("parameter_mapping", mapping)
+        return self
+    
 
 # @extended_autoinit
 # class ContinuousDevice(ContinuousMultiMaterialObject, BaseDeviceInterface):

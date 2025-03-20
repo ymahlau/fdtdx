@@ -51,7 +51,7 @@ class LatentParameterMapping(ExtendedTreeClass):
 
         # set own input shape dtype
         self = self.aset("_input_shape_dtypes", cur_output_shape_dtypes)
-        self = self.aset("modules", new_modules[::-1])
+        self = self.aset("latent_transforms", new_modules[::-1])
         return self
 
 

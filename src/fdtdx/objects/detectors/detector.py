@@ -332,7 +332,10 @@ class Detector(SimulationObject, ABC):
                 )
                 figs["sliced_video"] = path
             else:
-                raise Exception(f"Cannot plot {squeezed_arrs.keys()}")
+                raise Exception(
+                    f"Cannot plot {squeezed_arrs.keys()}. "
+                    f"Consider setting plot=False for Object {self.name} ({self.__class__=})"
+                )
         elif sqeezed_ndim == 3 and self.num_time_steps_recorded == 1:
             # single step, 3d-plot. # TODO: do as mean over planes
             for k, v in squeezed_arrs.items():

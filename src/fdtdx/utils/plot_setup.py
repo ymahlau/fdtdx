@@ -3,6 +3,7 @@ from typing import Any, Sequence
 
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch, Rectangle
+from matplotlib.figure import Figure
 
 from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.container import ObjectContainer
@@ -21,7 +22,7 @@ def plot_setup(
     exclude_xy_plane_object_list: list[SimulationObject] = [],
     exclude_yz_plane_object_list: list[SimulationObject] = [],
     exclude_xz_plane_object_list: list[SimulationObject] = [],
-) -> plt.figure.Figure:
+) -> Figure:
     """Creates a visualization of the simulation setup showing objects in XY, XZ and YZ planes.
 
     Generates three subplots showing cross-sections of the simulation volume and the objects

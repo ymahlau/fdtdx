@@ -272,11 +272,19 @@ class Logger:
         """
         changed_voxels = 0
         for device in objects.devices:
-            if not isinstance(device, DiscreteDevice):
-                continue
             device_params = params[device.name]
             indices = device.get_material_mapping(device_params)
 
+            # raw parameters and indices
+            if isinstance(device_params, dict):
+                for k, v in device_params.items():
+                    jnp.save(self.params_dir / f"params_{iter_idx}_{device.name}_{k}.npy", v)
+            else:
+                jnp.save(self.params_dir / f"params_{iter_idx}_{device.name}.npy", device_params)
+            jnp.save(self.params_dir / f"matrix_{iter_idx}_{device.name}.npy", indices)
+            
+            if not isinstance(device, DiscreteDevice):
+                continue
             has_previous = self.last_indices[device.name] is not None
             cur_changed_voxels = 0
             if has_previous:
@@ -319,12 +327,6 @@ class Logger:
                     dpi=72,
                 )
 
-            # raw permittivities and parameters
-            jnp.save(self.params_dir / f"matrix_{iter_idx}_{device.name}.npy", indices)
-            if isinstance(device_params, dict):
-                for k, v in device_params.items():
-                    jnp.save(self.params_dir / f"params_{iter_idx}_{device.name}_{k}.npy", v)
-            else:
-                jnp.save(self.params_dir / f"params_{iter_idx}_{device.name}.npy", device_params)
+            
 
         return changed_voxels

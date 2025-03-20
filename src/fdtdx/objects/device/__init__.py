@@ -1,5 +1,5 @@
 
-from .device import BaseDevice, DiscreteDevice
+from .device import BaseDevice, DiscreteDevice, ContinuousDevice
 from .parameters.discrete import (
     BOTTOM_Z_PADDING_CONFIG_REPEAT,
     BinaryMedianFilterModule,
@@ -24,6 +24,7 @@ __all__ = [
     # devices
     "BaseDevice",
     "DiscreteDevice",
+    "ContinuousDevice",
     # discrete postprocessing
     "BOTTOM_Z_PADDING_CONFIG_REPEAT",
     "BinaryMedianFilterModule",

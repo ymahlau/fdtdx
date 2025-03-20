@@ -143,6 +143,17 @@ def apply_params(
         new_perm_slice = straight_through_estimator(cur_material_indices, new_perm_slice)
         new_perm = arrays.inv_permittivities.at[*device.grid_slice].set(new_perm_slice)
         arrays = arrays.at["inv_permittivities"].set(new_perm)
+        
+    # apply parameters to continous devices
+    for device in objects.continous_devices:
+        cur_material_indices = device.get_expanded_material_mapping(params[device.name])
+        new_perm_slice = (
+            (1 - cur_material_indices) *  (1 / device.material.start_material.permittivity)
+            + cur_material_indices * (1 / device.material.end_material.permittivity)
+        )
+        new_perm = arrays.inv_permittivities.at[*device.grid_slice].set(new_perm_slice)
+        arrays = arrays.at["inv_permittivities"].set(new_perm)
+        
 
     # apply random key to sources
     new_sources = []
