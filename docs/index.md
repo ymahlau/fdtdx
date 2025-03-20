@@ -33,7 +33,7 @@ pip install -e .
 
 - [Object Placement Guide](tutorials/object_placement.md) - Learn how to position and configure simulation objects
 - [Materials Guide](tutorials/materials.md) - Learn how to use materials in FDTDX
-- [Fabrication Constraints](tutorials/constraint_mapping.md) - Learn how to use the constraint mapping API to include fabrication constraints
+- [Fabrication Constraints](tutorials/parameter_mapping.md) - Learn how to use the parameter mapping API to include fabrication constraints
 - [Interface Compression](tutorials/interface_compression.md) - Learn how to use The compresion API to compute gradients with reversible autodiff
 - See the examples folder for complete scripts for inverse design in FDTDX
 - More guides will follow shortly

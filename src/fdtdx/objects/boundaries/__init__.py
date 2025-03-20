@@ -14,8 +14,12 @@ and applied during the optimization process.
 """
 
 from .initialization import BoundaryConfig, boundary_objects_from_config
+from .perfectly_matched_layer import PerfectlyMatchedLayer
+from .periodic import PeriodicBoundary
 
 __all__ = [
     "BoundaryConfig",
     "boundary_objects_from_config",
+    "PerfectlyMatchedLayer",
+    "PeriodicBoundary",
 ]

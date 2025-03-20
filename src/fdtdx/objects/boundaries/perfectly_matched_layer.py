@@ -354,7 +354,7 @@ class PerfectlyMatchedLayer(BaseBoundary):
         E: jax.Array,
         boundary_state: BoundaryState,
         inverse_permittivity: jax.Array,
-    ):
+    ) -> jax.Array:
         """Updates the electric field components in the PML region.
 
         Applies the PML update equations to modify the electric field values
@@ -384,7 +384,7 @@ class PerfectlyMatchedLayer(BaseBoundary):
         H: jax.Array,
         boundary_state: BoundaryState,
         inverse_permeability: jax.Array,
-    ):
+    ) -> jax.Array:
         """Updates the magnetic field components in the PML region.
 
         Applies the PML update equations to modify the magnetic field values

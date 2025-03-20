@@ -4,11 +4,15 @@ from .parameters.discrete import (
     BOTTOM_Z_PADDING_CONFIG_REPEAT,
     BinaryMedianFilterModule,
     ConnectHolesAndStructures,
-    RemoveFloatingMaterial,
-    circular_brush,
-    
+    RemoveFloatingMaterial,    
 )
-from .parameters.discretization import ClosestIndex, Discretization, BrushConstraint2D, PillarDiscretization
+from .parameters.discretization import (
+    ClosestIndex, 
+    Discretization, 
+    BrushConstraint2D, 
+    PillarDiscretization,
+    circular_brush
+)
 from .parameters.latent import (
     StandardToCustomRange,
     StandardToInversePermittivityRange,
@@ -25,11 +29,11 @@ __all__ = [
     "BinaryMedianFilterModule",
     "ConnectHolesAndStructures",
     "RemoveFloatingMaterial",
-    "circular_brush",
     # discretization
     "ClosestIndex",
     "Discretization",
     "BrushConstraint2D",
+    "circular_brush",
     "PillarDiscretization",
     # latent transform
     "StandardToCustomRange",

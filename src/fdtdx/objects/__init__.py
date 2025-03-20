@@ -17,7 +17,7 @@ from .static_material.uniform import (
     SimulationVolume,
     Substrate,
     UniformMaterialObject,
-    WaveGuide,
+    Waveguide,
 )
 from .object import SimulationObject
 
@@ -25,6 +25,6 @@ __all__ = [
     "SimulationVolume",
     "UniformMaterialObject",
     "Substrate",
-    "WaveGuide",
+    "Waveguide",
     "SimulationObject",
 ]

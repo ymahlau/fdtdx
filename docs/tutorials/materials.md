@@ -7,15 +7,16 @@ Also, currently neither dispersion nor non-linear materials are implemented. The
 This guide is currently very short and will be expanded with them implementations mentioned above.
 
 ## UniformMaterial
-The most basic and also probably most useful object is the UniformMaterial. As the name suggests, it has a single permittivity and permittivity.
+The most basic and also probably most useful object is the UniformMaterialObject. As the name suggests, it has a single material.
 ```python
-from fdtdx.core.physics import constants
-from fdtdx.objects.material import UniformMaterial
+from fdtdx import constants
+from fdtdx.objects import UniformMaterialObject
+from fdtdx.material import Material
 from fdtdx.core.plotting import colors
 
-uniform_obj = UniformMaterial(
+uniform_obj = UniformMaterialObject(
     partial_real_shape=(0.6e-6, 0.6e-6, 0.6e-6),
-    permittivity=constants.relative_permittivity_silica,
+    material=Material(permittivity=constants.relative_permittivity_silica),
     # permeability is one by default
     permeability=1.0,
     color=colors.CYAN,
@@ -29,15 +30,15 @@ For inverse design, it is necessary to model objects that can either be one or t
 
 In this example, we create a device consisting of voxels that are either air or polymer.
 ```python
-permittivity_config = {
-    "Air": constants.relative_permittivity_air,
-    "Polymer": constants.relative_permittivity_ma_N_1400_series,
+material_config = {
+    "Air": Material(permittivity=constants.relative_permittivity_air),
+    "Polymer": Material(permittivity=constants.relative_permittivity_ma_N_1400_series),
 }
-device_scatter = Device(
+device = Device(
     name="Device",
     partial_real_shape=(1e-6, 1e-6, 1e-6),
-    permittivity_config=permittivity_config,
-    constraint_mapping=...,
+    material=material_config,
+    parameter_mapping=...,
     partial_voxel_real_shape=(0.2e-6, 0.2e-6, 0.2e-6),
 )
 ```
@@ -47,4 +48,4 @@ The partial_voxel_real_shape argument specifies the size of the uniform material
 
 Importantly, the size of the device needs to be divisible by the voxel size. Additionally, the voxel size needs to be suffiently larger than the resolution of the Yee-grid in the simulation. For example, if the resolution of the Yee-grid is also 200nm, then this simulation will not produce accurate results. As a rule of thumb, the resolution of the Yee-grid should be at least three times smaller than the size of the voxels.
 
-The device has one latent parameter for every voxel. Initially, these latent parameters are uniformly random in the interval [0, 1]. The constraint mapping defines how these latent parameters are mapped to actual inverse permittivity choices. A detailed guide on this topic can be found [here](./constraint_mapping.md).
+The device has one latent parameter for every voxel. Initially, these latent parameters are uniformly random in the interval [0, 1]. The constraint mapping defines how these latent parameters are mapped to actual inverse permittivity choices. A detailed guide on this topic can be found [here](./parameter_mapping.md).

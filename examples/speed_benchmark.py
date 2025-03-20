@@ -20,7 +20,7 @@ from fdtdx.config import SimulationConfig
 from fdtdx.core.plotting import colors
 from fdtdx.fdtd import custom_fdtd_forward, ArrayContainer, apply_params, place_objects
 from fdtdx.materials import Material
-from fdtdx.objects import SimulationObject, SimulationVolume, Substrate, WaveGuide
+from fdtdx.objects import SimulationObject, SimulationVolume, Substrate, Waveguide
 from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.detectors import EnergyDetector, PoyntingFluxDetector
 from fdtdx.objects.device import (
@@ -30,8 +30,8 @@ from fdtdx.objects.device import (
     StandardToInversePermittivityRange,
 )
 from fdtdx.objects.sources import ConstantAmplitudePlaneSource
-from fdtdx.core import WaveCharacter
-from fdtdx.utils import metric_efficiency, Logger, plot_setup
+from fdtdx.core import WaveCharacter, metric_efficiency
+from fdtdx.utils import Logger, plot_setup
 
 
 # Design of Shen et al.: https://opg.optica.org/oe/fulltext.cfm?uri=oe-22-22-27175&id=303419
@@ -201,7 +201,7 @@ def main(
         ]
     )
 
-    waveguide = WaveGuide(
+    waveguide = Waveguide(
         partial_real_shape=(None, 0.4e-6, 0.3e-6),
         material=Material(permittivity=permittivity_silicon),
     )

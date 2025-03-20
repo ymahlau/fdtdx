@@ -1,58 +1,37 @@
-site_name: fdtdx
+site_name: FDTDX
 repo_url: https://github.com/ymahlau/fdtdx
 site_url: https://ymahlau.github.io/fdtdx
 site_description: A JAX framework for the finite-difference time-domain (FDTD) method for solving Maxwell's equations with a focus on inverse design of photonic devices.
 site_author: Yannik Mahlau and Frederik Schubert
 edit_uri: edit/main/docs/
 repo_name: ymahlau/fdtdx
-copyright: Maintained by Yannik Mahlau and Frederik Schubert
+copyright: Maintained by Yannik Mahlau
 
 nav:
   - Home: index.md
   - Tutorials:
     - Object Placement: tutorials/object_placement.md
     - Materials Guide: tutorials/materials.md
-    - Fabrication Constraints: tutorials/constraint_mapping.md
+    - Fabrication Constraints: tutorials/parameter_mapping.md
     - Interface Compression: tutorials/interface_compression.md
   - API Reference:
     - Overview: api/index.md
-    - Core:
-      - Overview: api/core/index.md
-      - Arrays: api/core/arrays.md
-      - Configuration: api/core/config.md
-      - Distributed: api/core/distributed.md
-      - JAX Extensions: api/core/jax.md
-      - PyTree Extensions: api/core/pytree.md
-      - Types: api/core/types.md
-    - Constraints:
-      - Overview: api/constraints/index.md
-      - Binary: api/constraints/binary.md
-      - Discrete: api/constraints/discrete.md
-      - Mapping: api/constraints/mapping.md
-      - Modules: api/constraints/modules.md
-      - Utilities: api/constraints/utils.md
-    - FDTD:
-      - Overview: api/fdtd/index.md
-      - Core: api/fdtd/core.md
-      - Fields: api/fdtd/fields.md
-      - Interfaces: api/fdtd/interfaces.md
-      - Updates: api/fdtd/updates.md
-    - Objects:
+    - Simulation Objects:
       - Overview: api/objects/index.md
-      - Base: api/objects/base.md
-      - Containers: api/objects/containers.md
-      - Initialization: api/objects/initialization.md
-      - Materials: api/objects/materials.md
-    - Physics:
-      - Overview: api/physics/index.md
-      - Constants: api/physics/constants.md
-      - Metrics: api/physics/metrics.md
-      - Modes: api/physics/modes.md
-    - Utilities:
-      - Overview: api/utils/index.md
-      - Image Processing: api/utils/image.md
-      - Visualization: api/utils/visualization.md
-      - File Conversion: api/utils/conversion.md
+      - Boundaries: api/objects/boundaries.md
+      - Detectors: api/objects/detectors.md
+      - Device: api/objects/device.md
+      - Objects: api/objects/object.md
+      - Sources: api/objects/sources.md
+      - Static Material: api/objects/static_material.md
+    - FDTD: api/fdtd.md
+    - Config: api/config.md
+    - Constants: api/constants.md
+    - Interfaces: api/interfaces.md
+    - Materials: api/materials.md
+    - Typing: api/typing.md
+    - Utils: api/utils.md
+    - Core: api/core.md
 plugins:
   - search
   - mkdocstrings:

@@ -19,12 +19,13 @@ from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx import constants
 from fdtdx.fdtd import full_backward, reversible_fdtd, ArrayContainer, ParameterContainer, apply_params, place_objects
 from fdtdx.interfaces import DtypeConversion, Recorder, LinearReconstructEveryK
-from fdtdx.objects import SimulationVolume, Substrate, WaveGuide, SimulationObject
+from fdtdx.objects import SimulationVolume, Substrate, Waveguide, SimulationObject
 from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.detectors import EnergyDetector, PoyntingFluxDetector
 from fdtdx.objects.device.parameters.mapping import DiscreteParameterMapping
 from fdtdx.objects.sources import ModePlaneSource
-from fdtdx.utils import metric_efficiency, Logger, plot_setup
+from fdtdx.core import metric_efficiency
+from fdtdx.utils import Logger, plot_setup
 
 
 def main(
@@ -122,7 +123,7 @@ def main(
         )
     )
 
-    waveguide_in = WaveGuide(
+    waveguide_in = Waveguide(
         partial_real_shape=(None, 0.4e-6, height),
         material=material_config["Silicon"],
     )
@@ -181,7 +182,7 @@ def main(
         ]
     )
 
-    waveguide_out = WaveGuide(
+    waveguide_out = Waveguide(
         partial_real_shape=(0.4e-6, None, height),
         material=material_config["Silicon"],
     )

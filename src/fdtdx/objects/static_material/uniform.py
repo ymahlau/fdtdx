@@ -40,7 +40,7 @@ class Substrate(UniformMaterialObject):
 
 
 @extended_autoinit
-class WaveGuide(UniformMaterialObject):
+class Waveguide(UniformMaterialObject):
     """Material for optical waveguides.
 
     Used to model waveguide structures that can guide electromagnetic waves.

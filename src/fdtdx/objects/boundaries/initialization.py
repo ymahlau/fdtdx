@@ -166,7 +166,7 @@ class BoundaryConfig(ExtendedTreeClass):
         boundary_type: str = "pml",
         kappa_start: float = 1,
         kappa_end: float = 1.5,
-    ):
+    ) -> "BoundaryConfig":
         """Creates a BoundaryConfig with uniform parameters for all boundaries.
 
         Args:

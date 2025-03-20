@@ -124,36 +124,6 @@ class ConnectHolesAndStructures(DiscreteTransformation):
         return result
 
 
-def circular_brush(
-    diameter: float,
-    size: int | None = None,
-) -> jax.Array:
-    """Creates a circular binary mask/brush for morphological operations.
-
-    Args:
-        diameter: Diameter of the circle in grid units.
-        size: Optional size of the output array. If None, uses ceil(diameter) rounded
-            up to next odd number.
-
-    Returns:
-        Binary JAX array containing a circular mask where True indicates points
-        within the circle diameter.
-    """
-    if size is None:
-        s = math.ceil(diameter)
-        if s % 2 == 0:
-            s += 1
-        size = s
-    xy = jnp.stack(jnp.meshgrid(*map(jnp.arange, (size, size)), indexing="xy"), axis=-1) - jnp.asarray((size / 2) - 0.5)
-    euc_dist = jnp.sqrt((xy**2).sum(axis=-1))
-    # the less EQUAL here is important, because otherwise design may be infeasible due to discretization errors
-    mask = euc_dist <= (diameter / 2)
-    return mask
-
-
-
-
-
 BOTTOM_Z_PADDING_CONFIG_REPEAT = PaddingConfig(
     modes=("edge", "edge", "edge", "edge", "constant", "edge"), widths=(20,), values=(1,)
 )
