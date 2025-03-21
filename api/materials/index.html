@@ -12,26 +12,28 @@
         <meta name="author" content="Yannik Mahlau and Frederik Schubert">
       
       
-        <link rel="canonical" href="https://ymahlau.github.io/fdtdx/">
+        <link rel="canonical" href="https://ymahlau.github.io/fdtdx/api/materials/">
       
       
+        <link rel="prev" href="../interfaces/">
       
-        <link rel="next" href="tutorials/object_placement/">
+      
+        <link rel="next" href="../typing/">
       
       
-      <link rel="icon" href="assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.48">
     
     
       
-        <title>FDTDX</title>
+        <title>Materials - FDTDX</title>
       
     
     
-      <link rel="stylesheet" href="assets/stylesheets/main.6f8fc17f.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.6f8fc17f.min.css">
       
         
-        <link rel="stylesheet" href="assets/stylesheets/palette.06af60db.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
       
       
 
@@ -50,11 +52,11 @@
       
     
     
-      <link rel="stylesheet" href="assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
     
-      <link rel="stylesheet" href="stylesheets/extra.css">
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
     
-    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -79,11 +81,6 @@
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
       
-        
-        <a href="#fdtdx-documentation" class="md-skip">
-          Skip to content
-        </a>
-      
     </div>
     <div data-md-component="announce">
       
@@ -96,7 +93,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="." title="FDTDX" class="md-header__button md-logo" aria-label="FDTDX" data-md-component="logo">
+    <a href="../.." title="FDTDX" class="md-header__button md-logo" aria-label="FDTDX" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -116,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Home
+              Materials
             
           </span>
         </div>
@@ -239,7 +236,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="." title="FDTDX" class="md-nav__button md-logo" aria-label="FDTDX" data-md-component="logo">
+    <a href="../.." title="FDTDX" class="md-nav__button md-logo" aria-label="FDTDX" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -266,30 +263,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  <span class="md-ellipsis">
-    Home
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="." class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -298,77 +275,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#installation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Installation
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#key-features" class="md-nav__link">
-    <span class="md-ellipsis">
-      Key Features
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Key Features">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#high-performance-computing" class="md-nav__link">
-    <span class="md-ellipsis">
-      High Performance Computing
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#guides" class="md-nav__link">
-    <span class="md-ellipsis">
-      Guides
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#citation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Citation
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -415,7 +321,7 @@
   
   
     <li class="md-nav__item">
-      <a href="tutorials/object_placement/" class="md-nav__link">
+      <a href="../../tutorials/object_placement/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -436,7 +342,7 @@
   
   
     <li class="md-nav__item">
-      <a href="tutorials/materials/" class="md-nav__link">
+      <a href="../../tutorials/materials/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -457,7 +363,7 @@
   
   
     <li class="md-nav__item">
-      <a href="tutorials/parameter_mapping/" class="md-nav__link">
+      <a href="../../tutorials/parameter_mapping/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -478,7 +384,7 @@
   
   
     <li class="md-nav__item">
-      <a href="tutorials/interface_compression/" class="md-nav__link">
+      <a href="../../tutorials/interface_compression/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -503,17 +409,19 @@
       
   
   
+    
   
   
+  
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
           <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
@@ -527,7 +435,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             API Reference
@@ -541,7 +449,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -597,7 +505,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/objects/" class="md-nav__link">
+      <a href="../objects/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -618,7 +526,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/objects/boundaries/" class="md-nav__link">
+      <a href="../objects/boundaries/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -639,7 +547,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/objects/detectors/" class="md-nav__link">
+      <a href="../objects/detectors/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -660,7 +568,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/objects/device/" class="md-nav__link">
+      <a href="../objects/device/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -681,7 +589,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/objects/object/" class="md-nav__link">
+      <a href="../objects/object/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -702,7 +610,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/objects/sources/" class="md-nav__link">
+      <a href="../objects/sources/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -723,7 +631,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/objects/static_material/" class="md-nav__link">
+      <a href="../objects/static_material/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -752,7 +660,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/fdtd/" class="md-nav__link">
+      <a href="../fdtd/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -773,7 +681,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/config/" class="md-nav__link">
+      <a href="../config/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -794,7 +702,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/constants/" class="md-nav__link">
+      <a href="../constants/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -815,7 +723,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/interfaces/" class="md-nav__link">
+      <a href="../interfaces/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -833,10 +741,17 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="api/materials/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   <span class="md-ellipsis">
@@ -845,6 +760,7 @@
   
 
       </a>
+      
     </li>
   
 
@@ -857,7 +773,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/typing/" class="md-nav__link">
+      <a href="../typing/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -878,7 +794,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/utils/" class="md-nav__link">
+      <a href="../utils/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -899,7 +815,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/core/" class="md-nav__link">
+      <a href="../core/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -937,67 +853,6 @@
   
   
   
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#installation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Installation
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#key-features" class="md-nav__link">
-    <span class="md-ellipsis">
-      Key Features
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Key Features">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#high-performance-computing" class="md-nav__link">
-    <span class="md-ellipsis">
-      High Performance Computing
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#guides" class="md-nav__link">
-    <span class="md-ellipsis">
-      Guides
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#citation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Citation
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
   
 </nav>
                   </div>
@@ -1015,45 +870,9 @@
   
 
 
-<h1 id="fdtdx-documentation">FDTDX Documentation<a class="headerlink" href="#fdtdx-documentation" title="Permanent link">&para;</a></h1>
-<p><img alt="image" src="img/logo.png" /></p>
-<p>FDTDX is a high-performance framework for electromagnetic simulations and inverse design of photonic devices. Built on JAX, it provides GPU-accelerated FDTD (Finite-Difference Time-Domain) simulations with automatic differentiation capabilities.</p>
-<h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h2>
-<p>Install FDTDX using pip:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>fdtdx
-</span></code></pre></div>
-<p>For development installation, clone the repository and install in editable mode:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/ymahlau/fdtdx
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">cd</span><span class="w"> </span>fdtdx
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
-</span></code></pre></div>
-<h2 id="key-features">Key Features<a class="headerlink" href="#key-features" title="Permanent link">&para;</a></h2>
-<h3 id="high-performance-computing">High Performance Computing<a class="headerlink" href="#high-performance-computing" title="Permanent link">&para;</a></h3>
-<ul>
-<li>Native GPU acceleration through JAX</li>
-<li>Multi-GPU scaling for large simulations </li>
-<li>Memory-efficient time-reversal implementation</li>
-<li>Optimized for large-scale inverse design</li>
-<li>Flexible boundary conditions with PML support</li>
-</ul>
-<h2 id="guides">Guides<a class="headerlink" href="#guides" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="tutorials/object_placement/">Object Placement Guide</a> - Learn how to position and configure simulation objects</li>
-<li><a href="tutorials/materials/">Materials Guide</a> - Learn how to use materials in FDTDX</li>
-<li><a href="tutorials/parameter_mapping/">Fabrication Constraints</a> - Learn how to use the parameter mapping API to include fabrication constraints</li>
-<li><a href="tutorials/interface_compression/">Interface Compression</a> - Learn how to use The compresion API to compute gradients with reversible autodiff</li>
-<li>See the examples folder for complete scripts for inverse design in FDTDX</li>
-<li>More guides will follow shortly</li>
-</ul>
-<h2 id="citation">Citation<a class="headerlink" href="#citation" title="Permanent link">&para;</a></h2>
-<p>If you find this repository helpful for your work, please consider citing:</p>
-<div class="language-bibtex highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nc">@article</span><span class="p">{</span><span class="nl">schubert2024quantized</span><span class="p">,</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="na">title</span><span class="p">=</span><span class="s">{Quantized Inverse Design for Photonic Integrated Circuits}</span><span class="p">,</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="na">author</span><span class="p">=</span><span class="s">{Schubert, Frederik and Mahlau, Yannik and Bethmann, Konrad and Hartmann, Fabian and Caspary, Reinhard and Munderloh, Marco and Ostermann, J{\&quot;o}rn and Rosenhahn, Bodo}</span><span class="p">,</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="na">journal</span><span class="p">=</span><span class="s">{arXiv preprint arXiv:2407.10273}</span><span class="p">,</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="na">year</span><span class="p">=</span><span class="s">{2024}</span>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="p">}</span>
-</span></code></pre></div>
+  <h1>Materials</h1>
+
+
 
 
 
@@ -1130,10 +949,10 @@
     </div>
     
     
-    <script id="__config" type="application/json">{"base": ".", "features": [], "search": "assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="assets/javascripts/bundle.83f73b43.min.js"></script>
+      <script src="../../assets/javascripts/bundle.83f73b43.min.js"></script>
       
     
   </body>

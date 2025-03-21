@@ -12,26 +12,28 @@
         <meta name="author" content="Yannik Mahlau and Frederik Schubert">
       
       
-        <link rel="canonical" href="https://ymahlau.github.io/fdtdx/">
+        <link rel="canonical" href="https://ymahlau.github.io/fdtdx/tutorials/parameter_mapping/">
       
       
+        <link rel="prev" href="../materials/">
       
-        <link rel="next" href="tutorials/object_placement/">
+      
+        <link rel="next" href="../interface_compression/">
       
       
-      <link rel="icon" href="assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.48">
     
     
       
-        <title>FDTDX</title>
+        <title>Fabrication Constraints - FDTDX</title>
       
     
     
-      <link rel="stylesheet" href="assets/stylesheets/main.6f8fc17f.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.6f8fc17f.min.css">
       
         
-        <link rel="stylesheet" href="assets/stylesheets/palette.06af60db.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
       
       
 
@@ -50,11 +52,11 @@
       
     
     
-      <link rel="stylesheet" href="assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
     
-      <link rel="stylesheet" href="stylesheets/extra.css">
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
     
-    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -80,7 +82,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#fdtdx-documentation" class="md-skip">
+        <a href="#incorporation-of-fabrication-constraints" class="md-skip">
           Skip to content
         </a>
       
@@ -96,7 +98,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="." title="FDTDX" class="md-header__button md-logo" aria-label="FDTDX" data-md-component="logo">
+    <a href="../.." title="FDTDX" class="md-header__button md-logo" aria-label="FDTDX" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -116,7 +118,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Home
+              Fabrication Constraints
             
           </span>
         </div>
@@ -239,7 +241,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="." title="FDTDX" class="md-nav__button md-logo" aria-label="FDTDX" data-md-component="logo">
+    <a href="../.." title="FDTDX" class="md-nav__button md-logo" aria-label="FDTDX" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -266,30 +268,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  <span class="md-ellipsis">
-    Home
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="." class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -298,77 +280,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#installation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Installation
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#key-features" class="md-nav__link">
-    <span class="md-ellipsis">
-      Key Features
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Key Features">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#high-performance-computing" class="md-nav__link">
-    <span class="md-ellipsis">
-      High Performance Computing
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#guides" class="md-nav__link">
-    <span class="md-ellipsis">
-      Guides
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#citation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Citation
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -377,17 +288,19 @@
       
   
   
+    
   
   
+  
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
         
           
           <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
@@ -401,7 +314,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
             Tutorials
@@ -415,7 +328,7 @@
   
   
     <li class="md-nav__item">
-      <a href="tutorials/object_placement/" class="md-nav__link">
+      <a href="../object_placement/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -436,7 +349,7 @@
   
   
     <li class="md-nav__item">
-      <a href="tutorials/materials/" class="md-nav__link">
+      <a href="../materials/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -454,10 +367,19 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="tutorials/parameter_mapping/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   <span class="md-ellipsis">
@@ -466,6 +388,7 @@
   
 
       </a>
+      
     </li>
   
 
@@ -478,7 +401,7 @@
   
   
     <li class="md-nav__item">
-      <a href="tutorials/interface_compression/" class="md-nav__link">
+      <a href="../interface_compression/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -541,7 +464,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/" class="md-nav__link">
+      <a href="../../api/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -597,7 +520,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/objects/" class="md-nav__link">
+      <a href="../../api/objects/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -618,7 +541,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/objects/boundaries/" class="md-nav__link">
+      <a href="../../api/objects/boundaries/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -639,7 +562,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/objects/detectors/" class="md-nav__link">
+      <a href="../../api/objects/detectors/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -660,7 +583,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/objects/device/" class="md-nav__link">
+      <a href="../../api/objects/device/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -681,7 +604,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/objects/object/" class="md-nav__link">
+      <a href="../../api/objects/object/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -702,7 +625,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/objects/sources/" class="md-nav__link">
+      <a href="../../api/objects/sources/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -723,7 +646,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/objects/static_material/" class="md-nav__link">
+      <a href="../../api/objects/static_material/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -752,7 +675,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/fdtd/" class="md-nav__link">
+      <a href="../../api/fdtd/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -773,7 +696,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/config/" class="md-nav__link">
+      <a href="../../api/config/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -794,7 +717,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/constants/" class="md-nav__link">
+      <a href="../../api/constants/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -815,7 +738,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/interfaces/" class="md-nav__link">
+      <a href="../../api/interfaces/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -836,7 +759,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/materials/" class="md-nav__link">
+      <a href="../../api/materials/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -857,7 +780,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/typing/" class="md-nav__link">
+      <a href="../../api/typing/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -878,7 +801,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/utils/" class="md-nav__link">
+      <a href="../../api/utils/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -899,7 +822,7 @@
   
   
     <li class="md-nav__item">
-      <a href="api/core/" class="md-nav__link">
+      <a href="../../api/core/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -940,65 +863,6 @@
     
   
   
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#installation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Installation
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#key-features" class="md-nav__link">
-    <span class="md-ellipsis">
-      Key Features
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Key Features">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#high-performance-computing" class="md-nav__link">
-    <span class="md-ellipsis">
-      High Performance Computing
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#guides" class="md-nav__link">
-    <span class="md-ellipsis">
-      Guides
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#citation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Citation
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
 </nav>
                   </div>
                 </div>
@@ -1015,45 +879,91 @@
   
 
 
-<h1 id="fdtdx-documentation">FDTDX Documentation<a class="headerlink" href="#fdtdx-documentation" title="Permanent link">&para;</a></h1>
-<p><img alt="image" src="img/logo.png" /></p>
-<p>FDTDX is a high-performance framework for electromagnetic simulations and inverse design of photonic devices. Built on JAX, it provides GPU-accelerated FDTD (Finite-Difference Time-Domain) simulations with automatic differentiation capabilities.</p>
-<h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h2>
-<p>Install FDTDX using pip:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>fdtdx
+<h1 id="incorporation-of-fabrication-constraints">Incorporation of Fabrication Constraints<a class="headerlink" href="#incorporation-of-fabrication-constraints" title="Permanent link">&para;</a></h1>
+<p>When using inverse design with FDTDX, fabrication constraints have to be specified. The basic building block for an object optimizable by inverse design is a Device:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span> <span class="nn">fdtdx.objects.device</span> <span class="kn">import</span> <span class="n">DiscreteDevice</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span> <span class="nn">fdtdx</span> <span class="kn">import</span> <span class="n">constants</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="kn">from</span> <span class="nn">fdtdx.material</span> <span class="kn">import</span> <span class="n">Material</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">material_config</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="s2">&quot;Air&quot;</span><span class="p">:</span> <span class="n">Material</span><span class="p">(</span><span class="n">permittivity</span><span class="o">=</span><span class="n">constants</span><span class="o">.</span><span class="n">relative_permittivity_air</span><span class="p">),</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="s2">&quot;Polymer&quot;</span><span class="p">:</span> <span class="n">Material</span><span class="p">(</span><span class="n">permittivity</span><span class="o">=</span><span class="n">constants</span><span class="o">.</span><span class="n">relative_permittivity_ma_N_1400_series</span><span class="p">),</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">}</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">device_scatter</span> <span class="o">=</span> <span class="n">DiscreteDevice</span><span class="p">(</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;Device&quot;</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">partial_real_shape</span><span class="o">=</span><span class="p">(</span><span class="mf">1e-6</span><span class="p">,</span> <span class="mf">1e-6</span><span class="p">,</span> <span class="mf">1e-6</span><span class="p">),</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">material</span><span class="o">=</span><span class="n">material_config</span><span class="p">,</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">parameter_mapping</span><span class="o">=...</span><span class="p">,</span>  <span class="c1"># &lt;- This needs to be filled</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">partial_voxel_real_shape</span><span class="o">=</span><span class="p">(</span><span class="mf">0.2e-6</span><span class="p">,</span> <span class="mf">0.2e-6</span><span class="p">,</span> <span class="mf">0.2e-6</span><span class="p">),</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="p">)</span>
 </span></code></pre></div>
-<p>For development installation, clone the repository and install in editable mode:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/ymahlau/fdtdx
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">cd</span><span class="w"> </span>fdtdx
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+<p>The parameter mapping, which is left empty above, specifies the mapping from continuous latent parameters to materials used in the simulation.</p>
+<h1 id="simple-example">Simple example<a class="headerlink" href="#simple-example" title="Permanent link">&para;</a></h1>
+<p>At the beginning of optimization, the latent parameters of a device are always initialized randomly in the interval [0, 1]. Depending on the constraint mapping, these parameteters are mapped to inverse permittivities. Let's look at an example of a simple constraint mapping:</p>
+<p><div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span> <span class="nn">fdtdx.objects.device</span> <span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">ParameterMapping</span><span class="p">,</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">ClosestIndex</span><span class="p">,</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">StandardToInversePermittivityRange</span><span class="p">,</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="p">)</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="n">mapping</span> <span class="o">=</span> <span class="n">ParameterMapping</span><span class="p">(</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="n">latent_transforms</span><span class="o">=</span><span class="p">[</span><span class="n">StandardToInversePermittivityRange</span><span class="p">(),],</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    <span class="n">discretization</span><span class="o">=</span><span class="n">ClosestIndex</span><span class="p">(),</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="p">)</span>
 </span></code></pre></div>
-<h2 id="key-features">Key Features<a class="headerlink" href="#key-features" title="Permanent link">&para;</a></h2>
-<h3 id="high-performance-computing">High Performance Computing<a class="headerlink" href="#high-performance-computing" title="Permanent link">&para;</a></h3>
-<ul>
-<li>Native GPU acceleration through JAX</li>
-<li>Multi-GPU scaling for large simulations </li>
-<li>Memory-efficient time-reversal implementation</li>
-<li>Optimized for large-scale inverse design</li>
-<li>Flexible boundary conditions with PML support</li>
-</ul>
-<h2 id="guides">Guides<a class="headerlink" href="#guides" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="tutorials/object_placement/">Object Placement Guide</a> - Learn how to position and configure simulation objects</li>
-<li><a href="tutorials/materials/">Materials Guide</a> - Learn how to use materials in FDTDX</li>
-<li><a href="tutorials/parameter_mapping/">Fabrication Constraints</a> - Learn how to use the parameter mapping API to include fabrication constraints</li>
-<li><a href="tutorials/interface_compression/">Interface Compression</a> - Learn how to use The compresion API to compute gradients with reversible autodiff</li>
-<li>See the examples folder for complete scripts for inverse design in FDTDX</li>
-<li>More guides will follow shortly</li>
-</ul>
-<h2 id="citation">Citation<a class="headerlink" href="#citation" title="Permanent link">&para;</a></h2>
-<p>If you find this repository helpful for your work, please consider citing:</p>
-<div class="language-bibtex highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nc">@article</span><span class="p">{</span><span class="nl">schubert2024quantized</span><span class="p">,</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="na">title</span><span class="p">=</span><span class="s">{Quantized Inverse Design for Photonic Integrated Circuits}</span><span class="p">,</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="na">author</span><span class="p">=</span><span class="s">{Schubert, Frederik and Mahlau, Yannik and Bethmann, Konrad and Hartmann, Fabian and Caspary, Reinhard and Munderloh, Marco and Ostermann, J{\&quot;o}rn and Rosenhahn, Bodo}</span><span class="p">,</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="na">journal</span><span class="p">=</span><span class="s">{arXiv preprint arXiv:2407.10273}</span><span class="p">,</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="na">year</span><span class="p">=</span><span class="s">{2024}</span>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="p">}</span>
+The constraint mapping consists of a chain of modules, or in other words a chain of transformations followed by a discretization. Let's look at the modules in detail:
+- StandardToInversePermittivityRange(): This Module maps the default [0, 1] range to the range [<span class="arithmatex">\(1 / \varepsilon_{max}\)</span>, <span class="arithmatex">\(1 / \varepsilon_{min}\)</span>], where <span class="arithmatex">\(\varepsilon_{max}\)</span> and <span class="arithmatex">\(\varepsilon_{min}\)</span> are the maximum and minimum permittivity specified in the permittivity config above. In other words, a latent variable of 0 would be mapped to the smallest inverse permittivity. Similarly, a value of 1 would be mapped to the largest possible inverse permittivity.
+- ClosestIndex(): This module finds the closest material to the mapped value output from the last module. In math-terms, this is $\arg\min_{\varepsilon} |\varepsilon - v| $, where <span class="arithmatex">\(\varepsilon\)</span> are the allowed permittivity values and <span class="arithmatex">\(v\)</span> is the output of the last module. Importantly, this module does not return the <span class="arithmatex">\(\varepsilon\)</span> itself, but rather the index of <span class="arithmatex">\(\varepsilon\)</span> in the valid permittivities.</p>
+<p>This mapping constraints each voxel independently of the other voxels to the inverse permittivity of either air or polymer. However, often more elaborate fabrication constraints are needed in practice, which we introduce in the following sections.</p>
+<h1 id="silicon-device-with-minimum-feature-constraint">Silicon Device with minimum feature constraint<a class="headerlink" href="#silicon-device-with-minimum-feature-constraint" title="Permanent link">&para;</a></h1>
+<p>Now let's develop a constraint mapping for silicon photonics, which restricts the minimum feature size of a device.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span> <span class="nn">fdtdx.objects.device</span> <span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">ParameterMapping</span><span class="p">,</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">StandardToPlusOneMinusOneRange</span><span class="p">,</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">BrushConstraint2D</span><span class="p">,</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">circular_brush</span><span class="p">,</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="p">)</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="n">brush_diameter_in_voxels</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="mf">100e-9</span> <span class="o">/</span> <span class="n">config</span><span class="o">.</span><span class="n">resolution</span><span class="p">)</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="n">mapping</span> <span class="o">=</span> <span class="n">ParameterMapping</span><span class="p">(</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>    <span class="n">latent_transforms</span><span class="o">=</span><span class="p">[</span><span class="n">StandardToPlusOneMinusOneRange</span><span class="p">()],</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>    <span class="n">discretization</span><span class="o">=</span><span class="n">BrushConstraint2D</span><span class="p">(</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>        <span class="n">brush</span><span class="o">=</span><span class="n">circular_brush</span><span class="p">(</span><span class="n">diameter</span><span class="o">=</span><span class="n">brush_diameter_in_voxels</span><span class="p">),</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>        <span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>    <span class="p">),</span>
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="p">)</span>
 </span></code></pre></div>
+<p>This mapping does not just quantize latent paramters to material indices, but also makes sure that the device adheres to a minimum feature size with regard to a specific brush. In this example, we used a circular brush of 100nm. In other words, one could "paint" the design with a brush of this size.
+In more detail:
+- StandardToPlusOneMinusOneRange(): maps the standard [0, 1] range to [-1, 1]. This is necessary, because the BrushConstraint2D expects the input to be in this range.
+- BrushConstraint2D(): maps the output of the previous module to permittivity indices similar to ClosestIndex() described above. However, it also makes sure that the design adheres to a minimum feature size regarding a specific brush shape. The axis argument defines the axis perpendicular to the 2D-design plane used. In our example, the perpendicular axis is 2 (in other words z/upwards). Therefore, the minimum feature constraint is enforced in the XY-plane.</p>
+<h1 id="3d-fabrication-constraints-for-two-photon-polymerization">3D Fabrication Constraints for Two-Photon-Polymerization<a class="headerlink" href="#3d-fabrication-constraints-for-two-photon-polymerization" title="Permanent link">&para;</a></h1>
+<p>Lastly, let's look at a more involved constraint mapping used to Two-Photon Polymerization (2PP). In 2PP, a laser is focused on liquid monomer to harden the material. This allows the creation of fully three-dimensional designs. </p>
+<p>Resulting from this fabrication technique multiple constraints arise. Firstly, basic physical knowledge tells us that no material can float in the air without a connection to the ground. In 3D-design, we have to explicitly incorporate this constraint, which was not necessary in 2D (in 2D, all voxels are always connected to the ground). Secondly, there cannot be enclosed air cavities in a design for 2PP. An enclosed cavity would trap unpolmerized monomer and destroy the structural integrity of the design. However, in practice it is often not necessary to explicitly encode this constraint in the simulation. Enclosed cavities seldomly increase a figure of merit and therefore only rarely appear in an optimized design. But, it is important to check after the simulation is finished if any enclosed cavitities exist in the design.</p>
+<p><div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span> <span class="nn">fdtdx.objects.device</span> <span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">ParameterMapping</span><span class="p">,</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">BOTTOM_Z_PADDING_CONFIG_REPEAT</span><span class="p">,</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">BinaryMedianFilterModule</span><span class="p">,</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">RemoveFloatingMaterial</span><span class="p">,</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">ClosestIndex</span><span class="p">,</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="p">)</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="n">mapping</span> <span class="o">=</span> <span class="n">ParameterMapping</span><span class="p">(</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="n">latent_transforms</span><span class="o">=</span><span class="p">[</span><span class="n">StandardToInversePermittivityRange</span><span class="p">(),],</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="n">discretization</span><span class="o">=</span><span class="n">ClosestIndex</span><span class="p">(),</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="n">post_transforms</span><span class="o">=</span><span class="p">[</span>
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>        <span class="n">BinaryMedianFilterModule</span><span class="p">(</span>
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>            <span class="n">kernel_sizes</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span>
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>            <span class="n">padding_cfg</span><span class="o">=</span><span class="n">BOTTOM_Z_PADDING_CONFIG_REPEAT</span><span class="p">,</span>
+</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>            <span class="n">num_repeats</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>        <span class="p">),</span>
+</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>        <span class="n">RemoveFloatingMaterial</span><span class="p">(),</span>
+</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>    <span class="p">]</span>
+</span><span id="__span-3-20"><a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a><span class="p">)</span>
+</span></code></pre></div>
+This constraint mapping is one possibility to implement constraints for 2PP. The two new modules are:
+- BinaryMedianFilterModule: This module does a soft enforcement of a minimum feature size by smoothing the incoming indices (produced by the previous module) with a median filter. The kernel size describes the size of the smoothing kernel in Yee grid cells. The padding config describes how the boundaries of the design are padded for smoothing. The BOTTOM_Z_PADDING_CONFIG_REPEAT uses a repeat of the boundary values except at the bottom of the design, where the design is padded with non-air-material. Heuristically, this gives the design better ground contact. The num_repeats argument specifies how often the smoothing filter is applied.
+- RemoveFloatingMaterial: As the name suggests, this module goes through the indices generated by the previous module (BinaryMedianFilter) and removes any floating material without ground connection. Ground connection is computed using a simple flood fill algorithm and all voxels with floating material are converted to air.</p>
 
 
 
@@ -1130,10 +1040,10 @@
     </div>
     
     
-    <script id="__config" type="application/json">{"base": ".", "features": [], "search": "assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="assets/javascripts/bundle.83f73b43.min.js"></script>
+      <script src="../../assets/javascripts/bundle.83f73b43.min.js"></script>
       
     
   </body>
