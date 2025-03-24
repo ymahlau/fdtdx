@@ -82,7 +82,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#utility-functions-and-objects" class="md-skip">
+        <a href="#utility-functions" class="md-skip">
           Skip to content
         </a>
       
@@ -837,15 +837,6 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#logger" class="md-nav__link">
-    <span class="md-ellipsis">
-      Logger
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#fdtdx.utils.Logger" class="md-nav__link">
     <span class="md-ellipsis">
       Logger
@@ -915,35 +906,11 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#setup-plotting" class="md-nav__link">
-    <span class="md-ellipsis">
-      Setup Plotting
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#fdtdx.utils.plot_setup" class="md-nav__link">
-    <span class="md-ellipsis">
-      plot_setup
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="plot_setup">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
   <a href="#fdtdx.utils.plot_setup.plot_setup" class="md-nav__link">
     <span class="md-ellipsis">
       plot_setup
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1011,15 +978,6 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#logger" class="md-nav__link">
-    <span class="md-ellipsis">
-      Logger
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#fdtdx.utils.Logger" class="md-nav__link">
     <span class="md-ellipsis">
       Logger
@@ -1089,35 +1047,11 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#setup-plotting" class="md-nav__link">
-    <span class="md-ellipsis">
-      Setup Plotting
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#fdtdx.utils.plot_setup" class="md-nav__link">
-    <span class="md-ellipsis">
-      plot_setup
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="plot_setup">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
   <a href="#fdtdx.utils.plot_setup.plot_setup" class="md-nav__link">
     <span class="md-ellipsis">
       plot_setup
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1139,8 +1073,7 @@
   
 
 
-<h1 id="utility-functions-and-objects">Utility Functions and Objects<a class="headerlink" href="#utility-functions-and-objects" title="Permanent link">&para;</a></h1>
-<h2 id="logger">Logger<a class="headerlink" href="#logger" title="Permanent link">&para;</a></h2>
+<h1 id="utility-functions">Utility Functions<a class="headerlink" href="#utility-functions" title="Permanent link">&para;</a></h1>
 
 
 <div class="doc doc-object doc-class">
@@ -2579,48 +2512,18 @@ Automatically initializes CSV headers on first write.</p>
     </div>
 
 </div><p>A logger which can automatically record important metrics during optimization. For a detailed guide on the usage, see the example scripts in the github repository.</p>
-<h2 id="setup-plotting">Setup Plotting<a class="headerlink" href="#setup-plotting" title="Permanent link">&para;</a></h2>
-
-
-<div class="doc doc-object doc-module">
-
-
-
-<h2 id="fdtdx.utils.plot_setup" class="doc doc-heading">
-            <code>fdtdx.utils.plot_setup</code>
-
-
-<a href="#fdtdx.utils.plot_setup" class="headerlink" title="Permanent link">&para;</a></h2>
-
-    <div class="doc doc-contents first">
-
-
-
-
-
-
-
-
-  <div class="doc doc-children">
-
-
-
-
-
-
-
 
 
 <div class="doc doc-object doc-function">
 
 
-<h3 id="fdtdx.utils.plot_setup.plot_setup" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">plot_setup</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">objects</span><span class="p">,</span> <span class="n">exclude_object_list</span><span class="o">=</span><span class="p">[],</span> <span class="n">filename</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">axs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">plot_legend</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exclude_xy_plane_object_list</span><span class="o">=</span><span class="p">[],</span> <span class="n">exclude_yz_plane_object_list</span><span class="o">=</span><span class="p">[],</span> <span class="n">exclude_xz_plane_object_list</span><span class="o">=</span><span class="p">[])</span></code>
+<h2 id="fdtdx.utils.plot_setup.plot_setup" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">fdtdx</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">plot_setup</span><span class="o">.</span><span class="n">plot_setup</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">objects</span><span class="p">,</span> <span class="n">exclude_object_list</span><span class="o">=</span><span class="p">[],</span> <span class="n">filename</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">axs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">plot_legend</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exclude_xy_plane_object_list</span><span class="o">=</span><span class="p">[],</span> <span class="n">exclude_yz_plane_object_list</span><span class="o">=</span><span class="p">[],</span> <span class="n">exclude_xz_plane_object_list</span><span class="o">=</span><span class="p">[])</span></code>
 
-<a href="#fdtdx.utils.plot_setup.plot_setup" class="headerlink" title="Permanent link">&para;</a></h3>
+<a href="#fdtdx.utils.plot_setup.plot_setup" class="headerlink" title="Permanent link">&para;</a></h2>
 
 
-    <div class="doc doc-contents ">
+    <div class="doc doc-contents first">
 
         <p>Creates a visualization of the simulation setup showing objects in XY, XZ and YZ planes.</p>
 <p>Generates three subplots showing cross-sections of the simulation volume and the objects
@@ -3136,14 +3039,6 @@ PML objects are automatically excluded from their respective boundary planes.</p
 </span><span id="__span-0-173"><a id="__codelineno-0-173" name="__codelineno-0-173"></a>    <span class="k">return</span> <span class="n">plt</span><span class="o">.</span><span class="n">gcf</span><span class="p">()</span> <span class="k">if</span> <span class="n">fig</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">fig</span>
 </span></code></pre></div></td></tr></table></div>
             </details>
-    </div>
-
-</div>
-
-
-
-  </div>
-
     </div>
 
 </div><p>Plots an image of the simulation scene using matplotlib. This is very helpful for veryfying the correct positions of all objects in the simulation scene.</p>
