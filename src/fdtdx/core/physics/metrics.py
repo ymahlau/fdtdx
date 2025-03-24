@@ -14,7 +14,7 @@ def compute_energy(
     E: jax.Array,
     H: jax.Array,
     inv_permittivity: jax.Array,
-    inv_permeability: jax.Array,
+    inv_permeability: jax.Array | float,
 ) -> jax.Array:
     """Computes the total electromagnetic energy density of the field.
 
@@ -41,7 +41,7 @@ def normalize_by_energy(
     E: jax.Array,
     H: jax.Array,
     inv_permittivity: jax.Array,
-    inv_permeability: jax.Array,
+    inv_permeability: jax.Array | float,
 ) -> tuple[jax.Array, jax.Array]:
     """Normalizes electromagnetic fields by their total energy.
 

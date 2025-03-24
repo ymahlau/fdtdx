@@ -262,7 +262,7 @@ class PlaneSource(DirectionalPlaneSourceBase, ABC):
         center: jax.Array,
         wave_vector: jax.Array,
         inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array,
+        inv_permeabilities: jax.Array | float,
     ) -> tuple[jax.Array, jax.Array]:
         """Calculate time offsets for E and H fields on the Yee grid.
 
@@ -346,7 +346,7 @@ class PlaneSource(DirectionalPlaneSourceBase, ABC):
         self,
         key: jax.Array,
         inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array,
+        inv_permeabilities: jax.Array | float,
     ) -> tuple[
         jax.Array,  # E: (3, *grid_shape)
         jax.Array,  # H: (3, *grid_shape)
@@ -360,7 +360,7 @@ class PlaneSource(DirectionalPlaneSourceBase, ABC):
         self: Self,
         key: jax.Array,
         inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array,
+        inv_permeabilities: jax.Array | float,
     ) -> Self:
         E, H, time_offset_E, time_offset_H = self.get_EH_variation(
             key=key,
@@ -377,7 +377,7 @@ class PlaneSource(DirectionalPlaneSourceBase, ABC):
         self,
         E: jax.Array,
         inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array,
+        inv_permeabilities: jax.Array | float,
         time_step: jax.Array,
         inverse: bool,
     ) -> jax.Array:
@@ -430,7 +430,7 @@ class PlaneSource(DirectionalPlaneSourceBase, ABC):
         self,
         H: jax.Array,
         inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array,
+        inv_permeabilities: jax.Array | float,
         time_step: jax.Array,
         inverse: bool,
     ) -> jax.Array:
@@ -439,7 +439,10 @@ class PlaneSource(DirectionalPlaneSourceBase, ABC):
             raise Exception("Need to apply random key before calling update")
 
         delta_t = self._config.time_step_duration
-        inv_permeability_slice = inv_permeabilities[*self.grid_slice]
+        if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
+            inv_permeability_slice = inv_permeabilities[*self.grid_slice]
+        else:
+            inv_permeability_slice = inv_permeabilities
 
         # Calculate time points for E and H fields
         time_E = (time_step - 0.5 + self._time_offset_E[self.horizontal_axis]) * delta_t
@@ -505,7 +508,7 @@ class LinearlyPolarizedPlaneSource(PlaneSource, ABC):
         self,
         key: jax.Array,
         inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array,
+        inv_permeabilities: jax.Array | float,
     ) -> tuple[
         jax.Array,  # E: (3, *grid_shape)
         jax.Array,  # H: (3, *grid_shape)
@@ -513,7 +516,8 @@ class LinearlyPolarizedPlaneSource(PlaneSource, ABC):
         jax.Array,  # time_offset_H: (3, *grid_shape)
     ]:
         inv_permittivities = inv_permittivities[*self.grid_slice]
-        inv_permeabilities = inv_permeabilities[*self.grid_slice]
+        if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
+            inv_permeabilities = inv_permeabilities[*self.grid_slice]
 
         # determine E/H polarization
         e_pol_raw, h_pol_raw = self._get_raw_EH_polarization()
@@ -637,13 +641,13 @@ class ModePlaneSource(PlaneSource):
     filter_pol: Literal["te", "tm"] | None = frozen_field(default=None)
 
     _inv_permittivity: jax.Array = frozen_field(default=None, init=False)  # type: ignore
-    _inv_permeability: jax.Array = frozen_field(default=None, init=False)  # type: ignore
+    _inv_permeability: jax.Array | float = frozen_field(default=None, init=False)  # type: ignore
 
     def apply(
         self: Self,
         key: jax.Array,
         inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array,
+        inv_permeabilities: jax.Array | float,
     ) -> Self:
         if (
             self.azimuth_angle != 0
@@ -660,7 +664,10 @@ class ModePlaneSource(PlaneSource):
             inv_permeabilities=inv_permeabilities,
         )
         inv_permittivity_slice = inv_permittivities[*self.grid_slice]
-        inv_permeability_slice = inv_permeabilities[*self.grid_slice]
+        if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
+            inv_permeability_slice = inv_permeabilities[*self.grid_slice]
+        else:
+            inv_permeability_slice = inv_permeabilities
 
         self = self.aset("_inv_permittivity", inv_permittivity_slice)
         self = self.aset("_inv_permeability", inv_permeability_slice)
@@ -737,7 +744,7 @@ class ModePlaneSource(PlaneSource):
         self,
         key: jax.Array,
         inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array,
+        inv_permeabilities: jax.Array | float,
     ) -> tuple[
         jax.Array,  # E: (3, *grid_shape)
         jax.Array,  # H: (3, *grid_shape)
@@ -751,7 +758,10 @@ class ModePlaneSource(PlaneSource):
         )
 
         inv_permittivity_slice = inv_permittivities[*self.grid_slice]
-        inv_permeability_slice = inv_permeabilities[*self.grid_slice]
+        if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
+            inv_permeability_slice = inv_permeabilities[*self.grid_slice]
+        else:
+            inv_permeability_slice = inv_permeabilities
 
         time_offset_E, time_offset_H = self._calculate_time_offset_yee(
             center=center,
@@ -846,7 +856,7 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
         self,
         E: jax.Array,
         inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array,
+        inv_permeabilities: jax.Array | float,
         time_step: jax.Array,
         inverse: bool,
     ) -> jax.Array:
@@ -865,8 +875,8 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
     def update_H(
         self,
         H: jax.Array,
-        inv_permeabilities: jax.Array,
         inv_permittivities: jax.Array,
+        inv_permeabilities: jax.Array | float,
         time_step: jax.Array,
         inverse: bool,
     ):
@@ -886,7 +896,7 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
         self,
         key: jax.Array,
         inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array,
+        inv_permeabilities: jax.Array | float,
     ) -> Self:
         del key, inv_permittivities, inv_permeabilities
         return self

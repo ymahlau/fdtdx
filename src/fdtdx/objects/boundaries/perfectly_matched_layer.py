@@ -317,7 +317,7 @@ class PerfectlyMatchedLayer(BaseBoundary):
         self,
         H: jax.Array,
         boundary_state: BoundaryState,
-        inverse_permeability: jax.Array,
+        inverse_permeability: jax.Array | float,
     ) -> jax.Array:
         phi_Hx = boundary_state.psi_Hx[1] - boundary_state.psi_Hx[2]
         phi_Hy = boundary_state.psi_Hy[2] - boundary_state.psi_Hy[0]
@@ -325,7 +325,8 @@ class PerfectlyMatchedLayer(BaseBoundary):
         phi_H = jnp.stack((phi_Hx, phi_Hy, phi_Hz), axis=0)
 
         H = H.at[:, *self.grid_slice].divide(boundary_state.kappa)
-        inv_perm_slice = inverse_permeability[self.grid_slice]
-        update = -self._config.courant_number * inv_perm_slice * phi_H
+        if isinstance(inverse_permeability, jax.Array) and inverse_permeability.ndim > 0:
+            inverse_permeability = inverse_permeability[self.grid_slice]
+        update = -self._config.courant_number * inverse_permeability * phi_H
         H = H.at[:, *self.grid_slice].add(update)
         return H

@@ -54,7 +54,7 @@ class BaseBoundary(SimulationObject, ABC):
         self,
         H: jax.Array,
         boundary_state: BaseBoundaryState,
-        inverse_permeability: jax.Array,
+        inverse_permeability: jax.Array | float,
     ) -> jax.Array:
         raise NotImplementedError()
 

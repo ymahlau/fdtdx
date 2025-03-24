@@ -62,7 +62,7 @@ class PhasorDetector(Detector):
         H: jax.Array,
         state: DetectorState,
         inv_permittivity: jax.Array,
-        inv_permeability: jax.Array,
+        inv_permeability: jax.Array | float,
     ) -> DetectorState:
         del inv_permeability, inv_permittivity
         time_passed = time_step * self._config.time_step_duration

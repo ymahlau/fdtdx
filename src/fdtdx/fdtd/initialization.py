@@ -145,13 +145,14 @@ def apply_params(
         arrays = arrays.at["inv_permittivities"].set(new_perm)
 
     # apply parameters to continous devices
-    for device in objects.continous_devices:
-        cur_material_indices = device.get_expanded_material_mapping(params[device.name])
-        new_perm_slice = (1 - cur_material_indices) * (
-            1 / device.material.start_material.permittivity
-        ) + cur_material_indices * (1 / device.material.end_material.permittivity)
-        new_perm = arrays.inv_permittivities.at[*device.grid_slice].set(new_perm_slice)
-        arrays = arrays.at["inv_permittivities"].set(new_perm)
+    if not objects.all_objects_non_magnetic:
+        for device in objects.continous_devices:
+            cur_material_indices = device.get_expanded_material_mapping(params[device.name])
+            new_perm_slice = (1 - cur_material_indices) * (
+                1 / device.material.start_material.permittivity
+            ) + cur_material_indices * (1 / device.material.end_material.permittivity)
+            new_perm = arrays.inv_permittivities.at[*device.grid_slice].set(new_perm_slice)
+            arrays = arrays.at["inv_permittivities"].set(new_perm)
 
     # apply random key to sources
     new_sources = []
@@ -215,13 +216,17 @@ def _init_arrays(
         sharding_axis=1,
         backend=config.backend,
     )
-    inv_permeabilities = create_named_sharded_matrix(
-        shape_params,
-        value=0.0,
-        dtype=config.dtype,
-        sharding_axis=1,
-        backend=config.backend,
-    )
+
+    if objects.all_objects_non_magnetic:
+        inv_permeabilities = 1.0
+    else:
+        inv_permeabilities = create_named_sharded_matrix(
+            shape_params,
+            value=0.0,
+            dtype=config.dtype,
+            sharding_axis=1,
+            backend=config.backend,
+        )
 
     # set permittivity/permeability of static objects
     sorted_obj = sorted(
@@ -232,7 +237,8 @@ def _init_arrays(
     for o in sorted_obj:
         if isinstance(o, UniformMaterialObject):
             inv_permittivities = inv_permittivities.at[*o.grid_slice].set(1 / o.material.permittivity)
-            inv_permeabilities = inv_permeabilities.at[*o.grid_slice].set(1 / o.material.permeability)
+            if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
+                inv_permeabilities = inv_permeabilities.at[*o.grid_slice].set(1 / o.material.permeability)
         elif isinstance(o, StaticMultiMaterialObject):
             indices = o.get_material_mapping()
             if isinstance(o.material, dict):
@@ -240,9 +246,10 @@ def _init_arrays(
                 update = allowed_inv_perms[indices]
                 inv_permittivities = inv_permittivities.at[*o.grid_slice].set(update)
 
-                allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permeabilities(o.material))
-                update = allowed_inv_perms[indices]
-                inv_permeabilities = inv_permeabilities.at[*o.grid_slice].set(update)
+                if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
+                    allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permeabilities(o.material))
+                    update = allowed_inv_perms[indices]
+                    inv_permeabilities = inv_permeabilities.at[*o.grid_slice].set(update)
             elif isinstance(o.material, ContinuousMaterialRange):
                 raise NotImplementedError()
         else:

@@ -60,6 +60,7 @@ class GaussianPulseProfile(TemporalProfile):
         period: float,
         phase_shift: float = 0.0,
     ) -> jax.Array:
+        del period
         # Calculate envelope parameters
         sigma_t = 1.0 / (2 * jnp.pi * self.spectral_width)
         t0 = 6 * sigma_t  # Offset peak to avoid discontinuity at t=0

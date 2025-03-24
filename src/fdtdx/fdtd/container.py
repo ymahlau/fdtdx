@@ -5,12 +5,13 @@ and array data within FDTD simulations. It includes support for different object
 like sources, detectors, PML boundaries, periodic boundaries, and devices.
 """
 
-from typing import Self
+from typing import Callable, Self
 
 import jax
 
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit
 from fdtdx.interfaces.state import RecordingState
+from fdtdx.materials import Material
 from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
@@ -93,6 +94,41 @@ class ObjectContainer(ExtendedTreeClass):
     def boundary_objects(self) -> list[BaseBoundary]:
         return [o for o in self.objects if isinstance(o, (PerfectlyMatchedLayer, PeriodicBoundary))]
 
+    @property
+    def all_objects_non_magnetic(self) -> bool:
+        def _fn(m: Material):
+            return not m.is_magnetic
+
+        return self._is_material_fn_true_for_all(_fn)
+
+    @property
+    def all_objects_non_conductive(self) -> bool:
+        def _fn(m: Material):
+            return not m.is_conductive
+
+        return self._is_material_fn_true_for_all(_fn)
+
+    def _is_material_fn_true_for_all(
+        self,
+        fn: Callable[[Material], bool],
+    ) -> bool:
+        for o in self.objects:
+            if not isinstance(o, StaticMaterialObject) and not isinstance(o, BaseDevice):
+                continue
+            if isinstance(o.material, Material):
+                if not fn(o.material):
+                    return False
+            elif isinstance(o.material, dict):
+                for v in o.material.values():
+                    if not fn(v):
+                        return False
+            else:
+                if fn(o.material.start_material):
+                    return False
+                if fn(o.material.end_material):
+                    return False
+        return True
+
     def __iter__(self):
         return iter(self.object_list)
 
@@ -135,7 +171,7 @@ class ArrayContainer(ExtendedTreeClass):
     E: jax.Array
     H: jax.Array
     inv_permittivities: jax.Array
-    inv_permeabilities: jax.Array
+    inv_permeabilities: jax.Array | float
     boundary_states: dict[str, BaseBoundaryState]
     detector_states: dict[str, DetectorState]
     recording_state: RecordingState | None
