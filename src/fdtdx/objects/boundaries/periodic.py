@@ -196,7 +196,7 @@ class PeriodicBoundary(BaseBoundary):
         self,
         H: jax.Array,
         boundary_state: PeriodicBoundaryState,
-        inverse_permeability: jax.Array,
+        inverse_permeability: jax.Array | float,
     ) -> jax.Array:
         del boundary_state, inverse_permeability
         # Get the boundary slice

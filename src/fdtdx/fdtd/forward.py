@@ -28,7 +28,7 @@ def forward_single_args_wrapper(
     jax.Array,
     jax.Array,
     jax.Array,
-    jax.Array,
+    jax.Array | float,
     dict[str, BaseBoundaryState],
     dict[str, DetectorState],
     RecordingState | None,

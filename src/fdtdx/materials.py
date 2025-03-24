@@ -1,3 +1,5 @@
+import math
+
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit
 
 
@@ -28,6 +30,18 @@ class Material(ExtendedTreeClass):
     permittivity: float
     permeability: float = 1.0
     conductivity: float = 0.0
+
+    def __post_init__(self):
+        if self.is_conductive:
+            raise NotImplementedError()
+
+    @property
+    def is_magnetic(self) -> bool:
+        return not math.isclose(self.permeability, 1.0)
+
+    @property
+    def is_conductive(self) -> bool:
+        return not math.isclose(self.conductivity, 0.0)
 
 
 def compute_ordered_material_name_tuples(

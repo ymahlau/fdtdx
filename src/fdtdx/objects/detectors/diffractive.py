@@ -99,7 +99,7 @@ class DiffractiveDetector(Detector):
         H: jax.Array,
         state: DetectorState,
         inv_permittivity: jax.Array,
-        inv_permeability: jax.Array,
+        inv_permeability: jax.Array | float,
     ) -> DetectorState:
         del inv_permittivity, inv_permeability
 

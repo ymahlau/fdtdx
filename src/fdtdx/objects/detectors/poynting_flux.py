@@ -58,7 +58,7 @@ class PoyntingFluxDetector(Detector):
         H: jax.Array,
         state: DetectorState,
         inv_permittivity: jax.Array,
-        inv_permeability: jax.Array,
+        inv_permeability: jax.Array | float,
     ) -> DetectorState:
         del inv_permeability, inv_permittivity
         cur_E = E[:, *self.grid_slice]

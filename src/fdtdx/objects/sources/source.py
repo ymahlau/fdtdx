@@ -24,7 +24,7 @@ class Source(SimulationObject, ABC):
         self,
         E: jax.Array,
         inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array,
+        inv_permeabilities: jax.Array | float,
         time_step: jax.Array,
         inverse: bool,
     ) -> jax.Array:
@@ -47,7 +47,7 @@ class Source(SimulationObject, ABC):
         self,
         H: jax.Array,
         inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array,
+        inv_permeabilities: jax.Array | float,
         time_step: jax.Array,
         inverse: bool,
     ) -> jax.Array:
@@ -70,7 +70,7 @@ class Source(SimulationObject, ABC):
         self,
         key: jax.Array,
         inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array,
+        inv_permeabilities: jax.Array | float,
     ) -> Self:
         """Apply source-specific initialization and setup.
 
