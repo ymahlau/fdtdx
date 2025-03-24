@@ -1,6 +1,5 @@
-# Base Classes
-
-## Core Classes
+##
+# Core Classes
 ::: fdtdx.objects.object.SimulationObject
 Base class for all simulation objects with positioning and sizing capabilities. All Objects in FDTDX are cuboid shaped by default, but with multi-material objects more complicated shapes can be realized as well.
 
@@ -10,14 +9,14 @@ An object of cuboid shape describing the size and default background material of
 ::: fdtdx.objects.UniformMaterialObject
 An object that has a uniform material throughout its entire volume.
 
-## Convenience Wrapper
+# Convenience Wrapper
 ::: fdtdx.objects.Substrate
 A substrate of uniform material. This is just a wrapper for an object with uniform material.
 
 ::: fdtdx.objects.Waveguide
 A waveguide of uniform material. This is just a wrapper for an object with uniform material.
 
-## Positioning/Sizing Constraints
+# Positioning/Sizing Constraints
 ::: fdtdx.objects.object.PositionConstraint
 Defines relative positioning between simulation objects.
 

@@ -47,13 +47,6 @@ class PoyntingFluxDetector(Detector):
     def _shape_dtype_single_time_step(
         self,
     ) -> dict[str, jax.ShapeDtypeStruct]:
-        """Define shape and dtype for a single time step of Poynting flux data.
-
-        Returns:
-            dict: Dictionary mapping 'poynting_flux' to ShapeDtypeStruct containing:
-                - If reduce_volume=True: Shape (1,) for single flux value
-                - If reduce_volume=False: Shape matching detector's grid_shape
-        """
         if self.reduce_volume:
             return {"poynting_flux": jax.ShapeDtypeStruct((1,), self.dtype)}
         return {"poynting_flux": jax.ShapeDtypeStruct(self.grid_shape, self.dtype)}
@@ -67,22 +60,6 @@ class PoyntingFluxDetector(Detector):
         inv_permittivity: jax.Array,
         inv_permeability: jax.Array,
     ) -> DetectorState:
-        """Update detector state with new Poynting flux measurements.
-
-        Computes Poynting flux from E and H fields at the current time step and
-        updates the detector state accordingly.
-
-        Args:
-            time_step: Current simulation time step
-            E: Electric field array
-            H: Magnetic field array
-            state: Current detector state
-            inv_permittivity: Inverse permittivity array (unused)
-            inv_permeability: Inverse permeability array (unused)
-
-        Returns:
-            DetectorState: Updated state containing new Poynting flux values
-        """
         del inv_permeability, inv_permittivity
         cur_E = E[:, *self.grid_slice]
         cur_H = H[:, *self.grid_slice]

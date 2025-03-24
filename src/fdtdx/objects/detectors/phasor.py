@@ -44,23 +44,11 @@ class PhasorDetector(Detector):
         self._scale = self._config.time_step_duration / jnp.sqrt(2 * jnp.pi)
 
     def _num_latent_time_steps(self) -> int:
-        """Get number of time steps needed for latent computation.
-
-        Returns:
-            int: Always returns 1 for phasor detector since only current state is needed.
-        """
         return 1
 
     def _shape_dtype_single_time_step(
         self,
     ) -> dict[str, jax.ShapeDtypeStruct]:
-        """Define shape and dtype for a single time step of phasor data.
-
-        Returns:
-            dict: Dictionary with 'phasor' key mapping to a ShapeDtypeStruct containing:
-                - shape: (num_frequencies, num_components, *grid_shape)
-                - dtype: Complex64 or Complex128 depending on detector's dtype
-        """
         field_dtype = jnp.complex128 if self.dtype == jnp.float64 else jnp.complex64
         num_components = len(self.components)
         num_frequencies = len(self.frequencies)
@@ -76,22 +64,6 @@ class PhasorDetector(Detector):
         inv_permittivity: jax.Array,
         inv_permeability: jax.Array,
     ) -> DetectorState:
-        """Update the phasor state with current field values.
-
-        Computes the phasor representation by multiplying field components with complex
-        exponentials at each of the detector's frequencies.
-
-        Args:
-            time_step: Current simulation time step
-            E: Electric field array
-            H: Magnetic field array
-            state: Current detector state
-            inv_permittivity: Inverse permittivity array (unused)
-            inv_permeability: Inverse permeability array (unused)
-
-        Returns:
-            DetectorState: Updated state containing new phasor values
-        """
         del inv_permeability, inv_permittivity
         time_passed = time_step * self._config.time_step_duration
 

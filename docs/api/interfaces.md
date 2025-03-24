@@ -1,12 +1,12 @@
+##
 # Interface Compression
 This API can be used for automatic differentiation (autodiff) with time-reversibility, which is more memory efficient than other approaches. 
 Additionally, some basic compression modules are implemented to reduce the memory footprint even further. However, they should be used with care since too much compression can reduce the gradient accuracy.
 
-## Recorder 
 ::: fdtdx.interfaces.Recorder
 A recorder object for recording the interfaces between simulation volume and PML boundary during the forward simulation
 
-## Compression Modules
+# Compression Modules
 ::: fdtdx.interfaces.LinearReconstructEveryK
 Compression module which only records every k time steps during the forward simulation. For reconstruction a linear interpolation between the recorded time steps is performed.
 

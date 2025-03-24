@@ -80,12 +80,6 @@ class DiffractiveDetector(Detector):
     #         raise Exception(f"Some orders are evanescent at wavelength {wavelength*1e9:.1f}nm")
 
     def _shape_dtype_single_time_step(self) -> dict[str, jax.ShapeDtypeStruct]:
-        """Define shape and dtype for a single time step of diffractive data.
-
-        Returns:
-            dict: Dictionary mapping data keys to ShapeDtypeStruct containing shape and
-                dtype information for each frequency and order combination.
-        """
         num_freqs = len(self.frequencies)
         num_orders = len(self.orders)
 
@@ -96,11 +90,6 @@ class DiffractiveDetector(Detector):
         return {"diffractive": jax.ShapeDtypeStruct(shape=shape, dtype=field_dtype)}
 
     def _num_latent_time_steps(self) -> int:
-        """Get number of time steps needed for latent computation.
-
-        Returns:
-            int: Always returns 1 for diffractive detector since only current state is needed.
-        """
         return 1
 
     def update(
@@ -112,7 +101,6 @@ class DiffractiveDetector(Detector):
         inv_permittivity: jax.Array,
         inv_permeability: jax.Array,
     ) -> DetectorState:
-        """Update the diffractive detector state with current field values."""
         del inv_permittivity, inv_permeability
 
         # Get grid dimensions for the plane perpendicular to propagation axis

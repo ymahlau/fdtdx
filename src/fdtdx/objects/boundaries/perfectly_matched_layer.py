@@ -96,14 +96,6 @@ class PerfectlyMatchedLayer(BaseBoundary):
     def init_state(
         self,
     ) -> BoundaryState:
-        """Initializes the PML boundary state.
-
-        Creates and initializes all auxiliary fields and coefficients needed for
-        the CPML implementation based on the current configuration.
-
-        Returns:
-            BoundaryState: Initialized state container with all required fields
-        """
         dtype = self._config.dtype
         sigma_E, sigma_H = standard_sigma_from_direction_axis(
             thickness=self.thickness,
@@ -145,14 +137,6 @@ class PerfectlyMatchedLayer(BaseBoundary):
         return boundary_state
 
     def reset_state(self, state: BoundaryState) -> BoundaryState:
-        """Resets the PML boundary state to initial conditions.
-
-        Args:
-            state: Current boundary state to reset
-
-        Returns:
-            BoundaryState: New state with auxiliary fields zeroed and coefficients reinitialized
-        """
         dtype = self._config.dtype
         sigma_E, sigma_H = standard_sigma_from_direction_axis(
             thickness=self.thickness,
@@ -192,11 +176,6 @@ class PerfectlyMatchedLayer(BaseBoundary):
         return new_state
 
     def boundary_interface_grid_shape(self) -> GridShape3D:
-        """Gets the shape of the PML interface with the main simulation grid.
-
-        Returns:
-            GridShape3D: 3D shape tuple with 1 in the PML axis dimension
-        """
         if self.axis == 0:
             return 1, self.grid_shape[1], self.grid_shape[2]
         elif self.axis == 1:
@@ -206,11 +185,6 @@ class PerfectlyMatchedLayer(BaseBoundary):
         raise Exception(f"Invalid axis: {self.axis=}")
 
     def boundary_interface_slice_tuple(self) -> SliceTuple3D:
-        """Gets the slice tuple for accessing the PML interface region.
-
-        Returns:
-            SliceTuple3D: Tuple of slices defining the interface boundary
-        """
         slice_list = [*self._grid_slice_tuple]
         if self.direction == "+":
             slice_list[self.axis] = (self._grid_slice_tuple[self.axis][0], self._grid_slice_tuple[self.axis][0] + 1)
@@ -219,11 +193,6 @@ class PerfectlyMatchedLayer(BaseBoundary):
         return slice_list[0], slice_list[1], slice_list[2]
 
     def boundary_interface_slice(self) -> Slice3D:
-        """Gets the slice object for accessing the PML interface region.
-
-        Returns:
-            Slice3D: Slice object defining the interface boundary
-        """
         slice_list = [*self.grid_slice]
         if self.direction == "+":
             slice_list[self.axis] = slice(
@@ -240,17 +209,6 @@ class PerfectlyMatchedLayer(BaseBoundary):
         boundary_state: BoundaryState,
         H: jax.Array,
     ) -> BoundaryState:
-        """Updates the PML state for the electric field components.
-
-        Updates auxiliary fields and coefficients based on the magnetic field values.
-
-        Args:
-            boundary_state: Current PML state
-            H: Magnetic field array
-
-        Returns:
-            BoundaryState: Updated PML state
-        """
         Hx = H[0, *self.grid_slice]
         Hy = H[1, *self.grid_slice]
         Hz = H[2, *self.grid_slice]
@@ -297,17 +255,6 @@ class PerfectlyMatchedLayer(BaseBoundary):
         boundary_state: BoundaryState,
         E: jax.Array,
     ) -> BoundaryState:
-        """Updates the PML state for the magnetic field components.
-
-        Updates auxiliary fields and coefficients based on the electric field values.
-
-        Args:
-            boundary_state: Current PML state
-            E: Electric field array
-
-        Returns:
-            BoundaryState: Updated PML state
-        """
         Ex = E[0, *self.grid_slice]
         Ey = E[1, *self.grid_slice]
         Ez = E[2, *self.grid_slice]
@@ -355,19 +302,6 @@ class PerfectlyMatchedLayer(BaseBoundary):
         boundary_state: BoundaryState,
         inverse_permittivity: jax.Array,
     ) -> jax.Array:
-        """Updates the electric field components in the PML region.
-
-        Applies the PML update equations to modify the electric field values
-        based on the current state and material properties.
-
-        Args:
-            E: Electric field array to update
-            boundary_state: Current PML state
-            inverse_permittivity: Inverse permittivity array
-
-        Returns:
-            jax.Array: Updated electric field array
-        """
         phi_Ex = boundary_state.psi_Ex[1] - boundary_state.psi_Ex[2]
         phi_Ey = boundary_state.psi_Ey[2] - boundary_state.psi_Ey[0]
         phi_Ez = boundary_state.psi_Ez[0] - boundary_state.psi_Ez[1]
@@ -385,19 +319,6 @@ class PerfectlyMatchedLayer(BaseBoundary):
         boundary_state: BoundaryState,
         inverse_permeability: jax.Array,
     ) -> jax.Array:
-        """Updates the magnetic field components in the PML region.
-
-        Applies the PML update equations to modify the magnetic field values
-        based on the current state and material properties.
-
-        Args:
-            H: Magnetic field array to update
-            boundary_state: Current PML state
-            inverse_permeability: Inverse permeability array
-
-        Returns:
-            jax.Array: Updated magnetic field array
-        """
         phi_Hx = boundary_state.psi_Hx[1] - boundary_state.psi_Hx[2]
         phi_Hy = boundary_state.psi_Hy[2] - boundary_state.psi_Hy[0]
         phi_Hz = boundary_state.psi_Hz[0] - boundary_state.psi_Hz[1]

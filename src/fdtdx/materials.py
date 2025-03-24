@@ -3,6 +3,28 @@ from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit
 
 @extended_autoinit
 class Material(ExtendedTreeClass):
+    """
+    Represents an electromagnetic material with specific electrical and magnetic properties.
+
+    This class stores the fundamental electromagnetic properties of a material for use
+    in electromagnetic simulations.
+
+    Args:
+        permittivity (float): The relative permittivity (dielectric constant) of the material,
+            which describes how the electric field is affected by the material. Higher values
+            indicate greater electric polarization in response to an applied electric field.
+
+        permeability (float, optional): The relative permeability of the material, which
+            describes how the magnetic field is affected by the material. Higher values
+            indicate greater magnetic response to an applied magnetic field.
+            Defaults to 1.0 (non-magnetic material).
+
+        conductivity (float, optional): The electrical conductivity of the material in siemens
+            per meter (S/m), which describes how easily electric current can flow through it.
+            Higher values indicate materials that conduct electricity more easily.
+            Defaults to 0.0 (perfect insulator).
+    """
+
     permittivity: float
     permeability: float = 1.0
     conductivity: float = 0.0

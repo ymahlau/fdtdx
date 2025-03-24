@@ -1,0 +1,4 @@
+# Material
+
+::: fdtdx.materials.Material
+

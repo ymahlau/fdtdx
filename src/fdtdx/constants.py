@@ -62,44 +62,6 @@ relative_permittivity_resin: float = 2.202256
 relative_permittivity_ormo_prime: float = 1.817104
 """Relative permittivity of Ormocer primer."""
 
-silicon_permittivity_config: tuple[tuple[str, float], ...] = (
-    ("Si", relative_permittivity_silicon),
-    ("Air", relative_permittivity_air),
-)
-"""Standard configuration for silicon-air simulations."""
-
-standard_permittivity_config: tuple[tuple[str, float], ...] = (
-    ("SZ2080", relative_permittivity_SZ_2080),
-    ("Air", relative_permittivity_air),
-)
-"""Standard configuration using SZ2080 photoresist."""
-
-higher_permittivity_config: tuple[tuple[str, float], ...] = (
-    ("ma-N 1400", relative_permittivity_ma_N_1400_series),
-    ("Air", relative_permittivity_air),
-)
-"""Configuration using higher permittivity ma-N 1400 photoresist."""
-
-silica_permittivity_config: tuple[tuple[str, float], ...] = (
-    ("Polymer", relative_permittivity_silica),
-    ("Air", relative_permittivity_air),
-)
-"""Standard configuration for silica-based simulations."""
-
-multi_material_permittivity_config: tuple[tuple[str, float], ...] = (
-    ("ma-N 1400", relative_permittivity_ma_N_1400_series),
-    ("SZ2080", relative_permittivity_SZ_2080),
-    ("Air", relative_permittivity_air),
-)
-"""Configuration for multi-material simulations using both photoresists."""
-
-multi_material_qd_permittivity_config: tuple[tuple[str, float], ...] = (
-    ("SZ2080", relative_permittivity_resin),
-    ("SZ2080+q", relative_permittivity_resin + 0.01),  # TODO: check whether this is enough
-    ("Air", relative_permittivity_air),
-)
-"""Configuration for quantum dot enhanced resin simulations."""
-
 SHARD_STR: str = "shard"
 """String constant used to identify sharded computations."""
 

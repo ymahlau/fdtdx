@@ -1,4 +1,6 @@
+##
 # Object Placement and Parameters 
+
 ::: fdtdx.fdtd.place_objects
 Main entry point for placing and initializing simulation objects.
 
@@ -7,15 +9,12 @@ Applies parameters to devices and updates source states to be ready for simulati
 
 # Core FDTD Algorithms
 
-## Reversible FDTD
 ::: fdtdx.fdtd.reversible_fdtd
 Time-reversal symmetric FDTD implementation with memory-efficient autodiff.
 
-### Checkpointed FDTD
 ::: fdtdx.fdtd.checkpointed_fdtd
 Gradient checkpointing FDTD implementation for memory-performance tradeoff when using autodiff. In most use-cases this performs worse than the reversible FDTD.
 
-## Backward FDTD in time
 ::: fdtdx.fdtd.full_backward
 Complete backward FDTD propagation from current state to start time. This can be used to check if the compression of boundary interfaces still lead to a physically accurate backward pass.
 

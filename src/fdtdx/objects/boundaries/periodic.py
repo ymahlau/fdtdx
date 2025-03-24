@@ -64,14 +64,6 @@ class PeriodicBoundary(BaseBoundary):
     def init_state(
         self,
     ) -> PeriodicBoundaryState:
-        """Initializes the periodic boundary state.
-
-        Creates storage for field values from opposite boundary needed for
-        periodic wrapping.
-
-        Returns:
-            PeriodicBoundaryState: Initialized state container
-        """
         dtype = self._config.dtype
         ext_shape = (3,) + self.grid_shape
 
@@ -82,14 +74,6 @@ class PeriodicBoundary(BaseBoundary):
         return boundary_state
 
     def reset_state(self, state: PeriodicBoundaryState) -> PeriodicBoundaryState:
-        """Resets the periodic boundary state.
-
-        Args:
-            state: Current boundary state to reset
-
-        Returns:
-            PeriodicBoundaryState: New state with zeroed fields
-        """
         new_state = PeriodicBoundaryState(
             E_opposite=state.E_opposite * 0,
             H_opposite=state.H_opposite * 0,
@@ -97,11 +81,6 @@ class PeriodicBoundary(BaseBoundary):
         return new_state
 
     def boundary_interface_grid_shape(self) -> GridShape3D:
-        """Gets the shape of the periodic boundary interface.
-
-        Returns:
-            GridShape3D: 3D shape tuple with 1 in the periodic axis dimension
-        """
         if self.axis == 0:
             return 1, self.grid_shape[1], self.grid_shape[2]
         elif self.axis == 1:
@@ -111,11 +90,6 @@ class PeriodicBoundary(BaseBoundary):
         raise Exception(f"Invalid axis: {self.axis=}")
 
     def boundary_interface_slice_tuple(self) -> SliceTuple3D:
-        """Gets the slice tuple for accessing the periodic boundary interface.
-
-        Returns:
-            SliceTuple3D: Tuple of slices defining the interface boundary
-        """
         slice_list = [*self._grid_slice_tuple]
         if self.direction == "+":
             slice_list[self.axis] = (self._grid_slice_tuple[self.axis][0], self._grid_slice_tuple[self.axis][0] + 1)
@@ -124,11 +98,6 @@ class PeriodicBoundary(BaseBoundary):
         return slice_list[0], slice_list[1], slice_list[2]
 
     def boundary_interface_slice(self) -> Slice3D:
-        """Gets the slice object for accessing the periodic boundary interface.
-
-        Returns:
-            Slice3D: Slice object defining the interface boundary
-        """
         slice_list = [*self.grid_slice]
         if self.direction == "+":
             slice_list[self.axis] = slice(
@@ -145,17 +114,6 @@ class PeriodicBoundary(BaseBoundary):
         boundary_state: PeriodicBoundaryState,
         H: jax.Array,
     ) -> PeriodicBoundaryState:
-        """Updates the periodic boundary state for electric field.
-
-        Stores both E and H field values from the opposite boundary for periodic wrapping.
-
-        Args:
-            boundary_state: Current boundary state
-            H: Magnetic field array
-
-        Returns:
-            PeriodicBoundaryState: Updated boundary state
-        """
         # Get field values from opposite boundary
         opposite_slice = list(self.grid_slice)
         if self.direction == "+":
@@ -180,17 +138,6 @@ class PeriodicBoundary(BaseBoundary):
         boundary_state: PeriodicBoundaryState,
         E: jax.Array,
     ) -> PeriodicBoundaryState:
-        """Updates the periodic boundary state for magnetic field.
-
-        Stores both E and H field values from the opposite boundary for periodic wrapping.
-
-        Args:
-            boundary_state: Current boundary state
-            E: Electric field array
-
-        Returns:
-            PeriodicBoundaryState: Updated boundary state
-        """
         # Get field values from opposite boundary
         opposite_slice = list(self.grid_slice)
         if self.direction == "+":
@@ -216,19 +163,7 @@ class PeriodicBoundary(BaseBoundary):
         boundary_state: PeriodicBoundaryState,
         inverse_permittivity: jax.Array,
     ) -> jax.Array:
-        """Updates the electric field at the periodic boundary.
-
-        Applies periodic boundary conditions by copying field values from the
-        opposite boundary, maintaining field continuity.
-
-        Args:
-            E: Electric field array to update
-            boundary_state: Current boundary state
-            inverse_permittivity: Inverse permittivity array
-
-        Returns:
-            jax.Array: Updated electric field array
-        """
+        del boundary_state, inverse_permittivity
         # Get the boundary slice
         boundary_slice = list(self.grid_slice)
         if self.direction == "+":
@@ -263,19 +198,7 @@ class PeriodicBoundary(BaseBoundary):
         boundary_state: PeriodicBoundaryState,
         inverse_permeability: jax.Array,
     ) -> jax.Array:
-        """Updates the magnetic field at the periodic boundary.
-
-        Applies periodic boundary conditions by copying field values from the
-        opposite boundary, maintaining field continuity.
-
-        Args:
-            H: Magnetic field array to update
-            boundary_state: Current boundary state
-            inverse_permeability: Inverse permeability array
-
-        Returns:
-            jax.Array: Updated magnetic field array
-        """
+        del boundary_state, inverse_permeability
         # Get the boundary slice
         boundary_slice = list(self.grid_slice)
         if self.direction == "+":
