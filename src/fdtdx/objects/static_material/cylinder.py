@@ -15,16 +15,13 @@ from fdtdx.typing import UNDEFINED_SHAPE_3D, PartialGridShape3D, PartialRealShap
 class Cylinder(StaticMultiMaterialObject):
     """A cylindrical optical fiber with configurable properties.
 
-    This class represents a cylindrical fiber with customizable radius, permittivity,
-    and orientation. The fiber can be positioned along any of the three principal axes
-    and supports both inner and outer permittivity configuration.
+    This class represents a cylindrical fiber with customizable radius, material,
+    and orientation. The fiber can be positioned along any of the three principal axes.
 
     Attributes:
         radius: The radius of the fiber in meter.
-        fiber_permittivity: The relative permittivity (εᵣ) of the fiber material.
+        material: The material properties of the fiber.
         axis: The principal axis along which the fiber extends (0=x, 1=y, 2=z).
-        outer_permittivity: The relative permittivity of the surrounding medium (default=1).
-        permittivity_config: Dictionary storing the permittivity values for different regions.
         partial_voxel_grid_shape: The shape of the voxel grid in grid units.
         partial_voxel_real_shape: The shape of the voxel grid in physical units.
         color: RGB color tuple for visualization (default=LIGHT_GREY).
@@ -33,7 +30,6 @@ class Cylinder(StaticMultiMaterialObject):
     radius: float = field(kind="KW_ONLY")  # type: ignore
     material: Material = field(kind="KW_ONLY")  # type: ignore
     axis: int = field(kind="KW_ONLY")  # type: ignore
-    permittivity_config: dict[str, Material] = frozen_private_field()
     partial_voxel_grid_shape: PartialGridShape3D = frozen_private_field(default=UNDEFINED_SHAPE_3D)
     partial_voxel_real_shape: PartialRealShape3D = frozen_private_field(default=UNDEFINED_SHAPE_3D)
     color: tuple[float, float, float] = LIGHT_GREY
@@ -66,19 +62,6 @@ class Cylinder(StaticMultiMaterialObject):
         config: SimulationConfig,
         key: jax.Array,
     ) -> Self:
-        """Places the fiber on the simulation grid.
-
-        Configures the voxel grid shape and permittivity settings for the fiber
-        based on the given grid slice and configuration.
-
-        Args:
-            grid_slice_tuple: 3D tuple of slices defining the grid region.
-            config: Configuration object containing simulation parameters.
-            key: JAX random key for stochastic operations.
-
-        Returns:
-            Self: Updated instance with grid placement configured.
-        """
         self = super().place_on_grid(
             grid_slice_tuple=grid_slice_tuple,
             config=config,
