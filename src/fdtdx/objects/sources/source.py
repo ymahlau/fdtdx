@@ -6,6 +6,8 @@ import jax.numpy as jnp
 
 from fdtdx.core import WaveCharacter
 from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
+from fdtdx.core.linalg import get_orthogonal_vector, get_wave_vector_raw
+from fdtdx.core.misc import normalize_polarization_for_source
 from fdtdx.core.plotting.colors import ORANGE
 from fdtdx.objects.object import SimulationObject
 from fdtdx.objects.sources.profile import SingleFrequencyProfile, TemporalProfile
@@ -110,43 +112,68 @@ class DirectionalPlaneSourceBase(Source, ABC):
     def vertical_axis(self) -> int:
         return (self.propagation_axis + 2) % 3
 
-    def _get_wave_vector_raw(
-        self,
-    ) -> jax.Array:  # shape (3,)
-        """Calculate the raw wave vector for the plane wave.
 
-        Returns:
-            3D array representing wave vector direction (normalized unit vector).
-        """
-        vec_list = [0, 0, 0]
-        sign = 1 if self.direction == "+" else -1
-        vec_list[self.propagation_axis] = sign
-        return jnp.array(vec_list, dtype=jnp.float32)
+@extended_autoinit
+class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
+    amplitude: float = 1.0
+    fixed_E_polarization_vector: tuple[float, float, float] | None = None
+    fixed_H_polarization_vector: tuple[float, float, float] | None = None
 
-    def _orthogonal_vector(
+    def update_E(
         self,
-        v_E: jax.Array | None = None,
-        v_H: jax.Array | None = None,
+        E: jax.Array,
+        inv_permittivities: jax.Array,
+        inv_permeabilities: jax.Array | float,
+        time_step: jax.Array,
+        inverse: bool,
     ) -> jax.Array:
-        """Calculate vector orthogonal to wave vector and given E or H field vector.
+        del inv_permittivities, inv_permeabilities
+        if inverse:
+            return E
+        delta_t = self._config.time_step_duration
+        time_phase = 2 * jnp.pi * time_step * delta_t / self.wave_character.period + self.wave_character.phase_shift
+        magnitude = jnp.real(self.amplitude * jnp.exp(-1j * time_phase))
+        e_pol, _ = normalize_polarization_for_source(
+            direction=self.direction,
+            propagation_axis=self.propagation_axis,
+            fixed_E_polarization_vector=self.fixed_E_polarization_vector,
+            fixed_H_polarization_vector=self.fixed_E_polarization_vector,
+        )
+        E_update = e_pol[:, None, None, None] * magnitude
 
-        Args:
-            v_E: Electric field vector (optional).
-            v_H: Magnetic field vector (optional).
+        E = E.at[:, *self.grid_slice].set(E_update.astype(E.dtype))
+        return E
 
-        Returns:
-            Orthogonal vector computed via cross product.
+    def update_H(
+        self,
+        H: jax.Array,
+        inv_permittivities: jax.Array,
+        inv_permeabilities: jax.Array | float,
+        time_step: jax.Array,
+        inverse: bool,
+    ):
+        del inv_permeabilities, inv_permittivities
+        if inverse:
+            return H
+        delta_t = self._config.time_step_duration
+        time_phase = 2 * jnp.pi * time_step * delta_t / self.wave_character.period + self.wave_character.phase_shift
+        magnitude = jnp.real(self.amplitude * jnp.exp(-1j * time_phase))
+        _, h_pol = normalize_polarization_for_source(
+            direction=self.direction,
+            propagation_axis=self.propagation_axis,
+            fixed_E_polarization_vector=self.fixed_E_polarization_vector,
+            fixed_H_polarization_vector=self.fixed_E_polarization_vector,
+        )
+        H_update = h_pol[:, None, None, None] * magnitude
 
-        Raises:
-            Exception: If neither or both v_E and v_H are provided.
-        """
-        if v_E is None == v_H is None:
-            raise Exception(f"Invalid input to orthogonal vector computation: {v_E=}, {v_H=}")
-        wave_vector = self._get_wave_vector_raw()
-        if v_E is not None:
-            orthogonal = jnp.cross(wave_vector, v_E)
-        elif v_H is not None:
-            orthogonal = jnp.cross(v_H, wave_vector)
-        else:
-            raise Exception("This should never happen")
-        return orthogonal
+        H = H.at[:, *self.grid_slice].set(H_update.astype(H.dtype))
+        return H
+
+    def apply(
+        self,
+        key: jax.Array,
+        inv_permittivities: jax.Array,
+        inv_permeabilities: jax.Array | float,
+    ) -> Self:
+        del key, inv_permittivities, inv_permeabilities
+        return self

@@ -13,12 +13,12 @@ The constraints are implemented as modules that can be chained together
 and applied during the optimization process.
 """
 
-from .plane_source import (
-    ConstantAmplitudePlaneSource,
+from .source import HardConstantAmplitudePlanceSource
+from .mode import ModePlaneSource
+from .linear_polarization import (
+    LinearlyPolarizedPlaneSource, 
     GaussianPlaneSource,
-    HardConstantAmplitudePlanceSource,
-    LinearlyPolarizedPlaneSource,
-    ModePlaneSource,
+    ConstantAmplitudePlaneSource,
 )
 from .profile import GaussianPulseProfile, SingleFrequencyProfile
 
