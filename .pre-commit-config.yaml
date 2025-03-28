@@ -20,6 +20,11 @@ repos:
           - --fix
       # Run the formatter.
       - id: ruff-format
+  - repo: https://github.com/jsh9/pydoclint
+    rev: 0.6.2
+    hooks:
+      - id: pydoclint
+        args: [--style=google, --check-return-types=False]
   - repo: local
     hooks:
       - id: mkdocs-build
