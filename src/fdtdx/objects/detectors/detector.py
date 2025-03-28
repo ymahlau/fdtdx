@@ -11,7 +11,7 @@ from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
 from fdtdx.core.misc import is_on_at_time_step
 from fdtdx.core.plotting.colors import LIGHT_GREEN
-from fdtdx.objects.detectors.plotting.line_plot import plot_line_over_time
+from fdtdx.objects.detectors.plotting.line_plot import plot_line_over_time, plot_waterfall_over_time
 from fdtdx.objects.detectors.plotting.plot2d import plot_2d_from_slices
 from fdtdx.objects.detectors.plotting.video import generate_video_from_slices, plot_from_slices
 from fdtdx.objects.object import SimulationObject
@@ -265,36 +265,71 @@ class Detector(SimulationObject, ABC):
             Exception: If state is empty or contains arrays of inconsistent dimensions.
         """
         squeezed_arrs = {}
-        sqeezed_ndim = None
+        squeezed_ndim = None
         for k, v in state.items():
             v_squeezed = v.squeeze()
             if self.inverse and self.if_inverse_plot_backwards and self.num_time_steps_recorded > 1:
                 squeezed_arrs[k] = v_squeezed[::-1, ...]
             else:
                 squeezed_arrs[k] = v_squeezed
-            if sqeezed_ndim is None:
-                sqeezed_ndim = len(v_squeezed.shape)
+            if squeezed_ndim is None:
+                squeezed_ndim = len(v_squeezed.shape)
             else:
-                if len(v_squeezed.shape) != sqeezed_ndim:
-                    raise Exception("Cannot plot multiple arrays with differemt ndim")
-        if sqeezed_ndim is None:
+                if len(v_squeezed.shape) != squeezed_ndim:
+                    raise Exception("Cannot plot multiple arrays with different ndim")
+        if squeezed_ndim is None:
             raise Exception(f"empty state: {state}")
 
         figs = {}
-        if sqeezed_ndim == 1 and self.num_time_steps_recorded > 1:
+        if squeezed_ndim == 1 and self.num_time_steps_recorded > 1:
             # do line plot
             time_steps = np.where(np.asarray(self._is_on_at_time_step_arr))[0]
             time_steps = time_steps * self._config.time_step_duration
             for k, v in squeezed_arrs.items():
                 fig = plot_line_over_time(arr=v, time_steps=time_steps.tolist(), metric_name=f"{self.name}: {k}")
                 figs[k] = fig
-        elif sqeezed_ndim == 1 and self.num_time_steps_recorded == 1:
-            # single time step, 1d-plot  # TODO. same as above, change x-axis name
-            raise NotImplementedError()
-        elif sqeezed_ndim == 2 and self.num_time_steps_recorded > 1:
-            # multiple time steps, 1d-plots  # TODO: do as 2d-plot
-            raise NotImplementedError()
-        elif sqeezed_ndim == 2 and self.num_time_steps_recorded == 1:
+        elif squeezed_ndim == 1 and self.num_time_steps_recorded == 1:
+            SCALE = 10
+            xlabel = None
+            if self.grid_shape[0] > 1 and self.grid_shape[1] <= 1 and self.grid_shape[2] <= 1:
+                xlabel = "X axis (μm)"
+            elif self.grid_shape[0] <= 1 and self.grid_shape[1] > 1 and self.grid_shape[2] <= 1:
+                xlabel = "Y axis (μm)"
+            elif self.grid_shape[0] <= 1 and self.grid_shape[1] <= 1 and self.grid_shape[2] > 1:
+                xlabel = "Z axis (μm)"
+            for k, v in squeezed_arrs.items():
+                spatial_axis = np.arange(len(v)) / SCALE
+                fig = plot_line_over_time(
+                    arr=v, time_steps=spatial_axis, metric_name=f"{self.name}: {k}", xlabel=xlabel
+                )
+                figs[k] = fig
+        elif squeezed_ndim == 2 and self.num_time_steps_recorded > 1:
+            # multiple time steps, 1d spatial data - visualize as 2D waterfall plot
+            time_steps = np.where(np.asarray(self._is_on_at_time_step_arr))[0]
+            time_steps = time_steps * self._config.time_step_duration
+
+            # Determine spatial axis based on which dimension has size > 1
+            SCALE = 10  # μm per grid point
+
+            for k, v in squeezed_arrs.items():
+                # Determine which dimension is spatial (not time)
+                spatial_dim = 1 if v.shape[1] > 1 else 0
+                if spatial_dim == 0:
+                    # Transpose if needed so time is always first dimension
+                    v = v.T
+
+                # Create spatial axis in μm
+                spatial_points = np.arange(v.shape[1]) / SCALE
+
+                fig = plot_waterfall_over_time(
+                    arr=v,
+                    time_steps=time_steps,
+                    spatial_steps=spatial_points,
+                    metric_name=f"{self.name}: {k}",
+                    spatial_unit="μm",
+                )
+                figs[k] = fig
+        elif squeezed_ndim == 2 and self.num_time_steps_recorded == 1:
             # single time step, 2d-plot  # TODO:
             if all([x in squeezed_arrs.keys() for x in ["XY Plane", "XZ Plane", "YZ Plane"]]):
                 fig = plot_2d_from_slices(
@@ -312,7 +347,7 @@ class Detector(SimulationObject, ABC):
                 figs["sliced_plot"] = fig
             else:
                 raise Exception(f"Cannot plot {squeezed_arrs.keys()}")
-        elif sqeezed_ndim == 3 and self.num_time_steps_recorded > 1:
+        elif squeezed_ndim == 3 and self.num_time_steps_recorded > 1:
             # multiple time steps, 2d-plots
             if all([x in squeezed_arrs.keys() for x in ["XY Plane", "XZ Plane", "YZ Plane"]]):
                 path = generate_video_from_slices(
@@ -336,7 +371,7 @@ class Detector(SimulationObject, ABC):
                     f"Cannot plot {squeezed_arrs.keys()}. "
                     f"Consider setting plot=False for Object {self.name} ({self.__class__=})"
                 )
-        elif sqeezed_ndim == 3 and self.num_time_steps_recorded == 1:
+        elif squeezed_ndim == 3 and self.num_time_steps_recorded == 1:
             # single step, 3d-plot. # TODO: do as mean over planes
             for k, v in squeezed_arrs.items():
                 xy_slice = squeezed_arrs[k].mean(axis=0)
@@ -355,7 +390,7 @@ class Detector(SimulationObject, ABC):
                     plot_interpolation=self.plot_interpolation,
                 )
                 figs[k] = fig
-        elif sqeezed_ndim == 4 and self.num_time_steps_recorded > 1:
+        elif squeezed_ndim == 4 and self.num_time_steps_recorded > 1:
             # video with 3d-volume in each time step. plot as slices
             for k, v in squeezed_arrs.items():
                 xy_slice = squeezed_arrs[k].mean(axis=1)
