@@ -310,7 +310,7 @@ class Detector(SimulationObject, ABC):
 
             # Determine spatial axis based on which dimension has size > 1
             SCALE = 10  # μm per grid point
-            axis_label = None
+
             for k, v in squeezed_arrs.items():
                 # Determine which dimension is spatial (not time)
                 spatial_dim = 1 if v.shape[1] > 1 else 0
@@ -320,24 +320,6 @@ class Detector(SimulationObject, ABC):
 
                 # Create spatial axis in μm
                 spatial_points = np.arange(v.shape[1]) / SCALE
-
-                # Determine axis label based on detector orientation
-                if self.grid_shape[0] > 1 and self.grid_shape[1] <= 1 and self.grid_shape[2] <= 1:
-                    axis_label = "X axis"
-                elif self.grid_shape[0] <= 1 and self.grid_shape[1] > 1 and self.grid_shape[2] <= 1:
-                    axis_label = "Y axis"
-                elif self.grid_shape[0] <= 1 and self.grid_shape[1] <= 1 and self.grid_shape[2] > 1:
-                    axis_label = "Z axis"
-                else:
-                    # For more complex shapes, determine based on which dimension varies
-                    if v.shape[1] == self.grid_shape[0]:
-                        axis_label = "X axis"
-                    elif v.shape[1] == self.grid_shape[1]:
-                        axis_label = "Y axis"
-                    elif v.shape[1] == self.grid_shape[2]:
-                        axis_label = "Z axis"
-                    else:
-                        axis_label = "Position"
 
                 fig = plot_waterfall_over_time(
                     arr=v,
