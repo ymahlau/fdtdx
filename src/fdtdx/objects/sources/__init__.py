@@ -18,14 +18,14 @@ from .mode import ModePlaneSource
 from .linear_polarization import (
     LinearlyPolarizedPlaneSource, 
     GaussianPlaneSource,
-    ConstantAmplitudePlaneSource,
+    SimplePlaneSource,
 )
 from .profile import GaussianPulseProfile, SingleFrequencyProfile
 
 __all__ = [
     "LinearlyPolarizedPlaneSource",
     "GaussianPlaneSource",
-    "ConstantAmplitudePlaneSource",
+    "SimplePlaneSource",
     "HardConstantAmplitudePlanceSource",
     "SingleFrequencyProfile",
     "GaussianPulseProfile",

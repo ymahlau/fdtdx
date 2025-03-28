@@ -218,32 +218,34 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         del inv_permeabilities
         if self._E is None or self._H is None or self._time_offset_E is None or self._time_offset_H is None:
             raise Exception("Need to apply random key before calling update")
-        # time_step = linear_interpolated_indexing(
-        #     time_step.reshape(
-        #         1,
-        #     ),
-        #     self._time_step_to_on_idx,
-        # )
 
         delta_t = self._config.time_step_duration
         inv_permittivity_slice = inv_permittivities[*self.grid_slice]
 
         # Calculate time points for E and H fields
-        time_H = (time_step - 0.5 + self._time_offset_H[self.horizontal_axis]) * delta_t
+        time_H_h = (time_step + self._time_offset_H[self.horizontal_axis]) * delta_t
+        time_H_v = (time_step + self._time_offset_H[self.vertical_axis]) * delta_t
 
         # Get temporal amplitudes from profile
-        amplitude_H = self.temporal_profile.get_amplitude(
-            time=time_H, period=self.wave_character.period, phase_shift=self.wave_character.phase_shift
+        amplitude_H_h = self.temporal_profile.get_amplitude(
+            time=time_H_h, 
+            period=self.wave_character.period,
+            phase_shift=self.wave_character.phase_shift,
+        )
+        amplitude_H_v = self.temporal_profile.get_amplitude(
+            time=time_H_v, 
+            period=self.wave_character.period,
+            phase_shift=self.wave_character.phase_shift,
         )
 
         # vertical incident wave part
-        H_v_inc = self._H[self.vertical_axis] * amplitude_H
-        H_v_inc = H_v_inc * self._config.courant_factor * inv_permittivity_slice
+        H_v_inc = self._H[self.vertical_axis] * amplitude_H_v
+        H_v_inc = H_v_inc * self._config.courant_number * inv_permittivity_slice
         H_v_inc = jax.lax.stop_gradient(H_v_inc)
 
         # horizontal incident wave part
-        H_h_inc = self._H[self.horizontal_axis] * amplitude_H
-        H_h_inc = H_h_inc * self._config.courant_factor * inv_permittivity_slice
+        H_h_inc = self._H[self.horizontal_axis] * amplitude_H_h
+        H_h_inc = H_h_inc * self._config.courant_number * inv_permittivity_slice
         H_h_inc = jax.lax.stop_gradient(H_h_inc)
 
         # if direction is negative, updates are reversed
@@ -279,21 +281,29 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
             inv_permeability_slice = inv_permeabilities
 
         # Calculate time points for E and H fields
-        time_E = (time_step - 0.5 + self._time_offset_E[self.horizontal_axis]) * delta_t
+        time_E_h = (time_step + self._time_offset_E[self.horizontal_axis]) * delta_t
+        time_E_v = (time_step + self._time_offset_E[self.vertical_axis]) * delta_t
 
         # Get temporal amplitudes from profile
-        amplitude_E = self.temporal_profile.get_amplitude(
-            time=time_E, period=self.wave_character.period, phase_shift=self.wave_character.phase_shift
+        amplitude_E_h = self.temporal_profile.get_amplitude(
+            time=time_E_h, 
+            period=self.wave_character.period,
+            phase_shift=self.wave_character.phase_shift,
+        )
+        amplitude_E_v = self.temporal_profile.get_amplitude(
+            time=time_E_v, 
+            period=self.wave_character.period,
+            phase_shift=self.wave_character.phase_shift,
         )
 
         # horizontal incident wave part
-        E_h_inc = self._E[self.horizontal_axis] * amplitude_E
-        E_h_inc = E_h_inc * self._config.courant_factor * inv_permeability_slice
+        E_h_inc = self._E[self.horizontal_axis] * amplitude_E_h
+        E_h_inc = E_h_inc * self._config.courant_number * inv_permeability_slice
         E_h_inc = jax.lax.stop_gradient(E_h_inc)
 
         # vertical incident wave part
-        E_v_inc = self._E[self.vertical_axis] * amplitude_E
-        E_v_inc = E_v_inc * self._config.courant_factor * inv_permeability_slice
+        E_v_inc = self._E[self.vertical_axis] * amplitude_E_v
+        E_v_inc = E_v_inc * self._config.courant_number * inv_permeability_slice
         E_v_inc = jax.lax.stop_gradient(E_v_inc)
 
         # if direction is negative, updates are reversed

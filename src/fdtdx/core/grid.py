@@ -52,4 +52,6 @@ def calculate_time_offset_yee(
     velocity = (constants.c / refractive_idx)[None, ...]
     time_offset_E = travel_offset_E * resolution / (velocity * time_step_duration)
     time_offset_H = travel_offset_H * resolution / (velocity * time_step_duration)
+    # time_offset_E = travel_offset_E / refractive_idx[None, ...]
+    # time_offset_H = travel_offset_H / refractive_idx[None, ...]
     return time_offset_E, time_offset_H

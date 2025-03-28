@@ -89,6 +89,10 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
 
         E = amplitude * e_pol[:, None, None, None]
         H = amplitude * h_pol[:, None, None, None]
+        
+        # adjust H for impedance of the medium
+        impedance = jnp.sqrt(inv_permittivities / inv_permeabilities)
+        H = H / impedance
 
         time_offset_E, time_offset_H = calculate_time_offset_yee(
             center=center,
@@ -158,7 +162,7 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
 
 
 @extended_autoinit
-class ConstantAmplitudePlaneSource(LinearlyPolarizedPlaneSource):
+class SimplePlaneSource(LinearlyPolarizedPlaneSource):
     amplitude: float = 1.0
 
     def _get_amplitude_raw(
@@ -166,8 +170,8 @@ class ConstantAmplitudePlaneSource(LinearlyPolarizedPlaneSource):
         center: jax.Array,
     ) -> jax.Array:
         del center
-        result = jnp.ones(shape=self.grid_shape, dtype=jnp.float32)
-        return result
+        profile = jnp.ones(shape=self.grid_shape, dtype=jnp.float32)
+        return self.amplitude * profile
 
 
 

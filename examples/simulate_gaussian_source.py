@@ -6,20 +6,21 @@ import pytreeclass as tc
 from loguru import logger
 
 from fdtdx.fdtd import (
-    checkpointed_fdtd,
     full_backward,
     ArrayContainer,
     ParameterContainer,
     apply_params,
     place_objects,
+    reversible_fdtd
 )
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx import constants
 from fdtdx.interfaces import DtypeConversion, Recorder
+from fdtdx.materials import Material
 from fdtdx.objects import  SimulationVolume
 from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.detectors import EnergyDetector
-from fdtdx.objects.sources import GaussianPlaneSource
+from fdtdx.objects.sources import GaussianPlaneSource, SimplePlaneSource
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.utils import Logger, plot_setup
 
@@ -37,7 +38,7 @@ def main():
         time=100e-15,
         resolution=100e-9,
         dtype=jnp.float32,
-        courant_factor=0.9,
+        courant_factor=0.99,
     )
 
     period_steps = round(period / config.time_step_duration)
@@ -58,6 +59,9 @@ def main():
 
     volume = SimulationVolume(
         partial_real_shape=(12.0e-6, 12e-6, 12e-6),
+        material=Material(  # Background material
+            permittivity=2.0,
+        )
     )
 
     periodic = True
@@ -68,16 +72,23 @@ def main():
     bound_dict, c_list = boundary_objects_from_config(bound_cfg, volume)
     constraints.extend(c_list)
 
+    # source = SimplePlaneSource(
+    #     partial_grid_shape=(None, None, 1),
+    #     partial_real_shape=(6e-6, 6e-6, None),
+    #     fixed_E_polarization_vector=(1, 0, 0),
+    #     wave_character=WaveCharacter(wavelength=1.550e-6),
+    #     direction="+",
+    # )
     source = GaussianPlaneSource(
-        # partial_grid_shape=(None, None, 1),
-        # partial_real_shape=(10e-6, 10e-6, None),
-        # fixed_E_polarization_vector=(1, 0, 0),
+        partial_grid_shape=(None, None, 1),
+        partial_real_shape=(10e-6, 10e-6, None),
+        fixed_E_polarization_vector=(1, 0, 0),
         # partial_grid_shape=(1, None, None),
         # partial_real_shape=(None, 10e-6, 10e-6),
         # fixed_E_polarization_vector=(0, 1, 0),
-        partial_grid_shape=(None, 1, None),
-        partial_real_shape=(10e-6, None, 10e-6),
-        fixed_E_polarization_vector=(1, 0, 0),
+        # partial_grid_shape=(None, 1, None),
+        # partial_real_shape=(10e-6, None, 10e-6),
+        # fixed_E_polarization_vector=(1, 0, 0),
         wave_character=WaveCharacter(wavelength=1.550e-6),
         radius=4e-6,
         std=1 / 3,
@@ -145,7 +156,7 @@ def main():
     ):
         arrays, new_objects, info = apply_params(arrays, objects, params, key)
 
-        final_state = checkpointed_fdtd(
+        final_state = reversible_fdtd(
             arrays=arrays,
             objects=new_objects,
             config=config,
