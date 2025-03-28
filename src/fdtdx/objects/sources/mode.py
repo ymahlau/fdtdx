@@ -4,6 +4,7 @@ from typing import Literal, Self
 import jax
 import jax.numpy as jnp
 from matplotlib import pyplot as plt
+
 from fdtdx.core.grid import calculate_time_offset_yee
 from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
 from fdtdx.core.linalg import get_wave_vector_raw

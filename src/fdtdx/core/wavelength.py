@@ -6,8 +6,8 @@ from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, field
 class WaveCharacter(ExtendedTreeClass):
     """Class describing a wavelength/period/frequency in free space. Importantly, the wave characteristic conversion is
     based on a free space wave when using the wavelength (For conversion, a refractive index of 1 is used).
-    
-    
+
+
 
     Attributes:
         _period: Optional period in seconds. Mutually exclusive with _wavelength and _frequency.

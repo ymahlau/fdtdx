@@ -40,7 +40,7 @@ def compute_accurate_mode(
     if inv_permittivities.squeeze().ndim != 2:
         raise Exception(f"Invalid shape of inv_permittivities: {inv_permittivities.shape}")
     if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
-        raise Exception(f"Mode solver currently does not support metallic materials")
+        raise Exception("Mode solver currently does not support metallic materials")
     # if inv_permeabilities.squeeze().ndim != 2:
     #     raise Exception(f"Invalid shape of inv_permeabilities: {inv_permeabilities.shape}")
 
@@ -73,18 +73,16 @@ def compute_accurate_mode(
             # )
             raise NotImplementedError()
         else:
-            raise Exception(f"This should never happen")
-        
+            raise Exception("This should never happen")
+
         neff = np.asarray(mode.neff).astype(np.complex64)
         return mode_E, mode_H, neff
-    
+
     # compute input to tidy3d Mode solver
     permittivities = 1 / inv_permittivities
     other_axes = [a for a in range(3) if permittivities.shape[a] != 1]
     propagation_axis = permittivities.shape.index(1)
-    coords = [
-        np.arange(permittivities.shape[dim] + 1) * resolution / 1e-6 for dim in other_axes
-    ]
+    coords = [np.arange(permittivities.shape[dim] + 1) * resolution / 1e-6 for dim in other_axes]
     permittivity_squeezed = jnp.take(
         permittivities,
         indices=0,
@@ -93,9 +91,9 @@ def compute_accurate_mode(
     result_shape_dtype = (
         jnp.zeros((3, *permittivity_squeezed.shape), dtype=jnp.complex64),
         jnp.zeros((3, *permittivity_squeezed.shape), dtype=jnp.complex64),
-        jnp.zeros(shape=(), dtype=jnp.complex64)
+        jnp.zeros(shape=(), dtype=jnp.complex64),
     )
-    
+
     # pure callback to tidy3d is necessary to work in jitted environment
     mode_E_raw, mode_H_raw, eff_idx = jax.pure_callback(
         mode_helper,
@@ -104,7 +102,7 @@ def compute_accurate_mode(
     )
     mode_E = jnp.real(jnp.expand_dims(mode_E_raw, axis=propagation_axis + 1)).astype(input_dtype)
     mode_H = jnp.real(jnp.expand_dims(mode_H_raw, axis=propagation_axis + 1)).astype(input_dtype)
-    
+
     # compute_mode_error(
     #     mode_E=mode_E,
     #     mode_H=mode_H,
@@ -114,16 +112,15 @@ def compute_accurate_mode(
     #     resolution=resolution,
     #     direction=direction,
     # )
-    
+
     mode_E2_norm, mode_H2_norm = normalize_by_energy(
         E=mode_E,
         H=mode_H,
         inv_permittivity=inv_permittivities,
         inv_permeability=inv_permeabilities,
     )
-    
-    return mode_E2_norm, mode_H2_norm, eff_idx
 
+    return mode_E2_norm, mode_H2_norm, eff_idx
 
 
 # def compute_mode_error(
@@ -137,11 +134,6 @@ def compute_accurate_mode(
 # ):
 #     factors = jnp.linspace(-1, 1, 20)
 #     a = 1
-    
-    
-    
-    
-
 
 
 def tidy3d_mode_computation_wrapper(

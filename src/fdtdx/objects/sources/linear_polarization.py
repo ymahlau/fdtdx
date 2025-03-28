@@ -5,7 +5,7 @@ import jax.numpy as jnp
 
 from fdtdx.core.grid import calculate_time_offset_yee
 from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
-from fdtdx.core.linalg import get_orthogonal_vector, get_wave_vector_raw, rotate_vector
+from fdtdx.core.linalg import get_wave_vector_raw, rotate_vector
 from fdtdx.core.misc import linear_interpolated_indexing, normalize_polarization_for_source
 from fdtdx.objects.sources.tfsf import TFSFPlaneSource
 
@@ -89,7 +89,7 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
 
         E = amplitude * e_pol[:, None, None, None]
         H = amplitude * h_pol[:, None, None, None]
-        
+
         # adjust H for impedance of the medium
         impedance = jnp.sqrt(inv_permittivities / inv_permeabilities)
         H = H / impedance
@@ -172,6 +172,3 @@ class SimplePlaneSource(LinearlyPolarizedPlaneSource):
         del center
         profile = jnp.ones(shape=self.grid_shape, dtype=jnp.float32)
         return self.amplitude * profile
-
-
-

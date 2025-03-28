@@ -1,6 +1,8 @@
 from typing import Literal
+
 import jax
 import jax.numpy as jnp
+
 
 def get_wave_vector_raw(
     direction: Literal["+", "-"],
@@ -31,7 +33,7 @@ def get_orthogonal_vector(
             propagation_axis=propagation_axis,
         )
     elif wave_vector is None:
-        raise Exception(f"Need to specify either wave_vector or direction and propagation axis")
+        raise Exception("Need to specify either wave_vector or direction and propagation axis")
     # assert wave_vector is not None
     if v_E is not None:
         orthogonal = jnp.cross(wave_vector, v_E)
@@ -104,9 +106,9 @@ def rotate_vector(
     Returns:
         jax.Array: Rotated vector in global coordinates
     """
-    
+
     horizontal_axis, vertical_axis, propagation_axis = axes_tuple
-    
+
     # basis vectors
     e1_list, e2_list, e3_list = [0, 0, 0], [0, 0, 0], [0, 0, 0]
     e1_list[horizontal_axis] = 1

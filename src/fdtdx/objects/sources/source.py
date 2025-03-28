@@ -6,7 +6,6 @@ import jax.numpy as jnp
 
 from fdtdx.core import WaveCharacter
 from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
-from fdtdx.core.linalg import get_orthogonal_vector, get_wave_vector_raw
 from fdtdx.core.misc import normalize_polarization_for_source
 from fdtdx.core.plotting.colors import ORANGE
 from fdtdx.objects.object import SimulationObject

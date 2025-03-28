@@ -4,9 +4,8 @@ from typing import Self
 import jax
 import jax.numpy as jnp
 import numpy as np
-from fdtdx import constants
+
 from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
-from fdtdx.core.linalg import get_single_directional_rotation_matrix
 from fdtdx.objects.sources.source import DirectionalPlaneSourceBase
 
 
@@ -228,12 +227,12 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
 
         # Get temporal amplitudes from profile
         amplitude_H_h = self.temporal_profile.get_amplitude(
-            time=time_H_h, 
+            time=time_H_h,
             period=self.wave_character.period,
             phase_shift=self.wave_character.phase_shift,
         )
         amplitude_H_v = self.temporal_profile.get_amplitude(
-            time=time_H_v, 
+            time=time_H_v,
             period=self.wave_character.period,
             phase_shift=self.wave_character.phase_shift,
         )
@@ -286,12 +285,12 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
 
         # Get temporal amplitudes from profile
         amplitude_E_h = self.temporal_profile.get_amplitude(
-            time=time_E_h, 
+            time=time_E_h,
             period=self.wave_character.period,
             phase_shift=self.wave_character.phase_shift,
         )
         amplitude_E_v = self.temporal_profile.get_amplitude(
-            time=time_E_v, 
+            time=time_E_v,
             period=self.wave_character.period,
             phase_shift=self.wave_character.phase_shift,
         )
