@@ -9,7 +9,7 @@ from fdtdx.core.grid import calculate_time_offset_yee
 from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
 from fdtdx.core.linalg import get_wave_vector_raw
 from fdtdx.core.physics.metrics import compute_energy
-from fdtdx.core.physics.modes import compute_accurate_mode
+from fdtdx.core.physics.modes import compute_mode
 from fdtdx.objects.sources.tfsf import TFSFPlaneSource
 
 
@@ -88,7 +88,8 @@ class ModePlaneSource(TFSFPlaneSource):
             time_step_duration=self._config.time_step_duration,
         )
 
-        mode_E, mode_H, eff_index = compute_accurate_mode(
+        # compute mode
+        mode_E, mode_H, eff_index = compute_mode(
             frequency=self.wave_character.frequency,
             inv_permittivities=inv_permittivity_slice,
             inv_permeabilities=inv_permeability_slice,  # type: ignore

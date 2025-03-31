@@ -4,6 +4,24 @@ import jax.numpy as jnp
 from fdtdx import constants
 
 
+def calculate_spatial_offsets_yee() -> tuple[jax.Array, jax.Array]:
+    offset_E = jnp.stack(
+        [
+            jnp.asarray([0.5, 0, 0])[None, None, None, :],
+            jnp.asarray([0, 0.5, 0])[None, None, None, :],
+            jnp.asarray([0, 0, 0.5])[None, None, None, :],
+        ]
+    )
+    offset_H = jnp.stack(
+        [
+            jnp.asarray([0, 0.5, 0.5])[None, None, None, :],
+            jnp.asarray([0.5, 0, 0.5])[None, None, None, :],
+            jnp.asarray([0.5, 0.5, 0])[None, None, None, :],
+        ]
+    )
+    return offset_E, offset_H
+
+
 def calculate_time_offset_yee(
     center: jax.Array,
     wave_vector: jax.Array,
@@ -52,6 +70,4 @@ def calculate_time_offset_yee(
     velocity = (constants.c / refractive_idx)[None, ...]
     time_offset_E = travel_offset_E * resolution / (velocity * time_step_duration)
     time_offset_H = travel_offset_H * resolution / (velocity * time_step_duration)
-    # time_offset_E = travel_offset_E / refractive_idx[None, ...]
-    # time_offset_H = travel_offset_H / refractive_idx[None, ...]
     return time_offset_E, time_offset_H

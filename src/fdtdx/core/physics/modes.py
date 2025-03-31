@@ -23,7 +23,7 @@ Attributes:
 """
 
 
-def compute_accurate_mode(
+def compute_mode(
     frequency: float,
     inv_permittivities: jax.Array,  # shape (nx, ny, nz)
     inv_permeabilities: jax.Array | float,
@@ -100,6 +100,8 @@ def compute_accurate_mode(
         result_shape_dtype,
         jax.lax.stop_gradient(permittivity_squeezed),
     )
+    # mode_E = jnp.real(mode_E_raw).astype(input_dtype)
+    # mode_H = jnp.real(mode_H_raw).astype(input_dtype)
     mode_E = jnp.real(jnp.expand_dims(mode_E_raw, axis=propagation_axis + 1)).astype(input_dtype)
     mode_H = jnp.real(jnp.expand_dims(mode_H_raw, axis=propagation_axis + 1)).astype(input_dtype)
 
@@ -113,14 +115,14 @@ def compute_accurate_mode(
     #     direction=direction,
     # )
 
-    mode_E2_norm, mode_H2_norm = normalize_by_energy(
+    mode_E_norm, mode_H_norm = normalize_by_energy(
         E=mode_E,
         H=mode_H,
         inv_permittivity=inv_permittivities,
         inv_permeability=inv_permeabilities,
     )
 
-    return mode_E2_norm, mode_H2_norm, eff_idx
+    return mode_E_norm, mode_H_norm, eff_idx
 
 
 # def compute_mode_error(
