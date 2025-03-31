@@ -37,7 +37,7 @@ build-backend = "hatchling.build"
 target-version = "py312"
 line-length = 120
 fix = true
-exclude = ["examples", "slurm"]
+exclude = ["examples", "slurm", "checks"]
 
 [tool.ruff.lint]
 extend-select = ["I"]

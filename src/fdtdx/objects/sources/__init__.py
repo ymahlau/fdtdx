@@ -13,19 +13,19 @@ The constraints are implemented as modules that can be chained together
 and applied during the optimization process.
 """
 
-from .plane_source import (
-    ConstantAmplitudePlaneSource,
+from .linear_polarization import (
     GaussianPlaneSource,
-    HardConstantAmplitudePlanceSource,
     LinearlyPolarizedPlaneSource,
-    ModePlaneSource,
+    SimplePlaneSource,
 )
+from .mode import ModePlaneSource
 from .profile import GaussianPulseProfile, SingleFrequencyProfile
+from .source import HardConstantAmplitudePlanceSource
 
 __all__ = [
     "LinearlyPolarizedPlaneSource",
     "GaussianPlaneSource",
-    "ConstantAmplitudePlaneSource",
+    "SimplePlaneSource",
     "HardConstantAmplitudePlanceSource",
     "SingleFrequencyProfile",
     "GaussianPulseProfile",

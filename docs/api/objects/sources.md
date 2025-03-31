@@ -5,8 +5,8 @@ A collection of source objects to induce light into a simulation. The spatial pr
 ::: fdtdx.objects.sources.GaussianPlaneSource
 A source with a spatial profile of a gaussian.
 
-::: fdtdx.objects.sources.ConstantAmplitudePlaneSource
-A source with a spatial profile of a plane.
+::: fdtdx.objects.sources.SimplePlaneSource
+A source with a spatial profile of a uniform plane.
 
 :::fdtdx.objects.sources.ModePlaneSource
 A source with the spatial profile of a mode. The mode is computed automatically and by default a first order mode is used. In the future, we will develop a better interface to support other modes as well.

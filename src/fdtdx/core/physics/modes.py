@@ -2,8 +2,12 @@ from collections import namedtuple
 from types import SimpleNamespace
 from typing import List, Literal
 
+import jax
+import jax.numpy as jnp
 import numpy as np
 from tidy3d.components.mode.solver import compute_modes as _compute_modes
+
+from fdtdx.core.physics.metrics import normalize_by_energy
 
 ModeTupleType = namedtuple("Mode", ["neff", "Ex", "Ey", "Ez", "Hx", "Hy", "Hz"])
 """A named tuple containing the mode fields and effective index.
@@ -19,7 +23,122 @@ Attributes:
 """
 
 
-def compute_modes(
+def compute_mode(
+    frequency: float,
+    inv_permittivities: jax.Array,  # shape (nx, ny, nz)
+    inv_permeabilities: jax.Array | float,
+    resolution: float,
+    direction: Literal["+", "-"],
+    mode_index: int = 0,
+) -> tuple[
+    jax.Array,  # E
+    jax.Array,  # H
+    jax.Array,  # complex propagation constant
+]:
+    # Input validation
+    input_dtype = inv_permittivities.dtype
+    if inv_permittivities.squeeze().ndim != 2:
+        raise Exception(f"Invalid shape of inv_permittivities: {inv_permittivities.shape}")
+    if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
+        raise Exception("Mode solver currently does not support metallic materials")
+    # if inv_permeabilities.squeeze().ndim != 2:
+    #     raise Exception(f"Invalid shape of inv_permeabilities: {inv_permeabilities.shape}")
+
+    def mode_helper(permittivity):
+        modes = tidy3d_mode_computation_wrapper(
+            frequency=frequency,
+            permittivity_cross_section=permittivity,  # type: ignore
+            coords=coords,
+            num_modes=mode_index + 2,
+            filter_pol=None,
+            direction=direction,
+        )
+        mode = modes[mode_index]
+
+        if propagation_axis == 0:
+            mode_E, mode_H = (
+                np.stack([mode.Ez, mode.Ex, mode.Ey], axis=0).astype(np.complex64),
+                np.stack([mode.Hz, mode.Hx, mode.Hy], axis=0).astype(np.complex64),
+            )
+        elif propagation_axis == 1:
+            # mode_E, mode_H = (  # untested
+            #     np.stack([mode.Ex, mode.Ez, mode.Ey], axis=0).astype(np.complex64),
+            #     np.stack([mode.Hx, mode.Hz, mode.Hy], axis=0).astype(np.complex64),
+            # )
+            raise NotImplementedError()
+        elif propagation_axis == 2:
+            # mode_E, mode_H = (  # untested
+            #     np.stack([mode.Ez, mode.Ex, mode.Ey], axis=0).astype(np.complex64),
+            #     np.stack([mode.Hz, mode.Hx, mode.Hy], axis=0).astype(np.complex64),
+            # )
+            raise NotImplementedError()
+        else:
+            raise Exception("This should never happen")
+
+        neff = np.asarray(mode.neff).astype(np.complex64)
+        return mode_E, mode_H, neff
+
+    # compute input to tidy3d Mode solver
+    permittivities = 1 / inv_permittivities
+    other_axes = [a for a in range(3) if permittivities.shape[a] != 1]
+    propagation_axis = permittivities.shape.index(1)
+    coords = [np.arange(permittivities.shape[dim] + 1) * resolution / 1e-6 for dim in other_axes]
+    permittivity_squeezed = jnp.take(
+        permittivities,
+        indices=0,
+        axis=propagation_axis,
+    )
+    result_shape_dtype = (
+        jnp.zeros((3, *permittivity_squeezed.shape), dtype=jnp.complex64),
+        jnp.zeros((3, *permittivity_squeezed.shape), dtype=jnp.complex64),
+        jnp.zeros(shape=(), dtype=jnp.complex64),
+    )
+
+    # pure callback to tidy3d is necessary to work in jitted environment
+    mode_E_raw, mode_H_raw, eff_idx = jax.pure_callback(
+        mode_helper,
+        result_shape_dtype,
+        jax.lax.stop_gradient(permittivity_squeezed),
+    )
+    # mode_E = jnp.real(mode_E_raw).astype(input_dtype)
+    # mode_H = jnp.real(mode_H_raw).astype(input_dtype)
+    mode_E = jnp.real(jnp.expand_dims(mode_E_raw, axis=propagation_axis + 1)).astype(input_dtype)
+    mode_H = jnp.real(jnp.expand_dims(mode_H_raw, axis=propagation_axis + 1)).astype(input_dtype)
+
+    # compute_mode_error(
+    #     mode_E=mode_E,
+    #     mode_H=mode_H,
+    #     eff_idx=eff_idx,
+    #     inv_permittivities=inv_permittivities,
+    #     inv_permeabilities=inv_permeabilities,
+    #     resolution=resolution,
+    #     direction=direction,
+    # )
+
+    mode_E_norm, mode_H_norm = normalize_by_energy(
+        E=mode_E,
+        H=mode_H,
+        inv_permittivity=inv_permittivities,
+        inv_permeability=inv_permeabilities,
+    )
+
+    return mode_E_norm, mode_H_norm, eff_idx
+
+
+# def compute_mode_error(
+#     mode_E: jax.Array,
+#     mode_H: jax.Array,
+#     eff_idx: jax.Array,
+#     inv_permittivities: jax.Array,  # shape (nx, ny, nz)
+#     inv_permeabilities: jax.Array | float,
+#     resolution: float,
+#     direction: Literal["+", "-"],
+# ):
+#     factors = jnp.linspace(-1, 1, 20)
+#     a = 1
+
+
+def tidy3d_mode_computation_wrapper(
     frequency: float,
     permittivity_cross_section: np.ndarray,
     coords: List[np.ndarray],
@@ -83,7 +202,6 @@ def compute_modes(
         eps_cross=eps_cross,
         coords=coords,
         freq=frequency,
-        # freq=tidy3d.C_0 / (wavelength / 1e-6),
         precision=precision,
         mode_spec=mode_spec,
         direction=direction,

@@ -1,12 +1,13 @@
 import itertools
 import math
-from typing import Sequence, Tuple
+from typing import Literal, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field
+from fdtdx.core.linalg import get_orthogonal_vector
 from fdtdx.materials import Material
 
 
@@ -617,3 +618,37 @@ def advanced_padding(
         arr = jnp.pad(array=arr, pad_width=pad_width_tuple, mode=cur_mode, **kwargs)
     slices = ensure_slice_tuple(slices)  # type: ignore
     return arr, slices
+
+
+def normalize_polarization_for_source(
+    direction: Literal["+", "-"],
+    propagation_axis: int,
+    fixed_E_polarization_vector: tuple[float, float, float] | None = None,
+    fixed_H_polarization_vector: tuple[float, float, float] | None = None,
+) -> tuple[jax.Array, jax.Array]:
+    # determine E/H polarization
+    e_pol = fixed_E_polarization_vector
+    h_pol = fixed_H_polarization_vector
+    if h_pol is not None:
+        h_pol = jnp.asarray(h_pol, dtype=jnp.float32)
+        h_pol = h_pol / jnp.linalg.norm(h_pol)
+    if e_pol is not None:
+        e_pol = jnp.asarray(e_pol, dtype=jnp.float32)
+        e_pol = e_pol / jnp.linalg.norm(e_pol)
+    if e_pol is None:
+        if h_pol is None:
+            raise Exception("Need to specify either E or H polarization")
+        e_pol = get_orthogonal_vector(
+            v_H=h_pol,
+            direction=direction,
+            propagation_axis=propagation_axis,
+        )
+    if h_pol is None:
+        if e_pol is None:
+            raise Exception("Need to specify either E or H polarization")
+        h_pol = get_orthogonal_vector(
+            v_E=e_pol,
+            direction=direction,
+            propagation_axis=propagation_axis,
+        )
+    return e_pol, h_pol

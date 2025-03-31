@@ -29,7 +29,7 @@ from fdtdx.objects.device import (
     ClosestIndex, 
     StandardToInversePermittivityRange,
 )
-from fdtdx.objects.sources import ConstantAmplitudePlaneSource
+from fdtdx.objects.sources import SimplePlaneSource
 from fdtdx.core import WaveCharacter, metric_efficiency
 from fdtdx.utils import Logger, plot_setup
 
@@ -160,7 +160,7 @@ def main(
         )
     )
 
-    source = ConstantAmplitudePlaneSource(
+    source = SimplePlaneSource(
         partial_real_shape=(None, None, None),
         partial_grid_shape=(None, None, 1),
         wave_character=WaveCharacter(wavelength=1.550e-6),
