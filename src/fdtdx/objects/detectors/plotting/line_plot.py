@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 
 def plot_line_over_time(
     arr: np.ndarray,
-    time_steps: list[float],  # in seconds
+    time_steps: list[float] | np.ndarray,  # in seconds
     metric_name: str,
     xlabel: str = "Time [s]",
 ):
@@ -32,8 +32,8 @@ def plot_line_over_time(
 
 def plot_waterfall_over_time(
     arr: np.ndarray,
-    time_steps: list[float],
-    spatial_steps: list[float],
+    time_steps: list[float] | np.ndarray,
+    spatial_steps: list[float] | np.ndarray,
     metric_name: str,
     time_unit: str = "s",
     spatial_unit: str = "μm",
@@ -66,7 +66,7 @@ def plot_waterfall_over_time(
         arr.T,  # Transpose to have time on x-axis, space on y-axis
         aspect="auto",
         origin="lower",
-        extent=[t_min, t_max, s_min, s_max],
+        extent=(t_min, t_max, s_min, s_max),
         interpolation="gaussian",
         cmap=cmap,
     )

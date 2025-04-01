@@ -24,7 +24,7 @@ from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_confi
 from fdtdx.objects.detectors import EnergyDetector
 from fdtdx.objects.device import ContinuousDevice, LatentParameterMapping
 from fdtdx.objects.sources import GaussianPlaneSource
-from fdtdx.core.wavelength import WaveCharacter
+from fdtdx.core import WaveCharacter, OnOffSwitch
 from fdtdx.utils import Logger, plot_setup
 
 
@@ -132,7 +132,7 @@ def main():
     video_energy_detector = EnergyDetector(
         name="Energy Video",
         as_slices=True,
-        interval=3,
+        switch=OnOffSwitch(interval=3),
         exact_interpolation=True,
     )
     constraints.extend(video_energy_detector.same_position_and_size(volume))
@@ -140,7 +140,7 @@ def main():
     backwards_video_energy_detector = EnergyDetector(
         name="Backwards Energy Video",
         as_slices=True,
-        interval=3,
+        switch=OnOffSwitch(interval=3),
         inverse=True,
         exact_interpolation=True,
     )

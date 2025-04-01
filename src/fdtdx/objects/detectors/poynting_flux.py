@@ -21,10 +21,17 @@ class PoyntingFluxDetector(Detector):
             negative along the propagation axis.
         reduce_volume: If True, reduces measurements to a single value by summing
             over the detection surface. If False, maintains spatial distribution.
+        fixed_propagation_axis: By default, the propagation axis for calculating the poynting flux is the axis, where
+            the detector has a grid shape of 1. If the detector has a shape of 1 in more than one axes or a different
+            axis should be used, then this attribute can/has to be set.
+        keep_all_components: By default, only the poynting flux component for the propagation axis is returned (scalar).
+            with this option, all three vector components are returned.
     """
 
     direction: Literal["+", "-"] = frozen_field(kind="KW_ONLY")  # type: ignore
     reduce_volume: bool = True
+    fixed_propagation_axis: int | None = None
+    keep_all_components: bool = False
 
     @property
     def propagation_axis(self) -> int:
@@ -40,6 +47,10 @@ class PoyntingFluxDetector(Detector):
         Raises:
             Exception: If detector shape does not have exactly one dimension of size 1
         """
+        if self.fixed_propagation_axis is not None:
+            if self.fixed_propagation_axis not in [0, 1, 2]:
+                raise Exception(f"Invalid: {self.fixed_propagation_axis=}")
+            return self.fixed_propagation_axis
         if sum([a == 1 for a in self.grid_shape]) != 1:
             raise Exception(f"Invalid poynting flux detector shape: {self.grid_shape}")
         return self.grid_shape.index(1)
@@ -47,9 +58,11 @@ class PoyntingFluxDetector(Detector):
     def _shape_dtype_single_time_step(
         self,
     ) -> dict[str, jax.ShapeDtypeStruct]:
-        if self.reduce_volume:
-            return {"poynting_flux": jax.ShapeDtypeStruct((1,), self.dtype)}
-        return {"poynting_flux": jax.ShapeDtypeStruct(self.grid_shape, self.dtype)}
+        if self.keep_all_components:
+            shape = (3,) if self.reduce_volume else (3, *self.grid_shape)
+        else:
+            shape = (1,) if self.reduce_volume else self.grid_shape
+        return {"poynting_flux": jax.ShapeDtypeStruct(shape, self.dtype)}
 
     def update(
         self,
@@ -64,11 +77,16 @@ class PoyntingFluxDetector(Detector):
         cur_E = E[:, *self.grid_slice]
         cur_H = H[:, *self.grid_slice]
 
-        pf = poynting_flux(cur_E, cur_H)[self.propagation_axis]
+        pf = poynting_flux(cur_E, cur_H)
+        if not self.keep_all_components:
+            pf = pf[self.propagation_axis]
         if self.direction == "-":
             pf = -pf
         if self.reduce_volume:
-            pf = pf.sum()
+            if self.keep_all_components:
+                pf = pf.sum(axis=(1, 2, 3))
+            else:
+                pf = pf.sum()
         arr_idx = self._time_step_to_arr_idx[time_step]
         new_full_arr = state["poynting_flux"].at[arr_idx].set(pf)
         new_state = {"poynting_flux": new_full_arr}

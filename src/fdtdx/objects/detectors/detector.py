@@ -9,8 +9,8 @@ from rich.progress import Progress
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
-from fdtdx.core.misc import is_on_at_time_step
 from fdtdx.core.plotting.colors import LIGHT_GREEN
+from fdtdx.core.switch import OnOffSwitch
 from fdtdx.objects.detectors.plotting.line_plot import plot_line_over_time, plot_waterfall_over_time
 from fdtdx.objects.detectors.plotting.plot2d import plot_2d_from_slices
 from fdtdx.objects.detectors.plotting.video import generate_video_from_slices, plot_from_slices
@@ -33,15 +33,7 @@ class Detector(SimulationObject, ABC):
         dtype (jnp.dtype): Data type for detector arrays, defaults to float32.
         exact_interpolation (bool): Whether to use exact field interpolation.
         inverse (bool): Whether to record fields in inverse time order.
-        interval (int): Number of time steps between recordings.
-        start_after_periods (float, optional): When to start recording, in periods.
-        end_after_periods (float, optional): When to stop recording, in periods.
-        period_length (float, optional): Length of one period in simulation time.
-        start_time (float, optional): Absolute start time for recording.
-        end_time (float, optional): Absolute end time for recording.
-        on_for_time (float, optional): Duration to record for, in simulation time.
-        on_for_periods (float, optional): Duration to record for, in periods.
-        time_steps (list[int], optional): Specific time steps to record at.
+        switch (OnOffSwitch): This switch controls the time steps that the detector is on, i.e. records data
         plot (bool): Whether to generate plots of recorded data.
         if_inverse_plot_backwards (bool): Plot inverse data in reverse time order.
         num_video_workers (int): Number of workers for video generation.
@@ -50,26 +42,18 @@ class Detector(SimulationObject, ABC):
         plot_dpi (int, optional): DPI resolution for plots.
     """
 
-    name: str = frozen_field(kind="KW_ONLY")  # type: ignore
-    dtype: jnp.dtype = frozen_field(kind="KW_ONLY", default=jnp.float32)  # type: ignore
+    name: str = frozen_field(default=None, kind="KW_ONLY")  # type: ignore
+    dtype: jnp.dtype = frozen_field(kind="KW_ONLY", default=jnp.float32)
     exact_interpolation: bool = False
     inverse: bool = False
-    interval: int = 1
-    start_after_periods: float | None = None
-    end_after_periods: float | None = None
-    period_length: float | None = None
-    start_time: float | None = None
-    end_time: float | None = None
-    on_for_time: float | None = None
-    on_for_periods: float | None = None
-    time_steps: list[int] = field(default=None)  # type: ignore
+    switch: OnOffSwitch = frozen_field(default=OnOffSwitch(), kind="KW_ONLY")
     plot: bool = True
     if_inverse_plot_backwards: bool = True
     num_video_workers: int = 8  # only used when generating video
     _is_on_at_time_step_arr: jax.Array = field(default=None, init=False)  # type: ignore
     _time_step_to_arr_idx: jax.Array = field(default=None, init=False)  # type: ignore
     _num_time_steps_on: int = field(default=None, init=False)  # type: ignore
-    color: tuple[float, float, float] = LIGHT_GREEN
+    color: tuple[float, float, float] | None = frozen_field(default=LIGHT_GREEN, kind="KW_ONLY")
     plot_interpolation: str = frozen_field(kind="KW_ONLY", default="gaussian")
     plot_dpi: int | None = frozen_field(kind="KW_ONLY", default=None)
 
@@ -90,36 +74,10 @@ class Detector(SimulationObject, ABC):
     def _calculate_on_list(
         self,
     ) -> list[bool]:
-        """Calculates which time steps the detector should record at.
-
-        Determines recording schedule based on timing parameters like intervals,
-        start/end times, and specific time steps list.
-
-        Returns:
-            list[bool]: Boolean mask indicating which time steps to record at.
-        """
-        if self.time_steps is not None:
-            on_list = [False for _ in range(self._config.time_steps_total)]
-            for t_idx in self.time_steps:
-                on_list[t_idx] = True
-            return on_list
-        on_list = []
-        for t in range(self._config.time_steps_total):
-            cur_on = is_on_at_time_step(
-                is_on=True,
-                start_time=self.start_time,
-                start_after_periods=self.start_after_periods,
-                end_time=self.end_time,
-                end_after_periods=self.end_after_periods,
-                time_step=t,
-                time_step_duration=self._config.time_step_duration,
-                period=self.period_length,
-                on_for_time=self.on_for_time,
-                on_for_periods=self.on_for_periods,
-            )
-            cur_on = cur_on and t % self.interval == 0
-            on_list.append(cur_on)
-        return on_list
+        return self.switch.calculate_on_list(
+            num_total_time_steps=self._config.time_steps_total,
+            time_step_duration=self._config.time_step_duration,
+        )
 
     def _num_latent_time_steps(self) -> int:
         """Calculates total number of time steps that will be recorded.
@@ -297,6 +255,7 @@ class Detector(SimulationObject, ABC):
                 xlabel = "Y axis (μm)"
             elif self.grid_shape[0] <= 1 and self.grid_shape[1] <= 1 and self.grid_shape[2] > 1:
                 xlabel = "Z axis (μm)"
+            assert xlabel is not None, "This should never happen"
             for k, v in squeezed_arrs.items():
                 spatial_axis = np.arange(len(v)) / SCALE
                 fig = plot_line_over_time(

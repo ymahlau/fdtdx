@@ -700,8 +700,10 @@ class SimulationObject(ExtendedTreeClass, ABC):
 
     def __eq__(
         self: Self,
-        other: "SimulationObject",
+        other,
     ) -> bool:
+        if not isinstance(other, SimulationObject):
+            return False
         return self.name == other.name
 
     def __hash__(self) -> int:

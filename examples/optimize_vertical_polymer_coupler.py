@@ -12,6 +12,7 @@ import pytreeclass as tc
 from loguru import logger
 
 from fdtdx.core import WaveCharacter, metric_efficiency
+from fdtdx.core.switch import OnOffSwitch
 from fdtdx.materials import Material
 from fdtdx.objects.device import (
     ClosestIndex,
@@ -222,7 +223,7 @@ def main(
         name="Input Flux",
         direction="-",
         partial_grid_shape=(None, None, 1),
-        time_steps=all_time_steps[2 * period_steps : 4 * period_steps],
+        switch=OnOffSwitch(fixed_on_time_steps=all_time_steps[2 * period_steps : 4 * period_steps]),
         exact_interpolation=True,
     )
     placement_constraints.extend(
@@ -260,7 +261,7 @@ def main(
         name="Output Flux",
         direction="+",
         partial_grid_shape=(1, None, None),
-        time_steps=all_time_steps[-2 * period_steps :],
+        switch=OnOffSwitch(fixed_on_time_steps=all_time_steps[-2 * period_steps :]),
         exact_interpolation=True,
     )
     placement_constraints.extend(
@@ -283,16 +284,17 @@ def main(
     energy_last_step = EnergyDetector(
         name="energy_last_step",
         as_slices=True,
-        time_steps=[-1],
+        switch=OnOffSwitch(fixed_on_time_steps=[-1]),
         exact_interpolation=True,
     )
     placement_constraints.extend([*energy_last_step.same_position_and_size(volume)])
 
+    exclude_object_list: list[SimulationObject] = [energy_last_step]
     if evaluation:
         video_detector = EnergyDetector(
             name="video",
             as_slices=True,
-            interval=10,
+            switch=OnOffSwitch(interval=10),
             exact_interpolation=True,
         )
         placement_constraints.extend([*video_detector.same_position_and_size(volume)])
@@ -300,10 +302,12 @@ def main(
             name="backward_video",
             as_slices=True,
             inverse=True,
-            interval=10,
+            switch=OnOffSwitch(interval=10),
             exact_interpolation=True,
         )
         placement_constraints.extend([*backward_video_detector.same_position_and_size(volume)])
+        
+        exclude_object_list.extend([video_detector, backward_video_detector])
 
     key, subkey = jax.random.split(key)
     objects, arrays, params, config, _ = place_objects(
@@ -314,15 +318,6 @@ def main(
     )
     logger.info(tc.tree_summary(arrays, depth=2))
     print(tc.tree_diagram(config, depth=4))
-
-    exclude_object_list: list[SimulationObject] = [energy_last_step]
-    if evaluation:
-        exclude_object_list.extend(
-            [
-                video_detector,
-                backward_video_detector,
-            ]
-        )
 
     exp_logger.savefig(
         exp_logger.cwd,
@@ -419,7 +414,7 @@ def main(
             (loss, (arrays, info)), grads = jitted_loss(params, arrays, subkey)
 
             # update
-            updates, opt_state = optimizer.update(grads, opt_state, params)
+            updates, opt_state = optimizer.update(grads, opt_state, params)  # type: ignore
             params = optax.apply_updates(params, updates)
             params = jax.tree_util.tree_map(lambda p: jnp.clip(p, 0, 1), params)
             info["grad_norm"] = optax.global_norm(grads)

@@ -1,42 +1,52 @@
+import math
 import time
 
 import jax
 import jax.numpy as jnp
+import optax
 import pytreeclass as tc
 from loguru import logger
 
+from fdtdx.core.switch import OnOffSwitch
 from fdtdx.fdtd import (
-    full_backward,
     ArrayContainer,
     ParameterContainer,
     apply_params,
     place_objects,
     reversible_fdtd
 )
-from fdtdx.config import GradientConfig, SimulationConfig
+from fdtdx.config import  SimulationConfig
 from fdtdx import constants
-from fdtdx.interfaces import DtypeConversion, Recorder
 from fdtdx.materials import Material
 from fdtdx.objects import  SimulationVolume
 from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.detectors import EnergyDetector
-from fdtdx.objects.sources import GaussianPlaneSource, SimplePlaneSource
-from fdtdx.core import WaveCharacter, OnOffSwitch
+from fdtdx.objects.detectors.poynting_flux import PoyntingFluxDetector
+from fdtdx.objects.sources import SimplePlaneSource
+from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.utils import Logger, plot_setup
 
 
 def main():
     exp_logger = Logger(
-        experiment_name="simulate_source",
+        experiment_name="reflectance_transmission",
     )
     key = jax.random.PRNGKey(seed=42)
 
     wavelength = 1.55e-6
+    angle_degree = 15
+    angle_radians = angle_degree * math.pi / 180
+    size_xy = wavelength / math.sin(angle_radians)
+    resolution = size_xy / 100
+    logger.info(f"{angle_degree=}")
+    logger.info(f"{size_xy=}")
+    logger.info(f"{resolution=}")
+    
     period = constants.wavelength_to_period(wavelength)
 
     config = SimulationConfig(
         time=100e-15,
-        resolution=100e-9,
+        resolution=resolution,
         dtype=jnp.float32,
         courant_factor=0.99,
     )
@@ -46,63 +56,64 @@ def main():
     logger.info(f"{period_steps=}")
     logger.info(f"{config.max_travel_distance=}")
 
-    gradient_config = GradientConfig(
-        recorder=Recorder(
-            modules=[
-                DtypeConversion(dtype=jnp.bfloat16),
-            ]
-        )
-    )
-    config = config.aset("gradient_config", gradient_config)
-
     constraints = []
 
     volume = SimulationVolume(
-        partial_real_shape=(12.0e-6, 12e-6, 12e-6),
+        partial_real_shape=(size_xy, size_xy, 2 * size_xy),
         material=Material(  # Background material
-            permittivity=2.0,
+            permittivity=1.0,
         )
     )
 
-    periodic = True
-    if periodic:
-        bound_cfg = BoundaryConfig.from_uniform_bound(boundary_type="periodic")
-    else:
-        bound_cfg = BoundaryConfig.from_uniform_bound(thickness=10, boundary_type="pml")
+    bound_cfg = BoundaryConfig(
+        boundary_type_maxx="periodic",
+        boundary_type_maxy="periodic",
+        boundary_type_minx="periodic",
+        boundary_type_miny="periodic",
+    )
     bound_dict, c_list = boundary_objects_from_config(bound_cfg, volume)
     constraints.extend(c_list)
 
-    # source = SimplePlaneSource(
-    #     partial_grid_shape=(None, None, 1),
-    #     partial_real_shape=(6e-6, 6e-6, None),
-    #     fixed_E_polarization_vector=(1, 0, 0),
-    #     wave_character=WaveCharacter(wavelength=1.550e-6),
-    #     direction="+",
-    # )
-    source = GaussianPlaneSource(
+    source = SimplePlaneSource(
         partial_grid_shape=(None, None, 1),
-        partial_real_shape=(10e-6, 10e-6, None),
         fixed_E_polarization_vector=(1, 0, 0),
-        # partial_grid_shape=(1, None, None),
-        # partial_real_shape=(None, 10e-6, 10e-6),
-        # fixed_E_polarization_vector=(0, 1, 0),
-        # partial_grid_shape=(None, 1, None),
-        # partial_real_shape=(10e-6, None, 10e-6),
-        # fixed_E_polarization_vector=(1, 0, 0),
         wave_character=WaveCharacter(wavelength=1.550e-6),
-        radius=4e-6,
-        std=1 / 3,
         direction="-",
-        # azimuth_angle=20.0,
-        elevation_angle=-20.0,
+        azimuth_angle=angle_degree,
+        switch=OnOffSwitch(start_after_periods=2, on_for_periods=2, period=period),
     )
     constraints.extend(
         [
             source.place_relative_to(
                 volume,
                 axes=(0, 1, 2),
-                own_positions=(0, 0, 0),
-                other_positions=(0, 0, 0),
+                own_positions=(0, 0, 1),
+                other_positions=(0, 0, 1),
+                grid_margins=(0, 0, -15),
+            ),
+        ]
+    )
+    
+    flux_below_source = PoyntingFluxDetector(
+        name="flux",
+        partial_grid_shape=(1, 1, 1),
+        direction="-",
+        switch=OnOffSwitch(
+            start_after_periods=10,
+            period=period,
+        ),
+        exact_interpolation=True,
+        keep_all_components=True,
+        fixed_propagation_axis=2,
+    )
+    constraints.extend(
+        [
+            flux_below_source.place_relative_to(
+                source,
+                axes=(0, 1, 2),
+                own_positions=(0, 0, 1),
+                other_positions=(0, 0, 1),
+                grid_margins=(0, 0, -5),
             ),
         ]
     )
@@ -114,15 +125,6 @@ def main():
         exact_interpolation=True,
     )
     constraints.extend(video_energy_detector.same_position_and_size(volume))
-
-    backwards_video_energy_detector = EnergyDetector(
-        name="Backwards Energy Video",
-        as_slices=True,
-        switch=OnOffSwitch(interval=3),
-        inverse=True,
-        exact_interpolation=True,
-    )
-    constraints.extend(backwards_video_energy_detector.same_position_and_size(volume))
 
     key, subkey = jax.random.split(key)
     objects, arrays, params, config, _ = place_objects(
@@ -141,8 +143,7 @@ def main():
             config=config,
             objects=objects,
             exclude_object_list=[
-                backwards_video_energy_detector,
-                video_energy_detector,
+                # video_energy_detector,
             ],
         ),
     )
@@ -163,15 +164,6 @@ def main():
             key=key,
         )
         _, arrays = final_state
-
-        _, arrays = full_backward(
-            state=final_state,
-            objects=new_objects,
-            config=config,
-            key=key,
-            record_detectors=True,
-            reset_fields=True,
-        )
 
         new_info = {
             **info,
@@ -195,9 +187,19 @@ def main():
     logger.info(f"{compile_delta_time=}")
     logger.info(f"{runtime_delta=}")
 
-    # videos
     exp_logger.log_detectors(iter_idx=0, objects=objects, detector_states=arrays.detector_states)
+    
+    # compute poynting flux value
+    pf = arrays.detector_states[flux_below_source.name]["poynting_flux"].mean(axis=0)
+    pf_norm = pf / optax.global_norm(pf)
+    prop_vec = jnp.asarray([0, 0, 1], dtype=jnp.float32)
+    measured_prop_angle = jnp.arccos(jnp.dot(prop_vec, pf_norm)) * 180 / jnp.pi
+    difference = angle_degree - measured_prop_angle
+    logger.info(f"{measured_prop_angle=} Degree, {difference=}")
+    
 
 
 if __name__ == "__main__":
     main()
+
+

@@ -30,7 +30,7 @@ from fdtdx.objects.device import (
     StandardToInversePermittivityRange,
 )
 from fdtdx.objects.sources import SimplePlaneSource
-from fdtdx.core import WaveCharacter, metric_efficiency
+from fdtdx.core import WaveCharacter, metric_efficiency, OnOffSwitch
 from fdtdx.utils import Logger, plot_setup
 
 
@@ -183,7 +183,7 @@ def main(
         name="Input Flux Detector",
         direction="-",
         partial_grid_shape=(None, None, 1),
-        time_steps=all_time_steps[-2 * period_steps :],
+        switch=OnOffSwitch(fixed_on_time_steps=all_time_steps[-2 * period_steps :]),
         exact_interpolation=False,
     )
     placement_constraints.extend(
@@ -226,7 +226,7 @@ def main(
         name="Output Flux Detector",
         direction="+",
         partial_grid_shape=(1, None, None),
-        time_steps=all_time_steps[-2 * period_steps :],
+        switch=OnOffSwitch(fixed_on_time_steps=all_time_steps[-2 * period_steps :]),
         exact_interpolation=False,
     )
     placement_constraints.extend(
@@ -249,7 +249,7 @@ def main(
     energy_last_step = EnergyDetector(
         name="energy_last_step",
         as_slices=True,
-        time_steps=[-1],
+        switch=OnOffSwitch(fixed_on_time_steps=[-1]),
     )
     placement_constraints.extend([*energy_last_step.same_position_and_size(volume)])
     
@@ -259,7 +259,7 @@ def main(
         video_energy_detector = EnergyDetector(
             name="Energy Video",
             as_slices=True,
-            interval=10,
+            switch=OnOffSwitch(interval=10),
             exact_interpolation=True,
         )
         placement_constraints.extend(video_energy_detector.same_position_and_size(volume))
