@@ -3,6 +3,7 @@ import jax.numpy as jnp
 import pytreeclass as tc
 from loguru import logger
 
+from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.materials import Material
 from fdtdx.config import SimulationConfig
@@ -94,7 +95,7 @@ def main():
     energy_last_step = EnergyDetector(
         name="energy_last_step",
         as_slices=True,
-        time_steps=[-1],
+        switch=OnOffSwitch(fixed_on_time_steps=[-1]),
     )
     placement_constraints.extend([*energy_last_step.same_position_and_size(volume)])
 
@@ -102,7 +103,7 @@ def main():
     video_detector = EnergyDetector(
         name="video",
         as_slices=True,
-        interval=10,
+        switch=OnOffSwitch(interval=10),
         exact_interpolation=True,
         plot_interpolation="nearest",
     )

@@ -7,6 +7,7 @@ import optax
 import pytreeclass as tc
 from loguru import logger
 
+from fdtdx.core.switch import OnOffSwitch
 from fdtdx.fdtd import (
     ArrayContainer,
     ParameterContainer,
@@ -96,9 +97,10 @@ def main():
         name="flux",
         partial_grid_shape=(1, 1, 1),
         direction="-",
-        start_after_periods=10,
-        end_after_periods=15,
-        period_length=period,
+        switch=OnOffSwitch(
+            start_after_periods=10,
+            period=period,
+        ),
         exact_interpolation=True,
         keep_all_components=True,
         fixed_propagation_axis=2,
