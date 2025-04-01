@@ -70,9 +70,8 @@ class EnergyDetector(Detector):
         arr_idx = self._time_step_to_arr_idx[time_step]
 
         if self.as_slices:
-            use_mean = (
-                self.aggregate == "mean"
-                or any(slice_ is None for slice_ in (self.x_slice, self.y_slice, self.z_slice))
+            use_mean = self.aggregate == "mean" or any(
+                slice_ is None for slice_ in (self.x_slice, self.y_slice, self.z_slice)
             )
 
             if use_mean:
