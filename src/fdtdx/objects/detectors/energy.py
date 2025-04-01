@@ -16,9 +16,8 @@ class EnergyDetector(Detector):
     Attributes:
         as_slices: If True, returns energy measurements as 2D slices through the volume.
         reduce_volume: If True, reduces the volume data to a single energy value.
-        x_slice: Optional real-world x-position for YZ slice. Defaults to center if None.
-        y_slice: Optional real-world y-position for XZ slice. Defaults to center if None.
-        z_slice: Optional real-world z-position for XY slice. Defaults to center if None.
+        x_slice, y_slice, z_slice: Optional real-world positions for slice extraction.
+        aggregate: If "mean", aggregates slices by averaging instead of using position.
     """
 
     as_slices: bool = False
@@ -26,6 +25,7 @@ class EnergyDetector(Detector):
     x_slice: float | None = None
     y_slice: float | None = None
     z_slice: float | None = None
+    aggregate: str | None = None  # e.g., "mean"
 
     def _shape_dtype_single_time_step(
         self,
@@ -70,24 +70,34 @@ class EnergyDetector(Detector):
         arr_idx = self._time_step_to_arr_idx[time_step]
 
         if self.as_slices:
-            # Convert real-world positions to indices
-            origin_x = self.grid_slice[0].start * self._config.resolution
-            origin_y = self.grid_slice[1].start * self._config.resolution
-            origin_z = self.grid_slice[2].start * self._config.resolution
+            use_mean = (
+                self.aggregate == "mean"
+                or any(slice_ is None for slice_ in (self.x_slice, self.y_slice, self.z_slice))
+            )
 
-            def to_index(real_pos, origin, axis_len):
-                if real_pos is not None:
-                    idx = int((real_pos - origin) / self._config.resolution)
-                    return max(0, min(idx, axis_len - 1))
-                return axis_len // 2
+            if use_mean:
+                energy_xy = energy.mean(axis=2)
+                energy_xz = energy.mean(axis=1)
+                energy_yz = energy.mean(axis=0)
+            else:
+                # Convert real-world positions to indices
+                origin_x = self.grid_slice[0].start * self._config.resolution
+                origin_y = self.grid_slice[1].start * self._config.resolution
+                origin_z = self.grid_slice[2].start * self._config.resolution
 
-            x_idx = to_index(self.x_slice, origin_x, energy.shape[0])
-            y_idx = to_index(self.y_slice, origin_y, energy.shape[1])
-            z_idx = to_index(self.z_slice, origin_z, energy.shape[2])
+                def to_index(real_pos, origin, axis_len):
+                    if real_pos is not None:
+                        idx = int((real_pos - origin) / self._config.resolution)
+                        return max(0, min(idx, axis_len - 1))
+                    return axis_len // 2
 
-            energy_xy = energy[:, :, z_idx]
-            energy_xz = energy[:, y_idx, :]
-            energy_yz = energy[x_idx, :, :]
+                x_idx = to_index(self.x_slice, origin_x, energy.shape[0])
+                y_idx = to_index(self.y_slice, origin_y, energy.shape[1])
+                z_idx = to_index(self.z_slice, origin_z, energy.shape[2])
+
+                energy_xy = energy[:, :, z_idx]
+                energy_xz = energy[:, y_idx, :]
+                energy_yz = energy[x_idx, :, :]
 
             new_xy = state["XY Plane"].at[arr_idx].set(energy_xy)
             new_xz = state["XZ Plane"].at[arr_idx].set(energy_xz)
