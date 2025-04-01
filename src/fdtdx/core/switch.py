@@ -15,7 +15,7 @@ class OnOffSwitch(ExtendedTreeClass):
     fixed_on_time_steps: list[int] | None = frozen_field(default=None)
     is_always_off: bool = False
     interval: int = 1
-    
+
     def calculate_on_list(
         self,
         num_total_time_steps: int,
@@ -37,7 +37,7 @@ class OnOffSwitch(ExtendedTreeClass):
             cur_on = cur_on and t % self.interval == 0
             on_list.append(cur_on)
         return on_list
-    
+
     def is_on_at_time_step(
         self,
         time_step: int,
@@ -55,7 +55,7 @@ class OnOffSwitch(ExtendedTreeClass):
             time_step_duration=time_step_duration,
             period=self.period,
         )
-    
+
 
 def is_on_at_time_step(
     is_always_off: bool,
@@ -157,11 +157,7 @@ def is_on_at_time_step(
     return on
 
 
-def is_on_at_time_step_from_switch(
-    time_step: int,
-    time_step_duration: float,
-    switch: OnOffSwitch
-) -> bool:
+def is_on_at_time_step_from_switch(time_step: int, time_step_duration: float, switch: OnOffSwitch) -> bool:
     return is_on_at_time_step(
         is_always_off=switch.is_always_off,
         start_time=switch.start_time,
