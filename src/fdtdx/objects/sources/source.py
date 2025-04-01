@@ -4,12 +4,15 @@ from typing import Literal, Self
 import jax
 import jax.numpy as jnp
 
+from fdtdx.config import SimulationConfig
 from fdtdx.core import WaveCharacter
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
-from fdtdx.core.misc import normalize_polarization_for_source
+from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
+from fdtdx.core.misc import linear_interpolated_indexing, normalize_polarization_for_source
 from fdtdx.core.plotting.colors import ORANGE
+from fdtdx.core.switch import OnOffSwitch
 from fdtdx.objects.object import SimulationObject
 from fdtdx.objects.sources.profile import SingleFrequencyProfile, TemporalProfile
+from fdtdx.typing import SliceTuple3D
 
 
 @extended_autoinit
@@ -17,8 +20,57 @@ class Source(SimulationObject, ABC):
     wave_character: WaveCharacter = frozen_field(kind="KW_ONLY")  # type: ignore
     temporal_profile: TemporalProfile = SingleFrequencyProfile()
     amplitude_scale: float = 1.0
-    is_on: bool = True
-    color: tuple[float, float, float] = ORANGE
+    switch: OnOffSwitch = frozen_field(default=OnOffSwitch(), kind="KW_ONLY")
+    color: tuple[float, float, float] | None = ORANGE
+    _is_on_at_time_step_arr: jax.Array = field(default=None, init=False)  # type: ignore
+    _time_step_to_on_idx: jax.Array = field(default=None, init=False)  # type: ignore
+
+    def is_on_at_time_step(self, time_step: jax.Array) -> jax.Array:
+        return self._is_on_at_time_step_arr[time_step]
+
+    def adjust_time_step_by_on_off(self, time_step: jax.Array) -> jax.Array:
+        time_step = linear_interpolated_indexing(
+            point=time_step.reshape(1),
+            arr=self._time_step_to_on_idx,
+        )
+        return time_step
+
+    def place_on_grid(
+        self: Self,
+        grid_slice_tuple: SliceTuple3D,
+        config: SimulationConfig,
+        key: jax.Array,
+    ) -> Self:
+        """Place the source on the simulation grid and initialize timing arrays.
+
+        Args:
+            grid_slice_tuple: Tuple of slices defining source's position on grid.
+            config: Simulation configuration parameters.
+            key: JAX random key for stochastic operations.
+
+        Returns:
+            Self with initialized grid position and timing arrays.
+        """
+        self = super().place_on_grid(
+            grid_slice_tuple=grid_slice_tuple,
+            config=config,
+            key=key,
+        )
+        # determine number of time steps on
+        on_list = self.switch.calculate_on_list(
+            time_step_duration=self._config.time_step_duration,
+            num_total_time_steps=self._config.time_steps_total,
+        )
+        on_arr = jnp.asarray(on_list, dtype=jnp.bool)
+        self = self.aset("_is_on_at_time_step_arr", on_arr)
+        # calculate mapping time step -> on index
+        time_to_arr_idx_list = self.switch.calculate_time_step_to_on_arr_idx(
+            time_step_duration=self._config.time_step_duration,
+            num_total_time_steps=self._config.time_steps_total,
+        )
+        time_to_arr_idx_arr = jnp.asarray(time_to_arr_idx_list, dtype=jnp.int32)
+        self = self.aset("_time_step_to_on_idx", time_to_arr_idx_arr)
+        return self
 
     @abstractmethod
     def update_E(

@@ -80,6 +80,7 @@ def main():
         wave_character=WaveCharacter(wavelength=1.550e-6),
         direction="-",
         azimuth_angle=angle_degree,
+        switch=OnOffSwitch(start_after_periods=2, on_for_periods=2, period=period),
     )
     constraints.extend(
         [
@@ -117,13 +118,13 @@ def main():
         ]
     )
 
-    # video_energy_detector = EnergyDetector(
-    #     name="Energy Video",
-    #     as_slices=True,
-    #     interval=3,
-    #     exact_interpolation=True,
-    # )
-    # constraints.extend(video_energy_detector.same_position_and_size(volume))
+    video_energy_detector = EnergyDetector(
+        name="Energy Video",
+        as_slices=True,
+        switch=OnOffSwitch(interval=3),
+        exact_interpolation=True,
+    )
+    constraints.extend(video_energy_detector.same_position_and_size(volume))
 
     key, subkey = jax.random.split(key)
     objects, arrays, params, config, _ = place_objects(

@@ -64,20 +64,20 @@ def update_E(
     for source in objects.sources:
 
         def _update():
+            adj_time_step = source.adjust_time_step_by_on_off(time_step)
             return source.update_E(
                 E=E,
                 inv_permittivities=arrays.inv_permittivities,
                 inv_permeabilities=arrays.inv_permeabilities,
-                time_step=time_step,
+                time_step=adj_time_step,
                 inverse=False,
             )
 
-        E = _update()
-        # E = jax.lax.cond(
-        #     source._is_on_at_time_step_arr[time_step],
-        #     _update,
-        #     lambda: E,
-        # )
+        E = jax.lax.cond(
+            source.is_on_at_time_step(time_step),
+            _update,
+            lambda: E,
+        )
 
     if simulate_boundaries:
         for boundary in objects.boundary_objects:
@@ -119,20 +119,20 @@ def update_E_reverse(
     for source in objects.sources:
 
         def _update():
+            adj_time_step = source.adjust_time_step_by_on_off(time_step)
             return source.update_E(
                 E,
                 inv_permittivities=arrays.inv_permittivities,
                 inv_permeabilities=arrays.inv_permeabilities,
-                time_step=time_step,
+                time_step=adj_time_step,
                 inverse=True,
             )
 
-        E = _update()
-        # E = jax.lax.cond(
-        #     source._is_on_at_time_step_arr[time_step],
-        #     _update,
-        #     lambda: E,
-        # )
+        E = jax.lax.cond(
+            source.is_on_at_time_step(time_step),
+            _update,
+            lambda: E,
+        )
 
     # Get periodic axes for curl operation
     periodic_axes = get_periodic_axes(objects)
@@ -185,20 +185,20 @@ def update_H(
     for source in objects.sources:
 
         def _update():
+            adj_time_step = source.adjust_time_step_by_on_off(time_step)
             return source.update_H(
                 H=H,
                 inv_permittivities=arrays.inv_permittivities,
                 inv_permeabilities=arrays.inv_permeabilities,
-                time_step=time_step + 0.5,
+                time_step=adj_time_step + 0.5,
                 inverse=False,
             )
 
-        H = _update()
-        # H = jax.lax.cond(
-        #     source._is_on_at_time_step_arr[time_step],
-        #     _update,
-        #     lambda: H,
-        # )
+        H = jax.lax.cond(
+            source.is_on_at_time_step(time_step),
+            _update,
+            lambda: H,
+        )
 
     if simulate_boundaries:
         for boundary in objects.boundary_objects:
@@ -240,20 +240,20 @@ def update_H_reverse(
     for source in objects.sources:
 
         def _update():
+            adj_time_step = source.adjust_time_step_by_on_off(time_step)
             return source.update_H(
                 H,
                 inv_permittivities=arrays.inv_permittivities,
                 inv_permeabilities=arrays.inv_permeabilities,
-                time_step=time_step + 0.5,
+                time_step=adj_time_step + 0.5,
                 inverse=True,
             )
 
-        H = _update()
-        # H = jax.lax.cond(
-        #     source._is_on_at_time_step_arr[time_step],
-        #     _update,
-        #     lambda: H,
-        # )
+        H = jax.lax.cond(
+            source.is_on_at_time_step(time_step),
+            _update,
+            lambda: H,
+        )
 
     # Get periodic axes for curl operation
     periodic_axes = get_periodic_axes(objects)

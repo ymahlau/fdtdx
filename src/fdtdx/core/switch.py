@@ -56,6 +56,23 @@ class OnOffSwitch(ExtendedTreeClass):
             period=self.period,
         )
 
+    def calculate_time_step_to_on_arr_idx(
+        self,
+        num_total_time_steps: int,
+        time_step_duration: float,
+    ) -> list[int]:
+        on_list = self.calculate_on_list(
+            num_total_time_steps=num_total_time_steps,
+            time_step_duration=time_step_duration,
+        )
+        counter = 0
+        time_to_arr_idx_list = [-1 for _ in range(num_total_time_steps)]
+        for t in range(num_total_time_steps):
+            if on_list[t]:
+                time_to_arr_idx_list[t] = counter
+                counter += 1
+        return time_to_arr_idx_list
+
 
 def is_on_at_time_step(
     is_always_off: bool,
