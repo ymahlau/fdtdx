@@ -14,22 +14,26 @@ class EnergyDetector(Detector):
     full 3D data, 2D slices, or reduced volume measurements.
 
     Attributes:
-        as_slices: If True, returns energy measurements as 2D slices through the volume
-            center. If False, returns full 3D volume or reduced measurements.
-        reduce_volume: If True, reduces the volume data to a single energy value by
-            summing. If False, maintains spatial distribution of energy.
+        as_slices: If True, returns energy measurements as 2D slices through the volume.
+        reduce_volume: If True, reduces the volume data to a single energy value.
+        x_slice, y_slice, z_slice: Optional real-world positions for slice extraction.
+        aggregate: If "mean", aggregates slices by averaging instead of using position.
     """
 
     as_slices: bool = False
     reduce_volume: bool = False
+    x_slice: float | None = None
+    y_slice: float | None = None
+    z_slice: float | None = None
+    aggregate: str | None = None  # e.g., "mean"
 
     def _shape_dtype_single_time_step(
         self,
     ) -> dict[str, jax.ShapeDtypeStruct]:
         if self.as_slices and self.reduce_volume:
-            raise Exception("Cannot both reduce volume and save mean slices!")
+            raise Exception("Cannot both reduce volume and save slices!")
+        gs = self.grid_shape
         if self.as_slices:
-            gs = self.grid_shape
             return {
                 "XY Plane": jax.ShapeDtypeStruct((gs[0], gs[1]), self.dtype),
                 "XZ Plane": jax.ShapeDtypeStruct((gs[0], gs[2]), self.dtype),
@@ -62,21 +66,52 @@ class EnergyDetector(Detector):
             inv_permittivity=cur_inv_permittivity,
             inv_permeability=cur_inv_permeability,
         )
+
         arr_idx = self._time_step_to_arr_idx[time_step]
+
         if self.as_slices:
-            energy_xy = energy.mean(axis=2)
+            use_mean = self.aggregate == "mean" or any(
+                slice_ is None for slice_ in (self.x_slice, self.y_slice, self.z_slice)
+            )
+
+            if use_mean:
+                energy_xy = energy.mean(axis=2)
+                energy_xz = energy.mean(axis=1)
+                energy_yz = energy.mean(axis=0)
+            else:
+                # Convert real-world positions to indices
+                origin_x = self.grid_slice[0].start * self._config.resolution
+                origin_y = self.grid_slice[1].start * self._config.resolution
+                origin_z = self.grid_slice[2].start * self._config.resolution
+
+                def to_index(real_pos, origin, axis_len):
+                    if real_pos is not None:
+                        idx = int((real_pos - origin) / self._config.resolution)
+                        return max(0, min(idx, axis_len - 1))
+                    return axis_len // 2
+
+                x_idx = to_index(self.x_slice, origin_x, energy.shape[0])
+                y_idx = to_index(self.y_slice, origin_y, energy.shape[1])
+                z_idx = to_index(self.z_slice, origin_z, energy.shape[2])
+
+                energy_xy = energy[:, :, z_idx]
+                energy_xz = energy[:, y_idx, :]
+                energy_yz = energy[x_idx, :, :]
+
             new_xy = state["XY Plane"].at[arr_idx].set(energy_xy)
-            energy_xz = energy.mean(axis=1)
             new_xz = state["XZ Plane"].at[arr_idx].set(energy_xz)
-            energy_yz = energy.mean(axis=0)
             new_yz = state["YZ Plane"].at[arr_idx].set(energy_yz)
+
             return {
                 "XY Plane": new_xy,
                 "XZ Plane": new_xz,
                 "YZ Plane": new_yz,
             }
+
         if self.reduce_volume:
-            energy = energy.sum()
-        new_full_arr = state["energy"].at[arr_idx].set(energy)
-        new_state = {"energy": new_full_arr}
-        return new_state
+            total_energy = energy.sum()
+            new_arr = state["energy"].at[arr_idx].set(total_energy)
+            return {"energy": new_arr}
+
+        new_arr = state["energy"].at[arr_idx].set(energy)
+        return {"energy": new_arr}
