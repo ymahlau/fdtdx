@@ -193,8 +193,7 @@ def standard_sigma_from_direction_axis(
             - jax.Array: Conductivity values for H-field
 
     Raises:
-        Exception: If direction is not "+" or "-"
-        Exception: If axis is not 0, 1, or 2
+        Exception: If direction is not "+" or "-", or if axis is not 0, 1, or 2
     """
     # compute sigma values based on direction
     if direction == "-":
@@ -250,8 +249,7 @@ def kappa_from_direction_axis(
         jax.Array: Kappa values linearly varying from start to end value
 
     Raises:
-        Exception: If direction is not "+" or "-"
-        Exception: If axis is not 0, 1, or 2
+        Exception: If direction is not "+" or "-", or if axis is not 0, 1, or 2
     """
     if direction == "-":
         kappa_vals = jnp.linspace(kappa_end, kappa_start, thickness, dtype=dtype)
@@ -283,8 +281,7 @@ def axis_direction_from_kind(kind: str) -> tuple[int, Literal["+", "-"]]:
             - str: Direction ("+" for max, "-" for min)
 
     Raises:
-        Exception: If kind does not contain valid axis identifier
-        Exception: If kind does not contain valid direction identifier
+        Exception: If kind does not contain valid axis or direction identifier
     """
     axis = -1
     if "_x" in kind:
