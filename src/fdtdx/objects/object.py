@@ -259,6 +259,9 @@ class SimulationObject(ExtendedTreeClass, ABC):
 
         Returns:
             PositionConstraint: Positional constraint between this object and the other
+
+        Raises:
+            Exception: If input arrays don't have the same length
         """
         if isinstance(axes, int):
             axes = (axes,)
@@ -318,6 +321,9 @@ class SimulationObject(ExtendedTreeClass, ABC):
 
         Returns:
             SizeConstraint: Size constraint between this object and the other
+
+        Raises:
+            Exception: If input arrays don't have the same length
         """
         if isinstance(axes, int):
             axes = (axes,)
@@ -592,6 +598,9 @@ class SimulationObject(ExtendedTreeClass, ABC):
 
         Returns:
             GridCoordinateConstraint: Constraint forcing alignment with specific grid coordinates
+
+        Raises:
+            Exception: If input arrays don't have the same length
         """
         if isinstance(axes, int):
             axes = (axes,)
@@ -626,6 +635,9 @@ class SimulationObject(ExtendedTreeClass, ABC):
 
         Returns:
             RealCoordinateConstraint: Constraint forcing alignment with specific real-space coordinates
+
+        Raises:
+            Exception: If input arrays don't have the same length
         """
         if isinstance(axes, int):
             axes = (axes,)
@@ -668,6 +680,9 @@ class SimulationObject(ExtendedTreeClass, ABC):
 
         Returns:
             SizeExtensionConstraint: Constraint defining how the object extends
+
+        Raises:
+            Exception: If offset or grid_offset is used when extending to simulation boundary
         """
         # default: extend to corresponding side
         if other_position is None:
