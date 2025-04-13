@@ -27,7 +27,7 @@ repos:
         args:
           - --style=google
           - --check-return-types=False
-          - --check-arg-types=False
+          - --arg-type-hints-in-docstring=False
   - repo: local
     hooks:
       - id: mkdocs-build
