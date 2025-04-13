@@ -29,6 +29,9 @@ class TemporalProfile(ABC):
 
         Returns:
             Amplitude values at the given time points
+
+        Raises:
+            NotImplementedError: This is an abstract method that must be implemented by subclasses
         """
         raise NotImplementedError()
 
