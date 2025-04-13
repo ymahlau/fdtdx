@@ -39,6 +39,9 @@ class Source(SimulationObject, ABC):
 
         Returns:
             Updated electric field array.
+
+        Raises:
+            NotImplementedError: This is an abstract method that must be implemented by subclasses.
         """
         raise NotImplementedError()
 
@@ -62,6 +65,9 @@ class Source(SimulationObject, ABC):
 
         Returns:
             Updated magnetic field array.
+
+        Raises:
+            NotImplementedError: This is an abstract method that must be implemented by subclasses.
         """
         raise NotImplementedError()
 
@@ -81,6 +87,9 @@ class Source(SimulationObject, ABC):
 
         Returns:
             Initialized source instance.
+
+        Raises:
+            NotImplementedError: This is an abstract method that must be implemented by subclasses.
         """
         raise NotImplementedError()
 
