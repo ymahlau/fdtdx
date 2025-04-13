@@ -137,9 +137,7 @@ def nearest_index(
             Tuple[jax.Array, jax.Array]: (indices, distances)
 
     Raises:
-        Exception: If axis not provided when using allowed_indices option.
-        Exception: If values array is not 3D when using allowed_indices.
-        Exception: If invalid axis specified.
+        Exception: If axis is not provided when using allowed_indices, if values array is not 3D when using allowed_indices, or if an invalid axis is specified.
         ValueError: If unknown distance metric specified.
     """
     if allowed_indices is None:
