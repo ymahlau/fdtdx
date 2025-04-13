@@ -15,14 +15,10 @@ class CompressionModule(ExtendedTreeClass, ABC):
     This class provides an interface for modules that compress and decompress field data
     during FDTD simulations. Implementations can perform operations like quantization,
     dimensionality reduction, or other compression techniques.
-
-    Attributes:
-        _input_shape_dtypes: Dictionary mapping field names to their input shapes/dtypes.
-        _output_shape_dtypes: Dictionary mapping field names to their output shapes/dtypes.
     """
 
-    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field(default=None)  # type: ignore
-    _output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field(default=None)  # type: ignore
+    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field(default=None)
+    _output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field(default=None)
 
     @abstractmethod
     def init_shapes(
@@ -43,6 +39,10 @@ class CompressionModule(ExtendedTreeClass, ABC):
                 - Self: Updated instance of the compression module
                 - Dictionary mapping field names to their output shapes/dtypes
                 - Dictionary mapping field names to their state shapes/dtypes
+
+        Raises:
+            NotImplementedError: This is an abstract method that should be implemented
+                by subclasses.
         """
         del input_shape_dtypes
         raise NotImplementedError()
@@ -68,6 +68,10 @@ class CompressionModule(ExtendedTreeClass, ABC):
             Tuple containing:
                 - Dictionary of compressed field values
                 - Updated recording state
+
+        Raises:
+            NotImplementedError: This is an abstract method that should be implemented
+                by subclasses.
         """
         del values, state, key
         raise NotImplementedError()
@@ -88,6 +92,10 @@ class CompressionModule(ExtendedTreeClass, ABC):
 
         Returns:
             Dictionary mapping field names to their decompressed values.
+
+        Raises:
+            NotImplementedError: This is an abstract method that should be implemented
+                by subclasses.
         """
         del (
             values,
