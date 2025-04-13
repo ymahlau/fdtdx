@@ -30,18 +30,18 @@ def reversible_fdtd(
     recorded during the forward pass and replayed during backpropagation.
 
     Args:
-        arrays (ArrayContainer): Initial state of the simulation containing:
+        arrays: Initial state of the simulation containing:
             - E, H: Electric and magnetic field arrays
             - inv_permittivities, inv_permeabilities: Material properties
             - boundary_states: Dictionary of boundary conditions
             - detector_states: Dictionary of field detectors
             - recording_state: Optional state for recording field evolution
-        objects (ObjectContainer): Collection of physical objects in the simulation
+        objects: Collection of physical objects in the simulation
             (sources, detectors, boundaries, etc.)
-        config (SimulationConfig): Simulation parameters including:
+        config: Simulation parameters including:
             - time_steps_total: Total number of steps to simulate
             - invertible_optimization: Whether to record boundaries for backprop
-        key (jax.Array): JAX PRNGKey for any stochastic operations
+        key: JAX PRNGKey for any stochastic operations
 
     Returns:
         SimulationState: Tuple containing:
@@ -169,9 +169,9 @@ def reversible_fdtd(
         return time_step >= start_time_step
 
     def fdtd_bwd(
-        residual,
-        cot,
-    ):
+        residual: tuple,
+        cot: tuple,
+    ) -> tuple:
         """Backward pass for reversible FDTD simulation.
 
         Implements the custom vector-Jacobian product for backpropagation through
@@ -331,10 +331,10 @@ def checkpointed_fdtd(
     states as needed.
 
     Args:
-        arrays (ArrayContainer): Initial state of the simulation containing fields and materials
-        objects (ObjectContainer): Collection of physical objects in the simulation
-        config (SimulationConfig): Simulation parameters including checkpointing settings
-        key (jax.Array): JAX PRNGKey for any stochastic operations
+        arrays: Initial state of the simulation containing fields and materials
+        objects: Collection of physical objects in the simulation
+        config: Simulation parameters including checkpointing settings
+        key: JAX PRNGKey for any stochastic operations
 
     Returns:
         SimulationState: Tuple containing final time step and ArrayContainer with final state
@@ -381,14 +381,14 @@ def custom_fdtd_forward(
     allowing partial time evolution and customization of recording behavior.
 
     Args:
-        arrays (ArrayContainer): Initial state of the simulation
-        objects (ObjectContainer): Collection of physical objects
-        config (SimulationConfig): Simulation parameters
-        key (jax.Array): JAX PRNGKey for stochastic operations
-        reset_container (bool): Whether to reset the array container before starting
-        record_detectors (bool): Whether to record detector readings
-        start_time (int | jax.Array): Time step to start from
-        end_time (int | jax.Array): Time step to end at
+        arrays: Initial state of the simulation
+        objects: Collection of physical objects
+        config: Simulation parameters
+        key: JAX PRNGKey for stochastic operations
+        reset_container: Whether to reset the array container before starting
+        record_detectors: Whether to record detector readings
+        start_time: Time step to start from
+        end_time: Time step to end at
 
     Returns:
         SimulationState: Tuple containing final time step and ArrayContainer with final state
