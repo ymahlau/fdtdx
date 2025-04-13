@@ -21,9 +21,6 @@ def get_named_sharding_from_shape(
 
     Returns:
         NamedSharding object specifying how to distribute the array across available devices
-
-    Raises:
-        ValueError: If shape[sharding_axis] is not divisible by number of devices
     """
     compute_devices = jax.devices()
     num_dims = len(shape)
