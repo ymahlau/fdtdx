@@ -69,12 +69,12 @@ def plot_from_slices(
     return data
 
 
-def _make_animation_frame(t: float | int, precomputed_figs, fps):
+def _make_animation_frame(t: float | int, precomputed_figs: list[plt.figure], fps: int):
     """Creates a single frame for the video animation.
 
     Args:
         t: Time point in seconds
-        precomputed_figs: List of precomputed figure arrays
+        precomputed_figs: List of precomputed figures
         fps: Frames per second of the video
 
     Returns:
