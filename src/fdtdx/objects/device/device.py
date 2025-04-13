@@ -30,14 +30,16 @@ class BaseDevice(OrderableObject, ABC):
     continuous devices that can be optimized through gradient-based methods.
 
     Attributes:
-        name: Optional name identifier for the device
-        dtype: Data type for device parameters, defaults to float32
+        material: Material or range of materials for the device
         color: RGB color tuple for visualization, defaults to pink
+        parameter_mapping: Mapping between parameters and material indices
+        partial_voxel_grid_shape: Shape specification for voxels in grid coordinates
+        partial_voxel_real_shape: Shape specification for voxels in real coordinates
     """
 
-    material: dict[str, Material] | ContinuousMaterialRange = frozen_field(kind="KW_ONLY")  # type: ignore
+    material: dict[str, Material] | ContinuousMaterialRange = frozen_field(kind="KW_ONLY")
     color: tuple[float, float, float] = frozen_field(default=PINK)
-    parameter_mapping: DiscreteParameterMapping | LatentParameterMapping = frozen_field(kind="KW_ONLY")  # type:ignore
+    parameter_mapping: DiscreteParameterMapping | LatentParameterMapping = frozen_field(kind="KW_ONLY")
     partial_voxel_grid_shape: PartialGridShape3D = field(default=UNDEFINED_SHAPE_3D)
     partial_voxel_real_shape: PartialRealShape3D = field(default=UNDEFINED_SHAPE_3D)
     _single_voxel_grid_shape: GridShape3D = field(default=INVALID_SHAPE_3D, init=False)
@@ -131,7 +133,7 @@ class BaseDevice(OrderableObject, ABC):
                 self._config.resolution,
             )
             if not float_div:
-                raise Exception(f"Not divisible: {self.single_voxel_real_shape[axis]=}, " f"{self._config.resolution=}")
+                raise Exception(f"Not divisible: {self.single_voxel_real_shape[axis]=}, {self._config.resolution=}")
             if self.grid_shape[axis] % self.matrix_voxel_grid_shape[axis] != 0:
                 raise Exception(
                     f"Due to discretization, matrix got skewered for {axis=}. "
@@ -195,10 +197,8 @@ class DiscreteDevice(BaseDevice):
     to produce the final device structure.
 
     Attributes:
-        name: Optional name identifier for the device
-        constraint_mapping: Maps optimization parameters to permittivity values
-        dtype: Data type for device parameters, defaults to float32
-        color: RGB color tuple for visualization, defaults to pink
+        material: Dictionary mapping material names to Material objects
+        parameter_mapping: Maps optimization parameters to material indices
     """
 
     material: dict[str, Material] = frozen_field(kind="KW_ONLY")  # type: ignore
@@ -229,6 +229,17 @@ class DiscreteDevice(BaseDevice):
 
 @extended_autoinit
 class ContinuousDevice(BaseDevice):
+    """A device with continuous material properties.
+
+    This class represents a simulation object whose permittivity distribution can be
+    optimized through gradient-based methods, with continuous variations in material properties.
+    The device uses a continuous range of materials defined by the material range object.
+
+    Attributes:
+        material: Continuous range of material properties
+        parameter_mapping: Maps latent parameters to material indices, defaults to empty mapping
+    """
+
     material: ContinuousMaterialRange = frozen_field(kind="KW_ONLY")  # type: ignore
     parameter_mapping: LatentParameterMapping = frozen_field(
         kind="KW_ONLY",
