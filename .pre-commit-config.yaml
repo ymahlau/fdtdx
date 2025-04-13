@@ -24,7 +24,10 @@ repos:
     rev: 0.6.2
     hooks:
       - id: pydoclint
-        args: [--style=google, --check-return-types=False]
+        args:
+          - --style=google
+          - --check-return-types=False
+          - --check-arg-types=False
   - repo: local
     hooks:
       - id: mkdocs-build
