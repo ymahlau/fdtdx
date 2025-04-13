@@ -177,6 +177,9 @@ class Logger:
         Args:
             stats: Dictionary of statistics to record
             do_print: Whether to print stats to console
+
+        Raises:
+            AssertionError: If attempting to write before the writer is initialized
         """
         stats = {
             k: v.item() if isinstance(v, jax.Array) else v
@@ -214,6 +217,9 @@ class Logger:
             objects: Container with simulation objects
             detector_states: Dictionary mapping detector names to their states
             exclude: List of detector names to exclude from logging
+
+        Raises:
+            Exception: If a detector returns an output format that is neither Figure nor string
         """
         for detector in [d for d in objects.detectors if d.name not in exclude]:
             cur_state = jax.device_get(detector_states[detector.name])
