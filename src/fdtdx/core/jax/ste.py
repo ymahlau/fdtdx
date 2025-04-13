@@ -25,9 +25,6 @@ def straight_through_estimator(x: jax.Array, y: jax.Array) -> jax.Array:
         jax.Array: The result of applying the straight through estimator, which
         is the same shape as `x` and `y`. In the forward pass this equals y,
         but gradients flow through x.
-
-    Raises:
-        ValueError: If x and y have different shapes.
     """
 
     return x - jax.lax.stop_gradient(x) + jax.lax.stop_gradient(y)
