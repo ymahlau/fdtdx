@@ -59,6 +59,8 @@ def plot_filled_std_curves(
     Raises:
         ValueError: If neither std nor both upper/lower bounds are provided, or if only
             one of upper/lower is provided.
+        Exception: If there's an unexpected internal state where upper or lower bounds
+            are None despite previous validation.
 
     Example:
         >>> x = np.linspace(0, 10, 100)
