@@ -188,6 +188,10 @@ def _init_arrays(
             - ArrayContainer with initialized arrays and states
             - Updated SimulationConfig
             - Dictionary with initialization info
+
+    Raises:
+        Exception: If an unknown object type is encountered
+        NotImplementedError: If a ContinuousMaterialRange is used with a StaticMultiMaterialObject
     """
     # create E/H fields
     volume_shape = objects.volume.grid_shape
