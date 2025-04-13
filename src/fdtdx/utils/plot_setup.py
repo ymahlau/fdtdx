@@ -43,6 +43,9 @@ def plot_setup(
     Returns:
         matplotlib.figure.Figure: The generated figure object
 
+    Raises:
+        AssertionError: If `axs` is provided but is None. This should not happen in normal operation as the function creates new axes when `axs` is None.
+
     Note:
         The plots show object positions in micrometers, converting from simulation units.
         PML objects are automatically excluded from their respective boundary planes.
