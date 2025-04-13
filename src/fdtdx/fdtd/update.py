@@ -343,6 +343,9 @@ def collect_interfaces(
 
     Returns:
         Updated ArrayContainer with recorded interface values
+
+    Raises:
+        Exception: If gradient_config or recorder is None, or if recording_state is None
     """
     if config.gradient_config is None or config.gradient_config.recorder is None:
         raise Exception("Need recorder to record boundaries")
@@ -384,6 +387,9 @@ def add_interfaces(
 
     Returns:
         Updated ArrayContainer with restored interface values
+
+    Raises:
+        Exception: If gradient_config or recorder is None, or if recording_state is None
     """
     if config.gradient_config is None or config.gradient_config.recorder is None:
         raise Exception("Need recorder to record boundaries")
