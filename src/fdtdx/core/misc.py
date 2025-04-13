@@ -38,6 +38,9 @@ def is_on_at_time_step(
 
     Returns:
         bool: True if the component should be active at the given time step
+
+    Raises:
+        Exception: If period is not specified when using period-based timing or invalid or conflicting start/end time specifications are provided
     """
     if not is_on:
         return False
@@ -173,7 +176,7 @@ def ensure_slice_tuple(t: Sequence[slice | int | Tuple[int, int]]) -> Tuple[slic
     return tuple(to_slice(loc) for loc in t)
 
 
-def is_float_divisible(a, b, tolerance=1e-15):
+def is_float_divisible(a: float, b: float, tolerance: float = 1e-15) -> bool:
     """
     Checks if a floating-point number 'a' is divisible by another floating-point number 'b'.
 
@@ -202,7 +205,7 @@ def is_index_in_slice(index, slice, seq_length):
     return start <= index < stop
 
 
-def cast_floating_to_numpy(vals: dict[str, np.ndarray], dtype) -> dict[str, np.ndarray]:
+def cast_floating_to_numpy(vals: dict[str, np.ndarray], dtype: np.dtype) -> dict[str, np.ndarray]:
     """Casts floating point arrays in a dictionary to a specified numpy dtype.
 
     Args:
@@ -578,6 +581,9 @@ def advanced_padding(
         tuple[jax.Array, tuple[slice, ...]]: Tuple containing:
             - Padded array
             - Slice tuple to extract original array region
+
+    Raises:
+        Exception: If padding configuration is invalid or incompatible with array dimensions
     """
     # default values
     if len(padding_cfg.widths) == 1:
