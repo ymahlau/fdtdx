@@ -29,29 +29,29 @@ class Detector(SimulationObject, ABC):
     and visualization of results.
 
     Attributes:
-        name (str): Unique identifier for the detector.
-        dtype (jnp.dtype): Data type for detector arrays, defaults to float32.
-        exact_interpolation (bool): Whether to use exact field interpolation.
-        inverse (bool): Whether to record fields in inverse time order.
-        interval (int): Number of time steps between recordings.
-        start_after_periods (float, optional): When to start recording, in periods.
-        end_after_periods (float, optional): When to stop recording, in periods.
-        period_length (float, optional): Length of one period in simulation time.
-        start_time (float, optional): Absolute start time for recording.
-        end_time (float, optional): Absolute end time for recording.
-        on_for_time (float, optional): Duration to record for, in simulation time.
-        on_for_periods (float, optional): Duration to record for, in periods.
-        time_steps (list[int], optional): Specific time steps to record at.
-        plot (bool): Whether to generate plots of recorded data.
-        if_inverse_plot_backwards (bool): Plot inverse data in reverse time order.
-        num_video_workers (int): Number of workers for video generation.
-        color (tuple[float, float, float]): RGB color for plotting.
-        plot_interpolation (str): Interpolation method for plots.
-        plot_dpi (int, optional): DPI resolution for plots.
+        name: Unique identifier for the detector.
+        dtype: Data type for detector arrays, defaults to float32.
+        exact_interpolation: Whether to use exact field interpolation.
+        inverse: Whether to record fields in inverse time order.
+        interval: Number of time steps between recordings.
+        start_after_periods: When to start recording, in periods.
+        end_after_periods: When to stop recording, in periods.
+        period_length: Length of one period in simulation time.
+        start_time: Absolute start time for recording.
+        end_time: Absolute end time for recording.
+        on_for_time: Duration to record for, in simulation time.
+        on_for_periods: Duration to record for, in periods.
+        time_steps: Specific time steps to record at.
+        plot: Whether to generate plots of recorded data.
+        if_inverse_plot_backwards: Plot inverse data in reverse time order.
+        num_video_workers: Number of workers for video generation.
+        color: RGB color for plotting.
+        plot_interpolation: Interpolation method for plots.
+        plot_dpi: DPI resolution for plots.
     """
 
-    name: str = frozen_field(kind="KW_ONLY")  # type: ignore
-    dtype: jnp.dtype = frozen_field(kind="KW_ONLY", default=jnp.float32)  # type: ignore
+    name: str = frozen_field(kind="KW_ONLY")
+    dtype: jnp.dtype = frozen_field(kind="KW_ONLY", default=jnp.float32)
     exact_interpolation: bool = False
     inverse: bool = False
     interval: int = 1
@@ -62,13 +62,13 @@ class Detector(SimulationObject, ABC):
     end_time: float | None = None
     on_for_time: float | None = None
     on_for_periods: float | None = None
-    time_steps: list[int] = field(default=None)  # type: ignore
+    time_steps: list[int] = field(default=None)
     plot: bool = True
     if_inverse_plot_backwards: bool = True
     num_video_workers: int = 8  # only used when generating video
-    _is_on_at_time_step_arr: jax.Array = field(default=None, init=False)  # type: ignore
-    _time_step_to_arr_idx: jax.Array = field(default=None, init=False)  # type: ignore
-    _num_time_steps_on: int = field(default=None, init=False)  # type: ignore
+    _is_on_at_time_step_arr: jax.Array = field(default=None, init=False)
+    _time_step_to_arr_idx: jax.Array = field(default=None, init=False)
+    _num_time_steps_on: int = field(default=None, init=False)
     color: tuple[float, float, float] = LIGHT_GREEN
     plot_interpolation: str = frozen_field(kind="KW_ONLY", default="gaussian")
     plot_dpi: int | None = frozen_field(kind="KW_ONLY", default=None)
