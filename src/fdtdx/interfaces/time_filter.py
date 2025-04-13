@@ -16,12 +16,6 @@ class TimeStepFilter(ExtendedTreeClass, ABC):
     This class provides an interface for filters that process simulation data at specific
     time steps. Implementations can perform operations like downsampling, collation, or
     other temporal processing of field data.
-
-    Attributes:
-        _time_steps_max: Maximum number of time steps in the simulation.
-        _array_size: Size of the array used to store filtered data.
-        _input_shape_dtypes: Dictionary mapping field names to their input shapes/dtypes.
-        _output_shape_dtypes: Dictionary mapping field names to their output shapes/dtypes.
     """
 
     _time_steps_max: int = frozen_private_field(default=-1)  # type: ignore
@@ -52,6 +46,9 @@ class TimeStepFilter(ExtendedTreeClass, ABC):
             - Size of array for storing filtered data
             - Dictionary of data shapes/dtypes
             - Dictionary of state shapes/dtypes
+
+        Raises:
+            NotImplementedError: This is an abstract method that must be implemented by subclasses.
         """
         del input_shape_dtypes, time_steps_max
         raise NotImplementedError()
@@ -69,6 +66,9 @@ class TimeStepFilter(ExtendedTreeClass, ABC):
         Returns:
             The corresponding array index if the time step is not filtered,
             or -1 if the time step is filtered out.
+
+        Raises:
+            NotImplementedError: This is an abstract method that must be implemented by subclasses.
         """
         del time_idx
         raise NotImplementedError()
@@ -96,6 +96,9 @@ class TimeStepFilter(ExtendedTreeClass, ABC):
             Tuple containing:
             - Dictionary of compressed field values
             - Updated recording state
+
+        Raises:
+            NotImplementedError: This is an abstract method that must be implemented by subclasses.
         """
         del values, state, time_idx, key
         raise NotImplementedError()
@@ -112,6 +115,9 @@ class TimeStepFilter(ExtendedTreeClass, ABC):
 
         Returns:
             Array of indices needed to reconstruct the data for this time step.
+
+        Raises:
+            NotImplementedError: This is an abstract method that must be implemented by subclasses.
         """
         del time_idx
         raise NotImplementedError()
@@ -136,6 +142,9 @@ class TimeStepFilter(ExtendedTreeClass, ABC):
 
         Returns:
             Dictionary of reconstructed field values.
+
+        Raises:
+            NotImplementedError: This is an abstract method that must be implemented by subclasses.
         """
         del values, state, arr_indices, time_idx, key
         raise NotImplementedError()
@@ -151,8 +160,6 @@ class LinearReconstructEveryK(TimeStepFilter):
     Attributes:
         k: Number of time steps between saved values.
         start_recording_after: Time step to start recording from.
-        _save_time_steps: Array of time steps that are saved.
-        _time_to_arr_idx: Mapping from time steps to array indices.
     """
 
     k: int = frozen_field()
