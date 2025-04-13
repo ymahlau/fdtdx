@@ -84,6 +84,9 @@ def export_stl(
 
     Raises:
         Exception: If input matrix is not 3-dimensional.
+
+    Returns:
+        trimesh.Trimesh: A 3D mesh representation of the input matrix.
     """
     if matrix.ndim != 3:
         raise Exception(f"Invalid matrix shape: {matrix.shape}")
