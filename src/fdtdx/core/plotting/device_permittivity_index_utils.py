@@ -56,9 +56,8 @@ def device_matrix_index_figure(
     Args:
         device_matrix_indices: A 3D JAX array containing the device matrix indices.
             Shape should be (height, width, channels) where channels is typically 1.
-        permittivity_configs: A tuple of (name, value) pairs defining the permittivity
-            configurations, where name is a string identifier (e.g., "Air") and value
-            is the corresponding permittivity value.
+        material: A dictionary mapping material names to Material objects defining
+            the permittivity configurations.
 
     Returns:
         A matplotlib Figure object containing the visualization with:
