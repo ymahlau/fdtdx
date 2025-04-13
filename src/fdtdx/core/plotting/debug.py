@@ -7,20 +7,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def generate_unique_filename(prefix="file", extension=None):
+def generate_unique_filename(prefix: str = "file", extension: str = None) -> str:
     """
     Generate a unique filename using timestamp and UUID.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     prefix : str, optional
-        Prefix for the filename
+        Prefix for the filename. Default is "file".
     extension : str, optional
-        File extension (without dot)
+        File extension (without dot). Default is None.
 
-    Returns:
-    --------
-    str : Unique filename
+    Returns
+    -------
+    str
+        Unique filename
     """
     # Get current timestamp
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
