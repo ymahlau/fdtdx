@@ -20,6 +20,7 @@ class DiffractiveDetector(Detector):
         frequencies: List of frequencies to analyze (in Hz)
         orders: Tuple of (nx, ny) pairs specifying diffraction orders to compute
         direction: Direction of diffraction analysis ("+" or "-") along propagation axis
+        dtype: Data type for detector computations (must be complex)
     """
 
     frequencies: Sequence[float] = field(kind="KW_ONLY")  # type: ignore
