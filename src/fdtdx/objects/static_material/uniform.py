@@ -48,7 +48,6 @@ class Waveguide(UniformMaterialObject):
     Visualized in light blue color by default.
 
     Attributes:
-        permittivity: Required relative permittivity of the waveguide material
         color: RGB tuple for visualization, defaults to light blue
     """
 
