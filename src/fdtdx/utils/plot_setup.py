@@ -30,21 +30,18 @@ def plot_setup(
     helps verify the correct positioning and sizing of objects in the simulation setup.
 
     Args:
-        config (SimulationConfig): Configuration object containing simulation parameters like resolution
-        objects (ObjectContainer): Container holding all simulation objects to be plotted
-        exclude_object_list (list[SimulationObject]): List of objects to exclude from all plots
-        filename (str | Path | None): If provided, saves the plot to this file instead of displaying
-        axs (Sequence[Any] | None): Optional matplotlib axes to plot on. If None, creates new figure
-        plot_legend (bool): Whether to add a legend showing object names/types
-        exclude_xy_plane_object_list (list[SimulationObject]): Objects to exclude from XY plane plot
-        exclude_yz_plane_object_list (list[SimulationObject]): Objects to exclude from YZ plane plot
-        exclude_xz_plane_object_list (list[SimulationObject]): Objects to exclude from XZ plane plot
+        config: Configuration object containing simulation parameters like resolution
+        objects: Container holding all simulation objects to be plotted
+        exclude_object_list: List of objects to exclude from all plots
+        filename: If provided, saves the plot to this file instead of displaying
+        axs: Optional matplotlib axes to plot on. If None, creates new figure
+        plot_legend: Whether to add a legend showing object names/types
+        exclude_xy_plane_object_list: Objects to exclude from XY plane plot
+        exclude_yz_plane_object_list: Objects to exclude from YZ plane plot
+        exclude_xz_plane_object_list: Objects to exclude from XZ plane plot
 
     Returns:
         matplotlib.figure.Figure: The generated figure object
-
-    Raises:
-        AssertionError: If provided axes are None after initialization attempt
 
     Note:
         The plots show object positions in micrometers, converting from simulation units.
