@@ -20,6 +20,7 @@ class PhasorDetector(Detector):
         reduce_volume: If True, reduces the volume of recorded data.
         components: Sequence of field components to measure. Can include any of:
             "Ex", "Ey", "Ez", "Hx", "Hy", "Hz".
+        dtype: Complex numeric data type for phasor calculations. Can be either jnp.complex64 or jnp.complex128. Defaults to jnp.complex64.
     """
 
     frequencies: Sequence[float] = (None,)  # type: ignore
