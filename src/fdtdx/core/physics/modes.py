@@ -37,20 +37,20 @@ def compute_modes(
     waveguide cross-section defined by its permittivity distribution.
 
     Args:
-        frequency (float): Operating frequency in Hz
-        permittivity_cross_section (np.ndarray): 2D array of relative permittivity values
-        coords (List[np.ndarray]): List of coordinate arrays [x, y] defining the grid
-        direction (Literal["+", "-"]): Propagation direction, either "+" or "-"
-        target_neff (float | None, optional): Target effective index to search around. Defaults to None.
-        angle_theta (float, optional): Polar angle in radians. Defaults to 0.0.
-        angle_phi (float, optional): Azimuthal angle in radians. Defaults to 0.0.
-        num_modes (int, optional): Number of modes to compute. Defaults to 10.
-        precision (Literal["single", "double"], optional): Numerical precision. Defaults to "double".
-        filter_pol (Literal["te", "tm"] | None, optional): Mode polarization filter. Defaults to None.
+        frequency: Operating frequency in Hz
+        permittivity_cross_section: 2D array of relative permittivity values
+        coords: List of coordinate arrays [x, y] defining the grid
+        direction: Propagation direction, either "+" or "-"
+        target_neff: Target effective index to search around. Defaults to None.
+        angle_theta: Polar angle in radians. Defaults to 0.0.
+        angle_phi: Azimuthal angle in radians. Defaults to 0.0.
+        num_modes: Number of modes to compute. Defaults to 10.
+        precision: Numerical precision. Defaults to "double".
+        filter_pol: Mode polarization filter. Defaults to None.
 
     Returns:
-        List[ModeTupleType]: List of computed modes sorted by decreasing real part of
-            effective index. Each mode contains the field components and effective index.
+        List of computed modes sorted by decreasing real part of
+        effective index. Each mode contains the field components and effective index.
     """
     # see https://docs.flexcompute.com/projects/tidy3d/en/latest/_autosummary/tidy3d.ModeSpec.html#tidy3d.ModeSpec
     mode_spec = SimpleNamespace(
