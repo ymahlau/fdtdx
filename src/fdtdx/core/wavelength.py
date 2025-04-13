@@ -7,9 +7,7 @@ class WaveCharacter(ExtendedTreeClass):
     """Class describing a wavelength/period/frequency in free space.
 
     Attributes:
-        _period: Optional period in seconds. Mutually exclusive with _wavelength and _frequency.
-        _wavelength: Optional wavelength in meters. Mutually exclusive with _period and _frequency.
-        _frequency: Optional frequency in Hz. Mutually exclusive with _period and _wavelength.
+        phase_shift: Phase shift in radians.
     """
 
     phase_shift: float = 0.0
@@ -70,6 +68,9 @@ class WaveCharacter(ExtendedTreeClass):
 
         Returns:
             float: The frequency in Hz.
+
+        Raises:
+            Exception: If neither period nor wavelength nor frequency is set, or if more than one is set.
         """
         self._check_input()
         if self._period is not None:
