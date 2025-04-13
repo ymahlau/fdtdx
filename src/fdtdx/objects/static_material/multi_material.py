@@ -19,6 +19,9 @@ class StaticMultiMaterialObject(StaticMaterialObject, ABC):
 
         Returns:
             jax.Array: Binary mask representing the voxels occupied by the object
+
+        Raises:
+            NotImplementedError: This is an abstract method that must be implemented by subclasses
         """
         raise NotImplementedError()
 
@@ -31,5 +34,8 @@ class StaticMultiMaterialObject(StaticMaterialObject, ABC):
 
         Returns:
             jax.Array: Index array
+
+        Raises:
+            NotImplementedError: This is an abstract method that must be implemented by subclasses
         """
         raise NotImplementedError()
