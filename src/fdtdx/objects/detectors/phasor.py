@@ -92,7 +92,7 @@ class PhasorDetector(Detector):
         # Vectorized phasor calculation for all frequencies
         phase_angles = self._angular_frequencies[:, None] * time_passed  # Shape: (num_freqs, 1)
         phasors = jnp.exp(1j * phase_angles)  # Shape: (num_freqs, 1)
-        new_phasors = EH[None, ...] * phasors[..., None] * static_scale # Broadcasting handles the multiplication
+        new_phasors = EH[None, ...] * phasors[..., None] * static_scale  # Broadcasting handles the multiplication
 
         if self.reduce_volume:
             # Average over all spatial dimensions

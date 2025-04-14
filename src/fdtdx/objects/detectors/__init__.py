@@ -14,8 +14,8 @@ and applied during the optimization process.
 """
 
 from .diffractive import DiffractiveDetector
-from .field import FieldDetector
 from .energy import EnergyDetector
+from .field import FieldDetector
 from .phasor import PhasorDetector
 from .poynting_flux import PoyntingFluxDetector
 

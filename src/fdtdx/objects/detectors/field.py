@@ -16,7 +16,7 @@ class FieldDetector(Detector):
         components: Sequence of field components to measure. Can include any of:
             "Ex", "Ey", "Ez", "Hx", "Hy", "Hz".
     """
-    
+
     reduce_volume: bool = False
     components: Sequence[Literal["Ex", "Ey", "Ez", "Hx", "Hy", "Hz"]] = frozen_field(
         default=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"),
@@ -56,7 +56,7 @@ class FieldDetector(Detector):
             fields.append(H[2])
 
         EH = jnp.stack(fields, axis=0)
-        
+
         if self.reduce_volume:
             EH = EH.mean(axis=(1, 2, 3))
         arr_idx = self._time_step_to_arr_idx[time_step]
