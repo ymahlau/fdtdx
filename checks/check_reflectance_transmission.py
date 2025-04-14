@@ -7,6 +7,8 @@ import optax
 import pytreeclass as tc
 from loguru import logger
 
+from fdtdx.core.physics.metrics import poynting_flux
+from fdtdx.core.plotting.debug import debug_plot_lines
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.fdtd import (
     ArrayContainer,
@@ -18,12 +20,13 @@ from fdtdx.fdtd import (
 from fdtdx.config import  SimulationConfig
 from fdtdx import constants
 from fdtdx.materials import Material
-from fdtdx.objects import  SimulationVolume
+from fdtdx.objects import  SimulationVolume, UniformMaterialObject
 from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
-from fdtdx.objects.detectors import EnergyDetector
-from fdtdx.objects.detectors.poynting_flux import PoyntingFluxDetector
+from fdtdx.objects.detectors import EnergyDetector, PoyntingFluxDetector
+from fdtdx.objects.detectors.field import FieldDetector
+from fdtdx.objects.detectors.phasor import PhasorDetector
 from fdtdx.objects.sources import SimplePlaneSource
-from fdtdx.core.wavelength import WaveCharacter
+from fdtdx.core import WaveCharacter
 from fdtdx.utils import Logger, plot_setup
 
 
@@ -80,7 +83,7 @@ def main():
         wave_character=WaveCharacter(wavelength=1.550e-6),
         direction="-",
         azimuth_angle=angle_degree,
-        switch=OnOffSwitch(start_after_periods=2, on_for_periods=2, period=period),
+        # switch=OnOffSwitch(start_after_periods=2, on_for_periods=2, period=period),
     )
     constraints.extend(
         [
@@ -94,21 +97,56 @@ def main():
         ]
     )
     
-    flux_below_source = PoyntingFluxDetector(
-        name="flux",
+    # substrate = UniformMaterialObject(
+    #     material=Material(permittivity=2.5),
+    #     partial_real_shape=(None, None, size_xy)
+    # )
+    # constraints.append(
+    #     substrate.place_relative_to(
+    #         volume,
+    #         axes=(0, 1, 2),
+    #         own_positions=(0, 0, -1),
+    #         other_positions=(0, 0, -1),
+    #     )
+    # )
+    
+    
+    fields_below_source = FieldDetector(
+        name="fields",
         partial_grid_shape=(1, 1, 1),
-        direction="-",
         switch=OnOffSwitch(
             start_after_periods=10,
             period=period,
         ),
         exact_interpolation=True,
-        keep_all_components=True,
-        fixed_propagation_axis=2,
+        reduce_volume=True,
     )
     constraints.extend(
         [
-            flux_below_source.place_relative_to(
+            fields_below_source.place_relative_to(
+                source,
+                axes=(0, 1, 2),
+                own_positions=(0, 0, 1),
+                other_positions=(0, 0, 1),
+                grid_margins=(0, 0, -5),
+            ),
+        ]
+    )
+    
+    freqs_below_source = PhasorDetector(
+        name="freqs",
+        wave_characters=[source.wave_character],
+        partial_grid_shape=(1, 1, 1),
+        switch=OnOffSwitch(
+            start_after_periods=10,
+            period=period,
+        ),
+        exact_interpolation=True,
+        reduce_volume=True,
+    )
+    constraints.extend(
+        [
+            freqs_below_source.place_relative_to(
                 source,
                 axes=(0, 1, 2),
                 own_positions=(0, 0, 1),
@@ -189,9 +227,62 @@ def main():
 
     exp_logger.log_detectors(iter_idx=0, objects=objects, detector_states=arrays.detector_states)
     
-    # compute poynting flux value
-    pf = arrays.detector_states[flux_below_source.name]["poynting_flux"].mean(axis=0)
-    pf_norm = pf / optax.global_norm(pf)
+    # compute frequency-transform of Ex component
+    pf = arrays.detector_states[fields_below_source.name]["fields"]
+    pfx = pf[:, 0]
+    signal_length = pfx.shape[0]
+    sampling_frequency = 1 / config.time_step_duration
+    desired_frequency = source.wave_character.frequency
+    t = jnp.arange(signal_length) / sampling_frequency
+    freqs = jnp.fft.fftfreq(signal_length, 1 / sampling_frequency)
+    freqs_vals = jnp.fft.fft(pfx)
+    
+    target_idx = jnp.abs(freqs - desired_frequency).argmin() + 1
+    desired_freqs_val = freqs_vals[target_idx]
+    
+    amplitude = 2 * jnp.abs(desired_freqs_val) / signal_length
+    phase = jnp.angle(desired_freqs_val)
+    
+    recs = amplitude * jnp.sin(2 * jnp.pi * freqs[target_idx] * t + phase)
+
+    # compute specific frequency 
+    angular_freq = 2 * jnp.pi * desired_frequency
+    state = 0
+    for t_step in range(len(pfx)):
+        time_passed = t_step * config.time_step_duration
+        cur_phase_angle = time_passed * angular_freq
+        phasor = jnp.exp(1j * cur_phase_angle)
+        new_phasor = pfx[t_step] * phasor
+        state = state + new_phasor
+    
+    amplitude2 = 2 * jnp.abs(state) / signal_length
+    phase2 = jnp.angle(state)
+    recs2 = amplitude2 * jnp.cos(2 * jnp.pi * desired_frequency * t - phase2)
+    
+    # compute specific frequency using phasor detector
+    phasors = arrays.detector_states[freqs_below_source.name]["phasor"].squeeze()
+    phasors_E = phasors[:3]
+    phasors_H = phasors[3:]
+    
+    state3 = phasors_E[0]
+    amplitude3 = jnp.abs(state3)
+    phase3 = jnp.angle(state3)
+    recs3 = amplitude3 * jnp.cos(2 * jnp.pi * desired_frequency * t - phase3)
+    
+    debug_plot_lines({"Ex": pfx - pfx.mean(), "recs": recs, "recs2": recs2, "recs3": recs3})
+    
+    fields_E = pf[:, :3]
+    fields_H = pf[:, 3:]
+    flux = poynting_flux(fields_E, fields_H, axis=1)
+    avg_flux = jnp.mean(flux, axis=0)
+    
+    mean_flux = 0.5 * jnp.real(poynting_flux(phasors_E, phasors_H))
+    
+    logger.info(f"Average flux measured at every time step: {avg_flux}")
+    logger.info(f"Average flux computed through frequency transform: {mean_flux}")
+    
+    # measure poynting flux angle below source
+    pf_norm = -mean_flux / optax.global_norm(mean_flux)
     prop_vec = jnp.asarray([0, 0, 1], dtype=jnp.float32)
     measured_prop_angle = jnp.arccos(jnp.dot(prop_vec, pf_norm)) * 180 / jnp.pi
     difference = angle_degree - measured_prop_angle
@@ -200,6 +291,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+   main()
 
 
