@@ -14,6 +14,7 @@ and applied during the optimization process.
 """
 
 from .diffractive import DiffractiveDetector
+from .field import FieldDetector
 from .energy import EnergyDetector
 from .phasor import PhasorDetector
 from .poynting_flux import PoyntingFluxDetector
@@ -23,4 +24,5 @@ __all__ = [
     "PhasorDetector",
     "PoyntingFluxDetector",
     "DiffractiveDetector",
+    "FieldDetector",
 ]
