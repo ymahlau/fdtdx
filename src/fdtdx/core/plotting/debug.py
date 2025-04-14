@@ -96,3 +96,106 @@ def debug_plot_2d(
     plt.grid(True)
 
     plt.savefig(tmp_dir / filename, dpi=400, bbox_inches="tight")
+
+
+def debug_plot_lines(
+    data_dict: dict[str, np.ndarray | jax.Array],
+    x_values: np.ndarray | jax.Array | None = None,
+    colors: dict[str, str] | None = None,
+    line_styles: dict[str, str] | None = None,
+    markers: dict[str, str] | None = None,
+    x_label: str = "X",
+    y_label: str = "Y",
+    title: str = "Debug Line Plot",
+    legend_loc: str = "best",
+    grid: bool = True,
+    tmp_dir: str | Path = "outputs/tmp/debug",
+    filename: str | None = None,
+) -> None:
+    """Creates a debug visualization of multiple 1D arrays as line plots and saves it to disk.
+
+    This function is useful for debugging array values during development and testing.
+    It creates a multi-line plot for comparing multiple 1D arrays and automatically
+    saves it to a specified directory.
+
+    Args:
+        data_dict: Dictionary mapping names to 1D arrays (numpy or JAX arrays).
+        x_values: Optional x-axis values for all lines. If None, indices will be used.
+        colors: Optional dictionary mapping names to colors. If None, default color cycle is used.
+        line_styles: Optional dictionary mapping names to line styles. If None, solid lines are used.
+        markers: Optional dictionary mapping names to markers. If None, no markers are used.
+        x_label: Label for the x-axis. Defaults to "X".
+        y_label: Label for the y-axis. Defaults to "Y".
+        title: Title for the plot. Defaults to "Debug Line Plot".
+        legend_loc: Location for the legend. Defaults to "best".
+        grid: If True, adds grid lines to the plot. Defaults to True.
+        tmp_dir: Directory where the plot will be saved. Will be created if it doesn't exist.
+            Defaults to "outputs/tmp/debug".
+        filename: Name for the output file. If None, generates a unique name using timestamp.
+            The .png extension will be added automatically.
+
+    The resulting plot includes:
+        - Multiple lines representing each 1D array in the input dictionary
+        - A legend identifying each line
+        - Axis labels and title
+        - Optional grid lines for better readability
+    """
+    from pathlib import Path
+
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    plt.figure(figsize=(12, 8))
+
+    # Create plot for each array in the dictionary
+    for name, array in data_dict.items():
+        # Convert to numpy if needed
+        if not isinstance(array, np.ndarray):
+            array = np.asarray(array)
+
+        # Ensure array is 1D
+        if array.ndim != 1:
+            raise ValueError(f"Array '{name}' must be 1-dimensional, got shape {array.shape}")
+
+        # Get plot parameters for this line
+        color = colors.get(name) if colors else None
+        line_style = line_styles.get(name) if line_styles else "-"
+        marker = markers.get(name) if markers else None
+
+        # Plot the line
+        if x_values is not None:
+            plt.plot(x_values, array, label=name, color=color, linestyle=line_style, marker=marker)
+        else:
+            plt.plot(array, label=name, color=color, linestyle=line_style, marker=marker)
+
+    # Add labels and title
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.title(title)
+
+    # Add legend
+    if len(data_dict) > 1:
+        plt.legend(loc=legend_loc)
+
+    # Add grid if requested
+    if grid:
+        plt.grid(True, linestyle="--", alpha=0.7)
+
+    # Create output directory if it doesn't exist
+    if isinstance(tmp_dir, str):
+        tmp_dir = Path(tmp_dir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    # Generate filename if not provided
+    if filename is None:
+        from datetime import datetime
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"debug_lines_{timestamp}.png"
+    elif not filename.endswith(".png"):
+        filename = f"{filename}.png"
+
+    # Save the plot
+    tmp_dir.mkdir(exist_ok=True, parents=True)
+    plt.savefig(tmp_dir / filename, dpi=400, bbox_inches="tight")
+    plt.close()

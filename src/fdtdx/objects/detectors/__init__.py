@@ -15,6 +15,7 @@ and applied during the optimization process.
 
 from .diffractive import DiffractiveDetector
 from .energy import EnergyDetector
+from .field import FieldDetector
 from .phasor import PhasorDetector
 from .poynting_flux import PoyntingFluxDetector
 
@@ -23,4 +24,5 @@ __all__ = [
     "PhasorDetector",
     "PoyntingFluxDetector",
     "DiffractiveDetector",
+    "FieldDetector",
 ]

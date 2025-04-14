@@ -3,27 +3,28 @@ from typing import Literal, Sequence
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
+from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
+from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 
 @extended_autoinit
 class PhasorDetector(Detector):
-    """Detector for measuring phasor components of electromagnetic fields.
+    """Detector for measuring frequency components of electromagnetic fields using an efficient Phasor Implementation.
 
     This detector computes complex phasor representations of the field components at specified
     frequencies, enabling frequency-domain analysis of the electromagnetic fields.
+    The amplitude and phase of the original phase can be reconstructed using jnp.abs(phasor) and jnp.angle(phasor).
+    The reconstruction itself can then be achieved using amplitude * jnp.cos(2 * jnp.pi * freq * t - phase).
 
     Attributes:
-        frequencies: Sequence of frequencies to analyze (in Hz)
-        as_slices: If True, returns results as slices rather than full volume.
+        wave_characters: Sequence of WaveCharacters to analyze
         reduce_volume: If True, reduces the volume of recorded data.
         components: Sequence of field components to measure. Can include any of:
             "Ex", "Ey", "Ez", "Hx", "Hy", "Hz".
     """
 
-    frequencies: Sequence[float] = (None,)  # type: ignore
-    as_slices: bool = False
+    wave_characters: Sequence[WaveCharacter] = field()
     reduce_volume: bool = False
     components: Sequence[Literal["Ex", "Ey", "Ez", "Hx", "Hy", "Hz"]] = frozen_field(
         default=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"),
@@ -32,6 +33,7 @@ class PhasorDetector(Detector):
         default=jnp.complex64,
         kind="KW_ONLY",
     )
+    plot: bool = False
 
     def __post_init__(
         self,
@@ -39,9 +41,10 @@ class PhasorDetector(Detector):
         if self.dtype not in [jnp.complex64, jnp.complex128]:
             raise Exception(f"Invalid dtype in PhasorDetector: {self.dtype}")
 
-        # Precompute angular frequencies for vectorization
-        self._angular_frequencies = 2 * jnp.pi * jnp.array(self.frequencies)
-        self._scale = self._config.time_step_duration / jnp.sqrt(2 * jnp.pi)
+    @property
+    def _angular_frequencies(self) -> jax.Array:
+        freqs = [wc.frequency for wc in self.wave_characters]
+        return 2 * jnp.pi * jnp.array(freqs)
 
     def _num_latent_time_steps(self) -> int:
         return 1
@@ -51,8 +54,9 @@ class PhasorDetector(Detector):
     ) -> dict[str, jax.ShapeDtypeStruct]:
         field_dtype = jnp.complex128 if self.dtype == jnp.float64 else jnp.complex64
         num_components = len(self.components)
-        num_frequencies = len(self.frequencies)
-        phasor_shape = (num_frequencies, num_components, *self.grid_shape)
+        num_frequencies = len(self._angular_frequencies)
+        grid_shape = self.grid_shape if not self.reduce_volume else tuple([])
+        phasor_shape = (num_frequencies, num_components, *grid_shape)
         return {"phasor": jax.ShapeDtypeStruct(shape=phasor_shape, dtype=field_dtype)}
 
     def update(
@@ -66,6 +70,7 @@ class PhasorDetector(Detector):
     ) -> DetectorState:
         del inv_permeability, inv_permittivity
         time_passed = time_step * self._config.time_step_duration
+        static_scale = 2 / self.num_time_steps_recorded
 
         E, H = E[:, *self.grid_slice], H[:, *self.grid_slice]
         fields = []
@@ -87,7 +92,7 @@ class PhasorDetector(Detector):
         # Vectorized phasor calculation for all frequencies
         phase_angles = self._angular_frequencies[:, None] * time_passed  # Shape: (num_freqs, 1)
         phasors = jnp.exp(1j * phase_angles)  # Shape: (num_freqs, 1)
-        new_phasors = EH[None, ...] * phasors[..., None] * self._scale  # Broadcasting handles the multiplication
+        new_phasors = EH[None, ...] * phasors[..., None] * static_scale  # Broadcasting handles the multiplication
 
         if self.reduce_volume:
             # Average over all spatial dimensions

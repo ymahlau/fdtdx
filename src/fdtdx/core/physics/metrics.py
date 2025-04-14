@@ -66,7 +66,7 @@ def normalize_by_energy(
     return norm_E, norm_H
 
 
-def poynting_flux(E: jax.Array, H: jax.Array) -> jax.Array:
+def poynting_flux(E: jax.Array, H: jax.Array, axis: int = 0) -> jax.Array:
     """Calculates the Poynting vector (energy flux) from E and H fields.
 
     Args:
@@ -78,9 +78,9 @@ def poynting_flux(E: jax.Array, H: jax.Array) -> jax.Array:
         energy flux in each direction
     """
     return jnp.cross(
-        jnp.conj(E),
-        H,
-        axisa=0,
-        axisb=0,
-        axisc=0,
+        E,
+        jnp.conj(H),
+        axisa=axis,
+        axisb=axis,
+        axisc=axis,
     )

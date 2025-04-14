@@ -93,7 +93,7 @@ def field(
     default: T,
     init: bool = True,
     repr: bool = True,
-    kind: ArgKindType = "POS_OR_KW",
+    kind: ArgKindType = "KW_ONLY",
     metadata: dict[str, Any] | None = None,
     on_setattr: Sequence[Any] = (),
     on_getattr: Sequence[Any] = (),
@@ -106,7 +106,7 @@ def field(
     *,
     init: bool = True,
     repr: bool = True,
-    kind: ArgKindType = "POS_OR_KW",
+    kind: ArgKindType = "KW_ONLY",
     metadata: dict[str, Any] | None = None,
     on_setattr: Sequence[Any] = (),
     on_getattr: Sequence[Any] = (),
@@ -119,7 +119,7 @@ def field(
     default: Any = NULL,
     init: bool = True,
     repr: bool = True,
-    kind: ArgKindType = "POS_OR_KW",
+    kind: ArgKindType = "KW_ONLY",
     metadata: dict[str, Any] | None = None,
     on_setattr: Sequence[Any] = (),
     on_getattr: Sequence[Any] = (),
@@ -157,7 +157,7 @@ def frozen_field(
     default: T,
     init: bool = True,
     repr: bool = True,
-    kind: ArgKindType = "POS_OR_KW",
+    kind: ArgKindType = "KW_ONLY",
     metadata: dict[str, Any] | None = None,
     on_setattr: Sequence[Any] = (),
     on_getattr: Sequence[Any] = (),
@@ -170,7 +170,7 @@ def frozen_field(
     *,
     init: bool = True,
     repr: bool = True,
-    kind: ArgKindType = "POS_OR_KW",
+    kind: ArgKindType = "KW_ONLY",
     metadata: dict[str, Any] | None = None,
     on_setattr: Sequence[Any] = (),
     on_getattr: Sequence[Any] = (),
@@ -183,7 +183,7 @@ def frozen_field(
     default: Any = NULL,
     init: bool = True,
     repr: bool = True,
-    kind: ArgKindType = "POS_OR_KW",
+    kind: ArgKindType = "KW_ONLY",
     metadata: dict[str, Any] | None = None,
     on_setattr: Sequence[Any] = (),
     on_getattr: Sequence[Any] = (),
@@ -225,7 +225,7 @@ def frozen_private_field(
     default: T,
     init: bool = False,
     repr: bool = True,
-    kind: ArgKindType = "POS_OR_KW",
+    kind: ArgKindType = "KW_ONLY",
     metadata: dict[str, Any] | None = None,
     on_setattr: Sequence[Any] = (),
     on_getattr: Sequence[Any] = (),
@@ -238,7 +238,7 @@ def frozen_private_field(
     *,
     init: bool = False,
     repr: bool = True,
-    kind: ArgKindType = "POS_OR_KW",
+    kind: ArgKindType = "KW_ONLY",
     metadata: dict[str, Any] | None = None,
     on_setattr: Sequence[Any] = (),
     on_getattr: Sequence[Any] = (),
@@ -251,7 +251,7 @@ def frozen_private_field(
     default: Any = None,
     init: bool = False,
     repr: bool = True,
-    kind: ArgKindType = "POS_OR_KW",
+    kind: ArgKindType = "KW_ONLY",
     metadata: dict[str, Any] | None = None,
     on_setattr: Sequence[Any] = (),
     on_getattr: Sequence[Any] = (),
@@ -288,7 +288,10 @@ def frozen_private_field(
     )
 
 
-@dataclass_transform(field_specifiers=(Field, tc_field, frozen_field, frozen_private_field, field))
+@dataclass_transform(
+    field_specifiers=(Field, tc_field, frozen_field, frozen_private_field, field),
+    kw_only_default=True,
+)
 def extended_autoinit(klass: type[T]) -> type[T]:
     """Wrapper around tc.autoinit that preserves parameter requirement information"""
     return (
