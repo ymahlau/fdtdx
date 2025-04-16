@@ -107,7 +107,7 @@ class ObjectContainer(ExtendedTreeClass):
             return not m.is_electrically_conductive
 
         return self._is_material_fn_true_for_all(_fn)
-    
+
     @property
     def all_objects_non_magnetically_conductive(self) -> bool:
         def _fn(m: Material):
@@ -224,7 +224,7 @@ def reset_array_container(
     if reset_detector_states:
         detector_states = {k: {k2: v2 * 0 for k2, v2 in v.items()} for k, v in detector_states.items()}
     arrays = arrays.aset("boundary_states", boundary_states)
-    
+
     recording_state = arrays.recording_state
     if reset_recording_state and arrays.recording_state is not None:
         recording_state = RecordingState(
@@ -232,5 +232,5 @@ def reset_array_container(
             state={k: v * 0 for k, v in arrays.recording_state.state.items()},
         )
     arrays = arrays.aset("recording_state", recording_state)
-    
+
     return arrays

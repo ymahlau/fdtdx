@@ -27,15 +27,16 @@ class GradientConfig(ExtendedTreeClass):
         Exception: If both recorder and num_checkpoints are provided, or if neither
             is provided.
     """
+
     method: Literal["reversible", "checkpointed"] = frozen_field(default="reversible")
     recorder: Recorder | None = None
     num_checkpoints: int | None = None
 
     def __post_init__(self):
         if self.method == "reversible" and self.recorder is None:
-            raise Exception(f"Need Recorder in gradient config to compute reversible gradients")
+            raise Exception("Need Recorder in gradient config to compute reversible gradients")
         if self.method == "checkpointed" and self.num_checkpoints is None:
-            raise Exception(f"Need Checkpoint Number in gradient config to compute checkpointed gradients")
+            raise Exception("Need Checkpoint Number in gradient config to compute checkpointed gradients")
 
 
 @extended_autoinit

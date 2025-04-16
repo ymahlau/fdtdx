@@ -69,16 +69,17 @@ def update_E(
         # update formula for lossy material. Simplifies to Noop for conductivity = 0
         # for details see Schneider, chapter 3.12
         factor = 1 - c * sigma_E * inv_eps / 2
-    
+
     # standard update formula using lossless material
     E = factor * arrays.E + c * curl * inv_eps
-    
+
     if sigma_E is not None:
         # update formula for lossy material. Simplifies to Noop for conductivity = 0
         # for details see Schneider, chapter 3.12
         E = E / (1 + c * sigma_E * inv_eps / 2)
 
     for source in objects.sources:
+
         def _update():
             adj_time_step = source.adjust_time_step_by_on_off(time_step)
             return source.update_E(
@@ -149,7 +150,7 @@ def update_E_reverse(
             _update,
             lambda: E,
         )
-    
+
     # Get periodic axes for curl operation
     periodic_axes = get_periodic_axes(objects)
     curl = curl_H(arrays.H, periodic_axes)
@@ -157,11 +158,11 @@ def update_E_reverse(
     c = config.courant_number
     sigma_E = arrays.electric_conductivity
     factor = 1
-    
+
     if sigma_E is not None:
         E = E * (1 + c * sigma_E * inv_eps / 2)
         factor = 1 - c * sigma_E * inv_eps / 2
-    
+
     E = E / factor - c * curl * inv_eps
 
     arrays = arrays.at["E"].set(E)
@@ -215,10 +216,10 @@ def update_H(
         # update formula for lossy material. Simplifies to Noop for conductivity = 0
         # for details see Schneider, chapter 3.12
         factor = 1 - c * sigma_H * inv_mu / 2
-    
+
     # standard update formula for lossless material
     H = factor * arrays.H - c * curl * inv_mu
-    
+
     if sigma_H is not None:
         # update formula for lossy material. Simplifies to NoOp for conductivity = 0
         # for details see Schneider, chapter 3.12
@@ -304,12 +305,12 @@ def update_H_reverse(
     c = config.courant_number
     sigma_H = arrays.magnetic_conductivity
     factor = 1
-    
+
     if sigma_H is not None:
         # lossy materials get gain when simulating backwards
         H = H * (1 + c * sigma_H * inv_mu / 2)
         factor = 1 - c * sigma_H * inv_mu / 2
-        
+
     H = H / factor + c * curl * inv_mu
 
     arrays = arrays.at["H"].set(H)

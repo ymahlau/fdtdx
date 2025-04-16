@@ -8,11 +8,11 @@ from fdtdx.core.jax.sharding import create_named_sharded_matrix
 from fdtdx.core.jax.ste import straight_through_estimator
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, ParameterContainer
 from fdtdx.materials import (
-    ContinuousMaterialRange, 
-    compute_allowed_electric_conductivities, 
-    compute_allowed_magnetic_conductivities, 
-    compute_allowed_permeabilities, 
-    compute_allowed_permittivities
+    ContinuousMaterialRange,
+    compute_allowed_electric_conductivities,
+    compute_allowed_magnetic_conductivities,
+    compute_allowed_permeabilities,
+    compute_allowed_permittivities,
 )
 from fdtdx.objects.object import (
     GridCoordinateConstraint,
@@ -234,7 +234,7 @@ def _init_arrays(
             sharding_axis=1,
             backend=config.backend,
         )
-    
+
     # electric conductivity
     electric_conductivity = None
     if not objects.all_objects_non_electrically_conductive:
@@ -245,7 +245,7 @@ def _init_arrays(
             sharding_axis=1,
             backend=config.backend,
         )
-    
+
     # magnetic conductivity
     magnetic_conductivity = None
     if not objects.all_objects_non_magnetically_conductive:
@@ -287,17 +287,17 @@ def _init_arrays(
                     allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permeabilities(o.material))
                     update = allowed_inv_perms[indices]
                     inv_permeabilities = inv_permeabilities.at[*o.grid_slice].set(update)
-                
+
                 if electric_conductivity is not None:
                     allowed_conds = jnp.asarray(compute_allowed_electric_conductivities(o.material))
                     update = allowed_conds[indices] * config.resolution
                     electric_conductivity = electric_conductivity.at[*o.grid_slice].set(update)
-                
+
                 if magnetic_conductivity is not None:
                     allowed_conds = jnp.asarray(compute_allowed_magnetic_conductivities(o.material))
                     update = allowed_conds[indices] * config.resolution
                     magnetic_conductivity = magnetic_conductivity.at[*o.grid_slice].set(update)
-                
+
             elif isinstance(o.material, ContinuousMaterialRange):
                 raise NotImplementedError()
             else:

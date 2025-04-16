@@ -25,7 +25,7 @@ class Material(ExtendedTreeClass):
             per meter (S/m), which describes how easily electric current can flow through it.
             Higher values indicate materials that conduct electricity more easily.
             Defaults to 0.0 (perfect insulator).
-        
+
         magnetic_conductivity (float, optional): The magnetic conductivity, or magnetic loss of the material.
             This is an artificial parameter for numerical applications and does not represent an actual physical unit,
             even though often described in Ohm/m. The naming can be misleading, because it does not actually describe
@@ -47,8 +47,8 @@ class Material(ExtendedTreeClass):
     @property
     def is_electrically_conductive(self) -> bool:
         return not math.isclose(self.electric_conductivity, 0.0)
-    
-    @property 
+
+    @property
     def is_magnetically_conductive(self) -> bool:
         return not math.isclose(self.magnetic_conductivity, 0.0)
 

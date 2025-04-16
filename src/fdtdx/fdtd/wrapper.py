@@ -1,4 +1,5 @@
 import jax
+
 from fdtdx.config import SimulationConfig
 from fdtdx.fdtd import ArrayContainer, ObjectContainer, SimulationState, checkpointed_fdtd, reversible_fdtd
 

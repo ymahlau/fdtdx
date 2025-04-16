@@ -29,5 +29,5 @@ __all__ = [
     "SimulationState",
     "apply_params",
     "place_objects",
-    "run_fdtd"
+    "run_fdtd",
 ]
