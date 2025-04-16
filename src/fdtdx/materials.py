@@ -21,27 +21,36 @@ class Material(ExtendedTreeClass):
             indicate greater magnetic response to an applied magnetic field.
             Defaults to 1.0 (non-magnetic material).
 
-        conductivity (float, optional): The electrical conductivity of the material in siemens
+        electric_conductivity (float, optional): The electrical conductivity of the material in siemens
             per meter (S/m), which describes how easily electric current can flow through it.
             Higher values indicate materials that conduct electricity more easily.
             Defaults to 0.0 (perfect insulator).
+
+        magnetic_conductivity (float, optional): The magnetic conductivity, or magnetic loss of the material.
+            This is an artificial parameter for numerical applications and does not represent an actual physical unit,
+            even though often described in Ohm/m. The naming can be misleading, because it does not actually describe
+            a conductivity, but rather an "equivalent magnetic loss parameter".
+            Defaults to 0.0.
     """
 
     permittivity: float
     permeability: float = 1.0
-    conductivity: float = 0.0
-
-    def __post_init__(self):
-        if self.is_conductive:
-            raise NotImplementedError()
+    electric_conductivity: float = 0.0
+    magnetic_conductivity: float = 0.0
 
     @property
     def is_magnetic(self) -> bool:
+        if isinstance(self.permeability, complex):
+            return True
         return not math.isclose(self.permeability, 1.0)
 
     @property
-    def is_conductive(self) -> bool:
-        return not math.isclose(self.conductivity, 0.0)
+    def is_electrically_conductive(self) -> bool:
+        return not math.isclose(self.electric_conductivity, 0.0)
+
+    @property
+    def is_magnetically_conductive(self) -> bool:
+        return not math.isclose(self.magnetic_conductivity, 0.0)
 
 
 def compute_ordered_material_name_tuples(
@@ -53,7 +62,8 @@ def compute_ordered_material_name_tuples(
     The ordering priority is:
     1. Permittivity (descending)
     2. Permeability (descending)
-    3. Conductivity (descending)
+    3. Electric conductivity (descending)
+    4. Magnetic conductivity (descending)
 
     Args:
         materials: Dictionary mapping material names to Material objects
@@ -63,7 +73,7 @@ def compute_ordered_material_name_tuples(
     """
     return sorted(
         materials.items(),
-        key=lambda m: (m[1].permittivity, m[1].permeability, m[1].conductivity),
+        key=lambda m: (m[1].permittivity, m[1].permeability, m[1].electric_conductivity, m[1].magnetic_conductivity),
         reverse=True,
     )
 
@@ -80,6 +90,20 @@ def compute_allowed_permeabilities(
 ) -> list[float]:
     ordered_materials = compute_ordered_material_name_tuples(materials)
     return [o[1].permeability for o in ordered_materials]
+
+
+def compute_allowed_electric_conductivities(
+    materials: dict[str, Material],
+) -> list[float]:
+    ordered_materials = compute_ordered_material_name_tuples(materials)
+    return [o[1].electric_conductivity for o in ordered_materials]
+
+
+def compute_allowed_magnetic_conductivities(
+    materials: dict[str, Material],
+) -> list[float]:
+    ordered_materials = compute_ordered_material_name_tuples(materials)
+    return [o[1].magnetic_conductivity for o in ordered_materials]
 
 
 def compute_ordered_names(

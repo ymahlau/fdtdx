@@ -15,6 +15,7 @@ def compute_energy(
     H: jax.Array,
     inv_permittivity: jax.Array,
     inv_permeability: jax.Array | float,
+    axis: int = 0,
 ) -> jax.Array:
     """Computes the total electromagnetic energy density of the field.
 
@@ -23,14 +24,14 @@ def compute_energy(
         H: Magnetic field array with shape (3, nx, ny, nz)
         inv_permittivity: Inverse of the electric permittivity array
         inv_permeability: Inverse of the magnetic permeability array
-
+        axis: Axis index of the X,Y,Z component for the E and H field
     Returns:
         Total energy density array with shape (nx, ny, nz)
     """
-    abs_E = jnp.sum(jnp.square(E), axis=0)
+    abs_E = jnp.sum(jnp.square(jnp.abs(E)), axis=axis)
     energy_E = 0.5 * (1 / inv_permittivity) * abs_E
 
-    abs_H = jnp.sum(jnp.square(H), axis=0)
+    abs_H = jnp.sum(jnp.square(jnp.abs(H)), axis=axis)
     energy_H = 0.5 * (1 / inv_permeability) * abs_H
 
     total_energy = energy_E + energy_H

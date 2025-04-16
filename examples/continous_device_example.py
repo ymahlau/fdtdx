@@ -13,10 +13,10 @@ from fdtdx.fdtd import (
     ParameterContainer,
     apply_params,
     place_objects,
+    reversible_fdtd
 )
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx import constants
-from fdtdx.fdtd.fdtd import reversible_fdtd
 from fdtdx.interfaces import DtypeConversion, Recorder
 from fdtdx.materials import ContinuousMaterialRange, Material
 from fdtdx.objects import  SimulationVolume

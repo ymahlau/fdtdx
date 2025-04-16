@@ -102,9 +102,16 @@ class ObjectContainer(ExtendedTreeClass):
         return self._is_material_fn_true_for_all(_fn)
 
     @property
-    def all_objects_non_conductive(self) -> bool:
+    def all_objects_non_electrically_conductive(self) -> bool:
         def _fn(m: Material):
-            return not m.is_conductive
+            return not m.is_electrically_conductive
+
+        return self._is_material_fn_true_for_all(_fn)
+
+    @property
+    def all_objects_non_magnetically_conductive(self) -> bool:
+        def _fn(m: Material):
+            return not m.is_magnetically_conductive
 
         return self._is_material_fn_true_for_all(_fn)
 
@@ -175,6 +182,8 @@ class ArrayContainer(ExtendedTreeClass):
     boundary_states: dict[str, BaseBoundaryState]
     detector_states: dict[str, DetectorState]
     recording_state: RecordingState | None
+    electric_conductivity: jax.Array | None = None
+    magnetic_conductivity: jax.Array | None = None
 
 
 # time step and arrays
@@ -202,15 +211,19 @@ def reset_array_container(
         A new ArrayContainer with reset fields and optionally reset states.
     """
     E = arrays.E * 0
+    arrays = arrays.aset("E", E)
     H = arrays.H * 0
+    arrays = arrays.aset("H", H)
 
     boundary_states = {}
     for boundary in objects.boundary_objects:
         boundary_states[boundary.name] = boundary.reset_state(state=arrays.boundary_states[boundary.name])
+    arrays = arrays.aset("boundary_states", boundary_states)
 
     detector_states = arrays.detector_states
     if reset_detector_states:
         detector_states = {k: {k2: v2 * 0 for k2, v2 in v.items()} for k, v in detector_states.items()}
+    arrays = arrays.aset("boundary_states", boundary_states)
 
     recording_state = arrays.recording_state
     if reset_recording_state and arrays.recording_state is not None:
@@ -218,13 +231,6 @@ def reset_array_container(
             data={k: v * 0 for k, v in arrays.recording_state.data.items()},
             state={k: v * 0 for k, v in arrays.recording_state.state.items()},
         )
+    arrays = arrays.aset("recording_state", recording_state)
 
-    return ArrayContainer(
-        E=E,
-        H=H,
-        inv_permittivities=arrays.inv_permittivities,
-        inv_permeabilities=arrays.inv_permeabilities,
-        boundary_states=boundary_states,
-        detector_states=detector_states,
-        recording_state=recording_state,
-    )
+    return arrays

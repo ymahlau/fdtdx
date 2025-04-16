@@ -10,6 +10,7 @@ from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_
 from fdtdx.interfaces.recorder import Recorder
 
 
+@extended_autoinit
 class GradientConfig(ExtendedTreeClass):
     """Configuration for gradient computation in simulations.
 
@@ -27,17 +28,15 @@ class GradientConfig(ExtendedTreeClass):
             is provided.
     """
 
-    def __init__(
-        self,
-        recorder: Recorder | None = None,  # if not none, use invertible diff
-        num_checkpoints: int | None = None,
-    ):
-        self.recorder = recorder
-        self.num_checkpoints = num_checkpoints
-        if self.recorder is not None and self.num_checkpoints is not None:
-            raise Exception("Cannot use both invertible and checkpointing autodiff!")
-        if self.recorder is None and self.num_checkpoints is None:
-            raise Exception("Need either recorder or checkpoints to define autograd!")
+    method: Literal["reversible", "checkpointed"] = frozen_field(default="reversible")
+    recorder: Recorder | None = None
+    num_checkpoints: int | None = None
+
+    def __post_init__(self):
+        if self.method == "reversible" and self.recorder is None:
+            raise Exception("Need Recorder in gradient config to compute reversible gradients")
+        if self.method == "checkpointed" and self.num_checkpoints is None:
+            raise Exception("Need Checkpoint Number in gradient config to compute checkpointed gradients")
 
 
 @extended_autoinit

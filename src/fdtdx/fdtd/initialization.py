@@ -7,7 +7,13 @@ from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
 from fdtdx.core.jax.ste import straight_through_estimator
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, ParameterContainer
-from fdtdx.materials import ContinuousMaterialRange, compute_allowed_permeabilities, compute_allowed_permittivities
+from fdtdx.materials import (
+    ContinuousMaterialRange,
+    compute_allowed_electric_conductivities,
+    compute_allowed_magnetic_conductivities,
+    compute_allowed_permeabilities,
+    compute_allowed_permittivities,
+)
 from fdtdx.objects.object import (
     GridCoordinateConstraint,
     PositionConstraint,
@@ -207,7 +213,7 @@ def _init_arrays(
         backend=config.backend,
     )
 
-    # permittivity / permeability
+    # permittivity
     shape_params = volume_shape
     inv_permittivities = create_named_sharded_matrix(
         shape_params,
@@ -217,6 +223,7 @@ def _init_arrays(
         backend=config.backend,
     )
 
+    # permeability
     if objects.all_objects_non_magnetic:
         inv_permeabilities = 1.0
     else:
@@ -228,7 +235,29 @@ def _init_arrays(
             backend=config.backend,
         )
 
-    # set permittivity/permeability of static objects
+    # electric conductivity
+    electric_conductivity = None
+    if not objects.all_objects_non_electrically_conductive:
+        electric_conductivity = create_named_sharded_matrix(
+            shape_params,
+            value=0.0,
+            dtype=config.dtype,
+            sharding_axis=1,
+            backend=config.backend,
+        )
+
+    # magnetic conductivity
+    magnetic_conductivity = None
+    if not objects.all_objects_non_magnetically_conductive:
+        magnetic_conductivity = create_named_sharded_matrix(
+            shape_params,
+            value=0.0,
+            dtype=config.dtype,
+            sharding_axis=1,
+            backend=config.backend,
+        )
+
+    # set permittivity/permeability/conductivity of static objects
     sorted_obj = sorted(
         objects.static_material_objects,
         key=lambda o: o.placement_order,
@@ -239,6 +268,14 @@ def _init_arrays(
             inv_permittivities = inv_permittivities.at[*o.grid_slice].set(1 / o.material.permittivity)
             if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
                 inv_permeabilities = inv_permeabilities.at[*o.grid_slice].set(1 / o.material.permeability)
+            if electric_conductivity is not None:
+                # scale by grid size
+                cond = o.material.electric_conductivity * config.resolution
+                electric_conductivity = electric_conductivity.at[*o.grid_slice].set(cond)
+            if magnetic_conductivity is not None:
+                # scale by grid size
+                cond = o.material.magnetic_conductivity * config.resolution
+                magnetic_conductivity = magnetic_conductivity.at[*o.grid_slice].set(cond)
         elif isinstance(o, StaticMultiMaterialObject):
             indices = o.get_material_mapping()
             if isinstance(o.material, dict):
@@ -250,8 +287,21 @@ def _init_arrays(
                     allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permeabilities(o.material))
                     update = allowed_inv_perms[indices]
                     inv_permeabilities = inv_permeabilities.at[*o.grid_slice].set(update)
+
+                if electric_conductivity is not None:
+                    allowed_conds = jnp.asarray(compute_allowed_electric_conductivities(o.material))
+                    update = allowed_conds[indices] * config.resolution
+                    electric_conductivity = electric_conductivity.at[*o.grid_slice].set(update)
+
+                if magnetic_conductivity is not None:
+                    allowed_conds = jnp.asarray(compute_allowed_magnetic_conductivities(o.material))
+                    update = allowed_conds[indices] * config.resolution
+                    magnetic_conductivity = magnetic_conductivity.at[*o.grid_slice].set(update)
+
             elif isinstance(o.material, ContinuousMaterialRange):
                 raise NotImplementedError()
+            else:
+                raise Exception(f"Unknown material type: {o.material}")
         else:
             raise Exception(f"Unknown object type: {o}")
 
@@ -294,6 +344,8 @@ def _init_arrays(
         boundary_states=boundary_states,
         detector_states=detector_states,
         recording_state=recording_state,
+        electric_conductivity=electric_conductivity,
+        magnetic_conductivity=magnetic_conductivity,
     )
     return arrays, config, info
 
@@ -592,7 +644,7 @@ def _resolve_object_constraints(
                 elif old_val != other_anchor:
                     raise Exception(
                         f"Inconsistent grid shape at bound {c.direction}: "
-                        f"{old_val} != {other_anchor} for {axis=}, "
+                        f"{old_val} != {other_anchor} for {c.axis=}, "
                         f"{o.name} ({o.__class__})."
                     )
         # Extend objects to infinity, which fulfull the properties:

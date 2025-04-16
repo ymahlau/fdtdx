@@ -54,6 +54,8 @@ def reversible_fdtd(
         numerical stability. This makes it suitable for gradient-based optimization
         of electromagnetic designs.
     """
+    # if arrays.magnetic_conductivity is not None or arrays.electric_conductivity is not None:
+    #     raise Exception(f"Reversible FDTD does not work with Conductive Materials")
     arrays = reset_array_container(
         arrays,
         objects,
@@ -111,6 +113,8 @@ def reversible_fdtd(
             boundary_states=boundary_states,
             detector_states=detector_states,
             recording_state=recording_state,
+            electric_conductivity=arrays.electric_conductivity,
+            magnetic_conductivity=arrays.magnetic_conductivity,
         )
         state = reversible_fdtd_base(arr)
         return (
@@ -208,6 +212,8 @@ def reversible_fdtd(
             boundary_states=res_boundary_states,
             detector_states=res_detector_states,
             recording_state=res_recording_state,
+            electric_conductivity=arrays.electric_conductivity,
+            magnetic_conductivity=arrays.magnetic_conductivity,
         )
 
         _, cot = eqxi.while_loop(
@@ -261,6 +267,8 @@ def reversible_fdtd(
             boundary_states=boundary_states,
             detector_states=detector_states,
             recording_state=recording_state,
+            electric_conductivity=arrays.electric_conductivity,
+            magnetic_conductivity=arrays.magnetic_conductivity,
         )
         s_k = reversible_fdtd_base(arr)
 
@@ -314,6 +322,8 @@ def reversible_fdtd(
         boundary_states=boundary_states,
         detector_states=detector_states,
         recording_state=recording_state,
+        electric_conductivity=arrays.electric_conductivity,
+        magnetic_conductivity=arrays.magnetic_conductivity,
     )
     return time_step, out_arrs
 
