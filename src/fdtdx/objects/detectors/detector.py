@@ -44,7 +44,7 @@ class Detector(SimulationObject, ABC):
 
     name: str = frozen_field(default=None, kind="KW_ONLY")  # type: ignore
     dtype: jnp.dtype = frozen_field(kind="KW_ONLY", default=jnp.float32)
-    exact_interpolation: bool = False
+    exact_interpolation: bool = True
     inverse: bool = False
     switch: OnOffSwitch = frozen_field(default=OnOffSwitch(), kind="KW_ONLY")
     plot: bool = True
