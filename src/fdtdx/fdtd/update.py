@@ -149,10 +149,20 @@ def update_E_reverse(
             _update,
             lambda: E,
         )
-
+    
     # Get periodic axes for curl operation
     periodic_axes = get_periodic_axes(objects)
-    E = E - config.courant_number * curl_H(arrays.H, periodic_axes) * arrays.inv_permittivities
+    curl = curl_H(arrays.H, periodic_axes)
+    inv_eps = arrays.inv_permittivities
+    c = config.courant_number
+    sigma_E = arrays.electric_conductivity
+    factor = 1
+    
+    if sigma_E is not None:
+        E = E * (1 + c * sigma_E * inv_eps / 2)
+        factor = 1 - c * sigma_E * inv_eps / 2
+    
+    E = E / factor - c * curl * inv_eps
 
     arrays = arrays.at["E"].set(E)
 
@@ -289,7 +299,18 @@ def update_H_reverse(
 
     # Get periodic axes for curl operation
     periodic_axes = get_periodic_axes(objects)
-    H = H + config.courant_number * curl_E(arrays.E, periodic_axes) * arrays.inv_permeabilities
+    curl = curl_E(arrays.E, periodic_axes)
+    inv_mu = arrays.inv_permeabilities
+    c = config.courant_number
+    sigma_H = arrays.magnetic_conductivity
+    factor = 1
+    
+    if sigma_H is not None:
+        # lossy materials get gain when simulating backwards
+        H = H * (1 + c * sigma_H * inv_mu / 2)
+        factor = 1 - c * sigma_H * inv_mu / 2
+        
+    H = H / factor + c * curl * inv_mu
 
     arrays = arrays.at["H"].set(H)
 

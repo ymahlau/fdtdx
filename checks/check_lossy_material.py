@@ -9,8 +9,11 @@ from loguru import logger
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
+from fdtdx.fdtd.backward import full_backward
+from fdtdx.interfaces.modules import DtypeConversion
+from fdtdx.interfaces.recorder import Recorder
 from fdtdx.materials import Material
-from fdtdx.config import SimulationConfig
+from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx import constants
 from fdtdx.fdtd import ArrayContainer, ParameterContainer, apply_params, run_fdtd, place_objects
 from fdtdx.objects import SimulationVolume, Substrate, Waveguide, SimulationObject
@@ -33,10 +36,15 @@ def main():
     period = constants.wavelength_to_period(wavelength)
 
     config = SimulationConfig(
-        time=200e-15,
+        time=150e-15,
         resolution=50e-9,
         dtype=jnp.float32,
         courant_factor=0.99,
+        gradient_config=GradientConfig(
+            recorder=Recorder(
+                modules=[DtypeConversion(dtype=jnp.float16),]
+            )
+        )
     )
 
     period_steps = round(period / config.time_step_duration)
@@ -89,17 +97,26 @@ def main():
         wave_characters=[source.wave_character],
         plot=False,
         exact_interpolation=True,
-        switch=OnOffSwitch(start_time=100e-15),
+        switch=OnOffSwitch(start_time=50e-15),
     )
     constraints.extend(phasor_detector.same_position_and_size(volume))
     
     video_energy_detector = EnergyDetector(
         name="Energy Video",
         as_slices=True,
-        switch=OnOffSwitch(interval=5, start_time=100e-15),
+        switch=OnOffSwitch(interval=5),
         exact_interpolation=True,
     )
     constraints.extend(video_energy_detector.same_position_and_size(volume))
+    
+    back_video_energy_detector = EnergyDetector(
+        name="Backward Energy Video",
+        as_slices=True,
+        switch=OnOffSwitch(interval=5),
+        exact_interpolation=True,
+        inverse=True,
+    )
+    constraints.extend(back_video_energy_detector.same_position_and_size(volume))
 
     key, subkey = jax.random.split(key)
     objects, arrays, params, config, _ = place_objects(
@@ -132,11 +149,20 @@ def main():
     ):
         arrays, new_objects, info = apply_params(arrays, objects, params, key)
 
-        final_state = run_fdtd(
+        mid_state = run_fdtd(
             arrays=arrays,
             objects=new_objects,
             config=config,
             key=key,
+        )
+        
+        final_state = full_backward(
+            state=mid_state,
+            objects=new_objects,
+            config=config,
+            key=key,
+            record_detectors=True,
+            reset_fields=True,
         )
         _, arrays = final_state
 
@@ -184,10 +210,10 @@ def main():
     scale = np.exp(coeffs[1])
     fit = scale * np.exp(alpha * x)
     
-    logger.info(f"Measured decay constant: {alpha}")
+    logger.info(f"Measured decay constant: {alpha / config.resolution}")
 
     # compare fit and original
-    debug_plot_lines({"measure": decay_vals, "fit": fit})
+    # debug_plot_lines({"measure": decay_vals, "fit": fit})
     
     
 
