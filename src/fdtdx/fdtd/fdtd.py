@@ -54,6 +54,8 @@ def reversible_fdtd(
         numerical stability. This makes it suitable for gradient-based optimization
         of electromagnetic designs.
     """
+    if arrays.magnetic_conductivity is not None or arrays.electric_conductivity is not None:
+        raise Exception(f"Reversible FDTD does not work with Conductive Materials")
     arrays = reset_array_container(
         arrays,
         objects,

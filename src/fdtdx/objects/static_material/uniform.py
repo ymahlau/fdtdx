@@ -7,7 +7,7 @@ from fdtdx.objects.static_material.static import StaticMaterialObject
 @extended_autoinit
 class UniformMaterialObject(StaticMaterialObject):
     material: Material = field(kind="KW_ONLY")  # type: ignore
-    color: tuple[float, float, float] = LIGHT_GREY
+    color: tuple[float, float, float] | None = LIGHT_GREY
 
 
 @extended_autoinit
@@ -23,7 +23,6 @@ class SimulationVolume(UniformMaterialObject):
         default=Material(
             permittivity=1.0,
             permeability=1.0,
-            conductivity=0.0,
         ),
         kind="KW_ONLY",
     )
@@ -37,7 +36,7 @@ class Substrate(UniformMaterialObject):
     Visualized in light brown color by default.
     """
 
-    color: tuple[float, float, float] = LIGHT_BROWN
+    color: tuple[float, float, float] | None = LIGHT_BROWN
 
 
 @extended_autoinit
@@ -52,4 +51,4 @@ class Waveguide(UniformMaterialObject):
         color: RGB tuple for visualization, defaults to light blue
     """
 
-    color: tuple[float, float, float] = LIGHT_BLUE
+    color: tuple[float, float, float] | None = LIGHT_BLUE

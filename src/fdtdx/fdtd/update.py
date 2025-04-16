@@ -59,10 +59,26 @@ def update_E(
 
     # Get periodic axes for curl operation
     periodic_axes = get_periodic_axes(objects)
-    E = arrays.E + config.courant_number * curl_H(arrays.H, periodic_axes) * arrays.inv_permittivities
+    curl = curl_H(arrays.H, periodic_axes)
+    inv_eps = arrays.inv_permittivities
+    c = config.courant_number
+    sigma_E = arrays.electric_conductivity
+
+    factor = 1
+    if sigma_E is not None:
+        # update formula for lossy material. Simplifies to Noop for conductivity = 0
+        # for details see Schneider, chapter 3.12
+        factor = 1 - c * sigma_E * inv_eps / 2
+    
+    # standard update formula using lossless material
+    E = factor * arrays.E + c * curl * inv_eps
+    
+    if sigma_E is not None:
+        # update formula for lossy material. Simplifies to Noop for conductivity = 0
+        # for details see Schneider, chapter 3.12
+        E = E / (1 + c * sigma_E * inv_eps / 2)
 
     for source in objects.sources:
-
         def _update():
             adj_time_step = source.adjust_time_step_by_on_off(time_step)
             return source.update_E(
@@ -180,7 +196,23 @@ def update_H(
 
     # Get periodic axes for curl operation
     periodic_axes = get_periodic_axes(objects)
-    H = arrays.H - config.courant_number * curl_E(arrays.E, periodic_axes) * arrays.inv_permeabilities
+    curl = curl_E(arrays.E, periodic_axes)
+    inv_mu = arrays.inv_permeabilities
+    c = config.courant_number
+    sigma_H = arrays.magnetic_conductivity
+    factor = 1
+    if sigma_H is not None:
+        # update formula for lossy material. Simplifies to Noop for conductivity = 0
+        # for details see Schneider, chapter 3.12
+        factor = 1 - c * sigma_H * inv_mu / 2
+    
+    # standard update formula for lossless material
+    H = factor * arrays.H - c * curl * inv_mu
+    
+    if sigma_H is not None:
+        # update formula for lossy material. Simplifies to NoOp for conductivity = 0
+        # for details see Schneider, chapter 3.12
+        H = H / (1 + c * sigma_H * inv_mu / 2)
 
     for source in objects.sources:
 
