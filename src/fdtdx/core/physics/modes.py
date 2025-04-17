@@ -5,6 +5,7 @@ from typing import List, Literal
 import jax
 import jax.numpy as jnp
 import numpy as np
+import tidy3d
 from tidy3d.components.mode.solver import compute_modes as _compute_modes
 
 from fdtdx.core.physics.metrics import normalize_by_energy
@@ -30,6 +31,7 @@ def compute_mode(
     resolution: float,
     direction: Literal["+", "-"],
     mode_index: int = 0,
+    filter_pol: Literal["te", "tm"] | None = None,
 ) -> tuple[
     jax.Array,  # E
     jax.Array,  # H
@@ -40,18 +42,22 @@ def compute_mode(
     if inv_permittivities.squeeze().ndim != 2:
         raise Exception(f"Invalid shape of inv_permittivities: {inv_permittivities.shape}")
     if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
-        raise Exception("Mode solver currently does not support metallic materials")
+        if inv_permeabilities.squeeze().ndim != 2:
+            raise Exception(f"Invalid shape of inv_permeabilities: {inv_permeabilities.shape}")
+        # raise Exception("Mode solver currently does not support metallic materials")
+
     # if inv_permeabilities.squeeze().ndim != 2:
     #     raise Exception(f"Invalid shape of inv_permeabilities: {inv_permeabilities.shape}")
 
-    def mode_helper(permittivity):
+    def mode_helper(permittivity, permeability):
         modes = tidy3d_mode_computation_wrapper(
             frequency=frequency,
-            permittivity_cross_section=permittivity,  # type: ignore
+            permittivity_cross_section=permittivity,
+            permeability_cross_section=permeability,
             coords=coords,
-            num_modes=mode_index + 2,
-            filter_pol=None,
             direction=direction,
+            num_modes=mode_index + 2,
+            filter_pol=filter_pol,
         )
         mode = modes[mode_index]
 
@@ -61,17 +67,15 @@ def compute_mode(
                 np.stack([mode.Hz, mode.Hx, mode.Hy], axis=0).astype(np.complex64),
             )
         elif propagation_axis == 1:
-            # mode_E, mode_H = (  # untested
-            #     np.stack([mode.Ex, mode.Ez, mode.Ey], axis=0).astype(np.complex64),
-            #     np.stack([mode.Hx, mode.Hz, mode.Hy], axis=0).astype(np.complex64),
-            # )
-            raise NotImplementedError()
+            mode_E, mode_H = (
+                np.stack([mode.Ex, mode.Ez, mode.Ey], axis=0).astype(np.complex64),
+                np.stack([mode.Hx, mode.Hz, mode.Hy], axis=0).astype(np.complex64),
+            )
         elif propagation_axis == 2:
-            # mode_E, mode_H = (  # untested
-            #     np.stack([mode.Ez, mode.Ex, mode.Ey], axis=0).astype(np.complex64),
-            #     np.stack([mode.Hz, mode.Hx, mode.Hy], axis=0).astype(np.complex64),
-            # )
-            raise NotImplementedError()
+            mode_E, mode_H = (
+                np.stack([mode.Ex, mode.Ey, mode.Ez], axis=0).astype(np.complex64),
+                np.stack([mode.Hx, mode.Hy, mode.Hz], axis=0).astype(np.complex64),
+            )
         else:
             raise Exception("This should never happen")
 
@@ -94,26 +98,28 @@ def compute_mode(
         jnp.zeros(shape=(), dtype=jnp.complex64),
     )
 
+    permeabilities = 1 / inv_permeabilities
+    if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
+        permeability_squeezed = jnp.take(
+            permeabilities,
+            indices=0,
+            axis=propagation_axis,
+        )
+    else:  # float
+        permeability_squeezed = permeabilities
+
     # pure callback to tidy3d is necessary to work in jitted environment
     mode_E_raw, mode_H_raw, eff_idx = jax.pure_callback(
         mode_helper,
         result_shape_dtype,
         jax.lax.stop_gradient(permittivity_squeezed),
+        jax.lax.stop_gradient(permeability_squeezed),
     )
-    # mode_E = jnp.real(mode_E_raw).astype(input_dtype)
-    # mode_H = jnp.real(mode_H_raw).astype(input_dtype)
     mode_E = jnp.real(jnp.expand_dims(mode_E_raw, axis=propagation_axis + 1)).astype(input_dtype)
     mode_H = jnp.real(jnp.expand_dims(mode_H_raw, axis=propagation_axis + 1)).astype(input_dtype)
 
-    # compute_mode_error(
-    #     mode_E=mode_E,
-    #     mode_H=mode_H,
-    #     eff_idx=eff_idx,
-    #     inv_permittivities=inv_permittivities,
-    #     inv_permeabilities=inv_permeabilities,
-    #     resolution=resolution,
-    #     direction=direction,
-    # )
+    # Tidy3D uses different scaling internally, so convert back
+    mode_H = mode_H * tidy3d.constants.ETA_0
 
     mode_E_norm, mode_H_norm = normalize_by_energy(
         E=mode_E,
@@ -125,24 +131,12 @@ def compute_mode(
     return mode_E_norm, mode_H_norm, eff_idx
 
 
-# def compute_mode_error(
-#     mode_E: jax.Array,
-#     mode_H: jax.Array,
-#     eff_idx: jax.Array,
-#     inv_permittivities: jax.Array,  # shape (nx, ny, nz)
-#     inv_permeabilities: jax.Array | float,
-#     resolution: float,
-#     direction: Literal["+", "-"],
-# ):
-#     factors = jnp.linspace(-1, 1, 20)
-#     a = 1
-
-
 def tidy3d_mode_computation_wrapper(
     frequency: float,
     permittivity_cross_section: np.ndarray,
     coords: List[np.ndarray],
     direction: Literal["+", "-"],
+    permeability_cross_section: np.ndarray | None = None,
     target_neff: float | None = None,
     angle_theta: float = 0.0,
     angle_phi: float = 0.0,
@@ -197,6 +191,19 @@ def tidy3d_mode_computation_wrapper(
         od,
         permittivity_cross_section,
     ]
+    mu_cross = None
+    if permeability_cross_section is not None:
+        mu_cross = [
+            permeability_cross_section,
+            od,
+            od,
+            od,
+            permeability_cross_section,
+            od,
+            od,
+            od,
+            permeability_cross_section,
+        ]
 
     EH, neffs, _ = _compute_modes(
         eps_cross=eps_cross,
@@ -205,6 +212,7 @@ def tidy3d_mode_computation_wrapper(
         precision=precision,
         mode_spec=mode_spec,
         direction=direction,
+        mu_cross=mu_cross,
     )
     ((Ex, Ey, Ez), (Hx, Hy, Hz)) = EH.squeeze()
 
