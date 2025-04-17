@@ -5,9 +5,12 @@ from typing import List, Literal
 import jax
 import jax.numpy as jnp
 import numpy as np
+import optax
+import tidy3d
 from tidy3d.components.mode.solver import compute_modes as _compute_modes
 
 from fdtdx.core.physics.metrics import normalize_by_energy
+
 
 ModeTupleType = namedtuple("Mode", ["neff", "Ex", "Ey", "Ez", "Hx", "Hy", "Hz"])
 """A named tuple containing the mode fields and effective index.
@@ -102,6 +105,12 @@ def compute_mode(
     )
     mode_E = jnp.real(jnp.expand_dims(mode_E_raw, axis=propagation_axis + 1)).astype(input_dtype)
     mode_H = jnp.real(jnp.expand_dims(mode_H_raw, axis=propagation_axis + 1)).astype(input_dtype)
+    
+    # calculated_impedance = optax.global_norm(mode_E[:, 0, 50, 50]) / optax.global_norm(mode_H[:, 0, 50, 50])
+    # desired_impedance = jnp.sqrt(1 / 12.25)
+    # mode_H = mode_H * (calculated_impedance / desired_impedance)
+    # Tidy3D uses different scaling internally, so convert back
+    mode_H = mode_H * tidy3d.constants.ETA_0
 
     mode_E_norm, mode_H_norm = normalize_by_energy(
         E=mode_E,
