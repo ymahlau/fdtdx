@@ -79,14 +79,6 @@ class ModePlaneSource(TFSFPlaneSource):
             direction=self.direction,
             propagation_axis=self.propagation_axis,
         )
-        time_offset_E, time_offset_H = calculate_time_offset_yee(
-            center=center,
-            wave_vector=raw_wave_vector,
-            inv_permittivities=jnp.ones_like(inv_permittivity_slice),
-            inv_permeabilities=jnp.ones_like(inv_permeability_slice),
-            resolution=self._config.resolution,
-            time_step_duration=self._config.time_step_duration,
-        )
 
         # compute mode
         mode_E, mode_H, eff_index = compute_mode(
@@ -96,6 +88,16 @@ class ModePlaneSource(TFSFPlaneSource):
             resolution=self._config.resolution,
             direction=self.direction,
             mode_index=self.mode_index,
+        )
+        
+        time_offset_E, time_offset_H = calculate_time_offset_yee(
+            center=center,
+            wave_vector=raw_wave_vector,
+            inv_permittivities=inv_permittivity_slice,
+            inv_permeabilities=jnp.ones_like(inv_permeability_slice),
+            resolution=self._config.resolution,
+            time_step_duration=self._config.time_step_duration,
+            effective_index=jnp.real(eff_index),
         )
 
         return mode_E, mode_H, time_offset_E, time_offset_H

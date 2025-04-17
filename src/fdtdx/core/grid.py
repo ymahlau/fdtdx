@@ -29,6 +29,7 @@ def calculate_time_offset_yee(
     inv_permeabilities: jax.Array | float,
     resolution: float,
     time_step_duration: float,
+    effective_index: jax.Array | float | None = None,
 ) -> tuple[jax.Array, jax.Array]:
     if inv_permittivities.squeeze().ndim != 2 or inv_permittivities.ndim != 3:
         raise Exception(f"Invalid permittivity shape: {inv_permittivities.shape=}")
@@ -67,6 +68,8 @@ def calculate_time_offset_yee(
 
     # adjust speed for material and calculate time offset
     refractive_idx = 1 / jnp.sqrt(inv_permittivities * inv_permeabilities)
+    if effective_index is not None:
+        refractive_idx = effective_index * jnp.ones_like(refractive_idx)
     velocity = (constants.c / refractive_idx)[None, ...]
     time_offset_E = travel_offset_E * resolution / (velocity * time_step_duration)
     time_offset_H = travel_offset_H * resolution / (velocity * time_step_duration)

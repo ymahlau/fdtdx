@@ -50,7 +50,7 @@ def compute_mode(
             permittivity_cross_section=permittivity,  # type: ignore
             coords=coords,
             num_modes=mode_index + 2,
-            filter_pol=None,
+            filter_pol="te",
             direction=direction,
         )
         mode = modes[mode_index]
@@ -100,20 +100,8 @@ def compute_mode(
         result_shape_dtype,
         jax.lax.stop_gradient(permittivity_squeezed),
     )
-    # mode_E = jnp.real(mode_E_raw).astype(input_dtype)
-    # mode_H = jnp.real(mode_H_raw).astype(input_dtype)
     mode_E = jnp.real(jnp.expand_dims(mode_E_raw, axis=propagation_axis + 1)).astype(input_dtype)
     mode_H = jnp.real(jnp.expand_dims(mode_H_raw, axis=propagation_axis + 1)).astype(input_dtype)
-
-    # compute_mode_error(
-    #     mode_E=mode_E,
-    #     mode_H=mode_H,
-    #     eff_idx=eff_idx,
-    #     inv_permittivities=inv_permittivities,
-    #     inv_permeabilities=inv_permeabilities,
-    #     resolution=resolution,
-    #     direction=direction,
-    # )
 
     mode_E_norm, mode_H_norm = normalize_by_energy(
         E=mode_E,
@@ -124,18 +112,6 @@ def compute_mode(
 
     return mode_E_norm, mode_H_norm, eff_idx
 
-
-# def compute_mode_error(
-#     mode_E: jax.Array,
-#     mode_H: jax.Array,
-#     eff_idx: jax.Array,
-#     inv_permittivities: jax.Array,  # shape (nx, ny, nz)
-#     inv_permeabilities: jax.Array | float,
-#     resolution: float,
-#     direction: Literal["+", "-"],
-# ):
-#     factors = jnp.linspace(-1, 1, 20)
-#     a = 1
 
 
 def tidy3d_mode_computation_wrapper(

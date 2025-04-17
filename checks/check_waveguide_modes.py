@@ -104,7 +104,6 @@ def main():
         name="video",
         as_slices=True,
         switch=OnOffSwitch(interval=10),
-        exact_interpolation=True,
         plot_interpolation="nearest",
     )
     placement_constraints.extend([*video_detector.same_position_and_size(volume)])
