@@ -88,8 +88,9 @@ class ModePlaneSource(TFSFPlaneSource):
             resolution=self._config.resolution,
             direction=self.direction,
             mode_index=self.mode_index,
+            filter_pol=self.filter_pol,
         )
-        
+
         time_offset_E, time_offset_H = calculate_time_offset_yee(
             center=center,
             wave_vector=raw_wave_vector,

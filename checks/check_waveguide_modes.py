@@ -23,6 +23,9 @@ def main():
     key = jax.random.PRNGKey(seed=42)
 
     wavelength = 1.55e-6
+    prop_axis = 0
+    side_axis = (prop_axis + 1) % 3
+    up_axis = (prop_axis + 2) % 3
     period = constants.wavelength_to_period(wavelength)
 
     config = SimulationConfig(
@@ -49,43 +52,50 @@ def main():
     placement_constraints.extend(c_list)
 
     substrate = Substrate(
-        partial_real_shape=(None, None, 0.8e-6),
+        partial_real_shape=tuple([0.8e-6 if a==up_axis else None for a in range(3)]),  # type: ignore
         material=Material(permittivity=constants.relative_permittivity_silica),
     )
     placement_constraints.append(
         substrate.place_relative_to(
             volume,
-            axes=2,
+            axes=up_axis,
             own_positions=-1,
             other_positions=-1,
         )
     )
     
     waveguide_in = Waveguide(
-        partial_real_shape=(None, 0.4e-6, 0.4e-6),
+        partial_real_shape=tuple([None if a==prop_axis else 0.4e-6 for a in range(3)]),  # type: ignore
         material=Material(permittivity=constants.relative_permittivity_silicon),
     )
     placement_constraints.extend(
         [
             waveguide_in.place_at_center(
                 substrate,
-                axes=1,
+                axes=side_axis,
             ),
-            waveguide_in.place_above(substrate),
+            waveguide_in.place_relative_to(
+                substrate,
+                axes=up_axis,
+                own_positions=-1,
+                other_positions=1,
+            )
+            # waveguide_in.place_above(substrate),
         ]
     )
     
     source = ModePlaneSource(
-        partial_grid_shape=(1, None, None),
+        partial_grid_shape=tuple([1 if a==prop_axis else None for a in range(3)]),  # type: ignore
         wave_character=WaveCharacter(wavelength=wavelength),
         direction="+",
         mode_index=0,
+        filter_pol=None,
     )
     placement_constraints.extend(
         [
             source.place_relative_to(
                 waveguide_in,
-                axes=(0,),
+                axes=(prop_axis,),
                 other_positions=(0,),
                 own_positions=(0,),
             )

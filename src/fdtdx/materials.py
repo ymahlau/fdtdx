@@ -33,7 +33,7 @@ class Material(ExtendedTreeClass):
             Defaults to 0.0.
     """
 
-    permittivity: float
+    permittivity: float = 1.0
     permeability: float = 1.0
     electric_conductivity: float = 0.0
     magnetic_conductivity: float = 0.0
