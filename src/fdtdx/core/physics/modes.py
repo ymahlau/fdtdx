@@ -40,14 +40,15 @@ def compute_mode(
     # Input validation
     input_dtype = inv_permittivities.dtype
     if inv_permittivities.squeeze().ndim != 2:
-        raise Exception(f"Invalid shape of inv_permittivities: {inv_permittivities.shape}")
+        raise Exception(
+            f"Invalid shape of inv_permittivities: {inv_permittivities.shape}"
+        )
     if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
         if inv_permeabilities.squeeze().ndim != 2:
-            raise Exception(f"Invalid shape of inv_permeabilities: {inv_permeabilities.shape}")
+            raise Exception(
+                f"Invalid shape of inv_permeabilities: {inv_permeabilities.shape}"
+            )
         # raise Exception("Mode solver currently does not support metallic materials")
-
-    # if inv_permeabilities.squeeze().ndim != 2:
-    #     raise Exception(f"Invalid shape of inv_permeabilities: {inv_permeabilities.shape}")
 
     def mode_helper(permittivity, permeability):
         modes = tidy3d_mode_computation_wrapper(
@@ -56,8 +57,13 @@ def compute_mode(
             permeability_cross_section=permeability,
             coords=coords,
             direction=direction,
-            num_modes=mode_index + 2,
+            num_modes=mode_index + 20,
             filter_pol=filter_pol,
+        )
+
+        # modes = sort_modes_tidy3d_style(modes, filter_pol=filter_pol)
+        modes = sort_modes(
+            modes, filter_pol=filter_pol, tangential_axes=tangential_axes
         )
         mode = modes[mode_index]
 
@@ -82,11 +88,63 @@ def compute_mode(
         neff = np.asarray(mode.neff).astype(np.complex64)
         return mode_E, mode_H, neff
 
+    def compute_mode_polarization_fraction(
+        mode, tangential_axes: tuple[int, int], pol: str
+    ) -> float:
+        """Mode polarization fraction.
+
+        Args:
+            mode: a ModeTupleType instance
+            tangential_axes: indices of transverse E-field components
+            pol: "te" or "tm" – determines which axis is 'E1'
+
+        Returns:
+            Polarization fraction between 0 and 1.
+        """
+
+        E_fields = [mode.Ex, mode.Ey, mode.Ez]
+        E1 = E_fields[tangential_axes[0]]
+        E2 = E_fields[tangential_axes[1]]
+
+        if pol == "te":
+            numerator = np.sum(np.abs(E1) ** 2)
+        elif pol == "tm":
+            numerator = np.sum(np.abs(E2) ** 2)
+        else:
+            raise ValueError("pol must be 'te' or 'tm'")
+
+        denominator = np.sum(np.abs(E1) ** 2 + np.abs(E2) ** 2) + 1e-18
+        return numerator / denominator
+
+    def sort_modes(modes, filter_pol=None, tangential_axes=(0, 2)):
+        """Sort modes by polarization."""
+        if filter_pol is None:
+            return sorted(modes, key=lambda m: float(np.real(m.neff)), reverse=True)
+
+        def is_matching(mode):
+            frac = compute_mode_polarization_fraction(mode, tangential_axes, filter_pol)
+            return frac >= 0.5
+
+        matching = [m for m in modes if is_matching(m)]
+        non_matching = [m for m in modes if not is_matching(m)]
+
+        matching_sorted = sorted(
+            matching, key=lambda m: float(np.real(m.neff)), reverse=True
+        )
+        non_matching_sorted = sorted(
+            non_matching, key=lambda m: float(np.real(m.neff)), reverse=True
+        )
+
+        return matching_sorted + non_matching_sorted
+
     # compute input to tidy3d Mode solver
     permittivities = 1 / inv_permittivities
     other_axes = [a for a in range(3) if permittivities.shape[a] != 1]
     propagation_axis = permittivities.shape.index(1)
-    coords = [np.arange(permittivities.shape[dim] + 1) * resolution / 1e-6 for dim in other_axes]
+    coords = [
+        np.arange(permittivities.shape[dim] + 1) * resolution / 1e-6
+        for dim in other_axes
+    ]
     permittivity_squeezed = jnp.take(
         permittivities,
         indices=0,
@@ -97,6 +155,15 @@ def compute_mode(
         jnp.zeros((3, *permittivity_squeezed.shape), dtype=jnp.complex64),
         jnp.zeros(shape=(), dtype=jnp.complex64),
     )
+
+    if propagation_axis == 0:
+        tangential_axes = (0, 1)
+    elif propagation_axis == 1:
+        tangential_axes = (0, 2)
+    elif propagation_axis == 2:
+        tangential_axes = (1, 2)
+    else:
+        raise Exception("Invalid propagation axis")
 
     permeabilities = 1 / inv_permeabilities
     if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
@@ -115,8 +182,12 @@ def compute_mode(
         jax.lax.stop_gradient(permittivity_squeezed),
         jax.lax.stop_gradient(permeability_squeezed),
     )
-    mode_E = jnp.real(jnp.expand_dims(mode_E_raw, axis=propagation_axis + 1)).astype(input_dtype)
-    mode_H = jnp.real(jnp.expand_dims(mode_H_raw, axis=propagation_axis + 1)).astype(input_dtype)
+    mode_E = jnp.real(jnp.expand_dims(mode_E_raw, axis=propagation_axis + 1)).astype(
+        input_dtype
+    )
+    mode_H = jnp.real(jnp.expand_dims(mode_H_raw, axis=propagation_axis + 1)).astype(
+        input_dtype
+    )
 
     # Tidy3D uses different scaling internally, so convert back
     mode_H = mode_H * tidy3d.constants.ETA_0
@@ -182,7 +253,7 @@ def tidy3d_mode_computation_wrapper(
     od = np.zeros_like(permittivity_cross_section)
     eps_cross = [
         permittivity_cross_section,
-        od,
+        1.1e-6 * np.ones_like(permittivity_cross_section),
         od,
         od,
         permittivity_cross_section,
