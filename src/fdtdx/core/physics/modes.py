@@ -40,14 +40,10 @@ def compute_mode(
     # Input validation
     input_dtype = inv_permittivities.dtype
     if inv_permittivities.squeeze().ndim != 2:
-        raise Exception(
-            f"Invalid shape of inv_permittivities: {inv_permittivities.shape}"
-        )
+        raise Exception(f"Invalid shape of inv_permittivities: {inv_permittivities.shape}")
     if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
         if inv_permeabilities.squeeze().ndim != 2:
-            raise Exception(
-                f"Invalid shape of inv_permeabilities: {inv_permeabilities.shape}"
-            )
+            raise Exception(f"Invalid shape of inv_permeabilities: {inv_permeabilities.shape}")
         # raise Exception("Mode solver currently does not support metallic materials")
 
     def mode_helper(permittivity, permeability):
@@ -62,9 +58,7 @@ def compute_mode(
         )
 
         # modes = sort_modes_tidy3d_style(modes, filter_pol=filter_pol)
-        modes = sort_modes(
-            modes, filter_pol=filter_pol, tangential_axes=tangential_axes
-        )
+        modes = sort_modes(modes, filter_pol=filter_pol, tangential_axes=tangential_axes)
         mode = modes[mode_index]
 
         if propagation_axis == 0:
@@ -88,9 +82,7 @@ def compute_mode(
         neff = np.asarray(mode.neff).astype(np.complex64)
         return mode_E, mode_H, neff
 
-    def compute_mode_polarization_fraction(
-        mode, tangential_axes: tuple[int, int], pol: str
-    ) -> float:
+    def compute_mode_polarization_fraction(mode, tangential_axes: tuple[int, int], pol: str) -> float:
         """Mode polarization fraction.
 
         Args:
@@ -128,12 +120,8 @@ def compute_mode(
         matching = [m for m in modes if is_matching(m)]
         non_matching = [m for m in modes if not is_matching(m)]
 
-        matching_sorted = sorted(
-            matching, key=lambda m: float(np.real(m.neff)), reverse=True
-        )
-        non_matching_sorted = sorted(
-            non_matching, key=lambda m: float(np.real(m.neff)), reverse=True
-        )
+        matching_sorted = sorted(matching, key=lambda m: float(np.real(m.neff)), reverse=True)
+        non_matching_sorted = sorted(non_matching, key=lambda m: float(np.real(m.neff)), reverse=True)
 
         return matching_sorted + non_matching_sorted
 
@@ -141,10 +129,7 @@ def compute_mode(
     permittivities = 1 / inv_permittivities
     other_axes = [a for a in range(3) if permittivities.shape[a] != 1]
     propagation_axis = permittivities.shape.index(1)
-    coords = [
-        np.arange(permittivities.shape[dim] + 1) * resolution / 1e-6
-        for dim in other_axes
-    ]
+    coords = [np.arange(permittivities.shape[dim] + 1) * resolution / 1e-6 for dim in other_axes]
     permittivity_squeezed = jnp.take(
         permittivities,
         indices=0,
@@ -182,12 +167,8 @@ def compute_mode(
         jax.lax.stop_gradient(permittivity_squeezed),
         jax.lax.stop_gradient(permeability_squeezed),
     )
-    mode_E = jnp.real(jnp.expand_dims(mode_E_raw, axis=propagation_axis + 1)).astype(
-        input_dtype
-    )
-    mode_H = jnp.real(jnp.expand_dims(mode_H_raw, axis=propagation_axis + 1)).astype(
-        input_dtype
-    )
+    mode_E = jnp.real(jnp.expand_dims(mode_E_raw, axis=propagation_axis + 1)).astype(input_dtype)
+    mode_H = jnp.real(jnp.expand_dims(mode_H_raw, axis=propagation_axis + 1)).astype(input_dtype)
 
     # Tidy3D uses different scaling internally, so convert back
     mode_H = mode_H * tidy3d.constants.ETA_0
