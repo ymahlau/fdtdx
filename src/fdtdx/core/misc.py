@@ -431,7 +431,7 @@ def linear_interpolated_indexing(
 
 def get_air_name(materials: dict[str, Material]):
     for k, v in materials.items():
-        if v.permittivity == 1 and v.permeability == 1 and v.conductivity == 0:
+        if v.permittivity == 1 and v.permeability == 1:
             return k
     raise Exception(f"Could not find air in: {materials}")
 
