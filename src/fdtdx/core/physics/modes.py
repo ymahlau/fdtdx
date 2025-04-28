@@ -57,7 +57,6 @@ def compute_mode(
             filter_pol=filter_pol,
         )
 
-        # modes = sort_modes_tidy3d_style(modes, filter_pol=filter_pol)
         modes = sort_modes(modes, filter_pol=filter_pol, tangential_axes=tangential_axes)
         mode = modes[mode_index]
 
