@@ -429,11 +429,13 @@ def linear_interpolated_indexing(
     return result
 
 
-def get_air_name(materials: dict[str, Material]):
+def get_air_name(materials: dict[str, Material]) -> str:
     for k, v in materials.items():
         if v.permittivity == 1 and v.permeability == 1:
             return k
-    raise Exception(f"Could not find air in: {materials}")
+    background_material_name = list(materials.keys())[0]
+    print(f"Warning: Could not find air in {materials}\n Choosing '{background_material_name=}' instead.")
+    return background_material_name
 
 
 @extended_autoinit
