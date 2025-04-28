@@ -61,7 +61,7 @@ def main(
         gradient_config = GradientConfig(
             recorder=Recorder(
                 modules=[
-                    LinearReconstructEveryK(2),
+                    LinearReconstructEveryK(k=2),
                     DtypeConversion(dtype=jnp.float16),
                     # LinearReconstructEveryK(5),
                     # DtypeConversion(dtype=jnp.float8_e4m3fnuz),
@@ -108,6 +108,7 @@ def main(
             discretization=BrushConstraint2D(
                 brush=circular_brush(diameter=brush_diameter),
                 axis=2,
+                background_material="Silicon",
             ),
         ),
         partial_voxel_real_shape=(config.resolution, config.resolution, height),
@@ -361,7 +362,7 @@ def main(
         else:
             (loss, (arrays, info)), grads = jitted_loss(params, arrays, subkey)
 
-            updates, opt_state_finetune = optimizer_finetune.update(grads, opt_state_finetune, params)
+            updates, opt_state_finetune = optimizer_finetune.update(grads, opt_state_finetune, params) # type: ignore
             info["lr"] = opt_state_finetune.inner_opt_state.hyperparams["learning_rate"]
             params = optax.apply_updates(params, updates)
             params = jax.tree_util.tree_map(lambda p: jnp.clip(p, 0, 1), params)

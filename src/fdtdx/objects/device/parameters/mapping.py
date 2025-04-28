@@ -59,7 +59,7 @@ class DiscreteParameterMapping(LatentParameterMapping):
     discretization: Discretization = frozen_field(kind="KW_ONLY", default=ClosestIndex())
     post_transforms: Sequence[DiscreteTransformation] = frozen_field(default=tuple([]), kind="KW_ONLY")
 
-    def init_modules(
+    def init_modules(  # type: ignore
         self: Self,
         config: SimulationConfig,
         material: dict[str, Material],

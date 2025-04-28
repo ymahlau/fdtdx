@@ -92,6 +92,7 @@ class BrushConstraint2D(Discretization):
 
     brush: jax.Array = frozen_field()
     axis: int = frozen_field()
+    background_material: str | None = frozen_field(default=None)
 
     def __call__(
         self,
@@ -113,11 +114,14 @@ class BrushConstraint2D(Discretization):
         )
 
         cur_result = 1 - self._generator(arr_2d)
+        if self.background_material is None:
+            background_name = get_air_name(self._material)
+        else:
+            background_name = self.background_material
 
-        air_name = get_air_name(self._material)
         ordered_name_list = compute_ordered_names(self._material)
-        air_idx = ordered_name_list.index(air_name)
-        if air_idx != 0:
+        background_idx = ordered_name_list.index(background_name)
+        if background_idx != 0:
             cur_result = 1 - cur_result
         cur_result = jnp.expand_dims(cur_result, axis=self.axis)
         result = straight_through_estimator(input_params, cur_result)
@@ -280,10 +284,10 @@ class PillarDiscretization(Discretization):
 
     axis: int = frozen_field(kind="KW_ONLY")
     single_polymer_columns: bool = frozen_field(kind="KW_ONLY")
-
     distance_metric: Literal["euclidean", "permittivity_differences_plus_average_permittivity"] = frozen_field(
         default="permittivity_differences_plus_average_permittivity",
     )
+    background_material: str | None = frozen_field(default=None)
     _allowed_indices: jax.Array = frozen_private_field()
 
     def init_module(
@@ -297,14 +301,18 @@ class PillarDiscretization(Discretization):
             material=material,
             output_shape_dtype=output_shape_dtype,
         )
-        air_name = get_air_name(self._material)
+
+        if self.background_material is None:
+            background_name = get_air_name(self._material)
+        else:
+            background_name = self.background_material
         ordered_name_list = compute_ordered_names(self._material)
-        air_idx = ordered_name_list.index(air_name)
+        background_idx = ordered_name_list.index(background_name)
 
         allowed_columns = compute_allowed_indices(
             num_layers=output_shape_dtype.shape[self.axis],
             indices=list(range(len(material))),
-            fill_holes_with_index=[air_idx],
+            fill_holes_with_index=[background_idx],
             single_polymer_columns=self.single_polymer_columns,
         )
         self = self.aset("_allowed_indices", allowed_columns)

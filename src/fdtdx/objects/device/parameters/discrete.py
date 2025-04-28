@@ -83,6 +83,7 @@ class ConnectHolesAndStructures(DiscreteTransformation):
     """
 
     fill_material: str | None = frozen_field(default=None)
+    background_material: str | None = frozen_field(default=None)
 
     def __call__(
         self,
@@ -92,9 +93,12 @@ class ConnectHolesAndStructures(DiscreteTransformation):
             raise Exception(
                 "ConnectHolesAndStructures: Need to specify fill material when working with more than a single material"
             )
-        air_name = get_air_name(self._material)
+        if self.background_material is None:
+            background_name = get_air_name(self._material)
+        else:
+            background_name = self.background_material
         ordered_name_list = compute_ordered_names(self._material)
-        air_idx = ordered_name_list.index(air_name)
+        air_idx = ordered_name_list.index(background_name)
         is_material_matrix = material_indices != air_idx
         feasible_material_matrix = connect_holes_and_structures(is_material_matrix)
 
