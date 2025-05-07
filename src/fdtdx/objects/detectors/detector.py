@@ -36,7 +36,9 @@ class Detector(SimulationObject, ABC):
         switch (OnOffSwitch): This switch controls the time steps that the detector is on, i.e. records data
         plot (bool): Whether to generate plots of recorded data.
         if_inverse_plot_backwards (bool): Plot inverse data in reverse time order.
-        num_video_workers (int): Number of workers for video generation.
+        num_video_workers (int | None): Number of workers for video generation. If None (default), then no
+            multiprocessing is used. Note that the combination of multiprocessing and matplotlib is known to produce
+            problems and can cause the entire system to freeze. It does make the video generation much faster though.
         color (tuple[float, float, float]): RGB color for plotting.
         plot_interpolation (str): Interpolation method for plots.
         plot_dpi (int, optional): DPI resolution for plots.
@@ -49,7 +51,7 @@ class Detector(SimulationObject, ABC):
     switch: OnOffSwitch = frozen_field(default=OnOffSwitch(), kind="KW_ONLY")
     plot: bool = True
     if_inverse_plot_backwards: bool = True
-    num_video_workers: int = 8  # only used when generating video
+    num_video_workers: int | None = None  # only used when generating video
     _is_on_at_time_step_arr: jax.Array = field(default=None, init=False)  # type: ignore
     _time_step_to_arr_idx: jax.Array = field(default=None, init=False)  # type: ignore
     _num_time_steps_on: int = field(default=None, init=False)  # type: ignore
