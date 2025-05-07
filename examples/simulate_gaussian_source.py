@@ -112,6 +112,8 @@ def main():
         as_slices=True,
         switch=OnOffSwitch(interval=3),
         exact_interpolation=True,
+        # if set to positive integer, makes plotting much faster, but can also cause instabilities
+        num_video_workers=8,
     )
     constraints.extend(video_energy_detector.same_position_and_size(volume))
 
@@ -121,6 +123,8 @@ def main():
         switch=OnOffSwitch(interval=3),
         inverse=True,
         exact_interpolation=True,
+        # if set to positive integer, makes plotting much faster, but can also cause instabilities
+        num_video_workers=8, 
     )
     constraints.extend(backwards_video_energy_detector.same_position_and_size(volume))
 

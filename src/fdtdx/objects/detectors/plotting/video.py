@@ -1,14 +1,19 @@
+import multiprocessing as mp
 import tempfile
 from functools import partial
-from multiprocessing import Pool
 from typing import Callable
 
+import matplotlib
+
+matplotlib.use("agg")
 import matplotlib.pyplot as plt
 import moviepy as mpy
 import numpy as np
 from rich.progress import Progress
 
 from fdtdx.objects.detectors.plotting.plot2d import plot_2d_from_slices
+
+mp.set_start_method("spawn", force=True)
 
 
 def plot_from_slices(
@@ -91,13 +96,13 @@ def generate_video_from_slices(
     yz_slice: np.ndarray,
     plt_fn: Callable,
     resolutions: tuple[float, float, float],
-    num_worker: int = 8,
+    num_worker: int | None,
+    plot_interpolation: str,
+    plot_dpi: int | None,
     fps: int = 10,
     progress: Progress | None = None,
     minvals: tuple[float | None, float | None, float | None] = (None, None, None),
     maxvals: tuple[float | None, float | None, float | None] = (None, None, None),
-    plot_dpi: int | None = None,
-    plot_interpolation: str = "gaussian",
 ):
     """Generates an MP4 video from time-series slice data using parallel processing.
 
@@ -133,29 +138,38 @@ def generate_video_from_slices(
             maxvals = max_list[0], max_list[1], max_list[2]
 
     _, path = tempfile.mkstemp(suffix=".mp4")
-    with Pool(num_worker) as pool:
-        time_steps = xy_slice.shape[0]
-        if progress is None:
-            progress = Progress()
-        task_id = progress.add_task("Generating video", total=time_steps)
-        precomputed_figs = []
-        partial_fn = partial(
-            plt_fn,
-            resolutions=resolutions,
-            minvals=minvals,
-            maxvals=maxvals,
-            plot_dpi=plot_dpi,
-            plot_interpolation=plot_interpolation,
-        )
-        slice_arr_list = [(xy_slice[t], xz_slice[t], yz_slice[t]) for t in range(time_steps)]
-        for fig in pool.imap(partial_fn, slice_arr_list):
+
+    time_steps = xy_slice.shape[0]
+    if progress is None:
+        progress = Progress()
+    task_id = progress.add_task("Generating video", total=time_steps)
+    precomputed_figs = []
+    partial_fn = partial(
+        plt_fn,
+        resolutions=resolutions,
+        minvals=minvals,
+        maxvals=maxvals,
+        plot_dpi=plot_dpi,
+        plot_interpolation=plot_interpolation,
+    )
+    slice_arr_list = [(xy_slice[t], xz_slice[t], yz_slice[t]) for t in range(time_steps)]
+    if num_worker is None:
+        # no multiprocessing, render video frames on after the other
+        for s in slice_arr_list:
+            fig = partial_fn(s)
             precomputed_figs.append(fig)
             progress.update(task_id, advance=1)
-        animation = mpy.VideoClip(
-            lambda t: _make_animation_frame(t, precomputed_figs, fps),
-            duration=time_steps / fps,
-        )
-        animation.write_videofile(path, fps=fps, logger=None)
-        progress.update(task_id, visible=False)
+    else:
+        # multiprocessing pool to render video frames in parallel
+        with mp.Pool(num_worker) as pool:
+            for fig in pool.imap(partial_fn, slice_arr_list):
+                precomputed_figs.append(fig)
+                progress.update(task_id, advance=1)
+    animation = mpy.VideoClip(
+        lambda t: _make_animation_frame(t, precomputed_figs, fps),
+        duration=time_steps / fps,
+    )
+    animation.write_videofile(path, fps=fps, logger=None)
+    progress.update(task_id, visible=False)
 
     return path
