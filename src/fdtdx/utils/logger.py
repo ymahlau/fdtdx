@@ -19,7 +19,7 @@ from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn
 from rich.table import Table
 
 from fdtdx.conversion import export_stl as export_stl_fn
-from fdtdx.core.misc import cast_floating_to_numpy, get_air_name
+from fdtdx.core.misc import cast_floating_to_numpy, get_background_material_name
 from fdtdx.core.plotting.device_permittivity_index_utils import device_matrix_index_figure
 from fdtdx.fdtd.container import ObjectContainer, ParameterContainer
 from fdtdx.materials import compute_ordered_names
@@ -295,11 +295,11 @@ class Logger:
             if cur_changed_voxels == 0 and has_previous:
                 continue
             if export_stl:
-                air_name = get_air_name(device.materials)
+                background_name = get_background_material_name(device.materials)
                 ordered_name_list = compute_ordered_names(device.materials)
-                air_idx = ordered_name_list.index(air_name)
+                background_idx = ordered_name_list.index(background_name)
                 for idx in range(len(device.materials)):
-                    if idx == air_idx and not export_air_stl:
+                    if idx == background_idx and not export_air_stl:
                         continue
                     name = ordered_name_list[idx]
                     export_stl_fn(
@@ -309,7 +309,7 @@ class Logger:
                     )
                 if len(device.materials) > 2:
                     export_stl_fn(
-                        matrix=np.asarray(indices) != air_idx,
+                        matrix=np.asarray(indices) != background_idx,
                         stl_filename=self.stl_dir / f"matrix_{iter_idx}_{device.name}_non_air.stl",
                         voxel_grid_size=device.single_voxel_grid_shape,
                     )

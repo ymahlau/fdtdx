@@ -7,7 +7,7 @@ import jax.numpy as jnp
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field, frozen_private_field
 from fdtdx.core.jax.ste import straight_through_estimator
-from fdtdx.core.misc import PaddingConfig, get_air_name
+from fdtdx.core.misc import PaddingConfig, get_background_material_name
 from fdtdx.materials import Material, compute_ordered_names
 from fdtdx.objects.device.parameters.binary_transform import (
     binary_median_filter,
@@ -31,6 +31,7 @@ class RemoveFloatingMaterial(SameShapeBinaryParameterTransform):
     The module only works with binary material systems (2 permittivities) where one
     material represents air.
     """
+    background_material: str | None = frozen_field(default=None)
 
     def __call__(
         self,
@@ -43,13 +44,16 @@ class RemoveFloatingMaterial(SameShapeBinaryParameterTransform):
                 f"RemoveFloatingMaterial only implemented for a single array as input. Please make sure that the "
                 "previous transformation outputs a single array"
             )
-        air_name = get_air_name(self._materials)
+        if self.background_material is None:
+            background_name = get_background_material_name(self._materials)
+        else:
+            background_name = self.background_material
         ordered_name_list = compute_ordered_names(self._materials)
-        air_idx = ordered_name_list.index(air_name)
+        background_idx = ordered_name_list.index(background_name)
         
-        is_material_matrix = params != air_idx
+        is_material_matrix = params != background_idx
         is_material_after_removal = remove_floating_polymer(is_material_matrix)
-        result = (1 - air_idx) * is_material_after_removal + air_idx * ~is_material_after_removal
+        result = (1 - background_idx) * is_material_after_removal + background_idx * ~is_material_after_removal
         result = straight_through_estimator(params, result)
         return result
 
@@ -88,7 +92,7 @@ class ConnectHolesAndStructures(SameShapeDiscreteParameterTransform):
                 "ConnectHolesAndStructures: Need to specify fill_material when working with more than two materials"
             )
         if self.background_material is None:
-            background_name = get_air_name(self._materials)
+            background_name = get_background_material_name(self._materials)
         else:
             background_name = self.background_material
         ordered_name_list = compute_ordered_names(self._materials)

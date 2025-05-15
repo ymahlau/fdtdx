@@ -438,6 +438,14 @@ def get_air_name(materials: dict[str, Material]) -> str:
     return background_material_name
 
 
+def get_background_material_name(materials: dict[str, Material]) -> str:
+    min_permittivity, result_name = math.inf, None
+    for k, v in materials.items():
+        if v.permittivity < min_permittivity:
+            result_name = k
+    if result_name is None:
+        raise Exception(f"Empty Material dictionary!")
+    return result_name
 
 
 @extended_autoinit

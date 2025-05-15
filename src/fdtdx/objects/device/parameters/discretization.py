@@ -10,7 +10,7 @@ from loguru import logger
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field, frozen_private_field
 from fdtdx.core.jax.ste import straight_through_estimator
-from fdtdx.core.misc import get_air_name
+from fdtdx.core.misc import get_background_material_name
 from fdtdx.materials import Material, compute_allowed_permittivities, compute_ordered_names
 from fdtdx.objects.device.parameters.binary_transform import dilate_jax
 from fdtdx.objects.device.parameters.transform import ParameterTransformation
@@ -136,7 +136,7 @@ class BrushConstraint2D(ParameterTransformation):
 
         cur_result = 1 - self._generator(arr_2d)
         if self.background_material is None:
-            background_name = get_air_name(self._materials)
+            background_name = get_background_material_name(self._materials)
         else:
             background_name = self.background_material
 
@@ -326,7 +326,7 @@ class PillarDiscretization(ParameterTransformation):
         )
 
         if self.background_material is None:
-            background_name = get_air_name(self._materials)
+            background_name = get_background_material_name(self._materials)
         else:
             background_name = self.background_material
         ordered_name_list = compute_ordered_names(self._materials)
