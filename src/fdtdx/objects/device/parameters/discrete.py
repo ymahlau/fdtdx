@@ -96,8 +96,8 @@ class ConnectHolesAndStructures(SameShapeDiscreteParameterTransform):
         else:
             background_name = self.background_material
         ordered_name_list = compute_ordered_names(self._materials)
-        air_idx = ordered_name_list.index(background_name)
-        is_material_matrix = params != air_idx
+        background_idx = ordered_name_list.index(background_name)
+        is_material_matrix = params != background_idx
         feasible_material_matrix = connect_holes_and_structures(is_material_matrix)
 
         result = jnp.empty_like(params)
@@ -105,15 +105,15 @@ class ConnectHolesAndStructures(SameShapeDiscreteParameterTransform):
         result = jnp.where(
             feasible_material_matrix,
             -1,  # this is set below
-            air_idx,
+            background_idx,
         )
         # material where previously was material
         result = jnp.where(feasible_material_matrix & is_material_matrix, params, result)
 
-        # material, where previously was air
+        # material, where previously was background material (air)
         fill_name = self.fill_material
         if fill_name is None:
-            fill_name = ordered_name_list[1 - air_idx]
+            fill_name = ordered_name_list[1 - background_idx]
         fill_idx = ordered_name_list.index(fill_name)
         result = jnp.where(
             feasible_material_matrix & ~is_material_matrix,

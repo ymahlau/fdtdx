@@ -134,7 +134,6 @@ class BrushConstraint2D(ParameterTransformation):
             axis=self.axis,
         )
 
-        cur_result = 1 - self._generator(arr_2d)
         if self.background_material is None:
             background_name = get_background_material_name(self._materials)
         else:
@@ -143,7 +142,11 @@ class BrushConstraint2D(ParameterTransformation):
         ordered_name_list = compute_ordered_names(self._materials)
         background_idx = ordered_name_list.index(background_name)
         if background_idx != 0:
+            arr_2d = -arr_2d
+        cur_result = self._generator(arr_2d)
+        if background_idx != 0:
             cur_result = 1 - cur_result
+        
         cur_result = jnp.expand_dims(cur_result, axis=self.axis)
         result = straight_through_estimator(params, cur_result)
         return result

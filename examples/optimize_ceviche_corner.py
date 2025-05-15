@@ -105,14 +105,14 @@ def main(
         partial_real_shape=(1.6e-6, 1.6e-6, height),
         materials=material_config,
         param_transforms=[
-            StandardToInversePermittivityRange(),
-            ClosestIndex(),
-            # StandardToPlusOneMinusOneRange(),
-            # BrushConstraint2D(
-            #     brush=circular_brush(diameter=brush_diameter),
-            #     axis=2,
-            #     background_material="Air",
-            # ),
+            # StandardToInversePermittivityRange(),
+            # ClosestIndex(),
+            StandardToPlusOneMinusOneRange(),
+            BrushConstraint2D(
+                brush=circular_brush(diameter=brush_diameter),
+                axis=2,
+                background_material="Air",
+            ),
         ],
         partial_voxel_real_shape=(config.resolution, config.resolution, height),
     )
