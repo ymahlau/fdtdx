@@ -16,11 +16,10 @@ from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.detectors.detector import Detector, DetectorState
-from fdtdx.objects.device import BaseDevice, DiscreteDevice
-from fdtdx.objects.device.device import ContinuousDevice
+from fdtdx.objects.device.device import Device
 from fdtdx.objects.object import SimulationObject
 from fdtdx.objects.sources.source import Source
-from fdtdx.objects.static_material.static import StaticMaterialObject
+from fdtdx.objects.static_material.static import StaticMaterialObject, StaticMultiMaterialObject
 
 # Type alias for parameter dictionaries containing JAX arrays
 ParameterContainer = dict[str, dict[str, jax.Array] | jax.Array]
@@ -51,24 +50,16 @@ class ObjectContainer(ExtendedTreeClass):
         return self.object_list
 
     @property
-    def static_material_objects(self) -> list[StaticMaterialObject]:
-        return [o for o in self.objects if isinstance(o, StaticMaterialObject)]
+    def static_material_objects(self) -> list[StaticMaterialObject | StaticMultiMaterialObject]:
+        return [o for o in self.objects if isinstance(o, (StaticMaterialObject, StaticMultiMaterialObject))]
 
     @property
     def sources(self) -> list[Source]:
         return [o for o in self.objects if isinstance(o, Source)]
 
     @property
-    def devices(self) -> list[BaseDevice]:
-        return [o for o in self.objects if isinstance(o, BaseDevice)]
-
-    @property
-    def discrete_devices(self) -> list[DiscreteDevice]:
-        return [o for o in self.objects if isinstance(o, DiscreteDevice)]
-
-    @property
-    def continous_devices(self) -> list[ContinuousDevice]:
-        return [o for o in self.objects if isinstance(o, ContinuousDevice)]
+    def devices(self) -> list[Device]:
+        return [o for o in self.objects if isinstance(o, Device)]
 
     @property
     def detectors(self) -> list[Detector]:
@@ -120,20 +111,21 @@ class ObjectContainer(ExtendedTreeClass):
         fn: Callable[[Material], bool],
     ) -> bool:
         for o in self.objects:
-            if not isinstance(o, StaticMaterialObject) and not isinstance(o, BaseDevice):
+            if isinstance(o, StaticMaterialObject):
+                m = o.material
+            elif isinstance(o, Device):
+                m = o.materials
+            elif isinstance(o, StaticMultiMaterialObject):
+                m = o.materials
+            else:
                 continue
-            if isinstance(o.material, Material):
-                if not fn(o.material):
+            if isinstance(m, Material):
+                if not fn(m):
                     return False
-            elif isinstance(o.material, dict):
-                for v in o.material.values():
+            elif isinstance(m, dict):
+                for v in m.values():
                     if not fn(v):
                         return False
-            else:
-                if fn(o.material.start_material):
-                    return False
-                if fn(o.material.end_material):
-                    return False
         return True
 
     def __iter__(self):

@@ -13,7 +13,6 @@ from fdtdx.objects.device import (
     StandardToPlusOneMinusOneRange,
     BrushConstraint2D,
     circular_brush,
-    DiscreteDevice
 )
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx import constants
@@ -22,7 +21,9 @@ from fdtdx.interfaces import DtypeConversion, Recorder, LinearReconstructEveryK
 from fdtdx.objects import SimulationVolume, Substrate, Waveguide, SimulationObject
 from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.detectors import EnergyDetector, PoyntingFluxDetector
-from fdtdx.objects.device.parameters.mapping import DiscreteParameterMapping
+from fdtdx.objects.device.device import Device
+from fdtdx.objects.device.parameters.continous import StandardToInversePermittivityRange
+from fdtdx.objects.device.parameters.discretization import ClosestIndex
 from fdtdx.objects.sources import ModePlaneSource
 from fdtdx.core import metric_efficiency, OnOffSwitch
 from fdtdx.utils import Logger, plot_setup
@@ -30,8 +31,8 @@ from fdtdx.utils import Logger, plot_setup
 
 def main(
     seed: int,
-    evaluation: bool = True,
-    backward: bool = True,
+    evaluation: bool,
+    backward: bool,
 ):
     logger.info(f"{seed=}")
 
@@ -46,7 +47,7 @@ def main(
 
     config = SimulationConfig(
         time=200e-15,
-        resolution=20e-9,
+        resolution=25e-9,
         dtype=jnp.float32,
         courant_factor=0.99,
     )
@@ -99,18 +100,20 @@ def main(
         "Silicon": Material(permittivity=constants.relative_permittivity_silicon),
     }
     brush_diameter = round(100e-9 / config.resolution)
-    device = DiscreteDevice(
+    device = Device(
         name="Device",
         partial_real_shape=(1.6e-6, 1.6e-6, height),
-        material=material_config,
-        parameter_mapping=DiscreteParameterMapping(
-            latent_transforms=[StandardToPlusOneMinusOneRange(),],
-            discretization=BrushConstraint2D(
-                brush=circular_brush(diameter=brush_diameter),
-                axis=2,
-                background_material="Silicon",
-            ),
-        ),
+        materials=material_config,
+        param_transforms=[
+            StandardToInversePermittivityRange(),
+            ClosestIndex(),
+            # StandardToPlusOneMinusOneRange(),
+            # BrushConstraint2D(
+            #     brush=circular_brush(diameter=brush_diameter),
+            #     axis=2,
+            #     background_material="Air",
+            # ),
+        ],
         partial_voxel_real_shape=(config.resolution, config.resolution, height),
     )
     placement_constraints.append(
@@ -238,6 +241,7 @@ def main(
             as_slices=True,
             switch=OnOffSwitch(interval=10),
             exact_interpolation=True,
+            num_video_workers=10,
         )
         placement_constraints.extend([*video_detector.same_position_and_size(volume)])
         exclude_object_list.append(video_detector)
@@ -248,6 +252,7 @@ def main(
                 inverse=True,
                 switch=OnOffSwitch(interval=10),
                 exact_interpolation=True,
+                num_video_workers=10,
             )
             placement_constraints.extend([*backward_video_detector.same_position_and_size(volume)])
             exclude_object_list.append(backward_video_detector)
@@ -281,7 +286,7 @@ def main(
         export_figure=True,
     )
 
-    _, tmp, _ = apply_params(arrays, objects, params, key)
+    x, tmp, _ = apply_params(arrays, objects, params, key)
     tmp.sources[0].plot(  # type: ignore
         exp_logger.cwd / "figures" / "mode.png"
     )

@@ -14,16 +14,14 @@ or relative coordinates within the simulation scene, with automatic constraint r
 """
 
 from .object import SimulationObject
-from .static_material.uniform import (
+from .static_material.static import (
     SimulationVolume,
     Substrate,
-    UniformMaterialObject,
     Waveguide,
 )
 
 __all__ = [
     "SimulationVolume",
-    "UniformMaterialObject",
     "Substrate",
     "Waveguide",
     "SimulationObject",

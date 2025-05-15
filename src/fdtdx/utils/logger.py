@@ -24,7 +24,7 @@ from fdtdx.core.plotting.device_permittivity_index_utils import device_matrix_in
 from fdtdx.fdtd.container import ObjectContainer, ParameterContainer
 from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.detectors.detector import DetectorState
-from fdtdx.objects.device import DiscreteDevice
+from fdtdx.typing import ParameterType
 
 
 def init_working_directory(experiment_name: str, wd_name: str | None) -> Path:
@@ -273,7 +273,7 @@ class Logger:
         changed_voxels = 0
         for device in objects.devices:
             device_params = params[device.name]
-            indices = device.get_material_mapping(device_params)
+            indices = device(device_params)
 
             # raw parameters and indices
             if isinstance(device_params, dict):
@@ -283,7 +283,7 @@ class Logger:
                 jnp.save(self.params_dir / f"params_{iter_idx}_{device.name}.npy", device_params)
             jnp.save(self.params_dir / f"matrix_{iter_idx}_{device.name}.npy", indices)
 
-            if not isinstance(device, DiscreteDevice):
+            if device.output_type not in [ParameterType.BINARY, ParameterType.DISCRETE]:
                 continue
             has_previous = self.last_indices[device.name] is not None
             cur_changed_voxels = 0
@@ -295,10 +295,10 @@ class Logger:
             if cur_changed_voxels == 0 and has_previous:
                 continue
             if export_stl:
-                air_name = get_air_name(device.material)
-                ordered_name_list = compute_ordered_names(device.material)
+                air_name = get_air_name(device.materials)
+                ordered_name_list = compute_ordered_names(device.materials)
                 air_idx = ordered_name_list.index(air_name)
-                for idx in range(len(device.material)):
+                for idx in range(len(device.materials)):
                     if idx == air_idx and not export_air_stl:
                         continue
                     name = ordered_name_list[idx]
@@ -307,7 +307,7 @@ class Logger:
                         stl_filename=self.stl_dir / f"matrix_{iter_idx}_{device.name}_{name}.stl",
                         voxel_grid_size=device.single_voxel_grid_shape,
                     )
-                if len(device.material) > 2:
+                if len(device.materials) > 2:
                     export_stl_fn(
                         matrix=np.asarray(indices) != air_idx,
                         stl_filename=self.stl_dir / f"matrix_{iter_idx}_{device.name}_non_air.stl",
@@ -318,7 +318,7 @@ class Logger:
             if export_figure:
                 fig = device_matrix_index_figure(
                     device_matrix_indices=indices,
-                    material=device.material,
+                    material=device.materials,
                 )
                 self.savefig(
                     self.cwd / "device",

@@ -14,32 +14,14 @@ from fdtdx.objects.device.parameters.binary_transform import (
     connect_holes_and_structures,
     remove_floating_polymer,
 )
+from fdtdx.objects.device.parameters.transform import (
+    SameShapeBinaryParameterTransform, 
+    SameShapeDiscreteParameterTransform
+)
 
 
 @extended_autoinit
-class DiscreteTransformation(ExtendedTreeClass, ABC):
-    _material: dict[str, Material] = frozen_private_field()
-    _config: SimulationConfig = frozen_private_field()
-
-    def init_module(
-        self: Self,
-        config: SimulationConfig,
-        material: dict[str, Material],
-    ) -> Self:
-        self = self.aset("_config", config)
-        self = self.aset("_material", material)
-        return self
-
-    @abstractmethod
-    def __call__(
-        self,
-        material_indices: jax.Array,
-    ) -> jax.Array:
-        raise NotImplementedError()
-
-
-@extended_autoinit
-class RemoveFloatingMaterial(DiscreteTransformation):
+class RemoveFloatingMaterial(SameShapeBinaryParameterTransform):
     """Finds all material that floats in the air and sets their permittivity to air.
 
     This constraint module identifies regions of material that are not connected to any
@@ -52,23 +34,28 @@ class RemoveFloatingMaterial(DiscreteTransformation):
 
     def __call__(
         self,
-        material_indices: jax.Array,
-    ) -> jax.Array:
-        if len(self._material) != 2:
-            raise NotImplementedError("Remove floating material currently only implemented for single material")
-        air_name = get_air_name(self._material)
-        ordered_name_list = compute_ordered_names(self._material)
+        params: dict[str, jax.Array] | jax.Array,
+        **kwargs,
+    ) -> dict[str, jax.Array] | jax.Array:
+        del kwargs
+        if isinstance(params, dict):
+            raise Exception(
+                f"RemoveFloatingMaterial only implemented for a single array as input. Please make sure that the "
+                "previous transformation outputs a single array"
+            )
+        air_name = get_air_name(self._materials)
+        ordered_name_list = compute_ordered_names(self._materials)
         air_idx = ordered_name_list.index(air_name)
-
-        is_material_matrix = material_indices != air_idx
+        
+        is_material_matrix = params != air_idx
         is_material_after_removal = remove_floating_polymer(is_material_matrix)
         result = (1 - air_idx) * is_material_after_removal + air_idx * ~is_material_after_removal
-        result = straight_through_estimator(material_indices, result)
+        result = straight_through_estimator(params, result)
         return result
 
 
 @extended_autoinit
-class ConnectHolesAndStructures(DiscreteTransformation):
+class ConnectHolesAndStructures(SameShapeDiscreteParameterTransform):
     """Connects floating polymer regions and ensures air holes connect to outside.
 
     This constraint module ensures physical realizability of designs by:
@@ -87,22 +74,29 @@ class ConnectHolesAndStructures(DiscreteTransformation):
 
     def __call__(
         self,
-        material_indices: jax.Array,
-    ) -> jax.Array:
-        if len(self._material) > 2 and self.fill_material is None:
+        params: dict[str, jax.Array] | jax.Array,
+        **kwargs,
+    ) -> dict[str, jax.Array] | jax.Array:
+        del kwargs
+        if isinstance(params, dict):
             raise Exception(
-                "ConnectHolesAndStructures: Need to specify fill material when working with more than a single material"
+                f"ConnectHolesAndStructures only implemented for a single array as input. Please make sure that the "
+                "previous transformation outputs a single array"
+            )
+        if len(self._materials) > 2 and self.fill_material is None:
+            raise Exception(
+                "ConnectHolesAndStructures: Need to specify fill_material when working with more than two materials"
             )
         if self.background_material is None:
-            background_name = get_air_name(self._material)
+            background_name = get_air_name(self._materials)
         else:
             background_name = self.background_material
-        ordered_name_list = compute_ordered_names(self._material)
+        ordered_name_list = compute_ordered_names(self._materials)
         air_idx = ordered_name_list.index(background_name)
-        is_material_matrix = material_indices != air_idx
+        is_material_matrix = params != air_idx
         feasible_material_matrix = connect_holes_and_structures(is_material_matrix)
 
-        result = jnp.empty_like(material_indices)
+        result = jnp.empty_like(params)
         # set air
         result = jnp.where(
             feasible_material_matrix,
@@ -110,7 +104,7 @@ class ConnectHolesAndStructures(DiscreteTransformation):
             air_idx,
         )
         # material where previously was material
-        result = jnp.where(feasible_material_matrix & is_material_matrix, material_indices, result)
+        result = jnp.where(feasible_material_matrix & is_material_matrix, params, result)
 
         # material, where previously was air
         fill_name = self.fill_material
@@ -122,6 +116,7 @@ class ConnectHolesAndStructures(DiscreteTransformation):
             fill_idx,
             result,
         )
+        result = straight_through_estimator(params, result)
         return result
 
 
@@ -137,7 +132,7 @@ BOTTOM_Z_PADDING_CONFIG = PaddingConfig(
 
 
 @extended_autoinit
-class BinaryMedianFilterModule(DiscreteTransformation):
+class BinaryMedianFilterModule(SameShapeBinaryParameterTransform):
     """Performs 3D binary median filtering on the design.
 
     Applies a 3D median filter to smooth and clean up binary material distributions.
@@ -155,16 +150,21 @@ class BinaryMedianFilterModule(DiscreteTransformation):
 
     def __call__(
         self,
-        material_indices: jax.Array,
-    ) -> jax.Array:
-        if len(self._material) != 2:
-            raise Exception("BinaryMedianFilterModule only works for two materials!")
-        cur_arr = material_indices
+        params: dict[str, jax.Array] | jax.Array,
+        **kwargs,
+    ) -> dict[str, jax.Array] | jax.Array:
+        del kwargs
+        if isinstance(params, dict):
+            raise Exception(
+                f"BinaryMedianFilterModule only implemented for a single array as input. Please make sure that the "
+                "previous transformation outputs a single array"
+            )
+        cur_arr = params
         for _ in range(self.num_repeats):
             cur_arr = binary_median_filter(
                 arr_3d=cur_arr,
                 kernel_sizes=self.kernel_sizes,
                 padding_cfg=self.padding_cfg,
             )
-        result = straight_through_estimator(material_indices, cur_arr)
+        result = straight_through_estimator(params, cur_arr)
         return result

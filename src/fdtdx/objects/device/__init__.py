@@ -1,4 +1,4 @@
-from .device import BaseDevice, ContinuousDevice, DiscreteDevice
+from .device import Device
 from .parameters.discrete import (
     BOTTOM_Z_PADDING_CONFIG_REPEAT,
     BinaryMedianFilterModule,
@@ -8,22 +8,19 @@ from .parameters.discrete import (
 from .parameters.discretization import (
     BrushConstraint2D,
     ClosestIndex,
-    Discretization,
     PillarDiscretization,
     circular_brush,
 )
-from .parameters.latent import (
+from .parameters.continous import (
     StandardToCustomRange,
     StandardToInversePermittivityRange,
     StandardToPlusOneMinusOneRange,
 )
-from .parameters.mapping import DiscreteParameterMapping, LatentParameterMapping
+from .parameters.transform import ParameterTransformation
 
 __all__ = [
     # devices
-    "BaseDevice",
-    "DiscreteDevice",
-    "ContinuousDevice",
+    "Device",
     # discrete postprocessing
     "BOTTOM_Z_PADDING_CONFIG_REPEAT",
     "BinaryMedianFilterModule",
@@ -31,7 +28,6 @@ __all__ = [
     "RemoveFloatingMaterial",
     # discretization
     "ClosestIndex",
-    "Discretization",
     "BrushConstraint2D",
     "circular_brush",
     "PillarDiscretization",
@@ -40,6 +36,5 @@ __all__ = [
     "StandardToInversePermittivityRange",
     "StandardToPlusOneMinusOneRange",
     # mapping
-    "LatentParameterMapping",
-    "DiscreteParameterMapping",
+    "ParameterTransformation",
 ]
