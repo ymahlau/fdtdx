@@ -6,7 +6,7 @@ Base class for all simulation objects with positioning and sizing capabilities. 
 ::: fdtdx.objects.SimulationVolume
 An object of cuboid shape describing the size and default background material of the simulation volume.
 
-::: fdtdx.objects.UniformMaterialObject
+::: fdtdx.objects.StaticMaterialObject
 An object that has a uniform material throughout its entire volume.
 
 # Convenience Wrapper

@@ -265,7 +265,7 @@ class Logger:
             objects: Container with simulation objects
             export_figure: Whether to export index matrix figures
             export_stl: Whether to export device geometry as STL
-            export_air_stl: Whether to export air regions as STL
+            export_background_stl: Whether to export air regions as STL
 
         Returns:
             int: Number of voxels that changed since last iteration
