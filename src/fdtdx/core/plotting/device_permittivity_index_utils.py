@@ -25,7 +25,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 
-from fdtdx.core.misc import get_air_name
+from fdtdx.core.misc import get_background_material_name
 from fdtdx.materials import Material, compute_ordered_names
 
 
@@ -75,9 +75,9 @@ def device_matrix_index_figure(
     device_matrix_indices = device_matrix_indices.astype(np.int32)
     fig, ax = cast(tuple[Figure, Axes], plt.subplots(figsize=(12, 12)))
     image_palette = sns.color_palette("YlOrBr", as_cmap=True)
-    air_name = get_air_name(material)
+    background_name = get_background_material_name(material)
     ordered_name_list = compute_ordered_names(material)
-    air_index = ordered_name_list.index(air_name)
+    background_index = ordered_name_list.index(background_name)
     if device_matrix_indices.shape[-1] == 1:
         device_matrix_indices = device_matrix_indices[..., 0]
         matrix_inverse_permittivity_indices_sorted = device_matrix_indices
@@ -88,9 +88,9 @@ def device_matrix_index_figure(
             device_matrix_indices_flat,
             axis=0,
         )
-        air_count = np.count_nonzero(indices == air_index, axis=-1)
-        air_count_argsort = np.argsort(air_count)
-        indices_sorted = indices[air_count_argsort]
+        background_count = np.count_nonzero(indices == background_index, axis=-1)
+        background_count_argsort = np.argsort(background_count)
+        indices_sorted = indices[background_count_argsort]
         matrix_inverse_permittivity_indices_sorted = np.array(
             [
                 np.where((indices_sorted == device_matrix_indices_flat[i]).all(axis=1))[0][0]

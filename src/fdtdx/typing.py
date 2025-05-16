@@ -1,10 +1,5 @@
-"""Type definitions for 3D shapes, grids and slices used in FDTD simulations.
-
-This module defines type aliases and constants for working with three-dimensional
-shapes, grids and array slicing in FDTD simulations. It includes types for both
-real-valued (physical) and integer-valued (grid) coordinates.
-"""
-
+from dataclasses import dataclass
+from enum import Enum
 from typing import Literal, Optional
 
 # Real-valued shapes (physical dimensions)
@@ -59,3 +54,15 @@ PartialSlice3D = tuple[OptionalAxisSlice, OptionalAxisSlice, OptionalAxisSlice]
 
 BackendOption = Literal["gpu", "tpu", "cpu", "METAL"]
 """Backend options for JAX. Can be either gpu, tpu, cpu or METAL"""
+
+
+class ParameterType(Enum):
+    CONTINUOUS = 0
+    DISCRETE = 1
+    BINARY = 2
+
+
+@dataclass(frozen=True)
+class ParameterSpecs:
+    shape: tuple[int, int, int]
+    type: ParameterType

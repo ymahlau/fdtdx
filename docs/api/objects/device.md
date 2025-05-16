@@ -1,13 +1,12 @@
 ##
 # Devices
 In FDTDX, devices are objects whose shape can be optimized. A device has a corresponding set of latent parameters, which are mapped to produce the current shape of the device.
-::: fdtdx.objects.device.DiscreteDevice
+::: fdtdx.objects.device.Device
 
 # Parameter Mapping
-::: fdtdx.objects.device.DiscreteParameterMapping
+::: fdtdx.objects.device.ParameterTransformation
 
 # Tranformation of latent parameters
-::: fdtdx.objects.device.StandardToInversePermittivityRange
 ::: fdtdx.objects.device.StandardToPlusOneMinusOneRange
 ::: fdtdx.objects.device.StandardToCustomRange
 
