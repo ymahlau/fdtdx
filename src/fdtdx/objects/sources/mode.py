@@ -10,7 +10,6 @@ from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
 from fdtdx.core.linalg import get_wave_vector_raw
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.core.physics.modes import compute_mode
-from fdtdx.core.plotting.debug import debug_plot_2d
 from fdtdx.objects.sources.tfsf import TFSFPlaneSource
 
 
@@ -114,7 +113,7 @@ class ModePlaneSource(TFSFPlaneSource):
             inv_permittivity=self._inv_permittivity,
             inv_permeability=self._inv_permeability,
         )
-        
+
         energy_2d = energy.squeeze().T
 
         plt.clf()

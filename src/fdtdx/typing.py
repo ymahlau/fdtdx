@@ -55,10 +55,12 @@ PartialSlice3D = tuple[OptionalAxisSlice, OptionalAxisSlice, OptionalAxisSlice]
 BackendOption = Literal["gpu", "tpu", "cpu", "METAL"]
 """Backend options for JAX. Can be either gpu, tpu, cpu or METAL"""
 
+
 class ParameterType(Enum):
     CONTINUOUS = 0
     DISCRETE = 1
     BINARY = 2
+
 
 @dataclass(frozen=True)
 class ParameterSpecs:

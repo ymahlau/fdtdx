@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 
 import jax
+
 from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
 from fdtdx.core.plotting.colors import LIGHT_BLUE, LIGHT_BROWN, LIGHT_GREY
 from fdtdx.materials import Material
@@ -11,6 +12,7 @@ from fdtdx.objects.object import OrderableObject
 class StaticMaterialObject(OrderableObject):
     material: Material = field(kind="KW_ONLY")
     color: tuple[float, float, float] | None = LIGHT_GREY
+
 
 @extended_autoinit
 class StaticMultiMaterialObject(OrderableObject, ABC):
@@ -40,6 +42,7 @@ class StaticMultiMaterialObject(OrderableObject, ABC):
         """
         raise NotImplementedError()
 
+
 @extended_autoinit
 class SimulationVolume(StaticMaterialObject):
     """Background material for the entire simulation volume.
@@ -56,6 +59,7 @@ class SimulationVolume(StaticMaterialObject):
         ),
         kind="KW_ONLY",
     )
+
 
 @extended_autoinit
 class Substrate(StaticMaterialObject):

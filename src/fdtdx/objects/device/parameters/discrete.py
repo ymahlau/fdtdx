@@ -1,22 +1,18 @@
-from abc import ABC, abstractmethod
-from typing import Self
-
 import jax
 import jax.numpy as jnp
 
-from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field, frozen_private_field
+from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
 from fdtdx.core.jax.ste import straight_through_estimator
 from fdtdx.core.misc import PaddingConfig, get_background_material_name
-from fdtdx.materials import Material, compute_ordered_names
+from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.device.parameters.binary_transform import (
     binary_median_filter,
     connect_holes_and_structures,
     remove_floating_polymer,
 )
 from fdtdx.objects.device.parameters.transform import (
-    SameShapeBinaryParameterTransform, 
-    SameShapeDiscreteParameterTransform
+    SameShapeBinaryParameterTransform,
+    SameShapeDiscreteParameterTransform,
 )
 
 
@@ -31,6 +27,7 @@ class RemoveFloatingMaterial(SameShapeBinaryParameterTransform):
     The module only works with binary material systems (2 permittivities) where one
     material represents air.
     """
+
     background_material: str | None = frozen_field(default=None)
 
     def __call__(
@@ -41,7 +38,7 @@ class RemoveFloatingMaterial(SameShapeBinaryParameterTransform):
         del kwargs
         if isinstance(params, dict):
             raise Exception(
-                f"RemoveFloatingMaterial only implemented for a single array as input. Please make sure that the "
+                "RemoveFloatingMaterial only implemented for a single array as input. Please make sure that the "
                 "previous transformation outputs a single array"
             )
         if self.background_material is None:
@@ -50,7 +47,7 @@ class RemoveFloatingMaterial(SameShapeBinaryParameterTransform):
             background_name = self.background_material
         ordered_name_list = compute_ordered_names(self._materials)
         background_idx = ordered_name_list.index(background_name)
-        
+
         is_material_matrix = params != background_idx
         is_material_after_removal = remove_floating_polymer(is_material_matrix)
         result = (1 - background_idx) * is_material_after_removal + background_idx * ~is_material_after_removal
@@ -84,7 +81,7 @@ class ConnectHolesAndStructures(SameShapeDiscreteParameterTransform):
         del kwargs
         if isinstance(params, dict):
             raise Exception(
-                f"ConnectHolesAndStructures only implemented for a single array as input. Please make sure that the "
+                "ConnectHolesAndStructures only implemented for a single array as input. Please make sure that the "
                 "previous transformation outputs a single array"
             )
         if len(self._materials) > 2 and self.fill_material is None:
@@ -160,7 +157,7 @@ class BinaryMedianFilterModule(SameShapeBinaryParameterTransform):
         del kwargs
         if isinstance(params, dict):
             raise Exception(
-                f"BinaryMedianFilterModule only implemented for a single array as input. Please make sure that the "
+                "BinaryMedianFilterModule only implemented for a single array as input. Please make sure that the "
                 "previous transformation outputs a single array"
             )
         cur_arr = params

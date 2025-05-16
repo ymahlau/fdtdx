@@ -1,4 +1,9 @@
 from .device import Device
+from .parameters.continous import (
+    StandardToCustomRange,
+    StandardToInversePermittivityRange,
+    StandardToPlusOneMinusOneRange,
+)
 from .parameters.discrete import (
     BOTTOM_Z_PADDING_CONFIG_REPEAT,
     BinaryMedianFilterModule,
@@ -10,11 +15,6 @@ from .parameters.discretization import (
     ClosestIndex,
     PillarDiscretization,
     circular_brush,
-)
-from .parameters.continous import (
-    StandardToCustomRange,
-    StandardToInversePermittivityRange,
-    StandardToPlusOneMinusOneRange,
 )
 from .parameters.transform import ParameterTransformation
 

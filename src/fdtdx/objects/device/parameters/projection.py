@@ -6,7 +6,7 @@ def tanh_projection(x: jax.Array, beta: float, eta: float) -> jax.Array:
     """
     Adapted from the meep repository:
     https://github.com/NanoComp/meep/blob/master/python/adjoint/filters.py
-    
+
     Sigmoid projection filter.
     Ref: F. Wang, B. S. Lazarov, & O. Sigmund, On projection methods,
     convergence and robust formulations in topology optimization.
@@ -26,10 +26,7 @@ def tanh_projection(x: jax.Array, beta: float, eta: float) -> jax.Array:
         # manually specify the step function to keep the gradient clean.
         return jnp.where(x > eta, 1.0, 0.0)
     else:
-        return (jnp.tanh(beta * eta) + jnp.tanh(beta * (x - eta))) / (
-            jnp.tanh(beta * eta) + jnp.tanh(beta * (1 - eta))
-        )
-
+        return (jnp.tanh(beta * eta) + jnp.tanh(beta * (x - eta))) / (jnp.tanh(beta * eta) + jnp.tanh(beta * (1 - eta)))
 
 
 def smoothed_projection(
@@ -39,12 +36,12 @@ def smoothed_projection(
     resolution: float,
 ):
     """
-    This function is adapted from the Meep repository: 
+    This function is adapted from the Meep repository:
     https://github.com/NanoComp/meep/blob/master/python/adjoint/filters.py
-    
+
     The details of this projection are described in the paper by Alec Hammond:
     https://arxiv.org/pdf/2503.20189
-    
+
     Project using subpixel smoothing, which allows for β→∞.
     This technique integrates out the discontinuity within the projection
     function, allowing the user to smoothly increase β from 0 to ∞ without
@@ -108,9 +105,7 @@ def smoothed_projection(
     # gradient essentially represents the normal direction pointing the the
     # nearest inteface.
     rho_filtered_grad = jnp.gradient(rho_filtered)
-    rho_filtered_grad_helper = (rho_filtered_grad[0] / dx) ** 2 + (
-        rho_filtered_grad[1] / dy
-    ) ** 2
+    rho_filtered_grad_helper = (rho_filtered_grad[0] / dx) ** 2 + (rho_filtered_grad[1] / dy) ** 2
 
     # Note that a uniform field (norm=0) is problematic, because it creates
     # divide by zero issues and makes backpropagation difficult, so we sanitize
@@ -120,9 +115,7 @@ def smoothed_projection(
     # rely on the standard projection. So just use 1, since it's well behaved.
     nonzero_norm = jnp.abs(rho_filtered_grad_helper) > 0
 
-    rho_filtered_grad_norm = jnp.sqrt(
-        jnp.where(nonzero_norm, rho_filtered_grad_helper, 1)
-    )
+    rho_filtered_grad_norm = jnp.sqrt(jnp.where(nonzero_norm, rho_filtered_grad_helper, 1))
     rho_filtered_grad_norm_eff = jnp.where(nonzero_norm, rho_filtered_grad_norm, 1)
 
     # The distance for the center of the pixel to the nearest interface
@@ -141,28 +134,20 @@ def smoothed_projection(
     # with array-based AD tracers, apparently. See here:
     # https://github.com/google/jax/issues/1052#issuecomment-5140833520
     d_R = d / R_smoothing
-    F = jnp.where(
-        needs_smoothing, 0.5 - 15 / 16 * d_R + 5 / 8 * d_R**3 - 3 / 16 * d_R**5, 1.0
-    )
+    F = jnp.where(needs_smoothing, 0.5 - 15 / 16 * d_R + 5 / 8 * d_R**3 - 3 / 16 * d_R**5, 1.0)
     # F(-d)
-    F_minus = jnp.where(
-        needs_smoothing, 0.5 + 15 / 16 * d_R - 5 / 8 * d_R**3 + 3 / 16 * d_R**5, 1.0
-    )
+    F_minus = jnp.where(needs_smoothing, 0.5 + 15 / 16 * d_R - 5 / 8 * d_R**3 + 3 / 16 * d_R**5, 1.0)
 
     # Determine the upper and lower bounds of materials in the current pixel (before projection).
     rho_filtered_minus = rho_filtered - R_smoothing * rho_filtered_grad_norm_eff * F
-    rho_filtered_plus = (
-        rho_filtered + R_smoothing * rho_filtered_grad_norm_eff * F_minus
-    )
+    rho_filtered_plus = rho_filtered + R_smoothing * rho_filtered_grad_norm_eff * F_minus
 
     # Finally, we project the extents of our range.
     rho_minus_eff_projected = tanh_projection(rho_filtered_minus, beta=beta, eta=eta)
     rho_plus_eff_projected = tanh_projection(rho_filtered_plus, beta=beta, eta=eta)
 
     # Only apply smoothing to interfaces
-    rho_projected_smoothed = (
-        1 - F
-    ) * rho_minus_eff_projected + F * rho_plus_eff_projected
+    rho_projected_smoothed = (1 - F) * rho_minus_eff_projected + F * rho_plus_eff_projected
     return jnp.where(
         needs_smoothing,
         rho_projected_smoothed,

@@ -87,7 +87,7 @@ class Device(OrderableObject, ABC):
             grid_shape[1] * self._config.resolution,
             grid_shape[2] * self._config.resolution,
         )
-        
+
     @property
     def output_type(self) -> ParameterType:
         if not self.param_transforms:
@@ -133,7 +133,7 @@ class Device(OrderableObject, ABC):
                     f"Due to discretization, matrix got skewered for {axis=}. "
                     f"{self.grid_shape=}, {self.matrix_voxel_grid_shape=}"
                 )
-        
+
         # init parameter transformations
         cur_specs = ParameterSpecs(
             shape=self.matrix_voxel_grid_shape,
@@ -163,7 +163,7 @@ class Device(OrderableObject, ABC):
         self,
         key: jax.Array,
     ) -> dict[str, jax.Array] | jax.Array:
-        if len( self.param_transforms) > 0:
+        if len(self.param_transforms) > 0:
             shape_dtypes = self.param_transforms[0]._input_specs
         else:
             shape_dtypes = jax.ShapeDtypeStruct(

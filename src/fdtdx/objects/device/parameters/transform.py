@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Self
+
 import jax
 
 from fdtdx.config import SimulationConfig
@@ -30,7 +31,7 @@ class ParameterTransformation(ExtendedTreeClass, ABC):
         output_specs = self.get_output_specs(input_specs)
         self = self.aset("_output_specs", output_specs)
         return self
-    
+
     @abstractmethod
     def __call__(
         self,
@@ -47,10 +48,9 @@ class ParameterTransformation(ExtendedTreeClass, ABC):
     ) -> dict[str, ParameterSpecs] | ParameterSpecs:
         del input_specs
         raise NotImplementedError()
-    
+
 
 class SameShapeTypeParameterTransform(ParameterTransformation, ABC):
-    
     def get_output_specs(
         self,
         input_specs: dict[str, ParameterSpecs] | ParameterSpecs,
@@ -59,7 +59,6 @@ class SameShapeTypeParameterTransform(ParameterTransformation, ABC):
 
 
 class SameShapeContinousParameterTransform(ParameterTransformation, ABC):
-    
     def get_output_specs(
         self,
         input_specs: dict[str, ParameterSpecs] | ParameterSpecs,
@@ -79,7 +78,6 @@ class SameShapeContinousParameterTransform(ParameterTransformation, ABC):
 
 
 class SameShapeDiscreteParameterTransform(ParameterTransformation, ABC):
-    
     def get_output_specs(
         self,
         input_specs: dict[str, ParameterSpecs] | ParameterSpecs,
@@ -97,8 +95,8 @@ class SameShapeDiscreteParameterTransform(ParameterTransformation, ABC):
                     raise Exception(err_msg)
         return input_specs
 
+
 class SameShapeBinaryParameterTransform(ParameterTransformation, ABC):
-    
     def get_output_specs(
         self,
         input_specs: dict[str, ParameterSpecs] | ParameterSpecs,

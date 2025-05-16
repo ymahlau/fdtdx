@@ -1,5 +1,4 @@
 import math
-from abc import ABC, abstractmethod
 from typing import Literal, Self
 
 import equinox.internal as eqxi
@@ -8,7 +7,7 @@ import jax.numpy as jnp
 from loguru import logger
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field, frozen_private_field
+from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, frozen_private_field
 from fdtdx.core.jax.ste import straight_through_estimator
 from fdtdx.core.misc import get_background_material_name
 from fdtdx.materials import Material, compute_allowed_permittivities, compute_ordered_names
@@ -28,8 +27,9 @@ class ClosestIndex(ParameterTransformation):
     differentiability. If mapping_from_inverse_permittivities is set to False (default),
     then the transform only quantizes the latent parameters to the closest integer value.
     """
+
     mapping_from_inverse_permittivities: bool = False
-    
+
     def get_output_specs(
         self,
         input_specs: dict[str, ParameterSpecs] | ParameterSpecs,
@@ -40,26 +40,21 @@ class ClosestIndex(ParameterTransformation):
             output_type = ParameterType.BINARY
         else:
             output_type = ParameterType.DISCRETE
-        
+
         if isinstance(input_specs, ParameterSpecs):
-            return ParameterSpecs(
-                shape=input_specs.shape,
-                type=output_type
-            )
+            return ParameterSpecs(shape=input_specs.shape, type=output_type)
         result = {}
         for k, v in input_specs.items():
-            result[k] = ParameterSpecs(
-                shape=v.shape,
-                type=output_type
-            )
+            result[k] = ParameterSpecs(shape=v.shape, type=output_type)
         return result
-        
+
     def __call__(
         self,
         params: dict[str, jax.Array] | jax.Array,
         **kwargs,
     ) -> dict[str, jax.Array] | jax.Array:
         del kwargs
+
         def transform_arr(arr: jax.Array) -> jax.Array:
             if self.mapping_from_inverse_permittivities:
                 allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(self._materials))
@@ -68,6 +63,7 @@ class ClosestIndex(ParameterTransformation):
             else:
                 discrete = jnp.clip(jnp.round(arr), 0, len(self._materials) - 1)
             return straight_through_estimator(arr, discrete)
+
         if isinstance(params, jax.Array):
             return transform_arr(params)
         result = {}
@@ -110,14 +106,14 @@ class BrushConstraint2D(ParameterTransformation):
             )
         if input_specs.type != ParameterType.CONTINUOUS:
             raise Exception(
-                f"BrushConstraint2D needs continous input values! Make sure it is preceded by a transform outputting "
+                "BrushConstraint2D needs continous input values! Make sure it is preceded by a transform outputting "
                 "continous values, in the best case in the range [-1, 1]"
             )
         return ParameterSpecs(
             shape=input_specs.shape,
             type=ParameterType.BINARY,
         )
-        
+
     def __call__(
         self,
         params: dict[str, jax.Array] | jax.Array,
@@ -152,7 +148,7 @@ class BrushConstraint2D(ParameterTransformation):
         cur_result = self._generator(arr_2d)
         if background_idx != 0:
             cur_result = 1 - cur_result
-        
+
         cur_result = jnp.expand_dims(cur_result, axis=self.axis)
         result = straight_through_estimator(params, cur_result)
         return result
@@ -358,25 +354,20 @@ class PillarDiscretization(ParameterTransformation):
     ) -> dict[str, ParameterSpecs] | ParameterSpecs:
         if isinstance(input_specs, dict):
             raise Exception(
-                f"PillarDiscretization needs to be preceded by a transform outputting a single array (or be the "
+                "PillarDiscretization needs to be preceded by a transform outputting a single array (or be the "
                 "first transform applied)"
             )
         if input_specs.type != ParameterType.CONTINUOUS:
-            raise Exception(
-                f"PillarDiscretization needs continous parameters as input, but got: {input_specs}"
-            )
+            raise Exception(f"PillarDiscretization needs continous parameters as input, but got: {input_specs}")
         if len(self._materials) <= 1:
             raise Exception(f"Invalid materials (need two or more): {self._materials}")
         elif len(self._materials) == 2:
             output_type = ParameterType.BINARY
         else:
             output_type = ParameterType.DISCRETE
-        
-        return ParameterSpecs(
-            shape=input_specs.shape,
-            type=output_type
-        )
-    
+
+        return ParameterSpecs(shape=input_specs.shape, type=output_type)
+
     def __call__(
         self,
         params: dict[str, jax.Array] | jax.Array,
@@ -385,7 +376,7 @@ class PillarDiscretization(ParameterTransformation):
         del kwargs
         if not isinstance(params, jax.Array):
             raise Exception(
-                f"PillarDiscretization needs to be preceded by a transform outputting a single array (or be the "
+                "PillarDiscretization needs to be preceded by a transform outputting a single array (or be the "
                 "first transform applied)"
             )
 
