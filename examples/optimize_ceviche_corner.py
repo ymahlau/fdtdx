@@ -106,13 +106,13 @@ def main(
         materials=material_config,
         param_transforms=[
             # StandardToInversePermittivityRange(),
-            # ClosestIndex(),
-            StandardToPlusOneMinusOneRange(),
-            BrushConstraint2D(
-                brush=circular_brush(diameter=brush_diameter),
-                axis=2,
-                background_material="Air",
-            ),
+            ClosestIndex(),
+            # StandardToPlusOneMinusOneRange(),
+            # BrushConstraint2D(
+            #     brush=circular_brush(diameter=brush_diameter),
+            #     axis=2,
+            #     background_material="Air",
+            # ),
         ],
         partial_voxel_real_shape=(config.resolution, config.resolution, height),
     )
@@ -401,8 +401,8 @@ def main(
 
 if __name__ == "__main__":
     seed = 42
-    evaluation = True
-    backward = True
+    evaluation = False
+    backward = False
     if len(sys.argv) > 1:
         seed = int(sys.argv[1])
         evaluation = False

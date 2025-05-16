@@ -252,7 +252,7 @@ class Logger:
         objects: ObjectContainer,
         export_figure: bool = False,
         export_stl: bool = False,
-        export_air_stl: bool = False,
+        export_background_stl: bool = False,
     ) -> int:
         """Log parameter states and export device visualizations.
 
@@ -299,7 +299,7 @@ class Logger:
                 ordered_name_list = compute_ordered_names(device.materials)
                 background_idx = ordered_name_list.index(background_name)
                 for idx in range(len(device.materials)):
-                    if idx == background_idx and not export_air_stl:
+                    if idx == background_idx and not export_background_stl:
                         continue
                     name = ordered_name_list[idx]
                     export_stl_fn(

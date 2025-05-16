@@ -20,12 +20,15 @@ from fdtdx.typing import ParameterSpecs, ParameterType
 
 @extended_autoinit
 class ClosestIndex(ParameterTransformation):
-    """Maps continuous latent values to nearest allowed material indices.
+    """
+    Maps continuous latent values to nearest allowed material indices.
 
     For each input value, finds the index of the closest allowed inverse
     permittivity value. Uses straight-through gradient estimation to maintain
-    differentiability.
+    differentiability. If mapping_from_inverse_permittivities is set to False (default),
+    then the transform only quantizes the latent parameters to the closest integer value.
     """
+    mapping_from_inverse_permittivities: bool = False
     
     def get_output_specs(
         self,
@@ -58,9 +61,12 @@ class ClosestIndex(ParameterTransformation):
     ) -> dict[str, jax.Array] | jax.Array:
         del kwargs
         def transform_arr(arr: jax.Array) -> jax.Array:
-            allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(self._materials))
-            dist = jnp.abs(arr[..., None] - allowed_inv_perms)
-            discrete = jnp.argmin(dist, axis=-1)
+            if self.mapping_from_inverse_permittivities:
+                allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(self._materials))
+                dist = jnp.abs(arr[..., None] - allowed_inv_perms)
+                discrete = jnp.argmin(dist, axis=-1)
+            else:
+                discrete = jnp.clip(jnp.round(arr), 0, len(self._materials) - 1)
             return straight_through_estimator(arr, discrete)
         if isinstance(params, jax.Array):
             return transform_arr(params)

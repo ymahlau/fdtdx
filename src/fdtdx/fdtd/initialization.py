@@ -144,13 +144,14 @@ def apply_params(
     for device in objects.devices:
         cur_material_indices = device(params[device.name], expand_to_sim_grid=True)
         allowed_perm_list = compute_allowed_permittivities(device.materials)
-        if not device.param_transforms or device.output_type == ParameterType.CONTINUOUS:
+        if device.output_type == ParameterType.CONTINUOUS:
             new_perm_slice = (1 - cur_material_indices) * (
                 1 / allowed_perm_list[0]
             ) + cur_material_indices * (1 / allowed_perm_list[1])
         else:
-            new_perm_slice = (1.0 / jnp.asarray(allowed_perm_list))[cur_material_indices.astype(jnp.int32)]
+            new_perm_slice = jnp.asarray(allowed_perm_list)[cur_material_indices.astype(jnp.int32)]
             new_perm_slice = straight_through_estimator(cur_material_indices, new_perm_slice)
+            new_perm_slice = 1 / new_perm_slice
         new_perm = arrays.inv_permittivities.at[*device.grid_slice].set(new_perm_slice)
         arrays = arrays.at["inv_permittivities"].set(new_perm)
 

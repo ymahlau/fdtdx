@@ -443,6 +443,7 @@ def get_background_material_name(materials: dict[str, Material]) -> str:
     for k, v in materials.items():
         if v.permittivity < min_permittivity:
             result_name = k
+            min_permittivity = v.permittivity
     if result_name is None:
         raise Exception(f"Empty Material dictionary!")
     return result_name
