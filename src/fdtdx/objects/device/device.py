@@ -191,12 +191,12 @@ class Device(OrderableObject, ABC):
         self,
         params: dict[str, jax.Array] | jax.Array,
         expand_to_sim_grid: bool = False,
-        **module_kwargs,
+        **transform_kwargs,
     ) -> jax.Array:
         # walk through modules
         for transform in self.param_transforms:
             check_specs(params, transform._input_specs)
-            params = transform(params, **module_kwargs)
+            params = transform(params, **transform_kwargs)
             check_specs(params, transform._output_specs)
         if not isinstance(params, jax.Array):
             raise Exception(

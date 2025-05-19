@@ -124,6 +124,7 @@ def apply_params(
     objects: ObjectContainer,
     params: ParameterContainer,
     key: jax.Array,
+    **transform_kwargs,
 ) -> tuple[ArrayContainer, ObjectContainer, dict[str, Any]]:
     """Applies parameters to devices and updates source states.
 
@@ -142,7 +143,7 @@ def apply_params(
     info = {}
     # apply parameter to devices
     for device in objects.devices:
-        cur_material_indices = device(params[device.name], expand_to_sim_grid=True)
+        cur_material_indices = device(params[device.name], expand_to_sim_grid=True, **transform_kwargs)
         allowed_perm_list = compute_allowed_permittivities(device.materials)
         if device.output_type == ParameterType.CONTINUOUS:
             first_term = (1 - cur_material_indices) * (1 / allowed_perm_list[0])

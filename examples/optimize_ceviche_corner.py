@@ -24,6 +24,7 @@ from fdtdx.objects.detectors import EnergyDetector, PoyntingFluxDetector
 from fdtdx.objects.device.device import Device
 from fdtdx.objects.device.parameters.continous import StandardToInversePermittivityRange
 from fdtdx.objects.device.parameters.discretization import ClosestIndex
+from fdtdx.objects.device.parameters.projection import TanhProjection
 from fdtdx.objects.sources import ModePlaneSource
 from fdtdx.core import metric_efficiency, OnOffSwitch
 from fdtdx.utils import Logger, plot_setup
@@ -106,13 +107,14 @@ def main(
         materials=material_config,
         param_transforms=[
             # StandardToInversePermittivityRange(),
-            ClosestIndex(),
+            # ClosestIndex(),
             # StandardToPlusOneMinusOneRange(),
             # BrushConstraint2D(
             #     brush=circular_brush(diameter=brush_diameter),
             #     axis=2,
             #     background_material="Air",
             # ),
+            TanhProjection(),
         ],
         partial_voxel_real_shape=(config.resolution, config.resolution, height),
     )
@@ -268,6 +270,22 @@ def main(
     logger.info(tc.tree_summary(arrays, depth=2))
     print(tc.tree_diagram(config, depth=4))
 
+    epochs = 501 if not evaluation else 1
+    if not evaluation:
+        schedule_finetune: optax.Schedule = optax.warmup_cosine_decay_schedule(
+            init_value=0.0005,
+            peak_value=0.005,
+            end_value=0.0005,
+            warmup_steps=10,
+            decay_steps=round(0.9 * epochs),
+        )
+        optimizer_finetune = optax.inject_hyperparams(optax.nadam)(learning_rate=schedule_finetune)
+
+        optimizer_finetune = optax.MultiSteps(optimizer_finetune, every_k_schedule=1)
+        opt_state_finetune: optax.OptState = optimizer_finetune.init(params)
+    
+    beta_schedule = optax.linear_schedule(0.1, 100, epochs)
+    
     exp_logger.savefig(
         exp_logger.cwd,
         "setup.png",
@@ -284,9 +302,10 @@ def main(
         objects=objects,
         export_stl=True,
         export_figure=True,
+        beta=beta_schedule(0),
     )
-
-    x, tmp, _ = apply_params(arrays, objects, params, key)
+    
+    x, tmp, _ = apply_params(arrays, objects, params, key, beta=beta_schedule(0))
     tmp.sources[0].plot(  # type: ignore
         exp_logger.cwd / "figures" / "mode.png"
     )
@@ -295,8 +314,9 @@ def main(
         params: ParameterContainer,
         arrays: ArrayContainer,
         key: jax.Array,
+        idx: int,
     ):
-        arrays, new_objects, info = apply_params(arrays, objects, params, key)
+        arrays, new_objects, info = apply_params(arrays, objects, params, key, beta=beta_schedule(idx))
 
         final_state = reversible_fdtd(
             arrays=arrays,
@@ -328,30 +348,17 @@ def main(
             **info,
             **objective_info,
         }
-        return -objective, (arrays, new_info)
-
-    epochs = 501 if not evaluation else 1
-    if not evaluation:
-        schedule_finetune: optax.Schedule = optax.warmup_cosine_decay_schedule(
-            init_value=0.0005,
-            peak_value=0.005,
-            end_value=0.0005,
-            warmup_steps=10,
-            decay_steps=round(0.9 * epochs),
-        )
-        optimizer_finetune = optax.inject_hyperparams(optax.nadam)(learning_rate=schedule_finetune)
-
-        optimizer_finetune = optax.MultiSteps(optimizer_finetune, every_k_schedule=1)
-        opt_state_finetune: optax.OptState = optimizer_finetune.init(params)
+        return -objective, (arrays, new_info) 
 
     compile_start_time = time.time()
     jit_task_id = exp_logger.progress.add_task("JIT", total=None)
+    idx_dummy_arr = jnp.asarray(0, dtype=jnp.float32)
     if evaluation:
-        jitted_loss = jax.jit(loss_func, donate_argnames=["arrays"]).lower(params, arrays, key).compile()
+        jitted_loss = jax.jit(loss_func, donate_argnames=["arrays"]).lower(params, arrays, key, idx_dummy_arr).compile()
     else:
         jitted_loss = (
             jax.jit(jax.value_and_grad(loss_func, has_aux=True), donate_argnames=["arrays"])
-            .lower(params, arrays, key)
+            .lower(params, arrays, key, idx_dummy_arr)
             .compile()
         )
     compile_delta_time = time.time() - compile_start_time
@@ -362,10 +369,11 @@ def main(
 
         run_start_time = time.time()
         key, subkey = jax.random.split(key)
+        idx_arr = jnp.asarray(epoch, dtype=jnp.float32)
         if evaluation:
-            loss, (arrays, info) = jitted_loss(params, arrays, subkey)
+            loss, (arrays, info) = jitted_loss(params, arrays, subkey, idx_arr)
         else:
-            (loss, (arrays, info)), grads = jitted_loss(params, arrays, subkey)
+            (loss, (arrays, info)), grads = jitted_loss(params, arrays, subkey, idx_arr)
 
             updates, opt_state_finetune = optimizer_finetune.update(grads, opt_state_finetune, params) # type: ignore
             info["lr"] = opt_state_finetune.inner_opt_state.hyperparams["learning_rate"]
@@ -389,6 +397,7 @@ def main(
             objects=objects,
             export_stl=True,
             export_figure=True,
+            beta=beta_schedule(epoch)
         )
         info["changed_voxels"] = changed_voxels
 
@@ -401,7 +410,7 @@ def main(
 
 if __name__ == "__main__":
     seed = 42
-    evaluation = False
+    evaluation = True
     backward = False
     if len(sys.argv) > 1:
         seed = int(sys.argv[1])

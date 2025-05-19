@@ -1,6 +1,10 @@
 import jax
 import jax.numpy as jnp
 
+from fdtdx.core.jax.pytrees import extended_autoinit
+from fdtdx.objects.device.parameters.transform import ParameterTransformation
+from fdtdx.typing import ParameterSpecs, ParameterType
+
 
 def tanh_projection(x: jax.Array, beta: float, eta: float) -> jax.Array:
     """
@@ -13,20 +17,35 @@ def tanh_projection(x: jax.Array, beta: float, eta: float) -> jax.Array:
     Structural and Multidisciplinary Optimization, 43(6), pp. 767-784 (2011).
 
     Args:
-        x: 2d design weights to be filtered.
+        x: design weights to be filtered.
         beta: thresholding parameter in the range [0, inf]. Determines the
             degree of binarization of the output.
-        eta: threshold point in the range [0, 1].
+        eta: threshold point in range [0, 1]
 
     Returns:
         The filtered design weights.
     """
-    if beta == jnp.inf:
+    
+    def beta_inf_case():
         # Note that backpropagating through here can produce NaNs. So we
         # manually specify the step function to keep the gradient clean.
         return jnp.where(x > eta, 1.0, 0.0)
-    else:
-        return (jnp.tanh(beta * eta) + jnp.tanh(beta * (x - eta))) / (jnp.tanh(beta * eta) + jnp.tanh(beta * (1 - eta)))
+    
+    def beta_zero_case():
+        # this is mathematically not really accurate, but makes sense for optimization
+        return jnp.clip(x, 0, 1)
+    
+    def other_case():
+        dividend = jnp.tanh(beta * eta) + jnp.tanh(beta * (x - eta))
+        divisor = jnp.tanh(beta * eta) + jnp.tanh(beta * (1 - eta))
+        return dividend / divisor
+    
+    index = (beta == 0) + 2 * ((beta != 0) & ~jnp.isinf(beta))
+    result = jax.lax.switch(
+        index,
+        (beta_inf_case, beta_zero_case, other_case)
+    )
+    return result
 
 
 def smoothed_projection(
@@ -153,3 +172,65 @@ def smoothed_projection(
         rho_projected_smoothed,
         rho_projected,
     )
+
+
+@extended_autoinit
+class TanhProjection(ParameterTransformation):
+    """
+    Tanh projection filter.
+    
+    This needs the steepness parameter $\beta$ as a keyword-argument in 
+    apply_params
+    
+    Ref: F. Wang, B. S. Lazarov, & O. Sigmund, On projection methods,
+    convergence and robust formulations in topology optimization.
+    Structural and Multidisciplinary Optimization, 43(6), pp. 767-784 (2011).
+    """
+    projection_midpoint: float = 0.5
+    
+    def get_output_specs(
+        self,
+        input_specs: dict[str, ParameterSpecs] | ParameterSpecs,
+    ) -> dict[str, ParameterSpecs] | ParameterSpecs:
+        # expand to dict for easier handling with less code duplication
+        expanded = False
+        if isinstance(input_specs, ParameterSpecs):
+            expanded = True
+            input_specs = {"dummy": input_specs}
+        
+        # sanity checks
+        for v in input_specs.values():
+            if v.type != ParameterType.CONTINUOUS:
+                raise Exception(
+                    f"TanhProjection needs continous input, but got: {input_specs}"
+                )
+
+        # simply return the input specs
+        if expanded:
+            input_specs = input_specs["dummy"]
+        return input_specs
+
+    def __call__(
+        self,
+        params: dict[str, jax.Array] | jax.Array,
+        **kwargs,
+    ) -> dict[str, jax.Array] | jax.Array:
+        if "beta" not in kwargs:
+            raise Exception(
+                "TanhProjection needs the beta parameter as additional keyword argument!"
+            )
+        beta = kwargs["beta"]
+        expanded = False
+        if not isinstance(params, dict):
+            expanded = True
+            params = {"dummy": params}
+        
+        result = {}
+        for k, v in params.items():
+            result[k] = tanh_projection(v, beta, self.projection_midpoint)
+                    
+        if expanded:
+            result = result["dummy"]
+        return result
+        
+

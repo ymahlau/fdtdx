@@ -253,6 +253,7 @@ class Logger:
         export_figure: bool = False,
         export_stl: bool = False,
         export_background_stl: bool = False,
+        **transformation_kwargs,
     ) -> int:
         """Log parameter states and export device visualizations.
 
@@ -273,7 +274,7 @@ class Logger:
         changed_voxels = 0
         for device in objects.devices:
             device_params = params[device.name]
-            indices = device(device_params)
+            indices = device(device_params, **transformation_kwargs)
 
             # raw parameters and indices
             if isinstance(device_params, dict):
