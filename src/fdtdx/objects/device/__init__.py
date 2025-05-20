@@ -3,6 +3,7 @@ from .parameters.continous import (
     StandardToCustomRange,
     StandardToInversePermittivityRange,
     StandardToPlusOneMinusOneRange,
+    GaussianSmoothing2D,
 )
 from .parameters.discrete import (
     BOTTOM_Z_PADDING_CONFIG_REPEAT,
@@ -17,6 +18,7 @@ from .parameters.discretization import (
     circular_brush,
 )
 from .parameters.transform import ParameterTransformation
+from .parameters.projection import TanhProjection, SubpixelSmoothedProjection
 
 __all__ = [
     # devices
@@ -35,6 +37,10 @@ __all__ = [
     "StandardToCustomRange",
     "StandardToInversePermittivityRange",
     "StandardToPlusOneMinusOneRange",
+    "GaussianSmoothing2D",
     # mapping
     "ParameterTransformation",
+    # projection
+    "TanhProjection",
+    "SubpixelSmoothedProjection",
 ]
