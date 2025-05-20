@@ -16,7 +16,6 @@ from fdtdx.typing import (
     INVALID_SHAPE_3D,
     UNDEFINED_SHAPE_3D,
     GridShape3D,
-    ParameterSpecs,
     ParameterType,
     PartialGridShape3D,
     PartialRealShape3D,
@@ -92,10 +91,15 @@ class Device(OrderableObject, ABC):
     def output_type(self) -> ParameterType:
         if not self.param_transforms:
             return ParameterType.CONTINUOUS
-        out_specs = self.param_transforms[-1]._output_specs
-        if not isinstance(out_specs, ParameterSpecs):
-            raise Exception(f"Output of Parameter transformation needs to be a single array, but got: {out_specs}")
-        return out_specs.type
+        out_type = self.param_transforms[-1]._output_type
+        if isinstance(out_type, dict) and len(out_type) == 1:
+            out_type = list(out_type.values())[0]
+        if not isinstance(out_type, ParameterType):
+            raise Exception(
+                "Output of Parameter transformation sequence (last module) needs to be a single array, but got: "
+                f"{out_type}"
+            )
+        return out_type
 
     def place_on_grid(
         self: Self,
@@ -135,24 +139,34 @@ class Device(OrderableObject, ABC):
                 )
 
         # init parameter transformations
-        cur_specs = ParameterSpecs(
-            shape=self.matrix_voxel_grid_shape,
-            type=ParameterType.CONTINUOUS,
-        )
-        new_t_list = []
-        for transform in self.param_transforms:
+        # We need to go once backwards through the transformations to determine the shape of the latent parameters
+        # then we need to go forward through the transformations again to determine the parameter type of the
+        # output
+        new_t_list: list[ParameterTransformation] = []
+        cur_shape = {"params": self.matrix_voxel_grid_shape}
+        for transform in self.param_transforms[::-1]:
             t_new = transform.init_module(
                 config=config,
                 materials=self.materials,
-                input_specs=cur_specs,
                 matrix_voxel_grid_shape=self.matrix_voxel_grid_shape,
                 single_voxel_size=self.single_voxel_real_shape,
+                output_shape=cur_shape,
             )
             new_t_list.append(t_new)
-            cur_specs = t_new._output_specs
-
+            cur_shape = t_new._input_shape
+            
+        # init shape of transformations by going backwards through new list
+        module_list: list[ParameterTransformation] = []
+        cur_input_type = {"params": ParameterType.CONTINUOUS}
+        for transform in new_t_list[::-1]:
+            t_new = transform.init_type(
+                input_type=cur_input_type,
+            )
+            module_list.append(t_new)
+            cur_input_type = t_new._output_type
+            
         # set own input shape dtype
-        self = self.aset("param_transforms", new_t_list)
+        self = self.aset("param_transforms", module_list)
         if self.output_type == ParameterType.CONTINUOUS and len(self.materials) != 2:
             raise Exception(
                 f"Need exactly two materials in device when parameter mapping outputs continous permittivity indices, "
@@ -165,20 +179,17 @@ class Device(OrderableObject, ABC):
         key: jax.Array,
     ) -> dict[str, jax.Array] | jax.Array:
         if len(self.param_transforms) > 0:
-            shape_dtypes = self.param_transforms[0]._input_specs
+            shapes = self.param_transforms[0]._input_shape
         else:
-            shape_dtypes = jax.ShapeDtypeStruct(
-                self.matrix_voxel_grid_shape,
-                jnp.float32,
-            )
-        if not isinstance(shape_dtypes, dict):
-            shape_dtypes = {"dummy": shape_dtypes}
+            shapes = self.matrix_voxel_grid_shape
+        if not isinstance(shapes, dict):
+            shapes = {"params": shapes}
         params = {}
-        for k, sd in shape_dtypes.items():
+        for k, cur_shape in shapes.items():
             key, subkey = jax.random.split(key)
             p = jax.random.uniform(
                 key=subkey,
-                shape=sd.shape,
+                shape=cur_shape,
                 minval=0,  # parameter always live between 0 and 1
                 maxval=1,
                 dtype=jnp.float32,
@@ -194,12 +205,16 @@ class Device(OrderableObject, ABC):
         expand_to_sim_grid: bool = False,
         **transform_kwargs,
     ) -> jax.Array:
+        if not isinstance(params, dict):
+            params = {"params": params}
         # walk through modules
         for transform in self.param_transforms:
-            check_specs(params, transform._input_specs)
+            check_specs(params, transform._input_shape)
             params = transform(params, **transform_kwargs)
-            check_specs(params, transform._output_specs)
-        if not isinstance(params, jax.Array):
+            check_specs(params, transform._output_shape)
+        if len(params) == 1:
+            params = list(params.values())[0]
+        else:
             raise Exception(
                 "The parameter mapping should return a single array of indices. If using a continous device, please"
                 " make sure that the latent transformations abide to this rule."

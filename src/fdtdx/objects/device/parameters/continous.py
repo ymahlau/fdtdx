@@ -1,26 +1,29 @@
 import math
+from typing import Sequence
 
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
+from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, frozen_private_field
 from fdtdx.core.misc import PaddingConfig, advanced_padding
-from fdtdx.objects.device.parameters.transform import SameShapeContinousParameterTransform
+from fdtdx.objects.device.parameters.transform import SameShapeTypeParameterTransform
+from fdtdx.typing import ParameterType
 
 
 @extended_autoinit
-class StandardToInversePermittivityRange(SameShapeContinousParameterTransform):
+class StandardToInversePermittivityRange(SameShapeTypeParameterTransform):
     """Maps standard [0,1] range to inverse permittivity range.
 
     Linearly maps values from [0,1] to the range between minimum and maximum
     inverse permittivity values allowed by the material configuration.
     """
+    _fixed_input_type: ParameterType | Sequence[ParameterType]| None = frozen_private_field(default=ParameterType.CONTINUOUS)
 
     def __call__(
         self,
-        params: dict[str, jax.Array] | jax.Array,
+        params: dict[str, jax.Array],
         **kwargs,
-    ) -> dict[str, jax.Array] | jax.Array:
+    ) -> dict[str, jax.Array]:
         del kwargs
         # determine minimum and maximum allowed permittivity
         max_inv_perm, min_inv_perm = -math.inf, math.inf
@@ -33,18 +36,15 @@ class StandardToInversePermittivityRange(SameShapeContinousParameterTransform):
                     min_inv_perm = p
 
         # transform
-        if isinstance(params, dict):
-            result = {}
-            for k, v in params.items():
-                mapped = v * (max_inv_perm - min_inv_perm) + min_inv_perm
-                result[k] = mapped
-        else:
-            result = params * (max_inv_perm - min_inv_perm) + min_inv_perm
+        result = {}
+        for k, v in params.items():
+            mapped = v * (max_inv_perm - min_inv_perm) + min_inv_perm
+            result[k] = mapped
         return result
 
 
 @extended_autoinit
-class StandardToCustomRange(SameShapeContinousParameterTransform):
+class StandardToCustomRange(SameShapeTypeParameterTransform):
     """Maps standard [0,1] range to custom range [min_value, max_value].
 
     Linearly maps values from [0,1] to a custom range specified by min_value
@@ -54,23 +54,20 @@ class StandardToCustomRange(SameShapeContinousParameterTransform):
         min_value: Minimum value of target range
         max_value: Maximum value of target range
     """
-
     min_value: float = frozen_field(default=0)
     max_value: float = frozen_field(default=1)
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(default=ParameterType.CONTINUOUS)
 
     def __call__(
         self,
-        params: dict[str, jax.Array] | jax.Array,
+        params: dict[str, jax.Array],
         **kwargs,
-    ) -> dict[str, jax.Array] | jax.Array:
+    ) -> dict[str, jax.Array]:
         del kwargs
-        if isinstance(params, dict):
-            result = {}
-            for k, v in params.items():
-                mapped = v * (self.max_value - self.min_value) + self.min_value
-                result[k] = mapped
-        else:
-            result = params * (self.max_value - self.min_value) + self.min_value
+        result = {}
+        for k, v in params.items():
+            mapped = v * (self.max_value - self.min_value) + self.min_value
+            result[k] = mapped
         return result
 
 
@@ -91,7 +88,7 @@ class StandardToPlusOneMinusOneRange(StandardToCustomRange):
 
 
 @extended_autoinit
-class GaussianSmoothing2D(SameShapeContinousParameterTransform):
+class GaussianSmoothing2D(SameShapeTypeParameterTransform):
     """
     Applies Gaussian smoothing to 2D parameter arrays.
 
@@ -102,24 +99,20 @@ class GaussianSmoothing2D(SameShapeContinousParameterTransform):
         std_discrete: Integer specifying the standard deviation of the
                      Gaussian kernel in discrete units.
     """
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(default=ParameterType.CONTINUOUS)
+    _all_arrays_2d: bool = frozen_private_field(default=True)
 
     std_discrete: int
 
     def __call__(
         self,
-        params: dict[str, jax.Array] | jax.Array,
+        params: dict[str, jax.Array],
         **kwargs,
-    ) -> dict[str, jax.Array] | jax.Array:
+    ) -> dict[str, jax.Array]:
         del kwargs
-        if isinstance(params, dict):
-            return {k: self._apply_smoothing(v) for k, v in params.items()}
-        else:
-            return self._apply_smoothing(params)
+        return {k: self._apply_smoothing(v) for k, v in params.items()}
 
     def _apply_smoothing(self, x: jax.Array) -> jax.Array:
-        # squeeze to 2d array
-        if 1 not in x.shape:
-            raise Exception(f"Expected 2d array in GaussianSmoothing2D, but got: {x.shape}")
         vertical_axis = x.shape.index(1)
         x_squeezed = x.squeeze(vertical_axis)
         # Check if the array is 2D
