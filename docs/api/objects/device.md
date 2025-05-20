@@ -26,3 +26,6 @@ In FDTDX, devices are objects whose shape can be optimized. A device has a corre
 ::: fdtdx.objects.device.ConnectHolesAndStructures
 ::: fdtdx.objects.device.RemoveFloatingMaterial
 ::: fdtdx.objects.device.BinaryMedianFilterModule
+
+# Symmetries
+::: fdtdx.objects.device.DiagonalSymmetry2D
