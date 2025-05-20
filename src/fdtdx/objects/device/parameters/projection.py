@@ -1,9 +1,11 @@
+from typing import Sequence
+
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.jax.pytrees import extended_autoinit
-from fdtdx.objects.device.parameters.transform import ParameterTransformation
-from fdtdx.typing import ParameterSpecs, ParameterType
+from fdtdx.core.jax.pytrees import extended_autoinit, frozen_private_field
+from fdtdx.objects.device.parameters.transform import SameShapeTypeParameterTransform
+from fdtdx.typing import ParameterType
 
 
 def tanh_projection(x: jax.Array, beta: float, eta: float) -> jax.Array:
@@ -172,7 +174,7 @@ def smoothed_projection(
 
 
 @extended_autoinit
-class TanhProjection(ParameterTransformation):
+class TanhProjection(SameShapeTypeParameterTransform):
     """
     Tanh projection filter.
 
@@ -186,50 +188,28 @@ class TanhProjection(ParameterTransformation):
 
     projection_midpoint: float = 0.5
 
-    def get_output_specs(
-        self,
-        input_specs: dict[str, ParameterSpecs] | ParameterSpecs,
-    ) -> dict[str, ParameterSpecs] | ParameterSpecs:
-        # expand to dict for easier handling with less code duplication
-        expanded = False
-        if isinstance(input_specs, ParameterSpecs):
-            expanded = True
-            input_specs = {"dummy": input_specs}
-
-        # sanity checks
-        for v in input_specs.values():
-            if v.type != ParameterType.CONTINUOUS:
-                raise Exception(f"TanhProjection needs continous input, but got: {input_specs}")
-
-        # simply return the input specs
-        if expanded:
-            input_specs = input_specs["dummy"]
-        return input_specs
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
+        default=ParameterType.CONTINUOUS
+    )
 
     def __call__(
         self,
-        params: dict[str, jax.Array] | jax.Array,
+        params: dict[str, jax.Array],
         **kwargs,
-    ) -> dict[str, jax.Array] | jax.Array:
+    ) -> dict[str, jax.Array]:
         if "beta" not in kwargs:
             raise Exception("TanhProjection needs the beta parameter as additional keyword argument!")
         beta = kwargs["beta"]
-        expanded = False
-        if not isinstance(params, dict):
-            expanded = True
-            params = {"dummy": params}
 
         result = {}
         for k, v in params.items():
             result[k] = tanh_projection(v, beta, self.projection_midpoint)
 
-        if expanded:
-            result = result["dummy"]
         return result
 
 
 @extended_autoinit
-class SubpixelSmoothedProjection(ParameterTransformation):
+class SubpixelSmoothedProjection(SameShapeTypeParameterTransform):
     """
     This function is adapted from the Meep repository:
     https://github.com/NanoComp/meep/blob/master/python/adjoint/filters.py
@@ -265,43 +245,20 @@ class SubpixelSmoothedProjection(ParameterTransformation):
 
     projection_midpoint: float = 0.5
 
-    def get_output_specs(
-        self,
-        input_specs: dict[str, ParameterSpecs] | ParameterSpecs,
-    ) -> dict[str, ParameterSpecs] | ParameterSpecs:
-        # expand to dict for easier handling with less code duplication
-        expanded = False
-        if isinstance(input_specs, ParameterSpecs):
-            expanded = True
-            input_specs = {"dummy": input_specs}
-
-        if len(input_specs) != 1:
-            raise Exception("SubpixelSmoothedProjection expects a single array as input")
-
-        # sanity checks
-        for v in input_specs.values():
-            if v.type != ParameterType.CONTINUOUS:
-                raise Exception(f"SubpixelSmoothedProjection needs continous input, but got: {input_specs}")
-            if 1 not in v.shape:
-                raise Exception(f"SubpixelSmoothedProjection needs 2d shape, but got: {v.shape}")
-
-        # simply return the input specs
-        if expanded:
-            input_specs = input_specs["dummy"]
-        return input_specs
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
+        default=ParameterType.CONTINUOUS
+    )
+    _check_single_array: bool = frozen_private_field(default=True)
+    _all_arrays_2d: bool = frozen_private_field(default=True)
 
     def __call__(
         self,
-        params: dict[str, jax.Array] | jax.Array,
+        params: dict[str, jax.Array],
         **kwargs,
-    ) -> dict[str, jax.Array] | jax.Array:
+    ) -> dict[str, jax.Array]:
         if "beta" not in kwargs:
             raise Exception("SubpixelSmoothedProjection needs the beta parameter as additional keyword argument!")
         beta = kwargs["beta"]
-        expanded = False
-        if not isinstance(params, dict):
-            expanded = True
-            params = {"dummy": params}
 
         result = {}
         for k, v in params.items():
@@ -326,6 +283,4 @@ class SubpixelSmoothedProjection(ParameterTransformation):
             )
             result[k] = jnp.expand_dims(result_2d, vertical_axis)
 
-        if expanded:
-            result = result["dummy"]
         return result

@@ -26,6 +26,7 @@ from fdtdx.objects.device.device import Device
 from fdtdx.objects.device.parameters.continous import GaussianSmoothing2D, StandardToInversePermittivityRange
 from fdtdx.objects.device.parameters.discretization import ClosestIndex
 from fdtdx.objects.device.parameters.projection import SubpixelSmoothedProjection, TanhProjection
+from fdtdx.objects.device.parameters.symmetries import DiagonalSymmetry2D
 from fdtdx.objects.sources import ModePlaneSource
 from fdtdx.core import metric_efficiency, OnOffSwitch
 from fdtdx.utils import Logger, plot_setup
@@ -116,6 +117,7 @@ def main(
             #     background_material="Air",
             # ),
             # TanhProjection(),
+            DiagonalSymmetry2D(min_min_to_max_max=False),
             GaussianSmoothing2D(std_discrete=3),
             SubpixelSmoothedProjection(),
         ],

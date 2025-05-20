@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from enum import Enum
 from typing import Literal, Optional
 
@@ -60,9 +59,3 @@ class ParameterType(Enum):
     CONTINUOUS = 0
     DISCRETE = 1
     BINARY = 2
-
-
-@dataclass(frozen=True)
-class ParameterSpecs:
-    shape: tuple[int, int, int]
-    type: ParameterType

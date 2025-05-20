@@ -18,6 +18,7 @@ from .parameters.discretization import (
     circular_brush,
 )
 from .parameters.projection import SubpixelSmoothedProjection, TanhProjection
+from .parameters.symmetries import DiagonalSymmetry2D
 from .parameters.transform import ParameterTransformation
 
 __all__ = [
@@ -43,4 +44,6 @@ __all__ = [
     # projection
     "TanhProjection",
     "SubpixelSmoothedProjection",
+    # symmetries
+    "DiagonalSymmetry2D",
 ]

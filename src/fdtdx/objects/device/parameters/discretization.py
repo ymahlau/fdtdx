@@ -1,5 +1,5 @@
 import math
-from typing import Literal, Self
+from typing import Literal, Self, Sequence
 
 import equinox.internal as eqxi
 import jax
@@ -14,7 +14,7 @@ from fdtdx.materials import Material, compute_allowed_permittivities, compute_or
 from fdtdx.objects.device.parameters.binary_transform import dilate_jax
 from fdtdx.objects.device.parameters.transform import ParameterTransformation
 from fdtdx.objects.device.parameters.utils import compute_allowed_indices, nearest_index
-from fdtdx.typing import ParameterSpecs, ParameterType
+from fdtdx.typing import ParameterType
 
 
 @extended_autoinit
@@ -29,30 +29,34 @@ class ClosestIndex(ParameterTransformation):
     """
 
     mapping_from_inverse_permittivities: bool = False
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
+        default=ParameterType.CONTINUOUS
+    )
 
-    def get_output_specs(
+    def _get_input_shape_impl(
         self,
-        input_specs: dict[str, ParameterSpecs] | ParameterSpecs,
-    ) -> dict[str, ParameterSpecs] | ParameterSpecs:
+        output_shape: dict[str, tuple[int, ...]],
+    ) -> dict[str, tuple[int, ...]]:
+        return output_shape
+
+    def _get_output_type_impl(
+        self,
+        input_type: dict[str, ParameterType],
+    ) -> dict[str, ParameterType]:
         if len(self._materials) <= 1:
             raise Exception(f"Invalid materials (need two or more): {self._materials}")
         elif len(self._materials) == 2:
             output_type = ParameterType.BINARY
         else:
             output_type = ParameterType.DISCRETE
-
-        if isinstance(input_specs, ParameterSpecs):
-            return ParameterSpecs(shape=input_specs.shape, type=output_type)
-        result = {}
-        for k, v in input_specs.items():
-            result[k] = ParameterSpecs(shape=v.shape, type=output_type)
+        result = {k: output_type for k in input_type.keys()}
         return result
 
     def __call__(
         self,
-        params: dict[str, jax.Array] | jax.Array,
+        params: dict[str, jax.Array],
         **kwargs,
-    ) -> dict[str, jax.Array] | jax.Array:
+    ) -> dict[str, jax.Array]:
         del kwargs
 
         def transform_arr(arr: jax.Array) -> jax.Array:
@@ -64,8 +68,6 @@ class ClosestIndex(ParameterTransformation):
                 discrete = jnp.clip(jnp.round(arr), 0, len(self._materials) - 1)
             return straight_through_estimator(arr, discrete)
 
-        if isinstance(params, jax.Array):
-            return transform_arr(params)
         result = {}
         for k, v in params.items():
             result[k] = transform_arr(v)
@@ -91,47 +93,42 @@ class BrushConstraint2D(ParameterTransformation):
     axis: int = frozen_field()
     background_material: str | None = frozen_field(default=None)
 
-    def get_output_specs(
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
+        default=ParameterType.CONTINUOUS
+    )
+    _check_single_array: bool = frozen_private_field(default=True)
+    _all_arrays_2d: bool = frozen_private_field(default=True)
+
+    def _get_input_shape_impl(
         self,
-        input_specs: dict[str, ParameterSpecs] | ParameterSpecs,
-    ) -> dict[str, ParameterSpecs] | ParameterSpecs:
-        if isinstance(input_specs, dict):
-            raise Exception(
-                "BrushConstraint2D needs a single array as input! Make sure the transformation is"
-                "preceded by a transformation outputting a single array."
-            )
+        output_shape: dict[str, tuple[int, ...]],
+    ) -> dict[str, tuple[int, ...]]:
+        return output_shape
+
+    def _get_output_type_impl(
+        self,
+        input_type: dict[str, ParameterType],
+    ) -> dict[str, ParameterType]:
         if len(self._materials) != 2:
             raise Exception(
                 f"BrushConstraint2D currently only implemented for exactly two materials, but got {self._materials}"
             )
-        if input_specs.type != ParameterType.CONTINUOUS:
-            raise Exception(
-                "BrushConstraint2D needs continous input values! Make sure it is preceded by a transform outputting "
-                "continous values, in the best case in the range [-1, 1]"
-            )
-        return ParameterSpecs(
-            shape=input_specs.shape,
-            type=ParameterType.BINARY,
-        )
+        return {k: ParameterType.BINARY for k in input_type.keys()}
 
     def __call__(
         self,
-        params: dict[str, jax.Array] | jax.Array,
+        params: dict[str, jax.Array],
         **kwargs,
-    ) -> dict[str, jax.Array] | jax.Array:
+    ) -> dict[str, jax.Array]:
         del kwargs
-        if not isinstance(params, jax.Array):
-            raise Exception(
-                "BrushConstraint2D needs a single array as input! Make sure the transformation is"
-                "preceded by a transformation outputting a single array."
-            )
-        s = params.shape
-        if len(s) != 3:
-            raise Exception(f"BrushConstraint2D Generator can only work with 2D-Arrays, got {s=}")
+
+        single_key = list(params.keys())[0]
+        param_arr = params[single_key]
+        s = param_arr.shape
         if s[self.axis] != 1:
             raise Exception(f"BrushConstraint2D Generator needs array size 1 in axis, but got {s=}")
         arr_2d = jnp.take(
-            params,
+            param_arr,
             jnp.asarray(0),
             axis=self.axis,
         )
@@ -150,8 +147,8 @@ class BrushConstraint2D(ParameterTransformation):
             cur_result = 1 - cur_result
 
         cur_result = jnp.expand_dims(cur_result, axis=self.axis)
-        result = straight_through_estimator(params, cur_result)
-        return result
+        result = straight_through_estimator(param_arr, cur_result)
+        return {single_key: result}
 
     def _generator(
         self,
@@ -316,18 +313,43 @@ class PillarDiscretization(ParameterTransformation):
     background_material: str | None = frozen_field(default=None)
     _allowed_indices: jax.Array = frozen_private_field()
 
+    _check_single_array: bool = frozen_private_field(default=True)
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
+        default=ParameterType.CONTINUOUS
+    )
+
+    def _get_input_shape_impl(
+        self,
+        output_shape: dict[str, tuple[int, ...]],
+    ) -> dict[str, tuple[int, ...]]:
+        return output_shape
+
+    def _get_output_type_impl(
+        self,
+        input_type: dict[str, ParameterType],
+    ) -> dict[str, ParameterType]:
+        if len(self._materials) <= 1:
+            raise Exception(f"Invalid materials (need two or more): {self._materials}")
+        elif len(self._materials) == 2:
+            output_type = ParameterType.BINARY
+        else:
+            output_type = ParameterType.DISCRETE
+        return {k: output_type for k in input_type.keys()}
+
     def init_module(
         self: Self,
         config: SimulationConfig,
         materials: dict[str, Material],
-        input_specs: dict[str, ParameterSpecs] | ParameterSpecs,
         matrix_voxel_grid_shape: tuple[int, int, int],
+        single_voxel_size: tuple[float, float, float],
+        output_shape: dict[str, tuple[int, ...]],
     ) -> Self:
         self = super().init_module(
             config=config,
             materials=materials,
-            input_specs=input_specs,
             matrix_voxel_grid_shape=matrix_voxel_grid_shape,
+            single_voxel_size=single_voxel_size,
+            output_shape=output_shape,
         )
 
         if self.background_material is None:
@@ -348,42 +370,19 @@ class PillarDiscretization(ParameterTransformation):
         logger.info(f"{allowed_columns.shape=}")
         return self
 
-    def get_output_specs(
-        self,
-        input_specs: dict[str, ParameterSpecs] | ParameterSpecs,
-    ) -> dict[str, ParameterSpecs] | ParameterSpecs:
-        if isinstance(input_specs, dict):
-            raise Exception(
-                "PillarDiscretization needs to be preceded by a transform outputting a single array (or be the "
-                "first transform applied)"
-            )
-        if input_specs.type != ParameterType.CONTINUOUS:
-            raise Exception(f"PillarDiscretization needs continous parameters as input, but got: {input_specs}")
-        if len(self._materials) <= 1:
-            raise Exception(f"Invalid materials (need two or more): {self._materials}")
-        elif len(self._materials) == 2:
-            output_type = ParameterType.BINARY
-        else:
-            output_type = ParameterType.DISCRETE
-
-        return ParameterSpecs(shape=input_specs.shape, type=output_type)
-
     def __call__(
         self,
-        params: dict[str, jax.Array] | jax.Array,
+        params: dict[str, jax.Array],
         **kwargs,
-    ) -> dict[str, jax.Array] | jax.Array:
+    ) -> dict[str, jax.Array]:
         del kwargs
-        if not isinstance(params, jax.Array):
-            raise Exception(
-                "PillarDiscretization needs to be preceded by a transform outputting a single array (or be the "
-                "first transform applied)"
-            )
+
+        single_key = list(params.keys())[0]
+        params_arr = params[single_key]
 
         allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(self._materials))
-
         nearest_allowed_index = nearest_index(
-            values=params,
+            values=params_arr,
             allowed_values=allowed_inv_perms,
             axis=self.axis,
             distance_metric=self.distance_metric,
@@ -399,5 +398,5 @@ class PillarDiscretization(ParameterTransformation):
             result_index = jnp.transpose(result_index, axes=(2, 0, 1))
         else:
             raise Exception(f"invalid axis: {self.axis}")
-        result_index = straight_through_estimator(params, result_index)
-        return result_index
+        result_index = straight_through_estimator(params_arr, result_index)
+        return {single_key: result_index}
