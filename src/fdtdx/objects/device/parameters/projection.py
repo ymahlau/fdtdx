@@ -1,6 +1,10 @@
 import jax
 import jax.numpy as jnp
 
+from fdtdx.core.jax.pytrees import extended_autoinit
+from fdtdx.objects.device.parameters.transform import ParameterTransformation
+from fdtdx.typing import ParameterSpecs, ParameterType
+
 
 def tanh_projection(x: jax.Array, beta: float, eta: float) -> jax.Array:
     """
@@ -13,20 +17,32 @@ def tanh_projection(x: jax.Array, beta: float, eta: float) -> jax.Array:
     Structural and Multidisciplinary Optimization, 43(6), pp. 767-784 (2011).
 
     Args:
-        x: 2d design weights to be filtered.
+        x: design weights to be filtered.
         beta: thresholding parameter in the range [0, inf]. Determines the
             degree of binarization of the output.
-        eta: threshold point in the range [0, 1].
+        eta: threshold point in range [0, 1]
 
     Returns:
         The filtered design weights.
     """
-    if beta == jnp.inf:
+
+    def beta_inf_case():
         # Note that backpropagating through here can produce NaNs. So we
         # manually specify the step function to keep the gradient clean.
         return jnp.where(x > eta, 1.0, 0.0)
-    else:
-        return (jnp.tanh(beta * eta) + jnp.tanh(beta * (x - eta))) / (jnp.tanh(beta * eta) + jnp.tanh(beta * (1 - eta)))
+
+    def beta_zero_case():
+        # this is mathematically not really accurate, but makes sense for optimization
+        return jnp.clip(x, 0, 1)
+
+    def other_case():
+        dividend = jnp.tanh(beta * eta) + jnp.tanh(beta * (x - eta))
+        divisor = jnp.tanh(beta * eta) + jnp.tanh(beta * (1 - eta))
+        return dividend / divisor
+
+    index = (beta == 0) + 2 * ((beta != 0) & ~jnp.isinf(beta))
+    result = jax.lax.switch(index, (beta_inf_case, beta_zero_case, other_case))
+    return result
 
 
 def smoothed_projection(
@@ -153,3 +169,163 @@ def smoothed_projection(
         rho_projected_smoothed,
         rho_projected,
     )
+
+
+@extended_autoinit
+class TanhProjection(ParameterTransformation):
+    """
+    Tanh projection filter.
+
+    This needs the steepness parameter $\beta$ as a keyword-argument in
+    apply_params
+
+    Ref: F. Wang, B. S. Lazarov, & O. Sigmund, On projection methods,
+    convergence and robust formulations in topology optimization.
+    Structural and Multidisciplinary Optimization, 43(6), pp. 767-784 (2011).
+    """
+
+    projection_midpoint: float = 0.5
+
+    def get_output_specs(
+        self,
+        input_specs: dict[str, ParameterSpecs] | ParameterSpecs,
+    ) -> dict[str, ParameterSpecs] | ParameterSpecs:
+        # expand to dict for easier handling with less code duplication
+        expanded = False
+        if isinstance(input_specs, ParameterSpecs):
+            expanded = True
+            input_specs = {"dummy": input_specs}
+
+        # sanity checks
+        for v in input_specs.values():
+            if v.type != ParameterType.CONTINUOUS:
+                raise Exception(f"TanhProjection needs continous input, but got: {input_specs}")
+
+        # simply return the input specs
+        if expanded:
+            input_specs = input_specs["dummy"]
+        return input_specs
+
+    def __call__(
+        self,
+        params: dict[str, jax.Array] | jax.Array,
+        **kwargs,
+    ) -> dict[str, jax.Array] | jax.Array:
+        if "beta" not in kwargs:
+            raise Exception("TanhProjection needs the beta parameter as additional keyword argument!")
+        beta = kwargs["beta"]
+        expanded = False
+        if not isinstance(params, dict):
+            expanded = True
+            params = {"dummy": params}
+
+        result = {}
+        for k, v in params.items():
+            result[k] = tanh_projection(v, beta, self.projection_midpoint)
+
+        if expanded:
+            result = result["dummy"]
+        return result
+
+
+@extended_autoinit
+class SubpixelSmoothedProjection(ParameterTransformation):
+    """
+    This function is adapted from the Meep repository:
+    https://github.com/NanoComp/meep/blob/master/python/adjoint/filters.py
+
+    The details of this projection are described in the paper by Alec Hammond:
+    https://arxiv.org/pdf/2503.20189
+
+    Project using subpixel smoothing, which allows for β→∞.
+    This technique integrates out the discontinuity within the projection
+    function, allowing the user to smoothly increase β from 0 to ∞ without
+    losing the gradient. Effectively, a level set is created, and from this
+    level set, first-order subpixel smoothing is applied to the interfaces (if
+    any are present).
+
+    In order for this to work, the input array must already be smooth (e.g. by
+    filtering).
+
+    While the original approach involves numerical quadrature, this approach
+    performs a "trick" by assuming that the user is always infinitely projecting
+    (β=∞). In this case, the expensive quadrature simplifies to an analytic
+    fill-factor expression. When to use this fill factor requires some careful
+    logic.
+
+    For one, we want to make sure that the user can indeed project at any level
+    (not just infinity). So in these cases, we simply check if in interface is
+    within the pixel. If not, we revert to the standard filter plus project
+    technique.
+
+    If there is an interface, we want to make sure the derivative remains
+    continuous both as the interface leaves the cell, *and* as it crosses the
+    center. To ensure this, we need to account for the different possibilities.
+    """
+
+    projection_midpoint: float = 0.5
+
+    def get_output_specs(
+        self,
+        input_specs: dict[str, ParameterSpecs] | ParameterSpecs,
+    ) -> dict[str, ParameterSpecs] | ParameterSpecs:
+        # expand to dict for easier handling with less code duplication
+        expanded = False
+        if isinstance(input_specs, ParameterSpecs):
+            expanded = True
+            input_specs = {"dummy": input_specs}
+
+        if len(input_specs) != 1:
+            raise Exception("SubpixelSmoothedProjection expects a single array as input")
+
+        # sanity checks
+        for v in input_specs.values():
+            if v.type != ParameterType.CONTINUOUS:
+                raise Exception(f"SubpixelSmoothedProjection needs continous input, but got: {input_specs}")
+            if 1 not in v.shape:
+                raise Exception(f"SubpixelSmoothedProjection needs 2d shape, but got: {v.shape}")
+
+        # simply return the input specs
+        if expanded:
+            input_specs = input_specs["dummy"]
+        return input_specs
+
+    def __call__(
+        self,
+        params: dict[str, jax.Array] | jax.Array,
+        **kwargs,
+    ) -> dict[str, jax.Array] | jax.Array:
+        if "beta" not in kwargs:
+            raise Exception("SubpixelSmoothedProjection needs the beta parameter as additional keyword argument!")
+        beta = kwargs["beta"]
+        expanded = False
+        if not isinstance(params, dict):
+            expanded = True
+            params = {"dummy": params}
+
+        result = {}
+        for k, v in params.items():
+            # shape sanity checks
+            vertical_axis = v.shape.index(1)
+            first_axis = 0 if vertical_axis != 0 else 1
+            second_axis = 2 if vertical_axis != 2 else 1
+            if self._single_voxel_size[first_axis] != self._single_voxel_size[second_axis]:
+                raise Exception(
+                    "SubpixelSmoothedProjection expects voxel size to be equal in "
+                    f"two axes, but got {self._single_voxel_size}"
+                )
+            voxel_size = self._single_voxel_size[first_axis]
+            v_2d = v.squeeze(vertical_axis)
+
+            result_2d = smoothed_projection(
+                v_2d,
+                beta=beta,
+                eta=self.projection_midpoint,
+                # expects resolution as pixels / µm
+                resolution=1 / (voxel_size / 1e-6),
+            )
+            result[k] = jnp.expand_dims(result_2d, vertical_axis)
+
+        if expanded:
+            result = result["dummy"]
+        return result

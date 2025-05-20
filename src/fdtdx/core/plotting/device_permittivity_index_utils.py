@@ -27,6 +27,7 @@ from matplotlib.patches import Patch
 
 from fdtdx.core.misc import get_background_material_name
 from fdtdx.materials import Material, compute_ordered_names
+from fdtdx.typing import ParameterType
 
 
 def index_matrix_to_str(indices: jax.Array) -> str:
@@ -50,6 +51,7 @@ def index_matrix_to_str(indices: jax.Array) -> str:
 def device_matrix_index_figure(
     device_matrix_indices: jax.Array,
     material: dict[str, Material],
+    parameter_type: ParameterType,
 ) -> Figure:
     """Creates a visualization figure of device matrix indices with permittivity configurations.
 
@@ -72,17 +74,23 @@ def device_matrix_index_figure(
         AssertionError: If device_matrix_indices is not 3-dimensional.
     """
     assert device_matrix_indices.ndim == 3
-    device_matrix_indices = device_matrix_indices.astype(np.int32)
+
     fig, ax = cast(tuple[Figure, Axes], plt.subplots(figsize=(12, 12)))
     image_palette = sns.color_palette("YlOrBr", as_cmap=True)
     background_name = get_background_material_name(material)
     ordered_name_list = compute_ordered_names(material)
     background_index = ordered_name_list.index(background_name)
-    if device_matrix_indices.shape[-1] == 1:
+
+    if parameter_type == ParameterType.CONTINUOUS:
+        matrix_inverse_permittivity_indices_sorted = device_matrix_indices.mean(axis=-1)
+        indices = np.arange(len(ordered_name_list))
+    elif device_matrix_indices.shape[-1] == 1:
+        device_matrix_indices = device_matrix_indices.astype(np.int32)
         device_matrix_indices = device_matrix_indices[..., 0]
         matrix_inverse_permittivity_indices_sorted = device_matrix_indices
         indices = np.unique(device_matrix_indices)
     else:
+        device_matrix_indices = device_matrix_indices.astype(np.int32)
         device_matrix_indices_flat = np.reshape(device_matrix_indices, (-1, device_matrix_indices.shape[-1]))
         indices = np.unique(
             device_matrix_indices_flat,

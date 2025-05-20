@@ -1,5 +1,6 @@
 from .device import Device
 from .parameters.continous import (
+    GaussianSmoothing2D,
     StandardToCustomRange,
     StandardToInversePermittivityRange,
     StandardToPlusOneMinusOneRange,
@@ -16,6 +17,7 @@ from .parameters.discretization import (
     PillarDiscretization,
     circular_brush,
 )
+from .parameters.projection import SubpixelSmoothedProjection, TanhProjection
 from .parameters.transform import ParameterTransformation
 
 __all__ = [
@@ -35,6 +37,10 @@ __all__ = [
     "StandardToCustomRange",
     "StandardToInversePermittivityRange",
     "StandardToPlusOneMinusOneRange",
+    "GaussianSmoothing2D",
     # mapping
     "ParameterTransformation",
+    # projection
+    "TanhProjection",
+    "SubpixelSmoothedProjection",
 ]

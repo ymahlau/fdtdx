@@ -6,9 +6,14 @@ In FDTDX, devices are objects whose shape can be optimized. A device has a corre
 # Parameter Mapping
 ::: fdtdx.objects.device.ParameterTransformation
 
+# Projections
+::: fdtdx.objects.device.TanhProjection
+::: fdtdx.objects.device.SubpixelSmoothedProjection
+
 # Tranformation of latent parameters
 ::: fdtdx.objects.device.StandardToPlusOneMinusOneRange
 ::: fdtdx.objects.device.StandardToCustomRange
+::: fdtdx.objects.device.GaussianSmoothing2D
 
 # Discretizations
 ::: fdtdx.objects.device.ClosestIndex

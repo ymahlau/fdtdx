@@ -24,7 +24,6 @@ from fdtdx.core.plotting.device_permittivity_index_utils import device_matrix_in
 from fdtdx.fdtd.container import ObjectContainer, ParameterContainer
 from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.detectors.detector import DetectorState
-from fdtdx.typing import ParameterType
 
 
 def init_working_directory(experiment_name: str, wd_name: str | None) -> Path:
@@ -253,6 +252,7 @@ class Logger:
         export_figure: bool = False,
         export_stl: bool = False,
         export_background_stl: bool = False,
+        **transformation_kwargs,
     ) -> int:
         """Log parameter states and export device visualizations.
 
@@ -273,7 +273,7 @@ class Logger:
         changed_voxels = 0
         for device in objects.devices:
             device_params = params[device.name]
-            indices = device(device_params)
+            indices = device(device_params, **transformation_kwargs)
 
             # raw parameters and indices
             if isinstance(device_params, dict):
@@ -283,8 +283,6 @@ class Logger:
                 jnp.save(self.params_dir / f"params_{iter_idx}_{device.name}.npy", device_params)
             jnp.save(self.params_dir / f"matrix_{iter_idx}_{device.name}.npy", indices)
 
-            if device.output_type not in [ParameterType.BINARY, ParameterType.DISCRETE]:
-                continue
             has_previous = self.last_indices[device.name] is not None
             cur_changed_voxels = 0
             if has_previous:
@@ -303,13 +301,13 @@ class Logger:
                         continue
                     name = ordered_name_list[idx]
                     export_stl_fn(
-                        matrix=np.asarray(indices) == idx,
+                        matrix=np.round(indices) == idx,
                         stl_filename=self.stl_dir / f"matrix_{iter_idx}_{device.name}_{name}.stl",
                         voxel_grid_size=device.single_voxel_grid_shape,
                     )
                 if len(device.materials) > 2:
                     export_stl_fn(
-                        matrix=np.asarray(indices) != background_idx,
+                        matrix=np.round(indices) != background_idx,
                         stl_filename=self.stl_dir / f"matrix_{iter_idx}_{device.name}_non_air.stl",
                         voxel_grid_size=device.single_voxel_grid_shape,
                     )
@@ -319,12 +317,12 @@ class Logger:
                 fig = device_matrix_index_figure(
                     device_matrix_indices=indices,
                     material=device.materials,
+                    parameter_type=device.output_type,
                 )
                 self.savefig(
                     self.cwd / "device",
                     f"matrix_indices_{iter_idx}_{device.name}.png",
                     fig,
-                    dpi=72,
                 )
 
         return changed_voxels
