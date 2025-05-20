@@ -146,6 +146,7 @@ class Device(OrderableObject, ABC):
                 materials=self.materials,
                 input_specs=cur_specs,
                 matrix_voxel_grid_shape=self.matrix_voxel_grid_shape,
+                single_voxel_size=self.single_voxel_real_shape,
             )
             new_t_list.append(t_new)
             cur_specs = t_new._output_specs

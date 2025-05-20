@@ -232,5 +232,111 @@ class TanhProjection(ParameterTransformation):
         if expanded:
             result = result["dummy"]
         return result
-        
 
+
+@extended_autoinit
+class SubpixelSmoothedProjection(ParameterTransformation):
+    """
+    This function is adapted from the Meep repository:
+    https://github.com/NanoComp/meep/blob/master/python/adjoint/filters.py
+
+    The details of this projection are described in the paper by Alec Hammond:
+    https://arxiv.org/pdf/2503.20189
+
+    Project using subpixel smoothing, which allows for β→∞.
+    This technique integrates out the discontinuity within the projection
+    function, allowing the user to smoothly increase β from 0 to ∞ without
+    losing the gradient. Effectively, a level set is created, and from this
+    level set, first-order subpixel smoothing is applied to the interfaces (if
+    any are present).
+
+    In order for this to work, the input array must already be smooth (e.g. by
+    filtering).
+
+    While the original approach involves numerical quadrature, this approach
+    performs a "trick" by assuming that the user is always infinitely projecting
+    (β=∞). In this case, the expensive quadrature simplifies to an analytic
+    fill-factor expression. When to use this fill factor requires some careful
+    logic.
+
+    For one, we want to make sure that the user can indeed project at any level
+    (not just infinity). So in these cases, we simply check if in interface is
+    within the pixel. If not, we revert to the standard filter plus project
+    technique.
+
+    If there is an interface, we want to make sure the derivative remains
+    continuous both as the interface leaves the cell, *and* as it crosses the
+    center. To ensure this, we need to account for the different possibilities.
+    """
+    projection_midpoint: float = 0.5
+
+    def get_output_specs(
+        self,
+        input_specs: dict[str, ParameterSpecs] | ParameterSpecs,
+    ) -> dict[str, ParameterSpecs] | ParameterSpecs:
+        # expand to dict for easier handling with less code duplication
+        expanded = False
+        if isinstance(input_specs, ParameterSpecs):
+            expanded = True
+            input_specs = {"dummy": input_specs}
+        
+        if len(input_specs) != 1:
+            raise Exception("SubpixelSmoothedProjection expects a single array as input")
+        
+        # sanity checks
+        for v in input_specs.values():
+            if v.type != ParameterType.CONTINUOUS:
+                raise Exception(
+                    f"SubpixelSmoothedProjection needs continous input, but got: {input_specs}"
+                )
+            if 1 not in v.shape:
+                raise Exception(f"SubpixelSmoothedProjection needs 2d shape, but got: {v.shape}")
+
+        # simply return the input specs
+        if expanded:
+            input_specs = input_specs["dummy"]
+        return input_specs
+
+    
+    def __call__(
+        self,
+        params: dict[str, jax.Array] | jax.Array,
+        **kwargs,
+    ) -> dict[str, jax.Array] | jax.Array:
+        if "beta" not in kwargs:
+            raise Exception(
+                "SubpixelSmoothedProjection needs the beta parameter as additional keyword argument!"
+            )
+        beta = kwargs["beta"]
+        expanded = False
+        if not isinstance(params, dict):
+            expanded = True
+            params = {"dummy": params}
+        
+        result = {}
+        for k, v in params.items():
+            # shape sanity checks
+            vertical_axis = v.shape.index(1)
+            first_axis = 0 if vertical_axis != 0 else 1
+            second_axis = 2 if vertical_axis != 2 else 1
+            if self._single_voxel_size[first_axis] != self._single_voxel_size[second_axis]:
+                raise Exception(
+                    "SubpixelSmoothedProjection expects voxel size to be equal in "
+                    f"two axes, but got {self._single_voxel_size}"
+                )
+            voxel_size = self._single_voxel_size[first_axis]
+            v_2d = v.squeeze(vertical_axis)
+            
+            result_2d = smoothed_projection(
+                v_2d,
+                beta=beta,
+                eta=self.projection_midpoint,
+                # expects resolution as pixels / µm
+                resolution=1 / (voxel_size / 1e-6),
+            )
+            result[k] = jnp.expand_dims(result_2d, vertical_axis)
+            
+                    
+        if expanded:
+            result = result["dummy"]
+        return result

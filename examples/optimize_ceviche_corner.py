@@ -1,6 +1,7 @@
 import sys
 import time
 
+import chex
 import jax
 import jax.numpy as jnp
 import optax
@@ -22,9 +23,9 @@ from fdtdx.objects import SimulationVolume, Substrate, Waveguide, SimulationObje
 from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.detectors import EnergyDetector, PoyntingFluxDetector
 from fdtdx.objects.device.device import Device
-from fdtdx.objects.device.parameters.continous import StandardToInversePermittivityRange
+from fdtdx.objects.device.parameters.continous import GaussianSmoothing2D, StandardToInversePermittivityRange
 from fdtdx.objects.device.parameters.discretization import ClosestIndex
-from fdtdx.objects.device.parameters.projection import TanhProjection
+from fdtdx.objects.device.parameters.projection import SubpixelSmoothedProjection, TanhProjection
 from fdtdx.objects.sources import ModePlaneSource
 from fdtdx.core import metric_efficiency, OnOffSwitch
 from fdtdx.utils import Logger, plot_setup
@@ -114,7 +115,9 @@ def main(
             #     axis=2,
             #     background_material="Air",
             # ),
-            TanhProjection(),
+            # TanhProjection(),
+            GaussianSmoothing2D(std_discrete=3),
+            SubpixelSmoothedProjection(),
         ],
         partial_voxel_real_shape=(config.resolution, config.resolution, height),
     )
@@ -284,7 +287,13 @@ def main(
         optimizer_finetune = optax.MultiSteps(optimizer_finetune, every_k_schedule=1)
         opt_state_finetune: optax.OptState = optimizer_finetune.init(params)
     
-    beta_schedule = optax.linear_schedule(0.1, 100, epochs)
+    def custom_schedule(idx: chex.Numeric) -> chex.Numeric:
+        beta_schedule = optax.linear_schedule(0.1, 100, epochs)
+        return jax.lax.cond(
+            idx < epochs / 2,
+            lambda: beta_schedule(idx),
+            lambda: jnp.inf
+        )
     
     exp_logger.savefig(
         exp_logger.cwd,
@@ -302,10 +311,10 @@ def main(
         objects=objects,
         export_stl=True,
         export_figure=True,
-        beta=beta_schedule(0),
+        beta=custom_schedule(0),
     )
     
-    x, tmp, _ = apply_params(arrays, objects, params, key, beta=beta_schedule(0))
+    x, tmp, _ = apply_params(arrays, objects, params, key, beta=custom_schedule(0))
     tmp.sources[0].plot(  # type: ignore
         exp_logger.cwd / "figures" / "mode.png"
     )
@@ -316,7 +325,7 @@ def main(
         key: jax.Array,
         idx: int,
     ):
-        arrays, new_objects, info = apply_params(arrays, objects, params, key, beta=beta_schedule(idx))
+        arrays, new_objects, info = apply_params(arrays, objects, params, key, beta=custom_schedule(idx))
 
         final_state = reversible_fdtd(
             arrays=arrays,
@@ -397,7 +406,7 @@ def main(
             objects=objects,
             export_stl=True,
             export_figure=True,
-            beta=beta_schedule(epoch)
+            beta=custom_schedule(epoch)
         )
         info["changed_voxels"] = changed_voxels
 
@@ -410,7 +419,7 @@ def main(
 
 if __name__ == "__main__":
     seed = 42
-    evaluation = True
+    evaluation = False
     backward = False
     if len(sys.argv) > 1:
         seed = int(sys.argv[1])

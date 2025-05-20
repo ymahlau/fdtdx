@@ -16,6 +16,7 @@ class ParameterTransformation(ExtendedTreeClass, ABC):
     _materials: dict[str, Material] = frozen_private_field()
     _config: SimulationConfig = frozen_private_field()
     _matrix_voxel_grid_shape: tuple[int, int, int] = frozen_private_field()
+    _single_voxel_size: tuple[float, float, float] = frozen_private_field()
 
     def init_module(
         self: Self,
@@ -23,11 +24,13 @@ class ParameterTransformation(ExtendedTreeClass, ABC):
         materials: dict[str, Material],
         input_specs: dict[str, ParameterSpecs] | ParameterSpecs,
         matrix_voxel_grid_shape: tuple[int, int, int],
+        single_voxel_size: tuple[float, float, float],
     ) -> Self:
         self = self.aset("_config", config)
         self = self.aset("_materials", materials)
         self = self.aset("_input_specs", input_specs)
         self = self.aset("_matrix_voxel_grid_shape", matrix_voxel_grid_shape)
+        self = self.aset("_single_voxel_size", single_voxel_size)
         output_specs = self.get_output_specs(input_specs)
         self = self.aset("_output_specs", output_specs)
         return self
