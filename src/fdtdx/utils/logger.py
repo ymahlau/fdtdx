@@ -24,7 +24,6 @@ from fdtdx.core.plotting.device_permittivity_index_utils import device_matrix_in
 from fdtdx.fdtd.container import ObjectContainer, ParameterContainer
 from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.detectors.detector import DetectorState
-from fdtdx.typing import ParameterType
 
 
 def init_working_directory(experiment_name: str, wd_name: str | None) -> Path:

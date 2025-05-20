@@ -74,13 +74,13 @@ def device_matrix_index_figure(
         AssertionError: If device_matrix_indices is not 3-dimensional.
     """
     assert device_matrix_indices.ndim == 3
-    
+
     fig, ax = cast(tuple[Figure, Axes], plt.subplots(figsize=(12, 12)))
     image_palette = sns.color_palette("YlOrBr", as_cmap=True)
     background_name = get_background_material_name(material)
     ordered_name_list = compute_ordered_names(material)
     background_index = ordered_name_list.index(background_name)
-    
+
     if parameter_type == ParameterType.CONTINUOUS:
         matrix_inverse_permittivity_indices_sorted = device_matrix_indices.mean(axis=-1)
         indices = np.arange(len(ordered_name_list))

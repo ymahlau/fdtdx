@@ -1,9 +1,9 @@
 from .device import Device
 from .parameters.continous import (
+    GaussianSmoothing2D,
     StandardToCustomRange,
     StandardToInversePermittivityRange,
     StandardToPlusOneMinusOneRange,
-    GaussianSmoothing2D,
 )
 from .parameters.discrete import (
     BOTTOM_Z_PADDING_CONFIG_REPEAT,
@@ -17,8 +17,8 @@ from .parameters.discretization import (
     PillarDiscretization,
     circular_brush,
 )
+from .parameters.projection import SubpixelSmoothedProjection, TanhProjection
 from .parameters.transform import ParameterTransformation
-from .parameters.projection import TanhProjection, SubpixelSmoothedProjection
 
 __all__ = [
     # devices
