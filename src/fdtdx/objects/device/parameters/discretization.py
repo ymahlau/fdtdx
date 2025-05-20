@@ -29,14 +29,16 @@ class ClosestIndex(ParameterTransformation):
     """
 
     mapping_from_inverse_permittivities: bool = False
-    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(default=ParameterType.CONTINUOUS)
-    
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
+        default=ParameterType.CONTINUOUS
+    )
+
     def _get_input_shape_impl(
         self,
         output_shape: dict[str, tuple[int, ...]],
     ) -> dict[str, tuple[int, ...]]:
         return output_shape
-    
+
     def _get_output_type_impl(
         self,
         input_type: dict[str, ParameterType],
@@ -47,9 +49,7 @@ class ClosestIndex(ParameterTransformation):
             output_type = ParameterType.BINARY
         else:
             output_type = ParameterType.DISCRETE
-        result = {
-            k: output_type for k in input_type.keys()
-        }
+        result = {k: output_type for k in input_type.keys()}
         return result
 
     def __call__(
@@ -92,19 +92,19 @@ class BrushConstraint2D(ParameterTransformation):
     brush: jax.Array = frozen_field()
     axis: int = frozen_field()
     background_material: str | None = frozen_field(default=None)
-    
+
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
         default=ParameterType.CONTINUOUS
     )
     _check_single_array: bool = frozen_private_field(default=True)
     _all_arrays_2d: bool = frozen_private_field(default=True)
-    
+
     def _get_input_shape_impl(
         self,
         output_shape: dict[str, tuple[int, ...]],
     ) -> dict[str, tuple[int, ...]]:
         return output_shape
-    
+
     def _get_output_type_impl(
         self,
         input_type: dict[str, ParameterType],
@@ -312,18 +312,18 @@ class PillarDiscretization(ParameterTransformation):
     )
     background_material: str | None = frozen_field(default=None)
     _allowed_indices: jax.Array = frozen_private_field()
-    
+
     _check_single_array: bool = frozen_private_field(default=True)
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
         default=ParameterType.CONTINUOUS
     )
-    
+
     def _get_input_shape_impl(
         self,
         output_shape: dict[str, tuple[int, ...]],
     ) -> dict[str, tuple[int, ...]]:
         return output_shape
-    
+
     def _get_output_type_impl(
         self,
         input_type: dict[str, ParameterType],
@@ -369,7 +369,6 @@ class PillarDiscretization(ParameterTransformation):
         logger.info(f"{allowed_columns=}")
         logger.info(f"{allowed_columns.shape=}")
         return self
-    
 
     def __call__(
         self,
@@ -380,7 +379,7 @@ class PillarDiscretization(ParameterTransformation):
 
         single_key = list(params.keys())[0]
         params_arr = params[single_key]
-        
+
         allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(self._materials))
         nearest_allowed_index = nearest_index(
             values=params_arr,

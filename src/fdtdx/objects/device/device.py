@@ -154,7 +154,7 @@ class Device(OrderableObject, ABC):
             )
             new_t_list.append(t_new)
             cur_shape = t_new._input_shape
-            
+
         # init shape of transformations by going backwards through new list
         module_list: list[ParameterTransformation] = []
         cur_input_type = {"params": ParameterType.CONTINUOUS}
@@ -164,7 +164,7 @@ class Device(OrderableObject, ABC):
             )
             module_list.append(t_new)
             cur_input_type = t_new._output_type
-            
+
         # set own input shape dtype
         self = self.aset("param_transforms", module_list)
         if self.output_type == ParameterType.CONTINUOUS and len(self.materials) != 2:

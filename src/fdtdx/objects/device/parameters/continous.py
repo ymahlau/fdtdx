@@ -17,7 +17,10 @@ class StandardToInversePermittivityRange(SameShapeTypeParameterTransform):
     Linearly maps values from [0,1] to the range between minimum and maximum
     inverse permittivity values allowed by the material configuration.
     """
-    _fixed_input_type: ParameterType | Sequence[ParameterType]| None = frozen_private_field(default=ParameterType.CONTINUOUS)
+
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
+        default=ParameterType.CONTINUOUS
+    )
 
     def __call__(
         self,
@@ -54,9 +57,12 @@ class StandardToCustomRange(SameShapeTypeParameterTransform):
         min_value: Minimum value of target range
         max_value: Maximum value of target range
     """
+
     min_value: float = frozen_field(default=0)
     max_value: float = frozen_field(default=1)
-    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(default=ParameterType.CONTINUOUS)
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
+        default=ParameterType.CONTINUOUS
+    )
 
     def __call__(
         self,
@@ -99,7 +105,10 @@ class GaussianSmoothing2D(SameShapeTypeParameterTransform):
         std_discrete: Integer specifying the standard deviation of the
                      Gaussian kernel in discrete units.
     """
-    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(default=ParameterType.CONTINUOUS)
+
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
+        default=ParameterType.CONTINUOUS
+    )
     _all_arrays_2d: bool = frozen_private_field(default=True)
 
     std_discrete: int

@@ -1,4 +1,5 @@
 from typing import Sequence
+
 import jax
 import jax.numpy as jnp
 
@@ -28,6 +29,7 @@ class RemoveFloatingMaterial(SameShapeTypeParameterTransform):
     The module only works with binary material systems (2 permittivities) where one
     material represents air.
     """
+
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
         default=(ParameterType.DISCRETE, ParameterType.BINARY),
     )
@@ -95,7 +97,7 @@ class ConnectHolesAndStructures(SameShapeTypeParameterTransform):
             background_name = self.background_material
         ordered_name_list = compute_ordered_names(self._materials)
         background_idx = ordered_name_list.index(background_name)
-        
+
         single_key = list(params.keys())[0]
         param_arr = params[single_key]
         is_material_matrix = param_arr != background_idx
@@ -148,10 +150,11 @@ class BinaryMedianFilterModule(SameShapeTypeParameterTransform):
         kernel_sizes: 3-tuple of kernel sizes for each dimension.
         num_repeats: Number of times to apply the filter consecutively.
     """
+
     padding_cfg: PaddingConfig = frozen_field()
     kernel_sizes: tuple[int, int, int] = frozen_field()
     num_repeats: int = frozen_field(default=1)
-    
+
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
         default=ParameterType.BINARY,
     )

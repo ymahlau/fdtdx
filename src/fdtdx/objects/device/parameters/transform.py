@@ -19,7 +19,7 @@ class ParameterTransformation(ExtendedTreeClass, ABC):
     _config: SimulationConfig = frozen_private_field()
     _matrix_voxel_grid_shape: tuple[int, int, int] = frozen_private_field()
     _single_voxel_size: tuple[float, float, float] = frozen_private_field()
-    
+
     # settings
     _check_single_array: bool = frozen_private_field(default=False)
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(default=None)
@@ -37,12 +37,12 @@ class ParameterTransformation(ExtendedTreeClass, ABC):
         self = self.aset("_materials", materials)
         self = self.aset("_matrix_voxel_grid_shape", matrix_voxel_grid_shape)
         self = self.aset("_single_voxel_size", single_voxel_size)
-        
+
         self = self.aset("_output_shape", output_shape)
         input_shape = self.get_input_shape(output_shape)
         self = self.aset("_input_shape", input_shape)
         return self
-    
+
     def init_type(
         self,
         input_type: dict[str, ParameterType],
@@ -54,14 +54,6 @@ class ParameterTransformation(ExtendedTreeClass, ABC):
         self = self.aset("_output_type", output_type)
         return self
 
-    @abstractmethod
-    def __call__(
-        self,
-        params: dict[str, jax.Array],
-        **kwargs,
-    ) -> dict[str, jax.Array]:
-        raise NotImplementedError()
-    
     def get_output_type(
         self,
         input_type: dict[str, ParameterType],
@@ -85,34 +77,46 @@ class ParameterTransformation(ExtendedTreeClass, ABC):
         # implementation
         output_type = self._get_output_type_impl(input_type)
         return output_type
-    
+
     def get_input_shape(
         self,
         output_shape: dict[str, tuple[int, ...]],
     ) -> dict[str, tuple[int, ...]]:
         # checks
         for v in output_shape.values():
-            if 1 not in v:
-                raise Exception(
-                    f"ParameterTransform {self.__class__} expects to work with 2d arrays, so at least one axis needs "
-                    f"to have size of 1, but got: {output_shape}"
-                )
+            err_msg = (
+                f"ParameterTransform {self.__class__} expects to work with 2d arrays, so exactly one axis of the "
+                f"3d array needs to have size of 1, but got: {output_shape}"
+            )
+            if len(v) != 3 or 1 not in v:
+                raise Exception(err_msg)
+            if sum([n != 1 for n in v]) != 2:
+                raise Exception(err_msg)
+
         # implementation
         input_shape = self._get_input_shape_impl(output_shape)
         return input_shape
-    
+
     @abstractmethod
     def _get_input_shape_impl(
         self,
         output_shape: dict[str, tuple[int, ...]],
     ) -> dict[str, tuple[int, ...]]:
         raise NotImplementedError()
-    
+
     @abstractmethod
     def _get_output_type_impl(
         self,
         input_type: dict[str, ParameterType],
     ) -> dict[str, ParameterType]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def __call__(
+        self,
+        params: dict[str, jax.Array],
+        **kwargs,
+    ) -> dict[str, jax.Array]:
         raise NotImplementedError()
 
 
@@ -123,10 +127,9 @@ class SameShapeTypeParameterTransform(ParameterTransformation, ABC):
         output_shape: dict[str, tuple[int, ...]],
     ) -> dict[str, tuple[int, ...]]:
         return output_shape
-    
+
     def _get_output_type_impl(
         self,
         input_type: dict[str, ParameterType],
     ) -> dict[str, ParameterType]:
         return input_type
-    

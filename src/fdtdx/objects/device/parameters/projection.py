@@ -1,9 +1,10 @@
 from typing import Sequence
+
 import jax
 import jax.numpy as jnp
 
 from fdtdx.core.jax.pytrees import extended_autoinit, frozen_private_field
-from fdtdx.objects.device.parameters.transform import ParameterTransformation, SameShapeTypeParameterTransform
+from fdtdx.objects.device.parameters.transform import SameShapeTypeParameterTransform
 from fdtdx.typing import ParameterType
 
 
@@ -186,7 +187,7 @@ class TanhProjection(SameShapeTypeParameterTransform):
     """
 
     projection_midpoint: float = 0.5
-    
+
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
         default=ParameterType.CONTINUOUS
     )
@@ -243,13 +244,12 @@ class SubpixelSmoothedProjection(SameShapeTypeParameterTransform):
     """
 
     projection_midpoint: float = 0.5
-    
+
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
         default=ParameterType.CONTINUOUS
     )
     _check_single_array: bool = frozen_private_field(default=True)
     _all_arrays_2d: bool = frozen_private_field(default=True)
-    
 
     def __call__(
         self,
