@@ -284,8 +284,6 @@ class Logger:
                 jnp.save(self.params_dir / f"params_{iter_idx}_{device.name}.npy", device_params)
             jnp.save(self.params_dir / f"matrix_{iter_idx}_{device.name}.npy", indices)
 
-            if device.output_type not in [ParameterType.BINARY, ParameterType.DISCRETE]:
-                continue
             has_previous = self.last_indices[device.name] is not None
             cur_changed_voxels = 0
             if has_previous:
@@ -304,13 +302,13 @@ class Logger:
                         continue
                     name = ordered_name_list[idx]
                     export_stl_fn(
-                        matrix=np.asarray(indices) == idx,
+                        matrix=np.round(indices) == idx,
                         stl_filename=self.stl_dir / f"matrix_{iter_idx}_{device.name}_{name}.stl",
                         voxel_grid_size=device.single_voxel_grid_shape,
                     )
                 if len(device.materials) > 2:
                     export_stl_fn(
-                        matrix=np.asarray(indices) != background_idx,
+                        matrix=np.round(indices) != background_idx,
                         stl_filename=self.stl_dir / f"matrix_{iter_idx}_{device.name}_non_air.stl",
                         voxel_grid_size=device.single_voxel_grid_shape,
                     )
@@ -320,12 +318,12 @@ class Logger:
                 fig = device_matrix_index_figure(
                     device_matrix_indices=indices,
                     material=device.materials,
+                    parameter_type=device.output_type,
                 )
                 self.savefig(
                     self.cwd / "device",
                     f"matrix_indices_{iter_idx}_{device.name}.png",
                     fig,
-                    dpi=72,
                 )
 
         return changed_voxels
