@@ -85,3 +85,19 @@ def poynting_flux(E: jax.Array, H: jax.Array, axis: int = 0) -> jax.Array:
         axisb=axis,
         axisc=axis,
     )
+
+
+def normalize_by_poynting_flux(E: jax.Array, H: jax.Array, axis: int = 0) -> jax.Array:
+    """Normalize fields so that Poynting flux along given axis = 1."""
+    # Compute Poynting vector components
+    S_complex = jnp.cross(E, jnp.conj(H), axisa=axis, axisb=axis, axisc=axis)
+    S_real = 0.5 * jnp.real(S_complex[axis])  # power flow in desired direction
+
+    # Integrate over transverse plane (axis orthogonal to `axis`)
+    power = jnp.sum(S_real)
+
+    # Normalize
+    norm_factor = jnp.sqrt(power)
+    E_norm = E / norm_factor
+    H_norm = H / norm_factor
+    return E_norm, H_norm

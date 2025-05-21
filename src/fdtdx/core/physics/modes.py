@@ -8,7 +8,7 @@ import numpy as np
 import tidy3d
 from tidy3d.components.mode.solver import compute_modes as _compute_modes
 
-from fdtdx.core.physics.metrics import normalize_by_energy
+from fdtdx.core.physics.metrics import normalize_by_poynting_flux
 
 ModeTupleType = namedtuple("Mode", ["neff", "Ex", "Ey", "Ez", "Hx", "Hy", "Hz"])
 """A named tuple containing the mode fields and effective index.
@@ -172,12 +172,13 @@ def compute_mode(
     # Tidy3D uses different scaling internally, so convert back
     mode_H = mode_H * tidy3d.constants.ETA_0
 
-    mode_E_norm, mode_H_norm = normalize_by_energy(
+    """ mode_E_norm, mode_H_norm = normalize_by_energy(
         E=mode_E,
         H=mode_H,
         inv_permittivity=inv_permittivities,
         inv_permeability=inv_permeabilities,
-    )
+    ) """
+    mode_E_norm, mode_H_norm = normalize_by_poynting_flux(mode_E, mode_H)
 
     return mode_E_norm, mode_H_norm, eff_idx
 
