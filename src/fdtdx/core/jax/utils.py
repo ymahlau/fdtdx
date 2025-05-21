@@ -17,7 +17,7 @@ def check_shape_dtype(
         expected_shape_dtypes = {"dummy": expected_shape_dtypes}
     if method == "exact" and len(arrays) != len(expected_shape_dtypes):
         raise Exception(
-            f"Arrays and expected dict have different lengths: " f"{arrays.keys()=} \n\n but {expected_shape_dtypes=}"
+            f"Arrays and expected dict have different lengths: {arrays.keys()=} \n\n but {expected_shape_dtypes=}"
         )
     for k, arr in arrays.items():
         exp_shape_dtype = expected_shape_dtypes[k]

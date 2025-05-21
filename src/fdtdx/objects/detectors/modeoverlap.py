@@ -1,17 +1,17 @@
+from typing import Literal, Self, Sequence
+
 import jax
 import jax.numpy as jnp
-from typing import Sequence, Literal, Self
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, field
-from fdtdx.objects.detectors.detector import Detector, DetectorState
+import numpy as np
+from matplotlib.figure import Figure
+from rich.progress import Progress
+
+from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
 
 # from fdtdx.core.physics.modes import compute_accurate_mode
 from fdtdx.core.physics.modes import compute_mode
-
-from matplotlib.figure import Figure
-from rich.progress import Progress
+from fdtdx.objects.detectors.detector import Detector, DetectorState
 from fdtdx.objects.detectors.plotting.line_plot import plot_line_over_time
-
-import numpy as np
 
 
 @extended_autoinit
@@ -57,12 +57,8 @@ class ModeOverlapDetector(Detector):
         return {
             "phasor": jax.ShapeDtypeStruct(shape=phasor_shape, dtype=field_dtype),
             "overlap": jax.ShapeDtypeStruct(shape=(1,), dtype=field_dtype),
-            "E_mode": jax.ShapeDtypeStruct(
-                shape=(3, *self.grid_shape[1:]), dtype=field_dtype
-            ),
-            "H_mode": jax.ShapeDtypeStruct(
-                shape=(3, *self.grid_shape[1:]), dtype=field_dtype
-            ),
+            "E_mode": jax.ShapeDtypeStruct(shape=(3, *self.grid_shape[1:]), dtype=field_dtype),
+            "H_mode": jax.ShapeDtypeStruct(shape=(3, *self.grid_shape[1:]), dtype=field_dtype),
             "mode_init": jax.ShapeDtypeStruct(shape=(), dtype=bool),
         }
 
@@ -122,9 +118,7 @@ class ModeOverlapDetector(Detector):
                 filter_pol=self.filter_pol,
             )
 
-            return jnp.squeeze(E_mode).astype(self.dtype), jnp.squeeze(H_mode).astype(
-                self.dtype
-            )
+            return jnp.squeeze(E_mode).astype(self.dtype), jnp.squeeze(H_mode).astype(self.dtype)
 
         def reuse_mode(_):
             return state["E_mode"], state["H_mode"]
@@ -136,9 +130,7 @@ class ModeOverlapDetector(Detector):
             operand=None,
         )
 
-        def compute_mode_overlap(
-            E_mode, H_mode, E_sim, H_sim, inv_permittivity, axis=0
-        ):
+        def compute_mode_overlap(E_mode, H_mode, E_sim, H_sim, inv_permittivity, axis=0):
             """Compute mode overlap |c_p|^2 between mode and simulation fields."""
             # Cross products for overlap calculation
             E_cross_H_star_sim = jnp.cross(
@@ -150,9 +142,7 @@ class ModeOverlapDetector(Detector):
                 jnp.transpose(H_mode, (1, 2, 0)),
             )
 
-            numerator = jnp.sum(
-                (E_cross_H_star_sim[:, :, axis] + E_star_cross_H_sim[:, :, axis]) / 4.0
-            )
+            numerator = jnp.sum((E_cross_H_star_sim[:, :, axis] + E_star_cross_H_sim[:, :, axis]) / 4.0)
 
             # Final projection coefficient
             c_p = numerator
@@ -163,9 +153,7 @@ class ModeOverlapDetector(Detector):
             # return overlap
             return jnp.real(overlap).astype(jnp.float32)
 
-        overlap = compute_mode_overlap(
-            E_mode, H_mode, E_phasor, H_phasor, inv_permittivity[self.grid_slice]
-        )
+        overlap = compute_mode_overlap(E_mode, H_mode, E_phasor, H_phasor, inv_permittivity[self.grid_slice])
 
         if self.inverse:
             resultphasor = state["phasor"] - new_phasors
@@ -226,9 +214,7 @@ class ModeOverlapDetector(Detector):
                 state[name] = cur_arr
             else:
                 # no time dependency
-                state[name] = jnp.zeros(
-                    shape=shape_dtype.shape, dtype=shape_dtype.dtype
-                )
+                state[name] = jnp.zeros(shape=shape_dtype.shape, dtype=shape_dtype.dtype)
 
         state["mode_init"] = False
         return state
