@@ -131,7 +131,7 @@ class Device(OrderableObject, ABC):
                 self._config.resolution,
             )
             if not float_div:
-                raise Exception(f"Not divisible: {self.single_voxel_real_shape[axis]=}, " f"{self._config.resolution=}")
+                raise Exception(f"Not divisible: {self.single_voxel_real_shape[axis]=}, {self._config.resolution=}")
             if self.grid_shape[axis] % self.matrix_voxel_grid_shape[axis] != 0:
                 raise Exception(
                     f"Due to discretization, matrix got skewered for {axis=}. "
