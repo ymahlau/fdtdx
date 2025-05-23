@@ -22,10 +22,10 @@ class DiffractiveDetector(Detector):
         direction: Direction of diffraction analysis ("+" or "-") along propagation axis
     """
 
-    frequencies: Sequence[float] = field(kind="KW_ONLY")  # type: ignore
-    orders: Sequence[Tuple[int, int]] = ((0, 0),)
-    direction: Literal["+", "-"] = frozen_field(kind="KW_ONLY")  # type: ignore
-    dtype: jnp.dtype = frozen_field(default=jnp.complex64, kind="KW_ONLY")
+    frequencies: Sequence[float] = frozen_field()
+    direction: Literal["+", "-"] = frozen_field()
+    orders: Sequence[Tuple[int, int]] = frozen_field(default=((0, 0),))
+    dtype: jnp.dtype = frozen_field(default=jnp.complex64)
 
     def __post_init__(self):
         if self.dtype not in [jnp.complex64, jnp.complex128]:

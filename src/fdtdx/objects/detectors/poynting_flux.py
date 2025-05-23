@@ -28,10 +28,10 @@ class PoyntingFluxDetector(Detector):
             with this option, all three vector components are returned.
     """
 
-    direction: Literal["+", "-"] = frozen_field(kind="KW_ONLY")  # type: ignore
-    reduce_volume: bool = True
-    fixed_propagation_axis: int | None = None
-    keep_all_components: bool = False
+    direction: Literal["+", "-"] = frozen_field()
+    reduce_volume: bool = frozen_field(default=True)
+    fixed_propagation_axis: int | None =  frozen_field(default=None)
+    keep_all_components: bool =  frozen_field(default=False)
 
     @property
     def propagation_axis(self) -> int:

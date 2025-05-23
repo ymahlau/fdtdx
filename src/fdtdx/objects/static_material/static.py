@@ -10,14 +10,14 @@ from fdtdx.objects.object import OrderableObject
 
 @extended_autoinit
 class StaticMaterialObject(OrderableObject):
-    material: Material = field(kind="KW_ONLY")
-    color: tuple[float, float, float] | None = LIGHT_GREY
+    material: Material = field()
+    color: tuple[float, float, float] | None = frozen_field(default=LIGHT_GREY)
 
 
 @extended_autoinit
 class StaticMultiMaterialObject(OrderableObject, ABC):
-    materials: dict[str, Material] = frozen_field(kind="KW_ONLY")
-    color: tuple[float, float, float] | None = LIGHT_GREY
+    materials: dict[str, Material] = field()
+    color: tuple[float, float, float] | None = frozen_field(default=LIGHT_GREY)
 
     @abstractmethod
     def get_voxel_mask_for_shape(self) -> jax.Array:
@@ -51,13 +51,12 @@ class SimulationVolume(StaticMaterialObject):
     Usually represents air/vacuum with εᵣ=1.0 and μᵣ=1.0.
     """
 
-    placement_order = -1000
+    placement_order: int = frozen_field(default=-1000)
     material: Material = field(
         default=Material(
             permittivity=1.0,
             permeability=1.0,
         ),
-        kind="KW_ONLY",
     )
 
 
@@ -69,7 +68,7 @@ class Substrate(StaticMaterialObject):
     Visualized in light brown color by default.
     """
 
-    color: tuple[float, float, float] | None = LIGHT_BROWN
+    color: tuple[float, float, float] | None = frozen_field(default=LIGHT_BROWN)
 
 
 @extended_autoinit
@@ -84,4 +83,4 @@ class Waveguide(StaticMaterialObject):
         color: RGB tuple for visualization, defaults to light blue
     """
 
-    color: tuple[float, float, float] | None = LIGHT_BLUE
+    color: tuple[float, float, float] | None = frozen_field(default=LIGHT_BLUE)

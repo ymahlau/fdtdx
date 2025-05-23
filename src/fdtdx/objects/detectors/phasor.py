@@ -15,7 +15,7 @@ class PhasorDetector(Detector):
     This detector computes complex phasor representations of the field components at specified
     frequencies, enabling frequency-domain analysis of the electromagnetic fields.
     The amplitude and phase of the original phase can be reconstructed using jnp.abs(phasor) and jnp.angle(phasor).
-    The reconstruction itself can then be achieved using amplitude * jnp.cos(2 * jnp.pi * freq * t - phase).
+    The reconstruction itself can then be achieved using amplitude * jnp.cos(2 * jnp.pi * freq * t + phase).
 
     Attributes:
         wave_characters: Sequence of WaveCharacters to analyze
@@ -25,7 +25,7 @@ class PhasorDetector(Detector):
     """
 
     wave_characters: Sequence[WaveCharacter] = field()
-    reduce_volume: bool = False
+    reduce_volume: bool = frozen_field(default=False)
     components: Sequence[Literal["Ex", "Ey", "Ez", "Hx", "Hy", "Hz"]] = frozen_field(
         default=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"),
     )
@@ -33,7 +33,7 @@ class PhasorDetector(Detector):
         default=jnp.complex64,
         kind="KW_ONLY",
     )
-    plot: bool = False
+    plot: bool = frozen_field(default=False)
 
     def __post_init__(
         self,

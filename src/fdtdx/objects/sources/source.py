@@ -17,13 +17,14 @@ from fdtdx.typing import SliceTuple3D
 
 @extended_autoinit
 class Source(SimulationObject, ABC):
-    wave_character: WaveCharacter = frozen_field(kind="KW_ONLY")  # type: ignore
+    wave_character: WaveCharacter = frozen_field()
     temporal_profile: TemporalProfile = SingleFrequencyProfile()
-    amplitude_scale: float = 1.0
-    switch: OnOffSwitch = frozen_field(default=OnOffSwitch(), kind="KW_ONLY")
-    color: tuple[float, float, float] | None = ORANGE
-    _is_on_at_time_step_arr: jax.Array = field(default=None, init=False)  # type: ignore
-    _time_step_to_on_idx: jax.Array = field(default=None, init=False)  # type: ignore
+    amplitude_scale: float = frozen_field(default=1.0)
+    switch: OnOffSwitch = frozen_field(default=OnOffSwitch())
+    color: tuple[float, float, float] | None = frozen_field(default=ORANGE)
+    
+    _is_on_at_time_step_arr: jax.Array = private_field()
+    _time_step_to_on_idx: jax.Array = private_field()
 
     def is_on_at_time_step(self, time_step: jax.Array) -> jax.Array:
         return self._is_on_at_time_step_arr[time_step]
@@ -166,9 +167,9 @@ class DirectionalPlaneSourceBase(Source, ABC):
 
 @extended_autoinit
 class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
-    amplitude: float = 1.0
-    fixed_E_polarization_vector: tuple[float, float, float] | None = None
-    fixed_H_polarization_vector: tuple[float, float, float] | None = None
+    amplitude: float = frozen_field(default=1.0)
+    fixed_E_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
+    fixed_H_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
 
     def update_E(
         self,

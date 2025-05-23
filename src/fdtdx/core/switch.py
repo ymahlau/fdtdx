@@ -5,16 +5,16 @@ from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_
 
 @extended_autoinit
 class OnOffSwitch(ExtendedTreeClass):
-    start_time: float | None = None
-    start_after_periods: float | None = None
-    end_time: float | None = None
-    end_after_periods: float | None = None
-    on_for_time: float | None = None
-    on_for_periods: float | None = None
-    period: float | None = None
+    start_time: float | None = frozen_field(default=None)
+    start_after_periods: float | None = frozen_field(default=None)
+    end_time: float | None = frozen_field(default=None)
+    end_after_periods: float | None = frozen_field(default=None)
+    on_for_time: float | None = frozen_field(default=None)
+    on_for_periods: float | None = frozen_field(default=None)
+    period: float | None = frozen_field(default=None)
     fixed_on_time_steps: list[int] | None = frozen_field(default=None)
-    is_always_off: bool = False
-    interval: int = 1
+    is_always_off: bool = frozen_field(default=False)
+    interval: int = frozen_field(default=1)
 
     def calculate_on_list(
         self,

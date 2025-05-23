@@ -12,8 +12,8 @@ from fdtdx.objects.sources.tfsf import TFSFPlaneSource
 
 @extended_autoinit
 class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
-    fixed_E_polarization_vector: tuple[float, float, float] | None = None
-    fixed_H_polarization_vector: tuple[float, float, float] | None = None
+    fixed_E_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
+    fixed_H_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
 
     def get_EH_variation(
         self,
@@ -117,8 +117,8 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
 
 @extended_autoinit
 class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
-    radius: float = frozen_field(kind="KW_ONLY")  # type: ignore
-    std: float = frozen_field(kind="KW_ONLY", default=1 / 3)  # relative to radius
+    radius: float = frozen_field()
+    std: float = frozen_field(default=1 / 3)  # relative to radius
 
     @staticmethod
     def _gauss_profile(
@@ -163,7 +163,7 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
 
 @extended_autoinit
 class SimplePlaneSource(LinearlyPolarizedPlaneSource):
-    amplitude: float = 1.0
+    amplitude: float = frozen_field(default=1.0)
 
     def _get_amplitude_raw(
         self,

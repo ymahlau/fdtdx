@@ -37,9 +37,9 @@ class PeriodicBoundary(BaseBoundary):
         color: RGB color tuple for visualization
     """
 
-    axis: int = field(kind="KW_ONLY")  # type: ignore
-    direction: Literal["+", "-"] = frozen_field(kind="KW_ONLY")  # type: ignore
-    color: tuple[float, float, float] = LIGHT_BLUE
+    axis: int = frozen_field()
+    direction: Literal["+", "-"] = frozen_field()
+    color: tuple[float, float, float] | None = frozen_field(default=LIGHT_BLUE)
 
     @property
     def descriptive_name(self) -> str:

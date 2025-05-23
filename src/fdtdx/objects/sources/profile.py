@@ -3,11 +3,11 @@ from abc import ABC, abstractmethod
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.jax.pytrees import extended_autoinit
+from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field
 
 
 @extended_autoinit
-class TemporalProfile(ABC):
+class TemporalProfile(ExtendedTreeClass, ABC):
     """Base class for temporal profiles of sources.
 
     This class defines how the source amplitude varies in time.
@@ -51,8 +51,8 @@ class SingleFrequencyProfile(TemporalProfile):
 class GaussianPulseProfile(TemporalProfile):
     """Gaussian pulse temporal profile with carrier wave."""
 
-    spectral_width: float  # Width of the Gaussian envelope in frequency domain
-    center_frequency: float  # Center frequency of the pulse
+    spectral_width: float = frozen_field()  # Width of the Gaussian envelope in frequency domain
+    center_frequency: float = frozen_field()  # Center frequency of the pulse
 
     def get_amplitude(
         self,

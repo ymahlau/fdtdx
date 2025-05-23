@@ -1,5 +1,5 @@
 from fdtdx import constants
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, field
+from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, field, frozen_field
 
 
 @extended_autoinit
@@ -15,10 +15,10 @@ class WaveCharacter(ExtendedTreeClass):
         _frequency: Optional frequency in Hz. Mutually exclusive with _period and _wavelength.
     """
 
-    phase_shift: float = 0.0
-    _period: float | None = field(default=None, alias="period")
-    _wavelength: float | None = field(default=None, alias="wavelength")
-    _frequency: float | None = field(default=None, alias="frequency")
+    phase_shift: float = frozen_field(default=0.0)
+    _period: float | None = frozen_field(default=None, alias="period")
+    _wavelength: float | None = frozen_field(default=None, alias="wavelength")
+    _frequency: float | None = frozen_field(default=None, alias="frequency")
 
     def __post_init__(
         self,

@@ -1,6 +1,6 @@
 import jax
 
-from fdtdx.core.jax.pytrees import extended_autoinit
+from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 
@@ -20,12 +20,12 @@ class EnergyDetector(Detector):
         aggregate: If "mean", aggregates slices by averaging instead of using position.
     """
 
-    as_slices: bool = False
-    reduce_volume: bool = False
-    x_slice: float | None = None
-    y_slice: float | None = None
-    z_slice: float | None = None
-    aggregate: str | None = None  # e.g., "mean"
+    as_slices: bool = frozen_field(default=False)
+    reduce_volume: bool = frozen_field(default=False)
+    x_slice: float | None = frozen_field(default=None)
+    y_slice: float | None = frozen_field(default=None)
+    z_slice: float | None = frozen_field(default=None)
+    aggregate: str | None = frozen_field(default=None)  # e.g., "mean"
 
     def _shape_dtype_single_time_step(
         self,

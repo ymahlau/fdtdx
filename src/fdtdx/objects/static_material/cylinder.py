@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_private_field
+from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field, frozen_private_field
 from fdtdx.core.plotting.colors import LIGHT_GREY
 from fdtdx.materials import Material
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
@@ -27,12 +27,13 @@ class Cylinder(StaticMultiMaterialObject):
         color: RGB color tuple for visualization (default=LIGHT_GREY).
     """
 
-    radius: float = field(kind="KW_ONLY")  # type: ignore
-    material: Material = field(kind="KW_ONLY")  # type: ignore
-    axis: int = field(kind="KW_ONLY")  # type: ignore
+    radius: float = frozen_field()
+    material: Material = field()
+    axis: int = frozen_field()
+    color: tuple[float, float, float] | None = frozen_field(default=LIGHT_GREY)
+    # make private attribute here
     partial_voxel_grid_shape: PartialGridShape3D = frozen_private_field(default=UNDEFINED_SHAPE_3D)
     partial_voxel_real_shape: PartialRealShape3D = frozen_private_field(default=UNDEFINED_SHAPE_3D)
-    color: tuple[float, float, float] | None = LIGHT_GREY
 
     @property
     def horizontal_axis(self) -> int:

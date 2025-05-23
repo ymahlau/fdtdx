@@ -1,6 +1,6 @@
 from typing import Literal, Union
 
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit
+from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.boundaries.utils import axis_direction_from_kind
@@ -43,30 +43,30 @@ class BoundaryConfig(ExtendedTreeClass):
         kappa_end_maxz (float): Final kappa value at max z boundary. Default 1.5.
     """
 
-    boundary_type_minx: str = "pml"
-    boundary_type_maxx: str = "pml"
-    boundary_type_miny: str = "pml"
-    boundary_type_maxy: str = "pml"
-    boundary_type_minz: str = "pml"
-    boundary_type_maxz: str = "pml"
-    thickness_grid_minx: int = 10
-    thickness_grid_maxx: int = 10
-    thickness_grid_miny: int = 10
-    thickness_grid_maxy: int = 10
-    thickness_grid_minz: int = 10
-    thickness_grid_maxz: int = 10
-    kappa_start_minx: float = 1.0
-    kappa_end_minx: float = 1.5
-    kappa_start_maxx: float = 1.0
-    kappa_end_maxx: float = 1.5
-    kappa_start_miny: float = 1.0
-    kappa_end_miny: float = 1.5
-    kappa_start_maxy: float = 1.0
-    kappa_end_maxy: float = 1.5
-    kappa_start_minz: float = 1.0
-    kappa_end_minz: float = 1.5
-    kappa_start_maxz: float = 1.0
-    kappa_end_maxz: float = 1.5
+    boundary_type_minx: str = frozen_field(default="pml")
+    boundary_type_maxx: str = frozen_field(default="pml")
+    boundary_type_miny: str = frozen_field(default="pml")
+    boundary_type_maxy: str = frozen_field(default="pml")
+    boundary_type_minz: str = frozen_field(default="pml")
+    boundary_type_maxz: str = frozen_field(default="pml")
+    thickness_grid_minx: int = frozen_field(default=10)
+    thickness_grid_maxx: int = frozen_field(default=10)
+    thickness_grid_miny: int = frozen_field(default=10)
+    thickness_grid_maxy: int = frozen_field(default=10)
+    thickness_grid_minz: int = frozen_field(default=10)
+    thickness_grid_maxz: int = frozen_field(default=10)
+    kappa_start_minx: float = frozen_field(default=1.0)
+    kappa_end_minx: float = frozen_field(default=1.5)
+    kappa_start_maxx: float = frozen_field(default=1.0)
+    kappa_end_maxx: float = frozen_field(default=1.5)
+    kappa_start_miny: float = frozen_field(default=1.0)
+    kappa_end_miny: float = frozen_field(default=1.5)
+    kappa_start_maxy: float = frozen_field(default=1.0)
+    kappa_end_maxy: float = frozen_field(default=1.5)
+    kappa_start_minz: float = frozen_field(default=1.0)
+    kappa_end_minz: float = frozen_field(default=1.5)
+    kappa_start_maxz: float = frozen_field(default=1.0)
+    kappa_end_maxz: float = frozen_field(default=1.5)
 
     def get_dict(self) -> dict[str, int]:
         """Gets a dictionary mapping boundary names to their grid thicknesses.

@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_private_field
+from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, frozen_private_field
 from fdtdx.objects.device.parameters.transform import SameShapeTypeParameterTransform
 
 
@@ -15,7 +15,7 @@ class DiagonalSymmetry2D(SameShapeTypeParameterTransform):
             diagonal is used.
     """
 
-    min_min_to_max_max: bool
+    min_min_to_max_max: bool = frozen_field()
 
     _all_arrays_2d: bool = frozen_private_field(default=True)
 
