@@ -1,6 +1,7 @@
 import sys
 import time
 
+import chex
 import jax
 import jax.numpy as jnp
 import optax
@@ -13,7 +14,6 @@ from fdtdx.objects.device import (
     StandardToPlusOneMinusOneRange,
     BrushConstraint2D,
     circular_brush,
-    DiscreteDevice
 )
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx import constants
@@ -22,7 +22,11 @@ from fdtdx.interfaces import DtypeConversion, Recorder, LinearReconstructEveryK
 from fdtdx.objects import SimulationVolume, Substrate, Waveguide, SimulationObject
 from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.detectors import EnergyDetector, PoyntingFluxDetector
-from fdtdx.objects.device.parameters.mapping import DiscreteParameterMapping
+from fdtdx.objects.device.device import Device
+from fdtdx.objects.device.parameters.continous import GaussianSmoothing2D, StandardToInversePermittivityRange
+from fdtdx.objects.device.parameters.discretization import ClosestIndex
+from fdtdx.objects.device.parameters.projection import SubpixelSmoothedProjection, TanhProjection
+from fdtdx.objects.device.parameters.symmetries import DiagonalSymmetry2D
 from fdtdx.objects.sources import ModePlaneSource
 from fdtdx.core import metric_efficiency, OnOffSwitch
 from fdtdx.utils import Logger, plot_setup
@@ -30,8 +34,8 @@ from fdtdx.utils import Logger, plot_setup
 
 def main(
     seed: int,
-    evaluation: bool = True,
-    backward: bool = True,
+    evaluation: bool,
+    backward: bool,
 ):
     logger.info(f"{seed=}")
 
@@ -46,7 +50,7 @@ def main(
 
     config = SimulationConfig(
         time=200e-15,
-        resolution=20e-9,
+        resolution=25e-9,
         dtype=jnp.float32,
         courant_factor=0.99,
     )
@@ -99,18 +103,24 @@ def main(
         "Silicon": Material(permittivity=constants.relative_permittivity_silicon),
     }
     brush_diameter = round(100e-9 / config.resolution)
-    device = DiscreteDevice(
+    device = Device(
         name="Device",
         partial_real_shape=(1.6e-6, 1.6e-6, height),
-        material=material_config,
-        parameter_mapping=DiscreteParameterMapping(
-            latent_transforms=[StandardToPlusOneMinusOneRange(),],
-            discretization=BrushConstraint2D(
-                brush=circular_brush(diameter=brush_diameter),
-                axis=2,
-                background_material="Silicon",
-            ),
-        ),
+        materials=material_config,
+        param_transforms=[
+            # StandardToInversePermittivityRange(),
+            # ClosestIndex(),
+            # StandardToPlusOneMinusOneRange(),
+            # BrushConstraint2D(
+            #     brush=circular_brush(diameter=brush_diameter),
+            #     axis=2,
+            #     background_material="Air",
+            # ),
+            # TanhProjection(),
+            DiagonalSymmetry2D(min_min_to_max_max=False),
+            GaussianSmoothing2D(std_discrete=3),
+            SubpixelSmoothedProjection(),
+        ],
         partial_voxel_real_shape=(config.resolution, config.resolution, height),
     )
     placement_constraints.append(
@@ -238,6 +248,7 @@ def main(
             as_slices=True,
             switch=OnOffSwitch(interval=10),
             exact_interpolation=True,
+            num_video_workers=10,
         )
         placement_constraints.extend([*video_detector.same_position_and_size(volume)])
         exclude_object_list.append(video_detector)
@@ -248,6 +259,7 @@ def main(
                 inverse=True,
                 switch=OnOffSwitch(interval=10),
                 exact_interpolation=True,
+                num_video_workers=10,
             )
             placement_constraints.extend([*backward_video_detector.same_position_and_size(volume)])
             exclude_object_list.append(backward_video_detector)
@@ -263,6 +275,28 @@ def main(
     logger.info(tc.tree_summary(arrays, depth=2))
     print(tc.tree_diagram(config, depth=4))
 
+    epochs = 501 if not evaluation else 1
+    if not evaluation:
+        schedule_finetune: optax.Schedule = optax.warmup_cosine_decay_schedule(
+            init_value=0.0005,
+            peak_value=0.005,
+            end_value=0.0005,
+            warmup_steps=10,
+            decay_steps=round(0.9 * epochs),
+        )
+        optimizer_finetune = optax.inject_hyperparams(optax.nadam)(learning_rate=schedule_finetune)
+
+        optimizer_finetune = optax.MultiSteps(optimizer_finetune, every_k_schedule=1)
+        opt_state_finetune: optax.OptState = optimizer_finetune.init(params)
+    
+    def custom_schedule(idx: chex.Numeric) -> chex.Numeric:
+        beta_schedule = optax.linear_schedule(0.1, 100, epochs)
+        return jax.lax.cond(
+            idx < epochs / 2,
+            lambda: beta_schedule(idx),
+            lambda: jnp.inf
+        )
+    
     exp_logger.savefig(
         exp_logger.cwd,
         "setup.png",
@@ -279,9 +313,10 @@ def main(
         objects=objects,
         export_stl=True,
         export_figure=True,
+        beta=custom_schedule(0),
     )
-
-    _, tmp, _ = apply_params(arrays, objects, params, key)
+    
+    x, tmp, _ = apply_params(arrays, objects, params, key, beta=custom_schedule(0))
     tmp.sources[0].plot(  # type: ignore
         exp_logger.cwd / "figures" / "mode.png"
     )
@@ -290,8 +325,9 @@ def main(
         params: ParameterContainer,
         arrays: ArrayContainer,
         key: jax.Array,
+        idx: int,
     ):
-        arrays, new_objects, info = apply_params(arrays, objects, params, key)
+        arrays, new_objects, info = apply_params(arrays, objects, params, key, beta=custom_schedule(idx))
 
         final_state = reversible_fdtd(
             arrays=arrays,
@@ -323,30 +359,17 @@ def main(
             **info,
             **objective_info,
         }
-        return -objective, (arrays, new_info)
-
-    epochs = 501 if not evaluation else 1
-    if not evaluation:
-        schedule_finetune: optax.Schedule = optax.warmup_cosine_decay_schedule(
-            init_value=0.0005,
-            peak_value=0.005,
-            end_value=0.0005,
-            warmup_steps=10,
-            decay_steps=round(0.9 * epochs),
-        )
-        optimizer_finetune = optax.inject_hyperparams(optax.nadam)(learning_rate=schedule_finetune)
-
-        optimizer_finetune = optax.MultiSteps(optimizer_finetune, every_k_schedule=1)
-        opt_state_finetune: optax.OptState = optimizer_finetune.init(params)
+        return -objective, (arrays, new_info) 
 
     compile_start_time = time.time()
     jit_task_id = exp_logger.progress.add_task("JIT", total=None)
+    idx_dummy_arr = jnp.asarray(0, dtype=jnp.float32)
     if evaluation:
-        jitted_loss = jax.jit(loss_func, donate_argnames=["arrays"]).lower(params, arrays, key).compile()
+        jitted_loss = jax.jit(loss_func, donate_argnames=["arrays"]).lower(params, arrays, key, idx_dummy_arr).compile()
     else:
         jitted_loss = (
             jax.jit(jax.value_and_grad(loss_func, has_aux=True), donate_argnames=["arrays"])
-            .lower(params, arrays, key)
+            .lower(params, arrays, key, idx_dummy_arr)
             .compile()
         )
     compile_delta_time = time.time() - compile_start_time
@@ -357,10 +380,11 @@ def main(
 
         run_start_time = time.time()
         key, subkey = jax.random.split(key)
+        idx_arr = jnp.asarray(epoch, dtype=jnp.float32)
         if evaluation:
-            loss, (arrays, info) = jitted_loss(params, arrays, subkey)
+            loss, (arrays, info) = jitted_loss(params, arrays, subkey, idx_arr)
         else:
-            (loss, (arrays, info)), grads = jitted_loss(params, arrays, subkey)
+            (loss, (arrays, info)), grads = jitted_loss(params, arrays, subkey, idx_arr)
 
             updates, opt_state_finetune = optimizer_finetune.update(grads, opt_state_finetune, params) # type: ignore
             info["lr"] = opt_state_finetune.inner_opt_state.hyperparams["learning_rate"]
@@ -384,6 +408,7 @@ def main(
             objects=objects,
             export_stl=True,
             export_figure=True,
+            beta=custom_schedule(epoch)
         )
         info["changed_voxels"] = changed_voxels
 
@@ -396,8 +421,8 @@ def main(
 
 if __name__ == "__main__":
     seed = 42
-    evaluation = True
-    backward = True
+    evaluation = False
+    backward = False
     if len(sys.argv) > 1:
         seed = int(sys.argv[1])
         evaluation = False

@@ -1,6 +1,5 @@
 import math
-from abc import ABC, abstractmethod
-from typing import Literal, Self
+from typing import Literal, Self, Sequence
 
 import equinox.internal as eqxi
 import jax
@@ -8,75 +7,75 @@ import jax.numpy as jnp
 from loguru import logger
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field, frozen_private_field
+from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, frozen_private_field
 from fdtdx.core.jax.ste import straight_through_estimator
-from fdtdx.core.misc import get_air_name
+from fdtdx.core.misc import get_background_material_name
 from fdtdx.materials import Material, compute_allowed_permittivities, compute_ordered_names
 from fdtdx.objects.device.parameters.binary_transform import dilate_jax
+from fdtdx.objects.device.parameters.transform import ParameterTransformation
 from fdtdx.objects.device.parameters.utils import compute_allowed_indices, nearest_index
-
-
-class Discretization(ExtendedTreeClass, ABC):
-    _material: dict[str, Material] = frozen_private_field()
-    _config: SimulationConfig = frozen_private_field()
-    _output_shape_dtype: jax.ShapeDtypeStruct = frozen_private_field()
-    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] | jax.ShapeDtypeStruct = frozen_private_field()
-
-    def init_module(
-        self: Self,
-        config: SimulationConfig,
-        material: dict[str, Material],
-        output_shape_dtype: jax.ShapeDtypeStruct,
-    ) -> Self:
-        self = self.aset("_config", config)
-        self = self.aset("_material", material)
-        input_shape_dtypes = self._compute_input_shape_dtypes(output_shape_dtype)
-        self = self.aset("_output_shape_dtype", output_shape_dtype)
-        self = self.aset("_input_shape_dtypes", input_shape_dtypes)
-        return self
-
-    def _compute_input_shape_dtypes(
-        self,
-        output_shape_dtype: jax.ShapeDtypeStruct,
-    ) -> jax.ShapeDtypeStruct:
-        return jax.ShapeDtypeStruct(
-            shape=output_shape_dtype.shape,
-            dtype=self._config.dtype,
-        )
-
-    @abstractmethod
-    def __call__(
-        self,
-        input_params: dict[str, jax.Array] | jax.Array,
-    ) -> jax.Array:
-        raise NotImplementedError()
+from fdtdx.typing import ParameterType
 
 
 @extended_autoinit
-class ClosestIndex(Discretization):
-    """Maps continuous latent values to nearest allowed material indices.
+class ClosestIndex(ParameterTransformation):
+    """
+    Maps continuous latent values to nearest allowed material indices.
 
     For each input value, finds the index of the closest allowed inverse
     permittivity value. Uses straight-through gradient estimation to maintain
-    differentiability.
+    differentiability. If mapping_from_inverse_permittivities is set to False (default),
+    then the transform only quantizes the latent parameters to the closest integer value.
     """
+
+    mapping_from_inverse_permittivities: bool = False
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
+        default=ParameterType.CONTINUOUS
+    )
+
+    def _get_input_shape_impl(
+        self,
+        output_shape: dict[str, tuple[int, ...]],
+    ) -> dict[str, tuple[int, ...]]:
+        return output_shape
+
+    def _get_output_type_impl(
+        self,
+        input_type: dict[str, ParameterType],
+    ) -> dict[str, ParameterType]:
+        if len(self._materials) <= 1:
+            raise Exception(f"Invalid materials (need two or more): {self._materials}")
+        elif len(self._materials) == 2:
+            output_type = ParameterType.BINARY
+        else:
+            output_type = ParameterType.DISCRETE
+        result = {k: output_type for k in input_type.keys()}
+        return result
 
     def __call__(
         self,
-        input_params: dict[str, jax.Array] | jax.Array,
-    ) -> jax.Array:
-        if not isinstance(input_params, jax.Array):
-            raise Exception("Closest Index cannot be used with latent parameters that contain multiple entries")
-        arr = input_params
-        allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(self._material))
-        dist = jnp.abs(arr[..., None] - allowed_inv_perms)
-        discrete = jnp.argmin(dist, axis=-1)
-        result = straight_through_estimator(arr, discrete)
+        params: dict[str, jax.Array],
+        **kwargs,
+    ) -> dict[str, jax.Array]:
+        del kwargs
+
+        def transform_arr(arr: jax.Array) -> jax.Array:
+            if self.mapping_from_inverse_permittivities:
+                allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(self._materials))
+                dist = jnp.abs(arr[..., None] - allowed_inv_perms)
+                discrete = jnp.argmin(dist, axis=-1)
+            else:
+                discrete = jnp.clip(jnp.round(arr), 0, len(self._materials) - 1)
+            return straight_through_estimator(arr, discrete)
+
+        result = {}
+        for k, v in params.items():
+            result[k] = transform_arr(v)
         return result
 
 
 @extended_autoinit
-class BrushConstraint2D(Discretization):
+class BrushConstraint2D(ParameterTransformation):
     """Applies 2D brush-based constraints to ensure minimum feature sizes.
 
     Implements the brush-based constraint method described in:
@@ -94,38 +93,62 @@ class BrushConstraint2D(Discretization):
     axis: int = frozen_field()
     background_material: str | None = frozen_field(default=None)
 
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
+        default=ParameterType.CONTINUOUS
+    )
+    _check_single_array: bool = frozen_private_field(default=True)
+    _all_arrays_2d: bool = frozen_private_field(default=True)
+
+    def _get_input_shape_impl(
+        self,
+        output_shape: dict[str, tuple[int, ...]],
+    ) -> dict[str, tuple[int, ...]]:
+        return output_shape
+
+    def _get_output_type_impl(
+        self,
+        input_type: dict[str, ParameterType],
+    ) -> dict[str, ParameterType]:
+        if len(self._materials) != 2:
+            raise Exception(
+                f"BrushConstraint2D currently only implemented for exactly two materials, but got {self._materials}"
+            )
+        return {k: ParameterType.BINARY for k in input_type.keys()}
+
     def __call__(
         self,
-        input_params: dict[str, jax.Array] | jax.Array,
-    ) -> jax.Array:
-        if not isinstance(input_params, jax.Array):
-            raise Exception("BrushConstraint2D cannot be used with latent parameters that contain multiple entries")
-        if len(self._material) > 2:
-            raise Exception("BrushConstraint2D currently only implemented for single material and air")
-        s = input_params.shape
-        if len(s) != 3:
-            raise Exception(f"BrushConstraint2D Generator can only work with 2D-Arrays, got {s=}")
+        params: dict[str, jax.Array],
+        **kwargs,
+    ) -> dict[str, jax.Array]:
+        del kwargs
+
+        single_key = list(params.keys())[0]
+        param_arr = params[single_key]
+        s = param_arr.shape
         if s[self.axis] != 1:
             raise Exception(f"BrushConstraint2D Generator needs array size 1 in axis, but got {s=}")
         arr_2d = jnp.take(
-            input_params,
+            param_arr,
             jnp.asarray(0),
             axis=self.axis,
         )
 
-        cur_result = 1 - self._generator(arr_2d)
         if self.background_material is None:
-            background_name = get_air_name(self._material)
+            background_name = get_background_material_name(self._materials)
         else:
             background_name = self.background_material
 
-        ordered_name_list = compute_ordered_names(self._material)
+        ordered_name_list = compute_ordered_names(self._materials)
         background_idx = ordered_name_list.index(background_name)
         if background_idx != 0:
+            arr_2d = -arr_2d
+        cur_result = self._generator(arr_2d)
+        if background_idx != 0:
             cur_result = 1 - cur_result
+
         cur_result = jnp.expand_dims(cur_result, axis=self.axis)
-        result = straight_through_estimator(input_params, cur_result)
-        return result
+        result = straight_through_estimator(param_arr, cur_result)
+        return {single_key: result}
 
     def _generator(
         self,
@@ -265,7 +288,7 @@ def circular_brush(
 
 
 @extended_autoinit
-class PillarDiscretization(Discretization):
+class PillarDiscretization(ParameterTransformation):
     """Constraint module for mapping pillar structures to allowed configurations.
 
     Maps arbitrary pillar structures to the nearest allowed configurations based on
@@ -290,28 +313,55 @@ class PillarDiscretization(Discretization):
     background_material: str | None = frozen_field(default=None)
     _allowed_indices: jax.Array = frozen_private_field()
 
+    _check_single_array: bool = frozen_private_field(default=True)
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
+        default=ParameterType.CONTINUOUS
+    )
+
+    def _get_input_shape_impl(
+        self,
+        output_shape: dict[str, tuple[int, ...]],
+    ) -> dict[str, tuple[int, ...]]:
+        return output_shape
+
+    def _get_output_type_impl(
+        self,
+        input_type: dict[str, ParameterType],
+    ) -> dict[str, ParameterType]:
+        if len(self._materials) <= 1:
+            raise Exception(f"Invalid materials (need two or more): {self._materials}")
+        elif len(self._materials) == 2:
+            output_type = ParameterType.BINARY
+        else:
+            output_type = ParameterType.DISCRETE
+        return {k: output_type for k in input_type.keys()}
+
     def init_module(
         self: Self,
         config: SimulationConfig,
-        material: dict[str, Material],
-        output_shape_dtype: jax.ShapeDtypeStruct,
+        materials: dict[str, Material],
+        matrix_voxel_grid_shape: tuple[int, int, int],
+        single_voxel_size: tuple[float, float, float],
+        output_shape: dict[str, tuple[int, ...]],
     ) -> Self:
         self = super().init_module(
             config=config,
-            material=material,
-            output_shape_dtype=output_shape_dtype,
+            materials=materials,
+            matrix_voxel_grid_shape=matrix_voxel_grid_shape,
+            single_voxel_size=single_voxel_size,
+            output_shape=output_shape,
         )
 
         if self.background_material is None:
-            background_name = get_air_name(self._material)
+            background_name = get_background_material_name(self._materials)
         else:
             background_name = self.background_material
-        ordered_name_list = compute_ordered_names(self._material)
+        ordered_name_list = compute_ordered_names(self._materials)
         background_idx = ordered_name_list.index(background_name)
 
         allowed_columns = compute_allowed_indices(
-            num_layers=output_shape_dtype.shape[self.axis],
-            indices=list(range(len(material))),
+            num_layers=matrix_voxel_grid_shape[self.axis],
+            indices=list(range(len(materials))),
             fill_holes_with_index=[background_idx],
             single_polymer_columns=self.single_polymer_columns,
         )
@@ -322,15 +372,17 @@ class PillarDiscretization(Discretization):
 
     def __call__(
         self,
-        input_params: dict[str, jax.Array] | jax.Array,
-    ) -> jax.Array:
-        if not isinstance(input_params, jax.Array):
-            raise Exception("BrushConstraint2D cannot be used with latent parameters that contain multiple entries")
+        params: dict[str, jax.Array],
+        **kwargs,
+    ) -> dict[str, jax.Array]:
+        del kwargs
 
-        allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(self._material))
+        single_key = list(params.keys())[0]
+        params_arr = params[single_key]
 
+        allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(self._materials))
         nearest_allowed_index = nearest_index(
-            values=input_params,
+            values=params_arr,
             allowed_values=allowed_inv_perms,
             axis=self.axis,
             distance_metric=self.distance_metric,
@@ -346,5 +398,5 @@ class PillarDiscretization(Discretization):
             result_index = jnp.transpose(result_index, axes=(2, 0, 1))
         else:
             raise Exception(f"invalid axis: {self.axis}")
-        result_index = straight_through_estimator(input_params, result_index)
-        return result_index
+        result_index = straight_through_estimator(params_arr, result_index)
+        return {single_key: result_index}

@@ -74,18 +74,22 @@ class SimulationConfig(ExtendedTreeClass):
         if self.backend == "METAL":
             try:
                 jax.devices()
-                logger.info("METAL device found and will be used for computations")
+                if __name__ == "__main__":
+                    logger.info("METAL device found and will be used for computations")
                 jax.config.update("jax_platform_name", "metal")
             except RuntimeError:
-                logger.warning("METAL initialization failed, falling back to CPU!")
+                if __name__ == "__main__":
+                    logger.warning("METAL initialization failed, falling back to CPU!")
                 self.backend = "cpu"
         elif self.backend in ["gpu", "tpu"]:
             try:
                 jax.devices(self.backend)
-                logger.info(f"{str.upper(self.backend)} found and will be used for computations")
+                if __name__ == "__main__":
+                    logger.info(f"{str.upper(self.backend)} found and will be used for computations")
                 jax.config.update("jax_platform_name", self.backend)
             except RuntimeError:
-                logger.warning(f"{str.upper(self.backend)} not found, falling back to CPU!")
+                if __name__ == "__main__":
+                    logger.warning(f"{str.upper(self.backend)} not found, falling back to CPU!")
                 self.backend = "cpu"
 
         if self.backend == "cpu":

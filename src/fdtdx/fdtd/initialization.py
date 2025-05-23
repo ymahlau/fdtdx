@@ -8,12 +8,12 @@ from fdtdx.core.jax.sharding import create_named_sharded_matrix
 from fdtdx.core.jax.ste import straight_through_estimator
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, ParameterContainer
 from fdtdx.materials import (
-    ContinuousMaterialRange,
     compute_allowed_electric_conductivities,
     compute_allowed_magnetic_conductivities,
     compute_allowed_permeabilities,
     compute_allowed_permittivities,
 )
+from fdtdx.objects.device.parameters.transform import ParameterType
 from fdtdx.objects.object import (
     GridCoordinateConstraint,
     PositionConstraint,
@@ -22,8 +22,7 @@ from fdtdx.objects.object import (
     SizeConstraint,
     SizeExtensionConstraint,
 )
-from fdtdx.objects.static_material.multi_material import StaticMultiMaterialObject
-from fdtdx.objects.static_material.uniform import UniformMaterialObject
+from fdtdx.objects.static_material.static import StaticMaterialObject, StaticMultiMaterialObject
 from fdtdx.typing import SliceTuple3D
 
 
@@ -125,6 +124,7 @@ def apply_params(
     objects: ObjectContainer,
     params: ParameterContainer,
     key: jax.Array,
+    **transform_kwargs,
 ) -> tuple[ArrayContainer, ObjectContainer, dict[str, Any]]:
     """Applies parameters to devices and updates source states.
 
@@ -142,23 +142,19 @@ def apply_params(
     """
     info = {}
     # apply parameter to devices
-    for device in objects.discrete_devices:
-        cur_material_indices = device.get_expanded_material_mapping(params[device.name])
-        allowed_perm_list = compute_allowed_permittivities(device.material)
-        new_perm_slice = (1.0 / jnp.asarray(allowed_perm_list))[cur_material_indices.astype(jnp.int32)]
-        new_perm_slice = straight_through_estimator(cur_material_indices, new_perm_slice)
+    for device in objects.devices:
+        cur_material_indices = device(params[device.name], expand_to_sim_grid=True, **transform_kwargs)
+        allowed_perm_list = compute_allowed_permittivities(device.materials)
+        if device.output_type == ParameterType.CONTINUOUS:
+            first_term = (1 - cur_material_indices) * (1 / allowed_perm_list[0])
+            second_term = cur_material_indices * (1 / allowed_perm_list[1])
+            new_perm_slice = first_term + second_term
+        else:
+            new_perm_slice = jnp.asarray(allowed_perm_list)[cur_material_indices.astype(jnp.int32)]
+            new_perm_slice = straight_through_estimator(cur_material_indices, new_perm_slice)
+            new_perm_slice = 1 / new_perm_slice
         new_perm = arrays.inv_permittivities.at[*device.grid_slice].set(new_perm_slice)
         arrays = arrays.at["inv_permittivities"].set(new_perm)
-
-    # apply parameters to continous devices
-    if not objects.all_objects_non_magnetic:
-        for device in objects.continous_devices:
-            cur_material_indices = device.get_expanded_material_mapping(params[device.name])
-            new_perm_slice = (1 - cur_material_indices) * (
-                1 / device.material.start_material.permittivity
-            ) + cur_material_indices * (1 / device.material.end_material.permittivity)
-            new_perm = arrays.inv_permittivities.at[*device.grid_slice].set(new_perm_slice)
-            arrays = arrays.at["inv_permittivities"].set(new_perm)
 
     # apply random key to sources
     new_sources = []
@@ -264,7 +260,7 @@ def _init_arrays(
     )
     info = {}
     for o in sorted_obj:
-        if isinstance(o, UniformMaterialObject):
+        if isinstance(o, StaticMaterialObject):
             inv_permittivities = inv_permittivities.at[*o.grid_slice].set(1 / o.material.permittivity)
             if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
                 inv_permeabilities = inv_permeabilities.at[*o.grid_slice].set(1 / o.material.permeability)
@@ -276,32 +272,29 @@ def _init_arrays(
                 # scale by grid size
                 cond = o.material.magnetic_conductivity * config.resolution
                 magnetic_conductivity = magnetic_conductivity.at[*o.grid_slice].set(cond)
-        elif isinstance(o, StaticMultiMaterialObject):
+        elif isinstance(o, (StaticMultiMaterialObject)):
             indices = o.get_material_mapping()
-            if isinstance(o.material, dict):
-                allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(o.material))
+            if isinstance(o.materials, dict):
+                allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(o.materials))
                 update = allowed_inv_perms[indices]
                 inv_permittivities = inv_permittivities.at[*o.grid_slice].set(update)
 
                 if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
-                    allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permeabilities(o.material))
+                    allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permeabilities(o.materials))
                     update = allowed_inv_perms[indices]
                     inv_permeabilities = inv_permeabilities.at[*o.grid_slice].set(update)
 
                 if electric_conductivity is not None:
-                    allowed_conds = jnp.asarray(compute_allowed_electric_conductivities(o.material))
+                    allowed_conds = jnp.asarray(compute_allowed_electric_conductivities(o.materials))
                     update = allowed_conds[indices] * config.resolution
                     electric_conductivity = electric_conductivity.at[*o.grid_slice].set(update)
 
                 if magnetic_conductivity is not None:
-                    allowed_conds = jnp.asarray(compute_allowed_magnetic_conductivities(o.material))
+                    allowed_conds = jnp.asarray(compute_allowed_magnetic_conductivities(o.materials))
                     update = allowed_conds[indices] * config.resolution
                     magnetic_conductivity = magnetic_conductivity.at[*o.grid_slice].set(update)
-
-            elif isinstance(o.material, ContinuousMaterialRange):
-                raise NotImplementedError()
             else:
-                raise Exception(f"Unknown material type: {o.material}")
+                raise Exception(f"Unknown material type: {o.materials}")
         else:
             raise Exception(f"Unknown object type: {o}")
 

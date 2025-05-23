@@ -15,7 +15,7 @@ device_scatter = DiscreteDevice(
     name="Device",
     partial_real_shape=(1e-6, 1e-6, 1e-6),
     material=material_config,
-    parameter_mapping=...,  # <- This needs to be filled
+    param_transforms=...,  # <- This needs to be filled
     partial_voxel_real_shape=(0.2e-6, 0.2e-6, 0.2e-6),
 )
 ```
@@ -26,43 +26,35 @@ The parameter mapping, which is left empty above, specifies the mapping from con
 At the beginning of optimization, the latent parameters of a device are always initialized randomly in the interval [0, 1]. Depending on the constraint mapping, these parameteters are mapped to inverse permittivities. Let's look at an example of a simple constraint mapping:
 
 ```python
-from fdtdx.objects.device import (
-    ParameterMapping,
-    ClosestIndex,
-    StandardToInversePermittivityRange,
-)
+from fdtdx.objects.device import ClosestIndex
 
-mapping = ParameterMapping(
-    latent_transforms=[StandardToInversePermittivityRange(),],
-    discretization=ClosestIndex(),
-)
+param_transforms = [ClosestIndex()]
 ```
-The constraint mapping consists of a chain of modules, or in other words a chain of transformations followed by a discretization. Let's look at the modules in detail:
-- StandardToInversePermittivityRange(): This Module maps the default [0, 1] range to the range [$1 / \varepsilon_{max}$, $1 / \varepsilon_{min}$], where $\varepsilon_{max}$ and $\varepsilon_{min}$ are the maximum and minimum permittivity specified in the permittivity config above. In other words, a latent variable of 0 would be mapped to the smallest inverse permittivity. Similarly, a value of 1 would be mapped to the largest possible inverse permittivity.
-- ClosestIndex(): This module finds the closest material to the mapped value output from the last module. In math-terms, this is $\arg\min_{\varepsilon} |\varepsilon - v| $, where $\varepsilon$ are the allowed permittivity values and $v$ is the output of the last module. Importantly, this module does not return the $\varepsilon$ itself, but rather the index of $\varepsilon$ in the valid permittivities.
+The constraint mapping consists of a chain of modules, or in other words a chain of transformations followed by a discretization. Let's look at the module in detail:
+- ClosestIndex(): This module quantizes the latent variables to the closest integer. Since latent parameters are initialized randomly in the interval [0, 1], this module maps the continous parameters to either the index 0 or 1. Since this operation is not differentiable, we employ a straight-through-estimator (STE), which simply copies the gradient from the quantized values to the original values in the backward pass.
 
 This mapping constraints each voxel independently of the other voxels to the inverse permittivity of either air or polymer. However, often more elaborate fabrication constraints are needed in practice, which we introduce in the following sections.
+
+
 
 # Silicon Device with minimum feature constraint
 Now let's develop a constraint mapping for silicon photonics, which restricts the minimum feature size of a device.
 
 ```python
 from fdtdx.objects.device import (
-    ParameterMapping,
     StandardToPlusOneMinusOneRange,
     BrushConstraint2D,
     circular_brush,
 )
 
 brush_diameter_in_voxels = round(100e-9 / config.resolution)
-mapping = ParameterMapping(
-    latent_transforms=[StandardToPlusOneMinusOneRange()],
-    discretization=BrushConstraint2D(
+param_transforms = [
+    StandardToPlusOneMinusOneRange()
+    BrushConstraint2D(
         brush=circular_brush(diameter=brush_diameter_in_voxels),
         axis=2,
     ),
-)
-
+]
 ```
 
 This mapping does not just quantize latent paramters to material indices, but also makes sure that the device adheres to a minimum feature size with regard to a specific brush. In this example, we used a circular brush of 100nm. In other words, one could "paint" the design with a brush of this size.
@@ -85,20 +77,18 @@ from fdtdx.objects.device import (
     ClosestIndex,
 )
 
-mapping = ParameterMapping(
-    latent_transforms=[StandardToInversePermittivityRange(),],
-    discretization=ClosestIndex(),
-    post_transforms=[
-        BinaryMedianFilterModule(
-            kernel_sizes=(5, 5, 5),
-            padding_cfg=BOTTOM_Z_PADDING_CONFIG_REPEAT,
-            num_repeats=2,
-        ),
-        RemoveFloatingMaterial(),
-    ]
-)
+param_transforms = [
+    ClosestIndex(),
+    BinaryMedianFilterModule(
+        kernel_sizes=(5, 5, 5),
+        padding_cfg=BOTTOM_Z_PADDING_CONFIG_REPEAT,
+        num_repeats=2,
+    ),
+    RemoveFloatingMaterial(),
+]
+
 ```
 This constraint mapping is one possibility to implement constraints for 2PP. The two new modules are:
-- BinaryMedianFilterModule: This module does a soft enforcement of a minimum feature size by smoothing the incoming indices (produced by the previous module) with a median filter. The kernel size describes the size of the smoothing kernel in Yee grid cells. The padding config describes how the boundaries of the design are padded for smoothing. The BOTTOM_Z_PADDING_CONFIG_REPEAT uses a repeat of the boundary values except at the bottom of the design, where the design is padded with non-air-material. Heuristically, this gives the design better ground contact. The num_repeats argument specifies how often the smoothing filter is applied.
-- RemoveFloatingMaterial: As the name suggests, this module goes through the indices generated by the previous module (BinaryMedianFilter) and removes any floating material without ground connection. Ground connection is computed using a simple flood fill algorithm and all voxels with floating material are converted to air.
+- BinaryMedianFilterModule: This module does a soft enforcement of a minimum feature size by smoothing the incoming indices (produced by the previous module) with a median filter. The kernel size describes the size of the smoothing kernel in Yee grid cells. The padding config describes how the boundaries of the design are padded for smoothing. The BOTTOM_Z_PADDING_CONFIG_REPEAT uses a repeat of the boundary values except at the bottom of the design, where the design is padded with non-air-material. Heuristically, this gives the design better ground contact. The num_repeats argument specifies how often the smoothing filter is applied. However, in contrast to the BrushConstraint2D, this is only an approximation and does not always enforce the minimum feature size.
+- RemoveFloatingMaterial: As the name suggests, this module goes through the indices generated by the previous module (BinaryMedianFilter) and removes any floating material without ground connection. Ground connection is computed using a simple flood fill algorithm and all voxels with floating material are converted to the background material (usually air).
 

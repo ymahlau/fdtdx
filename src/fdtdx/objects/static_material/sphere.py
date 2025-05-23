@@ -7,7 +7,7 @@ from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_private_field
 from fdtdx.core.plotting.colors import LIGHT_BLUE
 from fdtdx.materials import Material
-from fdtdx.objects.static_material.multi_material import StaticMultiMaterialObject
+from fdtdx.objects.static_material.static import StaticMultiMaterialObject
 from fdtdx.typing import UNDEFINED_SHAPE_3D, PartialGridShape3D, PartialRealShape3D, SliceTuple3D
 
 
@@ -34,7 +34,7 @@ class Sphere(StaticMultiMaterialObject):
     radius_z: float | None = field(kind="KW_ONLY", default=None)
     partial_voxel_grid_shape: PartialGridShape3D = frozen_private_field(default=UNDEFINED_SHAPE_3D)
     partial_voxel_real_shape: PartialRealShape3D = frozen_private_field(default=UNDEFINED_SHAPE_3D)
-    color: tuple[float, float, float] = LIGHT_BLUE
+    color: tuple[float, float, float] | None = LIGHT_BLUE
 
     def place_on_grid(
         self: Self,

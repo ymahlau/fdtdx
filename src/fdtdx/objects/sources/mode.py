@@ -113,18 +113,20 @@ class ModePlaneSource(TFSFPlaneSource):
             inv_permittivity=self._inv_permittivity,
             inv_permeability=self._inv_permeability,
         )
+
         energy_2d = energy.squeeze().T
 
         plt.clf()
         fig = plt.figure(figsize=(10, 10))
-        levels = jnp.linspace(energy_2d.min(), energy_2d.max(), 11)[1:]
         mode_cmap = "inferno"
 
-        # Add contour lines on top of the imshow plot
-        plt.contour(energy_2d, cmap=mode_cmap, alpha=0.5, levels=levels)
-        plt.gca().set_aspect("equal")
-
-        plt.colorbar()
+        im = plt.imshow(
+            energy_2d,
+            cmap=mode_cmap,
+            origin="lower",
+            aspect="equal",
+        )
+        plt.colorbar(im)
 
         # Ensure the plot takes up the entire figure
         plt.tight_layout(pad=0)

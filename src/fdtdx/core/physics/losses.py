@@ -43,3 +43,35 @@ def metric_efficiency(
             info[f"{out_name}_by_{in_name}_efficiency"] = eff
     objective = jnp.mean(jnp.asarray(efficiencies))
     return objective, info
+
+
+def overlap_loss(
+    detector_states: dict[str, dict[str, jax.Array]],
+    out_names: Sequence[str],
+    metric_name: str,
+) -> tuple[jax.Array, dict[str, Any]]:
+    """Provide modal overlap recorded by overlap detectors.
+
+    Selects the last recorded value of the overlap metric from the output detectors
+    and returns it as the objective. This is useful for evaluating the performance
+    of the overlap detectors in capturing the modal overlap.
+    Args:
+        detector_states: Dictionary mapping detector names to their state dictionaries,
+            which contain metric values as JAX arrays
+        out_names: Names of output detectors to use for overlap calculation
+        metric_name: Name of the metric to compare between detectors (e.g. "overlap")
+
+    Returns:
+        tuple containing:
+            - jax.Array: Mean efficiency across all input-output pairs
+            - dict: Additional info including individual metric values and efficiencies
+              with keys like:
+                "{detector}_{metric}" for raw metric values
+                "objective" for the final objective value
+    """
+    info, objective = {}, 0
+    for out_name in out_names:
+        overlap = detector_states[out_name][metric_name][-1]
+        objective += overlap
+        info[f"{out_name}_{metric_name}"] = overlap
+    return objective, info

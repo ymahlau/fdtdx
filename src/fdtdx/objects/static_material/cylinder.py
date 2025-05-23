@@ -7,7 +7,7 @@ from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_private_field
 from fdtdx.core.plotting.colors import LIGHT_GREY
 from fdtdx.materials import Material
-from fdtdx.objects.static_material.multi_material import StaticMultiMaterialObject
+from fdtdx.objects.static_material.static import StaticMultiMaterialObject
 from fdtdx.typing import UNDEFINED_SHAPE_3D, PartialGridShape3D, PartialRealShape3D, SliceTuple3D
 
 
@@ -32,7 +32,7 @@ class Cylinder(StaticMultiMaterialObject):
     axis: int = field(kind="KW_ONLY")  # type: ignore
     partial_voxel_grid_shape: PartialGridShape3D = frozen_private_field(default=UNDEFINED_SHAPE_3D)
     partial_voxel_real_shape: PartialRealShape3D = frozen_private_field(default=UNDEFINED_SHAPE_3D)
-    color: tuple[float, float, float] = LIGHT_GREY
+    color: tuple[float, float, float] | None = LIGHT_GREY
 
     @property
     def horizontal_axis(self) -> int:

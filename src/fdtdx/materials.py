@@ -60,10 +60,10 @@ def compute_ordered_material_name_tuples(
     Returns a list of materials ordered by their properties.
 
     The ordering priority is:
-    1. Permittivity (descending)
-    2. Permeability (descending)
-    3. Electric conductivity (descending)
-    4. Magnetic conductivity (descending)
+    1. Permittivity (ascending)
+    2. Permeability (ascending)
+    3. Electric conductivity (ascending)
+    4. Magnetic conductivity (ascending)
 
     Args:
         materials: Dictionary mapping material names to Material objects
@@ -74,7 +74,7 @@ def compute_ordered_material_name_tuples(
     return sorted(
         materials.items(),
         key=lambda m: (m[1].permittivity, m[1].permeability, m[1].electric_conductivity, m[1].magnetic_conductivity),
-        reverse=True,
+        reverse=False,
     )
 
 
@@ -118,9 +118,3 @@ def compute_ordered_materials(
 ) -> list[Material]:
     ordered_materials = compute_ordered_material_name_tuples(materials)
     return [o[1] for o in ordered_materials]
-
-
-@extended_autoinit
-class ContinuousMaterialRange(ExtendedTreeClass):
-    start_material: Material
-    end_material: Material

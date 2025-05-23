@@ -1,4 +1,10 @@
-from .device import BaseDevice, ContinuousDevice, DiscreteDevice
+from .device import Device
+from .parameters.continous import (
+    GaussianSmoothing2D,
+    StandardToCustomRange,
+    StandardToInversePermittivityRange,
+    StandardToPlusOneMinusOneRange,
+)
 from .parameters.discrete import (
     BOTTOM_Z_PADDING_CONFIG_REPEAT,
     BinaryMedianFilterModule,
@@ -8,22 +14,16 @@ from .parameters.discrete import (
 from .parameters.discretization import (
     BrushConstraint2D,
     ClosestIndex,
-    Discretization,
     PillarDiscretization,
     circular_brush,
 )
-from .parameters.latent import (
-    StandardToCustomRange,
-    StandardToInversePermittivityRange,
-    StandardToPlusOneMinusOneRange,
-)
-from .parameters.mapping import DiscreteParameterMapping, LatentParameterMapping
+from .parameters.projection import SubpixelSmoothedProjection, TanhProjection
+from .parameters.symmetries import DiagonalSymmetry2D
+from .parameters.transform import ParameterTransformation
 
 __all__ = [
     # devices
-    "BaseDevice",
-    "DiscreteDevice",
-    "ContinuousDevice",
+    "Device",
     # discrete postprocessing
     "BOTTOM_Z_PADDING_CONFIG_REPEAT",
     "BinaryMedianFilterModule",
@@ -31,7 +31,6 @@ __all__ = [
     "RemoveFloatingMaterial",
     # discretization
     "ClosestIndex",
-    "Discretization",
     "BrushConstraint2D",
     "circular_brush",
     "PillarDiscretization",
@@ -39,7 +38,12 @@ __all__ = [
     "StandardToCustomRange",
     "StandardToInversePermittivityRange",
     "StandardToPlusOneMinusOneRange",
+    "GaussianSmoothing2D",
     # mapping
-    "LatentParameterMapping",
-    "DiscreteParameterMapping",
+    "ParameterTransformation",
+    # projection
+    "TanhProjection",
+    "SubpixelSmoothedProjection",
+    # symmetries
+    "DiagonalSymmetry2D",
 ]
