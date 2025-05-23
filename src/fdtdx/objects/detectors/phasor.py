@@ -31,7 +31,6 @@ class PhasorDetector(Detector):
     )
     dtype: jnp.dtype = frozen_field(
         default=jnp.complex64,
-        kind="KW_ONLY",
     )
     plot: bool = frozen_field(default=False)
 

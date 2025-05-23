@@ -1,5 +1,4 @@
 import jax
-import pytreeclass as tc
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.physics.curl import curl_E, curl_H, interpolate_fields
@@ -350,7 +349,6 @@ def update_detector_states(
     )
 
     def helper_fn(E_input, H_input, detector: Detector):
-        detector = tc.unfreeze(detector)
         return detector.update(
             time_step=time_step,
             E=E_input,
@@ -369,7 +367,7 @@ def update_detector_states(
             lambda e, h, _: state[d.name],
             interpolated_E if d.exact_interpolation else arrays.E,
             interpolated_H if d.exact_interpolation else arrays.H,
-            tc.freeze(d),
+            d
         )
     arrays = arrays.aset("detector_states", state)
     return arrays
