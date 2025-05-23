@@ -12,6 +12,7 @@ from fdtdx.fdtd import reversible_fdtd, ArrayContainer, ParameterContainer, appl
 from fdtdx.objects import SimulationVolume, Substrate, Waveguide, SimulationObject
 from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.detectors import EnergyDetector
+from fdtdx.objects.detectors.mode import ModeOverlapDetector
 from fdtdx.objects.sources import ModePlaneSource
 from fdtdx.utils import Logger, plot_setup
 
@@ -65,7 +66,7 @@ def main():
     )
     
     waveguide_in = Waveguide(
-        partial_real_shape=tuple([None if a==prop_axis else 0.4e-6 for a in range(3)]),  # type: ignore
+        partial_real_shape=tuple([None if a==prop_axis else 0.6e-6 for a in range(3)]),  # type: ignore
         material=Material(permittivity=constants.relative_permittivity_silicon),
     )
     placement_constraints.extend(
@@ -96,11 +97,34 @@ def main():
             source.place_relative_to(
                 waveguide_in,
                 axes=(prop_axis,),
-                other_positions=(0,),
-                own_positions=(0,),
+                other_positions=(-1,),
+                own_positions=(-1,),
+                grid_margins=(20,)
             )
         ]
     )
+    
+    overlap_detector = ModeOverlapDetector(
+        name="overlap_detector",
+        partial_grid_shape=(1, None, None),
+        wave_characters=(WaveCharacter(wavelength=wavelength),),
+        direction="+",
+        switch=OnOffSwitch(fixed_on_time_steps=all_time_steps[7*period_steps :8 * period_steps]),
+    )
+    placement_constraints.extend(
+        [
+            overlap_detector.place_relative_to(
+                source,
+                axes=(0),
+                own_positions=(-1),
+                other_positions=(-1),
+                grid_margins=(30),
+                # grid_margins=(bound_cfg.thickness_grid_minx),
+                # margins=(0.2e-6),
+            ),
+        ]
+    )
+    
     
     energy_last_step = EnergyDetector(
         name="energy_last_step",
@@ -128,7 +152,8 @@ def main():
     )
 
     logger.info(tc.tree_summary(arrays, depth=2))
-    print(tc.tree_diagram(config, depth=4))
+    print(tc.tree_diagram(config, depth=1))
+    print(tc.tree_diagram(objects, depth=2))
     
     exp_logger.savefig(
         exp_logger.cwd,
@@ -140,8 +165,8 @@ def main():
         ),
     )
     
-    _, tmp, _ = apply_params(arrays, objects, params, key)
-    tmp.sources[0].plot(  # type: ignore
+    _, objects, _ = jax.jit(apply_params)(arrays, objects, params, key)
+    objects.sources[0].plot(  # type: ignore
         exp_logger.cwd / "figures" / "mode.png"
     )
     
@@ -164,6 +189,12 @@ def main():
 
     key, subkey = jax.random.split(key)
     arrays = sim_func(params, arrays, subkey)
+    
+    alpha = objects[overlap_detector.name].compute_overlap(arrays.detector_states) # type: ignore
+    print(jnp.abs(alpha))
+    return
+    a = 1
+    
     exp_logger.log_detectors(iter_idx=0, objects=objects, detector_states=arrays.detector_states)
     
     

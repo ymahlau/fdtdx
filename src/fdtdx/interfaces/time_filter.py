@@ -24,10 +24,10 @@ class TimeStepFilter(ExtendedTreeClass, ABC):
         _output_shape_dtypes: Dictionary mapping field names to their output shapes/dtypes.
     """
 
-    _time_steps_max: int = frozen_private_field(default=-1)  # type: ignore
-    _array_size: int = frozen_private_field(default=-1)  # type: ignore
-    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field(default=None)  # type: ignore
-    _output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field(default=None)  # type: ignore
+    _time_steps_max: int = frozen_private_field()
+    _array_size: int = frozen_private_field()
+    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field()
+    _output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field()
 
     @abstractmethod
     def init_shapes(
@@ -78,7 +78,7 @@ class TimeStepFilter(ExtendedTreeClass, ABC):
         self,
         values: dict[str, jax.Array],
         state: RecordingState,
-        time_idx: int,  # scalar
+        time_idx: jax.Array,  # scalar
         key: jax.Array,
     ) -> tuple[
         dict[str, jax.Array],
@@ -156,7 +156,7 @@ class LinearReconstructEveryK(TimeStepFilter):
     """
 
     k: int = frozen_field()
-    start_recording_after: int = 0
+    start_recording_after: int = frozen_field(default=0)
     _save_time_steps: jax.Array = frozen_private_field(default=None)  # type: ignore
     _time_to_arr_idx: jax.Array = frozen_private_field(default=None)  # type: ignore
 

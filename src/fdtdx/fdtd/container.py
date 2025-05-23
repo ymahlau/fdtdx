@@ -9,7 +9,7 @@ from typing import Callable, Self
 
 import jax
 
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit
+from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.materials import Material
 from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState
@@ -39,7 +39,7 @@ class ObjectContainer(ExtendedTreeClass):
     """
 
     object_list: list[SimulationObject]
-    volume_idx: int
+    volume_idx: int = frozen_field()
 
     @property
     def volume(self) -> SimulationObject:

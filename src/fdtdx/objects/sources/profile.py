@@ -3,11 +3,11 @@ from abc import ABC, abstractmethod
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.jax.pytrees import extended_autoinit
+from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field
 
 
 @extended_autoinit
-class TemporalProfile(ABC):
+class TemporalProfile(ExtendedTreeClass, ABC):
     """Base class for temporal profiles of sources.
 
     This class defines how the source amplitude varies in time.
@@ -44,15 +44,15 @@ class SingleFrequencyProfile(TemporalProfile):
         phase_shift: float = 0.0,
     ) -> jax.Array:
         time_phase = 2 * jnp.pi * time / period + phase_shift
-        return jnp.sin(time_phase)
+        return jnp.real(jnp.exp(-1j * time_phase))
 
 
 @extended_autoinit
 class GaussianPulseProfile(TemporalProfile):
     """Gaussian pulse temporal profile with carrier wave."""
 
-    spectral_width: float  # Width of the Gaussian envelope in frequency domain
-    center_frequency: float  # Center frequency of the pulse
+    spectral_width: float = frozen_field()  # Width of the Gaussian envelope in frequency domain
+    center_frequency: float = frozen_field()  # Center frequency of the pulse
 
     def get_amplitude(
         self,
@@ -70,6 +70,6 @@ class GaussianPulseProfile(TemporalProfile):
 
         # Carrier wave
         carrier_phase = 2 * jnp.pi * self.center_frequency * time + phase_shift
-        carrier = jnp.sin(carrier_phase)
+        carrier = jnp.real(jnp.exp(-1j * carrier_phase))
 
         return envelope * carrier

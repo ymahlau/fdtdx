@@ -4,8 +4,14 @@ from typing import Literal, Optional, Self
 
 import jax
 
-from fdtdx.config import DUMMY_SIMULATION_CONFIG, SimulationConfig
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field, frozen_private_field
+from fdtdx.config import SimulationConfig
+from fdtdx.core.jax.pytrees import (
+    ExtendedTreeClass,
+    extended_autoinit,
+    frozen_field,
+    frozen_private_field,
+    private_field,
+)
 from fdtdx.core.misc import ensure_slice_tuple
 from fdtdx.typing import (
     INVALID_SLICE_TUPLE_3D,
@@ -183,7 +189,7 @@ class SimulationObject(ExtendedTreeClass, ABC):
     _grid_slice_tuple: SliceTuple3D = frozen_private_field(
         default=INVALID_SLICE_TUPLE_3D,
     )
-    _config: SimulationConfig = frozen_private_field(default=DUMMY_SIMULATION_CONFIG)
+    _config: SimulationConfig = private_field()
 
     @property
     def grid_slice_tuple(self) -> SliceTuple3D:
@@ -233,7 +239,25 @@ class SimulationObject(ExtendedTreeClass, ABC):
                 raise Exception(f"Invalid placement of object {self} at {grid_slice_tuple}")
         self = self.aset("_grid_slice_tuple", grid_slice_tuple)
         self = self.aset("_config", config)
+        return self
 
+    def apply(
+        self,
+        key: jax.Array,
+        inv_permittivities: jax.Array,
+        inv_permeabilities: jax.Array | float,
+    ) -> Self:
+        """Apply object-specific initialization and setup.
+
+        Args:
+            key: JAX random key for stochastic operations.
+            inv_permittivities: Inverse permittivity values.
+            inv_permeabilities: Inverse permeability values.
+
+        Returns:
+            Initialized source instance.
+        """
+        del key, inv_permittivities, inv_permeabilities
         return self
 
     def place_relative_to(

@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
+from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field, frozen_private_field
 from fdtdx.core.jax.utils import check_specs
 from fdtdx.core.misc import expand_matrix, is_float_divisible
 from fdtdx.core.plotting.colors import PINK
@@ -37,12 +37,13 @@ class Device(OrderableObject, ABC):
         color: RGB color tuple for visualization, defaults to pink
     """
 
-    materials: dict[str, Material] = frozen_field(kind="KW_ONLY")
-    param_transforms: Sequence[ParameterTransformation] = frozen_field(kind="KW_ONLY")
+    materials: dict[str, Material] = field()
+    param_transforms: Sequence[ParameterTransformation] = field()
     color: tuple[float, float, float] | None = frozen_field(default=PINK)
-    partial_voxel_grid_shape: PartialGridShape3D = field(default=UNDEFINED_SHAPE_3D)
-    partial_voxel_real_shape: PartialRealShape3D = field(default=UNDEFINED_SHAPE_3D)
-    _single_voxel_grid_shape: GridShape3D = field(default=INVALID_SHAPE_3D, init=False)
+    partial_voxel_grid_shape: PartialGridShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
+    partial_voxel_real_shape: PartialRealShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
+
+    _single_voxel_grid_shape: GridShape3D = frozen_private_field(default=INVALID_SHAPE_3D)
 
     @property
     def matrix_voxel_grid_shape(self) -> GridShape3D:

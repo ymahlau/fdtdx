@@ -87,7 +87,7 @@ def poynting_flux(E: jax.Array, H: jax.Array, axis: int = 0) -> jax.Array:
     )
 
 
-def normalize_by_poynting_flux(E: jax.Array, H: jax.Array, axis: int = 0) -> jax.Array:
+def normalize_by_poynting_flux(E: jax.Array, H: jax.Array, axis: int = 0) -> tuple[jax.Array, jax.Array]:
     """Normalize fields so that Poynting flux along given axis = 1."""
     # Compute Poynting vector components
     S_complex = jnp.cross(E, jnp.conj(H), axisa=axis, axisb=axis, axisc=axis)

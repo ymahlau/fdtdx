@@ -89,8 +89,8 @@ class StandardToPlusOneMinusOneRange(StandardToCustomRange):
         max_value: Fixed to 1
     """
 
-    min_value: float = frozen_field(default=-1, init=False)
-    max_value: float = frozen_field(default=1, init=False)
+    min_value: float = frozen_private_field(default=-1)
+    max_value: float = frozen_private_field(default=1)
 
 
 @extended_autoinit

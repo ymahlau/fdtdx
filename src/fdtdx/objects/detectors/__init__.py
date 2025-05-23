@@ -16,7 +16,7 @@ and applied during the optimization process.
 from .diffractive import DiffractiveDetector
 from .energy import EnergyDetector
 from .field import FieldDetector
-from .modeoverlap import ModeOverlapDetector
+from .mode import ModeOverlapDetector
 from .phasor import PhasorDetector
 from .poynting_flux import PoyntingFluxDetector
 

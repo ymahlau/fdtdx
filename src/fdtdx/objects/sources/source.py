@@ -6,7 +6,7 @@ import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core import WaveCharacter
-from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
+from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, private_field
 from fdtdx.core.misc import linear_interpolated_indexing, normalize_polarization_for_source
 from fdtdx.core.plotting.colors import ORANGE
 from fdtdx.core.switch import OnOffSwitch
@@ -17,13 +17,14 @@ from fdtdx.typing import SliceTuple3D
 
 @extended_autoinit
 class Source(SimulationObject, ABC):
-    wave_character: WaveCharacter = frozen_field(kind="KW_ONLY")  # type: ignore
+    wave_character: WaveCharacter = frozen_field()
     temporal_profile: TemporalProfile = SingleFrequencyProfile()
-    amplitude_scale: float = 1.0
-    switch: OnOffSwitch = frozen_field(default=OnOffSwitch(), kind="KW_ONLY")
-    color: tuple[float, float, float] | None = ORANGE
-    _is_on_at_time_step_arr: jax.Array = field(default=None, init=False)  # type: ignore
-    _time_step_to_on_idx: jax.Array = field(default=None, init=False)  # type: ignore
+    amplitude_scale: float = frozen_field(default=1.0)
+    switch: OnOffSwitch = frozen_field(default=OnOffSwitch())
+    color: tuple[float, float, float] | None = frozen_field(default=ORANGE)
+
+    _is_on_at_time_step_arr: jax.Array = private_field()
+    _time_step_to_on_idx: jax.Array = private_field()
 
     def is_on_at_time_step(self, time_step: jax.Array) -> jax.Array:
         return self._is_on_at_time_step_arr[time_step]
@@ -118,25 +119,6 @@ class Source(SimulationObject, ABC):
         """
         raise NotImplementedError()
 
-    @abstractmethod
-    def apply(
-        self,
-        key: jax.Array,
-        inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array | float,
-    ) -> Self:
-        """Apply source-specific initialization and setup.
-
-        Args:
-            key: JAX random key for stochastic operations.
-            inv_permittivities: Inverse permittivity values.
-            inv_permeabilities: Inverse permeability values.
-
-        Returns:
-            Initialized source instance.
-        """
-        raise NotImplementedError()
-
 
 @extended_autoinit
 class DirectionalPlaneSourceBase(Source, ABC):
@@ -166,9 +148,9 @@ class DirectionalPlaneSourceBase(Source, ABC):
 
 @extended_autoinit
 class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
-    amplitude: float = 1.0
-    fixed_E_polarization_vector: tuple[float, float, float] | None = None
-    fixed_H_polarization_vector: tuple[float, float, float] | None = None
+    amplitude: float = frozen_field(default=1.0)
+    fixed_E_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
+    fixed_H_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
 
     def update_E(
         self,
@@ -219,12 +201,3 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
 
         H = H.at[:, *self.grid_slice].set(H_update.astype(H.dtype))
         return H
-
-    def apply(
-        self,
-        key: jax.Array,
-        inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array | float,
-    ) -> Self:
-        del key, inv_permittivities, inv_permeabilities
-        return self

@@ -28,7 +28,7 @@ class ClosestIndex(ParameterTransformation):
     then the transform only quantizes the latent parameters to the closest integer value.
     """
 
-    mapping_from_inverse_permittivities: bool = False
+    mapping_from_inverse_permittivities: bool = frozen_field(default=False)
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
         default=ParameterType.CONTINUOUS
     )
@@ -305,8 +305,8 @@ class PillarDiscretization(ParameterTransformation):
               for material distribution comparisons
     """
 
-    axis: int = frozen_field(kind="KW_ONLY")
-    single_polymer_columns: bool = frozen_field(kind="KW_ONLY")
+    axis: int = frozen_field()
+    single_polymer_columns: bool = frozen_field()
     distance_metric: Literal["euclidean", "permittivity_differences_plus_average_permittivity"] = frozen_field(
         default="permittivity_differences_plus_average_permittivity",
     )

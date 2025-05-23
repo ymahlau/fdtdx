@@ -3,7 +3,7 @@ from typing import Literal
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
+from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
 from fdtdx.core.plotting.colors import DARK_GREY
 from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState
 from fdtdx.objects.boundaries.utils import (
@@ -66,12 +66,12 @@ class PerfectlyMatchedLayer(BaseBoundary):
         color: RGB color tuple for visualization
     """
 
-    axis: int = field(kind="KW_ONLY")  # type: ignore
-    direction: Literal["+", "-"] = frozen_field(kind="KW_ONLY")  # type: ignore
-    alpha: float = 1.0e-8
-    kappa_start: float = 1.0
-    kappa_end: float = 1.5
-    color: tuple[float, float, float] = DARK_GREY
+    axis: int = frozen_field()
+    direction: Literal["+", "-"] = frozen_field()
+    alpha: float = frozen_field(default=1.0e-8)
+    kappa_start: float = frozen_field(default=1.0)
+    kappa_end: float = frozen_field(default=1.5)
+    color: tuple[float, float, float] | None = frozen_field(default=DARK_GREY)
 
     @property
     def descriptive_name(self) -> str:

@@ -3,7 +3,7 @@ from typing import Sequence
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_private_field
+from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, frozen_private_field
 from fdtdx.objects.device.parameters.transform import SameShapeTypeParameterTransform
 from fdtdx.typing import ParameterType
 
@@ -186,7 +186,7 @@ class TanhProjection(SameShapeTypeParameterTransform):
     Structural and Multidisciplinary Optimization, 43(6), pp. 767-784 (2011).
     """
 
-    projection_midpoint: float = 0.5
+    projection_midpoint: float = frozen_field(default=0.5)
 
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
         default=ParameterType.CONTINUOUS
@@ -243,7 +243,7 @@ class SubpixelSmoothedProjection(SameShapeTypeParameterTransform):
     center. To ensure this, we need to account for the different possibilities.
     """
 
-    projection_midpoint: float = 0.5
+    projection_midpoint: float = frozen_field(default=0.5)
 
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
         default=ParameterType.CONTINUOUS
