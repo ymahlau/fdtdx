@@ -44,7 +44,7 @@ class SingleFrequencyProfile(TemporalProfile):
         phase_shift: float = 0.0,
     ) -> jax.Array:
         time_phase = 2 * jnp.pi * time / period + phase_shift
-        return jnp.sin(time_phase)
+        return jnp.real(jnp.exp(-1j * time_phase))
 
 
 @extended_autoinit
@@ -70,6 +70,6 @@ class GaussianPulseProfile(TemporalProfile):
 
         # Carrier wave
         carrier_phase = 2 * jnp.pi * self.center_frequency * time + phase_shift
-        carrier = jnp.sin(carrier_phase)
+        carrier = jnp.real(jnp.exp(-1j * carrier_phase))
 
         return envelope * carrier
