@@ -149,6 +149,71 @@ def field(
         on_getattr=on_getattr,
         alias=alias,
     )
+    
+    
+
+@overload
+def private_field(
+    *,
+    default: T,
+    init: bool = False,
+    repr: bool = True,
+    kind: ArgKindType = "KW_ONLY",
+    metadata: dict[str, Any] | None = None,
+    on_setattr: Sequence[Any] = (),
+    on_getattr: Sequence[Any] = (),
+    alias: str | None = None,
+) -> T: ...
+
+
+@overload
+def private_field(
+    *,
+    init: bool = False,
+    repr: bool = True,
+    kind: ArgKindType = "KW_ONLY",
+    metadata: dict[str, Any] | None = None,
+    on_setattr: Sequence[Any] = (),
+    on_getattr: Sequence[Any] = (),
+    alias: str | None = None,
+) -> Any: ...
+
+
+def private_field(
+    *,
+    default: Any = NULL,
+    init: bool = False,
+    repr: bool = True,
+    kind: ArgKindType = "KW_ONLY",
+    metadata: dict[str, Any] | None = None,
+    on_setattr: Sequence[Any] = (),
+    on_getattr: Sequence[Any] = (),
+    alias: str | None = None,
+) -> Any:
+    """
+    Args:
+        default: The default value for the field
+        init: Whether to include the field in __init__
+        repr: Whether to include the field in __repr__
+        kind: The argument kind (POS_ONLY, POS_OR_KW, etc.)
+        metadata: Additional metadata for the field
+        on_setattr: Additional setattr callbacks (applied after freezing)
+        on_getattr: Additional getattr callbacks (applied after unfreezing)
+        alias: Alternative name for the field in __init__
+
+    Returns:
+        A Field instance configured with freeze/unfreeze behavior
+    """
+    return tc_field(
+        default=default,
+        init=init,
+        repr=repr,
+        kind=kind,
+        metadata=metadata,
+        on_setattr=on_setattr,
+        on_getattr=on_getattr,
+        alias=alias,
+    )
 
 
 @overload
@@ -289,7 +354,7 @@ def frozen_private_field(
 
 
 @dataclass_transform(
-    field_specifiers=(Field, tc_field, frozen_field, frozen_private_field, field),
+    field_specifiers=(Field, tc_field, frozen_field, frozen_private_field, field, private_field),
     kw_only_default=True,
 )
 def extended_autoinit(klass: type[T]) -> type[T]:
