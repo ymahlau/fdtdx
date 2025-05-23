@@ -367,7 +367,7 @@ def update_detector_states(
             lambda e, h, _: state[d.name],
             interpolated_E if d.exact_interpolation else arrays.E,
             interpolated_H if d.exact_interpolation else arrays.H,
-            d
+            d,
         )
     arrays = arrays.aset("detector_states", state)
     return arrays

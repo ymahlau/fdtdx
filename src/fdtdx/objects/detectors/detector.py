@@ -8,7 +8,7 @@ from matplotlib.figure import Figure
 from rich.progress import Progress
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field, frozen_private_field, private_field
+from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, frozen_private_field, private_field
 from fdtdx.core.plotting.colors import LIGHT_GREEN
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.objects.detectors.plotting.line_plot import plot_line_over_time, plot_waterfall_over_time
@@ -59,8 +59,7 @@ class Detector(SimulationObject, ABC):
     _num_time_steps_on: int = frozen_private_field()
     _is_on_at_time_step_arr: jax.Array = private_field()
     _time_step_to_arr_idx: jax.Array = private_field()
-    
-    
+
     @property
     def num_time_steps_recorded(self) -> int:
         """Gets the total number of time steps that will be recorded.
@@ -106,7 +105,7 @@ class Detector(SimulationObject, ABC):
             NotImplementedError: Must be implemented by subclasses.
         """
         raise NotImplementedError()
-    
+
     def place_on_grid(
         self: Self,
         grid_slice_tuple: SliceTuple3D,

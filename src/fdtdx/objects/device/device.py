@@ -42,7 +42,7 @@ class Device(OrderableObject, ABC):
     color: tuple[float, float, float] | None = frozen_field(default=PINK)
     partial_voxel_grid_shape: PartialGridShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
     partial_voxel_real_shape: PartialRealShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
-    
+
     _single_voxel_grid_shape: GridShape3D = frozen_private_field(default=INVALID_SHAPE_3D)
 
     @property
@@ -174,7 +174,6 @@ class Device(OrderableObject, ABC):
                 f"but got {self.materials}"
             )
         return self
-    
 
     def init_params(
         self,

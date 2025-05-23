@@ -5,8 +5,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, frozen_private_field, private_field
+from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, private_field
 from fdtdx.objects.sources.source import DirectionalPlaneSourceBase
 
 

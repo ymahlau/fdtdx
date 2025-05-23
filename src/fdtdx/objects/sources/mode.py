@@ -5,9 +5,8 @@ import jax
 import jax.numpy as jnp
 from matplotlib import pyplot as plt
 
-from fdtdx.config import SimulationConfig
 from fdtdx.core.grid import calculate_time_offset_yee
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, frozen_private_field, private_field
+from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, private_field
 from fdtdx.core.linalg import get_wave_vector_raw
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.core.physics.modes import compute_mode

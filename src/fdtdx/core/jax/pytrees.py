@@ -149,8 +149,7 @@ def field(
         on_getattr=on_getattr,
         alias=alias,
     )
-    
-    
+
 
 @overload
 def private_field(

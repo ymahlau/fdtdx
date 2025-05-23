@@ -1,5 +1,5 @@
 from fdtdx import constants
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, field, frozen_field
+from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field
 
 
 @extended_autoinit

@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 
 from fdtdx import constants
-from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
+from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 

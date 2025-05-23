@@ -4,8 +4,14 @@ from typing import Literal, Optional, Self
 
 import jax
 
-from fdtdx.config import DUMMY_SIMULATION_CONFIG, SimulationConfig
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field, frozen_private_field, private_field
+from fdtdx.config import SimulationConfig
+from fdtdx.core.jax.pytrees import (
+    ExtendedTreeClass,
+    extended_autoinit,
+    frozen_field,
+    frozen_private_field,
+    private_field,
+)
 from fdtdx.core.misc import ensure_slice_tuple
 from fdtdx.typing import (
     INVALID_SLICE_TUPLE_3D,
@@ -234,7 +240,7 @@ class SimulationObject(ExtendedTreeClass, ABC):
         self = self.aset("_grid_slice_tuple", grid_slice_tuple)
         self = self.aset("_config", config)
         return self
-    
+
     def apply(
         self,
         key: jax.Array,

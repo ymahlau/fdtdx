@@ -30,8 +30,8 @@ class PoyntingFluxDetector(Detector):
 
     direction: Literal["+", "-"] = frozen_field()
     reduce_volume: bool = frozen_field(default=True)
-    fixed_propagation_axis: int | None =  frozen_field(default=None)
-    keep_all_components: bool =  frozen_field(default=False)
+    fixed_propagation_axis: int | None = frozen_field(default=None)
+    keep_all_components: bool = frozen_field(default=False)
 
     @property
     def propagation_axis(self) -> int:
