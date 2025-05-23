@@ -157,18 +157,21 @@ def apply_params(
         arrays = arrays.at["inv_permittivities"].set(new_perm)
 
     # apply random key to sources
-    new_sources = []
-    for source in objects.sources:
+    new_objects = []
+    for obj in objects.object_list:
         key, subkey = jax.random.split(key)
-        new_source = source.apply(
+        new_obj = obj.apply(
             key=subkey,
             inv_permittivities=jax.lax.stop_gradient(arrays.inv_permittivities),
             inv_permeabilities=jax.lax.stop_gradient(arrays.inv_permeabilities),
         )
-        new_sources.append(new_source)
-    objects = objects.replace_sources(new_sources)
+        new_objects.append(new_obj)
+    new_objects = ObjectContainer(
+        object_list=new_objects,
+        volume_idx=objects.volume_idx,
+    )
 
-    return arrays, objects, info
+    return arrays, new_objects, info
 
 
 def _init_arrays(

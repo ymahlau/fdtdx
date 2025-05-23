@@ -5,7 +5,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
+from fdtdx.config import SimulationConfig
+from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, frozen_private_field, private_field
 from fdtdx.objects.sources.source import DirectionalPlaneSourceBase
 
 
@@ -183,6 +184,11 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
     ) -> Self:
+        self = super().apply(
+            key=key,
+            inv_permittivities=inv_permittivities,
+            inv_permeabilities=inv_permeabilities,
+        )
         E, H, time_offset_E, time_offset_H = self.get_EH_variation(
             key=key,
             inv_permittivities=inv_permittivities,

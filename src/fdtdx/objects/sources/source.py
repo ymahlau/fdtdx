@@ -6,7 +6,7 @@ import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core import WaveCharacter
-from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
+from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field, frozen_private_field, private_field
 from fdtdx.core.misc import linear_interpolated_indexing, normalize_polarization_for_source
 from fdtdx.core.plotting.colors import ORANGE
 from fdtdx.core.switch import OnOffSwitch
@@ -119,25 +119,6 @@ class Source(SimulationObject, ABC):
         """
         raise NotImplementedError()
 
-    @abstractmethod
-    def apply(
-        self,
-        key: jax.Array,
-        inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array | float,
-    ) -> Self:
-        """Apply source-specific initialization and setup.
-
-        Args:
-            key: JAX random key for stochastic operations.
-            inv_permittivities: Inverse permittivity values.
-            inv_permeabilities: Inverse permeability values.
-
-        Returns:
-            Initialized source instance.
-        """
-        raise NotImplementedError()
-
 
 @extended_autoinit
 class DirectionalPlaneSourceBase(Source, ABC):
@@ -220,12 +201,3 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
 
         H = H.at[:, *self.grid_slice].set(H_update.astype(H.dtype))
         return H
-
-    def apply(
-        self,
-        key: jax.Array,
-        inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array | float,
-    ) -> Self:
-        del key, inv_permittivities, inv_permeabilities
-        return self

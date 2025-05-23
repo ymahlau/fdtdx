@@ -28,6 +28,11 @@ class ModePlaneSource(TFSFPlaneSource):
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
     ) -> Self:
+        self = super().apply(
+            key=key,
+            inv_permittivities=inv_permittivities,
+            inv_permeabilities=inv_permeabilities,
+        )
         if (
             self.azimuth_angle != 0
             or self.elevation_angle != 0
@@ -37,11 +42,6 @@ class ModePlaneSource(TFSFPlaneSource):
         ):
             raise NotImplementedError()
 
-        self = super().apply(
-            key=key,
-            inv_permittivities=inv_permittivities,
-            inv_permeabilities=inv_permeabilities,
-        )
         inv_permittivity_slice = inv_permittivities[*self.grid_slice]
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
             inv_permeability_slice = inv_permeabilities[*self.grid_slice]
