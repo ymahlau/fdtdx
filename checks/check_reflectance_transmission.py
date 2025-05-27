@@ -25,7 +25,7 @@ from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_confi
 from fdtdx.objects.detectors import EnergyDetector, PoyntingFluxDetector
 from fdtdx.objects.detectors.field import FieldDetector
 from fdtdx.objects.detectors.phasor import PhasorDetector
-from fdtdx.objects.sources import SimplePlaneSource
+from fdtdx.objects.sources import UniformPlaneSource
 from fdtdx.core import WaveCharacter
 from fdtdx.utils import Logger, plot_setup
 
@@ -77,7 +77,7 @@ def main():
     bound_dict, c_list = boundary_objects_from_config(bound_cfg, volume)
     constraints.extend(c_list)
 
-    source = SimplePlaneSource(
+    source = UniformPlaneSource(
         partial_grid_shape=(None, None, 1),
         fixed_E_polarization_vector=(1, 0, 0),
         wave_character=WaveCharacter(wavelength=1.550e-6),

@@ -20,7 +20,7 @@ from fdtdx.materials import Material
 from fdtdx.objects import  SimulationVolume
 from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.detectors import EnergyDetector
-from fdtdx.objects.sources import GaussianPlaneSource, SimplePlaneSource
+from fdtdx.objects.sources import GaussianPlaneSource, UniformPlaneSource
 from fdtdx.core import WaveCharacter, OnOffSwitch
 from fdtdx.utils import Logger, plot_setup
 

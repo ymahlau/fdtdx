@@ -16,7 +16,7 @@ and applied during the optimization process.
 from .linear_polarization import (
     GaussianPlaneSource,
     LinearlyPolarizedPlaneSource,
-    SimplePlaneSource,
+    UniformPlaneSource,
 )
 from .mode import ModePlaneSource
 from .profile import GaussianPulseProfile, SingleFrequencyProfile
@@ -25,7 +25,7 @@ from .source import HardConstantAmplitudePlanceSource
 __all__ = [
     "LinearlyPolarizedPlaneSource",
     "GaussianPlaneSource",
-    "SimplePlaneSource",
+    "UniformPlaneSource",
     "HardConstantAmplitudePlanceSource",
     "SingleFrequencyProfile",
     "GaussianPulseProfile",
