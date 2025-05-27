@@ -19,13 +19,13 @@ class ModeOverlapDetector(PhasorDetector):
     frequency, enabling frequency-domain analysis of the electromagnetic fields.
 
     The mode overlap is calculated by integrating the cross product of the mode fields
-    with the simulation fields over a cross-sectional plane. This is useful for 
+    with the simulation fields over a cross-sectional plane. This is useful for
     analyzing waveguide coupling efficiency, transmission coefficients, and modal
     decomposition of electromagnetic fields.
 
     Attributes:
         direction: Direction of mode propagation, either "+" (forward) or "-" (backward).
-                  Determines which direction along the waveguide axis the mode is 
+                  Determines which direction along the waveguide axis the mode is
                   assumed to propagate.
         mode_index: Index of the waveguide mode to use for overlap calculation.
                    Defaults to 0 (fundamental mode). Higher indices correspond to

@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 import jax
 
 from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
-from fdtdx.core.plotting.colors import LIGHT_BLUE, LIGHT_BROWN, LIGHT_GREY
+from fdtdx.core.plotting.colors import LIGHT_GREY
 from fdtdx.materials import Material
 from fdtdx.objects.object import OrderableObject
 

@@ -22,7 +22,7 @@ from fdtdx.objects.object import (
     SizeConstraint,
     SizeExtensionConstraint,
 )
-from fdtdx.objects.static_material.static import UniformMaterialObject, StaticMultiMaterialObject
+from fdtdx.objects.static_material.static import StaticMultiMaterialObject, UniformMaterialObject
 from fdtdx.typing import SliceTuple3D
 
 

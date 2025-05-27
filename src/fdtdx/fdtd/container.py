@@ -19,7 +19,7 @@ from fdtdx.objects.detectors.detector import Detector, DetectorState
 from fdtdx.objects.device.device import Device
 from fdtdx.objects.object import SimulationObject
 from fdtdx.objects.sources.source import Source
-from fdtdx.objects.static_material.static import UniformMaterialObject, StaticMultiMaterialObject
+from fdtdx.objects.static_material.static import StaticMultiMaterialObject, UniformMaterialObject
 
 # Type alias for parameter dictionaries containing JAX arrays
 ParameterContainer = dict[str, dict[str, jax.Array] | jax.Array]

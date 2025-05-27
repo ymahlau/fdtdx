@@ -170,7 +170,7 @@ class Device(OrderableObject, ABC):
         self = self.aset("param_transforms", module_list)
         if self.output_type == ParameterType.CONTINUOUS and len(self.materials) != 2:
             raise Exception(
-                f"Need exactly two materials in device when parameter mapping outputs continous permittivity indices, "
+                f"Need exactly two materials in device when parameter mapping outputs continuous permittivity indices, "
                 f"but got {self.materials}"
             )
         return self
@@ -217,7 +217,7 @@ class Device(OrderableObject, ABC):
             params = list(params.values())[0]
         else:
             raise Exception(
-                "The parameter mapping should return a single array of indices. If using a continous device, please"
+                "The parameter mapping should return a single array of indices. If using a continuous device, please"
                 " make sure that the latent transformations abide to this rule."
             )
         if expand_to_sim_grid:
