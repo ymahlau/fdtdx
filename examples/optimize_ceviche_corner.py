@@ -89,7 +89,7 @@ def main(
     placement_constraints = []
 
     volume = SimulationVolume(
-        partial_real_shape=(2.5e-6, 2.5e-6, 1.5e-6),
+        partial_real_shape=(2.5e-6, 2.5e-6, 1.2e-6),
     )
 
     bound_cfg = BoundaryConfig.from_uniform_bound(thickness=10)
@@ -97,7 +97,7 @@ def main(
     placement_constraints.extend(c_list)
 
     substrate = UniformMaterialObject(
-        partial_real_shape=(None, None, 0.6e-6),
+        partial_real_shape=(None, None, 0.5e-6),
         material=Material(permittivity=constants.relative_permittivity_silica),
         color=colors.ORANGE,
     )
