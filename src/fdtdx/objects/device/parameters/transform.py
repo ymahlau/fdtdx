@@ -83,15 +83,16 @@ class ParameterTransformation(ExtendedTreeClass, ABC):
         output_shape: dict[str, tuple[int, ...]],
     ) -> dict[str, tuple[int, ...]]:
         # checks
-        for v in output_shape.values():
-            err_msg = (
-                f"ParameterTransform {self.__class__} expects to work with 2d arrays, so exactly one axis of the "
-                f"3d array needs to have size of 1, but got: {output_shape}"
-            )
-            if len(v) != 3 or 1 not in v:
-                raise Exception(err_msg)
-            if sum([n != 1 for n in v]) != 2:
-                raise Exception(err_msg)
+        if self._all_arrays_2d:
+            for v in output_shape.values():
+                err_msg = (
+                    f"ParameterTransform {self.__class__} expects to work with 2d arrays, so exactly one axis of the "
+                    f"3d array needs to have size of 1, but got: {output_shape}"
+                )
+                if len(v) != 3 or 1 not in v:
+                    raise Exception(err_msg)
+                if sum([n != 1 for n in v]) != 2:
+                    raise Exception(err_msg)
 
         # implementation
         input_shape = self._get_input_shape_impl(output_shape)
