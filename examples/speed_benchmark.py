@@ -11,33 +11,40 @@ import time
 
 import jax
 import jax.numpy as jnp
-import jax.profiler
 import pytreeclass as tc
 from loguru import logger
 
-from fdtdx import constants
-from fdtdx.config import SimulationConfig
-from fdtdx.core.plotting import colors
-from fdtdx.fdtd import custom_fdtd_forward, ArrayContainer, apply_params, place_objects
-from fdtdx.materials import Material
-from fdtdx.objects import SimulationObject, SimulationVolume, Substrate, Waveguide
-from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
-from fdtdx.objects.detectors import EnergyDetector, PoyntingFluxDetector
-from fdtdx.objects.device import (
-    DiscreteDevice, 
-    DiscreteParameterMapping, 
-    ClosestIndex, 
-    StandardToInversePermittivityRange,
+from fdtdx import (
+    constants,
+    SimulationConfig,
+    ArrayContainer,
+    apply_params,
+    place_objects,
+    Material,
+    SimulationObject,
+    SimulationVolume,
+    BoundaryConfig,
+    boundary_objects_from_config,
+    EnergyDetector,
+    PoyntingFluxDetector,
+    Device,
+    UniformPlaneSource,
+    WaveCharacter,
+    metric_efficiency,
+    OnOffSwitch,
+    Logger,
+    plot_setup,
+    UniformMaterialObject,
+    ClosestIndex
 )
-from fdtdx.objects.sources import UniformPlaneSource
-from fdtdx.core import WaveCharacter, metric_efficiency, OnOffSwitch
-from fdtdx.utils import Logger, plot_setup
+from fdtdx.core.plotting import colors
+from fdtdx.fdtd.fdtd import custom_fdtd_forward
 
 
 # Design of Shen et al.: https://opg.optica.org/oe/fulltext.cfm?uri=oe-22-22-27175&id=303419
 # Note that we are unable to reproduce the reported efficiency of their coupling device.
 # Our simulation and commercial software only yields an efficiency of about 7% compared to their reported 50%.
-REFERENCE_DESIGN_GRID = 1 - jnp.asarray(
+REFERENCE_DESIGN_GRID = jnp.asarray(
     [
         [0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
         [1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1],
@@ -118,7 +125,7 @@ def main(
     _, c_list = boundary_objects_from_config(bound_cfg, volume)
     placement_constraints.extend(c_list)
 
-    dioxide_substrate = Substrate(
+    dioxide_substrate = UniformMaterialObject(
         name="Silica",
         color=colors.LIGHT_BROWN,
         partial_real_shape=(None, None, 0.5e-6),
@@ -133,21 +140,17 @@ def main(
         )
     )
 
-    permittivity_config = {
+    material_config = {
         "Air": Material(permittivity=constants.relative_permittivity_air),
         "Silicon": Material(permittivity=permittivity_silicon),
     }
     
-    device = DiscreteDevice(
+    device = Device(
         name="Device",
         partial_real_shape=(3e-6, 3e-6, 300e-9),
-        material=permittivity_config,
-        parameter_mapping=DiscreteParameterMapping(
-            latent_transforms=[StandardToInversePermittivityRange()],
-            discretization=ClosestIndex(),
-            post_transforms=[],
-        ),
+        materials=material_config,
         partial_voxel_real_shape=(100e-9, 100e-9, 300e-9),
+        param_transforms=[ClosestIndex()],
     )
     placement_constraints.append(
         device.place_relative_to(
@@ -201,7 +204,7 @@ def main(
         ]
     )
 
-    waveguide = Waveguide(
+    waveguide = UniformMaterialObject(
         partial_real_shape=(None, 0.4e-6, 0.3e-6),
         material=Material(permittivity=permittivity_silicon),
     )
@@ -373,7 +376,7 @@ def main(
     info["changed_voxels"] = changed_voxels
 
     # videos
-    exp_logger.log_detectors(iter_idx=1, objects=objects, detector_states=arrays.detector_states)
+    # exp_logger.log_detectors(iter_idx=1, objects=objects, detector_states=arrays.detector_states)
 
     exp_logger.write(info)
     exp_logger.progress.update(optim_task_id, advance=1)

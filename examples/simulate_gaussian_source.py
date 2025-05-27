@@ -5,24 +5,30 @@ import jax.numpy as jnp
 import pytreeclass as tc
 from loguru import logger
 
-from fdtdx.fdtd import (
+from fdtdx import (
+    constants,
     full_backward,
     ArrayContainer,
     ParameterContainer,
     apply_params,
     place_objects,
-    reversible_fdtd
+    GradientConfig,
+    SimulationConfig,
+    DtypeConversion,
+    Recorder,
+    Material,
+    SimulationVolume,
+    BoundaryConfig,
+    boundary_objects_from_config,
+    EnergyDetector,
+    GaussianPlaneSource,
+    UniformPlaneSource,
+    WaveCharacter,
+    OnOffSwitch,
+    Logger,
+    plot_setup,
+    run_fdtd
 )
-from fdtdx.config import GradientConfig, SimulationConfig
-from fdtdx import constants
-from fdtdx.interfaces import DtypeConversion, Recorder
-from fdtdx.materials import Material
-from fdtdx.objects import  SimulationVolume
-from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
-from fdtdx.objects.detectors import EnergyDetector
-from fdtdx.objects.sources import GaussianPlaneSource, UniformPlaneSource
-from fdtdx.core import WaveCharacter, OnOffSwitch
-from fdtdx.utils import Logger, plot_setup
 
 
 def main():
@@ -160,7 +166,7 @@ def main():
     ):
         arrays, new_objects, info = apply_params(arrays, objects, params, key)
 
-        final_state = reversible_fdtd(
+        final_state = run_fdtd(
             arrays=arrays,
             objects=new_objects,
             config=config,

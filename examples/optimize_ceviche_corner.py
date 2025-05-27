@@ -8,28 +8,40 @@ import optax
 import pytreeclass as tc
 from loguru import logger
 
-from fdtdx.core.wavelength import WaveCharacter
-from fdtdx.materials import Material
-from fdtdx.objects.device import (
-    StandardToPlusOneMinusOneRange,
-    BrushConstraint2D,
-    circular_brush,
+from fdtdx import (
+    constants,
+    WaveCharacter,
+    Material,
+    GradientConfig,
+    SimulationConfig,
+    full_backward,
+    ArrayContainer, 
+    ParameterContainer, 
+    apply_params, 
+    place_objects,
+    DtypeConversion, 
+    Recorder, 
+    LinearReconstructEveryK,
+    SimulationVolume, 
+    SimulationObject,
+    BoundaryConfig, 
+    boundary_objects_from_config,
+    EnergyDetector, 
+    PoyntingFluxDetector,
+    GaussianSmoothing2D,
+    SubpixelSmoothedProjection,
+    DiagonalSymmetry2D,
+    ModePlaneSource,
+    metric_efficiency,
+    OnOffSwitch,
+    Logger,
+    plot_setup,
+    run_fdtd,
+    Device,
+    UniformMaterialObject,
+    colors,
 )
-from fdtdx.config import GradientConfig, SimulationConfig
-from fdtdx import constants
-from fdtdx.fdtd import full_backward, reversible_fdtd, ArrayContainer, ParameterContainer, apply_params, place_objects
-from fdtdx.interfaces import DtypeConversion, Recorder, LinearReconstructEveryK
-from fdtdx.objects import SimulationVolume, Substrate, Waveguide, SimulationObject
-from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
-from fdtdx.objects.detectors import EnergyDetector, PoyntingFluxDetector
-from fdtdx.objects.device.device import Device
-from fdtdx.objects.device.parameters.continous import GaussianSmoothing2D, StandardToInversePermittivityRange
-from fdtdx.objects.device.parameters.discretization import ClosestIndex
-from fdtdx.objects.device.parameters.projection import SubpixelSmoothedProjection, TanhProjection
-from fdtdx.objects.device.parameters.symmetries import DiagonalSymmetry2D
-from fdtdx.objects.sources import ModePlaneSource
-from fdtdx.core import metric_efficiency, OnOffSwitch
-from fdtdx.utils import Logger, plot_setup
+from fdtdx.objects.detectors.mode import ModeOverlapDetector
 
 
 def main(
@@ -77,16 +89,17 @@ def main(
     placement_constraints = []
 
     volume = SimulationVolume(
-        partial_real_shape=(4e-6, 4e-6, 1.5e-6),
+        partial_real_shape=(2.5e-6, 2.5e-6, 1.5e-6),
     )
 
     bound_cfg = BoundaryConfig.from_uniform_bound(thickness=10)
     _, c_list = boundary_objects_from_config(bound_cfg, volume)
     placement_constraints.extend(c_list)
 
-    substrate = Substrate(
+    substrate = UniformMaterialObject(
         partial_real_shape=(None, None, 0.6e-6),
         material=Material(permittivity=constants.relative_permittivity_silica),
+        color=colors.ORANGE,
     )
     placement_constraints.append(
         substrate.place_relative_to(
@@ -97,26 +110,17 @@ def main(
         )
     )
 
-    height = 400e-9
+    height = 260e-9
+    width = 400e-9
     material_config = {
         "Air": Material(permittivity=constants.relative_permittivity_air),
         "Silicon": Material(permittivity=constants.relative_permittivity_silicon),
     }
-    brush_diameter = round(100e-9 / config.resolution)
     device = Device(
         name="Device",
         partial_real_shape=(1.6e-6, 1.6e-6, height),
         materials=material_config,
         param_transforms=[
-            # StandardToInversePermittivityRange(),
-            # ClosestIndex(),
-            # StandardToPlusOneMinusOneRange(),
-            # BrushConstraint2D(
-            #     brush=circular_brush(diameter=brush_diameter),
-            #     axis=2,
-            #     background_material="Air",
-            # ),
-            # TanhProjection(),
             DiagonalSymmetry2D(min_min_to_max_max=False),
             GaussianSmoothing2D(std_discrete=3),
             SubpixelSmoothedProjection(),
@@ -134,9 +138,10 @@ def main(
         )
     )
 
-    waveguide_in = Waveguide(
-        partial_real_shape=(None, 0.4e-6, height),
+    waveguide_in = UniformMaterialObject(
+        partial_real_shape=(None, width, height),
         material=material_config["Silicon"],
+        color=colors.LIGHT_BLUE,
     )
     placement_constraints.extend(
         [
@@ -170,32 +175,10 @@ def main(
         ]
     )
 
-    detector_in = PoyntingFluxDetector(
-        name="Input Detector",
-        partial_grid_shape=(1, None, None),
-        direction="+",
-        switch=OnOffSwitch(fixed_on_time_steps=all_time_steps[3 * period_steps : 5 * period_steps]),
-    )
-    placement_constraints.extend(
-        [
-            detector_in.place_relative_to(
-                waveguide_in,
-                axes=(0, 1, 2),
-                own_positions=(-1, 0, 0),
-                other_positions=(-1, 0, 0),
-                grid_margins=(bound_cfg.thickness_grid_minx, 0, 0),
-                margins=(0.2e-6, 0, 0),
-            ),
-            detector_in.size_relative_to(
-                waveguide_in,
-                axes=(1, 2),
-            ),
-        ]
-    )
-
-    waveguide_out = Waveguide(
-        partial_real_shape=(0.4e-6, None, height),
+    waveguide_out = UniformMaterialObject(
+        partial_real_shape=(width, None, height),
         material=material_config["Silicon"],
+        color=colors.LIGHT_BLUE,
     )
     placement_constraints.extend(
         [
@@ -212,27 +195,24 @@ def main(
         ]
     )
 
-    detector_out = PoyntingFluxDetector(
+    detector_out = ModeOverlapDetector(
+        filter_pol="te",
+        wave_characters=(WaveCharacter(wavelength=wavelength),),
         name="Output Detector",
         partial_grid_shape=(None, 1, None),
         direction="+",
         switch=OnOffSwitch(fixed_on_time_steps=all_time_steps[-2 * period_steps :]),
     )
-    placement_constraints.extend(
-        [
-            detector_out.place_relative_to(
-                waveguide_out,
-                axes=(0, 1, 2),
-                own_positions=(0, 1, 0),
-                other_positions=(0, 1, 0),
-                grid_margins=(0, -bound_cfg.thickness_grid_maxy - 5, 0),
-            ),
-            detector_out.size_relative_to(
-                waveguide_out,
-                axes=(0, 2),
-            ),
-        ]
+    placement_constraints.append(
+        detector_out.place_relative_to(
+            waveguide_out,
+            axes=1,
+            own_positions=1,
+            other_positions=1,
+            grid_margins=-bound_cfg.thickness_grid_maxy - 5,
+        )
     )
+    
 
     energy_last_step = EnergyDetector(
         name="energy_last_step",
@@ -275,7 +255,7 @@ def main(
     logger.info(tc.tree_summary(arrays, depth=2))
     print(tc.tree_diagram(config, depth=4))
 
-    epochs = 501 if not evaluation else 1
+    epochs = 101 if not evaluation else 1
     if not evaluation:
         schedule_finetune: optax.Schedule = optax.warmup_cosine_decay_schedule(
             init_value=0.0005,
@@ -290,7 +270,7 @@ def main(
         opt_state_finetune: optax.OptState = optimizer_finetune.init(params)
     
     def custom_schedule(idx: chex.Numeric) -> chex.Numeric:
-        beta_schedule = optax.linear_schedule(0.1, 100, epochs)
+        beta_schedule = optax.linear_schedule(0.1, 100, epochs//2)
         return jax.lax.cond(
             idx < epochs / 2,
             lambda: beta_schedule(idx),
@@ -329,7 +309,7 @@ def main(
     ):
         arrays, new_objects, info = apply_params(arrays, objects, params, key, beta=custom_schedule(idx))
 
-        final_state = reversible_fdtd(
+        final_state = run_fdtd(
             arrays=arrays,
             objects=new_objects,
             config=config,
@@ -337,12 +317,9 @@ def main(
         )
 
         _, arrays = final_state
-        objective, objective_info = metric_efficiency(
-            arrays.detector_states,
-            in_names=(detector_in.name,),
-            out_names=(detector_out.name,),
-            metric_name="poynting_flux",
-        )
+        out_detector: ModeOverlapDetector = new_objects[detector_out.name]  # type: ignore
+        overlap_alpha = out_detector.compute_overlap(arrays.detector_states[out_detector.name])
+        objective = jnp.square(jnp.abs(overlap_alpha))
 
         if evaluation and backward:
             _, arrays = full_backward(
@@ -357,7 +334,6 @@ def main(
         new_info = {
             "objective": objective,
             **info,
-            **objective_info,
         }
         return -objective, (arrays, new_info) 
 
