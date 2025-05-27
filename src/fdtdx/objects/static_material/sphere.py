@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_private_field
+from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field, frozen_private_field
 from fdtdx.core.plotting.colors import LIGHT_BLUE
 from fdtdx.materials import Material
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
@@ -26,15 +26,15 @@ class Sphere(StaticMultiMaterialObject):
         material: The material properties of the sphere/ellipsoid.
     """
 
-    radius: float = field(kind="KW_ONLY")
-    material: Material = field(kind="KW_ONLY")
+    radius: float = frozen_field()
+    material: Material = field()
     # Optional parameters for ellipsoid shape
-    radius_x: float | None = field(kind="KW_ONLY", default=None)
-    radius_y: float | None = field(kind="KW_ONLY", default=None)
-    radius_z: float | None = field(kind="KW_ONLY", default=None)
+    radius_x: float | None = frozen_field(default=None)
+    radius_y: float | None = frozen_field(default=None)
+    radius_z: float | None = frozen_field(default=None)
+    color: tuple[float, float, float] | None = frozen_field(default=LIGHT_BLUE)
     partial_voxel_grid_shape: PartialGridShape3D = frozen_private_field(default=UNDEFINED_SHAPE_3D)
     partial_voxel_real_shape: PartialRealShape3D = frozen_private_field(default=UNDEFINED_SHAPE_3D)
-    color: tuple[float, float, float] | None = LIGHT_BLUE
 
     def place_on_grid(
         self: Self,

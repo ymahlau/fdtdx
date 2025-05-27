@@ -29,8 +29,8 @@ class Recorder(ExtendedTreeClass):
     modules: Sequence[CompressionModule | TimeStepFilter]
     _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field(default=None)  # type:ignore
     _output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field(default=None)  # type:ignore
-    _max_time_steps: int = frozen_private_field(default=-1)
-    _latent_array_size: int = frozen_private_field(default=-1, init=False)
+    _max_time_steps: int = frozen_private_field()
+    _latent_array_size: int = frozen_private_field()
 
     def init_state(
         self: Self,

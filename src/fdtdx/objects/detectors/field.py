@@ -17,7 +17,7 @@ class FieldDetector(Detector):
             "Ex", "Ey", "Ez", "Hx", "Hy", "Hz".
     """
 
-    reduce_volume: bool = False
+    reduce_volume: bool = frozen_field(default=False)
     components: Sequence[Literal["Ex", "Ey", "Ez", "Hx", "Hy", "Hz"]] = frozen_field(
         default=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"),
     )

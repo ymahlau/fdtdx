@@ -6,7 +6,7 @@ import jax.numpy as jnp
 from loguru import logger
 
 from fdtdx import constants
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field
+from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, field, frozen_field
 from fdtdx.interfaces.recorder import Recorder
 
 
@@ -30,7 +30,7 @@ class GradientConfig(ExtendedTreeClass):
 
     method: Literal["reversible", "checkpointed"] = frozen_field(default="reversible")
     recorder: Recorder | None = None
-    num_checkpoints: int | None = None
+    num_checkpoints: int | None = frozen_field(default=None)
 
     def __post_init__(self):
         if self.method == "reversible" and self.recorder is None:
@@ -56,12 +56,12 @@ class SimulationConfig(ExtendedTreeClass):
         gradient_config: Optional configuration for gradient computation.
     """
 
-    time: float
-    resolution: float
+    time: float = frozen_field()
+    resolution: float = frozen_field()
     backend: Literal["gpu", "tpu", "METAL", "cpu"] = frozen_field(default="gpu")
     dtype: jnp.dtype = frozen_field(default=jnp.float32)
-    courant_factor: float = 0.99
-    gradient_config: GradientConfig | None = None
+    courant_factor: float = frozen_field(default=0.99)
+    gradient_config: GradientConfig | None = field(default=None)
 
     def __post_init__(self):
         from jax import extend

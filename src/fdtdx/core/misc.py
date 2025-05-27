@@ -459,9 +459,7 @@ class PaddingConfig(ExtendedTreeClass):
 
     widths: Sequence[int] = frozen_field()
     modes: Sequence[str] = frozen_field()
-    values: Sequence[float] = frozen_field(
-        default=None,  # type: ignore
-    )
+    values: Sequence[float] = frozen_field(default=None)  # type: ignore
 
 
 def advanced_padding(

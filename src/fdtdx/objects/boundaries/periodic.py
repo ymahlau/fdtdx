@@ -3,7 +3,7 @@ from typing import Literal
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
+from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
 from fdtdx.core.plotting.colors import LIGHT_BLUE
 from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState
 from fdtdx.typing import GridShape3D, Slice3D, SliceTuple3D
@@ -37,9 +37,9 @@ class PeriodicBoundary(BaseBoundary):
         color: RGB color tuple for visualization
     """
 
-    axis: int = field(kind="KW_ONLY")  # type: ignore
-    direction: Literal["+", "-"] = frozen_field(kind="KW_ONLY")  # type: ignore
-    color: tuple[float, float, float] = LIGHT_BLUE
+    axis: int = frozen_field()
+    direction: Literal["+", "-"] = frozen_field()
+    color: tuple[float, float, float] | None = frozen_field(default=LIGHT_BLUE)
 
     @property
     def descriptive_name(self) -> str:

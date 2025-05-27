@@ -6,7 +6,7 @@ import jax.numpy as jnp
 from matplotlib import pyplot as plt
 
 from fdtdx.core.grid import calculate_time_offset_yee
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
+from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, private_field
 from fdtdx.core.linalg import get_wave_vector_raw
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.core.physics.modes import compute_mode
@@ -18,8 +18,8 @@ class ModePlaneSource(TFSFPlaneSource):
     mode_index: int = frozen_field(default=0)
     filter_pol: Literal["te", "tm"] | None = frozen_field(default=None)
 
-    _inv_permittivity: jax.Array = frozen_field(default=None, init=False)  # type: ignore
-    _inv_permeability: jax.Array | float = frozen_field(default=None, init=False)  # type: ignore
+    _inv_permittivity: jax.Array = private_field()
+    _inv_permeability: jax.Array | float = private_field()
 
     def apply(
         self: Self,
@@ -27,6 +27,11 @@ class ModePlaneSource(TFSFPlaneSource):
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
     ) -> Self:
+        self = super().apply(
+            key=key,
+            inv_permittivities=inv_permittivities,
+            inv_permeabilities=inv_permeabilities,
+        )
         if (
             self.azimuth_angle != 0
             or self.elevation_angle != 0
@@ -36,11 +41,6 @@ class ModePlaneSource(TFSFPlaneSource):
         ):
             raise NotImplementedError()
 
-        self = super().apply(
-            key=key,
-            inv_permittivities=inv_permittivities,
-            inv_permeabilities=inv_permeabilities,
-        )
         inv_permittivity_slice = inv_permittivities[*self.grid_slice]
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
             inv_permeability_slice = inv_permeabilities[*self.grid_slice]

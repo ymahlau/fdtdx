@@ -1,6 +1,6 @@
 import math
 
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit
+from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field
 
 
 @extended_autoinit
@@ -33,10 +33,10 @@ class Material(ExtendedTreeClass):
             Defaults to 0.0.
     """
 
-    permittivity: float = 1.0
-    permeability: float = 1.0
-    electric_conductivity: float = 0.0
-    magnetic_conductivity: float = 0.0
+    permittivity: float = frozen_field(default=1.0)
+    permeability: float = frozen_field(default=1.0)
+    electric_conductivity: float = frozen_field(default=0.0)
+    magnetic_conductivity: float = frozen_field(default=0.0)
 
     @property
     def is_magnetic(self) -> bool:

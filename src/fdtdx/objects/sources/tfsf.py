@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
+from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, private_field
 from fdtdx.objects.sources.source import DirectionalPlaneSourceBase
 
 
@@ -17,28 +17,16 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
     positive offset of 0.25 in the yee grid in the axis of propagation.
     """
 
-    azimuth_angle: float = 0.0
-    elevation_angle: float = 0.0
-    max_angle_random_offset: float = 0.0
-    max_vertical_offset: float = 0.0
-    max_horizontal_offset: float = 0.0
+    azimuth_angle: float = frozen_field(default=0.0)
+    elevation_angle: float = frozen_field(default=0.0)
+    max_angle_random_offset: float = frozen_field(default=0.0)
+    max_vertical_offset: float = frozen_field(default=0.0)
+    max_horizontal_offset: float = frozen_field(default=0.0)
 
-    _E: jax.Array = frozen_field(
-        default=None,
-        init=False,
-    )  # type: ignore
-    _H: jax.Array = frozen_field(
-        default=None,
-        init=False,
-    )  # type: ignore
-    _time_offset_E: jax.Array = frozen_field(
-        default=None,
-        init=False,
-    )  # type: ignore
-    _time_offset_H: jax.Array = frozen_field(
-        default=None,
-        init=False,
-    )  # type: ignore
+    _E: jax.Array = private_field()
+    _H: jax.Array = private_field()
+    _time_offset_E: jax.Array = private_field()
+    _time_offset_H: jax.Array = private_field()
 
     @property
     def azimuth_radians(self) -> float:
@@ -195,6 +183,11 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
     ) -> Self:
+        self = super().apply(
+            key=key,
+            inv_permittivities=inv_permittivities,
+            inv_permeabilities=inv_permeabilities,
+        )
         E, H, time_offset_E, time_offset_H = self.get_EH_variation(
             key=key,
             inv_permittivities=inv_permittivities,
