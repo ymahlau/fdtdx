@@ -9,7 +9,7 @@ from fdtdx.objects.object import OrderableObject
 
 
 @extended_autoinit
-class StaticMaterialObject(OrderableObject):
+class UniformMaterialObject(OrderableObject):
     material: Material = field()
     color: tuple[float, float, float] | None = frozen_field(default=LIGHT_GREY)
 
@@ -44,7 +44,7 @@ class StaticMultiMaterialObject(OrderableObject, ABC):
 
 
 @extended_autoinit
-class SimulationVolume(StaticMaterialObject):
+class SimulationVolume(UniformMaterialObject):
     """Background material for the entire simulation volume.
 
     Defines the default material properties for the simulation background.

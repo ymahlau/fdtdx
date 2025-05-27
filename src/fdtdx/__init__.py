@@ -6,6 +6,7 @@ from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.wrapper import run_fdtd
 from fdtdx.fdtd.initialization import place_objects, apply_params
 from fdtdx.fdtd.backward import full_backward
+from fdtdx.fdtd.container import ArrayContainer, ParameterContainer
 from fdtdx.interfaces.recorder import Recorder, RecordingState
 from fdtdx.interfaces.modules import DtypeConversion
 from fdtdx.interfaces.time_filter import LinearReconstructEveryK
@@ -38,12 +39,14 @@ from fdtdx.objects.sources.mode import ModePlaneSource
 from fdtdx.objects.sources.profile import SingleFrequencyProfile, GaussianPulseProfile
 from fdtdx.objects.static_material.cylinder import Cylinder
 from fdtdx.objects.static_material.sphere import Sphere
-from fdtdx.objects.static_material.static import StaticMaterialObject, SimulationVolume
+from fdtdx.objects.static_material.static import UniformMaterialObject, SimulationVolume
+from fdtdx.objects.object import SimulationObject
 from fdtdx.utils.logger import Logger
 from fdtdx.utils.plot_setup import plot_setup
 from fdtdx.config import SimulationConfig, GradientConfig
 from fdtdx.constants import wavelength_to_period
 from fdtdx.materials import Material
+from fdtdx.core.plotting import colors
 
 __all__ = [
     # conversion
@@ -61,12 +64,15 @@ __all__ = [
     'place_objects',
     'apply_params',
     'full_backward',
+    'ArrayContainer',
+    'ParameterContainer',
     # interfaces
     'Recorder',
     'RecordingState',
     'DtypeConversion',
     'LinearReconstructEveryK',
     # objects:
+    'SimulationObject',
     # boundaries
     'PerfectlyMatchedLayer',
     'PeriodicBoundary',
@@ -103,7 +109,7 @@ __all__ = [
     # static material
     'Cylinder',
     'Sphere',
-    'StaticMaterialObject',
+    'UniformMaterialObject',
     'SimulationVolume',
     # utils
     'Logger',
@@ -114,5 +120,6 @@ __all__ = [
     # other
     'wavelength_to_period',
     'Material',
+    'colors',
 ]
 

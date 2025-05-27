@@ -1,7 +1,8 @@
 import jax
 
 from fdtdx.config import SimulationConfig
-from fdtdx.fdtd import ArrayContainer, ObjectContainer, SimulationState, checkpointed_fdtd, reversible_fdtd
+from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, SimulationState
+from fdtdx.fdtd.fdtd import checkpointed_fdtd, reversible_fdtd
 
 
 def run_fdtd(

@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core import WaveCharacter
+from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, private_field
 from fdtdx.core.misc import linear_interpolated_indexing, normalize_polarization_for_source
 from fdtdx.core.plotting.colors import ORANGE

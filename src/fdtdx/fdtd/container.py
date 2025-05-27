@@ -19,7 +19,7 @@ from fdtdx.objects.detectors.detector import Detector, DetectorState
 from fdtdx.objects.device.device import Device
 from fdtdx.objects.object import SimulationObject
 from fdtdx.objects.sources.source import Source
-from fdtdx.objects.static_material.static import StaticMaterialObject, StaticMultiMaterialObject
+from fdtdx.objects.static_material.static import UniformMaterialObject, StaticMultiMaterialObject
 
 # Type alias for parameter dictionaries containing JAX arrays
 ParameterContainer = dict[str, dict[str, jax.Array] | jax.Array]
@@ -50,8 +50,8 @@ class ObjectContainer(ExtendedTreeClass):
         return self.object_list
 
     @property
-    def static_material_objects(self) -> list[StaticMaterialObject | StaticMultiMaterialObject]:
-        return [o for o in self.objects if isinstance(o, (StaticMaterialObject, StaticMultiMaterialObject))]
+    def static_material_objects(self) -> list[UniformMaterialObject | StaticMultiMaterialObject]:
+        return [o for o in self.objects if isinstance(o, (UniformMaterialObject, StaticMultiMaterialObject))]
 
     @property
     def sources(self) -> list[Source]:
@@ -111,7 +111,7 @@ class ObjectContainer(ExtendedTreeClass):
         fn: Callable[[Material], bool],
     ) -> bool:
         for o in self.objects:
-            if isinstance(o, StaticMaterialObject):
+            if isinstance(o, UniformMaterialObject):
                 m = o.material
             elif isinstance(o, Device):
                 m = o.materials
