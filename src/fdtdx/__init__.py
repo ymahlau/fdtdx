@@ -19,7 +19,7 @@ from fdtdx.objects.detectors.field import FieldDetector
 from fdtdx.objects.detectors.phasor import PhasorDetector
 from fdtdx.objects.detectors.mode import ModeOverlapDetector
 from fdtdx.objects.device.device import Device
-from fdtdx.objects.device.parameters.continous import (
+from fdtdx.objects.device.parameters.continuous import (
     StandardToInversePermittivityRange,
     StandardToCustomRange,
     StandardToPlusOneMinusOneRange,

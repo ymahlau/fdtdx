@@ -31,7 +31,7 @@ from fdtdx.objects.device import ClosestIndex
 param_transforms = [ClosestIndex()]
 ```
 The constraint mapping consists of a chain of modules, or in other words a chain of transformations followed by a discretization. Let's look at the module in detail:
-- ClosestIndex(): This module quantizes the latent variables to the closest integer. Since latent parameters are initialized randomly in the interval [0, 1], this module maps the continous parameters to either the index 0 or 1. Since this operation is not differentiable, we employ a straight-through-estimator (STE), which simply copies the gradient from the quantized values to the original values in the backward pass.
+- ClosestIndex(): This module quantizes the latent variables to the closest integer. Since latent parameters are initialized randomly in the interval [0, 1], this module maps the continuous parameters to either the index 0 or 1. Since this operation is not differentiable, we employ a straight-through-estimator (STE), which simply copies the gradient from the quantized values to the original values in the backward pass.
 
 This mapping constraints each voxel independently of the other voxels to the inverse permittivity of either air or polymer. However, often more elaborate fabrication constraints are needed in practice, which we introduce in the following sections.
 
