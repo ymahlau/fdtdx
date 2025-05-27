@@ -58,29 +58,3 @@ class SimulationVolume(StaticMaterialObject):
             permeability=1.0,
         ),
     )
-
-
-@extended_autoinit
-class Substrate(StaticMaterialObject):
-    """Material representing a substrate layer.
-
-    Used to model substrate materials like silicon dioxide.
-    Visualized in light brown color by default.
-    """
-
-    color: tuple[float, float, float] | None = frozen_field(default=LIGHT_BROWN)
-
-
-@extended_autoinit
-class Waveguide(StaticMaterialObject):
-    """Material for optical waveguides.
-
-    Used to model waveguide structures that can guide electromagnetic waves.
-    Visualized in light blue color by default.
-
-    Attributes:
-        permittivity: Required relative permittivity of the waveguide material
-        color: RGB tuple for visualization, defaults to light blue
-    """
-
-    color: tuple[float, float, float] | None = frozen_field(default=LIGHT_BLUE)
