@@ -53,7 +53,7 @@ def compute_mode(
             permeability_cross_section=permeability,
             coords=coords,
             direction=direction,
-            num_modes=mode_index + 20,
+            num_modes=2*(mode_index+1) + 2,
             filter_pol=filter_pol,
         )
 
@@ -172,7 +172,7 @@ def compute_mode(
     # Tidy3D uses different scaling internally, so convert back
     mode_H = mode_H * tidy3d.constants.ETA_0
 
-    mode_E_norm, mode_H_norm = normalize_by_poynting_flux(mode_E, mode_H)
+    mode_E_norm, mode_H_norm = normalize_by_poynting_flux(mode_E, mode_H, axis=propagation_axis)
 
     return mode_E_norm, mode_H_norm, eff_idx
 
