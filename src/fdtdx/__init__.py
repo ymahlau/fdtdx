@@ -7,7 +7,7 @@ from fdtdx.core.plotting import colors
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.backward import full_backward
-from fdtdx.fdtd.container import ArrayContainer, ParameterContainer, ObjectContainer, SimulationState
+from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, ParameterContainer, SimulationState
 from fdtdx.fdtd.initialization import apply_params, place_objects
 from fdtdx.fdtd.wrapper import run_fdtd
 from fdtdx.interfaces.modules import DtypeConversion
@@ -36,8 +36,8 @@ from fdtdx.objects.device.parameters.discrete import (
     RemoveFloatingMaterial,
 )
 from fdtdx.objects.device.parameters.discretization import (
-    BrushConstraint2D, 
-    ClosestIndex, 
+    BrushConstraint2D,
+    ClosestIndex,
     PillarDiscretization,
     circular_brush,
 )
@@ -45,12 +45,12 @@ from fdtdx.objects.device.parameters.projection import SubpixelSmoothedProjectio
 from fdtdx.objects.device.parameters.symmetries import DiagonalSymmetry2D
 from fdtdx.objects.device.parameters.transform import ParameterTransformation
 from fdtdx.objects.object import (
-    SimulationObject, 
-    PositionConstraint, 
-    SizeConstraint, 
-    SizeExtensionConstraint, 
-    GridCoordinateConstraint, 
+    GridCoordinateConstraint,
+    PositionConstraint,
     RealCoordinateConstraint,
+    SimulationObject,
+    SizeConstraint,
+    SizeExtensionConstraint,
 )
 from fdtdx.objects.sources.linear_polarization import GaussianPlaneSource, UniformPlaneSource
 from fdtdx.objects.sources.mode import ModePlaneSource
@@ -89,9 +89,9 @@ __all__ = [
     # objects:
     "SimulationObject",
     "PositionConstraint",
-    "SizeConstraint", 
-    "SizeExtensionConstraint", 
-    "GridCoordinateConstraint", 
+    "SizeConstraint",
+    "SizeExtensionConstraint",
+    "GridCoordinateConstraint",
     "RealCoordinateConstraint",
     # boundaries
     "PerfectlyMatchedLayer",
