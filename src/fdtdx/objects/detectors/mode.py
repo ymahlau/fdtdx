@@ -90,7 +90,7 @@ class ModeOverlapDetector(PhasorDetector):
     ) -> jax.Array:
         # shape (time step, num_freqs, num_components, *spatial)
         # time steps is always 1 and num_components always 6
-        phasors = state[self.name]["phasor"]
+        phasors = state["phasor"]
         phasors_E, phasors_H = phasors[0, 0, :3], phasors[0, 0, 3:]
 
         E_cross_H_star_sim = jnp.cross(
