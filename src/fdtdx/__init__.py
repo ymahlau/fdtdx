@@ -1,37 +1,118 @@
-"""FDTDX: A JAX-based Finite-Difference Time-Domain (FDTD) Electromagnetic Simulation Package.
+from fdtdx.conversion.export import export_stl
+from fdtdx.core.physics.losses import metric_efficiency
+from fdtdx.core.physics.metrics import compute_energy, normalize_by_energy, poynting_flux, normalize_by_poynting_flux
+from fdtdx.core.switch import OnOffSwitch
+from fdtdx.core.wavelength import WaveCharacter
+from fdtdx.fdtd.wrapper import run_fdtd
+from fdtdx.fdtd.initialization import place_objects, apply_params
+from fdtdx.fdtd.backward import full_backward
+from fdtdx.interfaces.recorder import Recorder, RecordingState
+from fdtdx.interfaces.modules import DtypeConversion
+from fdtdx.interfaces.time_filter import LinearReconstructEveryK
+from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
+from fdtdx.objects.boundaries.periodic import PeriodicBoundary
+from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config 
+from fdtdx.objects.detectors.energy import EnergyDetector
+from fdtdx.objects.detectors.poynting_flux import PoyntingFluxDetector
+from fdtdx.objects.detectors.field import FieldDetector
+from fdtdx.objects.detectors.phasor import PhasorDetector
+from fdtdx.objects.detectors.mode import ModeOverlapDetector
+from fdtdx.objects.device.device import Device
+from fdtdx.objects.device.parameters.continous import (
+    StandardToInversePermittivityRange,
+    StandardToCustomRange,
+    StandardToPlusOneMinusOneRange,
+    GaussianSmoothing2D,
+)
+from fdtdx.objects.device.parameters.discrete import (
+    RemoveFloatingMaterial, 
+    ConnectHolesAndStructures, 
+    BinaryMedianFilterModule,
+)
+from fdtdx.objects.device.parameters.discretization import ClosestIndex, BrushConstraint2D, PillarDiscretization
+from fdtdx.objects.device.parameters.projection import TanhProjection, SubpixelSmoothedProjection
+from fdtdx.objects.device.parameters.symmetries import DiagonalSymmetry2D
+from fdtdx.objects.device.parameters.transform import ParameterTransformation
+from fdtdx.objects.sources.linear_polarization import GaussianPlaneSource, UniformPlaneSource
+from fdtdx.objects.sources.mode import ModePlaneSource
+from fdtdx.objects.sources.profile import SingleFrequencyProfile, GaussianPulseProfile
+from fdtdx.objects.static_material.cylinder import Cylinder
+from fdtdx.objects.static_material.sphere import Sphere
+from fdtdx.objects.static_material.static import StaticMaterialObject, SimulationVolume
+from fdtdx.utils.logger import Logger
+from fdtdx.utils.plot_setup import plot_setup
+from fdtdx.config import SimulationConfig, GradientConfig
+from fdtdx.constants import wavelength_to_period
+from fdtdx.materials import Material
 
-A high-performance framework for electromagnetic simulations and inverse design optimization
-using the FDTD method, implemented in JAX for GPU acceleration and automatic differentiation.
+__all__ = [
+    # conversion
+    'export_stl',
+    # core
+    'metric_efficiency',
+    'compute_energy',
+    'normalize_by_energy',
+    'poynting_flux',
+    'normalize_by_poynting_flux',
+    'OnOffSwitch',
+    'WaveCharacter',
+    # fdtd
+    'run_fdtd',
+    'place_objects',
+    'apply_params',
+    'full_backward',
+    # interfaces
+    'Recorder',
+    'RecordingState',
+    'DtypeConversion',
+    'LinearReconstructEveryK',
+    # objects:
+    # boundaries
+    'PerfectlyMatchedLayer',
+    'PeriodicBoundary',
+    'BoundaryConfig',
+    'boundary_objects_from_config',
+    # detector
+    'EnergyDetector',
+    'PoyntingFluxDetector',
+    'FieldDetector',
+    'PhasorDetector',
+    'ModeOverlapDetector',
+    # device
+    'Device',
+    'StandardToInversePermittivityRange',
+    'StandardToCustomRange',
+    'StandardToPlusOneMinusOneRange',
+    'GaussianSmoothing2D',
+    'RemoveFloatingMaterial', 
+    'ConnectHolesAndStructures', 
+    'BinaryMedianFilterModule',
+    'ClosestIndex', 
+    'BrushConstraint2D', 
+    'PillarDiscretization',
+    'TanhProjection',
+    'SubpixelSmoothedProjection',
+    'DiagonalSymmetry2D',
+    'ParameterTransformation',
+    # sources
+    'GaussianPlaneSource',
+    'UniformPlaneSource',
+    'ModePlaneSource',
+    'SingleFrequencyProfile',
+    'GaussianPulseProfile',
+    # static material
+    'Cylinder',
+    'Sphere',
+    'StaticMaterialObject',
+    'SimulationVolume',
+    # utils
+    'Logger',
+    'plot_setup',
+    # config
+    'SimulationConfig',
+    'GradientConfig',
+    # other
+    'wavelength_to_period',
+    'Material',
+]
 
-Key Features:
-    - Memory-efficient automatic differentiation using time-reversibility
-    - Multi-GPU support for large-scale simulations
-    - Intuitive object positioning with relative coordinates
-    - Built-in optimization capabilities for inverse design
-    - Comprehensive boundary condition implementations (e.g., PML)
-    - Field detectors and visualization tools
-    - JIT-compiled operations for maximum performance
-
-Example:
-    Basic simulation setup:
-    ```python
-    import fdtdx
-    from fdtdx.objects import Source, Detector
-
-    # Create simulation components
-    source = Source(...)
-    detector = Detector(...)
-
-    # Run simulation
-    fields = fdtdx.simulate(source, detector)
-    ```
-
-Notes:
-    The package is designed for both research and industrial applications in nanophotonics,
-    metamaterials, and photonic integrated circuits. It supports both 2D and 3D simulations
-    with automatic gradient computation for optimization tasks.
-
-References:
-    - Paper: https://github.com/ymahlau/fdtdx
-    - Documentation: https://github.com/ymahlau/fdtdx/docs
-"""
