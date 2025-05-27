@@ -3,9 +3,11 @@
 When using inverse design with FDTDX, fabrication constraints have to be specified. The basic building block for an object optimizable by inverse design is a Device:
 
 ```python
-from fdtdx.objects.device import DiscreteDevice
-from fdtdx import constants
-from fdtdx.material import Material
+from fdtdx import (
+    Device,
+    constants,
+    Material
+)
 
 material_config = {
     "Air": Material(permittivity=constants.relative_permittivity_air),
@@ -26,7 +28,7 @@ The parameter mapping, which is left empty above, specifies the mapping from con
 At the beginning of optimization, the latent parameters of a device are always initialized randomly in the interval [0, 1]. Depending on the constraint mapping, these parameteters are mapped to inverse permittivities. Let's look at an example of a simple constraint mapping:
 
 ```python
-from fdtdx.objects.device import ClosestIndex
+from fdtdx import ClosestIndex
 
 param_transforms = [ClosestIndex()]
 ```
@@ -41,7 +43,7 @@ This mapping constraints each voxel independently of the other voxels to the inv
 Now let's develop a constraint mapping for silicon photonics, which restricts the minimum feature size of a device.
 
 ```python
-from fdtdx.objects.device import (
+from fdtdx import (
     StandardToPlusOneMinusOneRange,
     BrushConstraint2D,
     circular_brush,
@@ -69,8 +71,7 @@ Resulting from this fabrication technique multiple constraints arise. Firstly, b
 
 
 ```python
-from fdtdx.objects.device import (
-    ParameterMapping,
+from fdtdx import (
     BOTTOM_Z_PADDING_CONFIG_REPEAT,
     BinaryMedianFilterModule,
     RemoveFloatingMaterial,

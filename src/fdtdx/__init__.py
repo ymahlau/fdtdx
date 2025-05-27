@@ -7,7 +7,7 @@ from fdtdx.core.plotting import colors
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.backward import full_backward
-from fdtdx.fdtd.container import ArrayContainer, ParameterContainer
+from fdtdx.fdtd.container import ArrayContainer, ParameterContainer, ObjectContainer, SimulationState
 from fdtdx.fdtd.initialization import apply_params, place_objects
 from fdtdx.fdtd.wrapper import run_fdtd
 from fdtdx.interfaces.modules import DtypeConversion
@@ -30,15 +30,28 @@ from fdtdx.objects.device.parameters.continuous import (
     StandardToPlusOneMinusOneRange,
 )
 from fdtdx.objects.device.parameters.discrete import (
+    BOTTOM_Z_PADDING_CONFIG_REPEAT,
     BinaryMedianFilterModule,
     ConnectHolesAndStructures,
     RemoveFloatingMaterial,
 )
-from fdtdx.objects.device.parameters.discretization import BrushConstraint2D, ClosestIndex, PillarDiscretization
+from fdtdx.objects.device.parameters.discretization import (
+    BrushConstraint2D, 
+    ClosestIndex, 
+    PillarDiscretization,
+    circular_brush,
+)
 from fdtdx.objects.device.parameters.projection import SubpixelSmoothedProjection, TanhProjection
 from fdtdx.objects.device.parameters.symmetries import DiagonalSymmetry2D
 from fdtdx.objects.device.parameters.transform import ParameterTransformation
-from fdtdx.objects.object import SimulationObject
+from fdtdx.objects.object import (
+    SimulationObject, 
+    PositionConstraint, 
+    SizeConstraint, 
+    SizeExtensionConstraint, 
+    GridCoordinateConstraint, 
+    RealCoordinateConstraint,
+)
 from fdtdx.objects.sources.linear_polarization import GaussianPlaneSource, UniformPlaneSource
 from fdtdx.objects.sources.mode import ModePlaneSource
 from fdtdx.objects.sources.profile import GaussianPulseProfile, SingleFrequencyProfile
@@ -66,6 +79,8 @@ __all__ = [
     "full_backward",
     "ArrayContainer",
     "ParameterContainer",
+    "ObjectContainer",
+    "SimulationState",
     # interfaces
     "Recorder",
     "RecordingState",
@@ -73,6 +88,11 @@ __all__ = [
     "LinearReconstructEveryK",
     # objects:
     "SimulationObject",
+    "PositionConstraint",
+    "SizeConstraint", 
+    "SizeExtensionConstraint", 
+    "GridCoordinateConstraint", 
+    "RealCoordinateConstraint",
     # boundaries
     "PerfectlyMatchedLayer",
     "PeriodicBoundary",
@@ -100,6 +120,8 @@ __all__ = [
     "SubpixelSmoothedProjection",
     "DiagonalSymmetry2D",
     "ParameterTransformation",
+    "circular_brush",
+    "BOTTOM_Z_PADDING_CONFIG_REPEAT",
     # sources
     "GaussianPlaneSource",
     "UniformPlaneSource",
