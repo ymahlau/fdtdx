@@ -1,7 +1,5 @@
 import numpy as np
-
-from fdtdx.conversion import export_stl
-
+import fdtdx
 
 def test_arr_to_stl():
     # fmt: off
@@ -19,5 +17,5 @@ def test_arr_to_stl():
     ]).astype(bool)
     # fmt: on
 
-    mesh = export_stl(arr)
+    mesh = fdtdx.export_stl(arr)
     assert mesh.vertices.shape == (20, 3)
