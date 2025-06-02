@@ -14,12 +14,26 @@ from fdtdx.typing import SliceTuple3D
 @extended_autoinit
 class ModeOverlapDetector(PhasorDetector):
     """
-     Detector for measuring the overlap of a waveguide mode with the simulation fields.
+    Detector for measuring the overlap of a waveguide mode with the simulation fields.
     This detector computes the overlap of a mode with the phasor fields at a specified
     frequency, enabling frequency-domain analysis of the electromagnetic fields.
 
+    The mode overlap is calculated by integrating the cross product of the mode fields
+    with the simulation fields over a cross-sectional plane. This is useful for
+    analyzing waveguide coupling efficiency, transmission coefficients, and modal
+    decomposition of electromagnetic fields.
+
     Attributes:
-        todo
+        direction: Direction of mode propagation, either "+" (forward) or "-" (backward).
+                  Determines which direction along the waveguide axis the mode is
+                  assumed to propagate.
+        mode_index: Index of the waveguide mode to use for overlap calculation.
+                   Defaults to 0 (fundamental mode). Higher indices correspond to
+                   higher-order modes.
+        filter_pol: Optional polarization filter for the mode calculation.
+                   Can be "te" (transverse electric), "tm" (transverse magnetic),
+                   or None (no filtering). When specified, only modes of the given
+                   polarization type are considered.
     """
 
     direction: Literal["+", "-"] = frozen_field()
@@ -90,7 +104,7 @@ class ModeOverlapDetector(PhasorDetector):
     ) -> jax.Array:
         # shape (time step, num_freqs, num_components, *spatial)
         # time steps is always 1 and num_components always 6
-        phasors = state[self.name]["phasor"]
+        phasors = state["phasor"]
         phasors_E, phasors_H = phasors[0, 0, :3], phasors[0, 0, 3:]
 
         E_cross_H_star_sim = jnp.cross(

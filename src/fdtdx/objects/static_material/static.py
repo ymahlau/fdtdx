@@ -3,13 +3,13 @@ from abc import ABC, abstractmethod
 import jax
 
 from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
-from fdtdx.core.plotting.colors import LIGHT_BLUE, LIGHT_BROWN, LIGHT_GREY
+from fdtdx.core.plotting.colors import LIGHT_GREY
 from fdtdx.materials import Material
 from fdtdx.objects.object import OrderableObject
 
 
 @extended_autoinit
-class StaticMaterialObject(OrderableObject):
+class UniformMaterialObject(OrderableObject):
     material: Material = field()
     color: tuple[float, float, float] | None = frozen_field(default=LIGHT_GREY)
 
@@ -44,7 +44,7 @@ class StaticMultiMaterialObject(OrderableObject, ABC):
 
 
 @extended_autoinit
-class SimulationVolume(StaticMaterialObject):
+class SimulationVolume(UniformMaterialObject):
     """Background material for the entire simulation volume.
 
     Defines the default material properties for the simulation background.
@@ -58,29 +58,3 @@ class SimulationVolume(StaticMaterialObject):
             permeability=1.0,
         ),
     )
-
-
-@extended_autoinit
-class Substrate(StaticMaterialObject):
-    """Material representing a substrate layer.
-
-    Used to model substrate materials like silicon dioxide.
-    Visualized in light brown color by default.
-    """
-
-    color: tuple[float, float, float] | None = frozen_field(default=LIGHT_BROWN)
-
-
-@extended_autoinit
-class Waveguide(StaticMaterialObject):
-    """Material for optical waveguides.
-
-    Used to model waveguide structures that can guide electromagnetic waves.
-    Visualized in light blue color by default.
-
-    Attributes:
-        permittivity: Required relative permittivity of the waveguide material
-        color: RGB tuple for visualization, defaults to light blue
-    """
-
-    color: tuple[float, float, float] | None = frozen_field(default=LIGHT_BLUE)

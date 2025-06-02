@@ -3,18 +3,29 @@ import jax.numpy as jnp
 import pytreeclass as tc
 from loguru import logger
 
-from fdtdx.core.switch import OnOffSwitch
-from fdtdx.core.wavelength import WaveCharacter
-from fdtdx.materials import Material
-from fdtdx.config import SimulationConfig
-from fdtdx import constants
-from fdtdx.fdtd import reversible_fdtd, ArrayContainer, ParameterContainer, apply_params, place_objects
-from fdtdx.objects import SimulationVolume, Substrate, Waveguide, SimulationObject
-from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
-from fdtdx.objects.detectors import EnergyDetector
-from fdtdx.objects.detectors.mode import ModeOverlapDetector
-from fdtdx.objects.sources import ModePlaneSource
-from fdtdx.utils import Logger, plot_setup
+from fdtdx import (
+    OnOffSwitch,
+    WaveCharacter,
+    Material,
+    SimulationConfig,
+    constants,
+    ArrayContainer, 
+    ParameterContainer, 
+    apply_params,
+    place_objects,
+    SimulationVolume, 
+    SimulationObject,
+    BoundaryConfig, 
+    boundary_objects_from_config,
+    EnergyDetector,
+    ModeOverlapDetector,
+    ModePlaneSource,
+    UniformMaterialObject,
+    Logger, 
+    plot_setup,
+    run_fdtd,
+    PoyntingFluxDetector
+)
 
 def main():
     exp_logger = Logger(
@@ -24,9 +35,9 @@ def main():
     key = jax.random.PRNGKey(seed=42)
 
     wavelength = 1.55e-6
-    prop_axis = 0
-    side_axis = (prop_axis + 1) % 3
-    up_axis = (prop_axis + 2) % 3
+    prop_axis = 1
+    side_axis = 0
+    up_axis = 2
     period = constants.wavelength_to_period(wavelength)
 
     config = SimulationConfig(
@@ -48,12 +59,12 @@ def main():
         partial_real_shape=(2e-6, 2e-6, 2e-6),
     )
 
-    bound_cfg = BoundaryConfig.from_uniform_bound(thickness=10)
+    bound_cfg = BoundaryConfig.from_uniform_bound(thickness=20)
     _, c_list = boundary_objects_from_config(bound_cfg, volume)
     placement_constraints.extend(c_list)
 
-    substrate = Substrate(
-        partial_real_shape=tuple([0.8e-6 if a==up_axis else None for a in range(3)]),  # type: ignore
+    substrate = UniformMaterialObject(
+        partial_real_shape=tuple([0.6e-6 if a==up_axis else None for a in range(3)]),  # type: ignore
         material=Material(permittivity=constants.relative_permittivity_silica),
     )
     placement_constraints.append(
@@ -65,8 +76,11 @@ def main():
         )
     )
     
-    waveguide_in = Waveguide(
-        partial_real_shape=tuple([None if a==prop_axis else 0.6e-6 for a in range(3)]),  # type: ignore
+    waveguide_shape: list[float | None] = [None, None, None]
+    waveguide_shape[side_axis] = 0.4e-6
+    waveguide_shape[up_axis] = 0.26e-6
+    waveguide_in = UniformMaterialObject(
+        partial_real_shape=tuple(waveguide_shape),  # type: ignore
         material=Material(permittivity=constants.relative_permittivity_silicon),
     )
     placement_constraints.extend(
@@ -97,33 +111,70 @@ def main():
             source.place_relative_to(
                 waveguide_in,
                 axes=(prop_axis,),
-                other_positions=(-1,),
-                own_positions=(-1,),
-                grid_margins=(20,)
+                other_positions=(0,),
+                own_positions=(0,),
             )
         ]
     )
     
-    overlap_detector = ModeOverlapDetector(
-        name="overlap_detector",
-        partial_grid_shape=(1, None, None),
-        wave_characters=(WaveCharacter(wavelength=wavelength),),
-        direction="+",
-        switch=OnOffSwitch(fixed_on_time_steps=all_time_steps[7*period_steps :8 * period_steps]),
-    )
-    placement_constraints.extend(
-        [
-            overlap_detector.place_relative_to(
-                source,
-                axes=(0),
-                own_positions=(-1),
-                other_positions=(-1),
-                grid_margins=(30),
-                # grid_margins=(bound_cfg.thickness_grid_minx),
-                # margins=(0.2e-6),
-            ),
-        ]
-    )
+    # overlap_detector = ModeOverlapDetector(
+    #     name="overlap_detector",
+    #     partial_grid_shape=(1, None, None),
+    #     wave_characters=(WaveCharacter(wavelength=wavelength),),
+    #     direction="+",
+    #     switch=OnOffSwitch(fixed_on_time_steps=all_time_steps[7*period_steps:]),
+    # )
+    # placement_constraints.extend(
+    #     [
+    #         overlap_detector.place_relative_to(
+    #             source,
+    #             axes=(0),
+    #             own_positions=(-1),
+    #             other_positions=(-1),
+    #             grid_margins=(5),
+    #             # grid_margins=(bound_cfg.thickness_grid_minx),
+    #             # margins=(0.2e-6),
+    #         ),
+    #     ]
+    # )
+    
+    # back_detector = PoyntingFluxDetector(
+    #     name="backspill",
+    #     partial_grid_shape=(1, None, None),
+    #     direction="-",
+    # )
+    # placement_constraints.extend(
+    #     [
+    #         back_detector.place_relative_to(
+    #             source,
+    #             axes=(0),
+    #             own_positions=(-1),
+    #             other_positions=(-1),
+    #             grid_margins=(-2),
+    #             # grid_margins=(bound_cfg.thickness_grid_minx),
+    #             # margins=(0.2e-6),
+    #         ),
+    #     ]
+    # )
+    
+    # forward_detector = PoyntingFluxDetector(
+    #     name="forward flux",
+    #     partial_grid_shape=(1, None, None),
+    #     direction="+",
+    # )
+    # placement_constraints.extend(
+    #     [
+    #         forward_detector.place_relative_to(
+    #             source,
+    #             axes=(0),
+    #             own_positions=(-1),
+    #             other_positions=(-1),
+    #             grid_margins=(2),
+    #             # grid_margins=(bound_cfg.thickness_grid_minx),
+    #             # margins=(0.2e-6),
+    #         ),
+    #     ]
+    # )
     
     
     energy_last_step = EnergyDetector(
@@ -139,6 +190,7 @@ def main():
         as_slices=True,
         switch=OnOffSwitch(interval=10),
         plot_interpolation="nearest",
+        num_video_workers=10,
     )
     placement_constraints.extend([*video_detector.same_position_and_size(volume)])
     exclude_object_list.append(video_detector)
@@ -165,7 +217,7 @@ def main():
         ),
     )
     
-    _, objects, _ = jax.jit(apply_params)(arrays, objects, params, key)
+    _, objects, _ = apply_params(arrays, objects, params, key)
     objects.sources[0].plot(  # type: ignore
         exp_logger.cwd / "figures" / "mode.png"
     )
@@ -178,7 +230,7 @@ def main():
     ):
         arrays, new_objects, info = apply_params(arrays, objects, params, key)
 
-        _, arrays = reversible_fdtd(
+        _, arrays = run_fdtd(
             arrays=arrays,
             objects=new_objects,
             config=config,
@@ -190,10 +242,9 @@ def main():
     key, subkey = jax.random.split(key)
     arrays = sim_func(params, arrays, subkey)
     
-    alpha = objects[overlap_detector.name].compute_overlap(arrays.detector_states) # type: ignore
-    print(jnp.abs(alpha))
-    return
-    a = 1
+    # alpha = objects[overlap_detector.name].compute_overlap(arrays.detector_states[overlap_detector.name])
+    # print(jnp.abs(alpha))
+    # a = 1
     
     exp_logger.log_detectors(iter_idx=0, objects=objects, detector_states=arrays.detector_states)
     

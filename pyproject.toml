@@ -13,7 +13,6 @@ dependencies = [
     "pytreeclass>=0.11",
     "jax>=0.4.36; platform_system != 'Linux'",
     "jax[cuda12]>=0.4.36; platform_system == 'Linux'",
-    "matfree>=0.1.1",
     "moviepy>=2.1.1",
     "optax>=0.2.4",
     "equinox>=0.11.10",
@@ -22,7 +21,6 @@ dependencies = [
     "seaborn>=0.13.2",
     "matplotlib>=3.9.4",
     "rich>=13.9.4",
-    "zstandard>=0.23.0",
 ]
 
 [project.urls]

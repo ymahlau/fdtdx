@@ -22,7 +22,7 @@ from fdtdx.objects.object import (
     SizeConstraint,
     SizeExtensionConstraint,
 )
-from fdtdx.objects.static_material.static import StaticMaterialObject, StaticMultiMaterialObject
+from fdtdx.objects.static_material.static import StaticMultiMaterialObject, UniformMaterialObject
 from fdtdx.typing import SliceTuple3D
 
 
@@ -263,7 +263,7 @@ def _init_arrays(
     )
     info = {}
     for o in sorted_obj:
-        if isinstance(o, StaticMaterialObject):
+        if isinstance(o, UniformMaterialObject):
             inv_permittivities = inv_permittivities.at[*o.grid_slice].set(1 / o.material.permittivity)
             if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
                 inv_permeabilities = inv_permeabilities.at[*o.grid_slice].set(1 / o.material.permeability)

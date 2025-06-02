@@ -19,7 +19,7 @@ from fdtdx.objects.detectors.detector import Detector, DetectorState
 from fdtdx.objects.device.device import Device
 from fdtdx.objects.object import SimulationObject
 from fdtdx.objects.sources.source import Source
-from fdtdx.objects.static_material.static import StaticMaterialObject, StaticMultiMaterialObject
+from fdtdx.objects.static_material.static import StaticMultiMaterialObject, UniformMaterialObject
 
 # Type alias for parameter dictionaries containing JAX arrays
 ParameterContainer = dict[str, dict[str, jax.Array] | jax.Array]
@@ -50,8 +50,8 @@ class ObjectContainer(ExtendedTreeClass):
         return self.object_list
 
     @property
-    def static_material_objects(self) -> list[StaticMaterialObject | StaticMultiMaterialObject]:
-        return [o for o in self.objects if isinstance(o, (StaticMaterialObject, StaticMultiMaterialObject))]
+    def static_material_objects(self) -> list[UniformMaterialObject | StaticMultiMaterialObject]:
+        return [o for o in self.objects if isinstance(o, (UniformMaterialObject, StaticMultiMaterialObject))]
 
     @property
     def sources(self) -> list[Source]:
@@ -111,7 +111,7 @@ class ObjectContainer(ExtendedTreeClass):
         fn: Callable[[Material], bool],
     ) -> bool:
         for o in self.objects:
-            if isinstance(o, StaticMaterialObject):
+            if isinstance(o, UniformMaterialObject):
                 m = o.material
             elif isinstance(o, Device):
                 m = o.materials
@@ -185,7 +185,7 @@ SimulationState = tuple[jax.Array, ArrayContainer]
 def reset_array_container(
     arrays: ArrayContainer,
     objects: ObjectContainer,
-    reset_detector_states: bool = False,
+    reset_detector_states: bool = True,
     reset_recording_state: bool = False,
 ) -> ArrayContainer:
     """Reset an ArrayContainer's fields and optionally its states.
@@ -215,7 +215,7 @@ def reset_array_container(
     detector_states = arrays.detector_states
     if reset_detector_states:
         detector_states = {k: {k2: v2 * 0 for k2, v2 in v.items()} for k, v in detector_states.items()}
-    arrays = arrays.aset("boundary_states", boundary_states)
+    arrays = arrays.aset("detector_states", detector_states)
 
     recording_state = arrays.recording_state
     if reset_recording_state and arrays.recording_state is not None:

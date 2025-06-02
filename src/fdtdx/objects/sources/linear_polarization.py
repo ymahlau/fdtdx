@@ -162,7 +162,7 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
 
 
 @extended_autoinit
-class SimplePlaneSource(LinearlyPolarizedPlaneSource):
+class UniformPlaneSource(LinearlyPolarizedPlaneSource):
     amplitude: float = frozen_field(default=1.0)
 
     def _get_amplitude_raw(
