@@ -86,6 +86,7 @@ def poynting_flux(E: jax.Array, H: jax.Array, axis: int = 0) -> jax.Array:
         axisc=axis,
     )
 
+
 def normalize_by_poynting_flux(E: jax.Array, H: jax.Array, axis: int) -> tuple[jax.Array, jax.Array]:
     """Normalize fields so that Poynting flux along given axis = 1."""
     # Compute Poynting vector components
