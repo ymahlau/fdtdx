@@ -60,6 +60,7 @@ from fdtdx.objects.static_material.sphere import Sphere
 from fdtdx.objects.static_material.static import SimulationVolume, UniformMaterialObject
 from fdtdx.utils.logger import Logger
 from fdtdx.utils.plot_setup import plot_setup
+from fdtdx import constants
 
 __all__ = [
     # conversion
@@ -143,4 +144,5 @@ __all__ = [
     "wavelength_to_period",
     "Material",
     "colors",
+    "constants",
 ]
