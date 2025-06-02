@@ -56,8 +56,6 @@ def compute_mode(
             num_modes=2*(mode_index+1) + 2,
             filter_pol=filter_pol,
         )
-
-        modes = sort_modes(modes, filter_pol=filter_pol, tangential_axes=tangential_axes)
         mode = modes[mode_index]
 
         if propagation_axis == 0:
@@ -67,8 +65,8 @@ def compute_mode(
             )
         elif propagation_axis == 1:
             mode_E, mode_H = (
-                np.stack([mode.Ex, mode.Ez, mode.Ey], axis=0).astype(np.complex64),
-                np.stack([mode.Hx, mode.Hz, mode.Hy], axis=0).astype(np.complex64),
+                np.stack([mode.Ey, mode.Ez, mode.Ex], axis=0).astype(np.complex64),
+                np.stack([mode.Hy, mode.Hz, mode.Hx], axis=0).astype(np.complex64),
             )
         elif propagation_axis == 2:
             mode_E, mode_H = (
@@ -80,49 +78,6 @@ def compute_mode(
 
         neff = np.asarray(mode.neff).astype(np.complex64)
         return mode_E, mode_H, neff
-
-    def compute_mode_polarization_fraction(mode, tangential_axes: tuple[int, int], pol: str) -> float:
-        """Mode polarization fraction.
-
-        Args:
-            mode: a ModeTupleType instance
-            tangential_axes: indices of transverse E-field components
-            pol: "te" or "tm" – determines which axis is 'E1'
-
-        Returns:
-            Polarization fraction between 0 and 1.
-        """
-
-        E_fields = [mode.Ex, mode.Ey, mode.Ez]
-        E1 = E_fields[tangential_axes[0]]
-        E2 = E_fields[tangential_axes[1]]
-
-        if pol == "te":
-            numerator = np.sum(np.abs(E1) ** 2)
-        elif pol == "tm":
-            numerator = np.sum(np.abs(E2) ** 2)
-        else:
-            raise ValueError("pol must be 'te' or 'tm'")
-
-        denominator = np.sum(np.abs(E1) ** 2 + np.abs(E2) ** 2) + 1e-18
-        return numerator / denominator
-
-    def sort_modes(modes, filter_pol=None, tangential_axes=(0, 2)):
-        """Sort modes by polarization."""
-        if filter_pol is None:
-            return sorted(modes, key=lambda m: float(np.real(m.neff)), reverse=True)
-
-        def is_matching(mode):
-            frac = compute_mode_polarization_fraction(mode, tangential_axes, filter_pol)
-            return frac >= 0.5
-
-        matching = [m for m in modes if is_matching(m)]
-        non_matching = [m for m in modes if not is_matching(m)]
-
-        matching_sorted = sorted(matching, key=lambda m: float(np.real(m.neff)), reverse=True)
-        non_matching_sorted = sorted(non_matching, key=lambda m: float(np.real(m.neff)), reverse=True)
-
-        return matching_sorted + non_matching_sorted
 
     # compute input to tidy3d Mode solver
     permittivities = 1 / inv_permittivities
@@ -139,15 +94,6 @@ def compute_mode(
         jnp.zeros((3, *permittivity_squeezed.shape), dtype=jnp.complex64),
         jnp.zeros(shape=(), dtype=jnp.complex64),
     )
-
-    if propagation_axis == 0:
-        tangential_axes = (0, 1)
-    elif propagation_axis == 1:
-        tangential_axes = (0, 2)
-    elif propagation_axis == 2:
-        tangential_axes = (1, 2)
-    else:
-        raise Exception("Invalid propagation axis")
 
     permeabilities = 1 / inv_permeabilities
     if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
@@ -171,7 +117,7 @@ def compute_mode(
 
     # Tidy3D uses different scaling internally, so convert back
     mode_H = mode_H * tidy3d.constants.ETA_0
-
+    
     mode_E_norm, mode_H_norm = normalize_by_poynting_flux(mode_E, mode_H, axis=propagation_axis)
 
     return mode_E_norm, mode_H_norm, eff_idx
@@ -228,7 +174,7 @@ def tidy3d_mode_computation_wrapper(
     od = np.zeros_like(permittivity_cross_section)
     eps_cross = [
         permittivity_cross_section,
-        1.1e-6 * np.ones_like(permittivity_cross_section),
+        od,
         od,
         od,
         permittivity_cross_section,
@@ -288,5 +234,4 @@ def tidy3d_mode_computation_wrapper(
             )
             for i in range(num_modes)
         ]
-    modes = sorted(modes, key=lambda m: float(np.real(m.neff)), reverse=True)
     return modes
