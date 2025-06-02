@@ -7,42 +7,7 @@ import jax.numpy as jnp
 import optax
 import pytreeclass as tc
 from loguru import logger
-
-from fdtdx import (
-    constants,
-    WaveCharacter,
-    Material,
-    GradientConfig,
-    SimulationConfig,
-    full_backward,
-    ArrayContainer, 
-    ParameterContainer, 
-    apply_params, 
-    place_objects,
-    DtypeConversion, 
-    Recorder, 
-    LinearReconstructEveryK,
-    SimulationVolume, 
-    SimulationObject,
-    BoundaryConfig, 
-    boundary_objects_from_config,
-    EnergyDetector, 
-    PoyntingFluxDetector,
-    GaussianSmoothing2D,
-    SubpixelSmoothedProjection,
-    DiagonalSymmetry2D,
-    ModePlaneSource,
-    metric_efficiency,
-    OnOffSwitch,
-    Logger,
-    plot_setup,
-    run_fdtd,
-    Device,
-    UniformMaterialObject,
-    colors,
-)
-from fdtdx.objects.detectors.mode import ModeOverlapDetector
-
+import fdtdx
 
 def main(
     seed: int,
@@ -51,18 +16,18 @@ def main(
 ):
     logger.info(f"{seed=}")
 
-    exp_logger = Logger(
+    exp_logger = fdtdx.Logger(
         experiment_name="ceviche_corner",
         name=None,
     )
     key = jax.random.PRNGKey(seed=seed)
 
     wavelength = 1.55e-6
-    period = constants.wavelength_to_period(wavelength)
+    period = fdtdx.constants.wavelength_to_period(wavelength)
 
-    config = SimulationConfig(
-        time=200e-15,
-        resolution=25e-9,
+    config = fdtdx.SimulationConfig(
+        time=50e-15,
+        resolution=20e-9,
         dtype=jnp.float32,
         courant_factor=0.99,
     )
@@ -74,13 +39,11 @@ def main(
     logger.info(f"{config.max_travel_distance=}")
 
     if not evaluation or backward:
-        gradient_config = GradientConfig(
-            recorder=Recorder(
+        gradient_config = fdtdx.GradientConfig(
+            recorder=fdtdx.Recorder(
                 modules=[
-                    LinearReconstructEveryK(k=2),
-                    DtypeConversion(dtype=jnp.float16),
-                    # LinearReconstructEveryK(5),
-                    # DtypeConversion(dtype=jnp.float8_e4m3fnuz),
+                    fdtdx.LinearReconstructEveryK(k=5),
+                    fdtdx.DtypeConversion(dtype=jnp.float8_e4m3fnuz),
                 ]
             )
         )
@@ -88,18 +51,18 @@ def main(
 
     placement_constraints = []
 
-    volume = SimulationVolume(
-        partial_real_shape=(2.5e-6, 2.5e-6, 1.2e-6),
+    volume = fdtdx.SimulationVolume(
+        partial_real_shape=(2.7e-6, 2.7e-6, 1.5e-6),
     )
 
-    bound_cfg = BoundaryConfig.from_uniform_bound(thickness=10)
-    _, c_list = boundary_objects_from_config(bound_cfg, volume)
+    bound_cfg = fdtdx.BoundaryConfig.from_uniform_bound(thickness=10)
+    _, c_list = fdtdx.boundary_objects_from_config(bound_cfg, volume)
     placement_constraints.extend(c_list)
 
-    substrate = UniformMaterialObject(
+    substrate = fdtdx.UniformMaterialObject(
         partial_real_shape=(None, None, 0.5e-6),
-        material=Material(permittivity=constants.relative_permittivity_silica),
-        color=colors.ORANGE,
+        material=fdtdx.Material(permittivity=fdtdx.constants.relative_permittivity_silica),
+        color=fdtdx.colors.ORANGE,
     )
     placement_constraints.append(
         substrate.place_relative_to(
@@ -110,22 +73,24 @@ def main(
         )
     )
 
-    height = 260e-9
+    height = 400e-9
     width = 400e-9
     material_config = {
-        "Air": Material(permittivity=constants.relative_permittivity_air),
-        "Silicon": Material(permittivity=constants.relative_permittivity_silicon),
+        "Air": fdtdx.Material(permittivity=fdtdx.constants.relative_permittivity_air),
+        "Silicon": fdtdx.Material(permittivity=fdtdx.constants.relative_permittivity_silicon),
     }
-    device = Device(
+    voxel_size = 20e-9
+    device = fdtdx.Device(
         name="Device",
         partial_real_shape=(1.6e-6, 1.6e-6, height),
         materials=material_config,
         param_transforms=[
-            DiagonalSymmetry2D(min_min_to_max_max=False),
-            GaussianSmoothing2D(std_discrete=3),
-            SubpixelSmoothedProjection(),
+            # DiagonalSymmetry2D(min_min_to_max_max=False),
+            fdtdx.GaussianSmoothing2D(std_discrete=3),
+            fdtdx.SubpixelSmoothedProjection(),
+            # TanhProjection(),
         ],
-        partial_voxel_real_shape=(config.resolution, config.resolution, height),
+        partial_voxel_real_shape=(voxel_size, voxel_size, height),
     )
     placement_constraints.append(
         device.place_relative_to(
@@ -138,10 +103,10 @@ def main(
         )
     )
 
-    waveguide_in = UniformMaterialObject(
+    waveguide_in = fdtdx.UniformMaterialObject(
         partial_real_shape=(None, width, height),
         material=material_config["Silicon"],
-        color=colors.LIGHT_BLUE,
+        color=fdtdx.colors.LIGHT_BLUE,
     )
     placement_constraints.extend(
         [
@@ -158,9 +123,9 @@ def main(
         ]
     )
 
-    source = ModePlaneSource(
+    source = fdtdx.ModePlaneSource(
         partial_grid_shape=(1, None, None),
-        wave_character=WaveCharacter(wavelength=wavelength),
+        wave_character=fdtdx.WaveCharacter(wavelength=wavelength),
         direction="+",
     )
     placement_constraints.extend(
@@ -175,10 +140,10 @@ def main(
         ]
     )
 
-    waveguide_out = UniformMaterialObject(
+    waveguide_out = fdtdx.UniformMaterialObject(
         partial_real_shape=(width, None, height),
         material=material_config["Silicon"],
-        color=colors.LIGHT_BLUE,
+        color=fdtdx.colors.LIGHT_BLUE,
     )
     placement_constraints.extend(
         [
@@ -194,17 +159,31 @@ def main(
             waveguide_out.place_above(substrate),
         ]
     )
-
-    detector_out = ModeOverlapDetector(
-        filter_pol="te",
-        wave_characters=(WaveCharacter(wavelength=wavelength),),
-        name="Output Detector",
-        partial_grid_shape=(None, 1, None),
+    
+    flux_in_detector = fdtdx.PoyntingFluxDetector(
+        name="in flux",
+        partial_grid_shape=(1, None, None),
         direction="+",
-        switch=OnOffSwitch(fixed_on_time_steps=all_time_steps[-2 * period_steps :]),
+        switch=fdtdx.OnOffSwitch(fixed_on_time_steps=all_time_steps[period_steps:2*period_steps]),
     )
     placement_constraints.append(
-        detector_out.place_relative_to(
+        flux_in_detector.place_relative_to(
+            source,
+            axes=0,
+            own_positions=1,
+            other_positions=1,
+            grid_margins=2,
+        )
+    )
+    
+    flux_out_detector = fdtdx.PoyntingFluxDetector(
+        name="out flux",
+        partial_grid_shape=(None, 1, None),
+        direction="+",
+        switch=fdtdx.OnOffSwitch(fixed_on_time_steps=all_time_steps[-period_steps :]),
+    )
+    placement_constraints.append(
+        flux_out_detector.place_relative_to(
             waveguide_out,
             axes=1,
             own_positions=1,
@@ -213,31 +192,30 @@ def main(
         )
     )
     
-
-    energy_last_step = EnergyDetector(
+    energy_last_step = fdtdx.EnergyDetector(
         name="energy_last_step",
         as_slices=True,
-        switch=OnOffSwitch(fixed_on_time_steps=[-1]),
+        switch=fdtdx.OnOffSwitch(fixed_on_time_steps=[-1]),
     )
     placement_constraints.extend([*energy_last_step.same_position_and_size(volume)])
 
-    exclude_object_list: list[SimulationObject] = [energy_last_step]
+    exclude_object_list: list[fdtdx.SimulationObject] = [energy_last_step]
     if evaluation:
-        video_detector = EnergyDetector(
+        video_detector = fdtdx.EnergyDetector(
             name="video",
             as_slices=True,
-            switch=OnOffSwitch(interval=10),
+            switch=fdtdx.OnOffSwitch(interval=10),
             exact_interpolation=True,
             num_video_workers=10,
         )
         placement_constraints.extend([*video_detector.same_position_and_size(volume)])
         exclude_object_list.append(video_detector)
         if backward:
-            backward_video_detector = EnergyDetector(
+            backward_video_detector = fdtdx.EnergyDetector(
                 name="backward_video",
                 as_slices=True,
                 inverse=True,
-                switch=OnOffSwitch(interval=10),
+                switch=fdtdx.OnOffSwitch(interval=10),
                 exact_interpolation=True,
                 num_video_workers=10,
             )
@@ -245,20 +223,24 @@ def main(
             exclude_object_list.append(backward_video_detector)
 
     key, subkey = jax.random.split(key)
-    objects, arrays, params, config, _ = place_objects(
+    objects, arrays, params, config, _ = fdtdx.place_objects(
         volume=volume,
         config=config,
         constraints=placement_constraints,
         key=subkey,
     )
+    
+    # saved_params = jnp.load("...")
+    # params[device.name] = saved_params
+    start_idx = 0
 
     logger.info(tc.tree_summary(arrays, depth=2))
     print(tc.tree_diagram(config, depth=4))
 
-    epochs = 101 if not evaluation else 1
+    epochs = 501
     if not evaluation:
         schedule_finetune: optax.Schedule = optax.warmup_cosine_decay_schedule(
-            init_value=0.0005,
+            init_value=1e-5,
             peak_value=0.005,
             end_value=0.0005,
             warmup_steps=10,
@@ -270,9 +252,9 @@ def main(
         opt_state_finetune: optax.OptState = optimizer_finetune.init(params)
     
     def custom_schedule(idx: chex.Numeric) -> chex.Numeric:
-        beta_schedule = optax.linear_schedule(0.1, 100, epochs//2)
+        beta_schedule = optax.linear_schedule(0.1, 50, epochs)
         return jax.lax.cond(
-            idx < epochs / 2,
+            idx < epochs - 2,
             lambda: beta_schedule(idx),
             lambda: jnp.inf
         )
@@ -280,7 +262,7 @@ def main(
     exp_logger.savefig(
         exp_logger.cwd,
         "setup.png",
-        plot_setup(
+        fdtdx.plot_setup(
             config=config,
             objects=objects,
             exclude_object_list=exclude_object_list,
@@ -293,23 +275,23 @@ def main(
         objects=objects,
         export_stl=True,
         export_figure=True,
-        beta=custom_schedule(0),
+        beta=custom_schedule(start_idx),
     )
     
-    x, tmp, _ = apply_params(arrays, objects, params, key, beta=custom_schedule(0))
+    x, tmp, _ = fdtdx.apply_params(arrays, objects, params, key, beta=custom_schedule(start_idx))
     tmp.sources[0].plot(  # type: ignore
         exp_logger.cwd / "figures" / "mode.png"
     )
 
     def loss_func(
-        params: ParameterContainer,
-        arrays: ArrayContainer,
+        params: fdtdx.ParameterContainer,
+        arrays: fdtdx.ArrayContainer,
         key: jax.Array,
         idx: int,
     ):
-        arrays, new_objects, info = apply_params(arrays, objects, params, key, beta=custom_schedule(idx))
+        arrays, new_objects, info = fdtdx.apply_params(arrays, objects, params, key, beta=custom_schedule(idx))
 
-        final_state = run_fdtd(
+        final_state = fdtdx.run_fdtd(
             arrays=arrays,
             objects=new_objects,
             config=config,
@@ -317,12 +299,15 @@ def main(
         )
 
         _, arrays = final_state
-        out_detector: ModeOverlapDetector = new_objects[detector_out.name]  # type: ignore
-        overlap_alpha = out_detector.compute_overlap(arrays.detector_states[out_detector.name])
-        objective = jnp.square(jnp.abs(overlap_alpha))
+        
+        total_out_flux = arrays.detector_states[flux_out_detector.name]["poynting_flux"].sum()
+        total_in_flux = arrays.detector_states[flux_in_detector.name]["poynting_flux"].sum()
+        total_flux_ratio = total_out_flux / total_in_flux
+        
+        objective = total_flux_ratio
 
         if evaluation and backward:
-            _, arrays = full_backward(
+            _, arrays = fdtdx.full_backward(
                 state=final_state,
                 objects=new_objects,
                 config=config,
@@ -332,6 +317,9 @@ def main(
             )
 
         new_info = {
+            "total_out_flux": total_out_flux,
+            "total_in_flux": total_in_flux,
+            "total_flux_ratio": total_flux_ratio,
             "objective": objective,
             **info,
         }
@@ -339,7 +327,7 @@ def main(
 
     compile_start_time = time.time()
     jit_task_id = exp_logger.progress.add_task("JIT", total=None)
-    idx_dummy_arr = jnp.asarray(0, dtype=jnp.float32)
+    idx_dummy_arr = jnp.asarray(start_idx, dtype=jnp.float32)
     if evaluation:
         jitted_loss = jax.jit(loss_func, donate_argnames=["arrays"]).lower(params, arrays, key, idx_dummy_arr).compile()
     else:
@@ -351,8 +339,8 @@ def main(
     compile_delta_time = time.time() - compile_start_time
     exp_logger.progress.update(jit_task_id, total=1, completed=1, refresh=True)
 
-    optim_task_id = exp_logger.progress.add_task("Optimization", total=epochs)
-    for epoch in range(epochs):
+    optim_task_id = exp_logger.progress.add_task("Optimization", total=1 if evaluation else epochs)
+    for epoch in range(start_idx, start_idx + 1 if evaluation else epochs):
 
         run_start_time = time.time()
         key, subkey = jax.random.split(key)
@@ -369,6 +357,7 @@ def main(
             info["grad_norm"] = optax.global_norm(grads)
             info["update_norm"] = optax.global_norm(updates)
 
+        # tmp[overlap_detector.name].compute_overlap(arrays.detector_states[overlap_detector.name])
         runtime_delta = time.time() - run_start_time
         info["runtime"] = runtime_delta
         info["attenuation"] = 10 * jnp.log10(-loss)
@@ -395,8 +384,8 @@ def main(
         exp_logger.progress.update(optim_task_id, advance=1)
 
 
-if __name__ == "__main__":
-    seed = 42
+if __name__ == "__main__": 
+    seed = 0
     evaluation = False
     backward = False
     if len(sys.argv) > 1:

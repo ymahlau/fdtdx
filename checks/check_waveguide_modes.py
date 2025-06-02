@@ -23,9 +23,9 @@ from fdtdx import (
     UniformMaterialObject,
     Logger, 
     plot_setup,
-    run_fdtd
+    run_fdtd,
+    PoyntingFluxDetector
 )
-from fdtdx.objects.detectors.poynting_flux import PoyntingFluxDetector
 
 def main():
     exp_logger = Logger(
@@ -35,13 +35,13 @@ def main():
     key = jax.random.PRNGKey(seed=42)
 
     wavelength = 1.55e-6
-    prop_axis = 0
-    side_axis = (prop_axis + 1) % 3
-    up_axis = (prop_axis + 2) % 3
+    prop_axis = 1
+    side_axis = 0
+    up_axis = 2
     period = constants.wavelength_to_period(wavelength)
 
     config = SimulationConfig(
-        time=300e-15,
+        time=50e-15,
         resolution=20e-9,
         dtype=jnp.float32,
         courant_factor=0.99,
@@ -111,71 +111,70 @@ def main():
             source.place_relative_to(
                 waveguide_in,
                 axes=(prop_axis,),
-                other_positions=(-1,),
-                own_positions=(-1,),
-                grid_margins=(25,)
+                other_positions=(0,),
+                own_positions=(0,),
             )
         ]
     )
     
-    overlap_detector = ModeOverlapDetector(
-        name="overlap_detector",
-        partial_grid_shape=(1, None, None),
-        wave_characters=(WaveCharacter(wavelength=wavelength),),
-        direction="+",
-        switch=OnOffSwitch(fixed_on_time_steps=all_time_steps[7*period_steps:]),
-    )
-    placement_constraints.extend(
-        [
-            overlap_detector.place_relative_to(
-                source,
-                axes=(0),
-                own_positions=(-1),
-                other_positions=(-1),
-                grid_margins=(5),
-                # grid_margins=(bound_cfg.thickness_grid_minx),
-                # margins=(0.2e-6),
-            ),
-        ]
-    )
+    # overlap_detector = ModeOverlapDetector(
+    #     name="overlap_detector",
+    #     partial_grid_shape=(1, None, None),
+    #     wave_characters=(WaveCharacter(wavelength=wavelength),),
+    #     direction="+",
+    #     switch=OnOffSwitch(fixed_on_time_steps=all_time_steps[7*period_steps:]),
+    # )
+    # placement_constraints.extend(
+    #     [
+    #         overlap_detector.place_relative_to(
+    #             source,
+    #             axes=(0),
+    #             own_positions=(-1),
+    #             other_positions=(-1),
+    #             grid_margins=(5),
+    #             # grid_margins=(bound_cfg.thickness_grid_minx),
+    #             # margins=(0.2e-6),
+    #         ),
+    #     ]
+    # )
     
-    back_detector = PoyntingFluxDetector(
-        name="backspill",
-        partial_grid_shape=(1, None, None),
-        direction="-",
-    )
-    placement_constraints.extend(
-        [
-            back_detector.place_relative_to(
-                source,
-                axes=(0),
-                own_positions=(-1),
-                other_positions=(-1),
-                grid_margins=(-2),
-                # grid_margins=(bound_cfg.thickness_grid_minx),
-                # margins=(0.2e-6),
-            ),
-        ]
-    )
+    # back_detector = PoyntingFluxDetector(
+    #     name="backspill",
+    #     partial_grid_shape=(1, None, None),
+    #     direction="-",
+    # )
+    # placement_constraints.extend(
+    #     [
+    #         back_detector.place_relative_to(
+    #             source,
+    #             axes=(0),
+    #             own_positions=(-1),
+    #             other_positions=(-1),
+    #             grid_margins=(-2),
+    #             # grid_margins=(bound_cfg.thickness_grid_minx),
+    #             # margins=(0.2e-6),
+    #         ),
+    #     ]
+    # )
     
-    forward_detector = PoyntingFluxDetector(
-        name="forward flux",
-        partial_grid_shape=(1, None, None),
-        direction="+",
-    )
-    placement_constraints.extend(
-        [
-            forward_detector.place_relative_to(
-                source,
-                axes=(0),
-                own_positions=(-1),
-                other_positions=(-1),
-                grid_margins=(2),
-                # grid_margins=(bound_cfg.thickness_grid_minx),
-                # margins=(0.2e-6),
-            ),
-        ]
-    )
+    # forward_detector = PoyntingFluxDetector(
+    #     name="forward flux",
+    #     partial_grid_shape=(1, None, None),
+    #     direction="+",
+    # )
+    # placement_constraints.extend(
+    #     [
+    #         forward_detector.place_relative_to(
+    #             source,
+    #             axes=(0),
+    #             own_positions=(-1),
+    #             other_positions=(-1),
+    #             grid_margins=(2),
+    #             # grid_margins=(bound_cfg.thickness_grid_minx),
+    #             # margins=(0.2e-6),
+    #         ),
+    #     ]
+    # )
     
     
     energy_last_step = EnergyDetector(
@@ -186,15 +185,15 @@ def main():
     placement_constraints.extend([*energy_last_step.same_position_and_size(volume)])
 
     exclude_object_list: list[SimulationObject] = [energy_last_step]
-    # video_detector = EnergyDetector(
-    #     name="video",
-    #     as_slices=True,
-    #     switch=OnOffSwitch(interval=10),
-    #     plot_interpolation="nearest",
-    #     num_video_workers=10,
-    # )
-    # placement_constraints.extend([*video_detector.same_position_and_size(volume)])
-    # exclude_object_list.append(video_detector)
+    video_detector = EnergyDetector(
+        name="video",
+        as_slices=True,
+        switch=OnOffSwitch(interval=10),
+        plot_interpolation="nearest",
+        num_video_workers=10,
+    )
+    placement_constraints.extend([*video_detector.same_position_and_size(volume)])
+    exclude_object_list.append(video_detector)
     
     key, subkey = jax.random.split(key)
     objects, arrays, params, config, _ = place_objects(
@@ -218,7 +217,7 @@ def main():
         ),
     )
     
-    _, objects, _ = jax.jit(apply_params)(arrays, objects, params, key)
+    _, objects, _ = apply_params(arrays, objects, params, key)
     objects.sources[0].plot(  # type: ignore
         exp_logger.cwd / "figures" / "mode.png"
     )
@@ -243,9 +242,9 @@ def main():
     key, subkey = jax.random.split(key)
     arrays = sim_func(params, arrays, subkey)
     
-    alpha = objects[overlap_detector.name].compute_overlap(arrays.detector_states[overlap_detector.name])
-    print(jnp.abs(alpha))
-    a = 1
+    # alpha = objects[overlap_detector.name].compute_overlap(arrays.detector_states[overlap_detector.name])
+    # print(jnp.abs(alpha))
+    # a = 1
     
     exp_logger.log_detectors(iter_idx=0, objects=objects, detector_states=arrays.detector_states)
     
