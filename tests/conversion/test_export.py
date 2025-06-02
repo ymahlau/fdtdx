@@ -1,5 +1,7 @@
 import numpy as np
+
 import fdtdx
+
 
 def test_arr_to_stl():
     # fmt: off
