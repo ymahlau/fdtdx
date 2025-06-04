@@ -61,6 +61,13 @@ from fdtdx.objects.static_material.sphere import Sphere
 from fdtdx.objects.static_material.static import SimulationVolume, UniformMaterialObject
 from fdtdx.utils.logger import Logger
 from fdtdx.utils.plot_setup import plot_setup
+from fdtdx.core.jax.pytrees import (
+    TreeClass, 
+    autoinit, field, 
+    private_field, 
+    frozen_field, 
+    frozen_private_field,
+)
 
 __all__ = [
     # conversion

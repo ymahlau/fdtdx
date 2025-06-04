@@ -7,7 +7,7 @@ import jax.numpy as jnp
 from loguru import logger
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, frozen_private_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field, frozen_private_field
 from fdtdx.core.jax.ste import straight_through_estimator
 from fdtdx.core.misc import get_background_material_name
 from fdtdx.materials import Material, compute_allowed_permittivities, compute_ordered_names
@@ -17,7 +17,7 @@ from fdtdx.objects.device.parameters.utils import compute_allowed_indices, neare
 from fdtdx.typing import ParameterType
 
 
-@extended_autoinit
+@autoinit
 class ClosestIndex(ParameterTransformation):
     """
     Maps continuous latent values to nearest allowed material indices.
@@ -74,7 +74,7 @@ class ClosestIndex(ParameterTransformation):
         return result
 
 
-@extended_autoinit
+@autoinit
 class BrushConstraint2D(ParameterTransformation):
     """Applies 2D brush-based constraints to ensure minimum feature sizes.
 
@@ -287,7 +287,7 @@ def circular_brush(
     return mask
 
 
-@extended_autoinit
+@autoinit
 class PillarDiscretization(ParameterTransformation):
     """Constraint module for mapping pillar structures to allowed configurations.
 

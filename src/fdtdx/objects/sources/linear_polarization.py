@@ -4,13 +4,13 @@ import jax
 import jax.numpy as jnp
 
 from fdtdx.core.grid import calculate_time_offset_yee
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.linalg import get_wave_vector_raw, rotate_vector
 from fdtdx.core.misc import linear_interpolated_indexing, normalize_polarization_for_source
 from fdtdx.objects.sources.tfsf import TFSFPlaneSource
 
 
-@extended_autoinit
+@autoinit
 class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
     fixed_E_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
     fixed_H_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
@@ -115,7 +115,7 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         raise NotImplementedError()
 
 
-@extended_autoinit
+@autoinit
 class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
     radius: float = frozen_field()
     std: float = frozen_field(default=1 / 3)  # relative to radius
@@ -161,7 +161,7 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
         return profile
 
 
-@extended_autoinit
+@autoinit
 class UniformPlaneSource(LinearlyPolarizedPlaneSource):
     amplitude: float = frozen_field(default=1.0)
 

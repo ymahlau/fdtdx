@@ -8,7 +8,7 @@ from matplotlib.figure import Figure
 from rich.progress import Progress
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, frozen_private_field, private_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field, frozen_private_field, private_field
 from fdtdx.core.plotting.colors import LIGHT_GREEN
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.objects.detectors.plotting.line_plot import plot_line_over_time, plot_waterfall_over_time
@@ -20,7 +20,7 @@ from fdtdx.typing import SliceTuple3D
 DetectorState = dict[str, jax.Array]
 
 
-@extended_autoinit
+@autoinit
 class Detector(SimulationObject, ABC):
     """Base class for electromagnetic field detectors in FDTD simulations.
 

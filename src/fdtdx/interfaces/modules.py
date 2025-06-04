@@ -4,12 +4,12 @@ from typing import Self, Sequence
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field, frozen_private_field
+from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field, frozen_private_field
 from fdtdx.interfaces.state import RecordingState
 
 
-@extended_autoinit
-class CompressionModule(ExtendedTreeClass, ABC):
+@autoinit
+class CompressionModule(TreeClass, ABC):
     """Abstract base class for compression modules that process simulation data.
 
     This class provides an interface for modules that compress and decompress field data
@@ -97,7 +97,7 @@ class CompressionModule(ExtendedTreeClass, ABC):
         raise NotImplementedError()
 
 
-@extended_autoinit
+@autoinit
 class DtypeConversion(CompressionModule):
     """Compression module that converts data types of field values.
 

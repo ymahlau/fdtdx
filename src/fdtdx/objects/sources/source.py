@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, private_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.misc import linear_interpolated_indexing, normalize_polarization_for_source
 from fdtdx.core.plotting.colors import ORANGE
 from fdtdx.core.switch import OnOffSwitch
@@ -15,7 +15,7 @@ from fdtdx.objects.sources.profile import SingleFrequencyProfile, TemporalProfil
 from fdtdx.typing import SliceTuple3D
 
 
-@extended_autoinit
+@autoinit
 class Source(SimulationObject, ABC):
     wave_character: WaveCharacter = frozen_field()
     temporal_profile: TemporalProfile = SingleFrequencyProfile()
@@ -120,7 +120,7 @@ class Source(SimulationObject, ABC):
         raise NotImplementedError()
 
 
-@extended_autoinit
+@autoinit
 class DirectionalPlaneSourceBase(Source, ABC):
     """Base class for directional plane wave sources.
 
@@ -146,7 +146,7 @@ class DirectionalPlaneSourceBase(Source, ABC):
         return (self.propagation_axis + 2) % 3
 
 
-@extended_autoinit
+@autoinit
 class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
     amplitude: float = frozen_field(default=1.0)
     fixed_E_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)

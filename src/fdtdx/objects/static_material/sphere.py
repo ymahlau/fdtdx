@@ -4,14 +4,14 @@ import jax
 import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field, frozen_private_field
+from fdtdx.core.jax.pytrees import autoinit, field, frozen_field, frozen_private_field
 from fdtdx.core.plotting.colors import LIGHT_BLUE
 from fdtdx.materials import Material
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
 from fdtdx.typing import UNDEFINED_SHAPE_3D, PartialGridShape3D, PartialRealShape3D, SliceTuple3D
 
 
-@extended_autoinit
+@autoinit
 class Sphere(StaticMultiMaterialObject):
     """A sphere or ellipsoid object with configurable properties.
 

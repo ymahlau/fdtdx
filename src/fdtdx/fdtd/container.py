@@ -9,7 +9,7 @@ from typing import Callable, Self
 
 import jax
 
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field
+from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.materials import Material
 from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState
@@ -25,8 +25,8 @@ from fdtdx.objects.static_material.static import StaticMultiMaterialObject, Unif
 ParameterContainer = dict[str, dict[str, jax.Array] | jax.Array]
 
 
-@extended_autoinit
-class ObjectContainer(ExtendedTreeClass):
+@autoinit
+class ObjectContainer(TreeClass):
     """Container for managing simulation objects and their relationships.
 
     This class provides a structured way to organize and access different types of simulation
@@ -149,8 +149,8 @@ class ObjectContainer(ExtendedTreeClass):
         return self
 
 
-@extended_autoinit
-class ArrayContainer(ExtendedTreeClass):
+@autoinit
+class ArrayContainer(TreeClass):
     """Container for simulation field arrays and states.
 
     This class holds the electromagnetic field arrays and various state information

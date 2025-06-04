@@ -1,10 +1,10 @@
 import math
 
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field
+from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 
 
-@extended_autoinit
-class OnOffSwitch(ExtendedTreeClass):
+@autoinit
+class OnOffSwitch(TreeClass):
     start_time: float | None = frozen_field(default=None)
     start_after_periods: float | None = frozen_field(default=None)
     end_time: float | None = frozen_field(default=None)

@@ -4,13 +4,13 @@ from typing import Self
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field, frozen_private_field
+from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field, frozen_private_field
 from fdtdx.core.misc import index_1d_array
 from fdtdx.interfaces.state import RecordingState
 
 
-@extended_autoinit
-class TimeStepFilter(ExtendedTreeClass, ABC):
+@autoinit
+class TimeStepFilter(TreeClass, ABC):
     """Abstract base class for filtering and processing time steps in FDTD simulations.
 
     This class provides an interface for filters that process simulation data at specific
@@ -141,7 +141,7 @@ class TimeStepFilter(ExtendedTreeClass, ABC):
         raise NotImplementedError()
 
 
-@extended_autoinit
+@autoinit
 class LinearReconstructEveryK(TimeStepFilter):
     """Time step filter that performs linear reconstruction between sampled steps.
 
