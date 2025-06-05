@@ -67,7 +67,7 @@ def normalize_by_energy(
     return norm_E, norm_H
 
 
-def poynting_flux(E: jax.Array, H: jax.Array, axis: int = 0) -> jax.Array:
+def compute_poynting_flux(E: jax.Array, H: jax.Array, axis: int = 0) -> jax.Array:
     """Calculates the Poynting vector (energy flux) from E and H fields.
 
     Args:

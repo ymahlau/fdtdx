@@ -3,7 +3,7 @@ from typing import Literal
 import jax
 
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
-from fdtdx.core.physics.metrics import poynting_flux
+from fdtdx.core.physics.metrics import compute_poynting_flux
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 
@@ -77,7 +77,7 @@ class PoyntingFluxDetector(Detector):
         cur_E = E[:, *self.grid_slice]
         cur_H = H[:, *self.grid_slice]
 
-        pf = poynting_flux(cur_E, cur_H)
+        pf = compute_poynting_flux(cur_E, cur_H)
         if not self.keep_all_components:
             pf = pf[self.propagation_axis]
         if self.direction == "-":

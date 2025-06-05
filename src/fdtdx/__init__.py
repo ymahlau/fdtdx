@@ -11,7 +11,7 @@ from fdtdx.core.jax.pytrees import (
     private_field,
 )
 from fdtdx.core.physics.losses import metric_efficiency
-from fdtdx.core.physics.metrics import compute_energy, normalize_by_energy, normalize_by_poynting_flux, poynting_flux
+from fdtdx.core.physics.metrics import compute_energy, normalize_by_energy, normalize_by_poynting_flux, compute_poynting_flux
 from fdtdx.core.plotting import colors
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
@@ -83,7 +83,7 @@ __all__ = [
     "metric_efficiency",
     "compute_energy",
     "normalize_by_energy",
-    "poynting_flux",
+    "compute_poynting_flux",
     "normalize_by_poynting_flux",
     "OnOffSwitch",
     "WaveCharacter",
