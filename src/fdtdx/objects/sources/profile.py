@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import math
 
 import jax
 import jax.numpy as jnp
@@ -36,6 +37,8 @@ class TemporalProfile(TreeClass, ABC):
 @autoinit
 class SingleFrequencyProfile(TemporalProfile):
     """Simple sinusoidal temporal profile at a single frequency."""
+    phase_shift: float = frozen_field(default=math.pi)
+    num_startup_periods: int = 2
 
     def get_amplitude(
         self,
@@ -43,8 +46,11 @@ class SingleFrequencyProfile(TemporalProfile):
         period: float,
         phase_shift: float = 0.0,
     ) -> jax.Array:
-        time_phase = 2 * jnp.pi * time / period + phase_shift
-        return jnp.real(jnp.exp(-1j * time_phase))
+        time_phase = 2 * jnp.pi * time / period + phase_shift + self.phase_shift
+        raw_amplitude = jnp.real(jnp.exp(-1j * time_phase))
+        startup_time = self.num_startup_periods * period
+        factor = jnp.clip(time / startup_time, 0, 1)
+        return factor * raw_amplitude
 
 
 @autoinit
