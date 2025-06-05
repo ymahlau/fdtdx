@@ -63,7 +63,8 @@ from fdtdx.utils.logger import Logger
 from fdtdx.utils.plot_setup import plot_setup
 from fdtdx.core.jax.pytrees import (
     TreeClass, 
-    autoinit, field, 
+    autoinit, 
+    field, 
     private_field, 
     frozen_field, 
     frozen_private_field,
@@ -73,6 +74,12 @@ __all__ = [
     # conversion
     "export_stl",
     # core
+    "TreeClass",
+    "autoinit",
+    "field",
+    "private_field",
+    "frozen_field",
+    "frozen_private_field",
     "metric_efficiency",
     "compute_energy",
     "normalize_by_energy",

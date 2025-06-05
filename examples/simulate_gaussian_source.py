@@ -133,8 +133,6 @@ def main():
         ),
     )
 
-    fdtdx.apply_params(arrays, objects, params, key)
-
     def sim_fn(
         params: fdtdx.ParameterContainer,
         arrays: fdtdx.ArrayContainer,
