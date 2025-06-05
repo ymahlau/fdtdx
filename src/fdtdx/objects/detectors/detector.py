@@ -44,7 +44,6 @@ class Detector(SimulationObject, ABC):
         plot_dpi (int, optional): DPI resolution for plots.
     """
 
-    name: str = frozen_field()  # type: ignore
     dtype: jnp.dtype = frozen_field(default=jnp.float32)
     exact_interpolation: bool = frozen_field(default=True)
     inverse: bool = frozen_field(default=False)
