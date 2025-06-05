@@ -1,5 +1,5 @@
-from abc import ABC, abstractmethod
 import math
+from abc import ABC, abstractmethod
 
 import jax
 import jax.numpy as jnp
@@ -37,6 +37,7 @@ class TemporalProfile(TreeClass, ABC):
 @autoinit
 class SingleFrequencyProfile(TemporalProfile):
     """Simple sinusoidal temporal profile at a single frequency."""
+
     phase_shift: float = frozen_field(default=math.pi)
     num_startup_periods: int = 2
 
