@@ -1,4 +1,3 @@
-import re
 from typing import Any, Self, Sequence, TypeVar, overload
 
 import pytreeclass as tc
@@ -62,109 +61,109 @@ class TreeClass(tc.TreeClass):
             val: Value to set the attribute to
         """
         setattr(self, attr_name, val)
-    
+
     @staticmethod
     def _parse_operations(s: str) -> list[tuple[str, str]]:
         """
         Parse a string like "a->b->c->[0]->['name']" into individual operations.
-        
+
         Returns a list of tuples (operation, type) where type is one of:
         - 'attribute': for regular attribute names
         - 'index': for integer indices in square brackets
         - 'key': for string keys in square brackets
-        
+
         Raises ValueError if the string is invalid.
-        
+
         Restrictions:
         - String keys cannot contain square brackets
         - String keys cannot contain single quotes (even escaped)
         """
         if not s:
             raise ValueError("Empty string is not valid")
-        
+
         operations = []
         i = 0
-        
+
         while i < len(s):
             if i > 0:
                 # Expect "->" separator
                 if not s[i:].startswith("->"):
                     raise ValueError(f"Expected '->' at position {i}")
                 i += 2  # Skip "->"
-                
+
                 if i >= len(s):
                     raise ValueError("String ends with '->'")
-            
+
             # Parse the next operation
-            if s[i] == '[':
+            if s[i] == "[":
                 # Find the closing bracket
                 j = i + 1
-                while j < len(s) and s[j] != ']':
+                while j < len(s) and s[j] != "]":
                     j += 1
-                
+
                 if j >= len(s):
                     raise ValueError(f"Unclosed bracket starting at position {i}")
-                
-                bracket_content = s[i+1:j].strip()
-                
+
+                bracket_content = s[i + 1 : j].strip()
+
                 # Determine if it's an integer or string
-                if bracket_content.isdigit() or (bracket_content.startswith('-') and bracket_content[1:].isdigit()):
-                    operations.append((int(bracket_content), 'index'))
+                if bracket_content.isdigit() or (bracket_content.startswith("-") and bracket_content[1:].isdigit()):
+                    operations.append((int(bracket_content), "index"))
                 elif bracket_content.startswith("'") and bracket_content.endswith("'"):
                     # Extract string content
                     if len(bracket_content) < 2:
                         raise ValueError(f"Invalid string format in brackets: [{bracket_content}]")
-                    
+
                     string_content = bracket_content[1:-1]
-                    
+
                     # Check for forbidden characters
                     if "'" in string_content:
                         raise ValueError(f"String keys cannot contain single quotes: '{string_content}'")
                     if "[" in string_content or "]" in string_content:
                         raise ValueError(f"String keys cannot contain square brackets: '{string_content}'")
-                    
-                    operations.append((string_content, 'key'))
+
+                    operations.append((string_content, "key"))
                 else:
                     raise ValueError(f"Invalid bracket content: [{bracket_content}]")
-                
+
                 i = j + 1
             else:
                 # Parse attribute name
                 j = i
-                while j < len(s) and s[j:j+2] != '->':
+                while j < len(s) and s[j : j + 2] != "->":
                     j += 1
-                
+
                 attr_name = s[i:j]
-                
+
                 # Validate attribute name
                 if not attr_name:
                     raise ValueError(f"Empty attribute at position {i}")
-                
+
                 # Check if it's a valid Python identifier
                 if not attr_name.isidentifier():
                     raise ValueError(f"Invalid attribute name: '{attr_name}'")
-                
-                operations.append((attr_name, 'attribute'))
+
+                operations.append((attr_name, "attribute"))
                 i = j
-        
+
         return operations
-        
+
     def aset(
         self,
         attr_name: str,
         val: Any,
         create_new_ok: bool = False,
     ) -> Self:
-        """Sets an attribute of this class. In contrast to the classical .at[].set(), this method updates the class 
+        """Sets an attribute of this class. In contrast to the classical .at[].set(), this method updates the class
         attribute directly and does not only operate on jax pytree leaf nodes. Instead, replaces the full attribute
         with the new value.
-        
-        The attribute can either be the attribute name of this class, or for nested classes it can also be the 
+
+        The attribute can either be the attribute name of this class, or for nested classes it can also be the
         attribute name of a class, which itself is an attribute of this class. The syntax for this operation could
-        look like this: "a->b->[0]->['name']". Here, the current class has an attribute a, which has an attribute b, 
+        look like this: "a->b->[0]->['name']". Here, the current class has an attribute a, which has an attribute b,
         which is a list, which we index at index 0, which is an element of type dictionary, which we index using
-        the dictionary key 'name'. 
-        
+        the dictionary key 'name'.
+
         Note that dictionary keys cannot contain square brackets or single quotes (even if they are escaped).
 
         Args:
@@ -178,23 +177,23 @@ class TreeClass(tc.TreeClass):
         """
         # parse operations
         ops = self._parse_operations(attr_name)
-        
+
         # find final attribute and save intermediate attributes
         attr_list = [self]
         current_parent = self
         for op, op_type in ops[:-1]:
-            if op_type == 'attribute':
+            if op_type == "attribute":
                 if not hasattr(current_parent, op) and not create_new_ok:
                     raise Exception(f"Attribute: {op} does not exist for {current_parent.__class__}")
                 current_parent = getattr(current_parent, op)
-            elif op_type == 'index':
-                if not hasattr(current_parent, '__getitem__'):
+            elif op_type == "index":
+                if not hasattr(current_parent, "__getitem__"):
                     raise Exception(f"{current_parent.__class__} does not implement __getitem__")
-                current_parent = current_parent[int(op)] # type: ignore
-            elif op_type == 'key':
-                if not hasattr(current_parent, '__getitem__'):
+                current_parent = current_parent[int(op)]  # type: ignore
+            elif op_type == "key":
+                if not hasattr(current_parent, "__getitem__"):
                     raise Exception(f"{current_parent.__class__} does not implement __getitem__")
-                current_parent = current_parent[op] # type: ignore
+                current_parent = current_parent[op]  # type: ignore
             else:
                 raise Exception(f"Invalid operation type: {op_type}. This is an internal bug!")
             attr_list.append(current_parent)
@@ -204,20 +203,20 @@ class TreeClass(tc.TreeClass):
         for idx in list(range(len(attr_list)))[::-1]:
             op, op_type = ops[idx]
             current_parent = attr_list[idx]
-            if op_type == 'attribute':
+            if op_type == "attribute":
                 if not isinstance(current_parent, TreeClass):
                     raise Exception(f"Can only set attribute on ExtendedTreeClass, but got {current_parent.__class__}")
                 _, cur_attr = current_parent.at["_aset"](op, cur_attr)
-            elif op_type == 'index':
-                if not hasattr(current_parent, '__setitem__'):
+            elif op_type == "index":
+                if not hasattr(current_parent, "__setitem__"):
                     raise Exception(
                         f"Can only update by index if __setitem__ is implemented, but got {current_parent.__class__}"
                     )
                 cpy = current_parent.copy()  # type: ignore
                 cpy[int(op)] = cur_attr  # type: ignore
                 cur_attr = cpy
-            elif op_type == 'key':
-                if not hasattr(current_parent, '__setitem__'):
+            elif op_type == "key":
+                if not hasattr(current_parent, "__setitem__"):
                     raise Exception(
                         f"Can only update by index if __setitem__ is implemented, but got {current_parent.__class__}"
                     )
@@ -226,10 +225,10 @@ class TreeClass(tc.TreeClass):
                 cur_attr = cpy
             else:
                 raise Exception(f"Invalid operation type: {op_type}. This is an internal bug!")
-            
+
         assert cur_attr.__class__ == self.__class__
         return cur_attr
-        
+
 
 T = TypeVar("T")
 

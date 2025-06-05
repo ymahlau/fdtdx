@@ -139,7 +139,7 @@ class ObjectContainer(TreeClass):
             if o.name == key:
                 return o
         raise ValueError(f"Key {key} does not exist in object list: {[o.name for o in self.objects]}")
-    
+
     def __setitem__(
         self,
         key: str,
@@ -153,7 +153,7 @@ class ObjectContainer(TreeClass):
         if idx == -1:
             ValueError(f"Key {key} does not exist in object list: {[o.name for o in self.objects]}")
         self.object_list[idx] = val
-        
+
     def copy(
         self,
     ) -> "ObjectContainer":
