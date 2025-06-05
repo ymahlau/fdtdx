@@ -181,7 +181,7 @@ class TreeClass(tc.TreeClass):
         # find final attribute and save intermediate attributes
         attr_list = [self]
         current_parent = self
-        for op, op_type in ops[:-1]:
+        for idx, (op, op_type) in enumerate(ops):
             if op_type == "attribute":
                 if not hasattr(current_parent, op) and not create_new_ok:
                     raise Exception(f"Attribute: {op} does not exist for {current_parent.__class__}")
@@ -196,7 +196,8 @@ class TreeClass(tc.TreeClass):
                 current_parent = current_parent[op]  # type: ignore
             else:
                 raise Exception(f"Invalid operation type: {op_type}. This is an internal bug!")
-            attr_list.append(current_parent)
+            if idx != len(ops) - 1:
+                attr_list.append(current_parent)
 
         # from bottom-up set attributes and update
         cur_attr = val
