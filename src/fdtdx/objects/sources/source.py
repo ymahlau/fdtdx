@@ -19,7 +19,7 @@ from fdtdx.typing import SliceTuple3D
 class Source(SimulationObject, ABC):
     wave_character: WaveCharacter = frozen_field()
     temporal_profile: TemporalProfile = SingleFrequencyProfile()
-    amplitude_scale: float = frozen_field(default=1.0)
+    static_amplitude_factor: float = frozen_field(default=1.0)
     switch: OnOffSwitch = frozen_field(default=OnOffSwitch())
     color: tuple[float, float, float] | None = frozen_field(default=ORANGE)
 
@@ -166,6 +166,7 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
         delta_t = self._config.time_step_duration
         time_phase = 2 * jnp.pi * time_step * delta_t / self.wave_character.period + self.wave_character.phase_shift
         magnitude = jnp.real(self.amplitude * jnp.exp(-1j * time_phase))
+        magnitude = magnitude * self.static_amplitude_factor
         e_pol, _ = normalize_polarization_for_source(
             direction=self.direction,
             propagation_axis=self.propagation_axis,
@@ -191,6 +192,7 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
         delta_t = self._config.time_step_duration
         time_phase = 2 * jnp.pi * time_step * delta_t / self.wave_character.period + self.wave_character.phase_shift
         magnitude = jnp.real(self.amplitude * jnp.exp(-1j * time_phase))
+        magnitude = magnitude * self.static_amplitude_factor
         _, h_pol = normalize_polarization_for_source(
             direction=self.direction,
             propagation_axis=self.propagation_axis,
