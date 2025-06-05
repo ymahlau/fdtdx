@@ -6,8 +6,8 @@ import jax
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import (
-    ExtendedTreeClass,
-    extended_autoinit,
+    TreeClass,
+    autoinit,
     frozen_field,
     frozen_private_field,
     private_field,
@@ -27,8 +27,8 @@ from fdtdx.typing import (
 _GLOBAL_COUNTER = 0
 
 
-@extended_autoinit
-class UniqueName(ExtendedTreeClass):
+@autoinit
+class UniqueName(TreeClass):
     """Generates unique names for simulation objects.
 
     A utility class that ensures each simulation object gets a unique name by
@@ -174,8 +174,8 @@ class RealCoordinateConstraint:
     coordinates: tuple[float, ...]
 
 
-@extended_autoinit
-class SimulationObject(ExtendedTreeClass, ABC):
+@autoinit
+class SimulationObject(TreeClass, ABC):
     partial_real_shape: PartialRealShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
     partial_grid_shape: PartialGridShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
     color: tuple[float, float, float] | None = frozen_field(default=None)  # RGB, interval[0, 1]
@@ -734,6 +734,6 @@ class SimulationObject(ExtendedTreeClass, ABC):
         return hash(self.name)
 
 
-@extended_autoinit
+@autoinit
 class OrderableObject(SimulationObject):
     placement_order: int = frozen_field(default=0)

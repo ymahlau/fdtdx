@@ -1,11 +1,11 @@
 import jax
 
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 
-@extended_autoinit
+@autoinit
 class EnergyDetector(Detector):
     """Detector for measuring electromagnetic energy distribution.
 

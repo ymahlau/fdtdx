@@ -4,11 +4,11 @@ import jax
 import jax.numpy as jnp
 
 from fdtdx import constants
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 
-@extended_autoinit
+@autoinit
 class DiffractiveDetector(Detector):
     """Detector for computing Fourier transforms of fields at specific frequencies and diffraction orders.
 

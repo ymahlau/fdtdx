@@ -6,7 +6,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field
+from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 from fdtdx.core.linalg import get_orthogonal_vector
 from fdtdx.materials import Material
 
@@ -449,8 +449,8 @@ def get_background_material_name(materials: dict[str, Material]) -> str:
     return result_name
 
 
-@extended_autoinit
-class PaddingConfig(ExtendedTreeClass):
+@autoinit
+class PaddingConfig(TreeClass):
     """
     Padding configuration. The order is:
     minx, maxx, miny, maxy, minz, maxz, ...

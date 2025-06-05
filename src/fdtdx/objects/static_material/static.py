@@ -2,19 +2,19 @@ from abc import ABC, abstractmethod
 
 import jax
 
-from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
+from fdtdx.core.jax.pytrees import autoinit, field, frozen_field
 from fdtdx.core.plotting.colors import LIGHT_GREY
 from fdtdx.materials import Material
 from fdtdx.objects.object import OrderableObject
 
 
-@extended_autoinit
+@autoinit
 class UniformMaterialObject(OrderableObject):
     material: Material = field()
     color: tuple[float, float, float] | None = frozen_field(default=LIGHT_GREY)
 
 
-@extended_autoinit
+@autoinit
 class StaticMultiMaterialObject(OrderableObject, ABC):
     materials: dict[str, Material] = field()
     color: tuple[float, float, float] | None = frozen_field(default=LIGHT_GREY)
@@ -43,7 +43,7 @@ class StaticMultiMaterialObject(OrderableObject, ABC):
         raise NotImplementedError()
 
 
-@extended_autoinit
+@autoinit
 class SimulationVolume(UniformMaterialObject):
     """Background material for the entire simulation volume.
 

@@ -10,6 +10,7 @@ copyright: Maintained by Yannik Mahlau
 nav:
   - Home: index.md
   - Tutorials:
+    - JAX in FDTDX: tutorials/jax_introduction.md
     - Object Placement: tutorials/object_placement.md
     - Materials Guide: tutorials/materials.md
     - Fabrication Constraints: tutorials/parameter_mapping.md

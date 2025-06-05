@@ -2,6 +2,14 @@ from fdtdx import constants
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.constants import wavelength_to_period
 from fdtdx.conversion.export import export_stl
+from fdtdx.core.jax.pytrees import (
+    TreeClass,
+    autoinit,
+    field,
+    frozen_field,
+    frozen_private_field,
+    private_field,
+)
 from fdtdx.core.physics.losses import metric_efficiency
 from fdtdx.core.physics.metrics import compute_energy, normalize_by_energy, normalize_by_poynting_flux, poynting_flux
 from fdtdx.core.plotting import colors
@@ -66,6 +74,12 @@ __all__ = [
     # conversion
     "export_stl",
     # core
+    "TreeClass",
+    "autoinit",
+    "field",
+    "private_field",
+    "frozen_field",
+    "frozen_private_field",
     "metric_efficiency",
     "compute_energy",
     "normalize_by_energy",

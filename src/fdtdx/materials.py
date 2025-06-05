@@ -1,10 +1,10 @@
 import math
 
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field
+from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 
 
-@extended_autoinit
-class Material(ExtendedTreeClass):
+@autoinit
+class Material(TreeClass):
     """
     Represents an electromagnetic material with specific electrical and magnetic properties.
 

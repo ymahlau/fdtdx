@@ -3,7 +3,7 @@ from typing import Literal
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.plotting.colors import DARK_GREY
 from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState
 from fdtdx.objects.boundaries.utils import (
@@ -13,7 +13,7 @@ from fdtdx.objects.boundaries.utils import (
 from fdtdx.typing import GridShape3D, Slice3D, SliceTuple3D
 
 
-@extended_autoinit
+@autoinit
 class BoundaryState(BaseBoundaryState):
     """State container for PML boundary conditions.
 
@@ -49,7 +49,7 @@ class BoundaryState(BaseBoundaryState):
     kappa: jax.Array
 
 
-@extended_autoinit
+@autoinit
 class PerfectlyMatchedLayer(BaseBoundary):
     """Implements a Convolutional Perfectly Matched Layer (CPML) boundary condition.
 

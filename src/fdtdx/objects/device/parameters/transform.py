@@ -4,13 +4,13 @@ from typing import Self, Sequence
 import jax
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_private_field
+from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_private_field
 from fdtdx.materials import Material
 from fdtdx.typing import ParameterType
 
 
-@extended_autoinit
-class ParameterTransformation(ExtendedTreeClass, ABC):
+@autoinit
+class ParameterTransformation(TreeClass, ABC):
     _input_type: dict[str, ParameterType] = frozen_private_field()
     _input_shape: dict[str, tuple[int, ...]] = frozen_private_field()
     _output_type: dict[str, ParameterType] = frozen_private_field()
@@ -121,7 +121,7 @@ class ParameterTransformation(ExtendedTreeClass, ABC):
         raise NotImplementedError()
 
 
-@extended_autoinit
+@autoinit
 class SameShapeTypeParameterTransform(ParameterTransformation, ABC):
     def _get_input_shape_impl(
         self,

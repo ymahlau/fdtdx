@@ -1,11 +1,11 @@
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, frozen_private_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field, frozen_private_field
 from fdtdx.objects.device.parameters.transform import SameShapeTypeParameterTransform
 
 
-@extended_autoinit
+@autoinit
 class DiagonalSymmetry2D(SameShapeTypeParameterTransform):
     """
     Enforce symmetries by effectively havling the parameter space. The symmetry is transposing by rotating the image

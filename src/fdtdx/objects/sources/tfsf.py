@@ -5,11 +5,11 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, private_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.objects.sources.source import DirectionalPlaneSourceBase
 
 
-@extended_autoinit
+@autoinit
 class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
     """
     Total-Field/Scattered-Field (TFSF) implementation of a source.

@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field, frozen_private_field
+from fdtdx.core.jax.pytrees import autoinit, field, frozen_field, frozen_private_field
 from fdtdx.core.jax.utils import check_specs
 from fdtdx.core.misc import expand_matrix, is_float_divisible
 from fdtdx.core.plotting.colors import PINK
@@ -24,7 +24,7 @@ from fdtdx.typing import (
 )
 
 
-@extended_autoinit
+@autoinit
 class Device(OrderableObject, ABC):
     """Abstract base class for devices with optimizable permittivity distributions.
 

@@ -1,12 +1,12 @@
 import jax
 
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit
+from fdtdx.core.jax.pytrees import TreeClass, autoinit
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
 from fdtdx.typing import BackendOption
 
 
-@extended_autoinit
-class RecordingState(ExtendedTreeClass):
+@autoinit
+class RecordingState(TreeClass):
     """Container for simulation recording state data.
 
     Holds field data and state information for FDTD simulations.

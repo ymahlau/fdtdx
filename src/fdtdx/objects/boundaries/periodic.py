@@ -3,13 +3,13 @@ from typing import Literal
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.plotting.colors import LIGHT_BLUE
 from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState
 from fdtdx.typing import GridShape3D, Slice3D, SliceTuple3D
 
 
-@extended_autoinit
+@autoinit
 class PeriodicBoundaryState(BaseBoundaryState):
     """State container for periodic boundary conditions.
 
@@ -24,7 +24,7 @@ class PeriodicBoundaryState(BaseBoundaryState):
     H_opposite: jax.Array
 
 
-@extended_autoinit
+@autoinit
 class PeriodicBoundary(BaseBoundary):
     """Implements periodic boundary conditions.
 

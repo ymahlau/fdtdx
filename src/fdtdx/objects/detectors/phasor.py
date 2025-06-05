@@ -3,12 +3,12 @@ from typing import Literal, Sequence
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.jax.pytrees import extended_autoinit, field, frozen_field
+from fdtdx.core.jax.pytrees import autoinit, field, frozen_field
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 
-@extended_autoinit
+@autoinit
 class PhasorDetector(Detector):
     """Detector for measuring frequency components of electromagnetic fields using an efficient Phasor Implementation.
 

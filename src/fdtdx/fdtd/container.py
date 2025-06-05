@@ -9,7 +9,7 @@ from typing import Callable, Self
 
 import jax
 
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field
+from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.materials import Material
 from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState
@@ -25,8 +25,8 @@ from fdtdx.objects.static_material.static import StaticMultiMaterialObject, Unif
 ParameterContainer = dict[str, dict[str, jax.Array] | jax.Array]
 
 
-@extended_autoinit
-class ObjectContainer(ExtendedTreeClass):
+@autoinit
+class ObjectContainer(TreeClass):
     """Container for managing simulation objects and their relationships.
 
     This class provides a structured way to organize and access different types of simulation
@@ -140,6 +140,29 @@ class ObjectContainer(ExtendedTreeClass):
                 return o
         raise ValueError(f"Key {key} does not exist in object list: {[o.name for o in self.objects]}")
 
+    def __setitem__(
+        self,
+        key: str,
+        val: SimulationObject,
+    ):
+        idx = -1
+        for cur_idx, o in enumerate(self.objects):
+            if o.name == key:
+                idx = cur_idx
+                break
+        if idx == -1:
+            ValueError(f"Key {key} does not exist in object list: {[o.name for o in self.objects]}")
+        self.object_list[idx] = val
+
+    def copy(
+        self,
+    ) -> "ObjectContainer":
+        new_list = self.object_list.copy()
+        return ObjectContainer(
+            object_list=new_list,
+            volume_idx=self.volume_idx,
+        )
+
     def replace_sources(
         self,
         sources: list[Source],
@@ -149,8 +172,8 @@ class ObjectContainer(ExtendedTreeClass):
         return self
 
 
-@extended_autoinit
-class ArrayContainer(ExtendedTreeClass):
+@autoinit
+class ArrayContainer(TreeClass):
     """Container for simulation field arrays and states.
 
     This class holds the electromagnetic field arrays and various state information

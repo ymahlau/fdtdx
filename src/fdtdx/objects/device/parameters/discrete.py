@@ -3,7 +3,7 @@ from typing import Sequence
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, frozen_private_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field, frozen_private_field
 from fdtdx.core.jax.ste import straight_through_estimator
 from fdtdx.core.misc import PaddingConfig, get_background_material_name
 from fdtdx.materials import compute_ordered_names
@@ -18,7 +18,7 @@ from fdtdx.objects.device.parameters.transform import (
 from fdtdx.typing import ParameterType
 
 
-@extended_autoinit
+@autoinit
 class RemoveFloatingMaterial(SameShapeTypeParameterTransform):
     """Finds all material that floats in the air and sets their permittivity to air.
 
@@ -59,7 +59,7 @@ class RemoveFloatingMaterial(SameShapeTypeParameterTransform):
         return {single_key: result}
 
 
-@extended_autoinit
+@autoinit
 class ConnectHolesAndStructures(SameShapeTypeParameterTransform):
     """Connects floating polymer regions and ensures air holes connect to outside.
 
@@ -138,7 +138,7 @@ BOTTOM_Z_PADDING_CONFIG = PaddingConfig(
 )
 
 
-@extended_autoinit
+@autoinit
 class BinaryMedianFilterModule(SameShapeTypeParameterTransform):
     """Performs 3D binary median filtering on the design.
 
