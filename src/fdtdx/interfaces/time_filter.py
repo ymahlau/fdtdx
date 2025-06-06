@@ -170,17 +170,17 @@ class LinearReconstructEveryK(TimeStepFilter):
         dict[str, jax.ShapeDtypeStruct],  # data
         dict[str, jax.ShapeDtypeStruct],  # state shapes
     ]:
-        self = self.aset("_time_steps_max", time_steps_max)
-        self = self.aset("_input_shape_dtypes", input_shape_dtypes)
-        self = self.aset("_output_shape_dtypes", input_shape_dtypes)
+        self = self.aset("_time_steps_max", time_steps_max, create_new_ok=True)
+        self = self.aset("_input_shape_dtypes", input_shape_dtypes, create_new_ok=True)
+        self = self.aset("_output_shape_dtypes", input_shape_dtypes, create_new_ok=True)
 
         # init list of all time steps to save
         all_time_steps = jnp.arange(self.start_recording_after, self._time_steps_max, self.k).tolist()
         if all_time_steps[-1] != self._time_steps_max - 1:
             all_time_steps.append(self._time_steps_max - 1)
 
-        self = self.aset("_save_time_steps", jnp.asarray(all_time_steps, dtype=jnp.int32))
-        self = self.aset("_array_size", len(all_time_steps))
+        self = self.aset("_save_time_steps", jnp.asarray(all_time_steps, dtype=jnp.int32), create_new_ok=True)
+        self = self.aset("_array_size", len(all_time_steps), create_new_ok=True)
 
         # mapping between time steps and array indices
         index_tmp = jnp.arange(0, self._array_size, dtype=jnp.int32)
@@ -194,7 +194,7 @@ class LinearReconstructEveryK(TimeStepFilter):
                 time_indices,
             )
             time_indices = time_indices.at[: self.k].set(0)
-        self = self.aset("_time_to_arr_idx", time_indices)
+        self = self.aset("_time_to_arr_idx", time_indices, create_new_ok=True)
         return self, self._array_size, input_shape_dtypes, {}
 
     def time_to_array_index(

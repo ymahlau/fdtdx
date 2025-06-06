@@ -15,6 +15,14 @@ from pytreeclass._src.code_build import (
 from pytreeclass._src.tree_base import TreeClassIndexer
 
 
+def safe_hasattr(obj, name) -> bool:
+    try:
+        result = hasattr(obj, name)
+        return result
+    except:
+        return False
+
+
 class ExtendedTreeClassIndexer(TreeClassIndexer):
     """Extended indexer for tree class that preserves type information.
 
@@ -183,7 +191,7 @@ class TreeClass(tc.TreeClass):
         current_parent = self
         for idx, (op, op_type) in enumerate(ops):
             if op_type == "attribute":
-                if op not in dir(current_parent):
+                if not safe_hasattr(current_parent, op):
                     if idx != len(ops) - 1 or not create_new_ok:
                         raise Exception(f"Attribute: {op} does not exist for {current_parent.__class__}")
                     current_parent = None

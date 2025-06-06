@@ -38,8 +38,8 @@ class Recorder(TreeClass):
         max_time_steps: int,
         backend: BackendOption,
     ) -> tuple[Self, RecordingState]:
-        self = self.aset("_max_time_steps", max_time_steps)
-        self = self.aset("_input_shape_dtypes", input_shape_dtypes)
+        self = self.aset("_max_time_steps", max_time_steps, create_new_ok=True)
+        self = self.aset("_input_shape_dtypes", input_shape_dtypes, create_new_ok=True)
 
         latent_arr_size, out_shapes = max_time_steps, input_shape_dtypes
         state_sizes: dict[str, jax.ShapeDtypeStruct] = {}

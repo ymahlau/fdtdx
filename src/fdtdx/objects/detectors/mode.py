@@ -92,8 +92,8 @@ class ModeOverlapDetector(PhasorDetector):
             filter_pol=self.filter_pol,
         )
 
-        self = self.aset("_mode_E", mode_E)
-        self = self.aset("_mode_H", mode_H)
+        self = self.aset("_mode_E", mode_E, create_new_ok=True)
+        self = self.aset("_mode_H", mode_H, create_new_ok=True)
         return self
 
     def compute_overlap_to_mode(

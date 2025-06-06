@@ -119,8 +119,8 @@ class Detector(SimulationObject, ABC):
         # determine number of time steps on
         on_list = self._calculate_on_list()
         on_arr = jnp.asarray(on_list, dtype=jnp.bool)
-        self = self.aset("_is_on_at_time_step_arr", on_arr)
-        self = self.aset("_num_time_steps_on", sum(on_list))
+        self = self.aset("_is_on_at_time_step_arr", on_arr, create_new_ok=True)
+        self = self.aset("_num_time_steps_on", sum(on_list), create_new_ok=True)
         # calculate mapping time step -> arr index
         counter = 0
         num_t = self._config.time_steps_total
@@ -130,7 +130,7 @@ class Detector(SimulationObject, ABC):
                 time_to_arr_idx_list[t] = counter
                 counter += 1
         time_to_arr_idx_arr = jnp.asarray(time_to_arr_idx_list, dtype=jnp.int32)
-        self = self.aset("_time_step_to_arr_idx", time_to_arr_idx_arr)
+        self = self.aset("_time_step_to_arr_idx", time_to_arr_idx_arr, create_new_ok=True)
         return self
 
     def init_state(

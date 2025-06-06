@@ -193,10 +193,10 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
             inv_permittivities=inv_permittivities,
             inv_permeabilities=inv_permeabilities,
         )
-        self = self.aset("_E", E)
-        self = self.aset("_H", H)
-        self = self.aset("_time_offset_E", time_offset_E)
-        self = self.aset("_time_offset_H", time_offset_H)
+        self = self.aset("_E", E, create_new_ok=True)
+        self = self.aset("_H", H, create_new_ok=True)
+        self = self.aset("_time_offset_E", time_offset_E, create_new_ok=True)
+        self = self.aset("_time_offset_H", time_offset_H, create_new_ok=True)
         return self
 
     def update_E(

@@ -238,7 +238,7 @@ class SimulationObject(TreeClass, ABC):
             if s1 < 0 or s2 < 0 or s2 <= s1:
                 raise Exception(f"Invalid placement of object {self} at {grid_slice_tuple}")
         self = self.aset("_grid_slice_tuple", grid_slice_tuple)
-        self = self.aset("_config", config)
+        self = self.aset("_config", config, create_new_ok=True)
         return self
 
     def apply(

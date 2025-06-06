@@ -63,14 +63,14 @@ class Source(SimulationObject, ABC):
             num_total_time_steps=self._config.time_steps_total,
         )
         on_arr = jnp.asarray(on_list, dtype=jnp.bool)
-        self = self.aset("_is_on_at_time_step_arr", on_arr)
+        self = self.aset("_is_on_at_time_step_arr", on_arr, create_new_ok=True)
         # calculate mapping time step -> on index
         time_to_arr_idx_list = self.switch.calculate_time_step_to_on_arr_idx(
             time_step_duration=self._config.time_step_duration,
             num_total_time_steps=self._config.time_steps_total,
         )
         time_to_arr_idx_arr = jnp.asarray(time_to_arr_idx_list, dtype=jnp.int32)
-        self = self.aset("_time_step_to_on_idx", time_to_arr_idx_arr)
+        self = self.aset("_time_step_to_on_idx", time_to_arr_idx_arr, create_new_ok=True)
         return self
 
     @abstractmethod

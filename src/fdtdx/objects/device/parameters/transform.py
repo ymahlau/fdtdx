@@ -33,14 +33,14 @@ class ParameterTransformation(TreeClass, ABC):
         single_voxel_size: tuple[float, float, float],
         output_shape: dict[str, tuple[int, ...]],
     ) -> Self:
-        self = self.aset("_config", config)
-        self = self.aset("_materials", materials)
-        self = self.aset("_matrix_voxel_grid_shape", matrix_voxel_grid_shape)
-        self = self.aset("_single_voxel_size", single_voxel_size)
+        self = self.aset("_config", config, create_new_ok=True)
+        self = self.aset("_materials", materials, create_new_ok=True)
+        self = self.aset("_matrix_voxel_grid_shape", matrix_voxel_grid_shape, create_new_ok=True)
+        self = self.aset("_single_voxel_size", single_voxel_size, create_new_ok=True)
 
-        self = self.aset("_output_shape", output_shape)
+        self = self.aset("_output_shape", output_shape, create_new_ok=True)
         input_shape = self.get_input_shape(output_shape)
-        self = self.aset("_input_shape", input_shape)
+        self = self.aset("_input_shape", input_shape, create_new_ok=True)
         return self
 
     def init_type(
@@ -48,10 +48,10 @@ class ParameterTransformation(TreeClass, ABC):
         input_type: dict[str, ParameterType],
     ) -> Self:
         # given input type
-        self = self.aset("_input_type", input_type)
+        self = self.aset("_input_type", input_type, create_new_ok=True)
         # compute output type
         output_type = self.get_output_type(input_type)
-        self = self.aset("_output_type", output_type)
+        self = self.aset("_output_type", output_type, create_new_ok=True)
         return self
 
     def get_output_type(
