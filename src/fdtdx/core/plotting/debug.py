@@ -40,6 +40,7 @@ def debug_plot_2d(
     show_values: bool = False,
     tmp_dir: str | Path = "outputs/tmp/debug",
     filename: str | None = None,
+    center_zero: bool = False,
 ) -> None:
     """Creates a debug visualization of a 2D array and saves it to disk.
 
@@ -70,6 +71,14 @@ def debug_plot_2d(
         filename = generate_unique_filename("debug", "png")
 
     plt.figure(figsize=(10, 8))
+    
+    # Set up colormap centering
+    if center_zero:
+        # Find the maximum absolute value to center around zero
+        vmax = np.max(np.abs(array))
+        vmin = -vmax
+    else:
+        vmin, vmax = None, None
 
     # Create heatmap
     im = plt.imshow(
@@ -77,6 +86,8 @@ def debug_plot_2d(
         cmap=cmap,
         origin="lower",
         aspect="equal",
+        vmin=vmin,
+        vmax=vmax,
     )
 
     plt.colorbar(im)
