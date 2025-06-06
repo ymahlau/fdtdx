@@ -186,9 +186,9 @@ class TreeClass(tc.TreeClass):
                 if op not in dir(current_parent):
                     if idx != len(ops) - 1 or not create_new_ok:
                         raise Exception(f"Attribute: {op} does not exist for {current_parent.__class__}")
-                    current_parent = getattr(current_parent, op)
-                else:
                     current_parent = None
+                else:
+                    current_parent = getattr(current_parent, op)
             elif op_type == "index":
                 if "__getitem__" not in dir(current_parent):
                         raise Exception(f"{current_parent.__class__} does not implement __getitem__")
@@ -199,9 +199,9 @@ class TreeClass(tc.TreeClass):
                 if op not in current_parent:  # type: ignore
                     if idx != len(ops) - 1 or not create_new_ok:
                         raise Exception(f"Key: {op} does not exist for {current_parent}")
-                    current_parent = current_parent[op]  # type: ignore
-                else:
                     current_parent = None
+                else:
+                    current_parent = current_parent[op]  # type: ignore
             else:
                 raise Exception(f"Invalid operation type: {op_type}. This is an internal bug!")
             if idx != len(ops) - 1:
