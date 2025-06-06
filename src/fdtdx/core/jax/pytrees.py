@@ -183,21 +183,29 @@ class TreeClass(tc.TreeClass):
         current_parent = self
         for idx, (op, op_type) in enumerate(ops):
             if op_type == "attribute":
-                if not hasattr(current_parent, op) and not create_new_ok:
-                    raise Exception(f"Attribute: {op} does not exist for {current_parent.__class__}")
-                current_parent = getattr(current_parent, op)
+                if op not in dir(current_parent):
+                    if idx != len(ops) - 1 or not create_new_ok:
+                        raise Exception(f"Attribute: {op} does not exist for {current_parent.__class__}")
+                    current_parent = getattr(current_parent, op)
+                else:
+                    current_parent = None
             elif op_type == "index":
-                if not hasattr(current_parent, "__getitem__"):
-                    raise Exception(f"{current_parent.__class__} does not implement __getitem__")
+                if "__getitem__" not in dir(current_parent):
+                        raise Exception(f"{current_parent.__class__} does not implement __getitem__")
                 current_parent = current_parent[int(op)]  # type: ignore
             elif op_type == "key":
-                if not hasattr(current_parent, "__getitem__"):
+                if "__getitem__" not in dir(current_parent):
                     raise Exception(f"{current_parent.__class__} does not implement __getitem__")
-                current_parent = current_parent[op]  # type: ignore
+                if op not in current_parent:  # type: ignore
+                    if idx != len(ops) - 1 or not create_new_ok:
+                        raise Exception(f"Key: {op} does not exist for {current_parent}")
+                    current_parent = current_parent[op]  # type: ignore
+                else:
+                    current_parent = None
             else:
                 raise Exception(f"Invalid operation type: {op_type}. This is an internal bug!")
             if idx != len(ops) - 1:
-                attr_list.append(current_parent)
+                attr_list.append(current_parent)  # type: ignore
 
         # from bottom-up set attributes and update
         cur_attr = val
@@ -209,7 +217,7 @@ class TreeClass(tc.TreeClass):
                     raise Exception(f"Can only set attribute on ExtendedTreeClass, but got {current_parent.__class__}")
                 _, cur_attr = current_parent.at["_aset"](op, cur_attr)
             elif op_type == "index":
-                if not hasattr(current_parent, "__setitem__"):
+                if "__setitem__" not in dir(current_parent):
                     raise Exception(
                         f"Can only update by index if __setitem__ is implemented, but got {current_parent.__class__}"
                     )
@@ -217,7 +225,7 @@ class TreeClass(tc.TreeClass):
                 cpy[int(op)] = cur_attr  # type: ignore
                 cur_attr = cpy
             elif op_type == "key":
-                if not hasattr(current_parent, "__setitem__"):
+                if "__setitem__" not in dir(current_parent):
                     raise Exception(
                         f"Can only update by index if __setitem__ is implemented, but got {current_parent.__class__}"
                     )
