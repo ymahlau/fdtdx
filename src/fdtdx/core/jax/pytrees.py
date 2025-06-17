@@ -19,7 +19,7 @@ def safe_hasattr(obj, name) -> bool:
     try:
         result = hasattr(obj, name)
         return result
-    except:
+    except AttributeError:
         return False
 
 
