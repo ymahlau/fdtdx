@@ -71,7 +71,7 @@ def debug_plot_2d(
         filename = generate_unique_filename("debug", "png")
 
     plt.figure(figsize=(10, 8))
-    
+
     # Set up colormap centering
     if center_zero:
         # Find the maximum absolute value to center around zero

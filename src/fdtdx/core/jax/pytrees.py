@@ -199,7 +199,7 @@ class TreeClass(tc.TreeClass):
                     current_parent = getattr(current_parent, op)
             elif op_type == "index":
                 if "__getitem__" not in dir(current_parent):
-                        raise Exception(f"{current_parent.__class__} does not implement __getitem__")
+                    raise Exception(f"{current_parent.__class__} does not implement __getitem__")
                 current_parent = current_parent[int(op)]  # type: ignore
             elif op_type == "key":
                 if "__getitem__" not in dir(current_parent):

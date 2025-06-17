@@ -483,16 +483,10 @@ def advanced_padding(
     # default values
     if len(padding_cfg.widths) == 1:
         padding_cfg = padding_cfg.aset(
-            "widths", 
-            [padding_cfg.widths[0] for _ in range(2 * arr.ndim)], 
-            create_new_ok=True
+            "widths", [padding_cfg.widths[0] for _ in range(2 * arr.ndim)], create_new_ok=True
         )
     if len(padding_cfg.modes) == 1:
-        padding_cfg = padding_cfg.aset(
-            "modes", 
-            [padding_cfg.modes[0] for _ in range(2 * arr.ndim)], 
-            create_new_ok=True
-        )
+        padding_cfg = padding_cfg.aset("modes", [padding_cfg.modes[0] for _ in range(2 * arr.ndim)], create_new_ok=True)
     if padding_cfg.values is None:
         padding_cfg = padding_cfg.aset("values", [0 for _ in range(2 * arr.ndim)])
     if len(padding_cfg.values) == 1:

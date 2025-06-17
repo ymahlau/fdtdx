@@ -139,7 +139,7 @@ class ObjectContainer(TreeClass):
             if o.name == key:
                 return o
         raise ValueError(f"Key {key} does not exist in object list: {[o.name for o in self.objects]}")
-    
+
     def __contains__(
         self,
         key: str,
