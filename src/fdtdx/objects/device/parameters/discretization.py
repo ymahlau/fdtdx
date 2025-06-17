@@ -365,7 +365,7 @@ class PillarDiscretization(ParameterTransformation):
             fill_holes_with_index=[background_idx],
             single_polymer_columns=self.single_polymer_columns,
         )
-        self = self.aset("_allowed_indices", allowed_columns)
+        self = self.aset("_allowed_indices", allowed_columns, create_new_ok=True)
         logger.info(f"{allowed_columns=}")
         logger.info(f"{allowed_columns.shape=}")
         return self

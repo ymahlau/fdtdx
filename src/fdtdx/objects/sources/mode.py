@@ -47,8 +47,8 @@ class ModePlaneSource(TFSFPlaneSource):
         else:
             inv_permeability_slice = inv_permeabilities
 
-        self = self.aset("_inv_permittivity", inv_permittivity_slice)
-        self = self.aset("_inv_permeability", inv_permeability_slice)
+        self = self.aset("_inv_permittivity", inv_permittivity_slice, create_new_ok=True)
+        self = self.aset("_inv_permeability", inv_permeability_slice, create_new_ok=True)
 
         return self
 

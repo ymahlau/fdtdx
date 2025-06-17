@@ -193,10 +193,10 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
             inv_permittivities=inv_permittivities,
             inv_permeabilities=inv_permeabilities,
         )
-        self = self.aset("_E", E)
-        self = self.aset("_H", H)
-        self = self.aset("_time_offset_E", time_offset_E)
-        self = self.aset("_time_offset_H", time_offset_H)
+        self = self.aset("_E", E, create_new_ok=True)
+        self = self.aset("_H", H, create_new_ok=True)
+        self = self.aset("_time_offset_E", time_offset_E, create_new_ok=True)
+        self = self.aset("_time_offset_H", time_offset_H, create_new_ok=True)
         return self
 
     def update_E(
@@ -224,11 +224,13 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
             period=self.wave_character.period,
             phase_shift=self.wave_character.phase_shift,
         )
+        amplitude_H_h = amplitude_H_h * self.static_amplitude_factor
         amplitude_H_v = self.temporal_profile.get_amplitude(
             time=time_H_v,
             period=self.wave_character.period,
             phase_shift=self.wave_character.phase_shift,
         )
+        amplitude_H_v = amplitude_H_v * self.static_amplitude_factor
 
         # vertical incident wave part
         H_v_inc = self._H[self.vertical_axis] * amplitude_H_v
@@ -282,11 +284,13 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
             period=self.wave_character.period,
             phase_shift=self.wave_character.phase_shift,
         )
+        amplitude_E_h = amplitude_E_h * self.static_amplitude_factor
         amplitude_E_v = self.temporal_profile.get_amplitude(
             time=time_E_v,
             period=self.wave_character.period,
             phase_shift=self.wave_character.phase_shift,
         )
+        amplitude_E_v = amplitude_E_v * self.static_amplitude_factor
 
         # horizontal incident wave part
         E_h_inc = self._E[self.horizontal_axis] * amplitude_E_h

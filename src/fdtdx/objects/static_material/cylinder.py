@@ -28,7 +28,7 @@ class Cylinder(StaticMultiMaterialObject):
     """
 
     radius: float = frozen_field()
-    material: Material = field()
+    materials: Material = field()  # type: ignore
     axis: int = frozen_field()
     color: tuple[float, float, float] | None = frozen_field(default=LIGHT_GREY)
     # make private attribute here
@@ -69,9 +69,9 @@ class Cylinder(StaticMultiMaterialObject):
             key=key,
         )
         permittivity_config = {
-            "material": self.material,
+            "material": self.materials,
         }
-        self = self.aset("permittivity_config", permittivity_config)
+        self = self.aset("materials", permittivity_config)
         return self
 
     def get_voxel_mask_for_shape(self) -> jax.Array:

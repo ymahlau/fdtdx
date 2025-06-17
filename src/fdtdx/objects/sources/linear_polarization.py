@@ -7,6 +7,7 @@ from fdtdx.core.grid import calculate_time_offset_yee
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.linalg import get_wave_vector_raw, rotate_vector
 from fdtdx.core.misc import linear_interpolated_indexing, normalize_polarization_for_source
+from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.objects.sources.tfsf import TFSFPlaneSource
 
 
@@ -14,6 +15,7 @@ from fdtdx.objects.sources.tfsf import TFSFPlaneSource
 class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
     fixed_E_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
     fixed_H_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
+    normalize_by_energy: bool = frozen_field(default=True)
 
     def get_EH_variation(
         self,
@@ -89,6 +91,17 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
 
         E = amplitude * e_pol[:, None, None, None]
         H = amplitude * h_pol[:, None, None, None]
+
+        if self.normalize_by_energy:
+            energy = compute_energy(
+                E=E,
+                H=H,
+                inv_permittivity=inv_permittivities,
+                inv_permeability=inv_permeabilities,
+            )
+            total_energy_root = jnp.sqrt(energy.sum())
+            E = E / total_energy_root
+            H = H / total_energy_root
 
         # adjust H for impedance of the medium
         impedance = jnp.sqrt(inv_permittivities / inv_permeabilities)

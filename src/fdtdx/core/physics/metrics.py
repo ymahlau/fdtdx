@@ -13,7 +13,7 @@ import jax.numpy as jnp
 def compute_energy(
     E: jax.Array,
     H: jax.Array,
-    inv_permittivity: jax.Array,
+    inv_permittivity: jax.Array | float,
     inv_permeability: jax.Array | float,
     axis: int = 0,
 ) -> jax.Array:
@@ -41,7 +41,7 @@ def compute_energy(
 def normalize_by_energy(
     E: jax.Array,
     H: jax.Array,
-    inv_permittivity: jax.Array,
+    inv_permittivity: jax.Array | float,
     inv_permeability: jax.Array | float,
 ) -> tuple[jax.Array, jax.Array]:
     """Normalizes electromagnetic fields by their total energy.
@@ -67,7 +67,7 @@ def normalize_by_energy(
     return norm_E, norm_H
 
 
-def poynting_flux(E: jax.Array, H: jax.Array, axis: int = 0) -> jax.Array:
+def compute_poynting_flux(E: jax.Array, H: jax.Array, axis: int = 0) -> jax.Array:
     """Calculates the Poynting vector (energy flux) from E and H fields.
 
     Args:

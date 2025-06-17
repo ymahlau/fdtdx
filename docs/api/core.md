@@ -12,5 +12,5 @@ Convenience function that computes the ratio between a physical metrics measured
 ::: fdtdx.compute_energy
 Computes the physical energy in the simualation grid.
 
-::: fdtdx.poynting_flux
+::: fdtdx.compute_poynting_flux
 Computes the poynting flux.

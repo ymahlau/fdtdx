@@ -140,6 +140,15 @@ class ObjectContainer(TreeClass):
                 return o
         raise ValueError(f"Key {key} does not exist in object list: {[o.name for o in self.objects]}")
 
+    def __contains__(
+        self,
+        key: str,
+    ) -> bool:
+        for o in self.objects:
+            if o.name == key:
+                return True
+        return False
+
     def __setitem__(
         self,
         key: str,
