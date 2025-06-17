@@ -1,0 +1,10 @@
+black>=24.10.0
+mkdocs>=1.6.1
+mkdocs-material>=9.5.48
+mkdocstrings[python]>=0.27.0
+pre-commit>=4.0.1
+pymdown-extensions>=10.12
+pytest>=8.3.4
+pytest-cov>=6.0.0
+ruff>=0.8.2
+tox-uv>=1.16.1
