@@ -1,14 +1,9 @@
-from typing import Self
-
 import jax
 import jax.numpy as jnp
 
-from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import autoinit, field, frozen_field, frozen_private_field
-from fdtdx.core.plotting.colors import LIGHT_GREY
-from fdtdx.materials import Material, compute_ordered_names
+from fdtdx.core.jax.pytrees import autoinit, frozen_field
+from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
-from fdtdx.typing import UNDEFINED_SHAPE_3D, PartialGridShape3D, PartialRealShape3D, SliceTuple3D
 
 
 @autoinit
@@ -23,6 +18,7 @@ class Cylinder(StaticMultiMaterialObject):
         axis: The principal axis along which the fiber extends (0=x, 1=y, 2=z).
         material_name: Name of the material in the materials dictionary to be used for the object
     """
+
     radius: float = frozen_field()
     axis: int = frozen_field()
     material_name: str = frozen_field()

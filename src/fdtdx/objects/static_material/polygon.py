@@ -1,15 +1,11 @@
-from typing import Self
-
 import jax
 import jax.numpy as jnp
 import numpy as np
 
-from fdtdx.config import SimulationConfig
 from fdtdx.core.grid import polygon_to_mask
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
-from fdtdx.typing import SliceTuple3D
 
 
 @autoinit
@@ -22,6 +18,7 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
         axis: The extrusion axis.
         vertices: numpy array of shape (N, 2) specifying the position of vertices in metrical units (meter).
     """
+
     material_name: str = frozen_field()
     axis: int = frozen_field()
     vertices: np.ndarray = frozen_field()
@@ -47,7 +44,7 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
     def get_voxel_mask_for_shape(self) -> jax.Array:
         width = self.grid_shape[self.horizontal_axis]
         height = self.grid_shape[self.vertical_axis]
-        
+
         half_res = 0.5 * self._config.resolution
         maxx = (width - 0.5) * self._config.resolution
         maxy = (height - 0.5) * self._config.resolution
@@ -62,7 +59,7 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
             repeats=extrusion_height,
             axis=self.axis,
         )
-        
+
         return mask
 
     def get_material_mapping(
