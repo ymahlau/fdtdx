@@ -6,7 +6,7 @@ import jax.numpy as jnp
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, field, frozen_field, frozen_private_field
 from fdtdx.core.plotting.colors import LIGHT_BLUE
-from fdtdx.materials import Material
+from fdtdx.materials import Material, compute_ordered_names
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
 from fdtdx.typing import UNDEFINED_SHAPE_3D, PartialGridShape3D, PartialRealShape3D, SliceTuple3D
 
@@ -20,38 +20,18 @@ class Sphere(StaticMultiMaterialObject):
 
     Attributes:
         radius: The default radius of the sphere in meter (used if specific axis radii are not provided).
+        material_name: Name of the material in the materials dictionary to be used for the object
         radius_x: The radius along the x-axis in meter (optional, defaults to radius).
         radius_y: The radius along the y-axis in meter (optional, defaults to radius).
         radius_z: The radius along the z-axis in meter (optional, defaults to radius).
-        material: The material properties of the sphere/ellipsoid.
     """
 
     radius: float = frozen_field()
-    material: Material = field()
+    material_name: str = frozen_field()
     # Optional parameters for ellipsoid shape
     radius_x: float | None = frozen_field(default=None)
     radius_y: float | None = frozen_field(default=None)
     radius_z: float | None = frozen_field(default=None)
-    color: tuple[float, float, float] | None = frozen_field(default=LIGHT_BLUE)
-    partial_voxel_grid_shape: PartialGridShape3D = frozen_private_field(default=UNDEFINED_SHAPE_3D)
-    partial_voxel_real_shape: PartialRealShape3D = frozen_private_field(default=UNDEFINED_SHAPE_3D)
-
-    def place_on_grid(
-        self: Self,
-        grid_slice_tuple: SliceTuple3D,
-        config: SimulationConfig,
-        key: jax.Array,
-    ) -> Self:
-        self = super().place_on_grid(
-            grid_slice_tuple=grid_slice_tuple,
-            config=config,
-            key=key,
-        )
-        permittivity_config = {
-            "material": self.material,
-        }
-        self = self.aset("permittivity_config", permittivity_config)
-        return self
 
     def get_voxel_mask_for_shape(self) -> jax.Array:
         """Generates a voxel mask for a sphere or ellipsoid shape.
@@ -91,7 +71,7 @@ class Sphere(StaticMultiMaterialObject):
     def get_material_mapping(
         self,
     ) -> jax.Array:
-        return jnp.zeros(
-            self.grid_shape,
-            dtype=jnp.int32,
-        )
+        all_names = compute_ordered_names(self.materials)
+        idx = all_names.index(self.material_name)
+        arr = jnp.ones(self.grid_shape, dtype=jnp.int32) * idx
+        return arr

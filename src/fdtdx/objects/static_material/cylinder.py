@@ -6,7 +6,7 @@ import jax.numpy as jnp
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, field, frozen_field, frozen_private_field
 from fdtdx.core.plotting.colors import LIGHT_GREY
-from fdtdx.materials import Material
+from fdtdx.materials import Material, compute_ordered_names
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
 from fdtdx.typing import UNDEFINED_SHAPE_3D, PartialGridShape3D, PartialRealShape3D, SliceTuple3D
 
@@ -20,20 +20,12 @@ class Cylinder(StaticMultiMaterialObject):
 
     Attributes:
         radius: The radius of the fiber in meter.
-        material: The material properties of the fiber.
         axis: The principal axis along which the fiber extends (0=x, 1=y, 2=z).
-        partial_voxel_grid_shape: The shape of the voxel grid in grid units.
-        partial_voxel_real_shape: The shape of the voxel grid in physical units.
-        color: RGB color tuple for visualization (default=LIGHT_GREY).
+        material_name: Name of the material in the materials dictionary to be used for the object
     """
-
     radius: float = frozen_field()
-    materials: Material = field()  # type: ignore
     axis: int = frozen_field()
-    color: tuple[float, float, float] | None = frozen_field(default=LIGHT_GREY)
-    # make private attribute here
-    partial_voxel_grid_shape: PartialGridShape3D = frozen_private_field(default=UNDEFINED_SHAPE_3D)
-    partial_voxel_real_shape: PartialRealShape3D = frozen_private_field(default=UNDEFINED_SHAPE_3D)
+    material_name: str = frozen_field()
 
     @property
     def horizontal_axis(self) -> int:
@@ -57,23 +49,6 @@ class Cylinder(StaticMultiMaterialObject):
             return 1
         return 2
 
-    def place_on_grid(
-        self: Self,
-        grid_slice_tuple: SliceTuple3D,
-        config: SimulationConfig,
-        key: jax.Array,
-    ) -> Self:
-        self = super().place_on_grid(
-            grid_slice_tuple=grid_slice_tuple,
-            config=config,
-            key=key,
-        )
-        permittivity_config = {
-            "material": self.materials,
-        }
-        self = self.aset("materials", permittivity_config)
-        return self
-
     def get_voxel_mask_for_shape(self) -> jax.Array:
         width = self.grid_shape[self.vertical_axis]
         height = self.grid_shape[self.horizontal_axis]
@@ -92,7 +67,7 @@ class Cylinder(StaticMultiMaterialObject):
     def get_material_mapping(
         self,
     ) -> jax.Array:
-        return jnp.zeros(
-            self.grid_shape,
-            dtype=jnp.int32,
-        )
+        all_names = compute_ordered_names(self.materials)
+        idx = all_names.index(self.material_name)
+        arr = jnp.ones(self.grid_shape, dtype=jnp.int32) * idx
+        return arr
