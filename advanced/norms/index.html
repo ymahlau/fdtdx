@@ -12,13 +12,9 @@
         <meta name="author" content="Yannik Mahlau and Frederik Schubert">
       
       
-        <link rel="canonical" href="https://ymahlau.github.io/fdtdx/api/typing/">
+        <link rel="canonical" href="https://ymahlau.github.io/fdtdx/advanced/norms/">
       
       
-        <link rel="prev" href="../materials/">
-      
-      
-        <link rel="next" href="../utils/">
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
@@ -26,7 +22,7 @@
     
     
       
-        <title>Typing - FDTDX</title>
+        <title>Norms - FDTDX</title>
       
     
     
@@ -82,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#_1" class="md-skip">
+        <a href="#conventions-and-normalizations-used-in-fdtdx" class="md-skip">
           Skip to content
         </a>
       
@@ -118,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Typing
+              Norms
             
           </span>
         </div>
@@ -453,20 +449,18 @@
       
   
   
-    
   
   
-  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
         
           
           <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
@@ -482,7 +476,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             API Reference
@@ -496,7 +490,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../" class="md-nav__link">
+      <a href="../../api/" class="md-nav__link">
         
   
   
@@ -557,7 +551,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../objects/" class="md-nav__link">
+      <a href="../../api/objects/" class="md-nav__link">
         
   
   
@@ -580,7 +574,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../objects/boundaries/" class="md-nav__link">
+      <a href="../../api/objects/boundaries/" class="md-nav__link">
         
   
   
@@ -603,7 +597,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../objects/detectors/" class="md-nav__link">
+      <a href="../../api/objects/detectors/" class="md-nav__link">
         
   
   
@@ -626,7 +620,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../objects/device/" class="md-nav__link">
+      <a href="../../api/objects/device/" class="md-nav__link">
         
   
   
@@ -649,7 +643,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../objects/object/" class="md-nav__link">
+      <a href="../../api/objects/object/" class="md-nav__link">
         
   
   
@@ -672,7 +666,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../objects/sources/" class="md-nav__link">
+      <a href="../../api/objects/sources/" class="md-nav__link">
         
   
   
@@ -695,7 +689,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../objects/static_material/" class="md-nav__link">
+      <a href="../../api/objects/static_material/" class="md-nav__link">
         
   
   
@@ -726,7 +720,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../fdtd/" class="md-nav__link">
+      <a href="../../api/fdtd/" class="md-nav__link">
         
   
   
@@ -749,7 +743,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../config/" class="md-nav__link">
+      <a href="../../api/config/" class="md-nav__link">
         
   
   
@@ -772,7 +766,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../constants/" class="md-nav__link">
+      <a href="../../api/constants/" class="md-nav__link">
         
   
   
@@ -795,7 +789,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../interfaces/" class="md-nav__link">
+      <a href="../../api/interfaces/" class="md-nav__link">
         
   
   
@@ -818,7 +812,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../materials/" class="md-nav__link">
+      <a href="../../api/materials/" class="md-nav__link">
         
   
   
@@ -838,30 +832,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    Typing
-    
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../api/typing/" class="md-nav__link">
         
   
   
@@ -872,108 +846,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#shape-types" class="md-nav__link">
-    <span class="md-ellipsis">
-      Shape Types
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Shape Types">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#fdtdx.typing.RealShape3D" class="md-nav__link">
-    <span class="md-ellipsis">
-      RealShape3D
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#fdtdx.typing.PartialRealShape3D" class="md-nav__link">
-    <span class="md-ellipsis">
-      PartialRealShape3D
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#fdtdx.typing.GridShape3D" class="md-nav__link">
-    <span class="md-ellipsis">
-      GridShape3D
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#fdtdx.typing.PartialGridShape3D" class="md-nav__link">
-    <span class="md-ellipsis">
-      PartialGridShape3D
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#backed" class="md-nav__link">
-    <span class="md-ellipsis">
-      Backed
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Backed">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#fdtdx.typing.BackendOption" class="md-nav__link">
-    <span class="md-ellipsis">
-      BackendOption
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -986,7 +858,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../utils/" class="md-nav__link">
+      <a href="../../api/utils/" class="md-nav__link">
         
   
   
@@ -1009,7 +881,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../core/" class="md-nav__link">
+      <a href="../../api/core/" class="md-nav__link">
         
   
   
@@ -1057,79 +929,46 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#_1" class="md-nav__link">
+  <a href="#conventions-and-normalizations-used-in-fdtdx" class="md-nav__link">
     <span class="md-ellipsis">
-      
+      Conventions and normalizations used in FDTDX
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#shape-types" class="md-nav__link">
-    <span class="md-ellipsis">
-      Shape Types
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Shape Types">
+    <nav class="md-nav" aria-label="Conventions and normalizations used in FDTDX">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#fdtdx.typing.RealShape3D" class="md-nav__link">
+  <a href="#where-is-the-origin" class="md-nav__link">
     <span class="md-ellipsis">
-      RealShape3D
+      Where is the origin?
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#fdtdx.typing.PartialRealShape3D" class="md-nav__link">
+  <a href="#where-is-up" class="md-nav__link">
     <span class="md-ellipsis">
-      PartialRealShape3D
+      Where is up?
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#fdtdx.typing.GridShape3D" class="md-nav__link">
+  <a href="#which-direction-to-go" class="md-nav__link">
     <span class="md-ellipsis">
-      GridShape3D
+      Which direction to go?
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#fdtdx.typing.PartialGridShape3D" class="md-nav__link">
+  <a href="#physical-constants" class="md-nav__link">
     <span class="md-ellipsis">
-      PartialGridShape3D
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#backed" class="md-nav__link">
-    <span class="md-ellipsis">
-      Backed
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Backed">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#fdtdx.typing.BackendOption" class="md-nav__link">
-    <span class="md-ellipsis">
-      BackendOption
+      Physical constants
     </span>
   </a>
   
@@ -1159,120 +998,22 @@
   
 
 
-<h2 id="_1"><a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
-<h1 id="shape-types">Shape Types<a class="headerlink" href="#shape-types" title="Permanent link">&para;</a></h1>
+  <h1>Norms</h1>
 
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h2 id="fdtdx.typing.RealShape3D" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">fdtdx</span><span class="o">.</span><span class="n">typing</span><span class="o">.</span><span class="n">RealShape3D</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
-  </span>
-
-<a href="#fdtdx.typing.RealShape3D" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-
-        <p>3D shape with real-valued (physical) dimensions in meters.</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h2 id="fdtdx.typing.PartialRealShape3D" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">fdtdx</span><span class="o">.</span><span class="n">typing</span><span class="o">.</span><span class="n">PartialRealShape3D</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">OptionalAxisSize</span><span class="p">,</span> <span class="n">OptionalAxisSize</span><span class="p">,</span> <span class="n">OptionalAxisSize</span><span class="p">]</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
-  </span>
-
-<a href="#fdtdx.typing.PartialRealShape3D" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-
-        <p>Partial 3D shape where some physical dimensions may be undefined (None).</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h2 id="fdtdx.typing.GridShape3D" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">fdtdx</span><span class="o">.</span><span class="n">typing</span><span class="o">.</span><span class="n">GridShape3D</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
-  </span>
-
-<a href="#fdtdx.typing.GridShape3D" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-
-        <p>3D shape with integer dimensions in grid points.</p>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h2 id="fdtdx.typing.PartialGridShape3D" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">fdtdx</span><span class="o">.</span><span class="n">typing</span><span class="o">.</span><span class="n">PartialGridShape3D</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">OptionalGridAxisSize</span><span class="p">,</span> <span class="n">OptionalGridAxisSize</span><span class="p">,</span> <span class="n">OptionalGridAxisSize</span><span class="p">]</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
-  </span>
-
-<a href="#fdtdx.typing.PartialGridShape3D" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-
-        <p>Partial 3D grid shape where some dimensions may be undefined (None).</p>
-
-    </div>
-
-</div><h1 id="backed">Backed<a class="headerlink" href="#backed" title="Permanent link">&para;</a></h1>
-
-
-<div class="doc doc-object doc-attribute">
-
-
-
-<h2 id="fdtdx.typing.BackendOption" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">fdtdx</span><span class="o">.</span><span class="n">typing</span><span class="o">.</span><span class="n">BackendOption</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">&#39;gpu&#39;</span><span class="p">,</span> <span class="s1">&#39;tpu&#39;</span><span class="p">,</span> <span class="s1">&#39;cpu&#39;</span><span class="p">,</span> <span class="s1">&#39;METAL&#39;</span><span class="p">]</span></code>
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
-  </span>
-
-<a href="#fdtdx.typing.BackendOption" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-
-        <p>Backend options for JAX. Can be either gpu, tpu, cpu or METAL</p>
-
-    </div>
-
-</div>
+<h2 id="conventions-and-normalizations-used-in-fdtdx">Conventions and normalizations used in FDTDX<a class="headerlink" href="#conventions-and-normalizations-used-in-fdtdx" title="Permanent link">&para;</a></h2>
+<h3 id="where-is-the-origin">Where is the origin?<a class="headerlink" href="#where-is-the-origin" title="Permanent link">&para;</a></h3>
+<p>The origin is at the bottom left front corner of the simulation and corresponds to indices (0, 0, 0) in all arrays.</p>
+<h3 id="where-is-up">Where is up?<a class="headerlink" href="#where-is-up" title="Permanent link">&para;</a></h3>
+<p>In FDTDX, we assume that the following correspond to forward, sideways and up:
+- For propagation in x-axis, sideways is the y-axis, and up is the z-axis
+- For propagation in y-axis, sideways is the x-axis, and up is the z-axis
+- For propagation in z-axis, sideways is the x-axis, and up is the y-axis
+This convention is independent of the direction ("+", "-") of propagation.</p>
+<h3 id="which-direction-to-go">Which direction to go?<a class="headerlink" href="#which-direction-to-go" title="Permanent link">&para;</a></h3>
+<p>The forward direction ("+") corresponds to an increase of the index in an array. For example, from the index 5, the index 10 can be reached by going in the forward direction. Vice versa, "-" corresponds to backwards and index 5 can be reached from index 10 in this direction.</p>
+<h3 id="physical-constants">Physical constants<a class="headerlink" href="#physical-constants" title="Permanent link">&para;</a></h3>
+<p>For FDTDX, we assume that the free space permittivity (<span class="arithmatex">\(\varepsilon_{0}\)</span>) and permeability (<span class="arithmatex">\(\mu_{0}\)</span>) are 1.0. This convention can be used because FDTDX is scale-invariant (at least for linear materials). If more complicated material models are introduced enventually, this convention might have to be removed.</p>
+<p>For everything else, we use metrical units. For example, length is measured in meter, time in seconds, frequency in 1/second. Light speed is 299792458 m/s.</p>
 
 
 

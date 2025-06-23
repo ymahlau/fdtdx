@@ -2,86 +2,94 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://ymahlau.github.io/fdtdx/</loc>
-         <lastmod>2025-06-02</lastmod>
+         <lastmod>2025-06-23</lastmod>
+    </url>
+    <url>
+         <loc>https://ymahlau.github.io/fdtdx/advanced/norms/</loc>
+         <lastmod>2025-06-23</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/</loc>
-         <lastmod>2025-06-02</lastmod>
+         <lastmod>2025-06-23</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/config/</loc>
-         <lastmod>2025-06-02</lastmod>
+         <lastmod>2025-06-23</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/constants/</loc>
-         <lastmod>2025-06-02</lastmod>
+         <lastmod>2025-06-23</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/core/</loc>
-         <lastmod>2025-06-02</lastmod>
+         <lastmod>2025-06-23</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/fdtd/</loc>
-         <lastmod>2025-06-02</lastmod>
+         <lastmod>2025-06-23</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/interfaces/</loc>
-         <lastmod>2025-06-02</lastmod>
+         <lastmod>2025-06-23</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/materials/</loc>
-         <lastmod>2025-06-02</lastmod>
+         <lastmod>2025-06-23</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/typing/</loc>
-         <lastmod>2025-06-02</lastmod>
+         <lastmod>2025-06-23</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/utils/</loc>
-         <lastmod>2025-06-02</lastmod>
+         <lastmod>2025-06-23</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/objects/</loc>
-         <lastmod>2025-06-02</lastmod>
+         <lastmod>2025-06-23</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/objects/boundaries/</loc>
-         <lastmod>2025-06-02</lastmod>
+         <lastmod>2025-06-23</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/objects/detectors/</loc>
-         <lastmod>2025-06-02</lastmod>
+         <lastmod>2025-06-23</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/objects/device/</loc>
-         <lastmod>2025-06-02</lastmod>
+         <lastmod>2025-06-23</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/objects/object/</loc>
-         <lastmod>2025-06-02</lastmod>
+         <lastmod>2025-06-23</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/objects/sources/</loc>
-         <lastmod>2025-06-02</lastmod>
+         <lastmod>2025-06-23</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/objects/static_material/</loc>
-         <lastmod>2025-06-02</lastmod>
+         <lastmod>2025-06-23</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/tutorials/interface_compression/</loc>
-         <lastmod>2025-06-02</lastmod>
+         <lastmod>2025-06-23</lastmod>
+    </url>
+    <url>
+         <loc>https://ymahlau.github.io/fdtdx/tutorials/jax_introduction/</loc>
+         <lastmod>2025-06-23</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/tutorials/materials/</loc>
-         <lastmod>2025-06-02</lastmod>
+         <lastmod>2025-06-23</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/tutorials/object_placement/</loc>
-         <lastmod>2025-06-02</lastmod>
+         <lastmod>2025-06-23</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/tutorials/parameter_mapping/</loc>
-         <lastmod>2025-06-02</lastmod>
+         <lastmod>2025-06-23</lastmod>
     </url>
 </urlset>
