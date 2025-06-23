@@ -277,27 +277,28 @@ def _init_arrays(
                 magnetic_conductivity = magnetic_conductivity.at[*o.grid_slice].set(cond)
         elif isinstance(o, (StaticMultiMaterialObject)):
             indices = o.get_material_mapping()
-            if isinstance(o.materials, dict):
-                allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(o.materials))
-                update = allowed_inv_perms[indices]
-                inv_permittivities = inv_permittivities.at[*o.grid_slice].set(update)
+            mask = o.get_voxel_mask_for_shape()
 
-                if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
-                    allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permeabilities(o.materials))
-                    update = allowed_inv_perms[indices]
-                    inv_permeabilities = inv_permeabilities.at[*o.grid_slice].set(update)
+            allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(o.materials))
+            diff = inv_permittivities[*o.grid_slice] - allowed_inv_perms[indices]
+            inv_permittivities = inv_permittivities.at[*o.grid_slice].add(mask * diff)
 
-                if electric_conductivity is not None:
-                    allowed_conds = jnp.asarray(compute_allowed_electric_conductivities(o.materials))
-                    update = allowed_conds[indices] * config.resolution
-                    electric_conductivity = electric_conductivity.at[*o.grid_slice].set(update)
+            if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
+                allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permeabilities(o.materials))
+                diff = inv_permeabilities[*o.grid_slice] - allowed_inv_perms[indices]
+                inv_permeabilities = inv_permeabilities.at[*o.grid_slice].add(mask * diff)
 
-                if magnetic_conductivity is not None:
-                    allowed_conds = jnp.asarray(compute_allowed_magnetic_conductivities(o.materials))
-                    update = allowed_conds[indices] * config.resolution
-                    magnetic_conductivity = magnetic_conductivity.at[*o.grid_slice].set(update)
-            else:
-                raise Exception(f"Unknown material type: {o.materials}")
+            if electric_conductivity is not None:
+                allowed_conds = jnp.asarray(compute_allowed_electric_conductivities(o.materials))
+                update = allowed_conds[indices] * config.resolution
+                diff = electric_conductivity[*o.grid_slice] - update
+                electric_conductivity = electric_conductivity.at[*o.grid_slice].add(mask * diff)
+
+            if magnetic_conductivity is not None:
+                allowed_conds = jnp.asarray(compute_allowed_magnetic_conductivities(o.materials))
+                update = allowed_conds[indices] * config.resolution
+                diff = magnetic_conductivity[*o.grid_slice] - update
+                magnetic_conductivity = magnetic_conductivity.at[*o.grid_slice].add(mask * diff)
         else:
             raise Exception(f"Unknown object type: {o}")
 
