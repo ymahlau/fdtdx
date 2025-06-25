@@ -52,7 +52,7 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
             boundary=(half_res, half_res, maxx, maxy),
             resolution=self._config.resolution,
             polygon_vertices=self.vertices,
-        )
+        ).T
         extrusion_height = self.grid_shape[self.axis]
         mask = jnp.repeat(
             jnp.expand_dims(jnp.asarray(mask_2d, dtype=jnp.bool), axis=self.axis),
