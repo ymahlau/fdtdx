@@ -109,7 +109,7 @@ def polygon_to_mask(
     y_coords = np.arange(min_y, max_y + 0.5 * resolution, resolution)
 
     # Create meshgrid
-    X, Y = np.meshgrid(x_coords, y_coords, indexing='ij')
+    X, Y = np.meshgrid(x_coords, y_coords, indexing="ij")
 
     # Flatten coordinates for point-in-polygon test
     points = np.column_stack((X.ravel(), Y.ravel()))

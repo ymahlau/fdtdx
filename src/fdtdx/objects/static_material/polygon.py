@@ -40,7 +40,7 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
             int: The index of the vertical axis (1=y or 2=z).
         """
         return 1 if self.axis == 2 else 2
-    
+
     @property
     def centered_vertices(self) -> np.ndarray:
         vx = self.vertices[:, 0] + 0.5 * self.real_shape[self.horizontal_axis]
@@ -54,9 +54,9 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
         half_res = 0.5 * self._config.resolution
         max_horizontal = (n_horizontal - 0.5) * self._config.resolution
         max_vertical = (n_vertical - 0.5) * self._config.resolution
-        
+
         # move vertices to center
-        
+
         mask_2d = polygon_to_mask(
             boundary=(half_res, half_res, max_horizontal, max_vertical),
             resolution=self._config.resolution,
