@@ -3,3 +3,10 @@ This module contains a (currently rather small) collection of objects with a sha
 
 ::: fdtdx.Cylinder
 An object with the shape of a cylinder.
+
+::: fdtdx.Sphere
+A spherical object.
+
+:: fdtdx.ExtrudedPolygon
+An object representing an extruded polygon.
+

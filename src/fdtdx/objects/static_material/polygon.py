@@ -41,17 +41,26 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
         """
         return 1 if self.axis == 2 else 2
 
+    @property
+    def centered_vertices(self) -> np.ndarray:
+        vx = self.vertices[:, 0] + 0.5 * self.real_shape[self.horizontal_axis]
+        vy = self.vertices[:, 1] + 0.5 * self.real_shape[self.vertical_axis]
+        return np.stack((vx, vy), axis=-1)
+
     def get_voxel_mask_for_shape(self) -> jax.Array:
-        width = self.grid_shape[self.horizontal_axis]
-        height = self.grid_shape[self.vertical_axis]
+        n_horizontal = self.grid_shape[self.horizontal_axis]
+        n_vertical = self.grid_shape[self.vertical_axis]
 
         half_res = 0.5 * self._config.resolution
-        maxx = (width - 0.5) * self._config.resolution
-        maxy = (height - 0.5) * self._config.resolution
+        max_horizontal = (n_horizontal - 0.5) * self._config.resolution
+        max_vertical = (n_vertical - 0.5) * self._config.resolution
+
+        # move vertices to center
+
         mask_2d = polygon_to_mask(
-            boundary=(half_res, half_res, maxx, maxy),
+            boundary=(half_res, half_res, max_horizontal, max_vertical),
             resolution=self._config.resolution,
-            polygon_vertices=self.vertices,
+            polygon_vertices=self.centered_vertices,
         )
         extrusion_height = self.grid_shape[self.axis]
         mask = jnp.repeat(
