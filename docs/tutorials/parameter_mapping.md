@@ -3,9 +3,11 @@
 When using inverse design with FDTDX, fabrication constraints have to be specified. The basic building block for an object optimizable by inverse design is a Device:
 
 ```python
-from fdtdx.objects.device import DiscreteDevice
-from fdtdx import constants
-from fdtdx.material import Material
+from fdtdx import (
+    Device,
+    constants,
+    Material
+)
 
 material_config = {
     "Air": Material(permittivity=constants.relative_permittivity_air),
@@ -26,12 +28,12 @@ The parameter mapping, which is left empty above, specifies the mapping from con
 At the beginning of optimization, the latent parameters of a device are always initialized randomly in the interval [0, 1]. Depending on the constraint mapping, these parameteters are mapped to inverse permittivities. Let's look at an example of a simple constraint mapping:
 
 ```python
-from fdtdx.objects.device import ClosestIndex
+from fdtdx import ClosestIndex
 
 param_transforms = [ClosestIndex()]
 ```
 The constraint mapping consists of a chain of modules, or in other words a chain of transformations followed by a discretization. Let's look at the module in detail:
-- ClosestIndex(): This module quantizes the latent variables to the closest integer. Since latent parameters are initialized randomly in the interval [0, 1], this module maps the continous parameters to either the index 0 or 1. Since this operation is not differentiable, we employ a straight-through-estimator (STE), which simply copies the gradient from the quantized values to the original values in the backward pass.
+- ClosestIndex(): This module quantizes the latent variables to the closest integer. Since latent parameters are initialized randomly in the interval [0, 1], this module maps the continuous parameters to either the index 0 or 1. Since this operation is not differentiable, we employ a straight-through-estimator (STE), which simply copies the gradient from the quantized values to the original values in the backward pass.
 
 This mapping constraints each voxel independently of the other voxels to the inverse permittivity of either air or polymer. However, often more elaborate fabrication constraints are needed in practice, which we introduce in the following sections.
 
@@ -41,7 +43,7 @@ This mapping constraints each voxel independently of the other voxels to the inv
 Now let's develop a constraint mapping for silicon photonics, which restricts the minimum feature size of a device.
 
 ```python
-from fdtdx.objects.device import (
+from fdtdx import (
     StandardToPlusOneMinusOneRange,
     BrushConstraint2D,
     circular_brush,
@@ -69,8 +71,7 @@ Resulting from this fabrication technique multiple constraints arise. Firstly, b
 
 
 ```python
-from fdtdx.objects.device import (
-    ParameterMapping,
+from fdtdx import (
     BOTTOM_Z_PADDING_CONFIG_REPEAT,
     BinaryMedianFilterModule,
     RemoveFloatingMaterial,

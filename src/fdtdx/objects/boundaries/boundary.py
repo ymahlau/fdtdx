@@ -2,17 +2,17 @@ from abc import ABC, abstractmethod
 
 import jax
 
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit
+from fdtdx.core.jax.pytrees import TreeClass, autoinit
 from fdtdx.objects.object import SimulationObject
 from fdtdx.typing import GridShape3D
 
 
-@extended_autoinit
-class BaseBoundaryState(ExtendedTreeClass):
+@autoinit
+class BaseBoundaryState(TreeClass):
     pass
 
 
-@extended_autoinit
+@autoinit
 class BaseBoundary(SimulationObject, ABC):
     @abstractmethod
     def init_state(

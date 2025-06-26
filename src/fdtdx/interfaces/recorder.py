@@ -3,7 +3,7 @@ from typing import Self, Sequence
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_private_field
+from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_private_field
 from fdtdx.core.jax.utils import check_shape_dtype
 from fdtdx.interfaces.modules import CompressionModule
 from fdtdx.interfaces.state import RecordingState, init_recording_state
@@ -11,8 +11,8 @@ from fdtdx.interfaces.time_filter import TimeStepFilter
 from fdtdx.typing import BackendOption
 
 
-@extended_autoinit
-class Recorder(ExtendedTreeClass):
+@autoinit
+class Recorder(TreeClass):
     """Records and compresses simulation data over time using a sequence of processing modules.
 
     The Recorder manages a pipeline of modules that process simulation data at each timestep.
@@ -38,8 +38,8 @@ class Recorder(ExtendedTreeClass):
         max_time_steps: int,
         backend: BackendOption,
     ) -> tuple[Self, RecordingState]:
-        self = self.aset("_max_time_steps", max_time_steps)
-        self = self.aset("_input_shape_dtypes", input_shape_dtypes)
+        self = self.aset("_max_time_steps", max_time_steps, create_new_ok=True)
+        self = self.aset("_input_shape_dtypes", input_shape_dtypes, create_new_ok=True)
 
         latent_arr_size, out_shapes = max_time_steps, input_shape_dtypes
         state_sizes: dict[str, jax.ShapeDtypeStruct] = {}

@@ -6,14 +6,14 @@ import jax.numpy as jnp
 from matplotlib import pyplot as plt
 
 from fdtdx.core.grid import calculate_time_offset_yee
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, private_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.linalg import get_wave_vector_raw
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.core.physics.modes import compute_mode
 from fdtdx.objects.sources.tfsf import TFSFPlaneSource
 
 
-@extended_autoinit
+@autoinit
 class ModePlaneSource(TFSFPlaneSource):
     mode_index: int = frozen_field(default=0)
     filter_pol: Literal["te", "tm"] | None = frozen_field(default=None)
@@ -47,8 +47,8 @@ class ModePlaneSource(TFSFPlaneSource):
         else:
             inv_permeability_slice = inv_permeabilities
 
-        self = self.aset("_inv_permittivity", inv_permittivity_slice)
-        self = self.aset("_inv_permeability", inv_permeability_slice)
+        self = self.aset("_inv_permittivity", inv_permittivity_slice, create_new_ok=True)
+        self = self.aset("_inv_permeability", inv_permeability_slice, create_new_ok=True)
 
         return self
 

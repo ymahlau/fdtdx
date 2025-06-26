@@ -11,33 +11,17 @@ import time
 
 import jax
 import jax.numpy as jnp
-import jax.profiler
 import pytreeclass as tc
 from loguru import logger
+import fdtdx
 
-from fdtdx import constants
-from fdtdx.config import SimulationConfig
-from fdtdx.core.plotting import colors
-from fdtdx.fdtd import custom_fdtd_forward, ArrayContainer, apply_params, place_objects
-from fdtdx.materials import Material
-from fdtdx.objects import SimulationObject, SimulationVolume, Substrate, Waveguide
-from fdtdx.objects.boundaries import BoundaryConfig, boundary_objects_from_config
-from fdtdx.objects.detectors import EnergyDetector, PoyntingFluxDetector
-from fdtdx.objects.device import (
-    DiscreteDevice, 
-    DiscreteParameterMapping, 
-    ClosestIndex, 
-    StandardToInversePermittivityRange,
-)
-from fdtdx.objects.sources import SimplePlaneSource
-from fdtdx.core import WaveCharacter, metric_efficiency, OnOffSwitch
-from fdtdx.utils import Logger, plot_setup
+from fdtdx.fdtd.fdtd import custom_fdtd_forward
 
 
 # Design of Shen et al.: https://opg.optica.org/oe/fulltext.cfm?uri=oe-22-22-27175&id=303419
 # Note that we are unable to reproduce the reported efficiency of their coupling device.
 # Our simulation and commercial software only yields an efficiency of about 7% compared to their reported 50%.
-REFERENCE_DESIGN_GRID = 1 - jnp.asarray(
+REFERENCE_DESIGN_GRID = jnp.asarray(
     [
         [0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0],
         [1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1],
@@ -87,15 +71,15 @@ def main(
     permittivity_silicon = 12.25
     permittivity_silica = 2.25
 
-    exp_logger = Logger(
+    exp_logger = fdtdx.Logger(
         experiment_name="vertical_silicon_coupler",
     )
     key = jax.random.PRNGKey(seed=seed)
 
     wavelength = 1.55e-6
-    period = constants.wavelength_to_period(wavelength)
+    period = fdtdx.constants.wavelength_to_period(wavelength)
 
-    config = SimulationConfig(
+    config = fdtdx.SimulationConfig(
         time=200e-15,
         resolution=20e-9,
         dtype=jnp.float32,
@@ -110,19 +94,19 @@ def main(
 
     placement_constraints = []
 
-    volume = SimulationVolume(
+    volume = fdtdx.SimulationVolume(
         partial_real_shape=(6e-6, 4e-6, 1.5e-6),
     )
 
-    bound_cfg = BoundaryConfig.from_uniform_bound(thickness=10)
-    _, c_list = boundary_objects_from_config(bound_cfg, volume)
+    bound_cfg = fdtdx.BoundaryConfig.from_uniform_bound(thickness=10)
+    _, c_list = fdtdx.boundary_objects_from_config(bound_cfg, volume)
     placement_constraints.extend(c_list)
 
-    dioxide_substrate = Substrate(
+    dioxide_substrate = fdtdx.UniformMaterialObject(
         name="Silica",
-        color=colors.LIGHT_BROWN,
+        color=fdtdx.colors.LIGHT_BROWN,
         partial_real_shape=(None, None, 0.5e-6),
-        material=Material(permittivity=permittivity_silica)
+        material=fdtdx.Material(permittivity=permittivity_silica)
     )
     placement_constraints.append(
         dioxide_substrate.place_relative_to(
@@ -133,21 +117,17 @@ def main(
         )
     )
 
-    permittivity_config = {
-        "Air": Material(permittivity=constants.relative_permittivity_air),
-        "Silicon": Material(permittivity=permittivity_silicon),
+    material_config = {
+        "Air": fdtdx.Material(permittivity=fdtdx.constants.relative_permittivity_air),
+        "Silicon": fdtdx.Material(permittivity=permittivity_silicon),
     }
     
-    device = DiscreteDevice(
+    device = fdtdx.Device(
         name="Device",
         partial_real_shape=(3e-6, 3e-6, 300e-9),
-        material=permittivity_config,
-        parameter_mapping=DiscreteParameterMapping(
-            latent_transforms=[StandardToInversePermittivityRange()],
-            discretization=ClosestIndex(),
-            post_transforms=[],
-        ),
+        materials=material_config,
         partial_voxel_real_shape=(100e-9, 100e-9, 300e-9),
+        param_transforms=[fdtdx.ClosestIndex()],
     )
     placement_constraints.append(
         device.place_relative_to(
@@ -160,10 +140,10 @@ def main(
         )
     )
 
-    source = SimplePlaneSource(
+    source = fdtdx.UniformPlaneSource(
         partial_real_shape=(None, None, None),
         partial_grid_shape=(None, None, 1),
-        wave_character=WaveCharacter(wavelength=1.550e-6),
+        wave_character=fdtdx.WaveCharacter(wavelength=1.550e-6),
         direction="-",
         fixed_E_polarization_vector=(0, 1, 0),
     )
@@ -179,11 +159,11 @@ def main(
         ]
     )
 
-    in_detector = PoyntingFluxDetector(
+    in_detector = fdtdx.PoyntingFluxDetector(
         name="Input Flux Detector",
         direction="-",
         partial_grid_shape=(None, None, 1),
-        switch=OnOffSwitch(fixed_on_time_steps=all_time_steps[-2 * period_steps :]),
+        switch=fdtdx.OnOffSwitch(fixed_on_time_steps=all_time_steps[-2 * period_steps :]),
         exact_interpolation=False,
     )
     placement_constraints.extend(
@@ -201,9 +181,9 @@ def main(
         ]
     )
 
-    waveguide = Waveguide(
+    waveguide = fdtdx.UniformMaterialObject(
         partial_real_shape=(None, 0.4e-6, 0.3e-6),
-        material=Material(permittivity=permittivity_silicon),
+        material=fdtdx.Material(permittivity=permittivity_silicon),
     )
     placement_constraints.extend(
         [
@@ -222,11 +202,11 @@ def main(
         ]
     )
 
-    waveguide_detector = PoyntingFluxDetector(
+    waveguide_detector = fdtdx.PoyntingFluxDetector(
         name="Output Flux Detector",
         direction="+",
         partial_grid_shape=(1, None, None),
-        switch=OnOffSwitch(fixed_on_time_steps=all_time_steps[-2 * period_steps :]),
+        switch=fdtdx.OnOffSwitch(fixed_on_time_steps=all_time_steps[-2 * period_steps :]),
         exact_interpolation=False,
     )
     placement_constraints.extend(
@@ -246,27 +226,27 @@ def main(
         ]
     )
 
-    energy_last_step = EnergyDetector(
+    energy_last_step = fdtdx.EnergyDetector(
         name="energy_last_step",
         as_slices=True,
-        switch=OnOffSwitch(fixed_on_time_steps=[-1]),
+        switch=fdtdx.OnOffSwitch(fixed_on_time_steps=[-1]),
     )
     placement_constraints.extend([*energy_last_step.same_position_and_size(volume)])
     
-    exclude_object_list: list[SimulationObject] = [energy_last_step]
+    exclude_object_list: list[fdtdx.SimulationObject] = [energy_last_step]
     
     if evaluation:
-        video_energy_detector = EnergyDetector(
+        video_energy_detector = fdtdx.EnergyDetector(
             name="Energy Video",
             as_slices=True,
-            switch=OnOffSwitch(interval=10),
+            switch=fdtdx.OnOffSwitch(interval=10),
             exact_interpolation=True,
         )
         placement_constraints.extend(video_energy_detector.same_position_and_size(volume))
         exclude_object_list.append(video_energy_detector)
 
     key, subkey = jax.random.split(key)
-    objects, arrays, params, config, _ = place_objects(
+    objects, arrays, params, config, _ = fdtdx.place_objects(
         volume=volume,
         config=config,
         constraints=placement_constraints,
@@ -282,7 +262,7 @@ def main(
     exp_logger.savefig(
         exp_logger.cwd,
         "setup.png",
-        plot_setup(
+        fdtdx.plot_setup(
             config=config,
             objects=objects,
             exclude_object_list=exclude_object_list,
@@ -297,10 +277,10 @@ def main(
         export_figure=True,
     )
 
-    arrays, new_objects, info = apply_params(arrays, objects, params, key)
+    arrays, new_objects, info = fdtdx.apply_params(arrays, objects, params, key)
 
     def loss_func(
-        arrays: ArrayContainer,
+        arrays: fdtdx.ArrayContainer,
         key: jax.Array,
     ):
         medium_time = config.time_steps_total - 3 * period_steps
@@ -327,7 +307,7 @@ def main(
         )
 
         _, arrays = final_state
-        objective, objective_info = metric_efficiency(
+        objective, objective_info = fdtdx.metric_efficiency(
             arrays.detector_states,
             in_names=(in_detector.name,),
             out_names=(waveguide_detector.name,),
@@ -373,7 +353,7 @@ def main(
     info["changed_voxels"] = changed_voxels
 
     # videos
-    exp_logger.log_detectors(iter_idx=1, objects=objects, detector_states=arrays.detector_states)
+    # exp_logger.log_detectors(iter_idx=1, objects=objects, detector_states=arrays.detector_states)
 
     exp_logger.write(info)
     exp_logger.progress.update(optim_task_id, advance=1)

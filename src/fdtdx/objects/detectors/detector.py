@@ -8,7 +8,7 @@ from matplotlib.figure import Figure
 from rich.progress import Progress
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, frozen_private_field, private_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field, frozen_private_field, private_field
 from fdtdx.core.plotting.colors import LIGHT_GREEN
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.objects.detectors.plotting.line_plot import plot_line_over_time, plot_waterfall_over_time
@@ -20,7 +20,7 @@ from fdtdx.typing import SliceTuple3D
 DetectorState = dict[str, jax.Array]
 
 
-@extended_autoinit
+@autoinit
 class Detector(SimulationObject, ABC):
     """Base class for electromagnetic field detectors in FDTD simulations.
 
@@ -44,7 +44,6 @@ class Detector(SimulationObject, ABC):
         plot_dpi (int, optional): DPI resolution for plots.
     """
 
-    name: str = frozen_field()  # type: ignore
     dtype: jnp.dtype = frozen_field(default=jnp.float32)
     exact_interpolation: bool = frozen_field(default=True)
     inverse: bool = frozen_field(default=False)
@@ -120,8 +119,8 @@ class Detector(SimulationObject, ABC):
         # determine number of time steps on
         on_list = self._calculate_on_list()
         on_arr = jnp.asarray(on_list, dtype=jnp.bool)
-        self = self.aset("_is_on_at_time_step_arr", on_arr)
-        self = self.aset("_num_time_steps_on", sum(on_list))
+        self = self.aset("_is_on_at_time_step_arr", on_arr, create_new_ok=True)
+        self = self.aset("_num_time_steps_on", sum(on_list), create_new_ok=True)
         # calculate mapping time step -> arr index
         counter = 0
         num_t = self._config.time_steps_total
@@ -131,7 +130,7 @@ class Detector(SimulationObject, ABC):
                 time_to_arr_idx_list[t] = counter
                 counter += 1
         time_to_arr_idx_arr = jnp.asarray(time_to_arr_idx_list, dtype=jnp.int32)
-        self = self.aset("_time_step_to_arr_idx", time_to_arr_idx_arr)
+        self = self.aset("_time_step_to_arr_idx", time_to_arr_idx_arr, create_new_ok=True)
         return self
 
     def init_state(

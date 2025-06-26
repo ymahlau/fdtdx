@@ -1,9 +1,9 @@
 from fdtdx import constants
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_field
+from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 
 
-@extended_autoinit
-class WaveCharacter(ExtendedTreeClass):
+@autoinit
+class WaveCharacter(TreeClass):
     """Class describing a wavelength/period/frequency in free space. Importantly, the wave characteristic conversion is
     based on a free space wave when using the wavelength (For conversion, a refractive index of 1 is used).
 

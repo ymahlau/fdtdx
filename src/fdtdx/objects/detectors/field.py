@@ -3,11 +3,11 @@ from typing import Literal, Sequence
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 
-@extended_autoinit
+@autoinit
 class FieldDetector(Detector):
     """Detector for measuring field components of electromagnetic fields in the time domain.
 

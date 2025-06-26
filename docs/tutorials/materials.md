@@ -9,10 +9,12 @@ This guide is currently very short and will be expanded with them implementation
 ## UniformMaterial
 The most basic and also probably most useful object is the UniformMaterialObject. As the name suggests, it has a single material.
 ```python
-from fdtdx import constants
-from fdtdx.objects import UniformMaterialObject
-from fdtdx.material import Material
-from fdtdx.core.plotting import colors
+from fdtdx import (
+    constants,
+    UniformMaterialObject,
+    Material,
+    colors,
+)
 
 uniform_obj = UniformMaterialObject(
     partial_real_shape=(0.6e-6, 0.6e-6, 0.6e-6),

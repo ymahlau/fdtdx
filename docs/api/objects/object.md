@@ -1,35 +1,28 @@
 ##
 # Core Classes
-::: fdtdx.objects.object.SimulationObject
+::: fdtdx.SimulationObject
 Base class for all simulation objects with positioning and sizing capabilities. All Objects in FDTDX are cuboid shaped by default, but with multi-material objects more complicated shapes can be realized as well.
 
-::: fdtdx.objects.SimulationVolume
+::: fdtdx.SimulationVolume
 An object of cuboid shape describing the size and default background material of the simulation volume.
 
-::: fdtdx.objects.StaticMaterialObject
+::: fdtdx.UniformMaterialObject
 An object that has a uniform material throughout its entire volume.
 
-# Convenience Wrapper
-::: fdtdx.objects.Substrate
-A substrate of uniform material. This is just a wrapper for an object with uniform material.
-
-::: fdtdx.objects.Waveguide
-A waveguide of uniform material. This is just a wrapper for an object with uniform material.
-
 # Positioning/Sizing Constraints
-::: fdtdx.objects.object.PositionConstraint
+::: fdtdx.PositionConstraint
 Defines relative positioning between simulation objects.
 
-::: fdtdx.objects.object.SizeConstraint  
+::: fdtdx.SizeConstraint  
 Controls size relationships between objects.
 
-::: fdtdx.objects.object.SizeExtensionConstraint
+::: fdtdx.SizeExtensionConstraint
 Extends objects to reach other objects or boundaries.
 
-::: fdtdx.objects.object.GridCoordinateConstraint
+::: fdtdx.GridCoordinateConstraint
 Aligns objects to specific grid coordinates.
 
-::: fdtdx.objects.object.RealCoordinateConstraint
+::: fdtdx.RealCoordinateConstraint
 Positions objects at specific physical coordinates.
 
 

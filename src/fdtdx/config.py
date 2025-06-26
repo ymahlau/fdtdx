@@ -6,12 +6,12 @@ import jax.numpy as jnp
 from loguru import logger
 
 from fdtdx import constants
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, field, frozen_field
+from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field
 from fdtdx.interfaces.recorder import Recorder
 
 
-@extended_autoinit
-class GradientConfig(ExtendedTreeClass):
+@autoinit
+class GradientConfig(TreeClass):
     """Configuration for gradient computation in simulations.
 
     This class handles settings for automatic differentiation, supporting either
@@ -39,8 +39,8 @@ class GradientConfig(ExtendedTreeClass):
             raise Exception("Need Checkpoint Number in gradient config to compute checkpointed gradients")
 
 
-@extended_autoinit
-class SimulationConfig(ExtendedTreeClass):
+@autoinit
+class SimulationConfig(TreeClass):
     """Configuration settings for FDTD simulations.
 
     This class contains all the parameters needed to configure and run an FDTD

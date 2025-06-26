@@ -6,11 +6,12 @@ For this tutorial, the important point to note is that during the forward simula
 
 As a remedy, we implement a compression mechanism for these saved fields. The compression settings can be adjusted in the simulation config:
 ```python
-from fdtdx.config import GradientConfig, SimulationConfig
-from fdtdx.interfaces import (
+from fdtdx import (
+    GradientConfig,
+    SimulationConfig,
     DtypeConversion,
     Recorder,
-    LinearReconstructEveryK
+    LinearReconstructEveryK,
 )
 import jax.numpy as jnp
 

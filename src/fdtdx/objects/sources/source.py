@@ -5,21 +5,21 @@ import jax
 import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core import WaveCharacter
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, private_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.misc import linear_interpolated_indexing, normalize_polarization_for_source
 from fdtdx.core.plotting.colors import ORANGE
 from fdtdx.core.switch import OnOffSwitch
+from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.object import SimulationObject
 from fdtdx.objects.sources.profile import SingleFrequencyProfile, TemporalProfile
 from fdtdx.typing import SliceTuple3D
 
 
-@extended_autoinit
+@autoinit
 class Source(SimulationObject, ABC):
     wave_character: WaveCharacter = frozen_field()
     temporal_profile: TemporalProfile = SingleFrequencyProfile()
-    amplitude_scale: float = frozen_field(default=1.0)
+    static_amplitude_factor: float = frozen_field(default=1.0)
     switch: OnOffSwitch = frozen_field(default=OnOffSwitch())
     color: tuple[float, float, float] | None = frozen_field(default=ORANGE)
 
@@ -63,14 +63,14 @@ class Source(SimulationObject, ABC):
             num_total_time_steps=self._config.time_steps_total,
         )
         on_arr = jnp.asarray(on_list, dtype=jnp.bool)
-        self = self.aset("_is_on_at_time_step_arr", on_arr)
+        self = self.aset("_is_on_at_time_step_arr", on_arr, create_new_ok=True)
         # calculate mapping time step -> on index
         time_to_arr_idx_list = self.switch.calculate_time_step_to_on_arr_idx(
             time_step_duration=self._config.time_step_duration,
             num_total_time_steps=self._config.time_steps_total,
         )
         time_to_arr_idx_arr = jnp.asarray(time_to_arr_idx_list, dtype=jnp.int32)
-        self = self.aset("_time_step_to_on_idx", time_to_arr_idx_arr)
+        self = self.aset("_time_step_to_on_idx", time_to_arr_idx_arr, create_new_ok=True)
         return self
 
     @abstractmethod
@@ -120,7 +120,7 @@ class Source(SimulationObject, ABC):
         raise NotImplementedError()
 
 
-@extended_autoinit
+@autoinit
 class DirectionalPlaneSourceBase(Source, ABC):
     """Base class for directional plane wave sources.
 
@@ -146,7 +146,7 @@ class DirectionalPlaneSourceBase(Source, ABC):
         return (self.propagation_axis + 2) % 3
 
 
-@extended_autoinit
+@autoinit
 class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
     amplitude: float = frozen_field(default=1.0)
     fixed_E_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
@@ -166,6 +166,7 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
         delta_t = self._config.time_step_duration
         time_phase = 2 * jnp.pi * time_step * delta_t / self.wave_character.period + self.wave_character.phase_shift
         magnitude = jnp.real(self.amplitude * jnp.exp(-1j * time_phase))
+        magnitude = magnitude * self.static_amplitude_factor
         e_pol, _ = normalize_polarization_for_source(
             direction=self.direction,
             propagation_axis=self.propagation_axis,
@@ -191,6 +192,7 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
         delta_t = self._config.time_step_duration
         time_phase = 2 * jnp.pi * time_step * delta_t / self.wave_character.period + self.wave_character.phase_shift
         magnitude = jnp.real(self.amplitude * jnp.exp(-1j * time_phase))
+        magnitude = magnitude * self.static_amplitude_factor
         _, h_pol = normalize_polarization_for_source(
             direction=self.direction,
             propagation_axis=self.propagation_axis,

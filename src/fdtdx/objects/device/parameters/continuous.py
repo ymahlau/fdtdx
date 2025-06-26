@@ -4,13 +4,13 @@ from typing import Sequence
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, frozen_private_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field, frozen_private_field
 from fdtdx.core.misc import PaddingConfig, advanced_padding
 from fdtdx.objects.device.parameters.transform import SameShapeTypeParameterTransform
 from fdtdx.typing import ParameterType
 
 
-@extended_autoinit
+@autoinit
 class StandardToInversePermittivityRange(SameShapeTypeParameterTransform):
     """Maps standard [0,1] range to inverse permittivity range.
 
@@ -46,7 +46,7 @@ class StandardToInversePermittivityRange(SameShapeTypeParameterTransform):
         return result
 
 
-@extended_autoinit
+@autoinit
 class StandardToCustomRange(SameShapeTypeParameterTransform):
     """Maps standard [0,1] range to custom range [min_value, max_value].
 
@@ -77,7 +77,7 @@ class StandardToCustomRange(SameShapeTypeParameterTransform):
         return result
 
 
-@extended_autoinit
+@autoinit
 class StandardToPlusOneMinusOneRange(StandardToCustomRange):
     """Maps standard [0,1] range to [-1,1] range.
 
@@ -93,7 +93,7 @@ class StandardToPlusOneMinusOneRange(StandardToCustomRange):
     max_value: float = frozen_private_field(default=1)
 
 
-@extended_autoinit
+@autoinit
 class GaussianSmoothing2D(SameShapeTypeParameterTransform):
     """
     Applies Gaussian smoothing to 2D parameter arrays.

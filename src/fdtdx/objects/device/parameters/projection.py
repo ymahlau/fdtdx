@@ -3,7 +3,7 @@ from typing import Sequence
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.jax.pytrees import extended_autoinit, frozen_field, frozen_private_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field, frozen_private_field
 from fdtdx.objects.device.parameters.transform import SameShapeTypeParameterTransform
 from fdtdx.typing import ParameterType
 
@@ -173,7 +173,7 @@ def smoothed_projection(
     )
 
 
-@extended_autoinit
+@autoinit
 class TanhProjection(SameShapeTypeParameterTransform):
     """
     Tanh projection filter.
@@ -208,7 +208,7 @@ class TanhProjection(SameShapeTypeParameterTransform):
         return result
 
 
-@extended_autoinit
+@autoinit
 class SubpixelSmoothedProjection(SameShapeTypeParameterTransform):
     """
     This function is adapted from the Meep repository:

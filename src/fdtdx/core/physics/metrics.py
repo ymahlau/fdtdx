@@ -13,7 +13,7 @@ import jax.numpy as jnp
 def compute_energy(
     E: jax.Array,
     H: jax.Array,
-    inv_permittivity: jax.Array,
+    inv_permittivity: jax.Array | float,
     inv_permeability: jax.Array | float,
     axis: int = 0,
 ) -> jax.Array:
@@ -41,7 +41,7 @@ def compute_energy(
 def normalize_by_energy(
     E: jax.Array,
     H: jax.Array,
-    inv_permittivity: jax.Array,
+    inv_permittivity: jax.Array | float,
     inv_permeability: jax.Array | float,
 ) -> tuple[jax.Array, jax.Array]:
     """Normalizes electromagnetic fields by their total energy.
@@ -67,7 +67,7 @@ def normalize_by_energy(
     return norm_E, norm_H
 
 
-def poynting_flux(E: jax.Array, H: jax.Array, axis: int = 0) -> jax.Array:
+def compute_poynting_flux(E: jax.Array, H: jax.Array, axis: int = 0) -> jax.Array:
     """Calculates the Poynting vector (energy flux) from E and H fields.
 
     Args:
@@ -87,14 +87,14 @@ def poynting_flux(E: jax.Array, H: jax.Array, axis: int = 0) -> jax.Array:
     )
 
 
-def normalize_by_poynting_flux(E: jax.Array, H: jax.Array, axis: int = 0) -> tuple[jax.Array, jax.Array]:
+def normalize_by_poynting_flux(E: jax.Array, H: jax.Array, axis: int) -> tuple[jax.Array, jax.Array]:
     """Normalize fields so that Poynting flux along given axis = 1."""
     # Compute Poynting vector components
-    S_complex = jnp.cross(E, jnp.conj(H), axisa=axis, axisb=axis, axisc=axis)
+    S_complex = jnp.cross(jnp.conj(E), H, axisa=0, axisb=0, axisc=0)
     S_real = 0.5 * jnp.real(S_complex[axis])  # power flow in desired direction
 
     # Integrate over transverse plane (axis orthogonal to `axis`)
-    power = jnp.sum(S_real)
+    power = jnp.abs(jnp.sum(S_real))
 
     # Normalize
     norm_factor = jnp.sqrt(power)

@@ -4,13 +4,13 @@ from typing import Self, Sequence
 import jax
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import ExtendedTreeClass, extended_autoinit, frozen_private_field
+from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_private_field
 from fdtdx.materials import Material
 from fdtdx.typing import ParameterType
 
 
-@extended_autoinit
-class ParameterTransformation(ExtendedTreeClass, ABC):
+@autoinit
+class ParameterTransformation(TreeClass, ABC):
     _input_type: dict[str, ParameterType] = frozen_private_field()
     _input_shape: dict[str, tuple[int, ...]] = frozen_private_field()
     _output_type: dict[str, ParameterType] = frozen_private_field()
@@ -33,14 +33,14 @@ class ParameterTransformation(ExtendedTreeClass, ABC):
         single_voxel_size: tuple[float, float, float],
         output_shape: dict[str, tuple[int, ...]],
     ) -> Self:
-        self = self.aset("_config", config)
-        self = self.aset("_materials", materials)
-        self = self.aset("_matrix_voxel_grid_shape", matrix_voxel_grid_shape)
-        self = self.aset("_single_voxel_size", single_voxel_size)
+        self = self.aset("_config", config, create_new_ok=True)
+        self = self.aset("_materials", materials, create_new_ok=True)
+        self = self.aset("_matrix_voxel_grid_shape", matrix_voxel_grid_shape, create_new_ok=True)
+        self = self.aset("_single_voxel_size", single_voxel_size, create_new_ok=True)
 
-        self = self.aset("_output_shape", output_shape)
+        self = self.aset("_output_shape", output_shape, create_new_ok=True)
         input_shape = self.get_input_shape(output_shape)
-        self = self.aset("_input_shape", input_shape)
+        self = self.aset("_input_shape", input_shape, create_new_ok=True)
         return self
 
     def init_type(
@@ -48,10 +48,10 @@ class ParameterTransformation(ExtendedTreeClass, ABC):
         input_type: dict[str, ParameterType],
     ) -> Self:
         # given input type
-        self = self.aset("_input_type", input_type)
+        self = self.aset("_input_type", input_type, create_new_ok=True)
         # compute output type
         output_type = self.get_output_type(input_type)
-        self = self.aset("_output_type", output_type)
+        self = self.aset("_output_type", output_type, create_new_ok=True)
         return self
 
     def get_output_type(
@@ -83,15 +83,16 @@ class ParameterTransformation(ExtendedTreeClass, ABC):
         output_shape: dict[str, tuple[int, ...]],
     ) -> dict[str, tuple[int, ...]]:
         # checks
-        for v in output_shape.values():
-            err_msg = (
-                f"ParameterTransform {self.__class__} expects to work with 2d arrays, so exactly one axis of the "
-                f"3d array needs to have size of 1, but got: {output_shape}"
-            )
-            if len(v) != 3 or 1 not in v:
-                raise Exception(err_msg)
-            if sum([n != 1 for n in v]) != 2:
-                raise Exception(err_msg)
+        if self._all_arrays_2d:
+            for v in output_shape.values():
+                err_msg = (
+                    f"ParameterTransform {self.__class__} expects to work with 2d arrays, so exactly one axis of the "
+                    f"3d array needs to have size of 1, but got: {output_shape}"
+                )
+                if len(v) != 3 or 1 not in v:
+                    raise Exception(err_msg)
+                if sum([n != 1 for n in v]) != 2:
+                    raise Exception(err_msg)
 
         # implementation
         input_shape = self._get_input_shape_impl(output_shape)
@@ -120,7 +121,7 @@ class ParameterTransformation(ExtendedTreeClass, ABC):
         raise NotImplementedError()
 
 
-@extended_autoinit
+@autoinit
 class SameShapeTypeParameterTransform(ParameterTransformation, ABC):
     def _get_input_shape_impl(
         self,
