@@ -46,6 +46,7 @@ testpaths = ["tests"]
 [dependency-groups]
 dev = [
     "black>=24.10.0",
+    "ipykernel>=6.29.5",
     "mkdocs>=1.6.1",
     "mkdocs-material>=9.5.48",
     "mkdocstrings[python]>=0.27.0",
