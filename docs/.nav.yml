@@ -16,19 +16,23 @@ nav:
     - Fabrication Constraints: tutorials/parameter_mapping.md
     - Interface Compression: tutorials/interface_compression.md
   - API Reference:
-    - Simulation Objects:
-      - Boundaries: api/objects/boundaries.md
-      - Detectors: api/objects/detectors.md
-      - Device: api/objects/device.md
-      - Objects: api/objects/object.md
-      - Sources: api/objects/sources.md
-      - Static Material: api/objects/static_material.md
-    - FDTD: api/fdtd.md
-    - Config: api/config.md
-    - Constants: api/constants.md
-    - Interfaces: api/interfaces.md
-    - Materials: api/materials.md
-    - Typing: api/typing.md
-    - Utils: api/utils.md
-    - Core: api/core.md
+    - Public:
+      - Simulation Objects:
+        - Boundaries: api/public/objects/boundaries.md
+        - Detectors: api/public/objects/detectors.md
+        - Device: api/public/objects/device.md
+        - Objects: api/public/objects/object.md
+        - Sources: api/public/objects/sources.md
+        - Static Material: api/public/objects/static_material.md
+      - FDTD: api/public/fdtd.md
+      - Config: api/public/config.md
+      - Constants: api/public/constants.md
+      - Interfaces: api/public/interfaces.md
+      - Materials: api/public/materials.md
+      - Typing: api/public/typing.md
+      - Utils: api/public/utils.md
+      - Core: api/public/core.md
+    - Internal:
+      - api/internal/tmp.md
+    
   
