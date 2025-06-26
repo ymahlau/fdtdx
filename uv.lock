@@ -485,6 +485,15 @@ wheels = [
 ]
 
 [[package]]
+name = "docstring-parser-fork"
+version = "0.0.12"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c6/72/61f7243ad62e14d527f93304cd4f333e681295aa3ef9bcc4afc36c07001a/docstring_parser_fork-0.0.12.tar.gz", hash = "sha256:b44c5e0be64ae80f395385f01497d381bd094a57221fd9ff020987d06857b2a0", size = 31608 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/50/0d/eed05d4b1065f11f8bef2f57440759d4dacc73c22780764948bfa4aaa304/docstring_parser_fork-0.0.12-py3-none-any.whl", hash = "sha256:55d7cbbc8b367655efd64372b9a0b33a49bae930a8ddd5cdc4c6112312e28a87", size = 42185 },
+]
+
+[[package]]
 name = "equinox"
 version = "0.12.2"
 source = { registry = "https://pypi.org/simple" }
@@ -545,6 +554,7 @@ dev = [
     { name = "mkdocs-material" },
     { name = "mkdocstrings", extra = ["python"] },
     { name = "pre-commit" },
+    { name = "pydoclint" },
     { name = "pymdown-extensions" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -577,6 +587,7 @@ dev = [
     { name = "mkdocs-material", specifier = ">=9.5.48" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=0.27.0" },
     { name = "pre-commit", specifier = ">=4.0.1" },
+    { name = "pydoclint" },
     { name = "pymdown-extensions", specifier = ">=10.12" },
     { name = "pytest", specifier = ">=8.3.4" },
     { name = "pytest-cov", specifier = ">=6.0.0" },
@@ -1975,6 +1986,19 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/b8/e9/1f7efbe20d0b2b10f6718944b5d8ece9152390904f29a78e68d4e7961159/pydantic_core-2.33.2-pp311-pypy311_pp73-musllinux_1_1_armv7l.whl", hash = "sha256:de4b83bb311557e439b9e186f733f6c645b9417c84e2eb8203f3f820a4b988bf", size = 2239013 },
     { url = "https://files.pythonhosted.org/packages/3c/b2/5309c905a93811524a49b4e031e9851a6b00ff0fb668794472ea7746b448/pydantic_core-2.33.2-pp311-pypy311_pp73-musllinux_1_1_x86_64.whl", hash = "sha256:82f68293f055f51b51ea42fafc74b6aad03e70e191799430b90c13d643059ebb", size = 2238715 },
     { url = "https://files.pythonhosted.org/packages/32/56/8a7ca5d2cd2cda1d245d34b1c9a942920a718082ae8e54e5f3e5a58b7add/pydantic_core-2.33.2-pp311-pypy311_pp73-win_amd64.whl", hash = "sha256:329467cecfb529c925cf2bbd4d60d2c509bc2fb52a20c1045bf09bb70971a9c1", size = 2066757 },
+]
+
+[[package]]
+name = "pydoclint"
+version = "0.6.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "docstring-parser-fork" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e6/b8/9ab3bb3642e1a87ad5b51276cc6465542935d44c427d75937216b22eadc0/pydoclint-0.6.6.tar.gz", hash = "sha256:22862a8494d05cdf22574d6533f4c47933c0ae1674b0f8b961d6ef42536eaa69", size = 54488 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bc/05/c714e4dfea5e48140288ee05275e9675fbe1ab1010852ed8c77a388c7ace/pydoclint-0.6.6-py2.py3-none-any.whl", hash = "sha256:7ce8ed36f60f9201bf1c1edacb32c55eb051af80fdd7304480c6419ee0ced43c", size = 48713 },
 ]
 
 [[package]]

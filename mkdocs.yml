@@ -16,6 +16,13 @@ plugins:
           options:
             show_root_heading: true
             show_source: false
+            show_signature: true
+            separate_signature: true
+            #show_bases: true
+            merge_init_into_class: true
+            # inherited_members: true
+            group_by_category: true
+            show_category_heading: true
             docstring_style: google
   - mkdocs-jupyter:
       include: ["docs/notebooks/*.ipynb"]
