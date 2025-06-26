@@ -1,0 +1,34 @@
+flatten_single_child_sections: false 
+
+sort:
+  direction: asc 
+  type: natural 
+  by: filename 
+  sections: last 
+  ignore_case: true
+
+nav:
+  - Home: index.md
+  - Tutorials:
+    - JAX in FDTDX: tutorials/jax_introduction.md
+    - Object Placement: tutorials/object_placement.md
+    - Materials Guide: tutorials/materials.md
+    - Fabrication Constraints: tutorials/parameter_mapping.md
+    - Interface Compression: tutorials/interface_compression.md
+  - API Reference:
+    - Simulation Objects:
+      - Boundaries: api/objects/boundaries.md
+      - Detectors: api/objects/detectors.md
+      - Device: api/objects/device.md
+      - Objects: api/objects/object.md
+      - Sources: api/objects/sources.md
+      - Static Material: api/objects/static_material.md
+    - FDTD: api/fdtd.md
+    - Config: api/config.md
+    - Constants: api/constants.md
+    - Interfaces: api/interfaces.md
+    - Materials: api/materials.md
+    - Typing: api/typing.md
+    - Utils: api/utils.md
+    - Core: api/core.md
+  
