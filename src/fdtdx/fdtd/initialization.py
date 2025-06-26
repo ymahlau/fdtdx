@@ -285,7 +285,7 @@ def _init_arrays(
 
             if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
                 allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permeabilities(o.materials))
-                diff = allowed_inv_perms[indices] - inv_permeabilities[*o.grid_slice] 
+                diff = allowed_inv_perms[indices] - inv_permeabilities[*o.grid_slice]
                 inv_permeabilities = inv_permeabilities.at[*o.grid_slice].add(mask * diff)
 
             if electric_conductivity is not None:
