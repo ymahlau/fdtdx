@@ -57,7 +57,7 @@ dev = [
     "pytest-cov>=6.0.0",
     "ruff>=0.8.2",
     "tox-uv>=1.16.1",
-    "pydoclint",
+    "pydoclint>=0.6.6",
 ]
 
 [tool.pyright]
