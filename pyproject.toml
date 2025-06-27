@@ -7,7 +7,7 @@ authors = [
     { name = "Yannik Mahlau", email = "mahlau@tnt.uni-hannover.de" },
     { name = "Frederik Schubert", email = "schubert@tnt.uni-hannover.de" },
 ]
-requires-python = ">=3.11,<3.13"
+requires-python = ">=3.11"
 dependencies = [
     "loguru>=0.7.3",
     "pytreeclass>=0.11",
