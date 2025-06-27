@@ -266,9 +266,10 @@ class Logger:
             export_figure: Whether to export index matrix figures
             export_stl: Whether to export device geometry as STL
             export_background_stl: Whether to export air regions as STL
+            **transformation_kwargs: keyword arguments passed to the parameter transformation
 
         Returns:
-            int: Number of voxels that changed since last iteration
+            Number of voxels that changed since last iteration
         """
         changed_voxels = 0
         for device in objects.devices:

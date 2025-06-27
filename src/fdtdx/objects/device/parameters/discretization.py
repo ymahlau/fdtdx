@@ -296,13 +296,17 @@ class PillarDiscretization(ParameterTransformation):
     rules like single polymer columns and no trapped air holes.
 
     Attributes:
-        axis: Axis along which to enforce pillar constraints (0=x, 1=y, 2=z).
-        single_polymer_columns: If True, restrict to single polymer columns.
-        distance_metric: Method to compute distances between material distributions:
-            - "euclidean": Standard Euclidean distance between permittivity values
+        axis (int): Axis along which to enforce pillar constraints (0=x, 1=y, 2=z).
+        single_polymer_columns (bool): If True, restrict to single polymer columns.
+        distance_metric (Literal["euclidean", "permittivity_differences_plus_average_permittivity"], optional):
+            Method to compute distances between material distributions:
+            - "euclidean": Standard Euclidean distance between permittivity values.
             - "permittivity_differences_plus_average_permittivity": Weighted combination
               of permittivity differences and average permittivity values, optimized
-              for material distribution comparisons
+              for material distribution comparisons.
+            Defaults to "permittivity_differences_plus_average_permittivity".
+        background_material (optional):
+            Name of the background material in the materials dictionary of the corresponding device. Defaults to None.
     """
 
     axis: int = frozen_field()
@@ -311,8 +315,8 @@ class PillarDiscretization(ParameterTransformation):
         default="permittivity_differences_plus_average_permittivity",
     )
     background_material: str | None = frozen_field(default=None)
-    _allowed_indices: jax.Array = frozen_private_field()
 
+    _allowed_indices: jax.Array = frozen_private_field()
     _check_single_array: bool = frozen_private_field(default=True)
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
         default=ParameterType.CONTINUOUS

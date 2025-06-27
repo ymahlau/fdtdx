@@ -30,7 +30,7 @@ def plot_setup(
     helps verify the correct positioning and sizing of objects in the simulation setup.
 
     Args:
-        config: Configuration object containing simulation parameters like resolution
+        config (SimulationConfig): Configuration object containing simulation parameters like resolution
         objects: Container holding all simulation objects to be plotted
         exclude_object_list: List of objects to exclude from all plots
         filename: If provided, saves the plot to this file instead of displaying
@@ -41,7 +41,7 @@ def plot_setup(
         exclude_xz_plane_object_list: Objects to exclude from XZ plane plot
 
     Returns:
-        matplotlib.figure.Figure: The generated figure object
+        Figure: The generated figure object
 
     Note:
         The plots show object positions in micrometers, converting from simulation units.
