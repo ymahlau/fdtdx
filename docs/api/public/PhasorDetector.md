@@ -1,0 +1,4 @@
+# fdtdx.PhasorDetector
+
+::: fdtdx.PhasorDetector
+

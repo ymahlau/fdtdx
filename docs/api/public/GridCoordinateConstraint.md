@@ -1,0 +1,3 @@
+# fdtdx.GridCoordinateConstraint
+
+::: fdtdx.GridCoordinateConstraint

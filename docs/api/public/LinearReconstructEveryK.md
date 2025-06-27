@@ -1,0 +1,3 @@
+# fdtdx.LinearReconstructEveryK
+
+::: fdtdx.LinearReconstructEveryK

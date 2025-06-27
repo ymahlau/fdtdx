@@ -1,0 +1,4 @@
+# fdtdx.PillarDiscretization
+
+::: fdtdx.PillarDiscretization
+

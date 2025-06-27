@@ -1,0 +1,3 @@
+# fdtdx.UniformMaterialObject
+
+::: fdtdx.UniformMaterialObject

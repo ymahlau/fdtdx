@@ -1,0 +1,4 @@
+# fdtdx.PeriodicBoundary
+
+::: fdtdx.PeriodicBoundary
+

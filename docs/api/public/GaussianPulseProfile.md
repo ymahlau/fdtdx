@@ -1,0 +1,3 @@
+# fdtdx.GaussianPulseProfile
+
+::: fdtdx.GaussianPulseProfile

@@ -1,0 +1,3 @@
+# fdtdx.SimulationConfig
+
+::: fdtdx.SimulationConfig

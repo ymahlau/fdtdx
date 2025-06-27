@@ -1,0 +1,3 @@
+# fdtdx.BoundaryConfig
+
+::: fdtdx.BoundaryConfig

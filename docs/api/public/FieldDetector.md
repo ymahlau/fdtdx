@@ -1,0 +1,3 @@
+# fdtdx.FieldDetector
+
+::: fdtdx.FieldDetector

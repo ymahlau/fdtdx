@@ -1,0 +1,3 @@
+# fdtdx.autoinit
+
+::: fdtdx.autoinit

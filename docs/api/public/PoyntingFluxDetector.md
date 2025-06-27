@@ -1,0 +1,3 @@
+# fdtdx.PoyntingFluxDetector
+
+::: fdtdx.PoyntingFluxDetector

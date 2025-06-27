@@ -1,0 +1,3 @@
+# fdtdx.SubpixelSmoothedProjection
+
+::: fdtdx.SubpixelSmoothedProjection

@@ -1,0 +1,3 @@
+# fdtdx.GaussianPlaneSource
+
+::: fdtdx.GaussianPlaneSource

@@ -1,22 +1,21 @@
-##
-# Physical Constants
-::: fdtdx.constants.c
-::: fdtdx.constants.mu0
-::: fdtdx.constants.eps0
-::: fdtdx.constants.eta0
-::: fdtdx.constants.wavelength_to_period
+# fdtdx.constants
 
-# Material Properties
-::: fdtdx.constants.relative_permittivity_air
-::: fdtdx.constants.relative_permittivity_substrate
-::: fdtdx.constants.relative_permittivity_polymer
-::: fdtdx.constants.relative_permittivity_silicon
-::: fdtdx.constants.relative_permittivity_silica
-::: fdtdx.constants.relative_permittivity_SZ_2080
-::: fdtdx.constants.relative_permittivity_ma_N_1400_series
-::: fdtdx.constants.relative_permittivity_bacteria
-::: fdtdx.constants.relative_permittivity_water
-::: fdtdx.constants.relative_permittivity_fused_silica
-::: fdtdx.constants.relative_permittivity_coated_silica
-::: fdtdx.constants.relative_permittivity_resin
-::: fdtdx.constants.relative_permittivity_ormo_prime
+::: fdtdx.constants.c
+    options:
+        show_root_heading: true
+
+::: fdtdx.constants.mu0
+    options:
+        show_root_heading: true
+
+::: fdtdx.constants.eps0
+    options:
+        show_root_heading: true
+
+::: fdtdx.constants.eta0
+    options:
+        show_root_heading: true
+
+::: fdtdx.constants.wavelength_to_period
+    options:
+        show_root_heading: true

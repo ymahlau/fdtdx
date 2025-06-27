@@ -14,8 +14,7 @@ plugins:
         python:
           paths: [src]
           options:
-            show_root_heading: true
-            show_source: false
+            show_source: true
             show_signature: true
             separate_signature: true
             show_bases: true
@@ -24,6 +23,8 @@ plugins:
             group_by_category: true
             show_category_heading: true
             docstring_style: google
+            show_root_heading: false
+            show_root_toc_entry: false
   - mkdocs-jupyter:
       include: ["docs/notebooks/*.ipynb"]
   - awesome-nav

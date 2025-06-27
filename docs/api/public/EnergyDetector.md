@@ -1,0 +1,3 @@
+# fdtdx.EnergyDetector
+
+::: fdtdx.EnergyDetector

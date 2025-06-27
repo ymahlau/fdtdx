@@ -1,0 +1,3 @@
+# fdtdx.BinaryMedianFilterModule
+
+::: fdtdx.BinaryMedianFilterModule

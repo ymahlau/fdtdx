@@ -1,4 +1,3 @@
-# Material
+# fdtdx.Material
 
 ::: fdtdx.Material
-

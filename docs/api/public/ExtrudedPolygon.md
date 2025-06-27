@@ -1,0 +1,3 @@
+# fdtdx.ExtrudedPolygon
+
+::: fdtdx.ExtrudedPolygon

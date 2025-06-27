@@ -1,5 +1,7 @@
 flatten_single_child_sections: false 
 
+preserve_directory_names: true
+
 sort:
   direction: asc 
   type: natural 
