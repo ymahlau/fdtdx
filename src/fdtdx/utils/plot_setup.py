@@ -31,14 +31,14 @@ def plot_setup(
 
     Args:
         config (SimulationConfig): Configuration object containing simulation parameters like resolution
-        objects: Container holding all simulation objects to be plotted
-        exclude_object_list: List of objects to exclude from all plots
-        filename: If provided, saves the plot to this file instead of displaying
-        axs: Optional matplotlib axes to plot on. If None, creates new figure
-        plot_legend: Whether to add a legend showing object names/types
-        exclude_xy_plane_object_list: Objects to exclude from XY plane plot
-        exclude_yz_plane_object_list: Objects to exclude from YZ plane plot
-        exclude_xz_plane_object_list: Objects to exclude from XZ plane plot
+        objects (ObjectContainer): Container holding all simulation objects to be plotted
+        exclude_object_list (list[SimulationObject], optional): List of objects to exclude from all plots
+        filename (str | Path | None, optional): If provided, saves the plot to this file instead of displaying
+        axs (Sequence[Any] | None, optional): Optional matplotlib axes to plot on. If None, creates new figure
+        plot_legend (bool, optional): Whether to add a legend showing object names/types
+        exclude_xy_plane_object_list (list[SimulationObject], optional): Objects to exclude from XY plane plot
+        exclude_yz_plane_object_list (list[SimulationObject], optional): Objects to exclude from YZ plane plot
+        exclude_xz_plane_object_list (list[SimulationObject], optional): Objects to exclude from XZ plane plot
 
     Returns:
         Figure: The generated figure object

@@ -12,7 +12,7 @@ def get_periodic_axes(objects: ObjectContainer) -> tuple[bool, bool, bool]:
     """Determines which axes have periodic boundary conditions.
 
     Args:
-        objects: Container with simulation objects including boundaries
+        objects (ObjectContainer): Container with simulation objects including boundaries
 
     Returns:
         tuple[bool, bool, bool]: Tuple indicating which axes (x,y,z) are periodic
@@ -39,14 +39,14 @@ def update_E(
     3. Field updates based on curl of H field
 
     Args:
-        time_step: Current simulation time step
-        arrays: Container with E, H fields and material properties
-        objects: Container with sources, boundaries and other simulation objects
-        config: Simulation configuration parameters
-        simulate_boundaries: Whether to apply boundary conditions
+        time_step (jax.Array): Current simulation time step
+        arrays (ArrayContainer): Container with E, H fields and material properties
+        objects (ObjectContainer): Container with sources, boundaries and other simulation objects
+        config (SimulationConfig): Simulation configuration parameters
+        simulate_boundaries (bool): Whether to apply boundary conditions
 
     Returns:
-        Updated ArrayContainer with new E field values
+        ArrayContainer: Updated ArrayContainer with new E field values
     """
     boundary_states = {}
     if simulate_boundaries:
@@ -123,13 +123,13 @@ def update_E_reverse(
     Maxwell's equations.
 
     Args:
-        time_step: Current simulation time step
-        arrays: Container with E, H fields and material properties
-        objects: Container with sources and other simulation objects
-        config: Simulation configuration parameters
+        time_step (jax.Array): Current simulation time step
+        arrays (ArrayContainer): Container with E, H fields and material properties
+        objects (ObjectContainer): Container with sources and other simulation objects
+        config (SimulationConfig): Simulation configuration parameters
 
     Returns:
-        Updated ArrayContainer with reversed E field values
+        ArrayContainer: Updated ArrayContainer with reversed E field values
     """
     E = arrays.E
     for source in objects.sources:
@@ -187,14 +187,14 @@ def update_H(
     following the Yee grid scheme.
 
     Args:
-        time_step: Current simulation time step
-        arrays: Container with E, H fields and material properties
-        objects: Container with sources, boundaries and other simulation objects
-        config: Simulation configuration parameters
-        simulate_boundaries: Whether to apply boundary conditions
+        time_step (jax.Array): Current simulation time step
+        arrays (ArrayContainer): Container with E, H fields and material properties
+        objects (ObjectContainer): Container with sources, boundaries and other simulation objects
+        config (SimulationConfig): Simulation configuration parameters
+        simulate_boundaries (bool): Whether to apply boundary conditions
 
     Returns:
-        Updated ArrayContainer with new H field values
+        ArrayContainer: Updated ArrayContainer with new H field values
     """
     boundary_states = {}
     if simulate_boundaries:
@@ -270,13 +270,13 @@ def update_H_reverse(
     Maxwell's equations.
 
     Args:
-        time_step: Current simulation time step
-        arrays: Container with E, H fields and material properties
-        objects: Container with sources and other simulation objects
-        config: Simulation configuration parameters
+        time_step (jax.Array): Current simulation time step
+        arrays (ArrayContainer): Container with E, H fields and material properties
+        objects (ObjectContainer): Container with sources and other simulation objects
+        config (SimulationConfig): Simulation configuration parameters
 
     Returns:
-        Updated ArrayContainer with reversed H field values
+        ArrayContainer: Updated ArrayContainer with reversed H field values
     """
     H = arrays.H
     for source in objects.sources:
@@ -332,14 +332,14 @@ def update_detector_states(
     nature of E and H fields on the Yee grid.
 
     Args:
-        time_step: Current simulation time step
-        arrays: Container with E, H fields and material properties
-        objects: Container with detectors and other simulation objects
-        H_prev: Previous H field values for interpolation
-        inverse: Whether this is a forward or reverse update
+        time_step (jax.Array): Current simulation time step
+        arrays (ArrayContainer): Container with E, H fields and material properties
+        objects (ObjectContainer): Container with detectors and other simulation objects
+        H_prev (jax.Array): Previous H field values for interpolation
+        inverse (bool): Whether this is a forward or reverse update
 
     Returns:
-        Updated ArrayContainer with new detector states
+        ArrayContainer: Updated ArrayContainer with new detector states
     """
     periodic_axes = get_periodic_axes(objects)
     interpolated_E, interpolated_H = interpolate_fields(
@@ -387,14 +387,14 @@ def collect_interfaces(
     since PML updates are not time-reversible.
 
     Args:
-        time_step: Current simulation time step
-        arrays: Container with fields and material properties
-        objects: Container with PML and other simulation objects
-        config: Simulation configuration with gradient settings
-        key: Random key for compression
+        time_step (jax.Array): Current simulation time step
+        arrays (ArrayContainer): Container with fields and material properties
+        objects (ObjectContainer): Container with PML and other simulation objects
+        config (SimulationConfig): Simulation configuration with gradient settings
+        key (jax.Array): Random key for compression
 
     Returns:
-        Updated ArrayContainer with recorded interface values
+        ArrayContainer: Updated ArrayContainer with recorded interface values
     """
     if config.gradient_config is None or config.gradient_config.recorder is None:
         raise Exception("Need recorder to record boundaries")
@@ -428,14 +428,14 @@ def add_interfaces(
     since PML updates are not time-reversible.
 
     Args:
-        time_step: Current simulation time step
-        arrays: Container with fields and material properties
-        objects: Container with PML and other simulation objects
-        config: Simulation configuration with gradient settings
-        key: Random key for decompression
+        time_step (jax.Array): Current simulation time step
+        arrays (ArrayContainer): Container with fields and material properties
+        objects (ObjectContainer): Container with PML and other simulation objects
+        config (SimulationConfig): Simulation configuration with gradient settings
+        key (jax.Array): Random key for decompression
 
     Returns:
-        Updated ArrayContainer with restored interface values
+        ArrayContainer: Updated ArrayContainer with restored interface values
     """
     if config.gradient_config is None or config.gradient_config.recorder is None:
         raise Exception("Need recorder to record boundaries")

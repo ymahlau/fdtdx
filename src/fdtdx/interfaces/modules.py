@@ -16,9 +16,6 @@ class CompressionModule(TreeClass, ABC):
     during FDTD simulations. Implementations can perform operations like quantization,
     dimensionality reduction, or other compression techniques.
 
-    Attributes:
-        _input_shape_dtypes: Dictionary mapping field names to their input shapes/dtypes.
-        _output_shape_dtypes: Dictionary mapping field names to their output shapes/dtypes.
     """
 
     _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field(default=None)  # type: ignore
@@ -36,10 +33,11 @@ class CompressionModule(TreeClass, ABC):
         """Initialize shapes and sizes for the compression module.
 
         Args:
-            input_shape_dtypes: Dictionary mapping field names to their input shapes/dtypes.
+            input_shape_dtypes (dict[str, jax.ShapeDtypeStruct]): Dictionary mapping field names to their input
+                shapes/dtypes.
 
         Returns:
-            Tuple containing:
+            tuple[Self, dict[str, jax.ShapeDtypeStruct], dict[str, jax.ShapeDtypeStruct]]: Tuple containing:
                 - Self: Updated instance of the compression module
                 - Dictionary mapping field names to their output shapes/dtypes
                 - Dictionary mapping field names to their state shapes/dtypes
@@ -60,12 +58,12 @@ class CompressionModule(TreeClass, ABC):
         """Compress field values at the current time step.
 
         Args:
-            values: Dictionary mapping field names to their values.
-            state: Current recording state.
-            key: Random key for stochastic operations.
+            values (dict[str, jax.Array]): Dictionary mapping field names to their values.
+            state (RecordingState): Current recording state.
+            key (jax.Array): Random key for stochastic operations.
 
         Returns:
-            Tuple containing:
+            tuple[dict[str, jax.Array], RecordingState]: Tuple containing:
                 - Dictionary of compressed field values
                 - Updated recording state
         """
@@ -82,12 +80,12 @@ class CompressionModule(TreeClass, ABC):
         """Decompress field values back to their original form.
 
         Args:
-            values: Dictionary mapping field names to their compressed values.
-            state: Current recording state.
-            key: Random key for stochastic operations.
+            values (dict[str, jax.Array]): Dictionary mapping field names to their compressed values.
+            state (RecordingState): Current recording state.
+            key (jax.Array): Random key for stochastic operations.
 
         Returns:
-            Dictionary mapping field names to their decompressed values.
+            dict[str, jax.Array]: Dictionary mapping field names to their decompressed values.
         """
         del (
             values,
@@ -105,8 +103,8 @@ class DtypeConversion(CompressionModule):
     useful for reducing memory usage or meeting precision requirements.
 
     Attributes:
-        dtype: Target data type for conversion.
-        exclude_filter: List of field names to exclude from conversion.
+        dtype (jnp.dtype): Target data type for conversion.
+        exclude_filter (Sequence[str]): List of field names to exclude from conversion.
     """
 
     dtype: jnp.dtype = frozen_field(kind="KW_ONLY")  # type: ignore

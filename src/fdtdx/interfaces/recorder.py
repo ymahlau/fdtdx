@@ -21,8 +21,8 @@ class Recorder(TreeClass):
     of simulation data through its module pipeline.
 
     Attributes:
-        modules: Sequence of processing modules to apply to the simulation data.
-            Can be either CompressionModule for data reduction or TimeStepFilter
+        modules (Sequence[CompressionModule | TimeStepFilter]): Sequence of processing modules to apply to the
+            simulation data. Can be either CompressionModule for data reduction or TimeStepFilter
             for controlling recording frequency.
     """
 

@@ -14,9 +14,9 @@ class Cylinder(StaticMultiMaterialObject):
     and orientation. The fiber can be positioned along any of the three principal axes.
 
     Attributes:
-        radius: The radius of the fiber in meter.
-        axis: The principal axis along which the fiber extends (0=x, 1=y, 2=z).
-        material_name: Name of the material in the materials dictionary to be used for the object
+        radius (float): The radius of the fiber in meter.
+        axis (int): The principal axis along which the fiber extends (0=x, 1=y, 2=z).
+        material_name (str): Name of the material in the materials dictionary to be used for the object.
     """
 
     radius: float = frozen_field()

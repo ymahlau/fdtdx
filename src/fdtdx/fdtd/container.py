@@ -34,8 +34,8 @@ class ObjectContainer(TreeClass):
     and provides filtered access to specific object types.
 
     Attributes:
-        object_list: List of all simulation objects in the container.
-        volume_idx: Index of the volume object in the object list.
+        object_list (list[SimulationObject]): List of all simulation objects in the container.
+        volume_idx (int): Index of the volume object in the object list.
     """
 
     object_list: list[SimulationObject]

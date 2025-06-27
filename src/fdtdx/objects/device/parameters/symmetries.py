@@ -10,9 +10,10 @@ class DiagonalSymmetry2D(SameShapeTypeParameterTransform):
     """
     Enforce symmetries by effectively havling the parameter space. The symmetry is transposing by rotating the image
     and taking the mean of original and transpose.
+
     Attributes:
-        min_min_to_max_max: if true, the symmetry axes is from (x_min, y_min) to (x_max, y_max). If false, the other
-            diagonal is used.
+        min_min_to_max_max (bool): if true, the symmetry axes is from (x_min, y_min) to (x_max, y_max).
+            If false, the other diagonal is used.
     """
 
     min_min_to_max_max: bool = frozen_field()

@@ -21,17 +21,17 @@ class BoundaryState(BaseBoundaryState):
     the convolutional perfectly matched layer (CPML) boundary conditions.
 
     Attributes:
-        psi_Ex: Auxiliary field for Ex component
-        psi_Ey: Auxiliary field for Ey component
-        psi_Ez: Auxiliary field for Ez component
-        psi_Hx: Auxiliary field for Hx component
-        psi_Hy: Auxiliary field for Hy component
-        psi_Hz: Auxiliary field for Hz component
-        bE: Electric field scaling coefficient
-        bH: Magnetic field scaling coefficient
-        cE: Electric field update coefficient
-        cH: Magnetic field update coefficient
-        kappa: PML stretching coefficient
+        psi_Ex (jax.Array): Auxiliary field for Ex component
+        psi_Ey (jax.Array): Auxiliary field for Ey component
+        psi_Ez (jax.Array): Auxiliary field for Ez component
+        psi_Hx (jax.Array): Auxiliary field for Hx component
+        psi_Hy (jax.Array): Auxiliary field for Hy component
+        psi_Hz (jax.Array): Auxiliary field for Hz component
+        bE (jax.Array): Electric field scaling coefficient
+        bH (jax.Array): Magnetic field scaling coefficient
+        cE (jax.Array): Electric field update coefficient
+        cH (jax.Array): Magnetic field update coefficient
+        kappa (jax.Array): PML stretching coefficient
     """
 
     psi_Ex: jax.Array
@@ -58,12 +58,12 @@ class PerfectlyMatchedLayer(BaseBoundary):
     axis orientation and both positive/negative directions.
 
     Attributes:
-        axis: Principal axis for PML (0=x, 1=y, 2=z)
-        direction: Direction along axis ("+" or "-")
-        alpha: Loss parameter for complex frequency shifting
-        kappa_start: Initial kappa stretching coefficient
-        kappa_end: Final kappa stretching coefficient
-        color: RGB color tuple for visualization
+        axis (int): Principal axis for PML (0=x, 1=y, 2=z)
+        direction (Literal["+", "-"]): Direction along axis ("+" or "-")
+        alpha (float, optional): Loss parameter for complex frequency shifting. Defaults to 1e-8.
+        kappa_start (float, optional): Initial kappa stretching coefficient. Defaults to 1.0.
+        kappa_end (float, optional): Final kappa stretching coefficient. Defaults to 1.5.
+        color (tuple[float, float, float] | None, optional): RGB color tuple for visualization. defualts to dark grey.
     """
 
     axis: int = frozen_field()

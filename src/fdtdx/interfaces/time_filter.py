@@ -16,12 +16,6 @@ class TimeStepFilter(TreeClass, ABC):
     This class provides an interface for filters that process simulation data at specific
     time steps. Implementations can perform operations like downsampling, collation, or
     other temporal processing of field data.
-
-    Attributes:
-        _time_steps_max: Maximum number of time steps in the simulation.
-        _array_size: Size of the array used to store filtered data.
-        _input_shape_dtypes: Dictionary mapping field names to their input shapes/dtypes.
-        _output_shape_dtypes: Dictionary mapping field names to their output shapes/dtypes.
     """
 
     _time_steps_max: int = frozen_private_field()
@@ -43,15 +37,16 @@ class TimeStepFilter(TreeClass, ABC):
         """Initialize shapes and sizes for the time step filter.
 
         Args:
-            input_shape_dtypes: Dictionary mapping field names to their shape/dtype information.
-            time_steps_max: Maximum number of time steps in the simulation.
+            input_shape_dtypes (dict[str, jax.ShapeDtypeStruct]): Dictionary mapping field names to their
+                shape/dtype information.
+            time_steps_max (int): Maximum number of time steps in the simulation.
 
         Returns:
-            A tuple containing:
-            - Updated filter instance
-            - Size of array for storing filtered data
-            - Dictionary of data shapes/dtypes
-            - Dictionary of state shapes/dtypes
+            tuple[Self, int, dict[str, jax.ShapeDtypeStruct], dict[str, jax.ShapeDtypeStruct]]: A tuple containing:
+                - Updated filter instance
+                - Size of array for storing filtered data
+                - Dictionary of data shapes/dtypes
+                - Dictionary of state shapes/dtypes
         """
         del input_shape_dtypes, time_steps_max
         raise NotImplementedError()
@@ -64,11 +59,11 @@ class TimeStepFilter(TreeClass, ABC):
         """Convert a time step index to its corresponding array index.
 
         Args:
-            time_idx: Time step index to convert.
+            time_idx (int): Time step index to convert.
 
         Returns:
-            The corresponding array index if the time step is not filtered,
-            or -1 if the time step is filtered out.
+            int: The corresponding array index if the time step is not filtered,
+                or -1 if the time step is filtered out.
         """
         del time_idx
         raise NotImplementedError()
@@ -87,15 +82,15 @@ class TimeStepFilter(TreeClass, ABC):
         """Compress field values at a given time step.
 
         Args:
-            values: Dictionary mapping field names to their values.
-            state: Current recording state.
-            time_idx: Current time step index.
-            key: Random key for stochastic operations.
+            values (dict[str, jax.Array]): Dictionary mapping field names to their values.
+            state (RecordingState): Current recording state.
+            time_idx (jax.Array): Current time step index.
+            key (jax.Array): Random key for stochastic operations.
 
         Returns:
-            Tuple containing:
-            - Dictionary of compressed field values
-            - Updated recording state
+            tuple[dict[str, jax.Array], RecordingState]: Tuple containing:
+                - Dictionary of compressed field values
+                - Updated recording state
         """
         del values, state, time_idx, key
         raise NotImplementedError()
@@ -108,10 +103,10 @@ class TimeStepFilter(TreeClass, ABC):
         """Get array indices needed to reconstruct data for a given time step.
 
         Args:
-            time_idx: Time step index to reconstruct.
+            time_idx (jax.Array): Time step index to reconstruct.
 
         Returns:
-            Array of indices needed to reconstruct the data for this time step.
+            jax.Array: Array of indices needed to reconstruct the data for this time step.
         """
         del time_idx
         raise NotImplementedError()
@@ -124,18 +119,18 @@ class TimeStepFilter(TreeClass, ABC):
         arr_indices: jax.Array,
         time_idx: jax.Array,  # scalar
         key: jax.Array,
-    ) -> dict[str, jax.Array]:  # reconstructed value
+    ) -> dict[str, jax.Array]:
         """Decompress field values to reconstruct data for a time step.
 
         Args:
-            values: List of dictionaries containing array values needed for reconstruction.
-            state: Current recording state.
-            arr_indices: Array indices needed for reconstruction.
-            time_idx: Time step index to reconstruct.
-            key: Random key for stochastic operations.
+            values (list[dict[str, jax.Array]]): List of dictionaries containing array values needed for reconstruction.
+            state (RecordingState): Current recording state.
+            arr_indices (jax.Array): Array indices needed for reconstruction.
+            time_idx (jax.Array): Time step index to reconstruct. scalar value.
+            key (jax.Array): Random key for stochastic operations.
 
         Returns:
-            Dictionary of reconstructed field values.
+            dict[str, jax.Array]: Dictionary of reconstructed field values.
         """
         del values, state, arr_indices, time_idx, key
         raise NotImplementedError()
@@ -149,10 +144,8 @@ class LinearReconstructEveryK(TimeStepFilter):
     to reconstruct values at intermediate time steps.
 
     Attributes:
-        k: Number of time steps between saved values.
-        start_recording_after: Time step to start recording from.
-        _save_time_steps: Array of time steps that are saved.
-        _time_to_arr_idx: Mapping from time steps to array indices.
+        k (int): Number of time steps between saved values.
+        start_recording_after (int, optional): Time step to start recording from. Defaults to zero.
     """
 
     k: int = frozen_field()

@@ -15,11 +15,9 @@ from fdtdx.objects.object import OrderableObject
 from fdtdx.typing import (
     INVALID_SHAPE_3D,
     UNDEFINED_SHAPE_3D,
-    GridShape3D,
     ParameterType,
     PartialGridShape3D,
     PartialRealShape3D,
-    RealShape3D,
     SliceTuple3D,
 )
 
@@ -32,9 +30,16 @@ class Device(OrderableObject, ABC):
     continuous devices that can be optimized through gradient-based methods.
 
     Attributes:
-        name: Optional name identifier for the device
-        dtype: Data type for device parameters, defaults to float32
-        color: RGB color tuple for visualization, defaults to pink
+        materials (dict[str, Material]): Dictionary of materials to be used in the device.
+        param_transforms (Sequence[ParameterTransformation]): A Sequence of parameter transformation to be applied to
+            the parameters when mapping them to simulation materials.
+        color (tuple[float, float, float] | None, optional): Color of the object when plotted. Defaults to Pink.
+        partial_voxel_grid_shape (PartialGridShape3D, optional): Size of the material voxels used within the device in
+            metrical units (meter). Note that this is independent of the simulation voxel size. Defaults to undefined
+            shape. For all three axes, either the voxel grid or real shape needs to be defined.
+        partial_voxel_real_shape (PartialRealShape3D, optional): Size of the material voxels used within the device in
+            simulation voxels. Defaults to undefined shape. For all three axes, either the voxel grid or real shape
+            needs to be defined.
     """
 
     materials: dict[str, Material] = field()
@@ -43,15 +48,15 @@ class Device(OrderableObject, ABC):
     partial_voxel_grid_shape: PartialGridShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
     partial_voxel_real_shape: PartialRealShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
 
-    _single_voxel_grid_shape: GridShape3D = frozen_private_field(default=INVALID_SHAPE_3D)
+    _single_voxel_grid_shape: tuple[int, int, int] = frozen_private_field(default=INVALID_SHAPE_3D)
 
     @property
-    def matrix_voxel_grid_shape(self) -> GridShape3D:
+    def matrix_voxel_grid_shape(self) -> tuple[int, int, int]:
         """Calculate the shape of the voxel matrix in grid coordinates.
 
         Returns:
-            Tuple of (x,y,z) dimensions representing how many voxels fit in each direction
-            of the grid shape when divided by the single voxel shape.
+            tuple[int, int, int]: Tuple of (x,y,z) dimensions representing how many voxels fit in each direction
+                of the grid shape when divided by the single voxel shape.
         """
         return (
             round(self.grid_shape[0] / self.single_voxel_grid_shape[0]),
@@ -60,26 +65,23 @@ class Device(OrderableObject, ABC):
         )
 
     @property
-    def single_voxel_grid_shape(self) -> GridShape3D:
+    def single_voxel_grid_shape(self) -> tuple[int, int, int]:
         """Get the shape of a single voxel in grid coordinates.
 
         Returns:
-            Tuple of (x,y,z) dimensions for one voxel.
-
-        Raises:
-            Exception: If the object has not been initialized yet.
+            tuple[int, int, int]: Tuple of (x,y,z) dimensions for one voxel.
         """
         if self._single_voxel_grid_shape == INVALID_SHAPE_3D:
             raise Exception(f"{self} is not initialized yet")
         return self._single_voxel_grid_shape
 
     @property
-    def single_voxel_real_shape(self) -> RealShape3D:
+    def single_voxel_real_shape(self) -> tuple[float, float, float]:
         """Calculate the shape of a single voxel in real (physical) coordinates.
 
         Returns:
-            Tuple of (x,y,z) dimensions in real units, computed by multiplying
-            the grid shape by the simulation resolution.
+            tuple[float, float, float]: Tuple of (x,y,z) dimensions in real units, computed by multiplying
+                the grid shape by the simulation resolution.
         """
         grid_shape = self.single_voxel_grid_shape
         return (

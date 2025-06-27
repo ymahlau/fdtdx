@@ -4,7 +4,7 @@ import shutil
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 import jax
 import jax.numpy as jnp
@@ -33,8 +33,8 @@ def init_working_directory(experiment_name: str, wd_name: str | None) -> Path:
     Uses current date/time unless a specific working directory name is provided.
 
     Args:
-        experiment_name: Name of the experiment
-        wd_name: Optional specific name for the working directory. If None, uses timestamp.
+        experiment_name (str): Name of the experiment
+        wd_name (str | None): Optional specific name for the working directory. If None, uses timestamp.
 
     Returns:
         Path: Created working directory path
@@ -94,8 +94,9 @@ class Logger:
     saving figures, metrics, and device parameters.
 
     Args:
-        experiment_name: Name of the experiment
-        name: Optional specific name for the working directory. If None, uses timestamp.
+        experiment_name (str): Name of the experiment. This is the naming of the parent directory where the experiment
+            will be saved.
+        name (str | None, optional): Optional specific name for the working directory. If None, uses timestamp.
     """
 
     def __init__(self, experiment_name: str, name: str | None = None):
@@ -157,10 +158,10 @@ class Logger:
         Creates a figures subdirectory if needed and saves the figure with specified settings.
 
         Args:
-            directory: Base directory to save in
-            filename: Name for the figure file
-            fig: Matplotlib figure to save
-            dpi: Resolution in dots per inch
+            directory (Path): Base directory to save in
+            filename (str): Name for the figure file
+            fig (Figure): Matplotlib figure to save
+            dpi (int, optional): Resolution in dots per inch. Defaults to 300.
         """
         figure_directory = directory / "figures"
         figure_directory.mkdir(parents=True, exist_ok=True)
@@ -174,8 +175,8 @@ class Logger:
         Automatically initializes CSV headers on first write.
 
         Args:
-            stats: Dictionary of statistics to record
-            do_print: Whether to print stats to console
+            stats (dict): Dictionary of statistics to record
+            do_print (bool, optional): Whether to print stats to console. Defaults to true.
         """
         stats = {
             k: v.item() if isinstance(v, jax.Array) else v
@@ -201,7 +202,7 @@ class Logger:
         iter_idx: int,
         objects: ObjectContainer,
         detector_states: dict[str, DetectorState],
-        exclude: list[str] = [],
+        exclude: Sequence[str] = [],
     ):
         """Log detector states and generate visualization plots.
 
@@ -209,10 +210,10 @@ class Logger:
         Handles both figure outputs and other detector-specific file formats.
 
         Args:
-            iter_idx: Current iteration index
-            objects: Container with simulation objects
-            detector_states: Dictionary mapping detector names to their states
-            exclude: List of detector names to exclude from logging
+            iter_idx (int): Current iteration index
+            objects (ObjectContainer): Container with simulation objects
+            detector_states (dict[str, DetectorState]): Dictionary mapping detector names to their states
+            exclude (Sequence[str], optional): List of detector names to exclude from logging
         """
         for detector in [d for d in objects.detectors if d.name not in exclude]:
             cur_state = jax.device_get(detector_states[detector.name])
@@ -260,16 +261,16 @@ class Logger:
         Tracks changes in device voxels between iterations.
 
         Args:
-            iter_idx: Current iteration index
-            params: Container with device parameters
-            objects: Container with simulation objects
-            export_figure: Whether to export index matrix figures
-            export_stl: Whether to export device geometry as STL
-            export_background_stl: Whether to export air regions as STL
+            iter_idx (int): Current iteration index
+            params (ParameterContainer): Container with device parameters
+            objects (ObjectContainer): Container with simulation objects
+            export_figure (bool, optional): Whether to export index matrix figures
+            export_stl (bool, optional): Whether to export device geometry as STL
+            export_background_stl (bool, optional): Whether to export air regions as STL
             **transformation_kwargs: keyword arguments passed to the parameter transformation
 
         Returns:
-            Number of voxels that changed since last iteration
+            int: Number of voxels that changed since last iteration
         """
         changed_voxels = 0
         for device in objects.devices:

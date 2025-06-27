@@ -17,9 +17,10 @@ class DiffractiveDetector(Detector):
     direction along the propagation axis.
 
     Attributes:
-        frequencies: List of frequencies to analyze (in Hz)
-        orders: Tuple of (nx, ny) pairs specifying diffraction orders to compute
-        direction: Direction of diffraction analysis ("+" or "-") along propagation axis
+        frequencies (Sequence[float]): List of frequencies to analyze (in Hz)
+        direction (Literal["+", "-"]): Either "+" or "-" for positive or negative direction.
+        orders (Sequence[Tuple[int, int]], optional): Tuple of (nx, ny) pairs specifying diffraction orders to compute
+        dtype (jnp.dtype, optional): Data type of the saved data.
     """
 
     frequencies: Sequence[float] = frozen_field()

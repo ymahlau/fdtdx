@@ -54,8 +54,8 @@ class StandardToCustomRange(SameShapeTypeParameterTransform):
     and max_value parameters.
 
     Attributes:
-        min_value: Minimum value of target range
-        max_value: Maximum value of target range
+        min_value (float, optional): Minimum value of target range. Defaults to zero.
+        max_value (float, optional): Maximum value of target range. Defaults to one.
     """
 
     min_value: float = frozen_field(default=0)
@@ -83,10 +83,6 @@ class StandardToPlusOneMinusOneRange(StandardToCustomRange):
 
     Special case of StandardToCustomRange that maps to [-1,1] range.
     Used for symmetric value ranges around zero.
-
-    Attributes:
-        min_value: Fixed to -1
-        max_value: Fixed to 1
     """
 
     min_value: float = frozen_private_field(default=-1)
@@ -102,16 +98,16 @@ class GaussianSmoothing2D(SameShapeTypeParameterTransform):
     which helps reduce noise and smooth the data.
 
     Attributes:
-        std_discrete: Integer specifying the standard deviation of the
+        std_discrete (int): Integer specifying the standard deviation of the
                      Gaussian kernel in discrete units.
     """
+
+    std_discrete: int = frozen_field()
 
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
         default=ParameterType.CONTINUOUS
     )
     _all_arrays_2d: bool = frozen_private_field(default=True)
-
-    std_discrete: int
 
     def __call__(
         self,

@@ -13,11 +13,11 @@ def remove_floating_polymer(
     and removes any floating polymer regions that are not connected.
 
     Args:
-        matrix: Binary array where 1 represents polymer and 0 represents air.
+        matrix (jax.Array): Binary array where 1 represents polymer and 0 represents air.
                Shape is (x, y, z) representing the 3D grid.
 
     Returns:
-        Modified binary array with floating polymer regions removed.
+        jax.Array: Modified binary array with floating polymer regions removed.
     """
     connected = compute_polymer_connection(matrix)
     non_connected_polymer = jnp.invert(connected) & matrix
@@ -34,11 +34,11 @@ def remove_polymer_non_connected_to_x_max_middle(
     to identify connected polymer regions and removes unconnected regions.
 
     Args:
-        matrix: Binary array where 1 represents polymer and 0 represents air.
+        matrix (jax.Array): Binary array where 1 represents polymer and 0 represents air.
                Shape is (x, y, z) representing the 3D grid.
 
     Returns:
-        Modified binary array with unconnected polymer regions removed.
+        jax.Array: Modified binary array with unconnected polymer regions removed.
     """
     y_middle = round(matrix.shape[1] / 2)
     x_middle = round(matrix.shape[0] / 2)
@@ -63,11 +63,11 @@ def connect_holes_and_structures(
     This ensures both structural integrity and proper air ventilation.
 
     Args:
-        matrix: Binary array where 1 represents polymer and 0 represents air.
+        matrix (jax.Array): Binary array where 1 represents polymer and 0 represents air.
                Shape is (x, y, z) representing the 3D grid.
 
     Returns:
-        Modified binary array with connected structures and holes.
+        jax.Array: Modified binary array with connected structures and holes.
     """
     matrix = matrix.astype(bool)
     # first connect all polymer structures  # TODO: convert to fori-loops
@@ -115,10 +115,10 @@ def compute_air_connection(matrix: jax.Array) -> jax.Array:
     proper ventilation in the structure.
 
     Args:
-        matrix: Binary array where 1 represents polymer and 0 represents air.
+        matrix (jax.Array): Binary array where 1 represents polymer and 0 represents air.
 
     Returns:
-        Boolean array marking air regions connected to boundaries.
+        jax.Array: Boolean array marking air regions connected to boundaries.
     """
     inv_matrix = jnp.invert(matrix)
     n = max([matrix.shape[0], matrix.shape[1], matrix.shape[2]])
@@ -164,12 +164,13 @@ def compute_polymer_connection(
     in connected_slice.
 
     Args:
-        matrix: Binary array where 1 represents polymer and 0 represents air.
-        connected_slice: Optional tuple of indices specifying starting points
-                       for the connection computation. If None, uses bottom layer.
+        matrix (jax.Array): Binary array where 1 represents polymer and 0 represents air.
+        connected_slice (tuple[int | None, int | None, int | None] | None, optional):
+            Optional tuple of indices specifying starting points for the connection computation.
+            If None, uses bottom layer.
 
     Returns:
-        Boolean array marking connected polymer regions.
+        jax.Array: Boolean array marking connected polymer regions.
     """
     n = max([matrix.shape[0], matrix.shape[1], matrix.shape[2]])
     padded = False
@@ -220,13 +221,13 @@ def connect_slice(
     specified connection points.
 
     Args:
-        lower_slice: Binary array representing the lower z-slice.
-        middle_slice: Binary array representing the middle z-slice to be optimized.
-        upper_slice: Binary array representing the upper z-slice to be optimized.
-        upper_save_points: Boolean mask of points in upper slice that must remain connected.
+        lower_slice (jax.Array): Binary array representing the lower z-slice.
+        middle_slice (jax.Array): Binary array representing the middle z-slice to be optimized.
+        upper_slice (jax.Array): Binary array representing the upper z-slice to be optimized.
+        upper_save_points (jax.Array): Boolean mask of points in upper slice that must remain connected.
 
     Returns:
-        Tuple of (modified_middle_slice, modified_upper_slice) with connected regions.
+        tuple[jax.Array, jax.Array]: Tuple of (modified_middle_slice, modified_upper_slice) with connected regions.
     """
     n = max(lower_slice.shape[0], lower_slice.shape[1])
 
@@ -302,11 +303,11 @@ def dilate_jax(image: jax.Array, kernel: jax.Array) -> jax.Array:
     """Performs morphological dilation on a binary image using JAX.
 
     Args:
-        image: Binary input array to be dilated.
-        kernel: Binary kernel defining the dilation shape.
+        image (jax.Array): Binary input array to be dilated.
+        kernel (jax.Array): Binary kernel defining the dilation shape.
 
     Returns:
-        Dilated binary array.
+        jax.Array: Dilated binary array.
     """
     conv = jax.scipy.signal.convolve2d(image, kernel, mode="same", boundary="fill")
     binary_arr = jnp.asarray(conv, dtype=bool)
@@ -317,11 +318,11 @@ def erode_jax(image: jax.Array, kernel: jax.Array) -> jax.Array:
     """Performs morphological erosion on a binary image using JAX.
 
     Args:
-        image: Binary input array to be eroded.
-        kernel: Binary kernel defining the erosion shape.
+        image (jax.Array): Binary input array to be eroded.
+        kernel (jax.Array): Binary kernel defining the erosion shape.
 
     Returns:
-        Eroded binary array.
+        jax.Array: Eroded binary array.
     """
     conv = jax.scipy.signal.convolve2d(~image, kernel, mode="same", boundary="fill")
     binary_arr = jnp.asarray(conv, dtype=bool)
@@ -342,14 +343,14 @@ def seperated_3d_dilation(
     The result is masked by the reduction array after each operation.
 
     Args:
-        arr_3d: 3D binary array to be dilated.
-        kernel_xy: 2D kernel for XY plane dilation.
-        kernel_yz: 2D kernel for YZ plane dilation.
-        kernel_xz: 2D kernel for XZ plane dilation.
-        reduction_arr: Binary mask to constrain dilation results.
+        arr_3d (jax.Array): 3D binary array to be dilated.
+        kernel_xy (jax.Array): 2D kernel for XY plane dilation.
+        kernel_yz (jax.Array): 2D kernel for YZ plane dilation.
+        kernel_xz (jax.Array): 2D kernel for XZ plane dilation.
+        reduction_arr (jax.Array): Binary mask to constrain dilation results.
 
     Returns:
-        Dilated 3D binary array.
+        jax.Array: Dilated 3D binary array.
     """
 
     def convolve_partial(image: jax.Array, kernel: jax.Array):
@@ -382,12 +383,12 @@ def binary_median_filter(
     using the specified kernel sizes.
 
     Args:
-        arr_3d: 3D binary input array.
-        kernel_sizes: Tuple of (kx, ky, kz) specifying filter size in each dimension.
-        padding_cfg: Configuration for padding the input array.
+        arr_3d (jax.Array): 3D binary input array.
+        kernel_sizes (tuple[int, int, int]): Tuple of (kx, ky, kz) specifying filter size in each dimension.
+        padding_cfg (PaddingConfig): Configuration for padding the input array.
 
     Returns:
-        Filtered binary array.
+        jax.Array: Filtered binary array.
     """
     # padding
     padded_arr, orig_slice = advanced_padding(arr_3d, padding_cfg)

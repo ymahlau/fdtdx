@@ -85,8 +85,11 @@ class BrushConstraint2D(ParameterTransformation):
     morphological operations with a brush kernel.
 
     Attributes:
-        brush: JAX array defining the brush kernel for morphological operations.
-        axis: Axis along which to apply the 2D constraint (perpendicular plane).
+        brush (jax.Array): Array defining the brush kernel for morphological operations.
+        axis (int): Axis along which to apply the 2D constraint (perpendicular plane).
+        background_material (str | None, optional): Name of the background material in the material
+            dictionary of the device. If None, the material with the lowest permittivity
+            is used. Defaults to None.
     """
 
     brush: jax.Array = frozen_field()
@@ -267,12 +270,12 @@ def circular_brush(
     """Creates a circular binary mask/brush for morphological operations.
 
     Args:
-        diameter: Diameter of the circle in grid units.
-        size: Optional size of the output array. If None, uses ceil(diameter) rounded
+        diameter (float): Diameter of the circle in grid units.
+        size (int | None, optional): Optional size of the output array. If None, uses ceil(diameter) rounded
             up to next odd number.
 
     Returns:
-        Binary JAX array containing a circular mask where True indicates points
+        jax.Array: Binary array containing a circular mask where True indicates points
         within the circle diameter.
     """
     if size is None:
@@ -305,8 +308,9 @@ class PillarDiscretization(ParameterTransformation):
               of permittivity differences and average permittivity values, optimized
               for material distribution comparisons.
             Defaults to "permittivity_differences_plus_average_permittivity".
-        background_material (optional):
-            Name of the background material in the materials dictionary of the corresponding device. Defaults to None.
+        background_material (str | None, optional):
+            Name of the background material in the materials dictionary of the corresponding device.
+            If None, the material with lowest permittivity is used. Defaults to None.
     """
 
     axis: int = frozen_field()
