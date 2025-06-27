@@ -18,7 +18,7 @@ plugins:
             show_source: false
             show_signature: true
             separate_signature: true
-            #show_bases: true
+            show_bases: true
             merge_init_into_class: true
             # inherited_members: true
             group_by_category: true
@@ -36,8 +36,6 @@ extra_css:
   - stylesheets/extra.css
 
 markdown_extensions:
-  - toc:
-      permalink: true
   - codehilite:
       guess_lang: false
   - admonition
