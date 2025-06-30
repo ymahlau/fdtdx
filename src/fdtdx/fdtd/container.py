@@ -190,13 +190,15 @@ class ArrayContainer(TreeClass):
     and states for boundaries, detectors and recordings.
 
     Attributes:
-        E: Electric field array.
-        H: Magnetic field array.
-        inv_permittivities: Inverse permittivity values array.
-        inv_permeabilities: Inverse permeability values array.
-        boundary_states: Dictionary mapping boundary names to their states.
-        detector_states: Dictionary mapping detector names to their states.
-        recording_state: Optional state for recording simulation data.
+        E (jax.Array): Electric field array.
+        H (jax.Array): Magnetic field array.
+        inv_permittivities (jax.Array): Inverse permittivity values array.
+        inv_permeabilities (jax.Array | float): Inverse permeability values array.
+        boundary_states (dict[str, BaseBoundaryState]): Dictionary mapping boundary names to their states.
+        detector_states (dict[str, DetectorState]): Dictionary mapping detector names to their states.
+        recording_state (RecordingState | None): Optional state for recording simulation data.
+        electric_conductivity (jax.Array | None, optional): field for electric conductivity terms. Defaults to None.
+        magnetic_conductivity (jax.Array | None, optional): field for magnetic conductivity terms. Defaults to None.
     """
 
     E: jax.Array
@@ -226,13 +228,13 @@ def reset_array_container(
     material properties. It can optionally reset detector and recording states.
 
     Args:
-        arrays: The ArrayContainer to reset.
-        objects: ObjectContainer with simulation objects.
-        reset_detector_states: Whether to zero detector states.
-        reset_recording_state: Whether to zero recording state.
+        arrays (ArrayContainer): The ArrayContainer to reset.
+        objects (ObjectContainer): ObjectContainer with simulation objects.
+        reset_detector_states (bool, optional): Whether to zero detector states. Defaults to True.
+        reset_recording_state (bool, optional): Whether to zero recording state. Defaults to False.
 
     Returns:
-        A new ArrayContainer with reset fields and optionally reset states.
+        ArrayContainer: A new ArrayContainer with reset fields and optionally reset states.
     """
     E = arrays.E * 0
     arrays = arrays.aset("E", E)

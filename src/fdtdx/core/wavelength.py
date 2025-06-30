@@ -7,12 +7,13 @@ class WaveCharacter(TreeClass):
     """Class describing a wavelength/period/frequency in free space. Importantly, the wave characteristic conversion is
     based on a free space wave when using the wavelength (For conversion, a refractive index of 1 is used).
 
-
-
     Attributes:
-        _period: Optional period in seconds. Mutually exclusive with _wavelength and _frequency.
-        _wavelength: Optional wavelength in meters. Mutually exclusive with _period and _frequency.
-        _frequency: Optional frequency in Hz. Mutually exclusive with _period and _wavelength.
+        phase_shift (float, optional): Phase shift in radians. Defaults to 0.
+        period (float | None, optional): Optional period in seconds. Mutually exclusive with wavelength and frequency.
+            Defaults to None.
+        _wavelength (float | None, optional): Optional wavelength in meters for free space propagation.
+            Mutually exclusive with period and frequency. Defaults to None.
+        _frequency (float | None, optional): Optional frequency in Hz. Mutually exclusive with period and wavelength.
     """
 
     phase_shift: float = frozen_field(default=0.0)
@@ -31,14 +32,6 @@ class WaveCharacter(TreeClass):
 
     @property
     def period(self) -> float:
-        """Gets the period in seconds.
-
-        Returns:
-            float: The period in seconds.
-
-        Raises:
-            Exception: If neither period nor wavelength is set, or if both are set.
-        """
         self._check_input()
         if self._period is not None:
             return self._period
@@ -50,14 +43,6 @@ class WaveCharacter(TreeClass):
 
     @property
     def wavelength(self) -> float:
-        """Gets the wavelength in meters.
-
-        Returns:
-            float: The wavelength in meters.
-
-        Raises:
-            Exception: If neither period nor wavelength is set, or if both are set.
-        """
         self._check_input()
         if self._wavelength is not None:
             return self._wavelength
@@ -69,11 +54,6 @@ class WaveCharacter(TreeClass):
 
     @property
     def frequency(self) -> float:
-        """Gets the frequency in Hz.
-
-        Returns:
-            float: The frequency in Hz.
-        """
         self._check_input()
         if self._period is not None:
             return 1.0 / self._period
