@@ -28,14 +28,18 @@ class RemoveFloatingMaterial(SameShapeTypeParameterTransform):
 
     The module only works with binary material systems (2 permittivities) where one
     material represents air.
+
+    Attributes:
+        background_material (str | None, optional): Name of the background material. If none, the material with the
+            lowest permittivity is used. Defaults to None.
     """
+
+    background_material: str | None = frozen_field(default=None)
 
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
         default=(ParameterType.DISCRETE, ParameterType.BINARY),
     )
     _check_single_array: bool = frozen_private_field(default=True)
-
-    background_material: str | None = frozen_field(default=None)
 
     def __call__(
         self,
@@ -70,8 +74,10 @@ class ConnectHolesAndStructures(SameShapeTypeParameterTransform):
     The bottom (lower z) is treated as the substrate reference.
 
     Attributes:
-        fill_material: Name of material to use for filling gaps when connecting regions.
-            Required when working with more than 2 materials.
+        fill_material (str | None, optional): Name of material to use for filling gaps when connecting regions.
+            Required when working with more than 2 materials. Defaults to None.
+        background_material (str | None, optional): Name of the background material. If none, the material with the
+            lowest permittivity is used. Defaults to None.
     """
 
     fill_material: str | None = frozen_field(default=None)
@@ -146,9 +152,9 @@ class BinaryMedianFilterModule(SameShapeTypeParameterTransform):
     This helps remove small features and noise while preserving larger structures.
 
     Attributes:
-        padding_cfg: Configuration for padding behavior at boundaries.
-        kernel_sizes: 3-tuple of kernel sizes for each dimension.
-        num_repeats: Number of times to apply the filter consecutively.
+        padding_cfg (PaddingConfig): Configuration for padding behavior at boundaries.
+        kernel_sizes (tuple[int, int, int]): 3-tuple of kernel sizes for each dimension.
+        num_repeats (int, optional): Number of times to apply the filter consecutively. Defaults to one.
     """
 
     padding_cfg: PaddingConfig = frozen_field()

@@ -33,64 +33,7 @@ def forward_single_args_wrapper(
     dict[str, DetectorState],
     RecordingState | None,
 ]:
-    """Wrapper function that unpacks ArrayContainer into individual arrays for JAX transformations.
-
-    This function provides a JAX-compatible interface by handling individual arrays instead of
-    container objects. It converts between the array-based interface required by JAX and the
-    object-oriented ArrayContainer interface used by the rest of the FDTD implementation.
-
-    Args:
-        time_step: Current simulation time step
-        E: Electric field array
-        H: Magnetic field array
-        inv_permittivities: Inverse permittivity values
-        inv_permeabilities: Inverse permeability values
-        boundary_states: PML boundary conditions state
-        detector_states: States of field detectors
-        recording_state: Optional state for recording field values
-        config: Simulation configuration parameters
-        objects: Container with sources and other simulation objects
-        key: Random key for compression
-        record_detectors: Whether to record detector values
-        record_boundaries: Whether to record boundary values
-        simulate_boundaries: Whether to apply PML boundary conditions
-
-    Returns:
-        Tuple containing:
-            - Updated time step
-            - Updated E field array
-            - Updated H field array
-            - Updated inverse permittivities
-            - Updated inverse permeabilities
-            - Updated boundary states
-            - Updated detector states
-            - Updated recording state
-    """
-    """Wrapper function that unpacks ArrayContainer into individual arrays for JAX transformations.
-    
-    This function provides a JAX-compatible interface by handling individual arrays instead of
-    container objects. It converts between the array-based interface required by JAX and the
-    object-oriented ArrayContainer interface used by the rest of the FDTD implementation.
-
-    Args:
-        time_step: Current simulation time step
-        E: Electric field array
-        H: Magnetic field array 
-        inv_permittivities: Inverse permittivity values
-        inv_permeabilities: Inverse permeability values
-        boundary_states: PML boundary conditions state
-        detector_states: States of field detectors
-        recording_state: Optional state for recording field values
-        config: Simulation configuration parameters
-        objects: Container with sources and other simulation objects
-        key: Random key for compression
-        record_detectors: Whether to record detector values
-        record_boundaries: Whether to record boundary values
-        simulate_boundaries: Whether to apply PML boundary conditions
-
-    Returns:
-        Tuple containing the updated time step and field arrays
-    """
+    # Wrapper function that unpacks ArrayContainer into individual arrays for JAX transformations.
     arr = ArrayContainer(
         E=E,
         H=H,
@@ -144,16 +87,16 @@ def forward(
     Field updates follow the standard staggered time stepping of the Yee scheme.
 
     Args:
-        state: Current simulation state (time step and field values)
-        config: Simulation configuration parameters
-        objects: Container with sources, PML and other simulation objects
-        key: Random key for compression
-        record_detectors: Whether to record detector values
-        record_boundaries: Whether to record boundary values for gradients
-        simulate_boundaries: Whether to apply PML boundary conditions
+        state (SimulationState): Current simulation state (time step and field values)
+        config (SimulationConfig): Simulation configuration parameters
+        objects (ObjectContainer): Container with sources, PML and other simulation objects
+        key (jax.Array): Random key for compression
+        record_detectors (bool): Whether to record detector values
+        record_boundaries (bool): Whether to record boundary values for gradients
+        simulate_boundaries (bool): Whether to apply PML boundary conditions
 
     Returns:
-        Updated simulation state for the next time step
+        SimulationState: Updated simulation state for the next time step
     """
     time_step, arrays = state
     H_prev = arrays.H

@@ -4,7 +4,8 @@ from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.boundaries.utils import axis_direction_from_kind
-from fdtdx.objects.object import PositionConstraint, SimulationObject
+from fdtdx.objects.object import PositionConstraint
+from fdtdx.objects.static_material.static import SimulationVolume
 from fdtdx.typing import PartialGridShape3D
 
 
@@ -107,7 +108,8 @@ class BoundaryConfig(TreeClass):
         """Gets a dictionary mapping boundary names to their kappa values.
 
         Args:
-            prop: Which kappa property to get, either "kappa_start" or "kappa_end"
+            prop (Literal["kappa_start", "kappa_end"]): Which kappa property to get,
+                either "kappa_start" or "kappa_end".
 
         Returns:
             dict[str, float]: Dictionary with keys 'min_x', 'max_x', 'min_y', 'max_y', 'min_z', 'max_z'
@@ -170,10 +172,10 @@ class BoundaryConfig(TreeClass):
         """Creates a BoundaryConfig with uniform parameters for all boundaries.
 
         Args:
-            thickness: Grid thickness to use for all PML boundaries
-            boundary_type: Type of boundary to use ("pml" or "periodic"). Defaults to "pml".
-            kappa_start: Initial kappa value for all boundaries. Defaults to 1.0.
-            kappa_end: Final kappa value for all boundaries. Defaults to 1.5.
+            thickness (int, optional): Grid thickness to use for all PML boundaries. Defaults to 10.
+            boundary_type (str, optional): Type of boundary to use ("pml" or "periodic"). Defaults to "pml".
+            kappa_start (float, optional): Initial kappa value for all boundaries. Defaults to 1.0.
+            kappa_end (float, optional): Final kappa value for all boundaries. Defaults to 1.5.
 
         Returns:
             BoundaryConfig: New config object with uniform parameters
@@ -208,7 +210,7 @@ class BoundaryConfig(TreeClass):
 
 def boundary_objects_from_config(
     config: BoundaryConfig,
-    volume: SimulationObject,
+    volume: SimulationVolume,
 ) -> tuple[dict[str, Union[PerfectlyMatchedLayer, PeriodicBoundary]], list[PositionConstraint]]:
     """Creates boundary objects from a boundary configuration.
 
@@ -217,11 +219,11 @@ def boundary_objects_from_config(
     constraints to properly place the boundary objects relative to the simulation volume.
 
     Args:
-        config: Configuration object containing boundary parameters
-        volume: The main simulation volume object that the boundaries will surround
+        config (BoundaryConfig): Configuration object containing boundary parameters
+        volume (SimulationVolume): The main simulation volume object that the boundaries will surround
 
     Returns:
-        tuple containing:
+        tuple[dict[str, Union[PerfectlyMatchedLayer, PeriodicBoundary]], list[PositionConstraint]]: tuple containing:
             - dict mapping boundary names ('min_x', 'max_x', etc) to boundary objects
             - list of PositionConstraint objects for placing the boundaries
     """

@@ -51,14 +51,11 @@ def get_single_directional_rotation_matrix(
     """Generate a 3D rotation matrix for rotation around a specified axis.
 
     Args:
-        rotation_axis: Axis around which to rotate (0=x, 1=y, 2=z)
-        angle_radians: Rotation angle in radians
+        rotation_axis (int): Axis around which to rotate (0=x, 1=y, 2=z)
+        angle_radians (float | jax.Array): Rotation angle in radians
 
     Returns:
         jax.Array: 3x3 rotation matrix
-
-    Raises:
-        Exception: If rotation_axis is not 0, 1, or 2
     """
     if rotation_axis == 0:
         return jnp.asarray(
@@ -99,9 +96,11 @@ def rotate_vector(
     system defined by the azimuth and elevation angles.
 
     Args:
-        vector: Input vector to rotate
-        azimuth_angle: Rotation angle around vertical axis in radians
-        elevation_angle: Rotation angle around horizontal axis in radians
+        vector (jax.Array): Input vector to rotate
+        azimuth_angle (float | jax.Array): Rotation angle around vertical axis in radians
+        elevation_angle (float | jax.Array): Rotation angle around horizontal axis in radians
+        axes_tuple (tuple[int, int, int]): tuple of axes specifying horizontal_axis, vertical_axis,
+            and propagation_axis.
 
     Returns:
         jax.Array: Rotated vector in global coordinates

@@ -19,13 +19,13 @@ def tanh_projection(x: jax.Array, beta: float, eta: float) -> jax.Array:
     Structural and Multidisciplinary Optimization, 43(6), pp. 767-784 (2011).
 
     Args:
-        x: design weights to be filtered.
-        beta: thresholding parameter in the range [0, inf]. Determines the
+        x (jax.Array): design weights to be filtered.
+        beta (float): thresholding parameter in the range [0, inf]. Determines the
             degree of binarization of the output.
-        eta: threshold point in range [0, 1]
+        eta (float): threshold point in range [0, 1]
 
     Returns:
-        The filtered design weights.
+        jax.Array: The filtered design weights.
     """
 
     def beta_inf_case():
@@ -52,7 +52,7 @@ def smoothed_projection(
     beta: float,
     eta: float,
     resolution: float,
-):
+) -> jax.Array:
     """
     This function is adapted from the Meep repository:
     https://github.com/NanoComp/meep/blob/master/python/adjoint/filters.py
@@ -86,15 +86,14 @@ def smoothed_projection(
     center. To ensure this, we need to account for the different possibilities.
 
     Args:
-        rho_filtered: The (2D) input design parameters (already filered e.g.
+        rho_filtered (jax.Array): The (2D) input design parameters (already filered e.g.
             with a conic filter).
-        beta: The thresholding parameter in the range [0, inf]. Determines the
+        beta (float): The thresholding parameter in the range [0, inf]. Determines the
             degree of binarization of the output.
-        eta: The threshold point in the range [0, 1].
-        resolution: resolution of the design grid (not the Meep grid
-            resolution).
+        eta (float): The threshold point in the range [0, 1].
+        resolution (float): resolution of the design grid (not the Meep grid resolution).
     Returns:
-        The projected and smoothed output.
+        jax.Array: The projected and smoothed output.
 
     Example:
         >>> Lx = 2; Ly = 2
@@ -178,12 +177,18 @@ class TanhProjection(SameShapeTypeParameterTransform):
     """
     Tanh projection filter.
 
-    This needs the steepness parameter $\beta$ as a keyword-argument in
+    This needs the steepness parameter $\\beta$ as a keyword-argument in
     apply_params
 
     Ref: F. Wang, B. S. Lazarov, & O. Sigmund, On projection methods,
     convergence and robust formulations in topology optimization.
     Structural and Multidisciplinary Optimization, 43(6), pp. 767-784 (2011).
+
+    Attributes:
+        projection_midpoint (float, optional): Midpoint of the TanhProjection. Defaults to 0.5.
+
+    Notes:
+        The call method requires a beta parameter as a keyword argument passed to the parameter transformation
     """
 
     projection_midpoint: float = frozen_field(default=0.5)
@@ -241,6 +246,12 @@ class SubpixelSmoothedProjection(SameShapeTypeParameterTransform):
     If there is an interface, we want to make sure the derivative remains
     continuous both as the interface leaves the cell, *and* as it crosses the
     center. To ensure this, we need to account for the different possibilities.
+
+    Attributes:
+        projection_midpoint (float, optional): midpoint of the tanh projection. Defaults to 0.5
+
+    Notes:
+        The call method requires a beta parameter as a keyword argument passed to the parameter transformation
     """
 
     projection_midpoint: float = frozen_field(default=0.5)

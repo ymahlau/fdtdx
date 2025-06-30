@@ -145,7 +145,9 @@ def tidy3d_mode_computation_wrapper(
         frequency (float): Operating frequency in Hz
         permittivity_cross_section (np.ndarray): 2D array of relative permittivity values
         coords (List[np.ndarray]): List of coordinate arrays [x, y] defining the grid
-        direction (Literal["+", "-"]): Propagation direction, either "+" or "-"
+        direction (Literal["+", "-"], optional): Propagation direction, either "+" or "-"
+        permeability_cross_section (np.ndarray | None, optional): 2D array of relative permeability values.
+            Defauts to None.
         target_neff (float | None, optional): Target effective index to search around. Defaults to None.
         angle_theta (float, optional): Polar angle in radians. Defaults to 0.0.
         angle_phi (float, optional): Azimuthal angle in radians. Defaults to 0.0.

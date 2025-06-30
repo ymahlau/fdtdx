@@ -14,9 +14,10 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
     bounding box of the polygon.
 
     Attributes:
-        material_name: Name of the material in the materials dictionary to be used for the object
-        axis: The extrusion axis.
-        vertices: numpy array of shape (N, 2) specifying the position of vertices in metrical units (meter).
+        material_name (str): Name of the material in the materials dictionary to be used for the object
+        axis (int): The extrusion axis.
+        vertices (np.ndarray): numpy array of shape (N, 2) specifying the position of vertices in metrical units
+            (meter).
     """
 
     material_name: str = frozen_field()

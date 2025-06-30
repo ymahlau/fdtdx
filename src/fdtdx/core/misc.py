@@ -1,6 +1,6 @@
 import itertools
 import math
-from typing import Literal, Sequence, Tuple
+from typing import Literal, Sequence
 
 import jax
 import jax.numpy as jnp
@@ -18,8 +18,8 @@ def expand_matrix(matrix: jax.Array, grid_points_per_voxel: tuple[int, ...]) -> 
     vector field components as channels.
 
     Args:
-        matrix: Input matrix to expand
-        grid_points_per_voxel: Number of grid points to expand each voxel into along each dimension
+        matrix (jax.Array): Input matrix to expand
+        grid_points_per_voxel (tuple[int, ...]): Number of grid points to expand each voxel into along each dimension
 
     Returns:
         jax.Array: Expanded matrix with repeated values and optional channels
@@ -32,7 +32,7 @@ def expand_matrix(matrix: jax.Array, grid_points_per_voxel: tuple[int, ...]) -> 
     return expanded_matrix
 
 
-def ensure_slice_tuple(t: Sequence[slice | int | Tuple[int, int]]) -> Tuple[slice, ...]:
+def ensure_slice_tuple(t: Sequence[slice | int | tuple[int, int]]) -> tuple[slice, ...]:
     """
     Ensures that all elements of the input sequence are converted to slices.
 
@@ -42,12 +42,11 @@ def ensure_slice_tuple(t: Sequence[slice | int | Tuple[int, int]]) -> Tuple[slic
     that select a range of items.
 
     Args:
-        t: A sequence of elements where each element is either a slice, an
-            integer, or a tuple of two integers representing the start and end
-            of a slice range.
+        t (Sequence[slice | int | tuple[int, int]]): A sequence of elements where each element is either a slice, an
+            integer, or a tuple of two integers representing the start and end of a slice range.
 
     Returns:
-        A tuple of slices corresponding to the input sequence.
+        tuple[slice, ...]: A tuple of slices corresponding to the input sequence.
     """
 
     def to_slice(loc):
@@ -63,17 +62,17 @@ def ensure_slice_tuple(t: Sequence[slice | int | Tuple[int, int]]) -> Tuple[slic
     return tuple(to_slice(loc) for loc in t)
 
 
-def is_float_divisible(a, b, tolerance=1e-15):
+def is_float_divisible(a: float, b: float, tolerance: float = 1e-15) -> bool:
     """
     Checks if a floating-point number 'a' is divisible by another floating-point number 'b'.
 
     Args:
-        a: The dividend (float).
-        b: The divisor (float).
-        tolerance: A small tolerance value to account for floating-point imprecision.
+        a (float): The dividend.
+        b (float): The divisor (float).
+        tolerance (float): A small tolerance value to account for floating-point imprecision. Defaults to 1e-15.
 
     Returns:
-        True if 'a' is divisible by 'b' within the specified tolerance, False otherwise.
+        bool: True if 'a' is divisible by 'b' within the specified tolerance, False otherwise.
     """
     # Check if divisor is zero
     if abs(b) < tolerance:
@@ -87,21 +86,11 @@ def is_float_divisible(a, b, tolerance=1e-15):
 
 
 def is_index_in_slice(index, slice, seq_length):
-    """Checks if an index is within a slice, accounting for potential None values"""
     start, stop, _ = slice.indices(seq_length)
     return start <= index < stop
 
 
 def cast_floating_to_numpy(vals: dict[str, np.ndarray], dtype) -> dict[str, np.ndarray]:
-    """Casts floating point arrays in a dictionary to a specified numpy dtype.
-
-    Args:
-        vals: Dictionary of numpy arrays to cast
-        dtype: Target numpy dtype to cast to
-
-    Returns:
-        dict[str, np.ndarray]: Dictionary with arrays cast to specified dtype
-    """
     return {
         k: np.real(v).astype(dtype)
         if v.dtype in [jnp.complex64, jnp.complex128] and dtype not in [jnp.complex64, jnp.complex128]
@@ -110,25 +99,17 @@ def cast_floating_to_numpy(vals: dict[str, np.ndarray], dtype) -> dict[str, np.n
     }
 
 
-def batched_diag_construct(arr: jax.Array):
+def batched_diag_construct(arr: jax.Array) -> jax.Array:
     """Constructs diagonal matrices in a batched fashion from the last axis of the input array.
 
     Creates a batch of diagonal matrices where each matrix's diagonal is populated from
     a slice of the input array's last dimension.
 
     Args:
-        arr: Input array where the last axis will be used to create diagonal matrices
+        arr (jax.Array): Input array where the last axis will be used to create diagonal matrices
 
     Returns:
         jax.Array: Batched diagonal matrices with shape [..., N, N] where N is arr.shape[-1]
-    """
-    """Constructs diagonal matrices in a batched fashion from the last axis of the input array.
-
-    Args:
-        arr: Input array where the last axis will be used to create diagonal matrices
-
-    Returns:
-        jax.Array: Batched diagonal matrices
     """
 
     # performs jnp.diag on the last axis in a batched fashion
@@ -140,11 +121,11 @@ def batched_diag_construct(arr: jax.Array):
     return result_reshaped
 
 
-def invert_dict(d: dict):
+def invert_dict(d: dict) -> dict:
     """Inverts a dictionary by swapping keys and values.
 
     Args:
-        d: Input dictionary to invert
+        d (dict): Input dictionary to invert
 
     Returns:
         dict: Inverted dictionary where original values are keys and original keys are values
@@ -156,7 +137,7 @@ def prime_factorization(num: int) -> list[int]:
     """Computes the prime factorization of a number.
 
     Args:
-        num: Integer to factorize
+        num (int): Integer to factorize
 
     Returns:
         list[int]: List of prime factors in ascending order
@@ -180,7 +161,7 @@ def find_squarest_divisors(num: int) -> tuple[int, int]:
     Uses a greedy approximation to find two factors whose ratio is close to 1.
 
     Args:
-        num: Integer to find divisors for
+        num (int): Integer to find divisors for
 
     Returns:
         tuple[int, int]: Two divisors whose product equals the input number
@@ -200,14 +181,11 @@ def index_1d_array(arr: jax.Array, val: jax.Array) -> jax.Array:
     """Finds the first index where a 1D array equals a given value.
 
     Args:
-        arr: 1D input array to search
-        val: Value to find in the array
+        arr (jax.Array): 1D input array to search
+        val (jax.Array): Value to find in the array
 
     Returns:
-        int: Index of first occurrence of val in arr
-
-    Raises:
-        Exception: If input array is not 1D
+        jax.Array: Index of first occurrence of val in arr
     """
     if len(arr.shape) != 1:
         raise Exception(f"index only works on 1d-array, got shape: {arr.shape}")
@@ -225,11 +203,11 @@ def index_by_slice(
     """Indexes an array along a specified axis using slice notation.
 
     Args:
-        arr: Input array to slice
-        start: Starting index
-        stop: Stopping index
-        axis: Axis along which to slice
-        step: Step size between elements
+        arr (jax.Array): Input array to slice
+        start (int | None): Starting index
+        stop (int | None): Stopping index
+        axis (int): Axis along which to slice
+        step (int, optional): Step size between elements. Defaults to 1.
 
     Returns:
         jax.Array: Sliced array
@@ -250,22 +228,9 @@ def index_by_slice_take_1d(
     when taking elements along a single axis.
 
     Args:
-        arr: Input array
-        slice: Slice object specifying which elements to take
-        axis: Axis along which to take elements
-
-    Returns:
-        jax.Array: Array with selected elements
-
-    Raises:
-        Exception: If slice would result in empty array
-    """
-    """Takes elements from an array along one axis using a slice and JAX's take operation.
-
-    Args:
-        arr: Input array
-        slice: Slice object specifying which elements to take
-        axis: Axis along which to take elements
+        arr (jax.Array): Input array
+        slice (slice): Slice object specifying which elements to take
+        axis (int): Axis along which to take elements
 
     Returns:
         jax.Array: Array with selected elements
@@ -293,20 +258,8 @@ def index_by_slice_take(
     when taking elements along multiple axes.
 
     Args:
-        arr: Input array
-        slices: Sequence of slice objects, one for each dimension
-
-    Returns:
-        jax.Array: Array with selected elements
-
-    Raises:
-        Exception: If any slice would result in empty array
-    """
-    """Takes elements from an array using multiple slices and JAX's take operation.
-
-    Args:
-        arr: Input array
-        slices: Sequence of slice objects, one for each dimension
+        arr (jax.Array): Input array
+        slices (Sequence[slice]): Sequence of slice objects, one for each dimension
 
     Returns:
         jax.Array: Array with selected elements
@@ -332,17 +285,8 @@ def mask_1d_from_slice(
     """Creates a boolean mask array from a slice specification.
 
     Args:
-        s: Slice object defining which elements should be True
-        axis_size: Size of the axis to create mask for
-
-    Returns:
-        jax.Array: Boolean mask array with True values where slice selects elements
-    """
-    """Creates a boolean mask array from a slice specification.
-
-    Args:
-        s: Slice object defining which elements should be True
-        axis_size: Size of the axis to create mask for
+        s (slice): Slice object defining which elements should be True
+        axis_size (int): Size of the axis to create mask for
 
     Returns:
         jax.Array: Boolean mask array with True values where slice selects elements
@@ -365,20 +309,15 @@ def assimilate_shape(
     and can be broadcasted. Optionally repeats single dimensions to match ref_arr's shape.
 
     Args:
-        arr: Array to reshape
-        ref_arr: Reference array whose shape to match
-        ref_axes: Tuple mapping arr's axes to ref_arr's axes
-        repeat_single_dims: If True, repeats size-1 dimensions to match ref_arr
+        arr (jax.Array): Array to reshape
+        ref_arr (jax.Array): Reference array whose shape to match
+        ref_axes (tuple[int, ...]): Tuple mapping arr's axes to ref_arr's axes
+        repeat_single_dims (bool, optional): If True, repeats size-1 dimensions to match ref_arr.
+            Defaults to False.
 
     Returns:
         jax.Array: Reshaped array that can be broadcasted with ref_arr
 
-    Raises:
-        Exception: If shapes are incompatible or axes mapping is invalid
-    """
-    """
-    Inserts new dimensions of size 1 such that to_change has same dimensions
-    as the reference arr and can be broadcasted.
     """
     if arr.ndim != len(ref_axes):
         raise Exception(f"Invalid axes: {arr.ndim=}, {ref_axes=}")
@@ -406,8 +345,8 @@ def linear_interpolated_indexing(
     """Performs linear interpolation at a point in an array.
 
     Args:
-        point: Coordinates at which to interpolate
-        arr: Array to interpolate from
+        point (jax.Array): Coordinates at which to interpolate
+        arr (jax.Array): Array to interpolate from
 
     Returns:
         jax.Array: Interpolated value at the specified point
@@ -451,12 +390,6 @@ def get_background_material_name(materials: dict[str, Material]) -> str:
 
 @autoinit
 class PaddingConfig(TreeClass):
-    """
-    Padding configuration. The order is:
-    minx, maxx, miny, maxy, minz, maxz, ...
-    or just single value that can be used for all
-    """
-
     widths: Sequence[int] = frozen_field()
     modes: Sequence[str] = frozen_field()
     values: Sequence[float] = frozen_field(default=None)  # type: ignore
@@ -466,20 +399,6 @@ def advanced_padding(
     arr: jax.Array,
     padding_cfg: PaddingConfig,
 ) -> tuple[jax.Array, tuple[slice, ...]]:
-    """Pads the input array with configurable padding modes and widths.
-
-    Args:
-        arr: Input array to pad
-        padding_cfg: Configuration object containing:
-            - widths: Padding widths for each edge
-            - modes: Padding modes (constant, edge, reflect etc)
-            - values: Values to use for constant padding
-
-    Returns:
-        tuple[jax.Array, tuple[slice, ...]]: Tuple containing:
-            - Padded array
-            - Slice tuple to extract original array region
-    """
     # default values
     if len(padding_cfg.widths) == 1:
         padding_cfg = padding_cfg.aset(

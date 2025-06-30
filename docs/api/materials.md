@@ -1,4 +1,0 @@
-# Material
-
-::: fdtdx.Material
-

@@ -1,0 +1,26 @@
+flatten_single_child_sections: false 
+
+preserve_directory_names: true
+
+sort:
+  direction: asc 
+  type: natural 
+  by: filename 
+  sections: last 
+  ignore_case: true
+
+nav:
+  - Home: index.md
+  - Tutorials:
+    - JAX in FDTDX: tutorials/jax_introduction.md
+    - Object Placement: tutorials/object_placement.md
+    - Materials Guide: tutorials/materials.md
+    - Fabrication Constraints: tutorials/parameter_mapping.md
+    - Interface Compression: tutorials/interface_compression.md
+  - API Reference:
+    - Public:
+      - "api/public/*.md"
+    - Internal:
+      - "api/internal/*.md"
+    
+  

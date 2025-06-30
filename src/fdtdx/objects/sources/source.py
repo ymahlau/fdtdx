@@ -42,16 +42,6 @@ class Source(SimulationObject, ABC):
         config: SimulationConfig,
         key: jax.Array,
     ) -> Self:
-        """Place the source on the simulation grid and initialize timing arrays.
-
-        Args:
-            grid_slice_tuple: Tuple of slices defining source's position on grid.
-            config: Simulation configuration parameters.
-            key: JAX random key for stochastic operations.
-
-        Returns:
-            Self with initialized grid position and timing arrays.
-        """
         self = super().place_on_grid(
             grid_slice_tuple=grid_slice_tuple,
             config=config,
@@ -85,14 +75,14 @@ class Source(SimulationObject, ABC):
         """Update the electric field component.
 
         Args:
-            E: Current electric field array.
-            inv_permittivities: Inverse permittivity values.
-            inv_permeabilities: Inverse permeability values.
-            time_step: Current simulation time step.
-            inverse: Whether to perform inverse update for backpropagation.
+            E (jax.Array): Current electric field array.
+            inv_permittivities (jax.Array): Inverse permittivity values.
+            inv_permeabilities (jax.Array | float): Inverse permeability values.
+            time_step (jax.Array): Current simulation time step.
+            inverse (bool): Whether to perform inverse update for backpropagation.
 
         Returns:
-            Updated electric field array.
+            jax.Array: Updated electric field array.
         """
         raise NotImplementedError()
 
@@ -108,14 +98,14 @@ class Source(SimulationObject, ABC):
         """Update the magnetic field component.
 
         Args:
-            H: Current magnetic field array.
-            inv_permittivities: Inverse permittivity values.
-            inv_permeabilities: Inverse permeability values.
-            time_step: Current simulation time step.
-            inverse: Whether to perform inverse update for backpropagation.
+            H (jax.Array): Current magnetic field array.
+            inv_permittivities (jax.Array): Inverse permittivity values.
+            inv_permeabilities (jax.Array | float): Inverse permeability values.
+            time_step (jax.Array): Current simulation time step.
+            inverse (bool): Whether to perform inverse update for backpropagation.
 
         Returns:
-            Updated magnetic field array.
+            jax.Array: Updated magnetic field array.
         """
         raise NotImplementedError()
 
@@ -128,10 +118,10 @@ class DirectionalPlaneSourceBase(Source, ABC):
     direction. Provides methods for calculating wave vectors and orthogonal field components.
 
     Attributes:
-        direction: Direction of propagation ('+' or '-' along propagation axis).
+        direction (Literal["+", "-"]): Direction of propagation ('+' or '-' along propagation axis).
     """
 
-    direction: Literal["+", "-"] = frozen_field(kind="KW_ONLY")  # type: ignore
+    direction: Literal["+", "-"] = frozen_field()
 
     @property
     def propagation_axis(self) -> int:

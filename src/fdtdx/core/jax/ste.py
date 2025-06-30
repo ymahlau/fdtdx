@@ -16,18 +16,15 @@ def straight_through_estimator(x: jax.Array, y: jax.Array) -> jax.Array:
     gradient flows through x.
 
     Args:
-        x: jax.Array, the original continuous values before quantization/discretization.
+        x (jax.Array): jax.Array, the original continuous values before quantization/discretization.
             Gradients will be computed with respect to these values.
-        y: jax.Array, the discrete/quantized values used in the forward pass.
+        y (jax.Array): jax.Array, the discrete/quantized values used in the forward pass.
             Must have the same shape as x.
 
     Returns:
         jax.Array: The result of applying the straight through estimator, which
         is the same shape as `x` and `y`. In the forward pass this equals y,
         but gradients flow through x.
-
-    Raises:
-        ValueError: If x and y have different shapes.
     """
 
     return x - jax.lax.stop_gradient(x) + jax.lax.stop_gradient(y)

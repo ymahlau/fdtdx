@@ -7,7 +7,7 @@ authors = [
     { name = "Yannik Mahlau", email = "mahlau@tnt.uni-hannover.de" },
     { name = "Frederik Schubert", email = "schubert@tnt.uni-hannover.de" },
 ]
-requires-python = ">=3.11,<3.13"
+requires-python = ">=3.11"
 dependencies = [
     "loguru>=0.7.3",
     "pytreeclass>=0.11",
@@ -49,12 +49,15 @@ dev = [
     "mkdocs>=1.6.1",
     "mkdocs-material>=9.5.48",
     "mkdocstrings[python]>=0.27.0",
+    "mkdocs-jupyter",
+    "mkdocs-awesome-nav",
     "pre-commit>=4.0.1",
     "pymdown-extensions>=10.12",
     "pytest>=8.3.4",
     "pytest-cov>=6.0.0",
     "ruff>=0.8.2",
     "tox-uv>=1.16.1",
+    "pydoclint>=0.6.6",
 ]
 
 [tool.pyright]

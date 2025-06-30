@@ -15,10 +15,10 @@ def compute_allowed_indices(
     """Compute allowed index combinations for multi-layer structures.
 
     Args:
-        num_layers: Number of vertical layers in the structure.
-        indices: Sequence of allowed material indices.
-        fill_holes_with_index: Indices that can be used to fill holes/gaps.
-        single_polymer_columns: If True, restrict to single polymer columns.
+        num_layers (int): Number of vertical layers in the structure.
+        indices (Sequence[int]): Sequence of allowed material indices.
+        fill_holes_with_index (Sequence[int]): Indices that can be used to fill holes/gaps.
+        single_polymer_columns (bool): If True, restrict to single polymer columns.
 
     Returns:
         jax.Array: Array of allowed index combinations, shape (n_combinations, num_layers).
@@ -37,22 +37,9 @@ def compute_allowed_indices_without_holes_single_polymer_columns(
     """Compute allowed indices for single polymer column structures without holes.
 
     Args:
-        num_layers: Number of vertical layers in the structure.
-        indices: Sequence of allowed material indices.
-        fill_holes_with_index: Indices that can be used to fill holes/gaps.
-
-    Returns:
-        jax.Array: Array of valid index combinations, shape (n_combinations, num_layers).
-    """
-    """Compute allowed indices for single polymer column structures without holes.
-
-    Generates valid index combinations ensuring single polymer columns without trapped
-    air holes by filling gaps with specified indices.
-
-    Args:
-        num_layers: Number of vertical layers in the structure.
-        indices: Sequence of allowed material indices.
-        fill_holes_with_index: Indices that can be used to fill holes/gaps.
+        num_layers (int): Number of vertical layers in the structure.
+        indices (Sequence[int]): Sequence of allowed material indices.
+        fill_holes_with_index (Sequence[int]): Indices that can be used to fill holes/gaps.
 
     Returns:
         jax.Array: Array of valid index combinations, shape (n_combinations, num_layers).
@@ -84,9 +71,9 @@ def compute_allowed_indices_without_holes(
     gaps with specified indices. Shows progress with a tqdm progress bar.
 
     Args:
-        num_layers: Number of vertical layers in the structure.
-        indices: Sequence of allowed material indices.
-        fill_holes_with_index: Indices that can be used to fill holes/gaps.
+        num_layers (int): Number of vertical layers in the structure.
+        indices (Sequence[int]): Sequence of allowed material indices.
+        fill_holes_with_index (Sequence[int]): Indices that can be used to fill holes/gaps.
 
     Returns:
         jax.Array: Array of valid index combinations, shape (n_combinations, num_layers).
@@ -120,27 +107,25 @@ def nearest_index(
     """Find nearest allowed indices for given values based on distance metrics.
 
     Args:
-        values: Input array of values to match.
-        allowed_values: Array of allowed values to match against.
-        axis: Axis along which to compute distances. Required if using allowed_indices.
-        allowed_indices: Optional array of allowed indices per position.
-        return_distances: If True, return both indices and distances.
-        distance_metric: Method to compute distances between values:
-            - "euclidean": Standard Euclidean distance
-            - "permittivity_differences_plus_average_permittivity": Special metric for
-              permittivity optimization combining differences and averages.
+        values (jax.Array): Input array of values to match.
+        allowed_values (jax.Array): Array of allowed values to match against.
+        axis (int | None, optional): Axis along which to compute distances. Required if using allowed_indices.
+        allowed_indices (jax.Array | None, optional): Optional array of allowed indices per position.
+        return_distances (bool, optional): If True, return both indices and distances.
+        distance_metric (Literal["euclidean", "permittivity_differences_plus_average_permittivity"], optional):
+            Method to compute distances between values:
+                - "euclidean": Standard Euclidean distance
+                - "permittivity_differences_plus_average_permittivity": Special metric for
+                permittivity optimization combining differences and averages.
+            Defaults to "permittivity_differences_plus_average_permittivity".
 
     Returns:
-        If return_distances is False:
-            jax.Array: Array of indices of nearest allowed values.
-        If return_distances is True:
-            Tuple[jax.Array, jax.Array]: (indices, distances)
+        jax.Array | tuple[jax.Array, jax.Array]:
+            If return_distances is False:
+                jax.Array: Array of indices of nearest allowed values.
+            If return_distances is True:
+                Tuple[jax.Array, jax.Array]: (indices, distances)
 
-    Raises:
-        Exception: If axis not provided when using allowed_indices option.
-        Exception: If values array is not 3D when using allowed_indices.
-        Exception: If invalid axis specified.
-        ValueError: If unknown distance metric specified.
     """
     if allowed_indices is None:
         distances = jnp.square(values[..., None] - allowed_values)

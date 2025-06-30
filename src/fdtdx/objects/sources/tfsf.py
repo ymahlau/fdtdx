@@ -80,16 +80,7 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         jax.Array,  # azimuth (radians)
         jax.Array,  # elevation (radians)
     ]:
-        """Generate random azimuth and elevation angles within allowed offset ranges.
-
-        Args:
-            key: JAX random key for generating random values.
-
-        Returns:
-            tuple containing:
-                - azimuth angle in radians
-                - elevation angle in radians
-        """
+        # Generate random azimuth and elevation angles within allowed offset ranges
         key1, key2 = jax.random.split(key)
         elevation_radians = jax.random.uniform(
             key1,
@@ -106,15 +97,7 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         return azimuth_radians, elevation_radians
 
     def _get_center(self, key: jax.Array) -> jax.Array:  # shape(2,)
-        """Calculate center position with random offset.
-
-        Args:
-            key: JAX random key for generating random offsets.
-
-        Returns:
-            jax.Array: Center coordinates with shape (2,) containing [horizontal, vertical]
-                      positions with random offsets applied.
-        """
+        # Calculate center position with random offset
         horizontal_size = self.grid_shape[self.horizontal_axis]
         vertical_size = self.grid_shape[self.vertical_axis]
 
@@ -143,17 +126,6 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         return center
 
     def _get_random_parts(self, key: jax.Array):
-        """Generate random center position and angles for the source.
-
-        Args:
-            key: JAX random key for generating random values
-
-        Returns:
-            tuple containing:
-                - center position array
-                - azimuth angle in radians
-                - elevation angle in radians
-        """
         key, subkey = jax.random.split(key)
         center = self._get_center(subkey)
 

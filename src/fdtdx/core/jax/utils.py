@@ -17,7 +17,7 @@ def check_specs(
         expected_shapes = {"dummy": expected_shapes}
     if method == "exact" and len(arrays) != len(expected_shapes):
         raise Exception(
-            f"Arrays and expected dict have different lengths: " f"{arrays.keys()=} \n\n but {expected_shapes=}"
+            f"Arrays and expected dict have different lengths: {arrays.keys()=} \n\n but {expected_shapes=}"
         )
     for k, arr in arrays.items():
         exp_shape = expected_shapes[k]
