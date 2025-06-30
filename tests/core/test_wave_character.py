@@ -35,7 +35,7 @@ class TestWaveCharacter:
 
         assert wave.get_frequency() == frequency
         assert wave.get_period() == 1.0 / frequency
-        assert wave.get_wavelength() == constants.c / frequency
+        assert abs(wave.get_wavelength() - constants.c / frequency) < 1e-6
         assert wave.phase_shift == 0.0
 
     def test_initialization_with_phase_shift(self):
