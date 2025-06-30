@@ -73,7 +73,7 @@ def wavelength_to_period(wavelength: float) -> float:
     for a given wavelength.
 
     Args:
-        wavelength: The wavelength in meters.
+        wavelength (float): The wavelength in meters.
 
     Returns:
         float: The corresponding time period in seconds.

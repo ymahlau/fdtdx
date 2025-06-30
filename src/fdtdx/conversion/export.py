@@ -16,15 +16,6 @@ import trimesh
 
 
 def idx_to_xyz(idx: np.ndarray, shape: tuple[int, int, int]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Convert flattened array indices to 3D coordinates.
-
-    Args:
-        idx: Array of flattened indices.
-        shape: 3D shape tuple (d0, d1, d2) of the original array.
-
-    Returns:
-        tuple: (x, y, z) coordinate arrays corresponding to the input indices.
-    """
     _, d1, d2 = shape
     x = idx // (d1 * d2)
     y = (idx // d2) % d1
@@ -38,31 +29,6 @@ def xyz_to_idx(
     z: np.ndarray,
     shape: tuple[int, int, int],
 ) -> np.ndarray:
-    """Convert 3D coordinates to flattened array indices.
-
-    This is the inverse operation of idx_to_xyz(). Used for converting physical coordinates
-    back to array indices.
-
-    Args:
-        x: Array of x coordinates.
-        y: Array of y coordinates.
-        z: Array of z coordinates.
-        shape: 3D shape tuple (d0, d1, d2) of the target array.
-
-    Returns:
-        np.ndarray: Flattened indices corresponding to the input coordinates.
-    """
-    """Convert 3D coordinates to flattened array indices.
-
-    Args:
-        x: Array of x coordinates.
-        y: Array of y coordinates.
-        z: Array of z coordinates.
-        shape: 3D shape tuple (d0, d1, d2) of the target array.
-
-    Returns:
-        np.ndarray: Flattened indices corresponding to the input coordinates.
-    """
     _, d1, d2 = shape
     return x * (d1 * d2) + y * (d2) + z
 
@@ -78,9 +44,14 @@ def export_stl(
     True values in the matrix are converted to solid voxels in the output mesh.
 
     Args:
-        matrix: 3D boolean numpy array representing the voxel grid.
-        stl_filename: Output STL file path.
-        voxel_grid_size: Physical size of each voxel as (x, y, z) integers. Defaults to (1, 1, 1).
+        matrix (np.ndarray): 3D boolean numpy array representing the voxel grid.
+        stl_filename (Path | str | None, optional): Output STL file path. If given, save the stl to this path.
+            Defaults to None.
+        voxel_grid_size (tuple[int, int, int], optional): Physical size of each voxel as (x, y, z) integers.
+            Defaults to (1, 1, 1).
+
+    Returns:
+        trimesh.Trimesh: STL mesh.
 
     Raises:
         Exception: If input matrix is not 3-dimensional.

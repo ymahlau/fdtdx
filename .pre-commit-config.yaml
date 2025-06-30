@@ -26,6 +26,9 @@ repos:
       - id: pydoclint
         args: [
           --style=google, 
+          --check-arg-order=True,
+          --check-return-types=True,
+          --check-class-attributes=True,
           # --arg-type-hints-in-docstring=False,
           # --check-return-types=False,
           --skip-checking-raises=True,

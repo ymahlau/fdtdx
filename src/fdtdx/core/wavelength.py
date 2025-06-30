@@ -52,16 +52,15 @@ class WaveCharacter(TreeClass):
                 self.frequency = constants.c / self.wavelength
             else:
                 raise Exception("This should never happen")
-    
+
     def get_period(self) -> float:
         assert self.period is not None, "This should never happen"
         return self.period
-    
+
     def get_wavelength(self) -> float:
         assert self.wavelength is not None, "This should never happen"
         return self.wavelength
-    
-    
+
     def get_frequency(self) -> float:
         assert self.frequency is not None, "This should never happen"
         return self.frequency

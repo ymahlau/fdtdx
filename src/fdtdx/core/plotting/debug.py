@@ -8,20 +8,6 @@ import numpy as np
 
 
 def generate_unique_filename(prefix="file", extension=None):
-    """
-    Generate a unique filename using timestamp and UUID.
-
-    Parameters:
-    -----------
-    prefix : str, optional
-        Prefix for the filename
-    extension : str, optional
-        File extension (without dot)
-
-    Returns:
-    --------
-    str : Unique filename
-    """
     # Get current timestamp
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -49,13 +35,14 @@ def debug_plot_2d(
     saves it to a specified directory.
 
     Args:
-        array: The 2D array to visualize. Can be either a numpy array or JAX array.
-        cmap: The matplotlib colormap to use for the visualization. Defaults to "viridis".
-        show_values: If True, overlays the numerical values on each cell. Defaults to False.
-        tmp_dir: Directory where the plot will be saved. Will be created if it doesn't exist.
+        array (np.ndarray | jax.Array): The 2D array to visualize. Can be either a numpy array or JAX array.
+        cmap (str, optional): The matplotlib colormap to use for the visualization. Defaults to "viridis".
+        show_values (bool, optional): If True, overlays the numerical values on each cell. Defaults to False.
+        tmp_dir (str | Path, optional): Directory where the plot will be saved. Will be created if it doesn't exist.
             Defaults to "outputs/tmp/debug".
-        filename: Name for the output file. If None, generates a unique name using timestamp.
-            The .png extension will be added automatically.
+        filename (str | None, optional): Name for the output file. If None, generates a unique name using timestamp.
+            The .png extension will be added automatically. Defaults to None.
+        center_zero (bool, optional): If true, center all values around x=0. Defaults to False.
 
     The resulting plot includes:
         - A heatmap visualization of the array values
@@ -130,19 +117,21 @@ def debug_plot_lines(
     saves it to a specified directory.
 
     Args:
-        data_dict: Dictionary mapping names to 1D arrays (numpy or JAX arrays).
-        x_values: Optional x-axis values for all lines. If None, indices will be used.
-        colors: Optional dictionary mapping names to colors. If None, default color cycle is used.
-        line_styles: Optional dictionary mapping names to line styles. If None, solid lines are used.
-        markers: Optional dictionary mapping names to markers. If None, no markers are used.
-        x_label: Label for the x-axis. Defaults to "X".
-        y_label: Label for the y-axis. Defaults to "Y".
-        title: Title for the plot. Defaults to "Debug Line Plot".
-        legend_loc: Location for the legend. Defaults to "best".
-        grid: If True, adds grid lines to the plot. Defaults to True.
-        tmp_dir: Directory where the plot will be saved. Will be created if it doesn't exist.
+        data_dict (dict[str, np.ndarray | jax.Array]): Dictionary mapping names to 1D arrays (numpy or JAX arrays).
+        x_values (np.ndarray | jax.Array | None, optional): Optional x-axis values for all lines.
+            If None, indices will be used. Defaults to None.
+        colors (dict[str, str] | None, optional): Optional dictionary mapping names to colors.
+            If None, default color cycle is used.
+        line_styles (dict[str, str] | None, optional): Optional dictionary mapping names to line styles. If None, solid lines are used.
+        markers (dict[str, str] | None, optional): Optional dictionary mapping names to markers. If None, no markers are used.
+        x_label (str, optional): Label for the x-axis. Defaults to "X".
+        y_label (str, optional): Label for the y-axis. Defaults to "Y".
+        title (str, optional): Title for the plot. Defaults to "Debug Line Plot".
+        legend_loc (str, optional): Location for the legend. Defaults to "best".
+        grid (bool, optional): If True, adds grid lines to the plot. Defaults to True.
+        tmp_dir (str | Path, optional): Directory where the plot will be saved. Will be created if it doesn't exist.
             Defaults to "outputs/tmp/debug".
-        filename: Name for the output file. If None, generates a unique name using timestamp.
+        filename (str | None, optional): Name for the output file. If None, generates a unique name using timestamp.
             The .png extension will be added automatically.
 
     The resulting plot includes:
