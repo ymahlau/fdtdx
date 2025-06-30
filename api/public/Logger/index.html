@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="author" content="Yannik Mahlau and Frederik Schubert" /><link rel="canonical" href="https://ymahlau.github.io/fdtdx/api/public/Logger/" />
+      <link rel="shortcut icon" href="../../../img/favicon.ico" />
+    <title>fdtdx.Logger - FDTDX</title>
+    <link rel="stylesheet" href="../../../css/theme.css" />
+    <link rel="stylesheet" href="../../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../../assets/_mkdocstrings.css" rel="stylesheet" />
+        <link href="../../../stylesheets/extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "fdtdx.Logger";
+        var mkdocs_page_input_path = "api/public/Logger.md";
+        var mkdocs_page_url = "/fdtdx/api/public/Logger/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../../..">
+          <img src="../../../img/logo.png" class="logo" alt="Logo"/>
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../..">Home</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Tutorials</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/jax_introduction/">JAX in FDTDX</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/object_placement/">Object Placement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/materials/">Materials Guide</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/parameter_mapping/">Fabrication Constraints</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/interface_compression/">Interface Compression</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">API Reference</span></p>
+              <ul class="current">
+                  <li class="toctree-l1 current"><a class="reference internal current" >Public</a>
+    <ul class="current">
+                <li class="toctree-l2"><a class="reference internal" href="../apply_params/">fdtdx.apply_params</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ArrayContainer/">fdtdx.ArrayContainer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../autoinit/">fdtdx.autoinit</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../BinaryMedianFilterModule/">fdtdx.BinaryMedianFilterModule</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../boundary_objects_from_config/">fdtdx.boundary_objects_from_config</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../BoundaryConfig/">fdtdx.BoundaryConfig</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../BrushConstraint2D/">fdtdx.BrushConstraint2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../circular_brush/">fdtdx.circular_brush</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ClosestIndex/">fdtdx.ClosestIndex</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../compute_energy/">fdtdx.compute_energy</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../compute_poynting_flux/">fdtdx.compute_poynting_flux</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ConnectHolesAndStructures/">fdtdx.ConnectHolesAndStructures</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../constants/">fdtdx.constants</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Cylinder/">fdtdx.Cylinder</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Device/">fdtdx.Device</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../DiagonalSymmetry2D/">fdtdx.DiagonalSymmetry2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../DtypeConversion/">fdtdx.DtypeConversion</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../EnergyDetector/">fdtdx.EnergyDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ExtrudedPolygon/">fdtdx.ExtrudedPolygon</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../FieldDetector/">fdtdx.FieldDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GaussianPlaneSource/">fdtdx.GaussianPlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GaussianPulseProfile/">fdtdx.GaussianPulseProfile</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GaussianSmoothing2D/">fdtdx.GaussianSmoothing2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GradientConfig/">fdtdx.GradientConfig</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GridCoordinateConstraint/">fdtdx.GridCoordinateConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../LinearReconstructEveryK/">fdtdx.LinearReconstructEveryK</a>
+                </li>
+                <li class="toctree-l2 current"><a class="reference internal current" href="#">fdtdx.Logger</a>
+    <ul class="current">
+    <li class="toctree-l3"><a class="reference internal" href="#fdtdx.Logger">Logger</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.Logger.params_dir">params_dir</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.Logger.stl_dir">stl_dir</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.Logger.log_detectors">log_detectors</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.Logger.log_params">log_params</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.Logger.savefig">savefig</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.Logger.write">write</a>
+    </li>
+        </ul>
+    </li>
+    </ul>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Material/">fdtdx.Material</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../metric_efficiency/">fdtdx.metric_efficiency</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ModeOverlapDetector/">fdtdx.ModeOverlapDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ModePlaneSource/">fdtdx.ModePlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ObjectContainer/">fdtdx.ObjectContainer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ParameterTransformation/">fdtdx.ParameterTransformation</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PerfectlyMatchedLayer/">fdtdx.PerfectlyMatchedLayer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PeriodicBoundary/">fdtdx.PeriodicBoundary</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PhasorDetector/">fdtdx.PhasorDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PillarDiscretization/">fdtdx.PillarDiscretization</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../place_objects/">fdtdx.place_objects</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../plot_setup/">fdtdx.plot_setup</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PositionConstraint/">fdtdx.PositionConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PoyntingFluxDetector/">fdtdx.PoyntingFluxDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../RealCoordinateConstraint/">fdtdx.RealCoordinateConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Recorder/">fdtdx.Recorder</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../RecordingState/">fdtdx.RecordingState</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../RemoveFloatingMaterial/">fdtdx.RemoveFloatingMaterial</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../run_fdtd/">fdtdx.run_fdtd</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SimulationConfig/">fdtdx.SimulationConfig</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SimulationObject/">fdtdx.SimulationObject</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SimulationVolume/">fdtdx.SimulationVolume</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SingleFrequencyProfile/">fdtdx.SingleFrequencyProfile</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SizeConstraint/">fdtdx.SizeConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SizeExtensionConstraint/">fdtdx.SizeExtensionConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Sphere/">fdtdx.Sphere</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../StandardToCustomRange/">fdtdx.StandardToCustomRange</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../StandardToPlusOneMinusOneRange/">fdtdx.StandardToPlusOneMinusOneRange</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SubpixelSmoothedProjection/">fdtdx.SubpixelSmoothedProjection</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../TanhProjection/">fdtdx.TanhProjection</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../TreeClass/">fdtdx.TreeClass</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../typing/">fdtdx.typing</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../UniformMaterialObject/">fdtdx.UniformMaterialObject</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../UniformPlaneSource/">fdtdx.UniformPlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../WaveCharacter/">fdtdx.WaveCharacter</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Internal</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/compression/">Compression Base Classes</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/detector/">Detector Base Class</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/objects/">Object Base Classes</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/sources/">Source Base Classes</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/transformation/">Parameter Transformation Base Classes</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../..">FDTDX</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">API Reference</li>
+          <li class="breadcrumb-item">Public</li>
+      <li class="breadcrumb-item active">fdtdx.Logger</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/ymahlau/fdtdx/edit/main/docs/api/public/Logger.md">Edit on ymahlau/fdtdx</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="fdtdxlogger">fdtdx.Logger</h1>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="fdtdx.Logger" class="doc doc-heading">
+             
+
+
+</h2>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="nf">Logger</span><span class="p">(</span><span class="n">experiment_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+        <p>Logger for managing experiment outputs and visualization.</p>
+<p>Handles experiment logging, metrics tracking, and visualization of simulation results.
+Creates a working directory structure, initializes logging, and provides methods for
+saving figures, metrics, and device parameters.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>experiment_name</code></b>
+                  (<code><span title="str">str</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Name of the experiment. This is the naming of the parent directory where the experiment
+will be saved.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>name</code></b>
+                  (<code><span title="str">str</span> | None</code>, default:
+                      <code>None</code>
+)
+              –
+              <div class="doc-md-description">
+                <p>Optional specific name for the working directory. If None, uses timestamp.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+
+
+
+
+
+                  <details class="quote">
+                    <summary>Source code in <code>src/fdtdx/utils/logger.py</code></summary>
+                    <div class="codehilite"><table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">102</span>
+<span class="normal">103</span>
+<span class="normal">104</span>
+<span class="normal">105</span>
+<span class="normal">106</span>
+<span class="normal">107</span>
+<span class="normal">108</span>
+<span class="normal">109</span>
+<span class="normal">110</span>
+<span class="normal">111</span>
+<span class="normal">112</span>
+<span class="normal">113</span>
+<span class="normal">114</span>
+<span class="normal">115</span>
+<span class="normal">116</span>
+<span class="normal">117</span>
+<span class="normal">118</span>
+<span class="normal">119</span>
+<span class="normal">120</span>
+<span class="normal">121</span>
+<span class="normal">122</span>
+<span class="normal">123</span>
+<span class="normal">124</span>
+<span class="normal">125</span>
+<span class="normal">126</span>
+<span class="normal">127</span>
+<span class="normal">128</span>
+<span class="normal">129</span>
+<span class="normal">130</span>
+<span class="normal">131</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">experiment_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+    <span class="n">sns</span><span class="o">.</span><span class="n">set_theme</span><span class="p">(</span><span class="n">context</span><span class="o">=</span><span class="s2">&quot;paper&quot;</span><span class="p">,</span> <span class="n">style</span><span class="o">=</span><span class="s2">&quot;white&quot;</span><span class="p">,</span> <span class="n">palette</span><span class="o">=</span><span class="s2">&quot;colorblind&quot;</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">cwd</span> <span class="o">=</span> <span class="n">init_working_directory</span><span class="p">(</span><span class="n">experiment_name</span><span class="p">,</span> <span class="n">wd_name</span><span class="o">=</span><span class="n">name</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">console</span> <span class="o">=</span> <span class="n">Console</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">progress</span> <span class="o">=</span> <span class="n">Progress</span><span class="p">(</span>
+        <span class="n">SpinnerColumn</span><span class="p">(),</span>
+        <span class="o">*</span><span class="n">Progress</span><span class="o">.</span><span class="n">get_default_columns</span><span class="p">(),</span>
+        <span class="n">TimeElapsedColumn</span><span class="p">(),</span>
+        <span class="n">console</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">console</span><span class="p">,</span>
+    <span class="p">)</span><span class="o">.</span><span class="fm">__enter__</span><span class="p">()</span>
+    <span class="n">atexit</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">progress</span><span class="o">.</span><span class="n">stop</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">remove</span><span class="p">()</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">add</span><span class="p">(</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">console</span><span class="o">.</span><span class="n">print</span><span class="p">,</span>
+        <span class="n">level</span><span class="o">=</span><span class="s2">&quot;TRACE&quot;</span><span class="p">,</span>
+        <span class="nb">format</span><span class="o">=</span><span class="n">_log_formatter</span><span class="p">,</span>
+        <span class="n">colorize</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">add</span><span class="p">(</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cwd</span> <span class="o">/</span> <span class="s2">&quot;logs.log&quot;</span><span class="p">,</span>
+        <span class="n">level</span><span class="o">=</span><span class="s2">&quot;TRACE&quot;</span><span class="p">,</span>
+        <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;{time:DD.MM.YYYY HH:mm:ss:ssss} | </span><span class="si">{level}</span><span class="s2"> - </span><span class="si">{message}</span><span class="s2">&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Starting experiment </span><span class="si">{</span><span class="n">experiment_name</span><span class="si">}</span><span class="s2"> in </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cwd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">snapshot_python_files</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cwd</span> <span class="o">/</span> <span class="s2">&quot;code&quot;</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">fieldnames</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">writer</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">csvfile</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cwd</span> <span class="o">/</span> <span class="s2">&quot;metrics.csv&quot;</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">,</span> <span class="n">newline</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">last_indices</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">atexit</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">csvfile</span><span class="o">.</span><span class="n">close</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+                  </details>
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="fdtdx.Logger.params_dir" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">params_dir</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="n">params_dir</span><span class="p">:</span> <span class="n">Path</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Directory for storing parameter files.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+<b><code>Path</code></b>(                  <code><span title="pathlib.Path">Path</span></code>
+)              –
+              <div class="doc-md-description">
+                <p>Directory for parameter file outputs</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="fdtdx.Logger.stl_dir" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">stl_dir</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="n">stl_dir</span><span class="p">:</span> <span class="n">Path</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Directory for storing STL files.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+<b><code>Path</code></b>(                  <code><span title="pathlib.Path">Path</span></code>
+)              –
+              <div class="doc-md-description">
+                <p>Directory for STL file outputs</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+    </div>
+
+</div>
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fdtdx.Logger.log_detectors" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">log_detectors</span>
+
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="nf">log_detectors</span><span class="p">(</span>
+    <span class="n">iter_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">objects</span><span class="p">:</span> <span class="n">ObjectContainer</span><span class="p">,</span>
+    <span class="n">detector_states</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">DetectorState</span><span class="p">],</span>
+    <span class="n">exclude</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[],</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Log detector states and generate visualization plots.</p>
+<p>Creates plots for each detector's state and saves them to the detector's output directory.
+Handles both figure outputs and other detector-specific file formats.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>iter_idx</code></b>
+                  (<code><span title="int">int</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Current iteration index</p>
+              </div>
+            </li>
+            <li>
+              <b><code>objects</code></b>
+                  (<code><a class="autorefs autorefs-internal" title="fdtdx.fdtd.container.ObjectContainer" href="../ObjectContainer/#fdtdx.ObjectContainer">ObjectContainer</a></code>)
+              –
+              <div class="doc-md-description">
+                <p>Container with simulation objects</p>
+              </div>
+            </li>
+            <li>
+              <b><code>detector_states</code></b>
+                  (<code><span title="dict">dict</span>[<span title="str">str</span>, <span title="fdtdx.objects.detectors.detector.DetectorState">DetectorState</span>]</code>)
+              –
+              <div class="doc-md-description">
+                <p>Dictionary mapping detector names to their states</p>
+              </div>
+            </li>
+            <li>
+              <b><code>exclude</code></b>
+                  (<code><span title="typing.Sequence">Sequence</span>[<span title="str">str</span>]</code>, default:
+                      <code>[]</code>
+)
+              –
+              <div class="doc-md-description">
+                <p>List of detector names to exclude from logging</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="quote">
+              <summary>Source code in <code>src/fdtdx/utils/logger.py</code></summary>
+              <div class="codehilite"><table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">200</span>
+<span class="normal">201</span>
+<span class="normal">202</span>
+<span class="normal">203</span>
+<span class="normal">204</span>
+<span class="normal">205</span>
+<span class="normal">206</span>
+<span class="normal">207</span>
+<span class="normal">208</span>
+<span class="normal">209</span>
+<span class="normal">210</span>
+<span class="normal">211</span>
+<span class="normal">212</span>
+<span class="normal">213</span>
+<span class="normal">214</span>
+<span class="normal">215</span>
+<span class="normal">216</span>
+<span class="normal">217</span>
+<span class="normal">218</span>
+<span class="normal">219</span>
+<span class="normal">220</span>
+<span class="normal">221</span>
+<span class="normal">222</span>
+<span class="normal">223</span>
+<span class="normal">224</span>
+<span class="normal">225</span>
+<span class="normal">226</span>
+<span class="normal">227</span>
+<span class="normal">228</span>
+<span class="normal">229</span>
+<span class="normal">230</span>
+<span class="normal">231</span>
+<span class="normal">232</span>
+<span class="normal">233</span>
+<span class="normal">234</span>
+<span class="normal">235</span>
+<span class="normal">236</span>
+<span class="normal">237</span>
+<span class="normal">238</span>
+<span class="normal">239</span>
+<span class="normal">240</span>
+<span class="normal">241</span>
+<span class="normal">242</span>
+<span class="normal">243</span>
+<span class="normal">244</span>
+<span class="normal">245</span>
+<span class="normal">246</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">log_detectors</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">iter_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">objects</span><span class="p">:</span> <span class="n">ObjectContainer</span><span class="p">,</span>
+    <span class="n">detector_states</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">DetectorState</span><span class="p">],</span>
+    <span class="n">exclude</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[],</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Log detector states and generate visualization plots.</span>
+
+<span class="sd">    Creates plots for each detector&#39;s state and saves them to the detector&#39;s output directory.</span>
+<span class="sd">    Handles both figure outputs and other detector-specific file formats.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        iter_idx (int): Current iteration index</span>
+<span class="sd">        objects (ObjectContainer): Container with simulation objects</span>
+<span class="sd">        detector_states (dict[str, DetectorState]): Dictionary mapping detector names to their states</span>
+<span class="sd">        exclude (Sequence[str], optional): List of detector names to exclude from logging</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">detector</span> <span class="ow">in</span> <span class="p">[</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">objects</span><span class="o">.</span><span class="n">detectors</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">exclude</span><span class="p">]:</span>
+        <span class="n">cur_state</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">device_get</span><span class="p">(</span><span class="n">detector_states</span><span class="p">[</span><span class="n">detector</span><span class="o">.</span><span class="n">name</span><span class="p">])</span>
+        <span class="n">cur_state</span> <span class="o">=</span> <span class="n">cast_floating_to_numpy</span><span class="p">(</span><span class="n">cur_state</span><span class="p">,</span> <span class="nb">float</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">detector</span><span class="o">.</span><span class="n">plot</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">figure_dict</span> <span class="o">=</span> <span class="n">detector</span><span class="o">.</span><span class="n">draw_plot</span><span class="p">(</span>
+            <span class="n">state</span><span class="o">=</span><span class="n">cur_state</span><span class="p">,</span>
+            <span class="n">progress</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">progress</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">detector_dir</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cwd</span> <span class="o">/</span> <span class="s2">&quot;detectors&quot;</span> <span class="o">/</span> <span class="n">detector</span><span class="o">.</span><span class="n">name</span>
+        <span class="n">detector_dir</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">figure_dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">Figure</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span>
+                    <span class="n">detector_dir</span><span class="p">,</span>
+                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">detector</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">iter_idx</span><span class="si">}</span><span class="s2">.png&quot;</span><span class="p">,</span>
+                    <span class="n">v</span><span class="p">,</span>
+                    <span class="n">dpi</span><span class="o">=</span><span class="n">detector</span><span class="o">.</span><span class="n">plot_dpi</span><span class="p">,</span>  <span class="c1"># type: ignore</span>
+                <span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span>
+                    <span class="n">v</span><span class="p">,</span>
+                    <span class="n">detector_dir</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">detector</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">iter_idx</span><span class="si">}{</span><span class="n">Path</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="o">.</span><span class="n">suffix</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;invalid detector output for plotting: </span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">v</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fdtdx.Logger.log_params" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">log_params</span>
+
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="nf">log_params</span><span class="p">(</span>
+    <span class="n">iter_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">params</span><span class="p">:</span> <span class="n">ParameterContainer</span><span class="p">,</span>
+    <span class="n">objects</span><span class="p">:</span> <span class="n">ObjectContainer</span><span class="p">,</span>
+    <span class="n">export_figure</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">export_stl</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">export_background_stl</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">transformation_kwargs</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Log parameter states and export device visualizations.</p>
+<p>Saves device parameters and optionally exports visualizations as figures or STL files.
+Tracks changes in device voxels between iterations.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>iter_idx</code></b>
+                  (<code><span title="int">int</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Current iteration index</p>
+              </div>
+            </li>
+            <li>
+              <b><code>params</code></b>
+                  (<code><span title="fdtdx.fdtd.container.ParameterContainer">ParameterContainer</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Container with device parameters</p>
+              </div>
+            </li>
+            <li>
+              <b><code>objects</code></b>
+                  (<code><a class="autorefs autorefs-internal" title="fdtdx.fdtd.container.ObjectContainer" href="../ObjectContainer/#fdtdx.ObjectContainer">ObjectContainer</a></code>)
+              –
+              <div class="doc-md-description">
+                <p>Container with simulation objects</p>
+              </div>
+            </li>
+            <li>
+              <b><code>export_figure</code></b>
+                  (<code><span title="bool">bool</span></code>, default:
+                      <code>False</code>
+)
+              –
+              <div class="doc-md-description">
+                <p>Whether to export index matrix figures</p>
+              </div>
+            </li>
+            <li>
+              <b><code>export_stl</code></b>
+                  (<code><span title="bool">bool</span></code>, default:
+                      <code>False</code>
+)
+              –
+              <div class="doc-md-description">
+                <p>Whether to export device geometry as STL</p>
+              </div>
+            </li>
+            <li>
+              <b><code>export_background_stl</code></b>
+                  (<code><span title="bool">bool</span></code>, default:
+                      <code>False</code>
+)
+              –
+              <div class="doc-md-description">
+                <p>Whether to export air regions as STL</p>
+              </div>
+            </li>
+            <li>
+              <b><code>**transformation_kwargs</code></b>
+              –
+              <div class="doc-md-description">
+                <p>keyword arguments passed to the parameter transformation</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+<b><code>int</code></b>(                  <code><span title="int">int</span></code>
+)              –
+              <div class="doc-md-description">
+                <p>Number of voxels that changed since last iteration</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="quote">
+              <summary>Source code in <code>src/fdtdx/utils/logger.py</code></summary>
+              <div class="codehilite"><table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">248</span>
+<span class="normal">249</span>
+<span class="normal">250</span>
+<span class="normal">251</span>
+<span class="normal">252</span>
+<span class="normal">253</span>
+<span class="normal">254</span>
+<span class="normal">255</span>
+<span class="normal">256</span>
+<span class="normal">257</span>
+<span class="normal">258</span>
+<span class="normal">259</span>
+<span class="normal">260</span>
+<span class="normal">261</span>
+<span class="normal">262</span>
+<span class="normal">263</span>
+<span class="normal">264</span>
+<span class="normal">265</span>
+<span class="normal">266</span>
+<span class="normal">267</span>
+<span class="normal">268</span>
+<span class="normal">269</span>
+<span class="normal">270</span>
+<span class="normal">271</span>
+<span class="normal">272</span>
+<span class="normal">273</span>
+<span class="normal">274</span>
+<span class="normal">275</span>
+<span class="normal">276</span>
+<span class="normal">277</span>
+<span class="normal">278</span>
+<span class="normal">279</span>
+<span class="normal">280</span>
+<span class="normal">281</span>
+<span class="normal">282</span>
+<span class="normal">283</span>
+<span class="normal">284</span>
+<span class="normal">285</span>
+<span class="normal">286</span>
+<span class="normal">287</span>
+<span class="normal">288</span>
+<span class="normal">289</span>
+<span class="normal">290</span>
+<span class="normal">291</span>
+<span class="normal">292</span>
+<span class="normal">293</span>
+<span class="normal">294</span>
+<span class="normal">295</span>
+<span class="normal">296</span>
+<span class="normal">297</span>
+<span class="normal">298</span>
+<span class="normal">299</span>
+<span class="normal">300</span>
+<span class="normal">301</span>
+<span class="normal">302</span>
+<span class="normal">303</span>
+<span class="normal">304</span>
+<span class="normal">305</span>
+<span class="normal">306</span>
+<span class="normal">307</span>
+<span class="normal">308</span>
+<span class="normal">309</span>
+<span class="normal">310</span>
+<span class="normal">311</span>
+<span class="normal">312</span>
+<span class="normal">313</span>
+<span class="normal">314</span>
+<span class="normal">315</span>
+<span class="normal">316</span>
+<span class="normal">317</span>
+<span class="normal">318</span>
+<span class="normal">319</span>
+<span class="normal">320</span>
+<span class="normal">321</span>
+<span class="normal">322</span>
+<span class="normal">323</span>
+<span class="normal">324</span>
+<span class="normal">325</span>
+<span class="normal">326</span>
+<span class="normal">327</span>
+<span class="normal">328</span>
+<span class="normal">329</span>
+<span class="normal">330</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">log_params</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">iter_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">params</span><span class="p">:</span> <span class="n">ParameterContainer</span><span class="p">,</span>
+    <span class="n">objects</span><span class="p">:</span> <span class="n">ObjectContainer</span><span class="p">,</span>
+    <span class="n">export_figure</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">export_stl</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">export_background_stl</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">transformation_kwargs</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Log parameter states and export device visualizations.</span>
+
+<span class="sd">    Saves device parameters and optionally exports visualizations as figures or STL files.</span>
+<span class="sd">    Tracks changes in device voxels between iterations.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        iter_idx (int): Current iteration index</span>
+<span class="sd">        params (ParameterContainer): Container with device parameters</span>
+<span class="sd">        objects (ObjectContainer): Container with simulation objects</span>
+<span class="sd">        export_figure (bool, optional): Whether to export index matrix figures</span>
+<span class="sd">        export_stl (bool, optional): Whether to export device geometry as STL</span>
+<span class="sd">        export_background_stl (bool, optional): Whether to export air regions as STL</span>
+<span class="sd">        **transformation_kwargs: keyword arguments passed to the parameter transformation</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        int: Number of voxels that changed since last iteration</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">changed_voxels</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">device</span> <span class="ow">in</span> <span class="n">objects</span><span class="o">.</span><span class="n">devices</span><span class="p">:</span>
+        <span class="n">device_params</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="n">device</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="n">device</span><span class="p">(</span><span class="n">device_params</span><span class="p">,</span> <span class="o">**</span><span class="n">transformation_kwargs</span><span class="p">)</span>
+
+        <span class="c1"># raw parameters and indices</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">device_params</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">device_params</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">jnp</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">params_dir</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;params_</span><span class="si">{</span><span class="n">iter_idx</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">device</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">.npy&quot;</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">jnp</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">params_dir</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;params_</span><span class="si">{</span><span class="n">iter_idx</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">device</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">.npy&quot;</span><span class="p">,</span> <span class="n">device_params</span><span class="p">)</span>
+        <span class="n">jnp</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">params_dir</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;matrix_</span><span class="si">{</span><span class="n">iter_idx</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">device</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">.npy&quot;</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span>
+
+        <span class="n">has_previous</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_indices</span><span class="p">[</span><span class="n">device</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="n">cur_changed_voxels</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">if</span> <span class="n">has_previous</span><span class="p">:</span>
+            <span class="n">last_device_indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_indices</span><span class="p">[</span><span class="n">device</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+            <span class="n">cur_changed_voxels</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">indices</span> <span class="o">!=</span> <span class="n">last_device_indices</span><span class="p">))</span>
+        <span class="n">changed_voxels</span> <span class="o">+=</span> <span class="n">cur_changed_voxels</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">last_indices</span><span class="p">[</span><span class="n">device</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">indices</span>
+        <span class="k">if</span> <span class="n">cur_changed_voxels</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">has_previous</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">export_stl</span><span class="p">:</span>
+            <span class="n">background_name</span> <span class="o">=</span> <span class="n">get_background_material_name</span><span class="p">(</span><span class="n">device</span><span class="o">.</span><span class="n">materials</span><span class="p">)</span>
+            <span class="n">ordered_name_list</span> <span class="o">=</span> <span class="n">compute_ordered_names</span><span class="p">(</span><span class="n">device</span><span class="o">.</span><span class="n">materials</span><span class="p">)</span>
+            <span class="n">background_idx</span> <span class="o">=</span> <span class="n">ordered_name_list</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">background_name</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">device</span><span class="o">.</span><span class="n">materials</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="n">idx</span> <span class="o">==</span> <span class="n">background_idx</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">export_background_stl</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="n">ordered_name_list</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+                <span class="n">export_stl_fn</span><span class="p">(</span>
+                    <span class="n">matrix</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span> <span class="o">==</span> <span class="n">idx</span><span class="p">,</span>
+                    <span class="n">stl_filename</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">stl_dir</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;matrix_</span><span class="si">{</span><span class="n">iter_idx</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">device</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">.stl&quot;</span><span class="p">,</span>
+                    <span class="n">voxel_grid_size</span><span class="o">=</span><span class="n">device</span><span class="o">.</span><span class="n">single_voxel_grid_shape</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">device</span><span class="o">.</span><span class="n">materials</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="n">export_stl_fn</span><span class="p">(</span>
+                    <span class="n">matrix</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span> <span class="o">!=</span> <span class="n">background_idx</span><span class="p">,</span>
+                    <span class="n">stl_filename</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">stl_dir</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;matrix_</span><span class="si">{</span><span class="n">iter_idx</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">device</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">_non_air.stl&quot;</span><span class="p">,</span>
+                    <span class="n">voxel_grid_size</span><span class="o">=</span><span class="n">device</span><span class="o">.</span><span class="n">single_voxel_grid_shape</span><span class="p">,</span>
+                <span class="p">)</span>
+
+        <span class="c1"># image of indices</span>
+        <span class="k">if</span> <span class="n">export_figure</span><span class="p">:</span>
+            <span class="n">fig</span> <span class="o">=</span> <span class="n">device_matrix_index_figure</span><span class="p">(</span>
+                <span class="n">device_matrix_indices</span><span class="o">=</span><span class="n">indices</span><span class="p">,</span>
+                <span class="n">material</span><span class="o">=</span><span class="n">device</span><span class="o">.</span><span class="n">materials</span><span class="p">,</span>
+                <span class="n">parameter_type</span><span class="o">=</span><span class="n">device</span><span class="o">.</span><span class="n">output_type</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">cwd</span> <span class="o">/</span> <span class="s2">&quot;device&quot;</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">&quot;matrix_indices_</span><span class="si">{</span><span class="n">iter_idx</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">device</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">.png&quot;</span><span class="p">,</span>
+                <span class="n">fig</span><span class="p">,</span>
+            <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">changed_voxels</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fdtdx.Logger.savefig" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">savefig</span>
+
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="nf">savefig</span><span class="p">(</span>
+    <span class="n">directory</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">fig</span><span class="p">:</span> <span class="n">Figure</span><span class="p">,</span>
+    <span class="n">dpi</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">300</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Save a matplotlib figure to file.</p>
+<p>Creates a figures subdirectory if needed and saves the figure with specified settings.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>directory</code></b>
+                  (<code><span title="pathlib.Path">Path</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Base directory to save in</p>
+              </div>
+            </li>
+            <li>
+              <b><code>filename</code></b>
+                  (<code><span title="str">str</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Name for the figure file</p>
+              </div>
+            </li>
+            <li>
+              <b><code>fig</code></b>
+                  (<code><span title="matplotlib.figure.Figure">Figure</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Matplotlib figure to save</p>
+              </div>
+            </li>
+            <li>
+              <b><code>dpi</code></b>
+                  (<code><span title="int">int</span></code>, default:
+                      <code>300</code>
+)
+              –
+              <div class="doc-md-description">
+                <p>Resolution in dots per inch. Defaults to 300.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="quote">
+              <summary>Source code in <code>src/fdtdx/utils/logger.py</code></summary>
+              <div class="codehilite"><table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">155</span>
+<span class="normal">156</span>
+<span class="normal">157</span>
+<span class="normal">158</span>
+<span class="normal">159</span>
+<span class="normal">160</span>
+<span class="normal">161</span>
+<span class="normal">162</span>
+<span class="normal">163</span>
+<span class="normal">164</span>
+<span class="normal">165</span>
+<span class="normal">166</span>
+<span class="normal">167</span>
+<span class="normal">168</span>
+<span class="normal">169</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">savefig</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">directory</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">fig</span><span class="p">:</span> <span class="n">Figure</span><span class="p">,</span> <span class="n">dpi</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">300</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Save a matplotlib figure to file.</span>
+
+<span class="sd">    Creates a figures subdirectory if needed and saves the figure with specified settings.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        directory (Path): Base directory to save in</span>
+<span class="sd">        filename (str): Name for the figure file</span>
+<span class="sd">        fig (Figure): Matplotlib figure to save</span>
+<span class="sd">        dpi (int, optional): Resolution in dots per inch. Defaults to 300.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">figure_directory</span> <span class="o">=</span> <span class="n">directory</span> <span class="o">/</span> <span class="s2">&quot;figures&quot;</span>
+    <span class="n">figure_directory</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">directory</span> <span class="o">/</span> <span class="s2">&quot;figures&quot;</span> <span class="o">/</span> <span class="n">filename</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="n">dpi</span><span class="p">,</span> <span class="n">bbox_inches</span><span class="o">=</span><span class="s2">&quot;tight&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">fig</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fdtdx.Logger.write" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">write</span>
+
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="nf">write</span><span class="p">(</span><span class="n">stats</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">do_print</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Write statistics to CSV file and optionally print them.</p>
+<p>Records metrics in a CSV file and optionally displays them in a formatted table.
+Automatically initializes CSV headers on first write.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>stats</code></b>
+                  (<code><span title="dict">dict</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Dictionary of statistics to record</p>
+              </div>
+            </li>
+            <li>
+              <b><code>do_print</code></b>
+                  (<code><span title="bool">bool</span></code>, default:
+                      <code>True</code>
+)
+              –
+              <div class="doc-md-description">
+                <p>Whether to print stats to console. Defaults to true.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="quote">
+              <summary>Source code in <code>src/fdtdx/utils/logger.py</code></summary>
+              <div class="codehilite"><table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">171</span>
+<span class="normal">172</span>
+<span class="normal">173</span>
+<span class="normal">174</span>
+<span class="normal">175</span>
+<span class="normal">176</span>
+<span class="normal">177</span>
+<span class="normal">178</span>
+<span class="normal">179</span>
+<span class="normal">180</span>
+<span class="normal">181</span>
+<span class="normal">182</span>
+<span class="normal">183</span>
+<span class="normal">184</span>
+<span class="normal">185</span>
+<span class="normal">186</span>
+<span class="normal">187</span>
+<span class="normal">188</span>
+<span class="normal">189</span>
+<span class="normal">190</span>
+<span class="normal">191</span>
+<span class="normal">192</span>
+<span class="normal">193</span>
+<span class="normal">194</span>
+<span class="normal">195</span>
+<span class="normal">196</span>
+<span class="normal">197</span>
+<span class="normal">198</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stats</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">do_print</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Write statistics to CSV file and optionally print them.</span>
+
+<span class="sd">    Records metrics in a CSV file and optionally displays them in a formatted table.</span>
+<span class="sd">    Automatically initializes CSV headers on first write.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        stats (dict): Dictionary of statistics to record</span>
+<span class="sd">        do_print (bool, optional): Whether to print stats to console. Defaults to true.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">stats</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">item</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">)</span> <span class="k">else</span> <span class="n">v</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">stats</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">))</span> <span class="ow">or</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">)</span> <span class="ow">and</span> <span class="n">v</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="p">}</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">fieldnames</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fieldnames</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">stats</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">writer</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">DictWriter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">csvfile</span><span class="p">,</span> <span class="n">fieldnames</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">fieldnames</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">writer</span><span class="o">.</span><span class="n">writeheader</span><span class="p">()</span>
+    <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">writer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">writer</span><span class="o">.</span><span class="n">writerow</span><span class="p">(</span><span class="n">stats</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">csvfile</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">do_print</span><span class="p">:</span>
+        <span class="n">table</span> <span class="o">=</span> <span class="n">Table</span><span class="p">(</span><span class="n">box</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">stats</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">add_column</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">add_column</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">console</span><span class="o">.</span><span class="n">print</span><span class="p">(</span><span class="n">table</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../LinearReconstructEveryK/" class="btn btn-neutral float-left" title="fdtdx.LinearReconstructEveryK"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../Material/" class="btn btn-neutral float-right" title="fdtdx.Material">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Maintained by Yannik Mahlau</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/ymahlau/fdtdx" class="fa fa-code-fork" style="color: #fcfcfc"> ymahlau/fdtdx</a>
+        </span>
+    
+    
+      <span><a href="../LinearReconstructEveryK/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../Material/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../../..";</script>
+    <script src="../../../js/theme_extra.js"></script>
+    <script src="../../../js/theme.js"></script>
+      <script src="../../../javascripts/mathjax.js"></script>
+      <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="../../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

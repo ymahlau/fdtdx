@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="author" content="Yannik Mahlau and Frederik Schubert" /><link rel="canonical" href="https://ymahlau.github.io/fdtdx/api/internal/compression/" />
+      <link rel="shortcut icon" href="../../../img/favicon.ico" />
+    <title>Compression Base Classes - FDTDX</title>
+    <link rel="stylesheet" href="../../../css/theme.css" />
+    <link rel="stylesheet" href="../../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../../assets/_mkdocstrings.css" rel="stylesheet" />
+        <link href="../../../stylesheets/extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Compression Base Classes";
+        var mkdocs_page_input_path = "api/internal/compression.md";
+        var mkdocs_page_url = "/fdtdx/api/internal/compression/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../../..">
+          <img src="../../../img/logo.png" class="logo" alt="Logo"/>
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../..">Home</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Tutorials</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/jax_introduction/">JAX in FDTDX</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/object_placement/">Object Placement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/materials/">Materials Guide</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/parameter_mapping/">Fabrication Constraints</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/interface_compression/">Interface Compression</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">API Reference</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" >Public</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/apply_params/">fdtdx.apply_params</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/ArrayContainer/">fdtdx.ArrayContainer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/autoinit/">fdtdx.autoinit</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/BinaryMedianFilterModule/">fdtdx.BinaryMedianFilterModule</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/boundary_objects_from_config/">fdtdx.boundary_objects_from_config</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/BoundaryConfig/">fdtdx.BoundaryConfig</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/BrushConstraint2D/">fdtdx.BrushConstraint2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/circular_brush/">fdtdx.circular_brush</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/ClosestIndex/">fdtdx.ClosestIndex</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/compute_energy/">fdtdx.compute_energy</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/compute_poynting_flux/">fdtdx.compute_poynting_flux</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/ConnectHolesAndStructures/">fdtdx.ConnectHolesAndStructures</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/constants/">fdtdx.constants</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/Cylinder/">fdtdx.Cylinder</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/Device/">fdtdx.Device</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/DiagonalSymmetry2D/">fdtdx.DiagonalSymmetry2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/DtypeConversion/">fdtdx.DtypeConversion</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/EnergyDetector/">fdtdx.EnergyDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/ExtrudedPolygon/">fdtdx.ExtrudedPolygon</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/FieldDetector/">fdtdx.FieldDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/GaussianPlaneSource/">fdtdx.GaussianPlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/GaussianPulseProfile/">fdtdx.GaussianPulseProfile</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/GaussianSmoothing2D/">fdtdx.GaussianSmoothing2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/GradientConfig/">fdtdx.GradientConfig</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/GridCoordinateConstraint/">fdtdx.GridCoordinateConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/LinearReconstructEveryK/">fdtdx.LinearReconstructEveryK</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/Logger/">fdtdx.Logger</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/Material/">fdtdx.Material</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/metric_efficiency/">fdtdx.metric_efficiency</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/ModeOverlapDetector/">fdtdx.ModeOverlapDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/ModePlaneSource/">fdtdx.ModePlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/ObjectContainer/">fdtdx.ObjectContainer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/ParameterTransformation/">fdtdx.ParameterTransformation</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/PerfectlyMatchedLayer/">fdtdx.PerfectlyMatchedLayer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/PeriodicBoundary/">fdtdx.PeriodicBoundary</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/PhasorDetector/">fdtdx.PhasorDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/PillarDiscretization/">fdtdx.PillarDiscretization</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/place_objects/">fdtdx.place_objects</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/plot_setup/">fdtdx.plot_setup</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/PositionConstraint/">fdtdx.PositionConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/PoyntingFluxDetector/">fdtdx.PoyntingFluxDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/RealCoordinateConstraint/">fdtdx.RealCoordinateConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/Recorder/">fdtdx.Recorder</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/RecordingState/">fdtdx.RecordingState</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/RemoveFloatingMaterial/">fdtdx.RemoveFloatingMaterial</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/run_fdtd/">fdtdx.run_fdtd</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/SimulationConfig/">fdtdx.SimulationConfig</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/SimulationObject/">fdtdx.SimulationObject</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/SimulationVolume/">fdtdx.SimulationVolume</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/SingleFrequencyProfile/">fdtdx.SingleFrequencyProfile</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/SizeConstraint/">fdtdx.SizeConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/SizeExtensionConstraint/">fdtdx.SizeExtensionConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/Sphere/">fdtdx.Sphere</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/StandardToCustomRange/">fdtdx.StandardToCustomRange</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/StandardToPlusOneMinusOneRange/">fdtdx.StandardToPlusOneMinusOneRange</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/SubpixelSmoothedProjection/">fdtdx.SubpixelSmoothedProjection</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/TanhProjection/">fdtdx.TanhProjection</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/TreeClass/">fdtdx.TreeClass</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/typing/">fdtdx.typing</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/UniformMaterialObject/">fdtdx.UniformMaterialObject</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/UniformPlaneSource/">fdtdx.UniformPlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/WaveCharacter/">fdtdx.WaveCharacter</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" >Internal</a>
+    <ul class="current">
+                <li class="toctree-l2 current"><a class="reference internal current" href="#">Compression Base Classes</a>
+    <ul class="current">
+    <li class="toctree-l3"><a class="reference internal" href="#fdtdx.interfaces.modules.CompressionModule">CompressionModule</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.interfaces.modules.CompressionModule.compress">compress</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.interfaces.modules.CompressionModule.decompress">decompress</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.interfaces.modules.CompressionModule.init_shapes">init_shapes</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#fdtdx.interfaces.time_filter.TimeStepFilter">TimeStepFilter</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.interfaces.time_filter.TimeStepFilter.compress">compress</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.interfaces.time_filter.TimeStepFilter.decompress">decompress</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.interfaces.time_filter.TimeStepFilter.indices_to_decompress">indices_to_decompress</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.interfaces.time_filter.TimeStepFilter.init_shapes">init_shapes</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.interfaces.time_filter.TimeStepFilter.time_to_array_index">time_to_array_index</a>
+    </li>
+        </ul>
+    </li>
+    </ul>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../detector/">Detector Base Class</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../objects/">Object Base Classes</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../sources/">Source Base Classes</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../transformation/">Parameter Transformation Base Classes</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../..">FDTDX</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">API Reference</li>
+          <li class="breadcrumb-item">Internal</li>
+      <li class="breadcrumb-item active">Compression Base Classes</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/ymahlau/fdtdx/edit/main/docs/api/internal/compression.md">Edit on ymahlau/fdtdx</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="compression-base-classes">Compression Base Classes</h1>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="fdtdx.interfaces.modules.CompressionModule" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">fdtdx.interfaces.modules.CompressionModule</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="fdtdx.core.jax.pytrees.TreeClass" href="../../public/TreeClass/#fdtdx.TreeClass">TreeClass</a></code>, <code><span title="abc.ABC">ABC</span></code></p>
+
+
+        <p>Abstract base class for compression modules that process simulation data.</p>
+<p>This class provides an interface for modules that compress and decompress field data
+during FDTD simulations. Implementations can perform operations like quantization,
+dimensionality reduction, or other compression techniques.</p>
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fdtdx.interfaces.modules.CompressionModule.compress" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">compress</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
+  </span>
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="nf">compress</span><span class="p">(</span>
+    <span class="n">values</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Array</span><span class="p">],</span>
+    <span class="n">state</span><span class="p">:</span> <span class="n">RecordingState</span><span class="p">,</span>
+    <span class="n">key</span><span class="p">:</span> <span class="n">Array</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span> <span class="n">RecordingState</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Compress field values at the current time step.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>values</code></b>
+                  (<code><span title="dict">dict</span>[<span title="str">str</span>, <span title="jax.Array">Array</span>]</code>)
+              –
+              <div class="doc-md-description">
+                <p>Dictionary mapping field names to their values.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>state</code></b>
+                  (<code><a class="autorefs autorefs-internal" title="fdtdx.interfaces.state.RecordingState" href="../../public/RecordingState/#fdtdx.RecordingState">RecordingState</a></code>)
+              –
+              <div class="doc-md-description">
+                <p>Current recording state.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>key</code></b>
+                  (<code><span title="jax.Array">Array</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Random key for stochastic operations.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="tuple">tuple</span>[<span title="dict">dict</span>[<span title="str">str</span>, <span title="jax.Array">Array</span>], <a class="autorefs autorefs-internal" title="fdtdx.interfaces.state.RecordingState" href="../../public/RecordingState/#fdtdx.RecordingState">RecordingState</a>]</code>
+              –
+              <div class="doc-md-description">
+                <p>tuple[dict[str, jax.Array], RecordingState]: Tuple containing:
+- Dictionary of compressed field values
+- Updated recording state</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="quote">
+              <summary>Source code in <code>src/fdtdx/interfaces/modules.py</code></summary>
+              <div class="codehilite"><table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">48</span>
+<span class="normal">49</span>
+<span class="normal">50</span>
+<span class="normal">51</span>
+<span class="normal">52</span>
+<span class="normal">53</span>
+<span class="normal">54</span>
+<span class="normal">55</span>
+<span class="normal">56</span>
+<span class="normal">57</span>
+<span class="normal">58</span>
+<span class="normal">59</span>
+<span class="normal">60</span>
+<span class="normal">61</span>
+<span class="normal">62</span>
+<span class="normal">63</span>
+<span class="normal">64</span>
+<span class="normal">65</span>
+<span class="normal">66</span>
+<span class="normal">67</span>
+<span class="normal">68</span>
+<span class="normal">69</span>
+<span class="normal">70</span>
+<span class="normal">71</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@abstractmethod</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">compress</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">values</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span>
+    <span class="n">state</span><span class="p">:</span> <span class="n">RecordingState</span><span class="p">,</span>
+    <span class="n">key</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span>
+    <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span>  <span class="c1"># compressed data</span>
+    <span class="n">RecordingState</span><span class="p">,</span>  <span class="c1"># updated recording state</span>
+<span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Compress field values at the current time step.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        values (dict[str, jax.Array]): Dictionary mapping field names to their values.</span>
+<span class="sd">        state (RecordingState): Current recording state.</span>
+<span class="sd">        key (jax.Array): Random key for stochastic operations.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        tuple[dict[str, jax.Array], RecordingState]: Tuple containing:</span>
+<span class="sd">            - Dictionary of compressed field values</span>
+<span class="sd">            - Updated recording state</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">del</span> <span class="n">values</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">key</span>
+    <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fdtdx.interfaces.modules.CompressionModule.decompress" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">decompress</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
+  </span>
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="nf">decompress</span><span class="p">(</span>
+    <span class="n">values</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Array</span><span class="p">],</span>
+    <span class="n">state</span><span class="p">:</span> <span class="n">RecordingState</span><span class="p">,</span>
+    <span class="n">key</span><span class="p">:</span> <span class="n">Array</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Decompress field values back to their original form.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>values</code></b>
+                  (<code><span title="dict">dict</span>[<span title="str">str</span>, <span title="jax.Array">Array</span>]</code>)
+              –
+              <div class="doc-md-description">
+                <p>Dictionary mapping field names to their compressed values.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>state</code></b>
+                  (<code><a class="autorefs autorefs-internal" title="fdtdx.interfaces.state.RecordingState" href="../../public/RecordingState/#fdtdx.RecordingState">RecordingState</a></code>)
+              –
+              <div class="doc-md-description">
+                <p>Current recording state.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>key</code></b>
+                  (<code><span title="jax.Array">Array</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Random key for stochastic operations.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="jax.Array">Array</span>]</code>
+              –
+              <div class="doc-md-description">
+                <p>dict[str, jax.Array]: Dictionary mapping field names to their decompressed values.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="quote">
+              <summary>Source code in <code>src/fdtdx/interfaces/modules.py</code></summary>
+              <div class="codehilite"><table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">73</span>
+<span class="normal">74</span>
+<span class="normal">75</span>
+<span class="normal">76</span>
+<span class="normal">77</span>
+<span class="normal">78</span>
+<span class="normal">79</span>
+<span class="normal">80</span>
+<span class="normal">81</span>
+<span class="normal">82</span>
+<span class="normal">83</span>
+<span class="normal">84</span>
+<span class="normal">85</span>
+<span class="normal">86</span>
+<span class="normal">87</span>
+<span class="normal">88</span>
+<span class="normal">89</span>
+<span class="normal">90</span>
+<span class="normal">91</span>
+<span class="normal">92</span>
+<span class="normal">93</span>
+<span class="normal">94</span>
+<span class="normal">95</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@abstractmethod</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">decompress</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">values</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span>
+    <span class="n">state</span><span class="p">:</span> <span class="n">RecordingState</span><span class="p">,</span>
+    <span class="n">key</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Decompress field values back to their original form.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        values (dict[str, jax.Array]): Dictionary mapping field names to their compressed values.</span>
+<span class="sd">        state (RecordingState): Current recording state.</span>
+<span class="sd">        key (jax.Array): Random key for stochastic operations.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        dict[str, jax.Array]: Dictionary mapping field names to their decompressed values.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">del</span> <span class="p">(</span>
+        <span class="n">values</span><span class="p">,</span>
+        <span class="n">state</span><span class="p">,</span>
+        <span class="n">key</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fdtdx.interfaces.modules.CompressionModule.init_shapes" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">init_shapes</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
+  </span>
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="nf">init_shapes</span><span class="p">(</span>
+    <span class="n">input_shape_dtypes</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ShapeDtypeStruct</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span>
+    <span class="n">Self</span><span class="p">,</span>
+    <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">ShapeDtypeStruct</span><span class="p">],</span>
+    <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">ShapeDtypeStruct</span><span class="p">],</span>
+<span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Initialize shapes and sizes for the compression module.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>input_shape_dtypes</code></b>
+                  (<code><span title="dict">dict</span>[<span title="str">str</span>, <span title="jax.ShapeDtypeStruct">ShapeDtypeStruct</span>]</code>)
+              –
+              <div class="doc-md-description">
+                <p>Dictionary mapping field names to their input
+shapes/dtypes.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="tuple">tuple</span>[<span title="typing.Self">Self</span>, <span title="dict">dict</span>[<span title="str">str</span>, <span title="jax.ShapeDtypeStruct">ShapeDtypeStruct</span>], <span title="dict">dict</span>[<span title="str">str</span>, <span title="jax.ShapeDtypeStruct">ShapeDtypeStruct</span>]]</code>
+              –
+              <div class="doc-md-description">
+                <p>tuple[Self, dict[str, jax.ShapeDtypeStruct], dict[str, jax.ShapeDtypeStruct]]: Tuple containing:
+- Self: Updated instance of the compression module
+- Dictionary mapping field names to their output shapes/dtypes
+- Dictionary mapping field names to their state shapes/dtypes</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="quote">
+              <summary>Source code in <code>src/fdtdx/interfaces/modules.py</code></summary>
+              <div class="codehilite"><table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">24</span>
+<span class="normal">25</span>
+<span class="normal">26</span>
+<span class="normal">27</span>
+<span class="normal">28</span>
+<span class="normal">29</span>
+<span class="normal">30</span>
+<span class="normal">31</span>
+<span class="normal">32</span>
+<span class="normal">33</span>
+<span class="normal">34</span>
+<span class="normal">35</span>
+<span class="normal">36</span>
+<span class="normal">37</span>
+<span class="normal">38</span>
+<span class="normal">39</span>
+<span class="normal">40</span>
+<span class="normal">41</span>
+<span class="normal">42</span>
+<span class="normal">43</span>
+<span class="normal">44</span>
+<span class="normal">45</span>
+<span class="normal">46</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@abstractmethod</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">init_shapes</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">input_shape_dtypes</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">ShapeDtypeStruct</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span>
+    <span class="n">Self</span><span class="p">,</span>
+    <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">ShapeDtypeStruct</span><span class="p">],</span>  <span class="c1"># data</span>
+    <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">ShapeDtypeStruct</span><span class="p">],</span>  <span class="c1"># state shapes/dtypes</span>
+<span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Initialize shapes and sizes for the compression module.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        input_shape_dtypes (dict[str, jax.ShapeDtypeStruct]): Dictionary mapping field names to their input</span>
+<span class="sd">            shapes/dtypes.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        tuple[Self, dict[str, jax.ShapeDtypeStruct], dict[str, jax.ShapeDtypeStruct]]: Tuple containing:</span>
+<span class="sd">            - Self: Updated instance of the compression module</span>
+<span class="sd">            - Dictionary mapping field names to their output shapes/dtypes</span>
+<span class="sd">            - Dictionary mapping field names to their state shapes/dtypes</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">del</span> <span class="n">input_shape_dtypes</span>
+    <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="fdtdx.interfaces.time_filter.TimeStepFilter" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">fdtdx.interfaces.time_filter.TimeStepFilter</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="fdtdx.core.jax.pytrees.TreeClass" href="../../public/TreeClass/#fdtdx.TreeClass">TreeClass</a></code>, <code><span title="abc.ABC">ABC</span></code></p>
+
+
+        <p>Abstract base class for filtering and processing time steps in FDTD simulations.</p>
+<p>This class provides an interface for filters that process simulation data at specific
+time steps. Implementations can perform operations like downsampling, collation, or
+other temporal processing of field data.</p>
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fdtdx.interfaces.time_filter.TimeStepFilter.compress" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">compress</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
+  </span>
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="nf">compress</span><span class="p">(</span>
+    <span class="n">values</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Array</span><span class="p">],</span>
+    <span class="n">state</span><span class="p">:</span> <span class="n">RecordingState</span><span class="p">,</span>
+    <span class="n">time_idx</span><span class="p">:</span> <span class="n">Array</span><span class="p">,</span>
+    <span class="n">key</span><span class="p">:</span> <span class="n">Array</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span> <span class="n">RecordingState</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Compress field values at a given time step.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>values</code></b>
+                  (<code><span title="dict">dict</span>[<span title="str">str</span>, <span title="jax.Array">Array</span>]</code>)
+              –
+              <div class="doc-md-description">
+                <p>Dictionary mapping field names to their values.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>state</code></b>
+                  (<code><a class="autorefs autorefs-internal" title="fdtdx.interfaces.state.RecordingState" href="../../public/RecordingState/#fdtdx.RecordingState">RecordingState</a></code>)
+              –
+              <div class="doc-md-description">
+                <p>Current recording state.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>time_idx</code></b>
+                  (<code><span title="jax.Array">Array</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Current time step index.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>key</code></b>
+                  (<code><span title="jax.Array">Array</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Random key for stochastic operations.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="tuple">tuple</span>[<span title="dict">dict</span>[<span title="str">str</span>, <span title="jax.Array">Array</span>], <a class="autorefs autorefs-internal" title="fdtdx.interfaces.state.RecordingState" href="../../public/RecordingState/#fdtdx.RecordingState">RecordingState</a>]</code>
+              –
+              <div class="doc-md-description">
+                <p>tuple[dict[str, jax.Array], RecordingState]: Tuple containing:
+- Dictionary of compressed field values
+- Updated recording state</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="quote">
+              <summary>Source code in <code>src/fdtdx/interfaces/time_filter.py</code></summary>
+              <div class="codehilite"><table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">71</span>
+<span class="normal">72</span>
+<span class="normal">73</span>
+<span class="normal">74</span>
+<span class="normal">75</span>
+<span class="normal">76</span>
+<span class="normal">77</span>
+<span class="normal">78</span>
+<span class="normal">79</span>
+<span class="normal">80</span>
+<span class="normal">81</span>
+<span class="normal">82</span>
+<span class="normal">83</span>
+<span class="normal">84</span>
+<span class="normal">85</span>
+<span class="normal">86</span>
+<span class="normal">87</span>
+<span class="normal">88</span>
+<span class="normal">89</span>
+<span class="normal">90</span>
+<span class="normal">91</span>
+<span class="normal">92</span>
+<span class="normal">93</span>
+<span class="normal">94</span>
+<span class="normal">95</span>
+<span class="normal">96</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@abstractmethod</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">compress</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">values</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span>
+    <span class="n">state</span><span class="p">:</span> <span class="n">RecordingState</span><span class="p">,</span>
+    <span class="n">time_idx</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>  <span class="c1"># scalar</span>
+    <span class="n">key</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span>
+    <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span>
+    <span class="n">RecordingState</span><span class="p">,</span>  <span class="c1"># updated recording state</span>
+<span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Compress field values at a given time step.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        values (dict[str, jax.Array]): Dictionary mapping field names to their values.</span>
+<span class="sd">        state (RecordingState): Current recording state.</span>
+<span class="sd">        time_idx (jax.Array): Current time step index.</span>
+<span class="sd">        key (jax.Array): Random key for stochastic operations.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        tuple[dict[str, jax.Array], RecordingState]: Tuple containing:</span>
+<span class="sd">            - Dictionary of compressed field values</span>
+<span class="sd">            - Updated recording state</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">del</span> <span class="n">values</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">time_idx</span><span class="p">,</span> <span class="n">key</span>
+    <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fdtdx.interfaces.time_filter.TimeStepFilter.decompress" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">decompress</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
+  </span>
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="nf">decompress</span><span class="p">(</span>
+    <span class="n">values</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Array</span><span class="p">]],</span>
+    <span class="n">state</span><span class="p">:</span> <span class="n">RecordingState</span><span class="p">,</span>
+    <span class="n">arr_indices</span><span class="p">:</span> <span class="n">Array</span><span class="p">,</span>
+    <span class="n">time_idx</span><span class="p">:</span> <span class="n">Array</span><span class="p">,</span>
+    <span class="n">key</span><span class="p">:</span> <span class="n">Array</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Decompress field values to reconstruct data for a time step.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>values</code></b>
+                  (<code><span title="list">list</span>[<span title="dict">dict</span>[<span title="str">str</span>, <span title="jax.Array">Array</span>]]</code>)
+              –
+              <div class="doc-md-description">
+                <p>List of dictionaries containing array values needed for reconstruction.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>state</code></b>
+                  (<code><a class="autorefs autorefs-internal" title="fdtdx.interfaces.state.RecordingState" href="../../public/RecordingState/#fdtdx.RecordingState">RecordingState</a></code>)
+              –
+              <div class="doc-md-description">
+                <p>Current recording state.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>arr_indices</code></b>
+                  (<code><span title="jax.Array">Array</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Array indices needed for reconstruction.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>time_idx</code></b>
+                  (<code><span title="jax.Array">Array</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Time step index to reconstruct. scalar value.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>key</code></b>
+                  (<code><span title="jax.Array">Array</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Random key for stochastic operations.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="jax.Array">Array</span>]</code>
+              –
+              <div class="doc-md-description">
+                <p>dict[str, jax.Array]: Dictionary of reconstructed field values.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="quote">
+              <summary>Source code in <code>src/fdtdx/interfaces/time_filter.py</code></summary>
+              <div class="codehilite"><table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">114</span>
+<span class="normal">115</span>
+<span class="normal">116</span>
+<span class="normal">117</span>
+<span class="normal">118</span>
+<span class="normal">119</span>
+<span class="normal">120</span>
+<span class="normal">121</span>
+<span class="normal">122</span>
+<span class="normal">123</span>
+<span class="normal">124</span>
+<span class="normal">125</span>
+<span class="normal">126</span>
+<span class="normal">127</span>
+<span class="normal">128</span>
+<span class="normal">129</span>
+<span class="normal">130</span>
+<span class="normal">131</span>
+<span class="normal">132</span>
+<span class="normal">133</span>
+<span class="normal">134</span>
+<span class="normal">135</span>
+<span class="normal">136</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@abstractmethod</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">decompress</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">values</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]],</span>  <span class="c1"># array values requested above</span>
+    <span class="n">state</span><span class="p">:</span> <span class="n">RecordingState</span><span class="p">,</span>
+    <span class="n">arr_indices</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="n">time_idx</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>  <span class="c1"># scalar</span>
+    <span class="n">key</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Decompress field values to reconstruct data for a time step.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        values (list[dict[str, jax.Array]]): List of dictionaries containing array values needed for reconstruction.</span>
+<span class="sd">        state (RecordingState): Current recording state.</span>
+<span class="sd">        arr_indices (jax.Array): Array indices needed for reconstruction.</span>
+<span class="sd">        time_idx (jax.Array): Time step index to reconstruct. scalar value.</span>
+<span class="sd">        key (jax.Array): Random key for stochastic operations.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        dict[str, jax.Array]: Dictionary of reconstructed field values.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">del</span> <span class="n">values</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">arr_indices</span><span class="p">,</span> <span class="n">time_idx</span><span class="p">,</span> <span class="n">key</span>
+    <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fdtdx.interfaces.time_filter.TimeStepFilter.indices_to_decompress" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">indices_to_decompress</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
+  </span>
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="nf">indices_to_decompress</span><span class="p">(</span><span class="n">time_idx</span><span class="p">:</span> <span class="n">Array</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Get array indices needed to reconstruct data for a given time step.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>time_idx</code></b>
+                  (<code><span title="jax.Array">Array</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Time step index to reconstruct.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="jax.Array">Array</span></code>
+              –
+              <div class="doc-md-description">
+                <p>jax.Array: Array of indices needed to reconstruct the data for this time step.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="quote">
+              <summary>Source code in <code>src/fdtdx/interfaces/time_filter.py</code></summary>
+              <div class="codehilite"><table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 98</span>
+<span class="normal"> 99</span>
+<span class="normal">100</span>
+<span class="normal">101</span>
+<span class="normal">102</span>
+<span class="normal">103</span>
+<span class="normal">104</span>
+<span class="normal">105</span>
+<span class="normal">106</span>
+<span class="normal">107</span>
+<span class="normal">108</span>
+<span class="normal">109</span>
+<span class="normal">110</span>
+<span class="normal">111</span>
+<span class="normal">112</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@abstractmethod</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">indices_to_decompress</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">time_idx</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>  <span class="c1"># scalar</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>  <span class="c1"># 1d-list of array indices necessary to reconstruct</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Get array indices needed to reconstruct data for a given time step.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        time_idx (jax.Array): Time step index to reconstruct.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        jax.Array: Array of indices needed to reconstruct the data for this time step.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">del</span> <span class="n">time_idx</span>
+    <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fdtdx.interfaces.time_filter.TimeStepFilter.init_shapes" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">init_shapes</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
+  </span>
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="nf">init_shapes</span><span class="p">(</span>
+    <span class="n">input_shape_dtypes</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ShapeDtypeStruct</span><span class="p">],</span>
+    <span class="n">time_steps_max</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span>
+    <span class="n">Self</span><span class="p">,</span>
+    <span class="nb">int</span><span class="p">,</span>
+    <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">ShapeDtypeStruct</span><span class="p">],</span>
+    <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">ShapeDtypeStruct</span><span class="p">],</span>
+<span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Initialize shapes and sizes for the time step filter.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>input_shape_dtypes</code></b>
+                  (<code><span title="dict">dict</span>[<span title="str">str</span>, <span title="jax.ShapeDtypeStruct">ShapeDtypeStruct</span>]</code>)
+              –
+              <div class="doc-md-description">
+                <p>Dictionary mapping field names to their
+shape/dtype information.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>time_steps_max</code></b>
+                  (<code><span title="int">int</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Maximum number of time steps in the simulation.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="tuple">tuple</span>[<span title="typing.Self">Self</span>, <span title="int">int</span>, <span title="dict">dict</span>[<span title="str">str</span>, <span title="jax.ShapeDtypeStruct">ShapeDtypeStruct</span>], <span title="dict">dict</span>[<span title="str">str</span>, <span title="jax.ShapeDtypeStruct">ShapeDtypeStruct</span>]]</code>
+              –
+              <div class="doc-md-description">
+                <p>tuple[Self, int, dict[str, jax.ShapeDtypeStruct], dict[str, jax.ShapeDtypeStruct]]: A tuple containing:
+- Updated filter instance
+- Size of array for storing filtered data
+- Dictionary of data shapes/dtypes
+- Dictionary of state shapes/dtypes</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="quote">
+              <summary>Source code in <code>src/fdtdx/interfaces/time_filter.py</code></summary>
+              <div class="codehilite"><table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">26</span>
+<span class="normal">27</span>
+<span class="normal">28</span>
+<span class="normal">29</span>
+<span class="normal">30</span>
+<span class="normal">31</span>
+<span class="normal">32</span>
+<span class="normal">33</span>
+<span class="normal">34</span>
+<span class="normal">35</span>
+<span class="normal">36</span>
+<span class="normal">37</span>
+<span class="normal">38</span>
+<span class="normal">39</span>
+<span class="normal">40</span>
+<span class="normal">41</span>
+<span class="normal">42</span>
+<span class="normal">43</span>
+<span class="normal">44</span>
+<span class="normal">45</span>
+<span class="normal">46</span>
+<span class="normal">47</span>
+<span class="normal">48</span>
+<span class="normal">49</span>
+<span class="normal">50</span>
+<span class="normal">51</span>
+<span class="normal">52</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@abstractmethod</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">init_shapes</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">input_shape_dtypes</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">ShapeDtypeStruct</span><span class="p">],</span>
+    <span class="n">time_steps_max</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>  <span class="c1"># maximum number of time steps</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span>
+    <span class="n">Self</span><span class="p">,</span>
+    <span class="nb">int</span><span class="p">,</span>  <span class="c1"># array size (number of latent time steps)</span>
+    <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">ShapeDtypeStruct</span><span class="p">],</span>  <span class="c1"># data</span>
+    <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">ShapeDtypeStruct</span><span class="p">],</span>  <span class="c1"># state shapes</span>
+<span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Initialize shapes and sizes for the time step filter.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        input_shape_dtypes (dict[str, jax.ShapeDtypeStruct]): Dictionary mapping field names to their</span>
+<span class="sd">            shape/dtype information.</span>
+<span class="sd">        time_steps_max (int): Maximum number of time steps in the simulation.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        tuple[Self, int, dict[str, jax.ShapeDtypeStruct], dict[str, jax.ShapeDtypeStruct]]: A tuple containing:</span>
+<span class="sd">            - Updated filter instance</span>
+<span class="sd">            - Size of array for storing filtered data</span>
+<span class="sd">            - Dictionary of data shapes/dtypes</span>
+<span class="sd">            - Dictionary of state shapes/dtypes</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">del</span> <span class="n">input_shape_dtypes</span><span class="p">,</span> <span class="n">time_steps_max</span>
+    <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fdtdx.interfaces.time_filter.TimeStepFilter.time_to_array_index" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">time_to_array_index</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
+  </span>
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="nf">time_to_array_index</span><span class="p">(</span><span class="n">time_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Convert a time step index to its corresponding array index.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>time_idx</code></b>
+                  (<code><span title="int">int</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Time step index to convert.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+<b><code>int</code></b>(                  <code><span title="int">int</span></code>
+)              –
+              <div class="doc-md-description">
+                <p>The corresponding array index if the time step is not filtered,
+or -1 if the time step is filtered out.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="quote">
+              <summary>Source code in <code>src/fdtdx/interfaces/time_filter.py</code></summary>
+              <div class="codehilite"><table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">54</span>
+<span class="normal">55</span>
+<span class="normal">56</span>
+<span class="normal">57</span>
+<span class="normal">58</span>
+<span class="normal">59</span>
+<span class="normal">60</span>
+<span class="normal">61</span>
+<span class="normal">62</span>
+<span class="normal">63</span>
+<span class="normal">64</span>
+<span class="normal">65</span>
+<span class="normal">66</span>
+<span class="normal">67</span>
+<span class="normal">68</span>
+<span class="normal">69</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@abstractmethod</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">time_to_array_index</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">time_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>  <span class="c1"># scalar</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>  <span class="c1"># array index if not filtered, else -1</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert a time step index to its corresponding array index.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        time_idx (int): Time step index to convert.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        int: The corresponding array index if the time step is not filtered,</span>
+<span class="sd">            or -1 if the time step is filtered out.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">del</span> <span class="n">time_idx</span>
+    <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../../public/WaveCharacter/" class="btn btn-neutral float-left" title="fdtdx.WaveCharacter"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../detector/" class="btn btn-neutral float-right" title="Detector Base Class">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Maintained by Yannik Mahlau</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/ymahlau/fdtdx" class="fa fa-code-fork" style="color: #fcfcfc"> ymahlau/fdtdx</a>
+        </span>
+    
+    
+      <span><a href="../../public/WaveCharacter/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../detector/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../../..";</script>
+    <script src="../../../js/theme_extra.js"></script>
+    <script src="../../../js/theme.js"></script>
+      <script src="../../../javascripts/mathjax.js"></script>
+      <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="../../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

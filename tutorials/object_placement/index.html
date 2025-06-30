@@ -1,1178 +1,290 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="author" content="Yannik Mahlau and Frederik Schubert" /><link rel="canonical" href="https://ymahlau.github.io/fdtdx/tutorials/object_placement/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Object Placement - FDTDX</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../assets/_mkdocstrings.css" rel="stylesheet" />
+        <link href="../../stylesheets/extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Object Placement";
+        var mkdocs_page_input_path = "tutorials/object_placement.md";
+        var mkdocs_page_url = "/fdtdx/tutorials/object_placement/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
 
-<!doctype html>
-<html lang="en" class="no-js">
-  <head>
-    
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width,initial-scale=1">
-      
-        <meta name="description" content="A JAX framework for the finite-difference time-domain (FDTD) method for solving Maxwell's equations with a focus on inverse design of photonic devices.">
-      
-      
-        <meta name="author" content="Yannik Mahlau and Frederik Schubert">
-      
-      
-        <link rel="canonical" href="https://ymahlau.github.io/fdtdx/tutorials/object_placement/">
-      
-      
-        <link rel="prev" href="../jax_introduction/">
-      
-      
-        <link rel="next" href="../materials/">
-      
-      
-      <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.14">
-    
-    
-      
-        <title>Object Placement - FDTDX</title>
-      
-    
-    
-      <link rel="stylesheet" href="../../assets/stylesheets/main.342714a4.min.css">
-      
-        
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
-      
-      
+<body class="wy-body-for-nav" role="document">
 
-
-    
-    
-      
-    
-    
-      
-        
-        
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
-        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
-      
-    
-    
-      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
-    
-      <link rel="stylesheet" href="../../stylesheets/extra.css">
-    
-    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
-    
-      
-
-    
-    
-    
-  </head>
-  
-  
-    
-    
-      
-    
-    
-    
-    
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
-  
-    
-    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
-    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
-    <label class="md-overlay" for="__drawer"></label>
-    <div data-md-component="skip">
-      
-        
-        <a href="#object-placement-guide" class="md-skip">
-          Skip to content
-        </a>
-      
-    </div>
-    <div data-md-component="announce">
-      
-    </div>
-    
-    
-      
-
-  
-
-<header class="md-header md-header--shadow" data-md-component="header">
-  <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../.." title="FDTDX" class="md-header__button md-logo" aria-label="FDTDX" data-md-component="logo">
-      
-  
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
-
-    </a>
-    <label class="md-header__button md-icon" for="__drawer">
-      
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
-    </label>
-    <div class="md-header__title" data-md-component="header-title">
-      <div class="md-header__ellipsis">
-        <div class="md-header__topic">
-          <span class="md-ellipsis">
-            FDTDX
-          </span>
-        </div>
-        <div class="md-header__topic" data-md-component="header-topic">
-          <span class="md-ellipsis">
-            
-              Object Placement
-            
-          </span>
-        </div>
-      </div>
-    </div>
-    
-      
-        <form class="md-header__option" data-md-component="palette">
-  
-    
-    
-    
-    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
-    
-      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
-      </label>
-    
-  
-    
-    
-    
-    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="astral-light" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
-    
-      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
-      </label>
-    
-  
-    
-    
-    
-    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="astral-dark" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
-    
-      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
-      </label>
-    
-  
-</form>
-      
-    
-    
-      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
-    
-    
-    
-      
-      
-        <label class="md-header__button md-icon" for="__search">
-          
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        </label>
-        <div class="md-search" data-md-component="search" role="dialog">
-  <label class="md-search__overlay" for="__search"></label>
-  <div class="md-search__inner" role="search">
-    <form class="md-search__form" name="search">
-      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
-      <label class="md-search__icon md-icon" for="__search">
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
-        
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
-      </label>
-      <nav class="md-search__options" aria-label="Search">
-        
-        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
-          
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-        </button>
-      </nav>
-      
-    </form>
-    <div class="md-search__output">
-      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
-        <div class="md-search-result" data-md-component="search-result">
-          <div class="md-search-result__meta">
-            Initializing search
-          </div>
-          <ol class="md-search-result__list" role="presentation"></ol>
-        </div>
-      </div>
-    </div>
-  </div>
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../..">
+          <img src="../../img/logo.png" class="logo" alt="Logo"/>
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
 </div>
-      
-    
-    
-      <div class="md-header__source">
-        <a href="https://github.com/ymahlau/fdtdx" title="Go to repository" class="md-source" data-md-component="source">
-  <div class="md-source__icon md-icon">
-    
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
-  </div>
-  <div class="md-source__repository">
-    ymahlau/fdtdx
-  </div>
-</a>
       </div>
-    
-  </nav>
-  
-</header>
-    
-    <div class="md-container" data-md-component="container">
-      
-      
-        
-          
-        
-      
-      <main class="md-main" data-md-component="main">
-        <div class="md-main__inner md-grid">
-          
-            
-              
-              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
-                <div class="md-sidebar__scrollwrap">
-                  <div class="md-sidebar__inner">
-                    
 
-
-
-<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
-  <label class="md-nav__title" for="__drawer">
-    <a href="../.." title="FDTDX" class="md-nav__button md-logo" aria-label="FDTDX" data-md-component="logo">
-      
-  
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
-
-    </a>
-    FDTDX
-  </label>
-  
-    <div class="md-nav__source">
-      <a href="https://github.com/ymahlau/fdtdx" title="Go to repository" class="md-source" data-md-component="source">
-  <div class="md-source__icon md-icon">
-    
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
-  </div>
-  <div class="md-source__repository">
-    ymahlau/fdtdx
-  </div>
-</a>
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Tutorials</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../jax_introduction/">JAX in FDTDX</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">Object Placement</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#basic-positioning">Basic Positioning</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#size-configuration">Size Configuration</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#size-in-grid-units">Size in grid units</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#combination-of-grid-and-metrical-units">Combination of grid and metrical units</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#undefined-sizes-can-be-useful">Undefined Sizes can be useful</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#relative-sizing-constraint">Relative Sizing constraint</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#extending-objects-to-other-objects-or-simulation-boundaries">Extending objects to other objects or Simulation boundaries</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../materials/">Materials Guide</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../parameter_mapping/">Fabrication Constraints</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../interface_compression/">Interface Compression</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">API Reference</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" >Public</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/apply_params/">fdtdx.apply_params</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/ArrayContainer/">fdtdx.ArrayContainer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/autoinit/">fdtdx.autoinit</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/BinaryMedianFilterModule/">fdtdx.BinaryMedianFilterModule</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/boundary_objects_from_config/">fdtdx.boundary_objects_from_config</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/BoundaryConfig/">fdtdx.BoundaryConfig</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/BrushConstraint2D/">fdtdx.BrushConstraint2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/circular_brush/">fdtdx.circular_brush</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/ClosestIndex/">fdtdx.ClosestIndex</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/compute_energy/">fdtdx.compute_energy</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/compute_poynting_flux/">fdtdx.compute_poynting_flux</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/ConnectHolesAndStructures/">fdtdx.ConnectHolesAndStructures</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/constants/">fdtdx.constants</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/Cylinder/">fdtdx.Cylinder</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/Device/">fdtdx.Device</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/DiagonalSymmetry2D/">fdtdx.DiagonalSymmetry2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/DtypeConversion/">fdtdx.DtypeConversion</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/EnergyDetector/">fdtdx.EnergyDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/ExtrudedPolygon/">fdtdx.ExtrudedPolygon</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/FieldDetector/">fdtdx.FieldDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/GaussianPlaneSource/">fdtdx.GaussianPlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/GaussianPulseProfile/">fdtdx.GaussianPulseProfile</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/GaussianSmoothing2D/">fdtdx.GaussianSmoothing2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/GradientConfig/">fdtdx.GradientConfig</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/GridCoordinateConstraint/">fdtdx.GridCoordinateConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/LinearReconstructEveryK/">fdtdx.LinearReconstructEveryK</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/Logger/">fdtdx.Logger</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/Material/">fdtdx.Material</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/metric_efficiency/">fdtdx.metric_efficiency</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/ModeOverlapDetector/">fdtdx.ModeOverlapDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/ModePlaneSource/">fdtdx.ModePlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/ObjectContainer/">fdtdx.ObjectContainer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/ParameterTransformation/">fdtdx.ParameterTransformation</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/PerfectlyMatchedLayer/">fdtdx.PerfectlyMatchedLayer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/PeriodicBoundary/">fdtdx.PeriodicBoundary</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/PhasorDetector/">fdtdx.PhasorDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/PillarDiscretization/">fdtdx.PillarDiscretization</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/place_objects/">fdtdx.place_objects</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/plot_setup/">fdtdx.plot_setup</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/PositionConstraint/">fdtdx.PositionConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/PoyntingFluxDetector/">fdtdx.PoyntingFluxDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/RealCoordinateConstraint/">fdtdx.RealCoordinateConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/Recorder/">fdtdx.Recorder</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/RecordingState/">fdtdx.RecordingState</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/RemoveFloatingMaterial/">fdtdx.RemoveFloatingMaterial</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/run_fdtd/">fdtdx.run_fdtd</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/SimulationConfig/">fdtdx.SimulationConfig</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/SimulationObject/">fdtdx.SimulationObject</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/SimulationVolume/">fdtdx.SimulationVolume</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/SingleFrequencyProfile/">fdtdx.SingleFrequencyProfile</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/SizeConstraint/">fdtdx.SizeConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/SizeExtensionConstraint/">fdtdx.SizeExtensionConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/Sphere/">fdtdx.Sphere</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/StandardToCustomRange/">fdtdx.StandardToCustomRange</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/StandardToPlusOneMinusOneRange/">fdtdx.StandardToPlusOneMinusOneRange</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/SubpixelSmoothedProjection/">fdtdx.SubpixelSmoothedProjection</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/TanhProjection/">fdtdx.TanhProjection</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/TreeClass/">fdtdx.TreeClass</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/typing/">fdtdx.typing</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/UniformMaterialObject/">fdtdx.UniformMaterialObject</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/UniformPlaneSource/">fdtdx.UniformPlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/public/WaveCharacter/">fdtdx.WaveCharacter</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Internal</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/internal/compression/">Compression Base Classes</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/internal/detector/">Detector Base Class</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/internal/objects/">Object Base Classes</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/internal/sources/">Source Base Classes</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../api/internal/transformation/">Parameter Transformation Base Classes</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+      </div>
     </div>
-  
-  <ul class="md-nav__list" data-md-scrollfix>
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../.." class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Home
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-    
-  
-  
-  
-    
-    
-    
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
-        
-          
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    Tutorials
-    
-  </span>
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_2">
-            <span class="md-nav__icon md-icon"></span>
-            Tutorials
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../jax_introduction/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    JAX in FDTDX
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-    
-  
-  
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    Object Placement
-    
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
-        
-  
-  
-  <span class="md-ellipsis">
-    Object Placement
-    
-  </span>
-  
-
-      </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#basic-positioning" class="md-nav__link">
-    <span class="md-ellipsis">
-      Basic Positioning
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#size-configuration" class="md-nav__link">
-    <span class="md-ellipsis">
-      Size Configuration
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Size Configuration">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#size-in-grid-units" class="md-nav__link">
-    <span class="md-ellipsis">
-      Size in grid units
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#combination-of-grid-and-metrical-units" class="md-nav__link">
-    <span class="md-ellipsis">
-      Combination of grid and metrical units
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#undefined-sizes-can-be-useful" class="md-nav__link">
-    <span class="md-ellipsis">
-      Undefined Sizes can be useful
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
     </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#relative-sizing-constraint" class="md-nav__link">
-    <span class="md-ellipsis">
-      Relative Sizing constraint
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#extending-objects-to-other-objects-or-simulation-boundaries" class="md-nav__link">
-    <span class="md-ellipsis">
-      Extending objects to other objects or Simulation boundaries
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">FDTDX</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Tutorials</li>
+      <li class="breadcrumb-item active">Object Placement</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/ymahlau/fdtdx/edit/main/docs/tutorials/object_placement.md">Edit on ymahlau/fdtdx</a>
     </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../materials/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Materials Guide
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../parameter_mapping/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Fabrication Constraints
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../interface_compression/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Interface Compression
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
-        
-          
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    API Reference
-    
-  </span>
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
-            <span class="md-nav__icon md-icon"></span>
-            API Reference
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Overview
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    
-    
-    
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
-        
-          
-          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    Simulation Objects
-    
-  </span>
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3_2">
-            <span class="md-nav__icon md-icon"></span>
-            Simulation Objects
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/objects/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Overview
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/objects/boundaries/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Boundaries
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/objects/detectors/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Detectors
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/objects/device/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Device
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/objects/object/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Objects
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/objects/sources/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Sources
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/objects/static_material/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Static Material
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/fdtd/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    FDTD
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/config/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Config
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/constants/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Constants
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/interfaces/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Interfaces
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/materials/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Materials
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/typing/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Typing
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/utils/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Utils
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../api/core/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Core
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
   </ul>
-</nav>
-                  </div>
-                </div>
-              </div>
-            
-            
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
               
-              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
-                <div class="md-sidebar__scrollwrap">
-                  <div class="md-sidebar__inner">
-                    
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#basic-positioning" class="md-nav__link">
-    <span class="md-ellipsis">
-      Basic Positioning
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#size-configuration" class="md-nav__link">
-    <span class="md-ellipsis">
-      Size Configuration
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Size Configuration">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#size-in-grid-units" class="md-nav__link">
-    <span class="md-ellipsis">
-      Size in grid units
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#combination-of-grid-and-metrical-units" class="md-nav__link">
-    <span class="md-ellipsis">
-      Combination of grid and metrical units
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#undefined-sizes-can-be-useful" class="md-nav__link">
-    <span class="md-ellipsis">
-      Undefined Sizes can be useful
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#relative-sizing-constraint" class="md-nav__link">
-    <span class="md-ellipsis">
-      Relative Sizing constraint
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#extending-objects-to-other-objects-or-simulation-boundaries" class="md-nav__link">
-    <span class="md-ellipsis">
-      Extending objects to other objects or Simulation boundaries
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-                  </div>
-                </div>
-              </div>
-            
-          
-          
-            <div class="md-content" data-md-component="content">
-              <article class="md-content__inner md-typeset">
-                
-                  
-
-
-  
-  
-
-
-<h1 id="object-placement-guide">Object Placement Guide<a class="headerlink" href="#object-placement-guide" title="Permanent link">&para;</a></h1>
+                <h1 id="object-placement-guide">Object Placement Guide</h1>
 <p>This guide explains how to position objects in a simulation scene in FDTDX. The basic workflow looks like this:
 1. Define a Simulation volume
 2. Define objects and sizing/placement constraints between objects
 3. Compute the actual position of objects in the simulation scene by using the place_objects function
 4. Optional, but recommend: Plot the simulation scene using plot_setup()
 5. Run a simulation</p>
-<h2 id="basic-positioning">Basic Positioning<a class="headerlink" href="#basic-positioning" title="Permanent link">&para;</a></h2>
+<h2 id="basic-positioning">Basic Positioning</h2>
 <p>In FDTDX, objects are positioned either directly or relation to other objects through constraints. </p>
 <p>The first step should always be to define the size of the simulation volume. 
 FDTDX always uses metrical units, i.e. meters or grid positions referring to the Yee-grid,
  which depends on the resolution used.
-<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># create a simulation config</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">config</span> <span class="o">=</span> <span class="n">SimulationConfig</span><span class="p">(</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">time</span><span class="o">=</span><span class="mf">200e-15</span><span class="p">,</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">resolution</span><span class="o">=</span><span class="mf">100e-9</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="p">)</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># Create a simulation volume</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="n">volume</span> <span class="o">=</span> <span class="n">SimulationVolume</span><span class="p">(</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">partial_real_shape</span><span class="o">=</span><span class="p">(</span><span class="mf">4e-6</span><span class="p">,</span> <span class="mf">4e-6</span><span class="p">,</span> <span class="mf">1.5e-6</span><span class="p">),</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span>
-</span></code></pre></div></p>
+<div class="highlight"><pre><span></span><code><span class="c1"># create a simulation config</span>
+<span class="n">config</span> <span class="o">=</span> <span class="n">SimulationConfig</span><span class="p">(</span>
+    <span class="n">time</span><span class="o">=</span><span class="mf">200e-15</span><span class="p">,</span>
+    <span class="n">resolution</span><span class="o">=</span><span class="mf">100e-9</span>
+<span class="p">)</span>
+<span class="c1"># Create a simulation volume</span>
+<span class="n">volume</span> <span class="o">=</span> <span class="n">SimulationVolume</span><span class="p">(</span>
+    <span class="n">partial_real_shape</span><span class="o">=</span><span class="p">(</span><span class="mf">4e-6</span><span class="p">,</span> <span class="mf">4e-6</span><span class="p">,</span> <span class="mf">1.5e-6</span><span class="p">),</span>
+<span class="p">)</span>
+</code></pre></div></p>
 <p>We can already use the place_objects and plot_setup function to see the simulation volume.
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">PRNGKey</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>  <span class="c1"># random key</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="c1"># place objects and resolve constraints</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">objects</span><span class="p">,</span> <span class="n">arrays</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="n">place_objects</span><span class="p">(</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">volume</span><span class="o">=</span><span class="n">volume</span><span class="p">,</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">constraints</span><span class="o">=</span><span class="p">[],</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="p">)</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="c1"># plot the simulation scene</span>
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="n">fig</span> <span class="o">=</span> <span class="n">plot_setup</span><span class="p">(</span>
-</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
-</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="n">objects</span><span class="o">=</span><span class="n">objects</span><span class="p">,</span>
-</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="p">)</span>
-</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s2">&quot;empty_scene.png&quot;</span><span class="p">)</span>
-</span></code></pre></div></p>
+<div class="highlight"><pre><span></span><code><span class="n">key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">PRNGKey</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>  <span class="c1"># random key</span>
+<span class="c1"># place objects and resolve constraints</span>
+<span class="n">objects</span><span class="p">,</span> <span class="n">arrays</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="n">place_objects</span><span class="p">(</span>
+    <span class="n">volume</span><span class="o">=</span><span class="n">volume</span><span class="p">,</span>
+    <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+    <span class="n">constraints</span><span class="o">=</span><span class="p">[],</span>
+    <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="c1"># plot the simulation scene</span>
+<span class="n">fig</span> <span class="o">=</span> <span class="n">plot_setup</span><span class="p">(</span>
+    <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+    <span class="n">objects</span><span class="o">=</span><span class="n">objects</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s2">&quot;empty_scene.png&quot;</span><span class="p">)</span>
+</code></pre></div></p>
 <p><img alt="image" src="../../img/setup_0.png" /></p>
 <p>Now, we can start to position some objects in the simulation scene. 
 We start with a substrate at the bottom of simulation. 
@@ -1184,261 +296,230 @@ A relative coordinate system means that a position of -1 would place the anchor 
 a position of 0 at the middle and a position of 1 at the right boundary.</p>
 <p>In case of the substrate, we want the lower boundary of the substrate to be aligned with the lower boundary of the simulation volume. 
 This ensures that the substrate is placed exactly at the bottom of the simulation.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># create list of constraints</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">placement_constraints</span> <span class="o">=</span> <span class="p">[]</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># create substrate</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">substrate</span> <span class="o">=</span> <span class="n">UniformMaterialObject</span><span class="p">(</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">partial_real_shape</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mf">0.6e-6</span><span class="p">),</span>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">material</span><span class="o">=</span><span class="n">Material</span><span class="p">(</span><span class="n">permittivity</span><span class="o">=</span><span class="n">constants</span><span class="o">.</span><span class="n">relative_permittivity_silica</span><span class="p">),</span>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="p">)</span>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="c1"># place at the bottom of simulation volume</span>
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="n">constraint</span> <span class="o">=</span> <span class="n">substrate</span><span class="o">.</span><span class="n">place_relative_to</span><span class="p">(</span>
-</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>    <span class="n">volume</span><span class="p">,</span>
-</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>    <span class="n">axes</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
-</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>    <span class="n">own_positions</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
-</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>    <span class="n">other_positions</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
-</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>    <span class="n">margins</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>    <span class="n">grid_margins</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="p">)</span>
-</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="n">placement_constraints</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">constraint</span><span class="p">)</span>
-</span></code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="c1"># create list of constraints</span>
+<span class="n">placement_constraints</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="c1"># create substrate</span>
+<span class="n">substrate</span> <span class="o">=</span> <span class="n">UniformMaterialObject</span><span class="p">(</span>
+    <span class="n">partial_real_shape</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mf">0.6e-6</span><span class="p">),</span>
+    <span class="n">material</span><span class="o">=</span><span class="n">Material</span><span class="p">(</span><span class="n">permittivity</span><span class="o">=</span><span class="n">constants</span><span class="o">.</span><span class="n">relative_permittivity_silica</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="c1"># place at the bottom of simulation volume</span>
+<span class="n">constraint</span> <span class="o">=</span> <span class="n">substrate</span><span class="o">.</span><span class="n">place_relative_to</span><span class="p">(</span>
+    <span class="n">volume</span><span class="p">,</span>
+    <span class="n">axes</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+    <span class="n">own_positions</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
+    <span class="n">other_positions</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
+    <span class="n">margins</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+    <span class="n">grid_margins</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">placement_constraints</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">constraint</span><span class="p">)</span>
+</code></pre></div>
 <p>The margins and grid_margins arguments are optional and would allow to speficy a fixed distance between 
 the anchor points. The margins argument is in units of meters, the grid margins in units of yee-grid cells. Plotting this again results in</p>
 <p><img alt="image" src="../../img/setup_1.png" /></p>
 <p>There exist a number of useful shorthands for rapid placements. Some of them are listed below that place 
 a cube in the scene. The name and colors argument are only used for plotting.</p>
-<p><div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># place an object on top (z-axis / 2) of another object</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">cube1</span> <span class="o">=</span> <span class="n">UniformMaterialObject</span><span class="p">(</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;cube&quot;</span><span class="p">,</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="o">.</span><span class="n">GREEN</span><span class="p">,</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">partial_real_shape</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5e-6</span><span class="p">,</span> <span class="mf">0.5e-6</span><span class="p">,</span> <span class="mf">0.5e-6</span><span class="p">),</span>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">material</span><span class="o">=</span><span class="n">Material</span><span class="p">(</span><span class="n">permittivity</span><span class="o">=</span><span class="n">constants</span><span class="o">.</span><span class="n">relative_permittivity_silicon</span><span class="p">),</span>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="p">)</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="n">placement_constraints</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="n">cube1</span><span class="o">.</span><span class="n">place_above</span><span class="p">(</span><span class="n">substrate</span><span class="p">)</span>
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="p">)</span>
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>
-</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="c1"># place an object at the center of another object</span>
-</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="n">placement_constraints</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>    <span class="n">cube1</span><span class="o">.</span><span class="n">place_at_center</span><span class="p">(</span>
-</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>        <span class="n">substrate</span><span class="p">,</span>
-</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>        <span class="n">axes</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
-</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>    <span class="p">)</span>
-</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="p">)</span>
-</span></code></pre></div>
+<p><div class="highlight"><pre><span></span><code><span class="c1"># place an object on top (z-axis / 2) of another object</span>
+<span class="n">cube1</span> <span class="o">=</span> <span class="n">UniformMaterialObject</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;cube&quot;</span><span class="p">,</span>
+    <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="o">.</span><span class="n">GREEN</span><span class="p">,</span>
+    <span class="n">partial_real_shape</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5e-6</span><span class="p">,</span> <span class="mf">0.5e-6</span><span class="p">,</span> <span class="mf">0.5e-6</span><span class="p">),</span>
+    <span class="n">material</span><span class="o">=</span><span class="n">Material</span><span class="p">(</span><span class="n">permittivity</span><span class="o">=</span><span class="n">constants</span><span class="o">.</span><span class="n">relative_permittivity_silicon</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="n">placement_constraints</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+    <span class="n">cube1</span><span class="o">.</span><span class="n">place_above</span><span class="p">(</span><span class="n">substrate</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="c1"># place an object at the center of another object</span>
+<span class="n">placement_constraints</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+    <span class="n">cube1</span><span class="o">.</span><span class="n">place_at_center</span><span class="p">(</span>
+        <span class="n">substrate</span><span class="p">,</span>
+        <span class="n">axes</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+</code></pre></div>
 <img alt="image" src="../../img/setup_2.png" /></p>
-<h2 id="size-configuration">Size Configuration<a class="headerlink" href="#size-configuration" title="Permanent link">&para;</a></h2>
+<h2 id="size-configuration">Size Configuration</h2>
 <p>Object sizes can be specified in a number of ways. 
 Firstly, one can directly set the size of an object in the init method.
 This can either be a specified in Yee-grid cells or metrical units (meter).</p>
-<p><div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># size in meters</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">cube</span> <span class="o">=</span> <span class="n">UniformMaterialObject</span><span class="p">(</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">partial_real_shape</span><span class="o">=</span><span class="p">(</span><span class="mf">0.3e-6</span><span class="p">,</span> <span class="mf">1.0e-6</span><span class="p">,</span> <span class="mf">0.7e-6</span><span class="p">),</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="o">...</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="p">)</span>
-</span></code></pre></div>
+<p><div class="highlight"><pre><span></span><code><span class="c1"># size in meters</span>
+<span class="n">cube</span> <span class="o">=</span> <span class="n">UniformMaterialObject</span><span class="p">(</span>
+    <span class="n">partial_real_shape</span><span class="o">=</span><span class="p">(</span><span class="mf">0.3e-6</span><span class="p">,</span> <span class="mf">1.0e-6</span><span class="p">,</span> <span class="mf">0.7e-6</span><span class="p">),</span>
+    <span class="o">...</span>
+<span class="p">)</span>
+</code></pre></div>
 <img alt="image" src="../../img/setup_3.png" /></p>
-<h3 id="size-in-grid-units">Size in grid units<a class="headerlink" href="#size-in-grid-units" title="Permanent link">&para;</a></h3>
-<p><div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># size in grid units (each 100nm as defined in config above)</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">cube</span> <span class="o">=</span> <span class="n">UniformMaterialObject</span><span class="p">(</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">partial_grid_shape</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="o">...</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="p">)</span>
-</span></code></pre></div>
+<h3 id="size-in-grid-units">Size in grid units</h3>
+<p><div class="highlight"><pre><span></span><code><span class="c1"># size in grid units (each 100nm as defined in config above)</span>
+<span class="n">cube</span> <span class="o">=</span> <span class="n">UniformMaterialObject</span><span class="p">(</span>
+    <span class="n">partial_grid_shape</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
+    <span class="o">...</span>
+<span class="p">)</span>
+</code></pre></div>
 <img alt="image" src="../../img/setup_4.png" /></p>
-<h3 id="combination-of-grid-and-metrical-units">Combination of grid and metrical units<a class="headerlink" href="#combination-of-grid-and-metrical-units" title="Permanent link">&para;</a></h3>
-<p><div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># partial combination</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">cube</span> <span class="o">=</span> <span class="n">UniformMaterialObject</span><span class="p">(</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">partial_real_shape</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="mf">0.5e-6</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="n">partial_grid_shape</span><span class="o">=</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="o">...</span>
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="p">)</span>
-</span></code></pre></div>
+<h3 id="combination-of-grid-and-metrical-units">Combination of grid and metrical units</h3>
+<p><div class="highlight"><pre><span></span><code><span class="c1"># partial combination</span>
+<span class="n">cube</span> <span class="o">=</span> <span class="n">UniformMaterialObject</span><span class="p">(</span>
+    <span class="n">partial_real_shape</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="mf">0.5e-6</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+    <span class="n">partial_grid_shape</span><span class="o">=</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+    <span class="o">...</span>
+<span class="p">)</span>
+</code></pre></div>
 <img alt="image" src="../../img/setup_5.png" /></p>
-<h3 id="undefined-sizes-can-be-useful">Undefined Sizes can be useful<a class="headerlink" href="#undefined-sizes-can-be-useful" title="Permanent link">&para;</a></h3>
+<h3 id="undefined-sizes-can-be-useful">Undefined Sizes can be useful</h3>
 <p>If the size of an object is only partially defined and does not have any constraints,
 the size is set to the size of the simulation volume in the respective axis. We actually already used this behavior to define the substrate above.</p>
-<p><div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># z-axis is undefined, size is extended to simulation size</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">cube</span> <span class="o">=</span> <span class="n">UniformMaterialObject</span><span class="p">(</span>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="n">partial_real_shape</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="mf">0.5e-6</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">partial_grid_shape</span><span class="o">=</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="o">...</span>
-</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="p">)</span>
-</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1"># This now results in an error:</span>
-</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="n">placement_constraints</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>    <span class="n">cube1</span><span class="o">.</span><span class="n">place_above</span><span class="p">(</span><span class="n">substrate</span><span class="p">)</span>
-</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="p">)</span>
-</span></code></pre></div>
+<p><div class="highlight"><pre><span></span><code><span class="c1"># z-axis is undefined, size is extended to simulation size</span>
+<span class="n">cube</span> <span class="o">=</span> <span class="n">UniformMaterialObject</span><span class="p">(</span>
+    <span class="n">partial_real_shape</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="mf">0.5e-6</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+    <span class="n">partial_grid_shape</span><span class="o">=</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+    <span class="o">...</span>
+<span class="p">)</span>
+<span class="c1"># This now results in an error:</span>
+<span class="n">placement_constraints</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+    <span class="n">cube1</span><span class="o">.</span><span class="n">place_above</span><span class="p">(</span><span class="n">substrate</span><span class="p">)</span>
+<span class="p">)</span>
+</code></pre></div>
 Using this specification for the cube, we get the following error:
-<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>Exception: Inconsisten grid shape (may be due to extension to infinity) at lower bound: 0 != 6 for axis=2, cube (&lt;class &#39;fdtdx.objects.material.UniformMaterialObject&#39;&gt;). Object has a position constraint that puts the lower boundary at 6, but the lower bound was alreay computed to be at 0. This could be due to a missing size constraint/specification, which resulted in an expansion of the object to the simulation boundary (default size) or another constraint on this object.
-</span></code></pre></div>
+<div class="highlight"><pre><span></span><code>Exception: Inconsisten grid shape (may be due to extension to infinity) at lower bound: 0 != 6 for axis=2, cube (&lt;class &#39;fdtdx.objects.material.UniformMaterialObject&#39;&gt;). Object has a position constraint that puts the lower boundary at 6, but the lower bound was alreay computed to be at 0. This could be due to a missing size constraint/specification, which resulted in an expansion of the object to the simulation boundary (default size) or another constraint on this object.
+</code></pre></div>
 The error occurs, because we tried to place the cube above the substrate, which is no longer possible if the z-size of the cube is the whole simulation size. When we remove the problematic placement constraint, we get the correct simulation scene.
 <img alt="image" src="../../img/setup_6.png" /></p>
-<h2 id="relative-sizing-constraint">Relative Sizing constraint<a class="headerlink" href="#relative-sizing-constraint" title="Permanent link">&para;</a></h2>
+<h2 id="relative-sizing-constraint">Relative Sizing constraint</h2>
 <p>The size of an object can also be set in relation to another object. To demonstrate this, we define a second cube, which should be placed above the substrate and have a 200nm distance to the other cube in the x-axis.
-<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">cube2</span> <span class="o">=</span> <span class="n">UniformMaterialObject</span><span class="p">(</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;cube2&quot;</span><span class="p">,</span>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="o">.</span><span class="n">GREEN</span><span class="p">,</span>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="n">partial_real_shape</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5e-6</span><span class="p">,</span> <span class="mf">0.5e-6</span><span class="p">,</span> <span class="mf">0.5e-6</span><span class="p">),</span>
-</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="n">material</span><span class="o">=</span><span class="n">Material</span><span class="p">(</span><span class="n">permittivity</span><span class="o">=</span><span class="n">constants</span><span class="o">.</span><span class="n">relative_permittivity_silicon</span><span class="p">),</span>
-</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="p">)</span>
-</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="n">placement_constraints</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span>
-</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>    <span class="n">cube2</span><span class="o">.</span><span class="n">place_above</span><span class="p">(</span><span class="n">substrate</span><span class="p">),</span>
-</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>    <span class="n">cube2</span><span class="o">.</span><span class="n">place_relative_to</span><span class="p">(</span>
-</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>        <span class="n">cube1</span><span class="p">,</span>
-</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>        <span class="n">axes</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
-</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>        <span class="n">own_positions</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
-</span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>        <span class="n">other_positions</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
-</span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a>        <span class="n">margins</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">200e-9</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-</span><span id="__span-9-15"><a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a>    <span class="p">)</span>
-</span><span id="__span-9-16"><a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="p">])</span>
-</span></code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="n">cube2</span> <span class="o">=</span> <span class="n">UniformMaterialObject</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;cube2&quot;</span><span class="p">,</span>
+    <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="o">.</span><span class="n">GREEN</span><span class="p">,</span>
+    <span class="n">partial_real_shape</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5e-6</span><span class="p">,</span> <span class="mf">0.5e-6</span><span class="p">,</span> <span class="mf">0.5e-6</span><span class="p">),</span>
+    <span class="n">material</span><span class="o">=</span><span class="n">Material</span><span class="p">(</span><span class="n">permittivity</span><span class="o">=</span><span class="n">constants</span><span class="o">.</span><span class="n">relative_permittivity_silicon</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="n">placement_constraints</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span>
+    <span class="n">cube2</span><span class="o">.</span><span class="n">place_above</span><span class="p">(</span><span class="n">substrate</span><span class="p">),</span>
+    <span class="n">cube2</span><span class="o">.</span><span class="n">place_relative_to</span><span class="p">(</span>
+        <span class="n">cube1</span><span class="p">,</span>
+        <span class="n">axes</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+        <span class="n">own_positions</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+        <span class="n">other_positions</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+        <span class="n">margins</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">200e-9</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="p">)</span>
+<span class="p">])</span>
+</code></pre></div>
 <img alt="image" src="../../img/setup_7.png" /></p>
 <p>Now let's change the size definition of the second cube to a relative size constraint, which defines the y-size of the second cube as the size of the first cube in the z-axis.
-<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">cube2</span> <span class="o">=</span> <span class="n">UniformMaterialObject</span><span class="p">(</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;cube2&quot;</span><span class="p">,</span>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="o">.</span><span class="n">GREEN</span><span class="p">,</span>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    <span class="n">partial_real_shape</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5e-6</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mf">0.5e-6</span><span class="p">),</span>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    <span class="n">material</span><span class="o">=</span><span class="n">Material</span><span class="p">(</span><span class="n">permittivity</span><span class="o">=</span><span class="n">constants</span><span class="o">.</span><span class="n">relative_permittivity_silicon</span><span class="p">),</span>
-</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="p">)</span>
-</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="n">placement_constraints</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>    <span class="n">cube2</span><span class="o">.</span><span class="n">size_relative_to</span><span class="p">(</span>
-</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>        <span class="n">cube1</span><span class="p">,</span>
-</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>        <span class="n">axes</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>        <span class="n">other_axes</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
-</span><span id="__span-10-12"><a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>        <span class="n">proportions</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
-</span><span id="__span-10-13"><a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>    <span class="p">)</span>
-</span><span id="__span-10-14"><a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="p">)</span>
-</span></code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="n">cube2</span> <span class="o">=</span> <span class="n">UniformMaterialObject</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;cube2&quot;</span><span class="p">,</span>
+    <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="o">.</span><span class="n">GREEN</span><span class="p">,</span>
+    <span class="n">partial_real_shape</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5e-6</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mf">0.5e-6</span><span class="p">),</span>
+    <span class="n">material</span><span class="o">=</span><span class="n">Material</span><span class="p">(</span><span class="n">permittivity</span><span class="o">=</span><span class="n">constants</span><span class="o">.</span><span class="n">relative_permittivity_silicon</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="n">placement_constraints</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+    <span class="n">cube2</span><span class="o">.</span><span class="n">size_relative_to</span><span class="p">(</span>
+        <span class="n">cube1</span><span class="p">,</span>
+        <span class="n">axes</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">other_axes</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+        <span class="n">proportions</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+</code></pre></div>
 <img alt="image" src="../../img/setup_8.png" /></p>
 <p>Another useful convenience wrapper is the following:
-<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">object1</span><span class="o">.</span><span class="n">same_size</span><span class="p">(</span><span class="n">object2</span><span class="p">,</span> <span class="n">axes</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">))</span>
-</span></code></pre></div></p>
-<h2 id="extending-objects-to-other-objects-or-simulation-boundaries">Extending objects to other objects or Simulation boundaries<a class="headerlink" href="#extending-objects-to-other-objects-or-simulation-boundaries" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">object1</span><span class="o">.</span><span class="n">same_size</span><span class="p">(</span><span class="n">object2</span><span class="p">,</span> <span class="n">axes</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">))</span>
+</code></pre></div></p>
+<h2 id="extending-objects-to-other-objects-or-simulation-boundaries">Extending objects to other objects or Simulation boundaries</h2>
 <p>The last method to set the size of an object is to constrain the size, such that it extends up to another object in the simulation scene.</p>
-<p><div class="language-python highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># definition of first cube</span>
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="n">cube1</span> <span class="o">=</span> <span class="n">UniformMaterialObject</span><span class="p">(</span>
-</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>    <span class="n">partial_real_shape</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5e-6</span><span class="p">,</span> <span class="mf">0.5e-6</span><span class="p">,</span> <span class="mf">0.5e-6</span><span class="p">),</span>
-</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;cube&quot;</span><span class="p">,</span>
-</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>    <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="o">.</span><span class="n">GREEN</span><span class="p">,</span>
-</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>    <span class="n">material</span><span class="o">=</span><span class="n">Material</span><span class="p">(</span><span class="n">permittivity</span><span class="o">=</span><span class="n">constants</span><span class="o">.</span><span class="n">relative_permittivity_silicon</span><span class="p">),</span>
-</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="p">)</span>
-</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="n">placement_constraints</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>    <span class="n">cube1</span><span class="o">.</span><span class="n">place_above</span><span class="p">(</span><span class="n">substrate</span><span class="p">)</span>
-</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="p">)</span>
-</span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="n">placement_constraints</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-</span><span id="__span-12-12"><a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>    <span class="n">cube1</span><span class="o">.</span><span class="n">place_at_center</span><span class="p">(</span>
-</span><span id="__span-12-13"><a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a>        <span class="n">substrate</span><span class="p">,</span>
-</span><span id="__span-12-14"><a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a>        <span class="n">axes</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
-</span><span id="__span-12-15"><a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a>    <span class="p">)</span>
-</span><span id="__span-12-16"><a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a><span class="p">)</span>
-</span><span id="__span-12-17"><a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a><span class="n">cube2</span> <span class="o">=</span> <span class="n">UniformMaterialObject</span><span class="p">(</span>
-</span><span id="__span-12-18"><a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;cube2&quot;</span><span class="p">,</span>
-</span><span id="__span-12-19"><a id="__codelineno-12-19" name="__codelineno-12-19" href="#__codelineno-12-19"></a>    <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="o">.</span><span class="n">MAGENTA</span><span class="p">,</span>
-</span><span id="__span-12-20"><a id="__codelineno-12-20" name="__codelineno-12-20" href="#__codelineno-12-20"></a>    <span class="n">partial_real_shape</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="mf">0.5e-6</span><span class="p">,</span> <span class="mf">0.5e-6</span><span class="p">),</span>
-</span><span id="__span-12-21"><a id="__codelineno-12-21" name="__codelineno-12-21" href="#__codelineno-12-21"></a>    <span class="n">material</span><span class="o">=</span><span class="n">Material</span><span class="p">(</span><span class="n">permittivity</span><span class="o">=</span><span class="n">constants</span><span class="o">.</span><span class="n">relative_permittivity_silicon</span><span class="p">),</span>
-</span><span id="__span-12-22"><a id="__codelineno-12-22" name="__codelineno-12-22" href="#__codelineno-12-22"></a><span class="p">)</span>
-</span><span id="__span-12-23"><a id="__codelineno-12-23" name="__codelineno-12-23" href="#__codelineno-12-23"></a><span class="n">placement_constraints</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span>
-</span><span id="__span-12-24"><a id="__codelineno-12-24" name="__codelineno-12-24" href="#__codelineno-12-24"></a>    <span class="n">cube2</span><span class="o">.</span><span class="n">place_above</span><span class="p">(</span><span class="n">substrate</span><span class="p">),</span>
-</span><span id="__span-12-25"><a id="__codelineno-12-25" name="__codelineno-12-25" href="#__codelineno-12-25"></a>    <span class="c1"># place at center of y-axis</span>
-</span><span id="__span-12-26"><a id="__codelineno-12-26" name="__codelineno-12-26" href="#__codelineno-12-26"></a>    <span class="n">cube2</span><span class="o">.</span><span class="n">place_at_center</span><span class="p">(</span>
-</span><span id="__span-12-27"><a id="__codelineno-12-27" name="__codelineno-12-27" href="#__codelineno-12-27"></a>        <span class="n">cube1</span><span class="p">,</span>
-</span><span id="__span-12-28"><a id="__codelineno-12-28" name="__codelineno-12-28" href="#__codelineno-12-28"></a>        <span class="n">axes</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-</span><span id="__span-12-29"><a id="__codelineno-12-29" name="__codelineno-12-29" href="#__codelineno-12-29"></a>    <span class="p">),</span>
-</span><span id="__span-12-30"><a id="__codelineno-12-30" name="__codelineno-12-30" href="#__codelineno-12-30"></a>    <span class="c1"># extend object up to first cube</span>
-</span><span id="__span-12-31"><a id="__codelineno-12-31" name="__codelineno-12-31" href="#__codelineno-12-31"></a>    <span class="n">cube2</span><span class="o">.</span><span class="n">extend_to</span><span class="p">(</span>
-</span><span id="__span-12-32"><a id="__codelineno-12-32" name="__codelineno-12-32" href="#__codelineno-12-32"></a>        <span class="n">cube1</span><span class="p">,</span>
-</span><span id="__span-12-33"><a id="__codelineno-12-33" name="__codelineno-12-33" href="#__codelineno-12-33"></a>        <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-</span><span id="__span-12-34"><a id="__codelineno-12-34" name="__codelineno-12-34" href="#__codelineno-12-34"></a>        <span class="n">direction</span><span class="o">=</span><span class="s2">&quot;+&quot;</span><span class="p">,</span>
-</span><span id="__span-12-35"><a id="__codelineno-12-35" name="__codelineno-12-35" href="#__codelineno-12-35"></a>    <span class="p">)</span>
-</span><span id="__span-12-36"><a id="__codelineno-12-36" name="__codelineno-12-36" href="#__codelineno-12-36"></a><span class="p">])</span>
-</span></code></pre></div>
+<p><div class="highlight"><pre><span></span><code><span class="c1"># definition of first cube</span>
+<span class="n">cube1</span> <span class="o">=</span> <span class="n">UniformMaterialObject</span><span class="p">(</span>
+    <span class="n">partial_real_shape</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5e-6</span><span class="p">,</span> <span class="mf">0.5e-6</span><span class="p">,</span> <span class="mf">0.5e-6</span><span class="p">),</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;cube&quot;</span><span class="p">,</span>
+    <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="o">.</span><span class="n">GREEN</span><span class="p">,</span>
+    <span class="n">material</span><span class="o">=</span><span class="n">Material</span><span class="p">(</span><span class="n">permittivity</span><span class="o">=</span><span class="n">constants</span><span class="o">.</span><span class="n">relative_permittivity_silicon</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="n">placement_constraints</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+    <span class="n">cube1</span><span class="o">.</span><span class="n">place_above</span><span class="p">(</span><span class="n">substrate</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="n">placement_constraints</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+    <span class="n">cube1</span><span class="o">.</span><span class="n">place_at_center</span><span class="p">(</span>
+        <span class="n">substrate</span><span class="p">,</span>
+        <span class="n">axes</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+<span class="n">cube2</span> <span class="o">=</span> <span class="n">UniformMaterialObject</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;cube2&quot;</span><span class="p">,</span>
+    <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="o">.</span><span class="n">MAGENTA</span><span class="p">,</span>
+    <span class="n">partial_real_shape</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="mf">0.5e-6</span><span class="p">,</span> <span class="mf">0.5e-6</span><span class="p">),</span>
+    <span class="n">material</span><span class="o">=</span><span class="n">Material</span><span class="p">(</span><span class="n">permittivity</span><span class="o">=</span><span class="n">constants</span><span class="o">.</span><span class="n">relative_permittivity_silicon</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="n">placement_constraints</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span>
+    <span class="n">cube2</span><span class="o">.</span><span class="n">place_above</span><span class="p">(</span><span class="n">substrate</span><span class="p">),</span>
+    <span class="c1"># place at center of y-axis</span>
+    <span class="n">cube2</span><span class="o">.</span><span class="n">place_at_center</span><span class="p">(</span>
+        <span class="n">cube1</span><span class="p">,</span>
+        <span class="n">axes</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="c1"># extend object up to first cube</span>
+    <span class="n">cube2</span><span class="o">.</span><span class="n">extend_to</span><span class="p">(</span>
+        <span class="n">cube1</span><span class="p">,</span>
+        <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="n">direction</span><span class="o">=</span><span class="s2">&quot;+&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+<span class="p">])</span>
+</code></pre></div>
 <img alt="image" src="../../img/setup_9.png" />
 This constrains the size of cube2 such that its upper boundary ("+") extends directly up to cube1 in the x-axis.</p>
-<p>See the <a href="../../api/objects/">Objects API Reference</a> for complete details on all positioning and sizing options.</p>
-
-
-
-
-
-
-
-
-
-
-
-
-                
-              </article>
+<p>See the <a href="../api/objects/index.md">Objects API Reference</a> for complete details on all positioning and sizing options.</p>
+              
             </div>
-          
-          
-<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
-        </div>
-        
-      </main>
-      
-        <footer class="md-footer">
-  
-  <div class="md-footer-meta md-typeset">
-    <div class="md-footer-meta__inner md-grid">
-      <div class="md-copyright">
-  
-    <div class="md-copyright__highlight">
-      Maintained by Yannik Mahlau
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../jax_introduction/" class="btn btn-neutral float-left" title="JAX in FDTDX"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../materials/" class="btn btn-neutral float-right" title="Materials Guide">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
-  
-  
-    Made with
-    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
-      Material for MkDocs
-    </a>
-  
-</div>
-      
-        <div class="md-social">
-  
-    
-    
-    
-    
-      
-      
-    
-    <a href="https://github.com/ymahlau/fdtdx" target="_blank" rel="noopener" title="github.com" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
-    </a>
-  
-    
-    
-    
-    
-      
-      
-    
-    <a href="https://pypi.org/project/fdtdx" target="_blank" rel="noopener" title="pypi.org" class="md-social__link">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.8 200.5c-7.7-30.9-22.3-54.2-53.4-54.2h-40.1v47.4c0 36.8-31.2 67.8-66.8 67.8H172.7c-29.2 0-53.4 25-53.4 54.3v101.8c0 29 25.2 46 53.4 54.3 33.8 9.9 66.3 11.7 106.8 0 26.9-7.8 53.4-23.5 53.4-54.3v-40.7H226.2v-13.6h160.2c31.1 0 42.6-21.7 53.4-54.2 11.2-33.5 10.7-65.7 0-108.6M286.2 404c11.1 0 20.1 9.1 20.1 20.3 0 11.3-9 20.4-20.1 20.4-11 0-20.1-9.2-20.1-20.4.1-11.3 9.1-20.3 20.1-20.3M167.8 248.1h106.8c29.7 0 53.4-24.5 53.4-54.3V91.9c0-29-24.4-50.7-53.4-55.6-35.8-5.9-74.7-5.6-106.8.1-45.2 8-53.4 24.7-53.4 55.6v40.7h106.9v13.6h-147c-31.1 0-58.3 18.7-66.8 54.2-9.8 40.7-10.2 66.1 0 108.6 7.6 31.6 25.7 54.2 56.8 54.2H101v-48.8c0-35.3 30.5-66.4 66.8-66.4m-6.7-142.6c-11.1 0-20.1-9.1-20.1-20.3.1-11.3 9-20.4 20.1-20.4 11 0 20.1 9.2 20.1 20.4s-9 20.3-20.1 20.3"/></svg>
-    </a>
-  
-</div>
-      
-    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Maintained by Yannik Mahlau</p>
   </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
 </footer>
-      
-    </div>
-    <div class="md-dialog" data-md-component="dialog">
-      <div class="md-dialog__inner md-typeset"></div>
-    </div>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/ymahlau/fdtdx" class="fa fa-code-fork" style="color: #fcfcfc"> ymahlau/fdtdx</a>
+        </span>
     
     
-    
-      
-      <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <span><a href="../jax_introduction/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
-      <script src="../../assets/javascripts/bundle.13a4f30d.min.js"></script>
-      
+      <span><a href="../materials/" style="color: #fcfcfc">Next &raquo;</a></span>
     
-  </body>
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../javascripts/mathjax.js"></script>
+      <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
 </html>

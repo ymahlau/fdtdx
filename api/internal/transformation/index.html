@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="author" content="Yannik Mahlau and Frederik Schubert" /><link rel="canonical" href="https://ymahlau.github.io/fdtdx/api/internal/transformation/" />
+      <link rel="shortcut icon" href="../../../img/favicon.ico" />
+    <title>Parameter Transformation Base Classes - FDTDX</title>
+    <link rel="stylesheet" href="../../../css/theme.css" />
+    <link rel="stylesheet" href="../../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../../assets/_mkdocstrings.css" rel="stylesheet" />
+        <link href="../../../stylesheets/extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Parameter Transformation Base Classes";
+        var mkdocs_page_input_path = "api/internal/transformation.md";
+        var mkdocs_page_url = "/fdtdx/api/internal/transformation/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../../..">
+          <img src="../../../img/logo.png" class="logo" alt="Logo"/>
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../..">Home</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Tutorials</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/jax_introduction/">JAX in FDTDX</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/object_placement/">Object Placement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/materials/">Materials Guide</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/parameter_mapping/">Fabrication Constraints</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/interface_compression/">Interface Compression</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">API Reference</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" >Public</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/apply_params/">fdtdx.apply_params</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/ArrayContainer/">fdtdx.ArrayContainer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/autoinit/">fdtdx.autoinit</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/BinaryMedianFilterModule/">fdtdx.BinaryMedianFilterModule</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/boundary_objects_from_config/">fdtdx.boundary_objects_from_config</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/BoundaryConfig/">fdtdx.BoundaryConfig</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/BrushConstraint2D/">fdtdx.BrushConstraint2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/circular_brush/">fdtdx.circular_brush</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/ClosestIndex/">fdtdx.ClosestIndex</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/compute_energy/">fdtdx.compute_energy</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/compute_poynting_flux/">fdtdx.compute_poynting_flux</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/ConnectHolesAndStructures/">fdtdx.ConnectHolesAndStructures</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/constants/">fdtdx.constants</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/Cylinder/">fdtdx.Cylinder</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/Device/">fdtdx.Device</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/DiagonalSymmetry2D/">fdtdx.DiagonalSymmetry2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/DtypeConversion/">fdtdx.DtypeConversion</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/EnergyDetector/">fdtdx.EnergyDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/ExtrudedPolygon/">fdtdx.ExtrudedPolygon</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/FieldDetector/">fdtdx.FieldDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/GaussianPlaneSource/">fdtdx.GaussianPlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/GaussianPulseProfile/">fdtdx.GaussianPulseProfile</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/GaussianSmoothing2D/">fdtdx.GaussianSmoothing2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/GradientConfig/">fdtdx.GradientConfig</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/GridCoordinateConstraint/">fdtdx.GridCoordinateConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/LinearReconstructEveryK/">fdtdx.LinearReconstructEveryK</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/Logger/">fdtdx.Logger</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/Material/">fdtdx.Material</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/metric_efficiency/">fdtdx.metric_efficiency</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/ModeOverlapDetector/">fdtdx.ModeOverlapDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/ModePlaneSource/">fdtdx.ModePlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/ObjectContainer/">fdtdx.ObjectContainer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/ParameterTransformation/">fdtdx.ParameterTransformation</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/PerfectlyMatchedLayer/">fdtdx.PerfectlyMatchedLayer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/PeriodicBoundary/">fdtdx.PeriodicBoundary</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/PhasorDetector/">fdtdx.PhasorDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/PillarDiscretization/">fdtdx.PillarDiscretization</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/place_objects/">fdtdx.place_objects</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/plot_setup/">fdtdx.plot_setup</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/PositionConstraint/">fdtdx.PositionConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/PoyntingFluxDetector/">fdtdx.PoyntingFluxDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/RealCoordinateConstraint/">fdtdx.RealCoordinateConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/Recorder/">fdtdx.Recorder</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/RecordingState/">fdtdx.RecordingState</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/RemoveFloatingMaterial/">fdtdx.RemoveFloatingMaterial</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/run_fdtd/">fdtdx.run_fdtd</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/SimulationConfig/">fdtdx.SimulationConfig</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/SimulationObject/">fdtdx.SimulationObject</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/SimulationVolume/">fdtdx.SimulationVolume</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/SingleFrequencyProfile/">fdtdx.SingleFrequencyProfile</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/SizeConstraint/">fdtdx.SizeConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/SizeExtensionConstraint/">fdtdx.SizeExtensionConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/Sphere/">fdtdx.Sphere</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/StandardToCustomRange/">fdtdx.StandardToCustomRange</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/StandardToPlusOneMinusOneRange/">fdtdx.StandardToPlusOneMinusOneRange</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/SubpixelSmoothedProjection/">fdtdx.SubpixelSmoothedProjection</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/TanhProjection/">fdtdx.TanhProjection</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/TreeClass/">fdtdx.TreeClass</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/typing/">fdtdx.typing</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/UniformMaterialObject/">fdtdx.UniformMaterialObject</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/UniformPlaneSource/">fdtdx.UniformPlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../public/WaveCharacter/">fdtdx.WaveCharacter</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" >Internal</a>
+    <ul class="current">
+                <li class="toctree-l2"><a class="reference internal" href="../compression/">Compression Base Classes</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../detector/">Detector Base Class</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../objects/">Object Base Classes</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../sources/">Source Base Classes</a>
+                </li>
+                <li class="toctree-l2 current"><a class="reference internal current" href="#">Parameter Transformation Base Classes</a>
+    <ul class="current">
+    <li class="toctree-l3"><a class="reference internal" href="#fdtdx.objects.device.parameters.transform.ParameterTransformation">ParameterTransformation</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#fdtdx.objects.device.parameters.transform.SameShapeTypeParameterTransform">SameShapeTypeParameterTransform</a>
+    </li>
+    </ul>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../..">FDTDX</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">API Reference</li>
+          <li class="breadcrumb-item">Internal</li>
+      <li class="breadcrumb-item active">Parameter Transformation Base Classes</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/ymahlau/fdtdx/edit/main/docs/api/internal/transformation.md">Edit on ymahlau/fdtdx</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="parameter-transformation-base-classes">Parameter Transformation Base Classes</h1>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="fdtdx.objects.device.parameters.transform.ParameterTransformation" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">fdtdx.objects.device.parameters.transform.ParameterTransformation</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="fdtdx.core.jax.pytrees.TreeClass" href="../../public/TreeClass/#fdtdx.TreeClass">TreeClass</a></code>, <code><span title="abc.ABC">ABC</span></code></p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="fdtdx.objects.device.parameters.transform.SameShapeTypeParameterTransform" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">fdtdx.objects.device.parameters.transform.SameShapeTypeParameterTransform</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="fdtdx.objects.device.parameters.transform.ParameterTransformation" href="#fdtdx.objects.device.parameters.transform.ParameterTransformation">ParameterTransformation</a></code>, <code><span title="abc.ABC">ABC</span></code></p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../sources/" class="btn btn-neutral float-left" title="Source Base Classes"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Maintained by Yannik Mahlau</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/ymahlau/fdtdx" class="fa fa-code-fork" style="color: #fcfcfc"> ymahlau/fdtdx</a>
+        </span>
+    
+    
+      <span><a href="../sources/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+  </span>
+</div>
+    <script src="../../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../../..";</script>
+    <script src="../../../js/theme_extra.js"></script>
+    <script src="../../../js/theme.js"></script>
+      <script src="../../../javascripts/mathjax.js"></script>
+      <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="../../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

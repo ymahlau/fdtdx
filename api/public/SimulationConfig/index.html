@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="author" content="Yannik Mahlau and Frederik Schubert" /><link rel="canonical" href="https://ymahlau.github.io/fdtdx/api/public/SimulationConfig/" />
+      <link rel="shortcut icon" href="../../../img/favicon.ico" />
+    <title>fdtdx.SimulationConfig - FDTDX</title>
+    <link rel="stylesheet" href="../../../css/theme.css" />
+    <link rel="stylesheet" href="../../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../../assets/_mkdocstrings.css" rel="stylesheet" />
+        <link href="../../../stylesheets/extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "fdtdx.SimulationConfig";
+        var mkdocs_page_input_path = "api/public/SimulationConfig.md";
+        var mkdocs_page_url = "/fdtdx/api/public/SimulationConfig/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../../..">
+          <img src="../../../img/logo.png" class="logo" alt="Logo"/>
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../..">Home</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Tutorials</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/jax_introduction/">JAX in FDTDX</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/object_placement/">Object Placement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/materials/">Materials Guide</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/parameter_mapping/">Fabrication Constraints</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/interface_compression/">Interface Compression</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">API Reference</span></p>
+              <ul class="current">
+                  <li class="toctree-l1 current"><a class="reference internal current" >Public</a>
+    <ul class="current">
+                <li class="toctree-l2"><a class="reference internal" href="../apply_params/">fdtdx.apply_params</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ArrayContainer/">fdtdx.ArrayContainer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../autoinit/">fdtdx.autoinit</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../BinaryMedianFilterModule/">fdtdx.BinaryMedianFilterModule</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../boundary_objects_from_config/">fdtdx.boundary_objects_from_config</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../BoundaryConfig/">fdtdx.BoundaryConfig</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../BrushConstraint2D/">fdtdx.BrushConstraint2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../circular_brush/">fdtdx.circular_brush</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ClosestIndex/">fdtdx.ClosestIndex</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../compute_energy/">fdtdx.compute_energy</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../compute_poynting_flux/">fdtdx.compute_poynting_flux</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ConnectHolesAndStructures/">fdtdx.ConnectHolesAndStructures</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../constants/">fdtdx.constants</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Cylinder/">fdtdx.Cylinder</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Device/">fdtdx.Device</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../DiagonalSymmetry2D/">fdtdx.DiagonalSymmetry2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../DtypeConversion/">fdtdx.DtypeConversion</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../EnergyDetector/">fdtdx.EnergyDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ExtrudedPolygon/">fdtdx.ExtrudedPolygon</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../FieldDetector/">fdtdx.FieldDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GaussianPlaneSource/">fdtdx.GaussianPlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GaussianPulseProfile/">fdtdx.GaussianPulseProfile</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GaussianSmoothing2D/">fdtdx.GaussianSmoothing2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GradientConfig/">fdtdx.GradientConfig</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GridCoordinateConstraint/">fdtdx.GridCoordinateConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../LinearReconstructEveryK/">fdtdx.LinearReconstructEveryK</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Logger/">fdtdx.Logger</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Material/">fdtdx.Material</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../metric_efficiency/">fdtdx.metric_efficiency</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ModeOverlapDetector/">fdtdx.ModeOverlapDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ModePlaneSource/">fdtdx.ModePlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ObjectContainer/">fdtdx.ObjectContainer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ParameterTransformation/">fdtdx.ParameterTransformation</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PerfectlyMatchedLayer/">fdtdx.PerfectlyMatchedLayer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PeriodicBoundary/">fdtdx.PeriodicBoundary</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PhasorDetector/">fdtdx.PhasorDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PillarDiscretization/">fdtdx.PillarDiscretization</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../place_objects/">fdtdx.place_objects</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../plot_setup/">fdtdx.plot_setup</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PositionConstraint/">fdtdx.PositionConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PoyntingFluxDetector/">fdtdx.PoyntingFluxDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../RealCoordinateConstraint/">fdtdx.RealCoordinateConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Recorder/">fdtdx.Recorder</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../RecordingState/">fdtdx.RecordingState</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../RemoveFloatingMaterial/">fdtdx.RemoveFloatingMaterial</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../run_fdtd/">fdtdx.run_fdtd</a>
+                </li>
+                <li class="toctree-l2 current"><a class="reference internal current" href="#">fdtdx.SimulationConfig</a>
+    <ul class="current">
+    <li class="toctree-l3"><a class="reference internal" href="#fdtdx.SimulationConfig">SimulationConfig</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.SimulationConfig.courant_number">courant_number</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.SimulationConfig.invertible_optimization">invertible_optimization</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.SimulationConfig.max_travel_distance">max_travel_distance</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.SimulationConfig.only_forward">only_forward</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.SimulationConfig.time_step_duration">time_step_duration</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.SimulationConfig.time_steps_total">time_steps_total</a>
+    </li>
+        </ul>
+    </li>
+    </ul>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SimulationObject/">fdtdx.SimulationObject</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SimulationVolume/">fdtdx.SimulationVolume</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SingleFrequencyProfile/">fdtdx.SingleFrequencyProfile</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SizeConstraint/">fdtdx.SizeConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SizeExtensionConstraint/">fdtdx.SizeExtensionConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Sphere/">fdtdx.Sphere</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../StandardToCustomRange/">fdtdx.StandardToCustomRange</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../StandardToPlusOneMinusOneRange/">fdtdx.StandardToPlusOneMinusOneRange</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SubpixelSmoothedProjection/">fdtdx.SubpixelSmoothedProjection</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../TanhProjection/">fdtdx.TanhProjection</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../TreeClass/">fdtdx.TreeClass</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../typing/">fdtdx.typing</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../UniformMaterialObject/">fdtdx.UniformMaterialObject</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../UniformPlaneSource/">fdtdx.UniformPlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../WaveCharacter/">fdtdx.WaveCharacter</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Internal</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/compression/">Compression Base Classes</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/detector/">Detector Base Class</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/objects/">Object Base Classes</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/sources/">Source Base Classes</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/transformation/">Parameter Transformation Base Classes</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../..">FDTDX</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">API Reference</li>
+          <li class="breadcrumb-item">Public</li>
+      <li class="breadcrumb-item active">fdtdx.SimulationConfig</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/ymahlau/fdtdx/edit/main/docs/api/public/SimulationConfig.md">Edit on ymahlau/fdtdx</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="fdtdxsimulationconfig">fdtdx.SimulationConfig</h1>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="fdtdx.SimulationConfig" class="doc doc-heading">
+             
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="fdtdx.core.jax.pytrees.TreeClass" href="../TreeClass/#fdtdx.TreeClass">TreeClass</a></code></p>
+
+
+        <p>Configuration settings for FDTD simulations.</p>
+<p>This class contains all the parameters needed to configure and run an FDTD
+simulation, including spatial and temporal discretization, hardware backend,
+and gradient computation settings.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Attributes:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>time</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Total simulation time in seconds.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>resolution</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Spatial resolution of the simulation grid in meters.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>backend</code></b>
+                  (<code><a class="autorefs autorefs-internal" title="fdtdx.typing.BackendOption
+
+
+  
+      module-attribute
+  " href="../typing/#fdtdx.typing.BackendOption">BackendOption</a></code>)
+              –
+              <div class="doc-md-description">
+                <p>Computation backend ('gpu', 'tpu', 'cpu' or 'METAL'). Defaults to "gpu".</p>
+              </div>
+            </li>
+            <li>
+              <b><code>dtype</code></b>
+                  (<code><span title="jax.numpy.dtype">dtype</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Data type for numerical computations. Defaults to jnp.float32.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>courant_factor</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Safety factor for the Courant condition (default: 0.99).</p>
+              </div>
+            </li>
+            <li>
+              <b><code>gradient_config</code></b>
+                  (<code><a class="autorefs autorefs-internal" title="fdtdx.config.GradientConfig" href="../GradientConfig/#fdtdx.GradientConfig">GradientConfig</a> | None</code>)
+              –
+              <div class="doc-md-description">
+                <p>Optional configuration for gradient computation.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="fdtdx.SimulationConfig.courant_number" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">courant_number</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="n">courant_number</span><span class="p">:</span> <span class="nb">float</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Calculate the Courant number for the simulation.</p>
+<p>The Courant number is a dimensionless quantity that determines stability
+of the FDTD simulation. It represents the ratio of the physical propagation
+speed to the numerical propagation speed.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+<b><code>float</code></b>(                  <code><span title="float">float</span></code>
+)              –
+              <div class="doc-md-description">
+                <p>The Courant number, scaled by the courant_factor and normalized
+for 3D simulations.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="fdtdx.SimulationConfig.invertible_optimization" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">invertible_optimization</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="n">invertible_optimization</span><span class="p">:</span> <span class="nb">bool</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Check if invertible optimization is enabled.</p>
+<p>Invertible optimization uses time-reversibility of Maxwell's equations
+to compute gradients with reduced memory requirements compared to
+checkpointing-based methods.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+<b><code>bool</code></b>(                  <code><span title="bool">bool</span></code>
+)              –
+              <div class="doc-md-description">
+                <p>True if gradient computation uses invertible differentiation
+(recorder is specified), False otherwise.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="fdtdx.SimulationConfig.max_travel_distance" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">max_travel_distance</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="n">max_travel_distance</span><span class="p">:</span> <span class="nb">float</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Calculate the maximum distance light can travel during the simulation.</p>
+<p>This represents the theoretical maximum distance that light could travel
+through the simulation volume, useful for determining if the simulation
+time is sufficient for light to traverse the entire domain.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+<b><code>float</code></b>(                  <code><span title="float">float</span></code>
+)              –
+              <div class="doc-md-description">
+                <p>Maximum travel distance in meters, based on the speed of light
+and total simulation time.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="fdtdx.SimulationConfig.only_forward" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">only_forward</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="n">only_forward</span><span class="p">:</span> <span class="nb">bool</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Check if the simulation is forward-only (no gradient computation).</p>
+<p>Forward-only simulations don't compute gradients and are used when only
+the forward propagation of electromagnetic fields is needed, without
+optimization.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+<b><code>bool</code></b>(                  <code><span title="bool">bool</span></code>
+)              –
+              <div class="doc-md-description">
+                <p>True if no gradient configuration is specified, False otherwise.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="fdtdx.SimulationConfig.time_step_duration" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">time_step_duration</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="n">time_step_duration</span><span class="p">:</span> <span class="nb">float</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Calculate the duration of a single time step.</p>
+<p>The time step duration is determined by the Courant condition to ensure
+numerical stability. It depends on the spatial resolution and the speed
+of light.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+<b><code>float</code></b>(                  <code><span title="float">float</span></code>
+)              –
+              <div class="doc-md-description">
+                <p>Time step duration in seconds, calculated using the Courant
+condition and spatial resolution.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="fdtdx.SimulationConfig.time_steps_total" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">time_steps_total</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="n">time_steps_total</span><span class="p">:</span> <span class="nb">int</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Calculate the total number of time steps for the simulation.</p>
+<p>Determines how many discrete time steps are needed to simulate the
+specified total simulation time, based on the time step duration.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+<b><code>int</code></b>(                  <code><span title="int">int</span></code>
+)              –
+              <div class="doc-md-description">
+                <p>Total number of time steps needed to reach the specified
+simulation time.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+    </div>
+
+</div>
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../run_fdtd/" class="btn btn-neutral float-left" title="fdtdx.run_fdtd"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../SimulationObject/" class="btn btn-neutral float-right" title="fdtdx.SimulationObject">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Maintained by Yannik Mahlau</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/ymahlau/fdtdx" class="fa fa-code-fork" style="color: #fcfcfc"> ymahlau/fdtdx</a>
+        </span>
+    
+    
+      <span><a href="../run_fdtd/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../SimulationObject/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../../..";</script>
+    <script src="../../../js/theme_extra.js"></script>
+    <script src="../../../js/theme.js"></script>
+      <script src="../../../javascripts/mathjax.js"></script>
+      <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="../../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="author" content="Yannik Mahlau and Frederik Schubert" /><link rel="canonical" href="https://ymahlau.github.io/fdtdx/api/public/place_objects/" />
+      <link rel="shortcut icon" href="../../../img/favicon.ico" />
+    <title>fdtdx.place_objects - FDTDX</title>
+    <link rel="stylesheet" href="../../../css/theme.css" />
+    <link rel="stylesheet" href="../../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../../assets/_mkdocstrings.css" rel="stylesheet" />
+        <link href="../../../stylesheets/extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "fdtdx.place_objects";
+        var mkdocs_page_input_path = "api/public/place_objects.md";
+        var mkdocs_page_url = "/fdtdx/api/public/place_objects/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../../..">
+          <img src="../../../img/logo.png" class="logo" alt="Logo"/>
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../..">Home</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Tutorials</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/jax_introduction/">JAX in FDTDX</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/object_placement/">Object Placement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/materials/">Materials Guide</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/parameter_mapping/">Fabrication Constraints</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/interface_compression/">Interface Compression</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">API Reference</span></p>
+              <ul class="current">
+                  <li class="toctree-l1 current"><a class="reference internal current" >Public</a>
+    <ul class="current">
+                <li class="toctree-l2"><a class="reference internal" href="../apply_params/">fdtdx.apply_params</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ArrayContainer/">fdtdx.ArrayContainer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../autoinit/">fdtdx.autoinit</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../BinaryMedianFilterModule/">fdtdx.BinaryMedianFilterModule</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../boundary_objects_from_config/">fdtdx.boundary_objects_from_config</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../BoundaryConfig/">fdtdx.BoundaryConfig</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../BrushConstraint2D/">fdtdx.BrushConstraint2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../circular_brush/">fdtdx.circular_brush</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ClosestIndex/">fdtdx.ClosestIndex</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../compute_energy/">fdtdx.compute_energy</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../compute_poynting_flux/">fdtdx.compute_poynting_flux</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ConnectHolesAndStructures/">fdtdx.ConnectHolesAndStructures</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../constants/">fdtdx.constants</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Cylinder/">fdtdx.Cylinder</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Device/">fdtdx.Device</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../DiagonalSymmetry2D/">fdtdx.DiagonalSymmetry2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../DtypeConversion/">fdtdx.DtypeConversion</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../EnergyDetector/">fdtdx.EnergyDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ExtrudedPolygon/">fdtdx.ExtrudedPolygon</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../FieldDetector/">fdtdx.FieldDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GaussianPlaneSource/">fdtdx.GaussianPlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GaussianPulseProfile/">fdtdx.GaussianPulseProfile</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GaussianSmoothing2D/">fdtdx.GaussianSmoothing2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GradientConfig/">fdtdx.GradientConfig</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GridCoordinateConstraint/">fdtdx.GridCoordinateConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../LinearReconstructEveryK/">fdtdx.LinearReconstructEveryK</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Logger/">fdtdx.Logger</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Material/">fdtdx.Material</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../metric_efficiency/">fdtdx.metric_efficiency</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ModeOverlapDetector/">fdtdx.ModeOverlapDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ModePlaneSource/">fdtdx.ModePlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ObjectContainer/">fdtdx.ObjectContainer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ParameterTransformation/">fdtdx.ParameterTransformation</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PerfectlyMatchedLayer/">fdtdx.PerfectlyMatchedLayer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PeriodicBoundary/">fdtdx.PeriodicBoundary</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PhasorDetector/">fdtdx.PhasorDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PillarDiscretization/">fdtdx.PillarDiscretization</a>
+                </li>
+                <li class="toctree-l2 current"><a class="reference internal current" href="#">fdtdx.place_objects</a>
+    <ul class="current">
+    <li class="toctree-l3"><a class="reference internal" href="#fdtdx.place_objects">place_objects</a>
+    </li>
+    </ul>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../plot_setup/">fdtdx.plot_setup</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PositionConstraint/">fdtdx.PositionConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PoyntingFluxDetector/">fdtdx.PoyntingFluxDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../RealCoordinateConstraint/">fdtdx.RealCoordinateConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Recorder/">fdtdx.Recorder</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../RecordingState/">fdtdx.RecordingState</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../RemoveFloatingMaterial/">fdtdx.RemoveFloatingMaterial</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../run_fdtd/">fdtdx.run_fdtd</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SimulationConfig/">fdtdx.SimulationConfig</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SimulationObject/">fdtdx.SimulationObject</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SimulationVolume/">fdtdx.SimulationVolume</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SingleFrequencyProfile/">fdtdx.SingleFrequencyProfile</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SizeConstraint/">fdtdx.SizeConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SizeExtensionConstraint/">fdtdx.SizeExtensionConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Sphere/">fdtdx.Sphere</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../StandardToCustomRange/">fdtdx.StandardToCustomRange</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../StandardToPlusOneMinusOneRange/">fdtdx.StandardToPlusOneMinusOneRange</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SubpixelSmoothedProjection/">fdtdx.SubpixelSmoothedProjection</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../TanhProjection/">fdtdx.TanhProjection</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../TreeClass/">fdtdx.TreeClass</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../typing/">fdtdx.typing</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../UniformMaterialObject/">fdtdx.UniformMaterialObject</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../UniformPlaneSource/">fdtdx.UniformPlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../WaveCharacter/">fdtdx.WaveCharacter</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Internal</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/compression/">Compression Base Classes</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/detector/">Detector Base Class</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/objects/">Object Base Classes</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/sources/">Source Base Classes</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/transformation/">Parameter Transformation Base Classes</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../..">FDTDX</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">API Reference</li>
+          <li class="breadcrumb-item">Public</li>
+      <li class="breadcrumb-item active">fdtdx.place_objects</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/ymahlau/fdtdx/edit/main/docs/api/public/place_objects.md">Edit on ymahlau/fdtdx</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="fdtdxplace_objects">fdtdx.place_objects</h1>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="fdtdx.place_objects" class="doc doc-heading">
+             
+
+
+</h2>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="nf">place_objects</span><span class="p">(</span>
+    <span class="n">volume</span><span class="p">:</span> <span class="n">SimulationObject</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">SimulationConfig</span><span class="p">,</span>
+    <span class="n">constraints</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span>
+        <span class="n">PositionConstraint</span>
+        <span class="o">|</span> <span class="n">SizeConstraint</span>
+        <span class="o">|</span> <span class="n">SizeExtensionConstraint</span>
+        <span class="o">|</span> <span class="n">GridCoordinateConstraint</span>
+        <span class="o">|</span> <span class="n">RealCoordinateConstraint</span>
+    <span class="p">],</span>
+    <span class="n">key</span><span class="p">:</span> <span class="n">Array</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span>
+    <span class="n">ObjectContainer</span><span class="p">,</span>
+    <span class="n">ArrayContainer</span><span class="p">,</span>
+    <span class="n">ParameterContainer</span><span class="p">,</span>
+    <span class="n">SimulationConfig</span><span class="p">,</span>
+    <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+<span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Places simulation objects according to specified constraints and initializes containers.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>volume</code></b>
+                  (<code><a class="autorefs autorefs-internal" title="fdtdx.objects.object.SimulationObject" href="../SimulationObject/#fdtdx.SimulationObject">SimulationObject</a></code>)
+              –
+              <div class="doc-md-description">
+                <p>The volume object defining the simulation boundaries</p>
+              </div>
+            </li>
+            <li>
+              <b><code>config</code></b>
+                  (<code><a class="autorefs autorefs-internal" title="fdtdx.config.SimulationConfig" href="../SimulationConfig/#fdtdx.SimulationConfig">SimulationConfig</a></code>)
+              –
+              <div class="doc-md-description">
+                <p>The simulation configuration</p>
+              </div>
+            </li>
+            <li>
+              <b><code>constraints</code></b>
+                  (<code><span title="typing.Sequence">Sequence</span>[<a class="autorefs autorefs-internal" title="
+      dataclass
+   (fdtdx.objects.object.PositionConstraint)" href="../PositionConstraint/#fdtdx.PositionConstraint">PositionConstraint</a> | <a class="autorefs autorefs-internal" title="
+      dataclass
+   (fdtdx.objects.object.SizeConstraint)" href="../SizeConstraint/#fdtdx.SizeConstraint">SizeConstraint</a> | <a class="autorefs autorefs-internal" title="
+      dataclass
+   (fdtdx.objects.object.SizeExtensionConstraint)" href="../SizeExtensionConstraint/#fdtdx.SizeExtensionConstraint">SizeExtensionConstraint</a> | <a class="autorefs autorefs-internal" title="
+      dataclass
+   (fdtdx.objects.object.GridCoordinateConstraint)" href="../GridCoordinateConstraint/#fdtdx.GridCoordinateConstraint">GridCoordinateConstraint</a> | <a class="autorefs autorefs-internal" title="
+      dataclass
+   (fdtdx.objects.object.RealCoordinateConstraint)" href="../RealCoordinateConstraint/#fdtdx.RealCoordinateConstraint">RealCoordinateConstraint</a>]</code>)
+              –
+              <div class="doc-md-description">
+                <p>Sequence of positioning and sizing constraints for objects</p>
+              </div>
+            </li>
+            <li>
+              <b><code>key</code></b>
+                  (<code><span title="jax.Array">Array</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>JAX random key for initialization</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="tuple">tuple</span>[<a class="autorefs autorefs-internal" title="fdtdx.fdtd.container.ObjectContainer" href="../ObjectContainer/#fdtdx.ObjectContainer">ObjectContainer</a>, <a class="autorefs autorefs-internal" title="fdtdx.fdtd.container.ArrayContainer" href="../ArrayContainer/#fdtdx.ArrayContainer">ArrayContainer</a>, <span title="fdtdx.fdtd.container.ParameterContainer">ParameterContainer</span>, <a class="autorefs autorefs-internal" title="fdtdx.config.SimulationConfig" href="../SimulationConfig/#fdtdx.SimulationConfig">SimulationConfig</a>, <span title="dict">dict</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>]]</code>
+              –
+              <div class="doc-md-description">
+                <p>tuple[ObjectContainer, ArrayContainer, ParameterContainer, SimulationConfig, dict[str, Any]]: A tuple containing
+- ObjectContainer with placed simulation objects
+- ArrayContainer with initialized field arrays
+- ParameterContainer with device parameters
+- Updated SimulationConfig
+- Dictionary with additional initialization info</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="quote">
+              <summary>Source code in <code>src/fdtdx/fdtd/initialization.py</code></summary>
+              <div class="codehilite"><table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 29</span>
+<span class="normal"> 30</span>
+<span class="normal"> 31</span>
+<span class="normal"> 32</span>
+<span class="normal"> 33</span>
+<span class="normal"> 34</span>
+<span class="normal"> 35</span>
+<span class="normal"> 36</span>
+<span class="normal"> 37</span>
+<span class="normal"> 38</span>
+<span class="normal"> 39</span>
+<span class="normal"> 40</span>
+<span class="normal"> 41</span>
+<span class="normal"> 42</span>
+<span class="normal"> 43</span>
+<span class="normal"> 44</span>
+<span class="normal"> 45</span>
+<span class="normal"> 46</span>
+<span class="normal"> 47</span>
+<span class="normal"> 48</span>
+<span class="normal"> 49</span>
+<span class="normal"> 50</span>
+<span class="normal"> 51</span>
+<span class="normal"> 52</span>
+<span class="normal"> 53</span>
+<span class="normal"> 54</span>
+<span class="normal"> 55</span>
+<span class="normal"> 56</span>
+<span class="normal"> 57</span>
+<span class="normal"> 58</span>
+<span class="normal"> 59</span>
+<span class="normal"> 60</span>
+<span class="normal"> 61</span>
+<span class="normal"> 62</span>
+<span class="normal"> 63</span>
+<span class="normal"> 64</span>
+<span class="normal"> 65</span>
+<span class="normal"> 66</span>
+<span class="normal"> 67</span>
+<span class="normal"> 68</span>
+<span class="normal"> 69</span>
+<span class="normal"> 70</span>
+<span class="normal"> 71</span>
+<span class="normal"> 72</span>
+<span class="normal"> 73</span>
+<span class="normal"> 74</span>
+<span class="normal"> 75</span>
+<span class="normal"> 76</span>
+<span class="normal"> 77</span>
+<span class="normal"> 78</span>
+<span class="normal"> 79</span>
+<span class="normal"> 80</span>
+<span class="normal"> 81</span>
+<span class="normal"> 82</span>
+<span class="normal"> 83</span>
+<span class="normal"> 84</span>
+<span class="normal"> 85</span>
+<span class="normal"> 86</span>
+<span class="normal"> 87</span>
+<span class="normal"> 88</span>
+<span class="normal"> 89</span>
+<span class="normal"> 90</span>
+<span class="normal"> 91</span>
+<span class="normal"> 92</span>
+<span class="normal"> 93</span>
+<span class="normal"> 94</span>
+<span class="normal"> 95</span>
+<span class="normal"> 96</span>
+<span class="normal"> 97</span>
+<span class="normal"> 98</span>
+<span class="normal"> 99</span>
+<span class="normal">100</span>
+<span class="normal">101</span>
+<span class="normal">102</span>
+<span class="normal">103</span>
+<span class="normal">104</span>
+<span class="normal">105</span>
+<span class="normal">106</span>
+<span class="normal">107</span>
+<span class="normal">108</span>
+<span class="normal">109</span>
+<span class="normal">110</span>
+<span class="normal">111</span>
+<span class="normal">112</span>
+<span class="normal">113</span>
+<span class="normal">114</span>
+<span class="normal">115</span>
+<span class="normal">116</span>
+<span class="normal">117</span>
+<span class="normal">118</span>
+<span class="normal">119</span>
+<span class="normal">120</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">place_objects</span><span class="p">(</span>
+    <span class="n">volume</span><span class="p">:</span> <span class="n">SimulationObject</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">SimulationConfig</span><span class="p">,</span>
+    <span class="n">constraints</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span>
+        <span class="p">(</span>
+            <span class="n">PositionConstraint</span>
+            <span class="o">|</span> <span class="n">SizeConstraint</span>
+            <span class="o">|</span> <span class="n">SizeExtensionConstraint</span>
+            <span class="o">|</span> <span class="n">GridCoordinateConstraint</span>
+            <span class="o">|</span> <span class="n">RealCoordinateConstraint</span>
+        <span class="p">)</span>
+    <span class="p">],</span>
+    <span class="n">key</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span>
+    <span class="n">ObjectContainer</span><span class="p">,</span>
+    <span class="n">ArrayContainer</span><span class="p">,</span>
+    <span class="n">ParameterContainer</span><span class="p">,</span>
+    <span class="n">SimulationConfig</span><span class="p">,</span>
+    <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+<span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Places simulation objects according to specified constraints and initializes containers.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        volume (SimulationObject): The volume object defining the simulation boundaries</span>
+<span class="sd">        config (SimulationConfig): The simulation configuration</span>
+<span class="sd">        constraints (Sequence[PositionConstraint| SizeConstraint| SizeExtensionConstraint| GridCoordinateConstraint| RealCoordinateConstraint]):</span>
+<span class="sd">            Sequence of positioning and sizing constraints for objects</span>
+<span class="sd">        key (jax.Array): JAX random key for initialization</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        tuple[ObjectContainer, ArrayContainer, ParameterContainer, SimulationConfig, dict[str, Any]]: A tuple containing</span>
+<span class="sd">            - ObjectContainer with placed simulation objects</span>
+<span class="sd">            - ArrayContainer with initialized field arrays</span>
+<span class="sd">            - ParameterContainer with device parameters</span>
+<span class="sd">            - Updated SimulationConfig</span>
+<span class="sd">            - Dictionary with additional initialization info</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">slice_tuple_dict</span> <span class="o">=</span> <span class="n">_resolve_object_constraints</span><span class="p">(</span>
+        <span class="n">volume</span><span class="o">=</span><span class="n">volume</span><span class="p">,</span>
+        <span class="n">constraints</span><span class="o">=</span><span class="n">constraints</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">obj_list</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">slice_tuple_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+
+    <span class="c1"># place objects on computed grid positions</span>
+    <span class="n">placed_objects</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">obj_list</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">o</span> <span class="o">==</span> <span class="n">volume</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">key</span><span class="p">,</span> <span class="n">subkey</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="n">placed_objects</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">o</span><span class="o">.</span><span class="n">place_on_grid</span><span class="p">(</span>
+                <span class="n">grid_slice_tuple</span><span class="o">=</span><span class="n">slice_tuple_dict</span><span class="p">[</span><span class="n">o</span><span class="p">],</span>
+                <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+                <span class="n">key</span><span class="o">=</span><span class="n">subkey</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+    <span class="n">key</span><span class="p">,</span> <span class="n">subkey</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="n">placed_objects</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span>
+        <span class="mi">0</span><span class="p">,</span>
+        <span class="n">volume</span><span class="o">.</span><span class="n">place_on_grid</span><span class="p">(</span>
+            <span class="n">grid_slice_tuple</span><span class="o">=</span><span class="n">slice_tuple_dict</span><span class="p">[</span><span class="n">volume</span><span class="p">],</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">key</span><span class="o">=</span><span class="n">subkey</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+
+    <span class="c1"># create container</span>
+    <span class="n">objects</span> <span class="o">=</span> <span class="n">ObjectContainer</span><span class="p">(</span>
+        <span class="n">object_list</span><span class="o">=</span><span class="n">placed_objects</span><span class="p">,</span>
+        <span class="n">volume_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">params</span> <span class="o">=</span> <span class="n">_init_params</span><span class="p">(</span>
+        <span class="n">objects</span><span class="o">=</span><span class="n">objects</span><span class="p">,</span>
+        <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">arrays</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="n">_init_arrays</span><span class="p">(</span>
+        <span class="n">objects</span><span class="o">=</span><span class="n">objects</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="c1"># replace config in objects with compiled config</span>
+    <span class="n">new_object_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">objects</span><span class="o">.</span><span class="n">objects</span><span class="p">:</span>
+        <span class="n">o</span> <span class="o">=</span> <span class="n">o</span><span class="o">.</span><span class="n">aset</span><span class="p">(</span><span class="s2">&quot;_config&quot;</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+        <span class="n">new_object_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+    <span class="n">objects</span> <span class="o">=</span> <span class="n">ObjectContainer</span><span class="p">(</span>
+        <span class="n">object_list</span><span class="o">=</span><span class="n">new_object_list</span><span class="p">,</span>
+        <span class="n">volume_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">objects</span><span class="p">,</span> <span class="n">arrays</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">info</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../PillarDiscretization/" class="btn btn-neutral float-left" title="fdtdx.PillarDiscretization"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../plot_setup/" class="btn btn-neutral float-right" title="fdtdx.plot_setup">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Maintained by Yannik Mahlau</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/ymahlau/fdtdx" class="fa fa-code-fork" style="color: #fcfcfc"> ymahlau/fdtdx</a>
+        </span>
+    
+    
+      <span><a href="../PillarDiscretization/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../plot_setup/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../../..";</script>
+    <script src="../../../js/theme_extra.js"></script>
+    <script src="../../../js/theme.js"></script>
+      <script src="../../../javascripts/mathjax.js"></script>
+      <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="../../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

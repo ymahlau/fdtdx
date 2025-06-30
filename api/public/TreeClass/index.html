@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="author" content="Yannik Mahlau and Frederik Schubert" /><link rel="canonical" href="https://ymahlau.github.io/fdtdx/api/public/TreeClass/" />
+      <link rel="shortcut icon" href="../../../img/favicon.ico" />
+    <title>fdtdx.TreeClass - FDTDX</title>
+    <link rel="stylesheet" href="../../../css/theme.css" />
+    <link rel="stylesheet" href="../../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../../assets/_mkdocstrings.css" rel="stylesheet" />
+        <link href="../../../stylesheets/extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "fdtdx.TreeClass";
+        var mkdocs_page_input_path = "api/public/TreeClass.md";
+        var mkdocs_page_url = "/fdtdx/api/public/TreeClass/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../../..">
+          <img src="../../../img/logo.png" class="logo" alt="Logo"/>
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../..">Home</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Tutorials</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/jax_introduction/">JAX in FDTDX</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/object_placement/">Object Placement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/materials/">Materials Guide</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/parameter_mapping/">Fabrication Constraints</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/interface_compression/">Interface Compression</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">API Reference</span></p>
+              <ul class="current">
+                  <li class="toctree-l1 current"><a class="reference internal current" >Public</a>
+    <ul class="current">
+                <li class="toctree-l2"><a class="reference internal" href="../apply_params/">fdtdx.apply_params</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ArrayContainer/">fdtdx.ArrayContainer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../autoinit/">fdtdx.autoinit</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../BinaryMedianFilterModule/">fdtdx.BinaryMedianFilterModule</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../boundary_objects_from_config/">fdtdx.boundary_objects_from_config</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../BoundaryConfig/">fdtdx.BoundaryConfig</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../BrushConstraint2D/">fdtdx.BrushConstraint2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../circular_brush/">fdtdx.circular_brush</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ClosestIndex/">fdtdx.ClosestIndex</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../compute_energy/">fdtdx.compute_energy</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../compute_poynting_flux/">fdtdx.compute_poynting_flux</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ConnectHolesAndStructures/">fdtdx.ConnectHolesAndStructures</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../constants/">fdtdx.constants</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Cylinder/">fdtdx.Cylinder</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Device/">fdtdx.Device</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../DiagonalSymmetry2D/">fdtdx.DiagonalSymmetry2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../DtypeConversion/">fdtdx.DtypeConversion</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../EnergyDetector/">fdtdx.EnergyDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ExtrudedPolygon/">fdtdx.ExtrudedPolygon</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../FieldDetector/">fdtdx.FieldDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GaussianPlaneSource/">fdtdx.GaussianPlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GaussianPulseProfile/">fdtdx.GaussianPulseProfile</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GaussianSmoothing2D/">fdtdx.GaussianSmoothing2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GradientConfig/">fdtdx.GradientConfig</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GridCoordinateConstraint/">fdtdx.GridCoordinateConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../LinearReconstructEveryK/">fdtdx.LinearReconstructEveryK</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Logger/">fdtdx.Logger</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Material/">fdtdx.Material</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../metric_efficiency/">fdtdx.metric_efficiency</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ModeOverlapDetector/">fdtdx.ModeOverlapDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ModePlaneSource/">fdtdx.ModePlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ObjectContainer/">fdtdx.ObjectContainer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ParameterTransformation/">fdtdx.ParameterTransformation</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PerfectlyMatchedLayer/">fdtdx.PerfectlyMatchedLayer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PeriodicBoundary/">fdtdx.PeriodicBoundary</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PhasorDetector/">fdtdx.PhasorDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PillarDiscretization/">fdtdx.PillarDiscretization</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../place_objects/">fdtdx.place_objects</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../plot_setup/">fdtdx.plot_setup</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PositionConstraint/">fdtdx.PositionConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PoyntingFluxDetector/">fdtdx.PoyntingFluxDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../RealCoordinateConstraint/">fdtdx.RealCoordinateConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Recorder/">fdtdx.Recorder</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../RecordingState/">fdtdx.RecordingState</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../RemoveFloatingMaterial/">fdtdx.RemoveFloatingMaterial</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../run_fdtd/">fdtdx.run_fdtd</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SimulationConfig/">fdtdx.SimulationConfig</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SimulationObject/">fdtdx.SimulationObject</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SimulationVolume/">fdtdx.SimulationVolume</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SingleFrequencyProfile/">fdtdx.SingleFrequencyProfile</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SizeConstraint/">fdtdx.SizeConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SizeExtensionConstraint/">fdtdx.SizeExtensionConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Sphere/">fdtdx.Sphere</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../StandardToCustomRange/">fdtdx.StandardToCustomRange</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../StandardToPlusOneMinusOneRange/">fdtdx.StandardToPlusOneMinusOneRange</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SubpixelSmoothedProjection/">fdtdx.SubpixelSmoothedProjection</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../TanhProjection/">fdtdx.TanhProjection</a>
+                </li>
+                <li class="toctree-l2 current"><a class="reference internal current" href="#">fdtdx.TreeClass</a>
+    <ul class="current">
+    <li class="toctree-l3"><a class="reference internal" href="#fdtdx.TreeClass">TreeClass</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.TreeClass.at">at</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.TreeClass.aset">aset</a>
+    </li>
+        </ul>
+    </li>
+    </ul>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../typing/">fdtdx.typing</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../UniformMaterialObject/">fdtdx.UniformMaterialObject</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../UniformPlaneSource/">fdtdx.UniformPlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../WaveCharacter/">fdtdx.WaveCharacter</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Internal</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/compression/">Compression Base Classes</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/detector/">Detector Base Class</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/objects/">Object Base Classes</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/sources/">Source Base Classes</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/transformation/">Parameter Transformation Base Classes</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../..">FDTDX</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">API Reference</li>
+          <li class="breadcrumb-item">Public</li>
+      <li class="breadcrumb-item active">fdtdx.TreeClass</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/ymahlau/fdtdx/edit/main/docs/api/public/TreeClass.md">Edit on ymahlau/fdtdx</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="fdtdxtreeclass">fdtdx.TreeClass</h1>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="fdtdx.TreeClass" class="doc doc-heading">
+             
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pytreeclass.TreeClass">TreeClass</span></code></p>
+
+
+        <p>Extended tree class with improved attribute setting functionality.</p>
+<p>Extends TreeClass to provide more flexible attribute setting capabilities,
+particularly for handling non-recursive attribute updates.</p>
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="fdtdx.TreeClass.at" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">at</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="n">at</span><span class="p">:</span> <span class="n">ExtendedTreeClassIndexer</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Gets the extended indexer for this tree.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+<b><code>ExtendedTreeClassIndexer</code></b>(                  <code><span title="fdtdx.core.jax.pytrees.ExtendedTreeClassIndexer">ExtendedTreeClassIndexer</span></code>
+)              –
+              <div class="doc-md-description">
+                <p>Indexer that preserves type information</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+    </div>
+
+</div>
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fdtdx.TreeClass.aset" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">aset</span>
+
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="nf">aset</span><span class="p">(</span>
+    <span class="n">attr_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">val</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">create_new_ok</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Self</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Sets an attribute of this class. In contrast to the classical .at[].set(), this method updates the class
+attribute directly and does not only operate on jax pytree leaf nodes. Instead, replaces the full attribute
+with the new value.</p>
+<p>The attribute can either be the attribute name of this class, or for nested classes it can also be the
+attribute name of a class, which itself is an attribute of this class. The syntax for this operation could
+look like this: "a-&gt;b-&gt;[0]-&gt;['name']". Here, the current class has an attribute a, which has an attribute b,
+which is a list, which we index at index 0, which is an element of type dictionary, which we index using
+the dictionary key 'name'.</p>
+<p>Note that dictionary keys cannot contain square brackets or single quotes (even if they are escaped).</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>attr_name</code></b>
+                  (<code><span title="str">str</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Name of attribute to set</p>
+              </div>
+            </li>
+            <li>
+              <b><code>val</code></b>
+                  (<code><span title="typing.Any">Any</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Value to set the attribute to</p>
+              </div>
+            </li>
+            <li>
+              <b><code>create_new_ok</code></b>
+                  (<code><span title="bool">bool</span></code>, default:
+                      <code>False</code>
+)
+              –
+              <div class="doc-md-description">
+                <p>If false (default), throw an error if the attribute does not exist.
+If true, creates a new attribute if the attribute name does not exist yet.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+<b><code>Self</code></b>(                  <code><span title="typing.Self">Self</span></code>
+)              –
+              <div class="doc-md-description">
+                <p>Updated instance with new attribute value</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="quote">
+              <summary>Source code in <code>src/fdtdx/core/jax/pytrees.py</code></summary>
+              <div class="codehilite"><table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">131</span>
+<span class="normal">132</span>
+<span class="normal">133</span>
+<span class="normal">134</span>
+<span class="normal">135</span>
+<span class="normal">136</span>
+<span class="normal">137</span>
+<span class="normal">138</span>
+<span class="normal">139</span>
+<span class="normal">140</span>
+<span class="normal">141</span>
+<span class="normal">142</span>
+<span class="normal">143</span>
+<span class="normal">144</span>
+<span class="normal">145</span>
+<span class="normal">146</span>
+<span class="normal">147</span>
+<span class="normal">148</span>
+<span class="normal">149</span>
+<span class="normal">150</span>
+<span class="normal">151</span>
+<span class="normal">152</span>
+<span class="normal">153</span>
+<span class="normal">154</span>
+<span class="normal">155</span>
+<span class="normal">156</span>
+<span class="normal">157</span>
+<span class="normal">158</span>
+<span class="normal">159</span>
+<span class="normal">160</span>
+<span class="normal">161</span>
+<span class="normal">162</span>
+<span class="normal">163</span>
+<span class="normal">164</span>
+<span class="normal">165</span>
+<span class="normal">166</span>
+<span class="normal">167</span>
+<span class="normal">168</span>
+<span class="normal">169</span>
+<span class="normal">170</span>
+<span class="normal">171</span>
+<span class="normal">172</span>
+<span class="normal">173</span>
+<span class="normal">174</span>
+<span class="normal">175</span>
+<span class="normal">176</span>
+<span class="normal">177</span>
+<span class="normal">178</span>
+<span class="normal">179</span>
+<span class="normal">180</span>
+<span class="normal">181</span>
+<span class="normal">182</span>
+<span class="normal">183</span>
+<span class="normal">184</span>
+<span class="normal">185</span>
+<span class="normal">186</span>
+<span class="normal">187</span>
+<span class="normal">188</span>
+<span class="normal">189</span>
+<span class="normal">190</span>
+<span class="normal">191</span>
+<span class="normal">192</span>
+<span class="normal">193</span>
+<span class="normal">194</span>
+<span class="normal">195</span>
+<span class="normal">196</span>
+<span class="normal">197</span>
+<span class="normal">198</span>
+<span class="normal">199</span>
+<span class="normal">200</span>
+<span class="normal">201</span>
+<span class="normal">202</span>
+<span class="normal">203</span>
+<span class="normal">204</span>
+<span class="normal">205</span>
+<span class="normal">206</span>
+<span class="normal">207</span>
+<span class="normal">208</span>
+<span class="normal">209</span>
+<span class="normal">210</span>
+<span class="normal">211</span>
+<span class="normal">212</span>
+<span class="normal">213</span>
+<span class="normal">214</span>
+<span class="normal">215</span>
+<span class="normal">216</span>
+<span class="normal">217</span>
+<span class="normal">218</span>
+<span class="normal">219</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">aset</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">attr_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">val</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">create_new_ok</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Self</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Sets an attribute of this class. In contrast to the classical .at[].set(), this method updates the class</span>
+<span class="sd">    attribute directly and does not only operate on jax pytree leaf nodes. Instead, replaces the full attribute</span>
+<span class="sd">    with the new value.</span>
+
+<span class="sd">    The attribute can either be the attribute name of this class, or for nested classes it can also be the</span>
+<span class="sd">    attribute name of a class, which itself is an attribute of this class. The syntax for this operation could</span>
+<span class="sd">    look like this: &quot;a-&gt;b-&gt;[0]-&gt;[&#39;name&#39;]&quot;. Here, the current class has an attribute a, which has an attribute b,</span>
+<span class="sd">    which is a list, which we index at index 0, which is an element of type dictionary, which we index using</span>
+<span class="sd">    the dictionary key &#39;name&#39;.</span>
+
+<span class="sd">    Note that dictionary keys cannot contain square brackets or single quotes (even if they are escaped).</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        attr_name (str): Name of attribute to set</span>
+<span class="sd">        val (Any): Value to set the attribute to</span>
+<span class="sd">        create_new_ok (bool, optional): If false (default), throw an error if the attribute does not exist.</span>
+<span class="sd">            If true, creates a new attribute if the attribute name does not exist yet.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Self: Updated instance with new attribute value</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># parse operations</span>
+    <span class="n">ops</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_operations</span><span class="p">(</span><span class="n">attr_name</span><span class="p">)</span>
+
+    <span class="c1"># find final attribute and save intermediate attributes</span>
+    <span class="n">attr_list</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="p">]</span>
+    <span class="n">current_parent</span> <span class="o">=</span> <span class="bp">self</span>
+    <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="p">(</span><span class="n">op</span><span class="p">,</span> <span class="n">op_type</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ops</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">op_type</span> <span class="o">==</span> <span class="s2">&quot;attribute&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">safe_hasattr</span><span class="p">(</span><span class="n">current_parent</span><span class="p">,</span> <span class="n">op</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">idx</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ops</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">create_new_ok</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Attribute: </span><span class="si">{</span><span class="n">op</span><span class="si">}</span><span class="s2"> does not exist for </span><span class="si">{</span><span class="n">current_parent</span><span class="o">.</span><span class="vm">__class__</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">current_parent</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">current_parent</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">current_parent</span><span class="p">,</span> <span class="n">op</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">op_type</span> <span class="o">==</span> <span class="s2">&quot;index&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s2">&quot;__getitem__&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="nb">dir</span><span class="p">(</span><span class="n">current_parent</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">current_parent</span><span class="o">.</span><span class="vm">__class__</span><span class="si">}</span><span class="s2"> does not implement __getitem__&quot;</span><span class="p">)</span>
+            <span class="n">current_parent</span> <span class="o">=</span> <span class="n">current_parent</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">op</span><span class="p">)]</span>  <span class="c1"># type: ignore</span>
+        <span class="k">elif</span> <span class="n">op_type</span> <span class="o">==</span> <span class="s2">&quot;key&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s2">&quot;__getitem__&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="nb">dir</span><span class="p">(</span><span class="n">current_parent</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">current_parent</span><span class="o">.</span><span class="vm">__class__</span><span class="si">}</span><span class="s2"> does not implement __getitem__&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">op</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">current_parent</span><span class="p">:</span>  <span class="c1"># type: ignore</span>
+                <span class="k">if</span> <span class="n">idx</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ops</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">create_new_ok</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Key: </span><span class="si">{</span><span class="n">op</span><span class="si">}</span><span class="s2"> does not exist for </span><span class="si">{</span><span class="n">current_parent</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">current_parent</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">current_parent</span> <span class="o">=</span> <span class="n">current_parent</span><span class="p">[</span><span class="n">op</span><span class="p">]</span>  <span class="c1"># type: ignore</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid operation type: </span><span class="si">{</span><span class="n">op_type</span><span class="si">}</span><span class="s2">. This is an internal bug!&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">idx</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ops</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">attr_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">current_parent</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
+
+    <span class="c1"># from bottom-up set attributes and update</span>
+    <span class="n">cur_attr</span> <span class="o">=</span> <span class="n">val</span>
+    <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">attr_list</span><span class="p">)))[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+        <span class="n">op</span><span class="p">,</span> <span class="n">op_type</span> <span class="o">=</span> <span class="n">ops</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+        <span class="n">current_parent</span> <span class="o">=</span> <span class="n">attr_list</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">op_type</span> <span class="o">==</span> <span class="s2">&quot;attribute&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">current_parent</span><span class="p">,</span> <span class="n">TreeClass</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Can only set attribute on ExtendedTreeClass, but got </span><span class="si">{</span><span class="n">current_parent</span><span class="o">.</span><span class="vm">__class__</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">_</span><span class="p">,</span> <span class="n">cur_attr</span> <span class="o">=</span> <span class="n">current_parent</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="s2">&quot;_aset&quot;</span><span class="p">](</span><span class="n">op</span><span class="p">,</span> <span class="n">cur_attr</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">op_type</span> <span class="o">==</span> <span class="s2">&quot;index&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s2">&quot;__setitem__&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="nb">dir</span><span class="p">(</span><span class="n">current_parent</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Can only update by index if __setitem__ is implemented, but got </span><span class="si">{</span><span class="n">current_parent</span><span class="o">.</span><span class="vm">__class__</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+            <span class="n">cpy</span> <span class="o">=</span> <span class="n">current_parent</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>  <span class="c1"># type: ignore</span>
+            <span class="n">cpy</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">op</span><span class="p">)]</span> <span class="o">=</span> <span class="n">cur_attr</span>  <span class="c1"># type: ignore</span>
+            <span class="n">cur_attr</span> <span class="o">=</span> <span class="n">cpy</span>
+        <span class="k">elif</span> <span class="n">op_type</span> <span class="o">==</span> <span class="s2">&quot;key&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s2">&quot;__setitem__&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="nb">dir</span><span class="p">(</span><span class="n">current_parent</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Can only update by index if __setitem__ is implemented, but got </span><span class="si">{</span><span class="n">current_parent</span><span class="o">.</span><span class="vm">__class__</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+            <span class="n">cpy</span> <span class="o">=</span> <span class="n">current_parent</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>  <span class="c1"># type: ignore</span>
+            <span class="n">cpy</span><span class="p">[</span><span class="n">op</span><span class="p">]</span> <span class="o">=</span> <span class="n">cur_attr</span>  <span class="c1"># type: ignore</span>
+            <span class="n">cur_attr</span> <span class="o">=</span> <span class="n">cpy</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid operation type: </span><span class="si">{</span><span class="n">op_type</span><span class="si">}</span><span class="s2">. This is an internal bug!&quot;</span><span class="p">)</span>
+
+    <span class="k">assert</span> <span class="n">cur_attr</span><span class="o">.</span><span class="vm">__class__</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span>
+    <span class="k">return</span> <span class="n">cur_attr</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../TanhProjection/" class="btn btn-neutral float-left" title="fdtdx.TanhProjection"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../typing/" class="btn btn-neutral float-right" title="fdtdx.typing">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Maintained by Yannik Mahlau</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/ymahlau/fdtdx" class="fa fa-code-fork" style="color: #fcfcfc"> ymahlau/fdtdx</a>
+        </span>
+    
+    
+      <span><a href="../TanhProjection/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../typing/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../../..";</script>
+    <script src="../../../js/theme_extra.js"></script>
+    <script src="../../../js/theme.js"></script>
+      <script src="../../../javascripts/mathjax.js"></script>
+      <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="../../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

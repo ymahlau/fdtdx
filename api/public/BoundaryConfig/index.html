@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="author" content="Yannik Mahlau and Frederik Schubert" /><link rel="canonical" href="https://ymahlau.github.io/fdtdx/api/public/BoundaryConfig/" />
+      <link rel="shortcut icon" href="../../../img/favicon.ico" />
+    <title>fdtdx.BoundaryConfig - FDTDX</title>
+    <link rel="stylesheet" href="../../../css/theme.css" />
+    <link rel="stylesheet" href="../../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../../../assets/_mkdocstrings.css" rel="stylesheet" />
+        <link href="../../../stylesheets/extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "fdtdx.BoundaryConfig";
+        var mkdocs_page_input_path = "api/public/BoundaryConfig.md";
+        var mkdocs_page_url = "/fdtdx/api/public/BoundaryConfig/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../../..">
+          <img src="../../../img/logo.png" class="logo" alt="Logo"/>
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../../..">Home</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Tutorials</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/jax_introduction/">JAX in FDTDX</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/object_placement/">Object Placement</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/materials/">Materials Guide</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/parameter_mapping/">Fabrication Constraints</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../../../tutorials/interface_compression/">Interface Compression</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">API Reference</span></p>
+              <ul class="current">
+                  <li class="toctree-l1 current"><a class="reference internal current" >Public</a>
+    <ul class="current">
+                <li class="toctree-l2"><a class="reference internal" href="../apply_params/">fdtdx.apply_params</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ArrayContainer/">fdtdx.ArrayContainer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../autoinit/">fdtdx.autoinit</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../BinaryMedianFilterModule/">fdtdx.BinaryMedianFilterModule</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../boundary_objects_from_config/">fdtdx.boundary_objects_from_config</a>
+                </li>
+                <li class="toctree-l2 current"><a class="reference internal current" href="#">fdtdx.BoundaryConfig</a>
+    <ul class="current">
+    <li class="toctree-l3"><a class="reference internal" href="#fdtdx.BoundaryConfig">BoundaryConfig</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.BoundaryConfig.from_uniform_bound">from_uniform_bound</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.BoundaryConfig.get_dict">get_dict</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.BoundaryConfig.get_inside_boundary_slice">get_inside_boundary_slice</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.BoundaryConfig.get_kappa_dict">get_kappa_dict</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#fdtdx.BoundaryConfig.get_type_dict">get_type_dict</a>
+    </li>
+        </ul>
+    </li>
+    </ul>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../BrushConstraint2D/">fdtdx.BrushConstraint2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../circular_brush/">fdtdx.circular_brush</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ClosestIndex/">fdtdx.ClosestIndex</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../compute_energy/">fdtdx.compute_energy</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../compute_poynting_flux/">fdtdx.compute_poynting_flux</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ConnectHolesAndStructures/">fdtdx.ConnectHolesAndStructures</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../constants/">fdtdx.constants</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Cylinder/">fdtdx.Cylinder</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Device/">fdtdx.Device</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../DiagonalSymmetry2D/">fdtdx.DiagonalSymmetry2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../DtypeConversion/">fdtdx.DtypeConversion</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../EnergyDetector/">fdtdx.EnergyDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ExtrudedPolygon/">fdtdx.ExtrudedPolygon</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../FieldDetector/">fdtdx.FieldDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GaussianPlaneSource/">fdtdx.GaussianPlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GaussianPulseProfile/">fdtdx.GaussianPulseProfile</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GaussianSmoothing2D/">fdtdx.GaussianSmoothing2D</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GradientConfig/">fdtdx.GradientConfig</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../GridCoordinateConstraint/">fdtdx.GridCoordinateConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../LinearReconstructEveryK/">fdtdx.LinearReconstructEveryK</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Logger/">fdtdx.Logger</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Material/">fdtdx.Material</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../metric_efficiency/">fdtdx.metric_efficiency</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ModeOverlapDetector/">fdtdx.ModeOverlapDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ModePlaneSource/">fdtdx.ModePlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ObjectContainer/">fdtdx.ObjectContainer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../ParameterTransformation/">fdtdx.ParameterTransformation</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PerfectlyMatchedLayer/">fdtdx.PerfectlyMatchedLayer</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PeriodicBoundary/">fdtdx.PeriodicBoundary</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PhasorDetector/">fdtdx.PhasorDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PillarDiscretization/">fdtdx.PillarDiscretization</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../place_objects/">fdtdx.place_objects</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../plot_setup/">fdtdx.plot_setup</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PositionConstraint/">fdtdx.PositionConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../PoyntingFluxDetector/">fdtdx.PoyntingFluxDetector</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../RealCoordinateConstraint/">fdtdx.RealCoordinateConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Recorder/">fdtdx.Recorder</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../RecordingState/">fdtdx.RecordingState</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../RemoveFloatingMaterial/">fdtdx.RemoveFloatingMaterial</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../run_fdtd/">fdtdx.run_fdtd</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SimulationConfig/">fdtdx.SimulationConfig</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SimulationObject/">fdtdx.SimulationObject</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SimulationVolume/">fdtdx.SimulationVolume</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SingleFrequencyProfile/">fdtdx.SingleFrequencyProfile</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SizeConstraint/">fdtdx.SizeConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SizeExtensionConstraint/">fdtdx.SizeExtensionConstraint</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../Sphere/">fdtdx.Sphere</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../StandardToCustomRange/">fdtdx.StandardToCustomRange</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../StandardToPlusOneMinusOneRange/">fdtdx.StandardToPlusOneMinusOneRange</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../SubpixelSmoothedProjection/">fdtdx.SubpixelSmoothedProjection</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../TanhProjection/">fdtdx.TanhProjection</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../TreeClass/">fdtdx.TreeClass</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../typing/">fdtdx.typing</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../UniformMaterialObject/">fdtdx.UniformMaterialObject</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../UniformPlaneSource/">fdtdx.UniformPlaneSource</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../WaveCharacter/">fdtdx.WaveCharacter</a>
+                </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" >Internal</a>
+    <ul>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/compression/">Compression Base Classes</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/detector/">Detector Base Class</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/objects/">Object Base Classes</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/sources/">Source Base Classes</a>
+                </li>
+                <li class="toctree-l2"><a class="reference internal" href="../../internal/transformation/">Parameter Transformation Base Classes</a>
+                </li>
+    </ul>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../..">FDTDX</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../.." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">API Reference</li>
+          <li class="breadcrumb-item">Public</li>
+      <li class="breadcrumb-item active">fdtdx.BoundaryConfig</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/ymahlau/fdtdx/edit/main/docs/api/public/BoundaryConfig.md">Edit on ymahlau/fdtdx</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="fdtdxboundaryconfig">fdtdx.BoundaryConfig</h1>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="fdtdx.BoundaryConfig" class="doc doc-heading">
+             
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-internal" title="fdtdx.core.jax.pytrees.TreeClass" href="../TreeClass/#fdtdx.TreeClass">TreeClass</a></code></p>
+
+
+        <p>Configuration class for boundary conditions.</p>
+<p>This class stores parameters for boundary conditions in all six directions (min/max x/y/z).
+Supports both PML and periodic boundaries. For PML, the parameters control the absorption
+properties and physical size of the PML regions.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Attributes:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>boundary_type_minx</code></b>
+                  (<code><span title="str">str</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Boundary type at minimum x ("pml" or "periodic"). Default "pml".</p>
+              </div>
+            </li>
+            <li>
+              <b><code>boundary_type_maxx</code></b>
+                  (<code><span title="str">str</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Boundary type at maximum x ("pml" or "periodic"). Default "pml".</p>
+              </div>
+            </li>
+            <li>
+              <b><code>boundary_type_miny</code></b>
+                  (<code><span title="str">str</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Boundary type at minimum y ("pml" or "periodic"). Default "pml".</p>
+              </div>
+            </li>
+            <li>
+              <b><code>boundary_type_maxy</code></b>
+                  (<code><span title="str">str</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Boundary type at maximum y ("pml" or "periodic"). Default "pml".</p>
+              </div>
+            </li>
+            <li>
+              <b><code>boundary_type_minz</code></b>
+                  (<code><span title="str">str</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Boundary type at minimum z ("pml" or "periodic"). Default "pml".</p>
+              </div>
+            </li>
+            <li>
+              <b><code>boundary_type_maxz</code></b>
+                  (<code><span title="str">str</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Boundary type at maximum z ("pml" or "periodic"). Default "pml".</p>
+              </div>
+            </li>
+            <li>
+              <b><code>thickness_grid_minx</code></b>
+                  (<code><span title="int">int</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Number of grid cells for PML at minimum x boundary. Default 10.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>thickness_grid_maxx</code></b>
+                  (<code><span title="int">int</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Number of grid cells for PML at maximum x boundary. Default 10.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>thickness_grid_miny</code></b>
+                  (<code><span title="int">int</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Number of grid cells for PML at minimum y boundary. Default 10.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>thickness_grid_maxy</code></b>
+                  (<code><span title="int">int</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Number of grid cells for PML at maximum y boundary. Default 10.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>thickness_grid_minz</code></b>
+                  (<code><span title="int">int</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Number of grid cells for PML at minimum z boundary. Default 10.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>thickness_grid_maxz</code></b>
+                  (<code><span title="int">int</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Number of grid cells for PML at maximum z boundary. Default 10.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>kappa_start_minx</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Initial kappa value at min x boundary. Default 1.0.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>kappa_end_minx</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Final kappa value at min x boundary. Default 1.5.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>kappa_start_maxx</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Initial kappa value at max x boundary. Default 1.0.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>kappa_end_maxx</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Final kappa value at max x boundary. Default 1.5.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>kappa_start_miny</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Initial kappa value at min y boundary. Default 1.0.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>kappa_end_miny</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Final kappa value at min y boundary. Default 1.5.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>kappa_start_maxy</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Initial kappa value at max y boundary. Default 1.0.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>kappa_end_maxy</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Final kappa value at max y boundary. Default 1.5.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>kappa_start_minz</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Initial kappa value at min z boundary. Default 1.0.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>kappa_end_minz</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Final kappa value at min z boundary. Default 1.5.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>kappa_start_maxz</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Initial kappa value at max z boundary. Default 1.0.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>kappa_end_maxz</code></b>
+                  (<code><span title="float">float</span></code>)
+              –
+              <div class="doc-md-description">
+                <p>Final kappa value at max z boundary. Default 1.5.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fdtdx.BoundaryConfig.from_uniform_bound" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">from_uniform_bound</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="nf">from_uniform_bound</span><span class="p">(</span>
+    <span class="n">thickness</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
+    <span class="n">boundary_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;pml&quot;</span><span class="p">,</span>
+    <span class="n">kappa_start</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="n">kappa_end</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.5</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BoundaryConfig</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Creates a BoundaryConfig with uniform parameters for all boundaries.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>thickness</code></b>
+                  (<code><span title="int">int</span></code>, default:
+                      <code>10</code>
+)
+              –
+              <div class="doc-md-description">
+                <p>Grid thickness to use for all PML boundaries. Defaults to 10.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>boundary_type</code></b>
+                  (<code><span title="str">str</span></code>, default:
+                      <code>&#39;pml&#39;</code>
+)
+              –
+              <div class="doc-md-description">
+                <p>Type of boundary to use ("pml" or "periodic"). Defaults to "pml".</p>
+              </div>
+            </li>
+            <li>
+              <b><code>kappa_start</code></b>
+                  (<code><span title="float">float</span></code>, default:
+                      <code>1</code>
+)
+              –
+              <div class="doc-md-description">
+                <p>Initial kappa value for all boundaries. Defaults to 1.0.</p>
+              </div>
+            </li>
+            <li>
+              <b><code>kappa_end</code></b>
+                  (<code><span title="float">float</span></code>, default:
+                      <code>1.5</code>
+)
+              –
+              <div class="doc-md-description">
+                <p>Final kappa value for all boundaries. Defaults to 1.5.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+<b><code>BoundaryConfig</code></b>(                  <code><a class="autorefs autorefs-internal" title="fdtdx.objects.boundaries.initialization.BoundaryConfig" href="#fdtdx.BoundaryConfig">BoundaryConfig</a></code>
+)              –
+              <div class="doc-md-description">
+                <p>New config object with uniform parameters</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="quote">
+              <summary>Source code in <code>src/fdtdx/objects/boundaries/initialization.py</code></summary>
+              <div class="codehilite"><table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">164</span>
+<span class="normal">165</span>
+<span class="normal">166</span>
+<span class="normal">167</span>
+<span class="normal">168</span>
+<span class="normal">169</span>
+<span class="normal">170</span>
+<span class="normal">171</span>
+<span class="normal">172</span>
+<span class="normal">173</span>
+<span class="normal">174</span>
+<span class="normal">175</span>
+<span class="normal">176</span>
+<span class="normal">177</span>
+<span class="normal">178</span>
+<span class="normal">179</span>
+<span class="normal">180</span>
+<span class="normal">181</span>
+<span class="normal">182</span>
+<span class="normal">183</span>
+<span class="normal">184</span>
+<span class="normal">185</span>
+<span class="normal">186</span>
+<span class="normal">187</span>
+<span class="normal">188</span>
+<span class="normal">189</span>
+<span class="normal">190</span>
+<span class="normal">191</span>
+<span class="normal">192</span>
+<span class="normal">193</span>
+<span class="normal">194</span>
+<span class="normal">195</span>
+<span class="normal">196</span>
+<span class="normal">197</span>
+<span class="normal">198</span>
+<span class="normal">199</span>
+<span class="normal">200</span>
+<span class="normal">201</span>
+<span class="normal">202</span>
+<span class="normal">203</span>
+<span class="normal">204</span>
+<span class="normal">205</span>
+<span class="normal">206</span>
+<span class="normal">207</span>
+<span class="normal">208</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="nd">@classmethod</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">from_uniform_bound</span><span class="p">(</span>
+    <span class="bp">cls</span><span class="p">,</span>
+    <span class="n">thickness</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
+    <span class="n">boundary_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;pml&quot;</span><span class="p">,</span>
+    <span class="n">kappa_start</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="n">kappa_end</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.5</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;BoundaryConfig&quot;</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Creates a BoundaryConfig with uniform parameters for all boundaries.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        thickness (int, optional): Grid thickness to use for all PML boundaries. Defaults to 10.</span>
+<span class="sd">        boundary_type (str, optional): Type of boundary to use (&quot;pml&quot; or &quot;periodic&quot;). Defaults to &quot;pml&quot;.</span>
+<span class="sd">        kappa_start (float, optional): Initial kappa value for all boundaries. Defaults to 1.0.</span>
+<span class="sd">        kappa_end (float, optional): Final kappa value for all boundaries. Defaults to 1.5.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        BoundaryConfig: New config object with uniform parameters</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+        <span class="n">boundary_type_minx</span><span class="o">=</span><span class="n">boundary_type</span><span class="p">,</span>
+        <span class="n">boundary_type_maxx</span><span class="o">=</span><span class="n">boundary_type</span><span class="p">,</span>
+        <span class="n">boundary_type_miny</span><span class="o">=</span><span class="n">boundary_type</span><span class="p">,</span>
+        <span class="n">boundary_type_maxy</span><span class="o">=</span><span class="n">boundary_type</span><span class="p">,</span>
+        <span class="n">boundary_type_minz</span><span class="o">=</span><span class="n">boundary_type</span><span class="p">,</span>
+        <span class="n">boundary_type_maxz</span><span class="o">=</span><span class="n">boundary_type</span><span class="p">,</span>
+        <span class="n">thickness_grid_minx</span><span class="o">=</span><span class="n">thickness</span><span class="p">,</span>
+        <span class="n">thickness_grid_maxx</span><span class="o">=</span><span class="n">thickness</span><span class="p">,</span>
+        <span class="n">thickness_grid_miny</span><span class="o">=</span><span class="n">thickness</span><span class="p">,</span>
+        <span class="n">thickness_grid_maxy</span><span class="o">=</span><span class="n">thickness</span><span class="p">,</span>
+        <span class="n">thickness_grid_minz</span><span class="o">=</span><span class="n">thickness</span><span class="p">,</span>
+        <span class="n">thickness_grid_maxz</span><span class="o">=</span><span class="n">thickness</span><span class="p">,</span>
+        <span class="n">kappa_start_minx</span><span class="o">=</span><span class="n">kappa_start</span><span class="p">,</span>
+        <span class="n">kappa_end_minx</span><span class="o">=</span><span class="n">kappa_end</span><span class="p">,</span>
+        <span class="n">kappa_start_maxx</span><span class="o">=</span><span class="n">kappa_start</span><span class="p">,</span>
+        <span class="n">kappa_end_maxx</span><span class="o">=</span><span class="n">kappa_end</span><span class="p">,</span>
+        <span class="n">kappa_start_miny</span><span class="o">=</span><span class="n">kappa_start</span><span class="p">,</span>
+        <span class="n">kappa_end_miny</span><span class="o">=</span><span class="n">kappa_end</span><span class="p">,</span>
+        <span class="n">kappa_start_maxy</span><span class="o">=</span><span class="n">kappa_start</span><span class="p">,</span>
+        <span class="n">kappa_end_maxy</span><span class="o">=</span><span class="n">kappa_end</span><span class="p">,</span>
+        <span class="n">kappa_start_minz</span><span class="o">=</span><span class="n">kappa_start</span><span class="p">,</span>
+        <span class="n">kappa_end_minz</span><span class="o">=</span><span class="n">kappa_end</span><span class="p">,</span>
+        <span class="n">kappa_start_maxz</span><span class="o">=</span><span class="n">kappa_start</span><span class="p">,</span>
+        <span class="n">kappa_end_maxz</span><span class="o">=</span><span class="n">kappa_end</span><span class="p">,</span>
+    <span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fdtdx.BoundaryConfig.get_dict" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">get_dict</span>
+
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="nf">get_dict</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Gets a dictionary mapping boundary names to their grid thicknesses.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="int">int</span>]</code>
+              –
+              <div class="doc-md-description">
+                <p>dict[str, int]: Dictionary with keys 'min_x', 'max_x', 'min_y', 'max_y', 'min_z', 'max_z'
+mapping to their respective grid thickness values.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="quote">
+              <summary>Source code in <code>src/fdtdx/objects/boundaries/initialization.py</code></summary>
+              <div class="codehilite"><table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">72</span>
+<span class="normal">73</span>
+<span class="normal">74</span>
+<span class="normal">75</span>
+<span class="normal">76</span>
+<span class="normal">77</span>
+<span class="normal">78</span>
+<span class="normal">79</span>
+<span class="normal">80</span>
+<span class="normal">81</span>
+<span class="normal">82</span>
+<span class="normal">83</span>
+<span class="normal">84</span>
+<span class="normal">85</span>
+<span class="normal">86</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Gets a dictionary mapping boundary names to their grid thicknesses.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        dict[str, int]: Dictionary with keys &#39;min_x&#39;, &#39;max_x&#39;, &#39;min_y&#39;, &#39;max_y&#39;, &#39;min_z&#39;, &#39;max_z&#39;</span>
+<span class="sd">            mapping to their respective grid thickness values.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">&quot;min_x&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">thickness_grid_minx</span><span class="p">,</span>
+        <span class="s2">&quot;max_x&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">thickness_grid_maxx</span><span class="p">,</span>
+        <span class="s2">&quot;min_y&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">thickness_grid_miny</span><span class="p">,</span>
+        <span class="s2">&quot;max_y&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">thickness_grid_maxy</span><span class="p">,</span>
+        <span class="s2">&quot;min_z&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">thickness_grid_minz</span><span class="p">,</span>
+        <span class="s2">&quot;max_z&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">thickness_grid_maxz</span><span class="p">,</span>
+    <span class="p">}</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fdtdx.BoundaryConfig.get_inside_boundary_slice" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">get_inside_boundary_slice</span>
+
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="nf">get_inside_boundary_slice</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">slice</span><span class="p">,</span> <span class="nb">slice</span><span class="p">,</span> <span class="nb">slice</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Gets slice objects for the non-PML interior region of the simulation volume.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="tuple">tuple</span>[<span title="slice">slice</span>, <span title="slice">slice</span>, <span title="slice">slice</span>]</code>
+              –
+              <div class="doc-md-description">
+                <p>tuple[slice, slice, slice]: Three slice objects for indexing the x, y, z dimensions
+respectively, excluding the PML boundary regions.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="quote">
+              <summary>Source code in <code>src/fdtdx/objects/boundaries/initialization.py</code></summary>
+              <div class="codehilite"><table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">142</span>
+<span class="normal">143</span>
+<span class="normal">144</span>
+<span class="normal">145</span>
+<span class="normal">146</span>
+<span class="normal">147</span>
+<span class="normal">148</span>
+<span class="normal">149</span>
+<span class="normal">150</span>
+<span class="normal">151</span>
+<span class="normal">152</span>
+<span class="normal">153</span>
+<span class="normal">154</span>
+<span class="normal">155</span>
+<span class="normal">156</span>
+<span class="normal">157</span>
+<span class="normal">158</span>
+<span class="normal">159</span>
+<span class="normal">160</span>
+<span class="normal">161</span>
+<span class="normal">162</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_inside_boundary_slice</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">slice</span><span class="p">,</span> <span class="nb">slice</span><span class="p">,</span> <span class="nb">slice</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Gets slice objects for the non-PML interior region of the simulation volume.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        tuple[slice, slice, slice]: Three slice objects for indexing the x, y, z dimensions</span>
+<span class="sd">            respectively, excluding the PML boundary regions.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="nb">slice</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">thickness_grid_minx</span> <span class="o">+</span> <span class="mi">1</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">boundary_type_minx</span> <span class="o">==</span> <span class="s2">&quot;pml&quot;</span> <span class="k">else</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">thickness_grid_maxx</span> <span class="o">-</span> <span class="mi">1</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">boundary_type_maxx</span> <span class="o">==</span> <span class="s2">&quot;pml&quot;</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="nb">slice</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">thickness_grid_miny</span> <span class="o">+</span> <span class="mi">1</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">boundary_type_miny</span> <span class="o">==</span> <span class="s2">&quot;pml&quot;</span> <span class="k">else</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">thickness_grid_maxy</span> <span class="o">-</span> <span class="mi">1</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">boundary_type_maxy</span> <span class="o">==</span> <span class="s2">&quot;pml&quot;</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="nb">slice</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">thickness_grid_minz</span> <span class="o">+</span> <span class="mi">1</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">boundary_type_minz</span> <span class="o">==</span> <span class="s2">&quot;pml&quot;</span> <span class="k">else</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">thickness_grid_maxz</span> <span class="o">-</span> <span class="mi">1</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">boundary_type_maxz</span> <span class="o">==</span> <span class="s2">&quot;pml&quot;</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fdtdx.BoundaryConfig.get_kappa_dict" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">get_kappa_dict</span>
+
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="nf">get_kappa_dict</span><span class="p">(</span>
+    <span class="n">prop</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;kappa_start&quot;</span><span class="p">,</span> <span class="s2">&quot;kappa_end&quot;</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Gets a dictionary mapping boundary names to their kappa values.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Parameters:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+              <b><code>prop</code></b>
+                  (<code><span title="typing.Literal">Literal</span>[&#39;kappa_start&#39;, &#39;kappa_end&#39;]</code>)
+              –
+              <div class="doc-md-description">
+                <p>Which kappa property to get,
+either "kappa_start" or "kappa_end".</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="float">float</span>]</code>
+              –
+              <div class="doc-md-description">
+                <p>dict[str, float]: Dictionary with keys 'min_x', 'max_x', 'min_y', 'max_y', 'min_z', 'max_z'
+mapping to their respective kappa values.</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Raises:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="Exception">Exception</span></code>
+              –
+              <div class="doc-md-description">
+                <p>If prop is not "kappa_start" or "kappa_end"</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="quote">
+              <summary>Source code in <code>src/fdtdx/objects/boundaries/initialization.py</code></summary>
+              <div class="codehilite"><table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">104</span>
+<span class="normal">105</span>
+<span class="normal">106</span>
+<span class="normal">107</span>
+<span class="normal">108</span>
+<span class="normal">109</span>
+<span class="normal">110</span>
+<span class="normal">111</span>
+<span class="normal">112</span>
+<span class="normal">113</span>
+<span class="normal">114</span>
+<span class="normal">115</span>
+<span class="normal">116</span>
+<span class="normal">117</span>
+<span class="normal">118</span>
+<span class="normal">119</span>
+<span class="normal">120</span>
+<span class="normal">121</span>
+<span class="normal">122</span>
+<span class="normal">123</span>
+<span class="normal">124</span>
+<span class="normal">125</span>
+<span class="normal">126</span>
+<span class="normal">127</span>
+<span class="normal">128</span>
+<span class="normal">129</span>
+<span class="normal">130</span>
+<span class="normal">131</span>
+<span class="normal">132</span>
+<span class="normal">133</span>
+<span class="normal">134</span>
+<span class="normal">135</span>
+<span class="normal">136</span>
+<span class="normal">137</span>
+<span class="normal">138</span>
+<span class="normal">139</span>
+<span class="normal">140</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_kappa_dict</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">prop</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;kappa_start&quot;</span><span class="p">,</span> <span class="s2">&quot;kappa_end&quot;</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Gets a dictionary mapping boundary names to their kappa values.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        prop (Literal[&quot;kappa_start&quot;, &quot;kappa_end&quot;]): Which kappa property to get,</span>
+<span class="sd">            either &quot;kappa_start&quot; or &quot;kappa_end&quot;.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        dict[str, float]: Dictionary with keys &#39;min_x&#39;, &#39;max_x&#39;, &#39;min_y&#39;, &#39;max_y&#39;, &#39;min_z&#39;, &#39;max_z&#39;</span>
+<span class="sd">            mapping to their respective kappa values.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        Exception: If prop is not &quot;kappa_start&quot; or &quot;kappa_end&quot;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">prop</span> <span class="o">==</span> <span class="s2">&quot;kappa_start&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;min_x&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">kappa_start_minx</span><span class="p">,</span>
+            <span class="s2">&quot;max_x&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">kappa_start_maxx</span><span class="p">,</span>
+            <span class="s2">&quot;min_y&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">kappa_start_miny</span><span class="p">,</span>
+            <span class="s2">&quot;max_y&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">kappa_start_maxy</span><span class="p">,</span>
+            <span class="s2">&quot;min_z&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">kappa_start_minz</span><span class="p">,</span>
+            <span class="s2">&quot;max_z&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">kappa_start_maxz</span><span class="p">,</span>
+        <span class="p">}</span>
+    <span class="k">elif</span> <span class="n">prop</span> <span class="o">==</span> <span class="s2">&quot;kappa_end&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;min_x&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">kappa_end_minx</span><span class="p">,</span>
+            <span class="s2">&quot;max_x&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">kappa_end_maxx</span><span class="p">,</span>
+            <span class="s2">&quot;min_y&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">kappa_end_miny</span><span class="p">,</span>
+            <span class="s2">&quot;max_y&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">kappa_end_maxy</span><span class="p">,</span>
+            <span class="s2">&quot;min_z&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">kappa_end_minz</span><span class="p">,</span>
+            <span class="s2">&quot;max_z&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">kappa_end_maxz</span><span class="p">,</span>
+        <span class="p">}</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown: </span><span class="si">{</span><span class="n">prop</span><span class="si">=}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fdtdx.BoundaryConfig.get_type_dict" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">get_type_dict</span>
+
+
+</h3>
+<div class="doc-signature codehilite"><pre><span></span><code><span class="nf">get_type_dict</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Gets a dictionary mapping boundary names to their boundary types.</p>
+
+
+<table class="field-list">
+  <colgroup>
+    <col class="field-name" />
+    <col class="field-body" />
+  </colgroup>
+  <tbody valign="top">
+    <tr class="field">
+      <th class="field-name">Returns:</th>
+      <td class="field-body">
+        <ul class="first simple">
+            <li>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="str">str</span>]</code>
+              –
+              <div class="doc-md-description">
+                <p>dict[str, str]: Dictionary with keys 'min_x', 'max_x', 'min_y', 'max_y', 'min_z', 'max_z'
+mapping to their respective boundary types ("pml" or "periodic").</p>
+              </div>
+            </li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+            <details class="quote">
+              <summary>Source code in <code>src/fdtdx/objects/boundaries/initialization.py</code></summary>
+              <div class="codehilite"><table class="codehilitetable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 88</span>
+<span class="normal"> 89</span>
+<span class="normal"> 90</span>
+<span class="normal"> 91</span>
+<span class="normal"> 92</span>
+<span class="normal"> 93</span>
+<span class="normal"> 94</span>
+<span class="normal"> 95</span>
+<span class="normal"> 96</span>
+<span class="normal"> 97</span>
+<span class="normal"> 98</span>
+<span class="normal"> 99</span>
+<span class="normal">100</span>
+<span class="normal">101</span>
+<span class="normal">102</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_type_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Gets a dictionary mapping boundary names to their boundary types.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        dict[str, str]: Dictionary with keys &#39;min_x&#39;, &#39;max_x&#39;, &#39;min_y&#39;, &#39;max_y&#39;, &#39;min_z&#39;, &#39;max_z&#39;</span>
+<span class="sd">            mapping to their respective boundary types (&quot;pml&quot; or &quot;periodic&quot;).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">&quot;min_x&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">boundary_type_minx</span><span class="p">,</span>
+        <span class="s2">&quot;max_x&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">boundary_type_maxx</span><span class="p">,</span>
+        <span class="s2">&quot;min_y&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">boundary_type_miny</span><span class="p">,</span>
+        <span class="s2">&quot;max_y&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">boundary_type_maxy</span><span class="p">,</span>
+        <span class="s2">&quot;min_z&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">boundary_type_minz</span><span class="p">,</span>
+        <span class="s2">&quot;max_z&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">boundary_type_maxz</span><span class="p">,</span>
+    <span class="p">}</span>
+</code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../boundary_objects_from_config/" class="btn btn-neutral float-left" title="fdtdx.boundary_objects_from_config"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../BrushConstraint2D/" class="btn btn-neutral float-right" title="fdtdx.BrushConstraint2D">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Maintained by Yannik Mahlau</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/ymahlau/fdtdx" class="fa fa-code-fork" style="color: #fcfcfc"> ymahlau/fdtdx</a>
+        </span>
+    
+    
+      <span><a href="../boundary_objects_from_config/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../BrushConstraint2D/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../../..";</script>
+    <script src="../../../js/theme_extra.js"></script>
+    <script src="../../../js/theme.js"></script>
+      <script src="../../../javascripts/mathjax.js"></script>
+      <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="../../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
