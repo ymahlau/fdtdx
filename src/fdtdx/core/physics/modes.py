@@ -24,6 +24,69 @@ Attributes:
 """
 
 
+def compute_mode_polarization_fraction(
+    mode: ModeTupleType,
+    tangential_axes: tuple[int, int],
+    pol: Literal["te", "tm"],
+) -> float:
+    """Mode polarization fraction.
+
+    Args:
+        mode (ModeTupleType): a ModeTupleType instance
+        tangential_axes (tuple[int, int]): indices of transverse E-field component axes.
+        pol (Literal["te", "tm"]): "te" or "tm" determines which axis is 'E1'
+
+    Returns:
+        float: Polarization fraction between 0 and 1.
+    """
+
+    E_fields = [mode.Ex, mode.Ey, mode.Ez]
+    E1 = E_fields[tangential_axes[0]]
+    E2 = E_fields[tangential_axes[1]]
+
+    if pol == "te":
+        numerator = np.sum(np.abs(E1) ** 2)
+    elif pol == "tm":
+        numerator = np.sum(np.abs(E2) ** 2)
+    else:
+        raise ValueError(f"pol must be 'te' or 'tm', but got {pol}")
+
+    denominator = np.sum(np.abs(E1) ** 2 + np.abs(E2) ** 2) + 1e-18
+    return numerator / denominator
+
+
+def sort_modes(
+    modes: list[ModeTupleType],
+    filter_pol: Literal["te", "tm"] | None,
+    tangential_axes: tuple[int, int],
+) -> list[ModeTupleType]:
+    """
+    Sort modes by polarization.
+
+    Args:
+        modes (list[ModeTupleType]): list of modes.
+        filter_pol (Literal["te", "tm"] | None): If not none, sort by polarization specificaton.
+        tangential_axes (tuple[int, int]): indices of transverse E-field component axes.
+
+    Returns:
+        list[ModeTupleType]: sorted list of modes.
+    """
+    if filter_pol is None:
+        return sorted(modes, key=lambda m: float(np.real(m.neff)), reverse=True)
+
+    def is_matching(mode):
+        frac = compute_mode_polarization_fraction(mode, tangential_axes, filter_pol)
+        return frac >= 0.5
+
+    matching = [m for m in modes if is_matching(m)]
+    non_matching = [m for m in modes if not is_matching(m)]
+
+    matching_sorted = sorted(matching, key=lambda m: float(np.real(m.neff)), reverse=True)
+    non_matching_sorted = sorted(non_matching, key=lambda m: float(np.real(m.neff)), reverse=True)
+
+    return matching_sorted + non_matching_sorted
+
+
 def compute_mode(
     frequency: float,
     inv_permittivities: jax.Array,  # shape (nx, ny, nz)
@@ -53,9 +116,12 @@ def compute_mode(
             permeability_cross_section=permeability,
             coords=coords,
             direction=direction,
-            num_modes=2 * (mode_index + 1) + 2,
-            filter_pol=filter_pol,
+            num_modes=2 * (mode_index + 1) + 10,
         )
+
+        # sort modes by polarization
+        # tidy3d assumes propagation in the z-direction. The tangential axes are therefore x and y.
+        modes = sort_modes(modes, filter_pol, (0, 1))
         mode = modes[mode_index]
 
         if propagation_axis == 0:
@@ -65,8 +131,8 @@ def compute_mode(
             )
         elif propagation_axis == 1:
             mode_E, mode_H = (
-                np.stack([mode.Ey, mode.Ez, mode.Ex], axis=0).astype(np.complex64),
-                np.stack([mode.Hy, mode.Hz, mode.Hx], axis=0).astype(np.complex64),
+                np.stack([mode.Ex, mode.Ez, mode.Ey], axis=0).astype(np.complex64),
+                np.stack([mode.Hx, mode.Hz, mode.Hy], axis=0).astype(np.complex64),
             )
         elif propagation_axis == 2:
             mode_E, mode_H = (
@@ -134,7 +200,6 @@ def tidy3d_mode_computation_wrapper(
     angle_phi: float = 0.0,
     num_modes: int = 10,
     precision: Literal["single", "double"] = "double",
-    filter_pol: Literal["te", "tm"] | None = None,
 ) -> List[ModeTupleType]:
     """Compute optical modes of a waveguide cross-section.
 
@@ -153,7 +218,9 @@ def tidy3d_mode_computation_wrapper(
         angle_phi (float, optional): Azimuthal angle in radians. Defaults to 0.0.
         num_modes (int, optional): Number of modes to compute. Defaults to 10.
         precision (Literal["single", "double"], optional): Numerical precision. Defaults to "double".
-        filter_pol (Literal["te", "tm"] | None, optional): Mode polarization filter. Defaults to None.
+
+    Notes:
+        tidy3d assumes propagation in z-direction. The output fields should be handled accordingly.
 
     Returns:
         List[ModeTupleType]: List of computed modes sorted by decreasing real part of
@@ -161,10 +228,10 @@ def tidy3d_mode_computation_wrapper(
     """
     # see https://docs.flexcompute.com/projects/tidy3d/en/latest/_autosummary/tidy3d.ModeSpec.html#tidy3d.ModeSpec
     mode_spec = SimpleNamespace(
+        # Note that the filter_pol argument is not used here since it does not work from tidy3d
         num_modes=num_modes,
         target_neff=target_neff,
         num_pml=(0, 0),
-        filter_pol=filter_pol,
         angle_theta=angle_theta,
         angle_phi=angle_phi,
         bend_radius=None,
