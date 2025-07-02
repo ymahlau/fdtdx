@@ -23,9 +23,10 @@ Attributes:
     Hz: z-component of the magnetic field
 """
 
+
 def compute_mode_polarization_fraction(
-    mode: ModeTupleType, 
-    tangential_axes: tuple[int, int], 
+    mode: ModeTupleType,
+    tangential_axes: tuple[int, int],
     pol: Literal["te", "tm"],
 ) -> float:
     """Mode polarization fraction.
@@ -55,18 +56,18 @@ def compute_mode_polarization_fraction(
 
 
 def sort_modes(
-    modes: list[ModeTupleType], 
-    filter_pol: Literal["te", "tm"] | None, 
+    modes: list[ModeTupleType],
+    filter_pol: Literal["te", "tm"] | None,
     tangential_axes: tuple[int, int],
 ) -> list[ModeTupleType]:
     """
     Sort modes by polarization.
-    
-    Attributes:
-        modes (list[ModeTupleType]): list of modes
+
+    Args:
+        modes (list[ModeTupleType]): list of modes.
         filter_pol (Literal["te", "tm"] | None): If not none, sort by polarization specificaton.
         tangential_axes (tuple[int, int]): indices of transverse E-field component axes.
-    
+
     Returns:
         list[ModeTupleType]: sorted list of modes.
     """
@@ -117,7 +118,7 @@ def compute_mode(
             direction=direction,
             num_modes=2 * (mode_index + 1) + 10,
         )
-        
+
         # sort modes by polarization
         # tidy3d assumes propagation in the z-direction. The tangential axes are therefore x and y.
         modes = sort_modes(modes, filter_pol, (0, 1))
@@ -220,7 +221,7 @@ def tidy3d_mode_computation_wrapper(
 
     Notes:
         tidy3d assumes propagation in z-direction. The output fields should be handled accordingly.
-    
+
     Returns:
         List[ModeTupleType]: List of computed modes sorted by decreasing real part of
             effective index. Each mode contains the field components and effective index.
