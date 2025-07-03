@@ -20,7 +20,7 @@ affiliations:
  - name: Institute of Information Processing, Leibniz University Hannover, Germany
    index: 1
 date: 03 July 2025
-bibliography: paper/paper.bib
+bibliography: paper.bib
 ---
 
 # Summary
