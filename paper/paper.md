@@ -34,7 +34,7 @@ It provides a simple user interface for specifying a simulation scene and tools 
 
 # Statement of need
 
-FDTDX implements the FDTD algorithm, which aims to simulate maxwell's equations $\frac{\partial H}{\partial t} &= - \frac{1}{\mu} \nabla \times E$ and $\frac{\partial E}{\partial t} &= \frac{1}{\epsilon} \nabla \times H$.
+FDTDX implements the FDTD algorithm, which aims to simulate maxwell's equations $\frac{\partial H}{\partial t} = - \frac{1}{\mu} \nabla \times E$ and $\frac{\partial E}{\partial t} = \frac{1}{\epsilon} \nabla \times H$.
 It discretizes the differential equations in space and time according to the Yee grid [@kaneyeeNumericalSolutionInitial1966].
 This algorithm has been used in a number of research applications, for example in the field of photonic integrated circuits [@schubertmahlau2025quantized], optical computing[@mahlau2025multi] or quantum computing [@larsen2025integrated].
 
