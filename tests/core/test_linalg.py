@@ -1,9 +1,12 @@
-import pytest
-import jax
 import jax.numpy as jnp
-import numpy as np
+import pytest
 
-from fdtdx.core.linalg import get_orthogonal_vector, get_single_directional_rotation_matrix, get_wave_vector_raw, rotate_vector
+from fdtdx.core.linalg import (
+    get_orthogonal_vector,
+    get_single_directional_rotation_matrix,
+    get_wave_vector_raw,
+    rotate_vector,
+)
 
 
 def test_get_wave_vector_raw_positive_direction():
@@ -11,7 +14,7 @@ def test_get_wave_vector_raw_positive_direction():
     result = get_wave_vector_raw("+", 0)
     expected = jnp.array([1.0, 0.0, 0.0], dtype=jnp.float32)
     assert jnp.allclose(result, expected)
-    
+
     result = get_wave_vector_raw("+", 1)
     expected = jnp.array([0.0, 1.0, 0.0], dtype=jnp.float32)
     assert jnp.allclose(result, expected)
@@ -29,11 +32,11 @@ def test_get_wave_vector_raw_all_axes():
     for axis in range(3):
         pos_result = get_wave_vector_raw("+", axis)
         neg_result = get_wave_vector_raw("-", axis)
-        
+
         # Check that only the specified axis is non-zero
         assert jnp.sum(jnp.abs(pos_result)) == 1.0
         assert jnp.sum(jnp.abs(neg_result)) == 1.0
-        
+
         # Check correct signs
         assert pos_result[axis] == 1.0
         assert neg_result[axis] == -1.0
@@ -70,15 +73,13 @@ def test_get_orthogonal_vector_invalid_inputs():
     # Both v_E and v_H provided
     with pytest.raises(Exception):
         get_orthogonal_vector(
-            v_E=jnp.array([1.0, 0.0, 0.0]),
-            v_H=jnp.array([0.0, 1.0, 0.0]),
-            wave_vector=jnp.array([0.0, 0.0, 1.0])
+            v_E=jnp.array([1.0, 0.0, 0.0]), v_H=jnp.array([0.0, 1.0, 0.0]), wave_vector=jnp.array([0.0, 0.0, 1.0])
         )
-    
+
     # Neither v_E nor v_H provided
     with pytest.raises(Exception):
         get_orthogonal_vector(wave_vector=jnp.array([0.0, 0.0, 1.0]))
-    
+
     # No wave vector information provided
     with pytest.raises(Exception):
         get_orthogonal_vector(v_E=jnp.array([1.0, 0.0, 0.0]))
@@ -89,7 +90,7 @@ def test_get_orthogonal_vector_missing_wave_vector_info():
     with pytest.raises(Exception):
         get_orthogonal_vector(
             v_E=jnp.array([1.0, 0.0, 0.0]),
-            direction="+"
+            direction="+",
             # Missing propagation_axis
         )
 
@@ -98,7 +99,7 @@ def test_get_single_directional_rotation_matrix_x_axis():
     """Test rotation matrix generation around x-axis."""
     angle = jnp.pi / 2
     result = get_single_directional_rotation_matrix(0, angle)
-    
+
     # Test rotating a vector around x-axis
     test_vector = jnp.array([0.0, 1.0, 0.0])
     rotated = result @ test_vector
@@ -110,7 +111,7 @@ def test_get_single_directional_rotation_matrix_y_axis():
     """Test rotation matrix generation around y-axis."""
     angle = jnp.pi / 2
     result = get_single_directional_rotation_matrix(1, angle)
-    
+
     # Test rotating a vector around y-axis
     test_vector = jnp.array([1.0, 0.0, 0.0])
     rotated = result @ test_vector
@@ -122,7 +123,7 @@ def test_get_single_directional_rotation_matrix_z_axis():
     """Test rotation matrix generation around z-axis."""
     angle = jnp.pi / 2
     result = get_single_directional_rotation_matrix(2, angle)
-    
+
     # Test rotating a vector around z-axis
     test_vector = jnp.array([1.0, 0.0, 0.0])
     rotated = result @ test_vector
@@ -143,7 +144,7 @@ def test_get_single_directional_rotation_matrix_invalid_axis():
     """Test that invalid rotation axis raises exception."""
     with pytest.raises(Exception):
         get_single_directional_rotation_matrix(3, jnp.pi / 2)
-    
+
     with pytest.raises(Exception):
         get_single_directional_rotation_matrix(-1, jnp.pi / 2)
 
@@ -195,6 +196,6 @@ def test_rotate_vector_combined_rotations():
     azimuth = jnp.pi / 4  # 45 degrees
     elevation = jnp.pi / 4  # 45 degrees
     result = rotate_vector(vector, azimuth, elevation, axes_tuple)
-    
+
     # Result should be normalized (assuming input was normalized)
     assert jnp.allclose(jnp.linalg.norm(result), 1.0, atol=1e-6)

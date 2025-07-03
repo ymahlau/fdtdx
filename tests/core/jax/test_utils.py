@@ -23,27 +23,18 @@ def test_check_specs_single_array_wrong_shape():
 
 def test_check_specs_dict_arrays_correct_shapes():
     """Test check_specs with a dictionary of arrays that have correct shapes."""
-    arrays = {
-        "a": jnp.array([[1, 2], [3, 4]]),
-        "b": jnp.array([1, 2, 3])
-    }
-    expected_shapes = {
-        "a": (2, 2),
-        "b": (3,)
-    }
+    arrays = {"a": jnp.array([[1, 2], [3, 4]]), "b": jnp.array([1, 2, 3])}
+    expected_shapes = {"a": (2, 2), "b": (3,)}
     # Should not raise an exception
     check_specs(arrays, expected_shapes)
 
 
 def test_check_specs_dict_arrays_wrong_shapes():
     """Test check_specs with a dictionary of arrays that have wrong shapes."""
-    arrays = {
-        "a": jnp.array([[1, 2], [3, 4]]),
-        "b": jnp.array([1, 2, 3])
-    }
+    arrays = {"a": jnp.array([[1, 2], [3, 4]]), "b": jnp.array([1, 2, 3])}
     expected_shapes = {
         "a": (2, 2),
-        "b": (4,)  # Wrong shape
+        "b": (4,),  # Wrong shape
     }
     with pytest.raises(Exception):
         check_specs(arrays, expected_shapes)
@@ -75,27 +66,18 @@ def test_check_shape_dtype_single_array_wrong_dtype():
 
 def test_check_shape_dtype_dict_arrays_correct():
     """Test check_shape_dtype with a dictionary of arrays that have correct shapes and dtypes."""
-    arrays = {
-        "a": jnp.array([[1, 2], [3, 4]], dtype=jnp.float32),
-        "b": jnp.array([1, 2, 3], dtype=jnp.int32)
-    }
-    expected_shape_dtypes = {
-        "a": jax.ShapeDtypeStruct((2, 2), jnp.float32),
-        "b": jax.ShapeDtypeStruct((3,), jnp.int32)
-    }
+    arrays = {"a": jnp.array([[1, 2], [3, 4]], dtype=jnp.float32), "b": jnp.array([1, 2, 3], dtype=jnp.int32)}
+    expected_shape_dtypes = {"a": jax.ShapeDtypeStruct((2, 2), jnp.float32), "b": jax.ShapeDtypeStruct((3,), jnp.int32)}
     # Should not raise an exception
     check_shape_dtype(arrays, expected_shape_dtypes)
 
 
 def test_check_shape_dtype_dict_arrays_wrong_shape():
     """Test check_shape_dtype with a dictionary of arrays that have wrong shapes."""
-    arrays = {
-        "a": jnp.array([[1, 2], [3, 4]], dtype=jnp.float32),
-        "b": jnp.array([1, 2, 3], dtype=jnp.int32)
-    }
+    arrays = {"a": jnp.array([[1, 2], [3, 4]], dtype=jnp.float32), "b": jnp.array([1, 2, 3], dtype=jnp.int32)}
     expected_shape_dtypes = {
         "a": jax.ShapeDtypeStruct((2, 2), jnp.float32),
-        "b": jax.ShapeDtypeStruct((4,), jnp.int32)  # Wrong shape
+        "b": jax.ShapeDtypeStruct((4,), jnp.int32),  # Wrong shape
     }
     with pytest.raises(Exception):
         check_shape_dtype(arrays, expected_shape_dtypes)

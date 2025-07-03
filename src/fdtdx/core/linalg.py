@@ -141,7 +141,7 @@ def rotate_vector(
     raw_vector = global_to_raw_basis @ vector
     rotated = rotation_basis @ raw_vector
     global_rotated = raw_to_global_basis @ rotated
-    
+
     global_rotated = global_rotated / jnp.linalg.norm(global_rotated)
     global_rotated = global_rotated * jnp.linalg.norm(vector)
 
