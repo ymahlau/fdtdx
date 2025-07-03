@@ -35,6 +35,8 @@ def calculate_time_offset_yee(
 ) -> tuple[jax.Array, jax.Array]:
     if inv_permittivities.squeeze().ndim != 2 or inv_permittivities.ndim != 3:
         raise Exception(f"Invalid permittivity shape: {inv_permittivities.shape=}")
+    if 1 not in inv_permittivities.shape:
+        raise Exception(f"Expected one axis to be one, but got {inv_permittivities.shape}")
     # phase variation
     x, y, z = jnp.meshgrid(
         jnp.arange(inv_permittivities.shape[0]),

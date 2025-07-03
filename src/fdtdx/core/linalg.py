@@ -21,9 +21,9 @@ def get_orthogonal_vector(
     direction: Literal["+", "-"] | None = None,
     propagation_axis: int | None = None,
 ) -> jax.Array:
-    if v_E is None == v_H is None:
+    if (v_E is None) == (v_H is None):
         raise Exception(f"Invalid input to orthogonal vector computation: {v_E=}, {v_H=}")
-    if (direction is None and propagation_axis is None) == wave_vector is None:
+    if (direction is None and propagation_axis is None) == (wave_vector is None):
         raise Exception(
             f"Invalid input to orthogonal vector computation: {direction=}, {propagation_axis=}, {wave_vector=}"
         )
@@ -133,6 +133,7 @@ def rotate_vector(
     )
     v = el_matrix @ jnp.asarray([0, 1, 0], dtype=jnp.float32)
     w = jnp.cross(u, v)
+    w = w / jnp.linalg.norm(w)
 
     rotation_basis = jnp.stack((u, v, w), axis=0)
 
@@ -140,5 +141,8 @@ def rotate_vector(
     raw_vector = global_to_raw_basis @ vector
     rotated = rotation_basis @ raw_vector
     global_rotated = raw_to_global_basis @ rotated
+
+    global_rotated = global_rotated / jnp.linalg.norm(global_rotated)
+    global_rotated = global_rotated * jnp.linalg.norm(vector)
 
     return global_rotated
