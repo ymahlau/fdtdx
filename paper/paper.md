@@ -35,7 +35,7 @@ It provides a simple user interface for specifying a simulation scene and tools 
 # Statement of Need
 
 FDTDX implements the FDTD algorithm, which aims to simulate maxwell's equations $\frac{\partial H}{\partial t} = - \frac{1}{\mu} \nabla \times E$ and $\frac{\partial E}{\partial t} = \frac{1}{\epsilon} \nabla \times H$, where $E$ and $H$ are the electric and magnetic field components.
-This algorithm has been used in a number of research applications, for example in the field of photonic integrated circuits [augenstein2020inverse], optical computing[@mahlau2025multi] or quantum computing [@larsen2025integrated].
+This algorithm has been used in a number of research applications, for example in the field of photonic integrated circuits [augenstein2020inverse], optical computing [@mahlau2025multi] or quantum computing [@larsen2025integrated].
 
 The FDTD algorithm has been well known for a long time and a number of open source packages already implement it.
 However, most previous packages implement the algorithm only for CPU, while GPU acceleration offers massive speedups.
@@ -43,7 +43,7 @@ Additionally, the implementation of the FDTD algorithm in JAX allows for automat
 This makes it easy to automatically optimize optical components using gradient descent.
 
 A non-exhaustive list of FDTD implementations must include the popular Meep [@meep], which was developed almost 20 years ago for execution on CPU and is still widely used today.
-Other frameworks for CPU only execution include OpenEMS [@openEMS], fdtd[@fdtd_laporte] and Ceviche [@ceviche].
+Other frameworks for CPU only execution include OpenEMS [@openEMS], fdtd [@fdtd_laporte] and Ceviche [@ceviche].
 Existing open-source packages that support execution on GPU are Khronos [@khronos] and FDTD-Z [@fdtdz], but both package are not maintained.
 Additionally, there exist various commercial implementations of FDTD.
 Notably, Tidy3D [@tidy3d] is an extremely fast commercial software due to its GPU acceleration.
@@ -114,11 +114,13 @@ Additionally, lossy materials are currently only partially supported.
 
 The full API and tutorials can be found at the FDTDX [documentation](https://ymahlau.github.io/fdtdx/). 
 The source code is publicly available via the corresponding [Github respository](https://github.com/ymahlau/fdtdx).
-Additionally, our conference paper on large-scale FDTD simulations[@mahlau2025flexible] gives a good introduction on use cases for FDTDX.
+Additionally, our conference paper on large-scale FDTD simulations [@mahlau2025flexible] gives a good introduction to FDTDX.
 
 # Acknowledgements
 
-We acknowledge contributions from Antonio Calà Lesina, Reinhard Caspary and Konrad Bethmann for understanding the physics behind Maxwell's equations and how to implement them within FDTD. Additionally, we acknowledge Fabian Hartmann for the initial idea of implementing a GPU accelerated FDTD algorithm.
+We acknowledge contributions from [Antonio Calà Lesina](https://www.hot.uni-hannover.de/de/calalesina), [Reinhard Caspary](https://www.phoenixd.uni-hannover.de/de/caspary) and [Konrad Bethmann](https://www.tnt.uni-hannover.de/de/staff/bethmann/) for understanding the physics behind Maxwell's equations and how to implement them within FDTD. 
+Additionally, we acknowledge [Fabian Hartmann](https://www.tnt.uni-hannover.de/de/staff/hartmann/) for the initial idea of implementing a GPU accelerated FDTD algorithm.
+Moreover, community contributions from [Marko Simic](https://github.com/msimicphysics), [Tianxiang Dai](https://github.com/txdai) and [Robin Giesecke](https://github.com/TheDarkchip) improved features of FDTDX.
 
 This work was supported by the Federal Ministry of Education and Research (BMBF), Germany under the AI service center KISSKI (grant no. 01IS22093C), the Lower Saxony Ministry of Science and Culture (MWK) through the zukunft.niedersachsen program of the Volkswagen Foundation and the Deutsche Forschungsgemeinschaft (DFG) under Germany’s Excellence Strategy within the Cluster of Excellence PhoenixD (EXC 2122) and (RO2497/17-1). Additionally, this was funded by the Deutsche Forschungsgemeinschaft (DFG, German Research Foundation) – 517733257.
 
