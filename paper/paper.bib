@@ -12,7 +12,6 @@
   urldate = {2024-03-01}
 }
 
-
 @article{ceviche,
 title={Forward-Mode Differentiation of Maxwell’s Equations},
 author={Hughes, Tyler W and Williamson, Ian AD and Minkov, Momchil and Fan, Shanhui},
@@ -24,11 +23,19 @@ year={2019},
 publisher={ACS Publications}
 }
 
-@misc{lumerical,
-title = {{FDTD} Solution, A Commercial Professional Software},
-author = {{Lumerical Solution Inc.}},
-howpublished = {https://www.lumerical.com},
-year={2024}
+@misc{fdtdz,
+    author = {Lu, Jesse and Vučković, Jelena},
+    title = {fdtd-z : A systolic scheme for GPU-accelerated nanophotonic simulation},
+    url = {https://github.com/spinsphotonics/fdtdz},
+    howpublished = {https://github.com/spinsphotonics/fdtdz},
+    year = {2024}
+}
+
+@misc{tidy3d,
+  title = {Tidy3D: hardware-accelerated electromagnetic solver for fast simulations at scale},
+  author = {{Flexcompute}},
+  howpublished = {https://www.flexcompute.com/download-whitepaper/},
+  year={2022}
 }
 
 @article{meep,
@@ -45,40 +52,64 @@ author = {Ardavan F. Oskooi and David Roundy and Mihai Ibanescu and Peter Bermel
 keywords = {Computational electromagnetism, FDTD, Maxwell solver}
 }
 
-@misc{OmniSim,
-title= {OmniSim: Omni-directional photonic simulations},
-author = {{Photon Design}},
-howpublished = {https://www.photond.com},
+@misc{openEMS,
+  author = {Thorsten Liebig},
+  title = {openEMS - Open Electromagnetic Field Solver},
+  organization = {General and Theoretical Electrical Engineering (ATE), University of Duisburg-Essen},
+  url = {https://www.openEMS.de},
+  howpublished = {https://www.openEMS.de},
+  year = {2024}
+}
+
+@misc{fdtd_laporte,
+    author = {Laporte, Floris},
+    title = {Python 3D FDTD Simulator},
+    url = {https://github.com/flaport/fdtd},
+    howpublished = {https://github.com/flaport/fdtd},
+    year = {2024}
+}
+
+@misc{luminescent,
+author = {Paul Shen},
+title = {Luminescent AI},
+howpublished = {https://github.com/paulxshen/Luminescent.jl},
 year = {2024},
 }
 
-@misc{tidy3d,
-title = {Tidy3D: hardware-accelerated electromagnetic solver for fast simulations at scale},
-author = {{Flexcompute}},
-howpublished = {https://www.flexcompute.com/download-whitepaper/},
-year={2022}
+@misc{khronos,
+author = {Alec Hammond},
+title = {Khronos},
+howpublished = {https://github.com/facebookresearch/Khronos.jl},
+year = {2024},
 }
 
-
-@article{cpml,
-author = {Roden, J. Alan and Gedney, Stephen D.},
-title = {Convolution PML (CPML): An efficient FDTD implementation of the CFS–PML for arbitrary media},
-journal = {Microwave and Optical Technology Letters},
-volume = {27},
-number = {5},
-pages = {334-339},
-keywords = {finite-difference time domain (FDTD), perfectly matched layer (PML), stretched coordinates},
-doi = {https://doi.org/10.1002/1098-2760(20001205)27:5<334::AID-MOP14>3.0.CO;2-A},
-url = {https://onlinelibrary.wiley.com/doi/abs/10.1002/1098-2760%2820001205%2927%3A5%3C334%3A%3AAID-MOP14%3E3.0.CO%3B2-A},
-eprint = {https://onlinelibrary.wiley.com/doi/pdf/10.1002/1098-2760%2820001205%2927%3A5%3C334%3A%3AAID-MOP14%3E3.0.CO%3B2-A},
-year = {2000}
+@book{taflove,
+  address = {Norwood},
+  author = {Taflove, Allen and Hagness, Susan C.},
+  edition = {3rd},
+  keywords = {EM FDTD textbook},
+  publisher = {Artech House},
+  timestamp = {2011-05-09T14:57:54.000+0200},
+  title = {Computational electrodynamics: the finite-difference time-domain method},
+  year = 2005
 }
+
 
 @article{mahlau2025multi,
   title={Multi-Agent Reinforcement Learning for Inverse Design in Photonic Integrated Circuits},
   author={Mahlau, Yannik and Schier, Maximilian and Reinders, Christoph and Schubert, Frederik and B{\"u}gling, Marco and Rosenhahn, Bodo},
   journal={arXiv preprint arXiv:2506.18627},
   year={2025}
+}
+
+@inproceedings{mahlau2025flexible,
+  title={A flexible framework for large-scale FDTD simulations: open-source inverse design for 3D nanostructures},
+  author={Mahlau, Yannik and Schubert, Frederik and Bethmann, Konrad and Caspary, Reinhard and Lesina, Antonio Cal{\`a} and Munderloh, Marco and Ostermann, J{\"o}rn and Rosenhahn, Bodo},
+  booktitle={Photonic and Phononic Properties of Engineered Nanostructures XV},
+  volume={13377},
+  pages={40--52},
+  year={2025},
+  organization={SPIE}
 }
 
 @article{schubertmahlau2025quantized,
@@ -97,3 +128,36 @@ year = {2000}
   year={2025},
   publisher={Nature Publishing Group}
 }
+
+@article{augenstein2020inverse,
+  title={Inverse design of nanophotonic devices with structural integrity},
+  author={Augenstein, Yannick and Rockstuhl, Carsten},
+  journal={ACS photonics},
+  volume={7},
+  number={8},
+  pages={2190--2196},
+  year={2020},
+  publisher={ACS Publications}
+}
+
+@INPROCEEDINGS{metamaterial,
+  author={Yadav, Radha and Chowdhury, Rajib},
+  booktitle={2024 IEEE Microwaves, Antennas, and Propagation Conference (MAPCON)}, 
+  title={Impact of unit cell variation on visible spectrum multiband metamaterial absorbers}, 
+  year={2024},
+  volume={},
+  number={},
+  pages={1-5},
+  doi={10.1109/MAPCON61407.2024.10923310}
+}
+
+@article{cpml,
+author = {Roden, J. Alan and Gedney, Stephen D.},
+title = {Convolution PML (CPML): An efficient FDTD implementation of the CFS–PML for arbitrary media},
+journal = {Microwave and Optical Technology Letters},
+volume = {27},
+number = {5},
+pages = {334-339},
+year = {2000}
+}
+

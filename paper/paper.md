@@ -32,37 +32,82 @@ FDTDX is an efficient implementation of the FDTD method with GPU acceleration th
 It provides a simple user interface for specifying a simulation scene and tools for inverse design of geometric components using automatic differentiation.
 
 
-# Statement of need
+# Statement of Need
 
-FDTDX implements the FDTD algorithm, which aims to simulate maxwell's equations $\frac{\partial H}{\partial t} = - \frac{1}{\mu} \nabla \times E$ and $\frac{\partial E}{\partial t} = \frac{1}{\epsilon} \nabla \times H$.
-It discretizes the differential equations in space and time according to the Yee grid [@kaneyeeNumericalSolutionInitial1966].
-This algorithm has been used in a number of research applications, for example in the field of photonic integrated circuits [@schubertmahlau2025quantized], optical computing[@mahlau2025multi] or quantum computing [@larsen2025integrated].
+FDTDX implements the FDTD algorithm, which aims to simulate maxwell's equations $\frac{\partial H}{\partial t} = - \frac{1}{\mu} \nabla \times E$ and $\frac{\partial E}{\partial t} = \frac{1}{\epsilon} \nabla \times H$, where $E$ and $H$ are the electric and magnetic field components.
+This algorithm has been used in a number of research applications, for example in the field of photonic integrated circuits [augenstein2020inverse], optical computing[@mahlau2025multi] or quantum computing [@larsen2025integrated].
 
 The FDTD algorithm has been well known for a long time and a number of open source packages already implement it.
-However, due to their age, most previous packages implement the algorithm only for CPU, while GPU acceleration offers massive speedups.
+However, most previous packages implement the algorithm only for CPU, while GPU acceleration offers massive speedups.
+Additionally, the implementation of the FDTD algorithm in JAX allows for automatic differentiation using a specialized algorithm based on the time reversibility of Maxwell's equations [@schubertmahlau2025quantized].
+This makes it easy to automatically optimize optical components using gradient descent.
+
+A non-exhaustive list of FDTD implementations must include the popular Meep [@meep], which was developed almost 20 years ago for execution on CPU and is still widely used today.
+Other frameworks for CPU only execution include OpenEMS [@openEMS], fdtd[@fdtd_laporte] and Ceviche [@ceviche].
+Existing open-source packages that support execution on GPU are Khronos [@khronos] and FDTD-Z [@fdtdz], but both package are not maintained.
+Additionally, there exist various commercial implementations of FDTD.
+Notably, Tidy3D [@tidy3d] is an extremely fast commercial software due to its GPU acceleration.
+A comparison between the different software frameworks can be seen in Table 1.
+
++-------------------+------------+----------+----------+----------+----------+
+| Feature           | Meep       | Ceviche  | openEMS  | Tidy3D   |FDTDX     |
+|                   |            |          |          |          |          |
++:=================:+:==========:+:========:+:========:+:========:|:========:|
+| 3D-Simulation     | yes        | yes      | yes      | yes      | yes      |
++-------------------+------------+----------+----------+----------+----------+
+| Open-Source       | yes        | yes      | yes      | no       | yes      |
++-------------------+------------+----------+----------+----------+----------+
+| Time Reversibility| no         | no       | no       | no       | yes      |
++-------------------+ -----------+----------+----------|----------+----------+
+| GPU/TPU-capable   | no         | no       | no       | yes      | yes      |
++===================+============+==========+==========+==========+==========+
+| Table 1: Feature Comparison between different FDTD Software frameworks     |
++============================================================================+
 
 
+# Implementation 
 
+As the name suggests, the Finite-Difference Time-Domain (FDTD) algorithm discretizes Maxwell's equations in space and time.
+To compute the curl operation efficiently using only a single finite difference, the electric and magnetic fields are staggered in both space and time according to the Yee grid [@kaneyeeNumericalSolutionInitial1966].
+Given an initial electric and magnetic field, the fields are updated in a leapfrog pattern.
+Firstly, the electric field is updated based on the magnetic field.
+Afterwards, the newly computed electric field is used to update the magnetic field.
+The staggering through the yee grids makes these updates very efficient, but as a consequence fields need to be interpolated for accurate measurements.
+In FDTDX, physical values can be measured through different detectors, which automatically implement this interpolation.
 
-<!-- `Gala` is an Astropy-affiliated Python package for galactic dynamics. Python
-enables wrapping low-level languages (e.g., C) for speed without losing
-flexibility or ease-of-use in the user-interface. The API for `Gala` was
-designed to provide a class-based and user-friendly interface to fast (C or
-Cython-optimized) implementations of common operations such as gravitational
-potential and force evaluation, orbit integration, dynamical transformations,
-and chaos indicators for nonlinear dynamics. `Gala` also relies heavily on and
-interfaces well with the implementations of physical units and astronomical
-coordinate systems in the `Astropy` package [@astropy] (`astropy.units` and
-`astropy.coordinates`).
+To inject light into the simulation, the Total-Field Scattered-Field (TFSF) [@taflove] formulation of a source is used in FDTDX. 
+This formulation allows injecting light in a single direction into the simulation.
+In contrast, a naive additive source implementation would emit light in both directions perpendicular to the injection plane.
 
-`Gala` was designed to be used by both astronomical researchers and by
-students in courses on gravitational dynamics or astronomy. It has already been
-used in a number of scientific publications [@Pearson:2017] and has also been
-used in graduate courses on Galactic dynamics to, e.g., provide interactive
-visualizations of textbook material [@Binney:2008]. The combination of speed,
-design, and support for Astropy functionality in `Gala` will enable exciting
-scientific explorations of forthcoming data releases from the *Gaia* mission
-[@gaia] by students and experts alike. -->
+To prevent unwanted reflections at the boundary of the simulation volume, there exist two different boundary conditions.
+A periodic boundary wraps around the simulation volume and automatically injects light leaving one side of the simulation volume on the other side again.
+This is useful for simulating large repeating areas through a single unit cell, for example in metamaterials [@metamaterial].
+Moreover, reflections can also be prevented by using an absorbing boundary condition, implemented in the form of convolutional perfectly matching layers [@cpml].
+
+In FDTDX, the specification of a simulation is made easy by the implementation of a constraint system.
+The position and size of sources, detectors or any other simulation objects can be specified using relative constraints.
+For example, it might make sense to position a detector next to a source for measuring the input energy in the simulation.
+If both detector and source are placed independently, then moving one of the objects requires also moving the other.
+With two objects this is manageable, but with more objects such adaptation quickly become a burden.
+In contrast, in FDTDX the position between these objects can be specified relative to each.
+In the example of source and detector object, moving one of these objects would automatically also move the other.
+Additionally, FDTDX implements utility functions to easily plot a visualization of the simulation scene.
+Such a visualization can be seen in Figure 1.
+
+![Figure 1: Visualization of a simulation scene using the ```fdtdx.plot_setup``` function.](img/scene.png)
+
+# Limitations and Future Work
+
+At the time of publication, FDTDX only supports simulation of linear, non-dispersive materials. 
+In the future, an implementation of dispersive material models [@taflove] is planned.
+Simulating non-linear materials is a difficult taks, which we would like to tackle, but will require significant effort.
+Additionally, lossy materials are currently only partially supported.
+
+# Further Information
+
+The full API and tutorials can be found at the FDTDX [documentation](https://ymahlau.github.io/fdtdx/). 
+The source code is publicly available via the corresponding [Github respository](https://github.com/ymahlau/fdtdx).
+Additionally, our conference paper on large-scale FDTD simulations[@mahlau2025flexible] gives a good introduction on use cases for FDTDX.
 
 # Acknowledgements
 
