@@ -49,7 +49,14 @@ Additionally, there exist various commercial implementations of FDTD.
 Notably, Tidy3D [@tidy3d] is an extremely fast commercial software due to its GPU acceleration.
 A comparison between the different software frameworks can be seen in Table 1.
 
-+-------------------+------------+----------+----------+----------+----------+
+| Feature | Meep | Ceviche | openEMS | Tidy3D | FDTDX |
+|---------|------|---------|---------|--------|-------|
+| 3D-Simulation | yes | yes | yes | yes | yes |
+| Open-Source | yes | yes | yes | no | yes |
+| Time Reversibility | no | no | no | no | yes |
+| GPU/TPU-capable | no | no | no | yes | yes |
+
+<!-- +-------------------+------------+----------+----------+----------+----------+
 | Feature           | Meep       | Ceviche  | openEMS  | Tidy3D   |FDTDX     |
 |                   |            |          |          |          |          |
 +:=================:+:==========:+:========:+:========:+:========:|:========:|
@@ -62,7 +69,7 @@ A comparison between the different software frameworks can be seen in Table 1.
 | GPU/TPU-capable   | no         | no       | no       | yes      | yes      |
 +===================+============+==========+==========+==========+==========+
 | Table 1: Feature Comparison between different FDTD Software frameworks     |
-+============================================================================+
++============================================================================+ -->
 
 
 # Implementation 
