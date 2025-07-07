@@ -24,12 +24,12 @@ class TemporalProfile(TreeClass, ABC):
         """Calculate the temporal amplitude at given time points.
 
         Args:
-            time: Time points to evaluate amplitude at
-            period: Period of the carrier wave (1/frequency)
-            phase_shift: Phase shift of the carrier wave
+            time (jax.Array): Time points to evaluate amplitude at
+            period (float): Period of the carrier wave (1/frequency)
+            phase_shift (float): Phase shift of the carrier wave
 
         Returns:
-            Amplitude values at the given time points
+            jax.Array: Amplitude values at the given time points
         """
         raise NotImplementedError()
 

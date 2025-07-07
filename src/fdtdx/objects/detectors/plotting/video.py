@@ -24,22 +24,6 @@ def plot_from_slices(
     plot_dpi: int | None,
     plot_interpolation: str,
 ):
-    """Creates a figure from 2D slices at a specific timestep using shared memory arrays.
-
-    Args:
-        slice_tuple: tuple of array slices in order xy, xz, yz
-        resolutions: Tuple of (dx, dy, dz) spatial resolutions in meters
-        minvals: Tuple of minimum values for colormap scaling
-        maxvals: Tuple of maximum values for colormap scaling
-        plot_dpi: DPI resolution for the figure. None uses default.
-        plot_interpolation: Interpolation method for imshow ('gaussian', 'nearest', etc)
-
-    Returns:
-        numpy.ndarray: RGB image data of the rendered figure
-    """
-    # xy_slice = sa.attach("shm://xy")[t, :, :]
-    # xz_slice = sa.attach("shm://xz")[t, :, :]
-    # yz_slice = sa.attach("shm://yz")[t, :, :]
     xy_slice, xz_slice, yz_slice = slice_tuple
 
     fig = plot_2d_from_slices(
@@ -75,16 +59,6 @@ def plot_from_slices(
 
 
 def _make_animation_frame(t: float | int, precomputed_figs, fps):
-    """Creates a single frame for the video animation.
-
-    Args:
-        t: Time point in seconds
-        precomputed_figs: List of precomputed figure arrays
-        fps: Frames per second of the video
-
-    Returns:
-        numpy.ndarray: RGB image data for the frame at time t
-    """
     t = int(t * fps)
     fig = precomputed_figs[t]
     return fig
@@ -103,25 +77,27 @@ def generate_video_from_slices(
     progress: Progress | None = None,
     minvals: tuple[float | None, float | None, float | None] = (None, None, None),
     maxvals: tuple[float | None, float | None, float | None] = (None, None, None),
-):
+) -> str:
     """Generates an MP4 video from time-series slice data using parallel processing.
 
     Creates a video visualization of electromagnetic field evolution over time by rendering
     2D slices through the XY, XZ and YZ planes for each timestep.
 
     Args:
-        xy_slice: 3D array containing XY plane slice data over time
-        xz_slice: 3D array containing XZ plane slice data over time
-        yz_slice: 3D array containing YZ plane slice data over time
-        plt_fn: Plotting function to generate each frame
-        resolutions: Tuple of (dx, dy, dz) spatial resolutions in meters
-        num_worker: Number of parallel worker processes
-        fps: Frames per second in output video
-        progress: Optional progress bar instance
-        minvals: Tuple of minimum values for colormap scaling. None values are auto-scaled.
-        maxvals: Tuple of maximum values for colormap scaling. None values are auto-scaled.
-        plot_dpi: DPI resolution for the figures. None uses default.
-        plot_interpolation: Interpolation method for imshow ('gaussian', 'nearest', etc)
+        xy_slice (np.ndarray): 3D array containing XY plane slice data over time
+        xz_slice (np.ndarray): 3D array containing XZ plane slice data over time
+        yz_slice (np.ndarray): 3D array containing YZ plane slice data over time
+        plt_fn (Callable): Plotting function to generate each frame
+        resolutions (tuple[float, float, float]): Tuple of (dx, dy, dz) spatial resolutions in meters
+        num_worker (int | None): Number of parallel worker processes. If None, frames are processes sequentially.
+        plot_interpolation (str): Interpolation method for imshow ('gaussian', 'nearest', etc)
+        plot_dpi (int | None): DPI resolution for the figures. None uses default.
+        fps (int): Frames per second in output video
+        progress (Progress | None, optional): Optional progress bar instance. Defaults to None.
+        minvals (tuple[float | None, float | None, float | None], optional): Tuple of minimum values for colormap
+            scaling. None values are auto-scaled. Defaults to (None, None, None)
+        maxvals (tuple[float | None, float | None, float | None]): Tuple of maximum values for colormap scaling.
+            None values are auto-scaled. Defaults to (None, None, None).
 
     Returns:
         str: Path to the generated MP4 video file

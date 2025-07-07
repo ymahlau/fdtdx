@@ -1,12 +1,12 @@
 import math
 from functools import partial
-from typing import Literal
 
 import jax
 import jax.numpy as jnp
 from jax.experimental import mesh_utils
 
 from fdtdx.constants import SHARD_STR
+from fdtdx.typing import BackendOption
 
 
 def get_named_sharding_from_shape(
@@ -16,14 +16,12 @@ def get_named_sharding_from_shape(
     """Creates a NamedSharding object for distributing an array across devices.
 
     Args:
-        shape: Shape of the array to be sharded
-        sharding_axis: Which axis to shard the array along
+        shape (tuple[int, ...]): Shape of the array to be sharded
+        sharding_axis (int): Which axis to shard the array along
 
     Returns:
-        NamedSharding object specifying how to distribute the array across available devices
-
-    Raises:
-        ValueError: If shape[sharding_axis] is not divisible by number of devices
+        jax.sharding.NamedSharding: NamedSharding object specifying how to distribute the array
+            across available devices.
     """
     compute_devices = jax.devices()
     num_dims = len(shape)
@@ -43,26 +41,10 @@ counter = 0
 
 
 def get_dtype_bytes(dtype: jnp.dtype) -> int:
-    """Get the size in bytes of a JAX dtype.
-
-    Args:
-        dtype: JAX dtype to get size of
-
-    Returns:
-        Number of bytes used by the dtype
-    """
     return jnp.dtype(dtype).itemsize
 
 
 def pretty_print_sharding(sharding: jax.sharding.Sharding) -> str:
-    """Returns a human-readable string representation of a sharding specification.
-
-    Args:
-        sharding: JAX sharding object to format
-
-    Returns:
-        String representation showing the sharding type and configuration
-    """
     if isinstance(sharding, jax.sharding.NamedSharding):
         return f"NamedSharding({sharding.mesh.devices}, {sharding.spec})"
     elif isinstance(sharding, jax.sharding.PositionalSharding):
@@ -78,7 +60,7 @@ def create_named_sharded_matrix(
     value: float,
     sharding_axis: int,
     dtype: jnp.dtype,
-    backend: Literal["gpu", "tpu", "cpu", "METAL"],
+    backend: BackendOption,
 ) -> jax.Array:
     """Creates a sharded matrix distributed across available devices.
 
@@ -86,14 +68,14 @@ def create_named_sharded_matrix(
     sharded across available devices along the specified axis.
 
     Args:
-        shape: Shape of the matrix to create
-        value: Value to fill the matrix with
-        sharding_axis: Which axis to shard along
-        dtype: Data type of the matrix elements
-        backend: Which device backend to use ("gpu", "tpu", or "cpu")
+        shape (tuple[int, ...]): Shape of the matrix to create
+        value (float): Value to fill the matrix with
+        sharding_axis (int): Which axis to shard along
+        dtype (jnp.dtype): Data type of the matrix elements
+        backend (BackendOption): Which device backend to use ("gpu", "tpu", or "cpu")
 
     Returns:
-        Sharded matrix distributed across devices
+        jax.Array: Sharded matrix distributed across devices
 
     Raises:
         ValueError: If shape[sharding_axis] is not divisible by number of devices

@@ -8,6 +8,7 @@ from loguru import logger
 from fdtdx import constants
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field
 from fdtdx.interfaces.recorder import Recorder
+from fdtdx.typing import BackendOption
 
 
 @autoinit
@@ -17,19 +18,19 @@ class GradientConfig(TreeClass):
     This class handles settings for automatic differentiation, supporting either
     invertible differentiation with a recorder or checkpointing-based differentiation.
 
-    Args:
-        recorder: Optional recorder for invertible differentiation. If provided,
-            invertible differentiation will be used.
-        num_checkpoints: Optional number of checkpoints for checkpointing-based
-            differentiation. If provided, checkpointing will be used.
+    Attributes:
+        method (Literal["reversible", "checkpointed"], optional): Method for gradient computation.
+            Can be either "reversible" when using the time reversible autodiff, or "checkpointed" for the exact
+            checkpointing algorithm.
+        recorder (Recorder | None, optional): Optional recorder for invertible differentiation. Needs to be provided for
+            reversible autodiff. Defaults to None
+        num_checkpoints (int | None, optional): Optional number of checkpoints for checkpointing-based
+            differentiation. Needs to be provided for checkpointing gradient computation. Defaults to None.
 
-    Raises:
-        Exception: If both recorder and num_checkpoints are provided, or if neither
-            is provided.
     """
 
     method: Literal["reversible", "checkpointed"] = frozen_field(default="reversible")
-    recorder: Recorder | None = None
+    recorder: Recorder | None = field(default=None)
     num_checkpoints: int | None = frozen_field(default=None)
 
     def __post_init__(self):
@@ -48,17 +49,17 @@ class SimulationConfig(TreeClass):
     and gradient computation settings.
 
     Attributes:
-        time: Total simulation time in seconds.
-        resolution: Spatial resolution of the simulation grid in meters.
-        backend: Computation backend ('gpu', 'tpu', 'cpu' or 'METAL').
-        dtype: Data type for numerical computations.
-        courant_factor: Safety factor for the Courant condition (default: 0.99).
-        gradient_config: Optional configuration for gradient computation.
+        time (float): Total simulation time in seconds.
+        resolution (float): Spatial resolution of the simulation grid in meters.
+        backend (BackendOption, optional): Computation backend ('gpu', 'tpu', 'cpu' or 'METAL'). Defaults to "gpu".
+        dtype (jnp.dtype, optional): Data type for numerical computations. Defaults to jnp.float32.
+        courant_factor (float, optional): Safety factor for the Courant condition (default: 0.99).
+        gradient_config (GradientConfig | None, optional): Optional configuration for gradient computation.
     """
 
     time: float = frozen_field()
     resolution: float = frozen_field()
-    backend: Literal["gpu", "tpu", "METAL", "cpu"] = frozen_field(default="gpu")
+    backend: BackendOption = frozen_field(default="gpu")
     dtype: jnp.dtype = frozen_field(default=jnp.float32)
     courant_factor: float = frozen_field(default=0.99)
     gradient_config: GradientConfig | None = field(default=None)

@@ -12,8 +12,8 @@ class RecordingState(TreeClass):
     Holds field data and state information for FDTD simulations.
 
     Attributes:
-        data: Dictionary mapping field names to their array values.
-        state: Dictionary mapping state variable names to their array values.
+        data (dict[str, jax.Array]): Dictionary mapping field names to their array values.
+        state (dict[str, jax.Array]): Dictionary mapping state variable names to their array values.
     """
 
     data: dict[str, jax.Array]
@@ -31,12 +31,12 @@ def init_recording_state(
     available devices based on the provided shapes/dtypes and backend.
 
     Args:
-        data_shape_dtypes: Dictionary mapping field names to their shape/dtype specs.
-        state_shape_dtypes: Dictionary mapping state names to their shape/dtype specs.
-        backend: Hardware backend to use ("gpu", "tpu", or "cpu").
+        data_shape_dtypes (dict[str, jax.ShapeDtypeStruct]): Dictionary mapping field names to their shape/dtype specs.
+        state_shape_dtypes (dict[str, jax.ShapeDtypeStruct]): Dictionary mapping state names to their shape/dtype specs.
+        backend (BackendOption): Hardware backend to use ("gpu", "tpu", or "cpu").
 
     Returns:
-        A new RecordingState instance with initialized sharded arrays.
+        RecordingState: A new RecordingState instance with initialized sharded arrays.
     """
     data = init_sharded_dict(data_shape_dtypes, backend=backend)
     state = init_sharded_dict(state_shape_dtypes, backend=backend)
@@ -56,11 +56,11 @@ def init_sharded_dict(
     shapes/dtypes and backend.
 
     Args:
-        shape_dtypes: Dictionary mapping names to shape/dtype specifications.
-        backend: Hardware backend to use ("gpu", "tpu", or "cpu").
+        shape_dtypes (dict[str, jax.ShapeDtypeStruct]): Dictionary mapping names to shape/dtype specifications.
+        backend (BackendOption): Hardware backend to use ("gpu", "tpu", or "cpu").
 
     Returns:
-        Dictionary mapping names to initialized sharded arrays.
+        dict[str, jax.Array]: Dictionary mapping names to initialized sharded arrays.
     """
     data = {}
     for k, v in shape_dtypes.items():

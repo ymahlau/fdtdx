@@ -40,7 +40,7 @@ class UniqueName(TreeClass):
         """Generate a unique name if none is provided.
 
         Args:
-            x: The proposed name or None
+            x (str | None): The proposed name or None
 
         Returns:
             str: Either the input name if provided, or a new unique name
@@ -62,13 +62,13 @@ class PositionConstraint:
     simulation volume relative to each other.
 
     Attributes:
-        object: The "child" object whose position is being adjusted
-        other_object: The "parent" object that serves as reference
-        axes: Which axes (x,y,z) this constraint applies to
-        object_positions: Relative positions on child object (-1 to 1)
-        other_object_positions: Relative positions on parent object (-1 to 1)
-        margins: Optional real-space margins between objects
-        grid_margins: Optional grid-space margins between objects
+        object (SimulationObject): The "child" object whose position is being adjusted
+        other_object (SimulationObject): The "parent" object that serves as reference
+        axes (tuple[int, ...]): Which axes (x,y,z) this constraint applies to
+        object_positions (tuple[float, ...]): Relative positions on child object (-1 to 1)
+        other_object_positions (tuple[float, ...]): Relative positions on parent object (-1 to 1)
+        margins (tuple[float, ...]): Optional real-space margins between objects
+        grid_margins (tuple[int, ...]): Optional grid-space margins between objects
     """
 
     object: "SimulationObject"  # "child" object, whose pos is adjusted
@@ -89,13 +89,13 @@ class SizeConstraint:
     sized relative to each other in the simulation.
 
     Attributes:
-        object: The "child" object whose size is being adjusted
-        other_object: The "parent" object that serves as reference
-        axes: Which axes of the child to constrain
-        other_axes: Which axes of the parent to reference
-        proportions: Size multipliers relative to parent
-        offsets: Additional real-space size offsets
-        grid_offsets: Additional grid-space size offsets
+        object (SimulationObject): The "child" object whose size is being adjusted
+        other_object (SimulationObject): The "parent" object that serves as reference
+        axes (tuple[int, ...]): Which axes of the child to constrain
+        other_axes (tuple[int, ...]): Which axes of the parent to reference
+        proportions (tuple[float, ...]): Size multipliers relative to parent
+        offsets (tuple[float, ...]): Additional real-space size offsets
+        grid_offsets (tuple[int, ...]): Additional grid-space size offsets
     """
 
     object: "SimulationObject"  # "child" object, whose size is adjusted
@@ -116,13 +116,13 @@ class SizeExtensionConstraint:
     along an axis.
 
     Attributes:
-        object: The object being extended
-        other_object: Optional target object to extend to
-        axis: Which axis to extend along
-        direction: Direction to extend ('+' or '-')
-        other_position: Relative position on target (-1 to 1)
-        offset: Additional real-space offset
-        grid_offset: Additional grid-space offset
+        object (SimulationObject): The object being extended
+        other_object (Optional["SimulationObject"]): Optional target object to extend to
+        axis (int): Which axis to extend along
+        direction (Literal["+", "-"]): Direction to extend ('+' or '-')
+        other_position (float): Relative position on target (-1 to 1)
+        offset (float): Additional real-space offset
+        grid_offset (int): Additional grid-space offset
     """
 
     object: "SimulationObject"  # "child" object, whose size is adjusted
@@ -142,10 +142,10 @@ class GridCoordinateConstraint:
     Used for precise positioning in the discretized simulation space.
 
     Attributes:
-        object: The object to position
-        axes: Which axes to constrain
-        sides: Which side of each axis ('+' or '-')
-        coordinates: Grid coordinates to align with
+        object (SimulationObject): The object to position
+        axes (tuple[int, ...]): Which axes to constrain
+        sides (tuple[Literal["+", "-"], ...]): Which side of each axis ('+' or '-')
+        coordinates (tuple[int, ...]): Grid coordinates to align with
     """
 
     object: "SimulationObject"
@@ -162,10 +162,10 @@ class RealCoordinateConstraint:
     Used for precise positioning in physical units.
 
     Attributes:
-        object: The object to position
-        axes: Which axes to constrain
-        sides: Which side of each axis ('+' or '-')
-        coordinates: Real-space coordinates to align with
+        object (SimulationObject): The object to position
+        axes (tuple[int, ...]): Which axes to constrain
+        sides (tuple[Literal["+", "-"], ...]): Which side of each axis ('+' or '-')
+        coordinates (tuple[float, ...]): Real-space coordinates to align with
     """
 
     object: "SimulationObject"
@@ -176,6 +176,32 @@ class RealCoordinateConstraint:
 
 @autoinit
 class SimulationObject(TreeClass, ABC):
+    """Abstract base class for objects in a 3D simulation environment.
+
+    This class provides the foundation for simulation objects with spatial properties and positioning capabilities
+    in both real and grid coordinate systems. It supports random positioning offsets.
+
+    Attributes:
+        partial_real_shape (PartialRealShape3D, optional): The object's shape in real-world
+            coordinates. Defaults to UNDEFINED_SHAPE_3D if not specified.
+        partial_grid_shape (PartialGridShape3D, optional): The object's shape in grid coordinates.
+            Defaults to UNDEFINED_SHAPE_3D if not specified.
+        color (tuple[float, float, float] | None, optional): RGB color values for the object,
+            where each component is in the interval [0, 1]. None indicates no color
+            is specified. Defaults to None.
+        name (str, optional): Unique identifier for the object. Automatically enforced to be
+            unique through the UniqueName validator. The user can also set a name manually.
+        max_random_real_offsets (tuple[float, float, float], optional): Maximum random offset
+            values that can be applied to the object's position in real coordinates
+            for each axis (x, y, z). Defaults to (0, 0, 0) for no random offset.
+        max_random_grid_offsets (tuple[int, int, int], optional): Maximum random offset values
+            that can be applied to the object's position in grid coordinates for each
+            axis (x, y, z). Defaults to (0, 0, 0) for no random offset.
+
+    Note:
+        This is an abstract base class and cannot be instantiated directly.
+    """
+
     partial_real_shape: PartialRealShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
     partial_grid_shape: PartialGridShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
     color: tuple[float, float, float] | None = frozen_field(default=None)  # RGB, interval[0, 1]
@@ -247,16 +273,6 @@ class SimulationObject(TreeClass, ABC):
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
     ) -> Self:
-        """Apply object-specific initialization and setup.
-
-        Args:
-            key: JAX random key for stochastic operations.
-            inv_permittivities: Inverse permittivity values.
-            inv_permeabilities: Inverse permeability values.
-
-        Returns:
-            Initialized source instance.
-        """
         del key, inv_permittivities, inv_permeabilities
         return self
 
@@ -274,12 +290,14 @@ class SimulationObject(TreeClass, ABC):
         i.e. a position of -1 is the left object boundary in the repective axis and a position of +1 the right boundary.
 
         Args:
-            other: Another object in the simulation scene
-            axes: Eiter a single integer or a tuple describing the axes of the constraints
-            own_positions: The positions of the own anchor in the axes. Must have the same lengths as axes
-            other_positions: The positions of the other objects' anchor in the axes. Must have the same lengths as axes
-            margins: The margins between the anchors of both objects in meters. Must have the same lengths as axes. Defaults to no margin
-            grid_margins: The margins between the anchors of both objects in Yee-grid voxels. Must have the same lengths as axes. Defaults to no margin
+            other (SimulationObject): Another object in the simulation scene
+            axes (tuple[int, ...] | int): Eiter a single integer or a tuple describing the axes of the constraints
+            own_positions (tuple[float, ...] | float): The positions of the own anchor in the axes. Must have the same lengths as axes
+            other_positions (tuple[float, ...] | float): The positions of the other objects' anchor in the axes. Must have the same lengths as axes
+            margins (tuple[float, ...] | float | None, optional): The margins between the anchors of both objects in
+                meters. Must have the same lengths as axes. If None, no margin is used. Defaults to None.
+            grid_margins (tuple[int, ...] | int | None, optional): The margins between the anchors of both objects
+                in Yee-grid voxels. Must have the same lengths as axes. If none, no margin is used. Defaults to None.
 
         Returns:
             PositionConstraint: Positional constraint between this object and the other
@@ -329,16 +347,18 @@ class SimulationObject(TreeClass, ABC):
         to another object, allowing for proportional scaling and offsets in specified axes.
 
         Args:
-            other: Another object in the simulation scene
-            axes: Either a single integer or a tuple describing which axes of this object to constrain
-            other_axes: Either a single integer or a tuple describing which axes of the other object to reference.
-                If None, uses the same axes as specified in 'axes'
-            proportions: Scale factors to apply to the other object's dimensions. Must have same length as axes.
-                If None, defaults to 1.0 (same size)
-            offsets: Additional size offsets in meters to apply after scaling. Must have same length as axes.
-                If None, defaults to 0
-            grid_offsets: Additional size offsets in Yee-grid voxels to apply after scaling. Must have same length as axes.
-                If None, defaults to 0
+            other (SimulationObject): Another object in the simulation scene
+            axes (tuple[int, ...] | int): Either a single integer or a tuple describing which axes of this object to
+                constrain.
+            other_axes (tuple[int, ...] | int | None, optional): Either a single integer or a tuple describing which
+                axes of the other object to reference. If None, uses the same axes as specified in 'axes'. Defaults
+                to None.
+            proportions (tuple[float, ...] | float | None, optional): Scale factors to apply to the other object's
+                dimensions. Must have same length as axes. If None, uses 1.0 (same size). Defaults to None.
+            offsets (tuple[float, ...] | float | None, optional): Additional size offsets in meters to apply after
+                scaling. Must have same length as axes. If None, no offset is used. Defaults to None.
+            grid_offsets (tuple[int, ...] | int | None, optional): Additional size offsets in Yee-grid voxels to
+                apply after scaling. Must have same length as axes. If None, no offset is used. Defaults to None.
 
         Returns:
             SizeConstraint: Size constraint between this object and the other
@@ -385,13 +405,13 @@ class SimulationObject(TreeClass, ABC):
         This is a convenience wrapper around size_relative_to() with proportions set to 1.0.
 
         Args:
-            other: Another object in the simulation scene
-            axes: Either a single integer or a tuple describing which axes should have the same size.
-                Defaults to all axes (0, 1, 2)
-            offsets: Additional size offsets in meters to apply. Must have same length as axes.
-                If None, defaults to 0
-            grid_offsets: Additional size offsets in Yee-grid voxels to apply. Must have same length as axes.
-                If None, defaults to 0
+            other (SimulationObject): Another object in the simulation scene
+            axes (tuple[int, ...] | int, optional): Either a single integer or a tuple describing which axes should
+                have the same size. Defaults to all axes (0, 1, 2).
+            offsets (tuple[float, ...] | float | None, optional): Additional size offsets in meters to apply.
+                Must have same length as axes. If None, no offset is used. Defaults to None.
+            grid_offsets (tuple[int, ...] | int | None, optional): Additional size offsets in Yee-grid voxels to
+                apply. Must have same length as axes. If None, no offset is used. Defaults to None.
 
         Returns:
             SizeConstraint: Size constraint ensuring equal sizes between objects
@@ -421,15 +441,17 @@ class SimulationObject(TreeClass, ABC):
         This is a convenience wrapper around place_relative_to() with default positions at the center (0).
 
         Args:
-            other: Another object in the simulation scene
-            axes: Either a single integer or a tuple describing which axes to center on.
-                Defaults to all axes (0, 1, 2)
-            own_positions: Relative positions on this object (-1 to 1). If None, defaults to center (0)
-            other_positions: Relative positions on other object (-1 to 1). If None, defaults to center (0)
-            margins: Additional margins in meters between objects. Must have same length as axes.
-                If None, defaults to 0
-            grid_margins: Additional margins in Yee-grid voxels between objects. Must have same length as axes.
-                If None, defaults to 0
+            other (SimulationObject): Another object in the simulation scene
+            axes (tuple[int, ...] | int, optional): Either a single integer or a tuple describing which axes to center
+                on. Defaults to all axes (0, 1, 2).
+            own_positions (tuple[float, ...] | float | None, optional): Relative positions on this object (-1 to 1).
+                If None, uses center (0). Defaults to None.
+            other_positions (tuple[float, ...] | float | None, optional): Relative positions on other object (-1 to 1).
+                If None, uses center (0). Defaults to None.
+            margins (tuple[float, ...] | float | None, optional): Additional margins in meters between objects.
+                Must have same length as axes. If None, no margin is used. Defaults to None.
+            grid_margins ( tuple[int, ...] | int | None, optional): Additional margins in Yee-grid voxels between
+                objects. Must have same length as axes. If None, no margin is used. Defaults to None.
 
         Returns:
             PositionConstraint: Position constraint centering objects relative to each other
@@ -459,9 +481,9 @@ class SimulationObject(TreeClass, ABC):
         This is a convenience wrapper combining place_at_center() and same_size().
 
         Args:
-            other: Another object in the simulation scene
-            axes: Either a single integer or a tuple describing which axes to match.
-                Defaults to all axes (0, 1, 2)
+            other (SimulationObject): Another object in the simulation scene
+            axes (tuple[int, ...] | int, optional): Either a single integer or a tuple describing which axes to match.
+                Defaults to all axes (0, 1, 2).
 
         Returns:
             tuple[PositionConstraint, SizeConstraint]: Position and size constraints for matching objects
@@ -487,12 +509,12 @@ class SimulationObject(TreeClass, ABC):
         of specified axes. The objects will touch at their facing boundaries unless margins are specified.
 
         Args:
-            other: Another object in the simulation scene
-            axes: Either a single integer or a tuple describing which axes to align on
-            margins: Additional margins in meters between the facing surfaces. Must have same length as axes.
-                If None, defaults to 0
-            grid_margins: Additional margins in Yee-grid voxels between the facing surfaces.
-                Must have same length as axes. If None, defaults to 0
+            other (SimulationObject): Another object in the simulation scene
+            axes (tuple[int, ...] | int): Either a single integer or a tuple describing which axes to align on
+            margins (tuple[float, ...] | float | None, optional): Additional margins in meters between the facing
+                surfaces. Must have same length as axes. If None, no margin is used. Defaults to None.
+            grid_margins (tuple[int, ...] | int | None, optional): Additional margins in Yee-grid voxels between the
+                facing surfaces. Must have same length as axes. If None, no margin is used. Defaults to None
 
         Returns:
             PositionConstraint: Position constraint aligning objects face-to-face in positive direction
@@ -522,12 +544,12 @@ class SimulationObject(TreeClass, ABC):
         of specified axes. The objects will touch at their facing boundaries unless margins are specified.
 
         Args:
-            other: Another object in the simulation scene
-            axes: Either a single integer or a tuple describing which axes to align on
-            margins: Additional margins in meters between the facing surfaces. Must have same length as axes.
-                If None, defaults to 0
-            grid_margins: Additional margins in Yee-grid voxels between the facing surfaces.
-                Must have same length as axes. If None, defaults to 0
+            other (SimulationObject): Another object in the simulation scene
+            axes (tuple[int, ...] | int): Either a single integer or a tuple describing which axes to align on
+            margins (tuple[float, ...] | float | None, optional): Additional margins in meters between the facing
+                surfaces. Must have same length as axes. If None, no margin is used. Defaults to None.
+            grid_margins (tuple[int, ...] | int | None, optional): Additional margins in Yee-grid voxels between the
+                facing surfaces. Must have same length as axes. If None, no margin is used. Defaults to None.
 
         Returns:
             PositionConstraint: Position constraint aligning objects face-to-face in negative direction
@@ -556,10 +578,11 @@ class SimulationObject(TreeClass, ABC):
         This is a convenience wrapper around face_to_face_positive_direction() for axis 2 (z-axis).
 
         Args:
-            other: Another object in the simulation scene
-            margins: Additional vertical margins in meters between objects. If None, defaults to 0
-            grid_margins: Additional vertical margins in Yee-grid voxels between objects.
-                If None, defaults to 0
+            other (SimulationObject): Another object in the simulation scene
+            margins (tuple[float, ...] | float | None, optional): Additional vertical margins in meters between objects.
+                If None, no margin is used. Defaults to None.
+            grid_margins (tuple[int, ...] | int | None, optional): Additional vertical margins in Yee-grid voxels
+                between objects. If None, no margin is used. Defaults to None.
 
         Returns:
             PositionConstraint: Position constraint placing this object above the other
@@ -582,10 +605,11 @@ class SimulationObject(TreeClass, ABC):
         This is a convenience wrapper around face_to_face_negative_direction() for axis 2 (z-axis).
 
         Args:
-            other: Another object in the simulation scene
-            margins: Additional vertical margins in meters between objects. If None, defaults to 0
-            grid_margins: Additional vertical margins in Yee-grid voxels between objects.
-                If None, defaults to 0
+            other (SimulationObject): Another object in the simulation scene
+            margins (tuple[float, ...] | float | None, optional): Additional vertical margins in meters between objects.
+                If None, no margin is used. Defaults to None.
+            grid_margins (tuple[int, ...] | int | None, optional): Additional vertical margins in Yee-grid voxels
+                between objects. If None, no margin is used. Defaults to None.
 
         Returns:
             PositionConstraint: Position constraint placing this object below the other
@@ -608,11 +632,11 @@ class SimulationObject(TreeClass, ABC):
         given grid coordinates. Used for precise positioning in the discretized simulation space.
 
         Args:
-            axes: Either a single integer or a tuple describing which axes to constrain
-            sides: Either a single string or a tuple of strings ('+' or '-') indicating which side
-                of each axis to constrain. Must have same length as axes
-            coordinates: Either a single integer or a tuple of integers specifying the grid coordinates
-                to align with. Must have same length as axes
+            axes (tuple[int, ...] | int): Either a single integer or a tuple describing which axes to constrain
+            sides (tuple[Literal["+", "-"], ...] | Literal["+", "-"]): Either a single string or a tuple of strings
+                ('+' or '-') indicating which side of each axis to constrain. Must have same length as axes.
+            coordinates (tuple[int, ...] | int): Either a single integer or a tuple of integers specifying the
+                grid coordinates to align with. Must have same length as axes.
 
         Returns:
             GridCoordinateConstraint: Constraint forcing alignment with specific grid coordinates
@@ -642,11 +666,11 @@ class SimulationObject(TreeClass, ABC):
         given real-space coordinates. Used for precise positioning in physical units.
 
         Args:
-            axes: Either a single integer or a tuple describing which axes to constrain
-            sides: Either a single string or a tuple of strings ('+' or '-') indicating which side
-                of each axis to constrain. Must have same length as axes
-            coordinates: Either a single float or a tuple of floats specifying the real-space coordinates
-                in meters to align with. Must have same length as axes
+            axes (tuple[int, ...] | int): Either a single integer or a tuple describing which axes to constrain
+            sides (tuple[Literal["+", "-"], ...] | Literal["+", "-"]): Either a single string or a tuple of
+                strings ('+' or '-') indicating which side of each axis to constrain. Must have same length as axes.
+            coordinates (tuple[float, ...] | float): Either a single float or a tuple of floats specifying the
+                real-space coordinates in meters to align with. Must have same length as axes.
 
         Returns:
             RealCoordinateConstraint: Constraint forcing alignment with specific real-space coordinates
@@ -668,7 +692,7 @@ class SimulationObject(TreeClass, ABC):
 
     def extend_to(
         self,
-        other: Optional["SimulationObject"],
+        other: "SimulationObject | None",
         axis: int,
         direction: Literal["+", "-"],
         other_position: float | None = None,
@@ -680,15 +704,16 @@ class SimulationObject(TreeClass, ABC):
         negative direction.
 
         Args:
-            other: Target object to extend to, or None to extend to simulation boundary
-            axis: Which axis to extend along (0, 1, or 2)
-            direction: Direction to extend in ('+' or '-')
-            other_position: Relative position on target object (-1 to 1) to extend to.
-                If None, defaults to the corresponding side (-1 for '+' direction, 1 for '-' direction)
-            offset: Additional offset in meters to apply after extension. Ignored when extending to
-                simulation boundary
-            grid_offset: Additional offset in Yee-grid voxels to apply after extension. Ignored when
-                extending to simulation boundary
+            other (SimulationObject | None): Target object to extend to, or None to extend to simulation boundary
+            axis (int): Which axis to extend along (0, 1, or 2)
+            direction (Literal["+", "-"]): Direction to extend in ('+' or '-')
+            other_position (float | None, optional): Relative position on target object (-1 to 1) to extend to.
+                If None, defaults to the corresponding side (-1 for '+' direction, 1 for '-' direction). Defaults to
+                None.
+            offset (float, optional): Additional offset in meters to apply after extension. Ignored when extending to
+                simulation boundary. Defaults to zero.
+            grid_offset (int, optional): Additional offset in Yee-grid voxels to apply after extension. Ignored when
+                extending to simulation boundary. Defaults to zero.
 
         Returns:
             SizeExtensionConstraint: Constraint defining how the object extends

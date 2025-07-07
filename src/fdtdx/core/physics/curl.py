@@ -14,12 +14,12 @@ def interpolate_fields(
     naturally staggered in the Yee grid.
 
     Args:
-        E_field: 4D tensor representing the electric field.
+        E_field (jax.Array): 4D tensor representing the electric field.
                 Dimensions are (width, depth, height, direction).
-        H_field: 4D tensor representing the magnetic field.
+        H_field (jax.Array): 4D tensor representing the magnetic field.
                 Dimensions are (width, depth, height, direction).
-        periodic_axes: Tuple of booleans indicating which axes use periodic boundaries.
-                      (periodic_x, periodic_y, periodic_z)
+        periodic_axes (tuple[bool, bool, bool], optional): Tuple of booleans indicating which axes use periodic
+            boundaries (periodic_x, periodic_y, periodic_z). Defaults to (False, False, False).
 
     Returns:
         tuple[jax.Array, jax.Array]: A tuple (E_interp, H_interp) containing:
@@ -79,11 +79,11 @@ def curl_E(E: jax.Array, periodic_axes: tuple[bool, bool, bool] = (False, False,
     (half-integer grid points).
 
     Args:
-        E: Electric field to take the curl of. A 4D tensor representing the E-type field
+        E (jax.Array): Electric field to take the curl of. A 4D tensor representing the E-type field
             located on the edges of the grid cell (integer gridpoints).
             Shape is (3, nx, ny, nz) for the 3 field components.
-        periodic_axes: Tuple of booleans indicating which axes use periodic boundaries.
-                      (periodic_x, periodic_y, periodic_z)
+        periodic_axes (tuple[bool, bool, bool], optional): Tuple of booleans indicating which axes use periodic
+            boundaries (periodic_x, periodic_y, periodic_z). Defaults to (False, False, False).
 
     Returns:
         jax.Array: The curl of E - an H-type field located on the faces of the grid
@@ -119,11 +119,11 @@ def curl_H(H: jax.Array, periodic_axes: tuple[bool, bool, bool] = (False, False,
     (integer grid points).
 
     Args:
-        H: Magnetic field to take the curl of. A 4D tensor representing the H-type field
+        H (jax.Array): Magnetic field to take the curl of. A 4D tensor representing the H-type field
             located on the faces of the grid (half-integer grid points).
             Shape is (3, nx, ny, nz) for the 3 field components.
-        periodic_axes: Tuple of booleans indicating which axes use periodic boundaries.
-                      (periodic_x, periodic_y, periodic_z)
+        periodic_axes (tuple[bool, bool, bool], optional): Tuple of booleans indicating which axes use periodic
+            boundaries (periodic_x, periodic_y, periodic_z). Defaults to (False, False, False).
 
     Returns:
         jax.Array: The curl of H - an E-type field located on the edges of the grid

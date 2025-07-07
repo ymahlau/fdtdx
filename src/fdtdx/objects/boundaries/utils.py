@@ -1,4 +1,4 @@
-from typing import Literal, Tuple
+from typing import Literal
 
 import jax
 import jax.numpy as jnp
@@ -7,12 +7,13 @@ import jax.numpy as jnp
 def compute_extent(
     kind: Literal["min_x", "max_x", "min_y", "max_y", "min_z", "max_z"],
     thickness: int,
-) -> Tuple[slice, slice, slice]:
+) -> tuple[slice, slice, slice]:
     """Computes slice objects for indexing the PML boundary region.
 
     Args:
-        kind: Which boundary to compute extent for ('min_x', 'max_x', etc)
-        thickness: Number of grid cells for PML thickness
+        kind (Literal["min_x", "max_x", "min_y", "max_y", "min_z", "max_z"]): Which boundary to compute extent for
+            ('min_x', 'max_x', etc).
+        thickness (int): Number of grid cells for PML thickness
 
     Returns:
         tuple[slice, slice, slice]: Three slice objects for indexing the x, y, z dimensions
@@ -38,14 +39,15 @@ def compute_extent(
 
 
 def compute_extent_boundary(
-    kind: Literal["minx", "maxx", "miny", "maxy", "minz", "maxz"],
+    kind: Literal["min_x", "max_x", "min_y", "max_y", "min_z", "max_z"],
     thickness: int,
-) -> Tuple[slice, slice, slice]:
+) -> tuple[slice, slice, slice]:
     """Computes slice objects for indexing the interface between PML and main simulation region.
 
     Args:
-        kind: Which boundary interface to compute ('minx', 'maxx', etc)
-        thickness: Number of grid cells for PML thickness
+        kind (Literal["min_x", "max_x", "min_y", "max_y", "min_z", "max_z"]): Which boundary interface to compute
+            ('minx', 'maxx', etc).
+        thickness (int): Number of grid cells for PML thickness
 
     Returns:
         tuple[slice, slice, slice]: Three slice objects for indexing the x, y, z dimensions
@@ -100,8 +102,8 @@ def sigma_fn(x: jax.Array, thickness: int) -> jax.Array:
     Implements σ(x) = 40x³/(thickness+1)⁴ profile for PML conductivity.
 
     Args:
-        x: Position values to compute conductivity for
-        thickness: Total thickness of PML region in grid cells
+        x (jax.Array): Position values to compute conductivity for
+        thickness (int): Total thickness of PML region in grid cells
 
     Returns:
         jax.Array: Conductivity values following cubic profile
@@ -113,8 +115,8 @@ def standard_min_sigma_E_fn(thickness: int, dtype: jnp.dtype) -> jax.Array:
     """Computes standard conductivity profile for E-field at minimum boundary.
 
     Args:
-        thickness: Number of grid cells for PML thickness
-        dtype: Data type for the returned array
+        thickness (int): Number of grid cells for PML thickness
+        dtype (jnp.dtype): Data type for the returned array
 
     Returns:
         jax.Array: Conductivity values for E-field, decreasing from boundary inward
@@ -129,8 +131,8 @@ def standard_min_sigma_H_fn(thickness: int, dtype: jnp.dtype) -> jax.Array:
     """Computes standard conductivity profile for H-field at minimum boundary.
 
     Args:
-        thickness: Number of grid cells for PML thickness
-        dtype: Data type for the returned array
+        thickness (int): Number of grid cells for PML thickness
+        dtype (jnp.dtype): Data type for the returned array
 
     Returns:
         jax.Array: Conductivity values for H-field, decreasing from boundary inward
@@ -145,8 +147,8 @@ def standard_max_sigma_E_fn(thickness: int, dtype: jnp.dtype) -> jax.Array:
     """Computes standard conductivity profile for E-field at maximum boundary.
 
     Args:
-        thickness: Number of grid cells for PML thickness
-        dtype: Data type for the returned array
+        thickness (int): Number of grid cells for PML thickness
+        dtype (jnp.dtype): Data type for the returned array
 
     Returns:
         jax.Array: Conductivity values for E-field, increasing from boundary inward
@@ -161,8 +163,8 @@ def standard_max_sigma_H_fn(thickness: int, dtype: jnp.dtype) -> jax.Array:
     """Computes standard conductivity profile for H-field at maximum boundary.
 
     Args:
-        thickness: Number of grid cells for PML thickness
-        dtype: Data type for the returned array
+        thickness (int): Number of grid cells for PML thickness
+        dtype (jnp.dtype): Data type for the returned array
 
     Returns:
         jax.Array: Conductivity values for H-field, increasing from boundary inward
@@ -182,19 +184,16 @@ def standard_sigma_from_direction_axis(
     """Computes standard conductivity profiles for E and H fields based on direction and axis.
 
     Args:
-        thickness: Number of grid cells for PML thickness
-        direction: Direction of PML boundary ("+" for max, "-" for min)
-        axis: Principal axis for PML (0=x, 1=y, 2=z)
-        dtype: Data type for the returned arrays
+        thickness (int): Number of grid cells for PML thickness
+        direction (Literal["+", "-"]): Direction of PML boundary ("+" for max, "-" for min)
+        axis (int): Principal axis for PML (0=x, 1=y, 2=z)
+        dtype (jnp.dtype): Data type for the returned arrays
 
     Returns:
-        tuple containing:
+        tuple[jax.Array, jax.Array]: tuple containing:
             - jax.Array: Conductivity values for E-field
             - jax.Array: Conductivity values for H-field
 
-    Raises:
-        Exception: If direction is not "+" or "-"
-        Exception: If axis is not 0, 1, or 2
     """
     # compute sigma values based on direction
     if direction == "-":
@@ -239,12 +238,12 @@ def kappa_from_direction_axis(
     """Computes kappa profile for PML boundary based on direction and axis.
 
     Args:
-        kappa_start: Initial kappa value at boundary interface
-        kappa_end: Final kappa value at outer boundary
-        thickness: Number of grid cells for PML thickness
-        direction: Direction of PML boundary ("+" for max, "-" for min)
-        axis: Principal axis for PML (0=x, 1=y, 2=z)
-        dtype: Data type for the returned array
+        kappa_start (float): Initial kappa value at boundary interface
+        kappa_end (float): Final kappa value at outer boundary
+        thickness (int): Number of grid cells for PML thickness
+        direction (Literal["+", "-"]): Direction of PML boundary ("+" for max, "-" for min)
+        axis (int): Principal axis for PML (0=x, 1=y, 2=z)
+        dtype (jnp.dtype): Data type for the returned array
 
     Returns:
         jax.Array: Kappa values linearly varying from start to end value
@@ -275,16 +274,12 @@ def axis_direction_from_kind(kind: str) -> tuple[int, Literal["+", "-"]]:
     """Extracts axis index and direction from boundary kind string.
 
     Args:
-        kind: Boundary identifier string (e.g. "min_x", "max_y", etc)
+        kind (str): Boundary identifier string (e.g. "min_x", "max_y", etc)
 
     Returns:
-        tuple containing:
+        tuple[int, Literal["+", "-"]]: tuple containing:
             - int: Axis index (0=x, 1=y, 2=z)
             - str: Direction ("+" for max, "-" for min)
-
-    Raises:
-        Exception: If kind does not contain valid axis identifier
-        Exception: If kind does not contain valid direction identifier
     """
     axis = -1
     if "_x" in kind:

@@ -49,13 +49,14 @@ def place_objects(
     """Places simulation objects according to specified constraints and initializes containers.
 
     Args:
-        volume: The volume object defining the simulation boundaries
-        config: The simulation configuration
-        constraints: Sequence of positioning and sizing constraints for objects
-        key: JAX random key for initialization
+        volume (SimulationObject): The volume object defining the simulation boundaries
+        config (SimulationConfig): The simulation configuration
+        constraints (Sequence[PositionConstraint| SizeConstraint| SizeExtensionConstraint| GridCoordinateConstraint| RealCoordinateConstraint]):
+            Sequence of positioning and sizing constraints for objects
+        key (jax.Array): JAX random key for initialization
 
     Returns:
-        A tuple containing:
+        tuple[ObjectContainer, ArrayContainer, ParameterContainer, SimulationConfig, dict[str, Any]]: A tuple containing
             - ObjectContainer with placed simulation objects
             - ArrayContainer with initialized field arrays
             - ParameterContainer with device parameters
@@ -129,13 +130,13 @@ def apply_params(
     """Applies parameters to devices and updates source states.
 
     Args:
-        arrays: Container with field arrays
-        objects: Container with simulation objects
-        params: Container with device parameters
-        key: JAX random key for source updates
-
+        arrays (ArrayContainer): Container with field arrays
+        objects (ObjectContainer): Container with simulation objects
+        params (ParameterContainer): Container with device parameters
+        key (jax.Array): JAX random key for source updates
+        **transform_kwargs: Keyword arguments passed to the parameter transformation.
     Returns:
-        A tuple containing:
+        tuple[ArrayContainer, ObjectContainer, dict[str, Any]]: A tuple containing:
             - Updated ArrayContainer with applied device parameters
             - Updated ObjectContainer with new source states
             - Dictionary with parameter application info
@@ -185,11 +186,11 @@ def _init_arrays(
     simulation objects and configuration.
 
     Args:
-        objects: Container with simulation objects
-        config: The simulation configuration
+        objects (ObjectContainer): Container with simulation objects
+        config (SimulationConfig): The simulation configuration
 
     Returns:
-        A tuple containing:
+        tuple[ArrayContainer, SimulationConfig, dict[str, Any]]: A tuple containing:
             - ArrayContainer with initialized arrays and states
             - Updated SimulationConfig
             - Dictionary with initialization info
@@ -280,24 +281,24 @@ def _init_arrays(
             mask = o.get_voxel_mask_for_shape()
 
             allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(o.materials))
-            diff = inv_permittivities[*o.grid_slice] - allowed_inv_perms[indices]
+            diff = allowed_inv_perms[indices] - inv_permittivities[*o.grid_slice]
             inv_permittivities = inv_permittivities.at[*o.grid_slice].add(mask * diff)
 
             if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
                 allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permeabilities(o.materials))
-                diff = inv_permeabilities[*o.grid_slice] - allowed_inv_perms[indices]
+                diff = allowed_inv_perms[indices] - inv_permeabilities[*o.grid_slice]
                 inv_permeabilities = inv_permeabilities.at[*o.grid_slice].add(mask * diff)
 
             if electric_conductivity is not None:
                 allowed_conds = jnp.asarray(compute_allowed_electric_conductivities(o.materials))
                 update = allowed_conds[indices] * config.resolution
-                diff = electric_conductivity[*o.grid_slice] - update
+                diff = update - electric_conductivity[*o.grid_slice]
                 electric_conductivity = electric_conductivity.at[*o.grid_slice].add(mask * diff)
 
             if magnetic_conductivity is not None:
                 allowed_conds = jnp.asarray(compute_allowed_magnetic_conductivities(o.materials))
                 update = allowed_conds[indices] * config.resolution
-                diff = magnetic_conductivity[*o.grid_slice] - update
+                diff = update - magnetic_conductivity[*o.grid_slice]
                 magnetic_conductivity = magnetic_conductivity.at[*o.grid_slice].add(mask * diff)
         else:
             raise Exception(f"Unknown object type: {o}")
@@ -354,11 +355,11 @@ def _init_params(
     """Initializes parameters for simulation devices.
 
     Args:
-        objects: Container with simulation objects
-        key: JAX random key for parameter initialization
+        objects (ObjectContainer): Container with simulation objects
+        key (jax.Array): JAX random key for parameter initialization
 
     Returns:
-        ParameterContainer with initialized device parameters
+        ParameterContainer: ParameterContainer with initialized device parameters
     """
     params = {}
     for d in objects.devices:
@@ -388,15 +389,13 @@ def _resolve_object_constraints(
     relative positioning, size relationships, and grid alignments.
 
     Args:
-        volume: The volume object defining simulation boundaries
-        constraints: Sequence of positioning and sizing constraints
-        config: The simulation configuration
+        volume (SimulationObject): The volume object defining simulation boundaries
+        constraints (Sequence[PositionConstraint| SizeConstraint| SizeExtensionConstraint | GridCoordinateConstraint | RealCoordinateConstraint]):
+            Sequence of positioning and sizing constraints
+        config (SimulationConfig): The simulation configuration
 
     Returns:
-        Dictionary mapping objects to their resolved grid slice tuples
-
-    Raises:
-        Exception: If constraints cannot be resolved or are inconsistent
+        dict[SimulationObject, SliceTuple3D]: Dictionary mapping objects to their resolved grid slice tuples
     """
     resolution = config.resolution
     # split constraints into seperate lists

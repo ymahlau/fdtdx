@@ -18,10 +18,12 @@ class PhasorDetector(Detector):
     The reconstruction itself can then be achieved using amplitude * jnp.cos(2 * jnp.pi * freq * t + phase).
 
     Attributes:
-        wave_characters: Sequence of WaveCharacters to analyze
-        reduce_volume: If True, reduces the volume of recorded data.
-        components: Sequence of field components to measure. Can include any of:
-            "Ex", "Ey", "Ez", "Hx", "Hy", "Hz".
+        wave_characters (Sequence[WaveCharacter]): WaveCharacters to analyze.
+        reduce_volume (bool, optional): If True, reduces the volume of recorded data. Defaults to False.
+        components (Sequence[Literal["Ex", "Ey", "Ez", "Hx", "Hy", "Hz"]]): Sequence of field components to measure.
+            Can include any of: "Ex", "Ey", "Ez", "Hx", "Hy", "Hz".
+        dtype (jnp.dtype, optional): data type of the saved fields. Defaults to jnp.complex64
+        plot (bool, optional): Wether to plot the measured data. Defaults to False.
     """
 
     wave_characters: Sequence[WaveCharacter] = field()

@@ -16,8 +16,8 @@ class PeriodicBoundaryState(BaseBoundaryState):
     Stores the field values at the opposite boundary for periodic wrapping.
 
     Attributes:
-        E_opposite: Electric field values from opposite boundary
-        H_opposite: Magnetic field values from opposite boundary
+        E_opposite (jax.Array): Electric field values from opposite boundary
+        H_opposite (jax.Array): Magnetic field values from opposite boundary
     """
 
     E_opposite: jax.Array
@@ -32,9 +32,9 @@ class PeriodicBoundary(BaseBoundary):
     making waves that exit one side reenter from the opposite side.
 
     Attributes:
-        axis: Principal axis for periodicity (0=x, 1=y, 2=z)
-        direction: Direction along axis ("+" or "-")
-        color: RGB color tuple for visualization
+        axis (int): Principal axis for periodicity (0=x, 1=y, 2=z)
+        direction (Literal["+", "-"]): Direction along axis ("+" or "-")
+        color (tuple[float, float, float] | None): RGB color tuple for visualization. Defaults to light blue.
     """
 
     axis: int = frozen_field()

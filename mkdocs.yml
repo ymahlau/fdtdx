@@ -7,32 +7,6 @@ edit_uri: edit/main/docs/
 repo_name: ymahlau/fdtdx
 copyright: Maintained by Yannik Mahlau
 
-nav:
-  - Home: index.md
-  - Tutorials:
-    - JAX in FDTDX: tutorials/jax_introduction.md
-    - Object Placement: tutorials/object_placement.md
-    - Materials Guide: tutorials/materials.md
-    - Fabrication Constraints: tutorials/parameter_mapping.md
-    - Interface Compression: tutorials/interface_compression.md
-  - API Reference:
-    - Overview: api/index.md
-    - Simulation Objects:
-      - Overview: api/objects/index.md
-      - Boundaries: api/objects/boundaries.md
-      - Detectors: api/objects/detectors.md
-      - Device: api/objects/device.md
-      - Objects: api/objects/object.md
-      - Sources: api/objects/sources.md
-      - Static Material: api/objects/static_material.md
-    - FDTD: api/fdtd.md
-    - Config: api/config.md
-    - Constants: api/constants.md
-    - Interfaces: api/interfaces.md
-    - Materials: api/materials.md
-    - Typing: api/typing.md
-    - Utils: api/utils.md
-    - Core: api/core.md
 plugins:
   - search
   - mkdocstrings:
@@ -40,48 +14,38 @@ plugins:
         python:
           paths: [src]
           options:
-            show_root_heading: true
             show_source: true
+            show_signature: true
+            show_signature_annotations: true
+            separate_signature: true
+            show_bases: true
+            merge_init_into_class: true
+            # inherited_members: true
+            group_by_category: true
+            show_category_heading: false
             docstring_style: google
+            show_root_heading: true
+            show_root_toc_entry: false
+  - mkdocs-jupyter:
+      include: ["docs/notebooks/*.ipynb"]
+  - awesome-nav
+
+theme:
+  name: readthedocs
+  logo: img/logo.png
+
 extra_css:
   - stylesheets/extra.css
-theme:
-  name: material
-  feature:
-    tabs: true
-  palette:
-    - media: "(prefers-color-scheme)"
-      toggle:
-        icon: material/brightness-auto
-        name: Switch to light mode
-    - media: "(prefers-color-scheme: light)"
-      scheme: astral-light
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
-    - media: "(prefers-color-scheme: dark)"
-      scheme: astral-dark
-      toggle:
-        icon: material/brightness-4
-        name: Switch to system preference
-  icon:
-    repo: fontawesome/brands/github
 
-extra:
-  social:
-    - icon: fontawesome/brands/github
-      link: https://github.com/ymahlau/fdtdx
-    - icon: fontawesome/brands/python
-      link: https://pypi.org/project/fdtdx
 markdown_extensions:
-  - toc:
-      permalink: true
+  - codehilite:
+      guess_lang: false
+  - admonition
   - pymdownx.arithmatex:
       generic: true
-  - pymdownx.highlight:
-      anchor_linenums: true
-      line_spans: __span
-      pygments_lang_class: true
-  - pymdownx.inlinehilite
-  - pymdownx.snippets
   - pymdownx.superfences
+
+# necessary for latex in docstrings
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js

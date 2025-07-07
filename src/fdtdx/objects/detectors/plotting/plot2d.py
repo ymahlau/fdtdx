@@ -14,21 +14,6 @@ def plot_2d_from_slices(
     plot_interpolation: str = "gaussian",
     plot_dpi: int | None = None,
 ) -> Figure:
-    """Creates a figure with three subplots showing 2D slices through a 3D volume.
-
-    Args:
-        xy_slice: 2D array containing the XY plane slice data
-        xz_slice: 2D array containing the XZ plane slice data
-        yz_slice: 2D array containing the YZ plane slice data
-        resolutions: Tuple of (dx, dy, dz) spatial resolutions in meters
-        minvals: Tuple of minimum values for colormap scaling. None values are auto-scaled.
-        maxvals: Tuple of maximum values for colormap scaling. None values are auto-scaled.
-        plot_interpolation: Interpolation method for imshow ('gaussian', 'nearest', etc)
-        plot_dpi: DPI resolution for the figure. None uses default.
-
-    Returns:
-        matplotlib.figure.Figure: Figure containing three subplots with the slices
-    """
     slices = [xy_slice, xz_slice, yz_slice]
     for a in range(3):
         if minvals[a] is None:
@@ -124,18 +109,6 @@ def plot_grads(
     grad_arr: np.ndarray,
     voxel_size: tuple[float, float, float],
 ) -> Figure:
-    """Creates a figure showing gradient array slices through each axis.
-
-    Takes a 3D gradient array and creates three 2D slice plots by averaging along each axis.
-    Uses plot_2d_from_slices() to generate the visualization.
-
-    Args:
-        grad_arr: 3D numpy array containing gradient values
-        voxel_size: Tuple of (dx, dy, dz) voxel sizes in meters
-
-    Returns:
-        matplotlib.figure.Figure: Figure containing averaged 2D slices through each axis
-    """
     xy_slice = grad_arr.mean(axis=2)
     xz_slice = grad_arr.mean(axis=1)
     yz_slice = grad_arr.mean(axis=0)

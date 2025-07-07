@@ -1,12 +1,9 @@
-from typing import Literal
-
 import jax
 
 
 def check_specs(
     arrays: dict[str, jax.Array] | jax.Array,
     expected_shapes: dict[str, tuple[int, ...]] | tuple[int, ...],
-    method: Literal["exact", "arrays_only"] = "exact",
 ):
     if isinstance(arrays, dict) != isinstance(expected_shapes, dict):
         arr_str = f"{arrays.shape}" if isinstance(arrays, jax.Array) else str(arrays.keys())
@@ -15,9 +12,9 @@ def check_specs(
         arrays = {"dummy": arrays}
     if not isinstance(expected_shapes, dict):
         expected_shapes = {"dummy": expected_shapes}
-    if method == "exact" and len(arrays) != len(expected_shapes):
+    if len(arrays) != len(expected_shapes):
         raise Exception(
-            f"Arrays and expected dict have different lengths: " f"{arrays.keys()=} \n\n but {expected_shapes=}"
+            f"Arrays and expected dict have different lengths: {arrays.keys()=} \n\n but {expected_shapes=}"
         )
     for k, arr in arrays.items():
         exp_shape = expected_shapes[k]
@@ -28,7 +25,6 @@ def check_specs(
 def check_shape_dtype(
     arrays: dict[str, jax.Array] | jax.Array,
     expected_shape_dtypes: dict[str, jax.ShapeDtypeStruct] | jax.ShapeDtypeStruct,
-    method: Literal["exact", "arrays_only"] = "exact",
 ):
     if isinstance(arrays, jax.Array) == isinstance(expected_shape_dtypes, dict):
         arr_str = f"{arrays.shape}" if isinstance(arrays, jax.Array) else str(arrays.keys())
@@ -37,7 +33,7 @@ def check_shape_dtype(
         arrays = {"dummy": arrays}
     if not isinstance(expected_shape_dtypes, dict):
         expected_shape_dtypes = {"dummy": expected_shape_dtypes}
-    if method == "exact" and len(arrays) != len(expected_shape_dtypes):
+    if len(arrays) != len(expected_shape_dtypes):
         raise Exception(
             f"Arrays and expected dict have different lengths: {arrays.keys()=} \n\n but {expected_shape_dtypes=}"
         )

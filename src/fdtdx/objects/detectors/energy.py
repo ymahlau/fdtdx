@@ -14,10 +14,15 @@ class EnergyDetector(Detector):
     full 3D data, 2D slices, or reduced volume measurements.
 
     Attributes:
-        as_slices: If True, returns energy measurements as 2D slices through the volume.
-        reduce_volume: If True, reduces the volume data to a single energy value.
-        x_slice, y_slice, z_slice: Optional real-world positions for slice extraction.
-        aggregate: If "mean", aggregates slices by averaging instead of using position.
+        as_slices (bool, optional): If True, returns energy measurements as 2D slices through the volume.
+            Defaults to False.
+        reduce_volume (bool, optional): If True, reduces the volume data to a single energy value.
+            Defaults to False.
+        x_slice (float | None, optional): real-world positions for slice extraction. Defaults to None.
+        y_slice (float | None, optional): real-world positions for slice extraction. Defaults to None.
+        z_slice (float | None, optional): real-world positions for slice extraction. Defaults to None.
+        aggregate (str | None, optional): If "mean", aggregates slices by averaging instead of using position.
+            If None, mean is used. Defaults to None.
     """
 
     as_slices: bool = frozen_field(default=False)

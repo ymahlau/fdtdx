@@ -29,19 +29,19 @@ class Detector(SimulationObject, ABC):
     and visualization of results.
 
     Attributes:
-        name (str): Unique identifier for the detector.
         dtype (jnp.dtype): Data type for detector arrays, defaults to float32.
-        exact_interpolation (bool): Whether to use exact field interpolation.
-        inverse (bool): Whether to record fields in inverse time order.
-        switch (OnOffSwitch): This switch controls the time steps that the detector is on, i.e. records data
-        plot (bool): Whether to generate plots of recorded data.
+        exact_interpolation (bool, optional): Whether to use exact field interpolation. Defaults to True.
+        inverse (bool, optional): Whether to record fields in inverse time order. Defaults to false.
+        switch (OnOffSwitch, optional): This switch controls the time steps that the detector is on, i.e. records data.
+            Defaults to all time steps.
+        plot (bool, optional): Whether to generate plots of recorded data. Defaults to true.
         if_inverse_plot_backwards (bool): Plot inverse data in reverse time order.
         num_video_workers (int | None): Number of workers for video generation. If None (default), then no
             multiprocessing is used. Note that the combination of multiprocessing and matplotlib is known to produce
             problems and can cause the entire system to freeze. It does make the video generation much faster though.
-        color (tuple[float, float, float]): RGB color for plotting.
-        plot_interpolation (str): Interpolation method for plots.
-        plot_dpi (int, optional): DPI resolution for plots.
+        color (tuple[float, float, float] | None, optional): RGB color for plotting. Defaults to light green.
+        plot_interpolation (str, optional): Interpolation method for plots. Defualts to "gaussian".
+        plot_dpi (int | None, optional): DPI resolution for plots. Defaults to None.
     """
 
     dtype: jnp.dtype = frozen_field(default=jnp.float32)
@@ -161,18 +161,15 @@ class Detector(SimulationObject, ABC):
         """Updates detector state with current field values.
 
         Args:
-            time_step: Current simulation time step.
-            E: Electric field array.
-            H: Magnetic field array.
-            state: Current detector state.
-            inv_permittivity: Inverse permittivity array.
-            inv_permeability: Inverse permeability array.
+            time_step (jax.Array): Current simulation time step.
+            E (jax.Array): Electric field array.
+            H (jax.Array): Magnetic field array.
+            state (DetectorState): Current detector state.
+            inv_permittivity (jax.Array): Inverse permittivity array.
+            inv_permeability (jax.Array | float): Inverse permeability array.
 
         Returns:
             DetectorState: Updated detector state.
-
-        Raises:
-            NotImplementedError: Must be implemented by subclasses.
         """
         del (
             time_step,
@@ -196,15 +193,12 @@ class Detector(SimulationObject, ABC):
         for time-varying data.
 
         Args:
-            state: Dictionary containing recorded field data arrays.
-            progress: Optional progress bar for video generation.
+            state (dict[str, np.ndarray]): Dictionary containing recorded field data arrays.
+            progress (Progress | None, optional): Optional progress bar for video generation.
 
         Returns:
             dict[str, Figure | str]: Dictionary mapping plot names to either
                 matplotlib Figure objects or paths to generated video files.
-
-        Raises:
-            Exception: If state is empty or contains arrays of inconsistent dimensions.
         """
         squeezed_arrs = {}
         squeezed_ndim = None

@@ -64,19 +64,6 @@ def reversible_fdtd(
     def reversible_fdtd_base(
         arr: ArrayContainer,
     ) -> SimulationState:
-        """Core implementation of reversible FDTD simulation.
-
-        Performs the main FDTD time-stepping loop using a while loop that respects
-        JAX's functional programming model.
-
-        Args:
-            arr: ArrayContainer with initial field state and material properties
-
-        Returns:
-            SimulationState tuple containing:
-                - Final time step
-                - ArrayContainer with final simulation state
-        """
         state = (jnp.asarray(0, dtype=jnp.int32), arr)
         state = eqxi.while_loop(
             max_steps=config.time_steps_total,
@@ -176,23 +163,6 @@ def reversible_fdtd(
         residual,
         cot,
     ):
-        """Backward pass for reversible FDTD simulation.
-
-        Implements the custom vector-Jacobian product for backpropagation through
-        the FDTD simulation by leveraging time-reversibility.
-
-        Args:
-            residual: Tuple containing the final simulation state including:
-                - Time step
-                - E, H field arrays
-                - Material properties
-                - Boundary and detector states
-                - Recording state
-            cot: Cotangent values for gradient computation
-
-        Returns:
-            Tuple of cotangent values for each input parameter
-        """
         (
             res_time_step,
             res_E,
@@ -241,24 +211,6 @@ def reversible_fdtd(
         detector_states: dict[str, DetectorState],
         recording_state: RecordingState | None,
     ):
-        """Forward pass for reversible FDTD simulation.
-
-        Performs the forward FDTD simulation and prepares residuals for the backward pass.
-
-        Args:
-            E: Electric field array
-            H: Magnetic field array
-            inv_permittivities: Inverse permittivity values
-            inv_permeabilities: Inverse permeability values
-            boundary_states: Dictionary mapping boundary names to their states
-            detector_states: Dictionary mapping detector names to their states
-            recording_state: Optional state for recording field evolution
-
-        Returns:
-            Tuple containing:
-                - Primal outputs (final simulation state)
-                - Residuals for backward pass
-        """
         arr = ArrayContainer(
             E=E,
             H=H,

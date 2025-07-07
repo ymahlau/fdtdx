@@ -30,13 +30,13 @@ def full_backward(
     Leverages time-reversibility of Maxwell's equations.
 
     Args:
-        state: Current simulation state tuple (time_step, arrays)
-        objects: Container with simulation objects (sources, detectors, etc)
-        config: Simulation configuration parameters
-        key: JAX PRNG key for random operations
-        record_detectors: Whether to record detector states
-        reset_fields: Whether to reset fields after each step
-        start_time_step: Time step to propagate back to (default: 0)
+        state (SimulationState): Current simulation state tuple (time_step, arrays)
+        objects (ObjectContainer): Container with simulation objects (sources, detectors, etc)
+        config (SimulationConfig): Simulation configuration parameters
+        key (jax.Array): JAX PRNG key for random operations
+        record_detectors (bool): Whether to record detector states
+        reset_fields (bool): Whether to reset fields after each step
+        start_time_step (int, optional): Time step to propagate back to (default: 0)
 
     Returns:
         SimulationState: Final state after backward propagation
@@ -72,13 +72,13 @@ def backward(
     Handles interfaces, field updates, optional field resetting, and detector recording.
 
     Args:
-        state: Current simulation state tuple (time_step, arrays)
-        config: Simulation configuration parameters
-        objects: Container with simulation objects (sources, detectors, etc)
-        key: JAX PRNG key for random operations
-        record_detectors: Whether to record detector states
-        reset_fields: Whether to reset fields after updates
-        fields_to_reset: Which fields to reset if reset_fields is True
+        state (SimulationState): Current simulation state tuple (time_step, arrays)
+        config (SimulationConfig): Simulation configuration parameters
+        objects (ObjectContainer): Container with simulation objects (sources, detectors, etc)
+        key (jax.Array): JAX PRNG key for random operations
+        record_detectors (bool): Whether to record detector states
+        reset_fields (bool): Whether to reset fields after updates
+        fields_to_reset (Sequence[str], optional): Which fields to reset if reset_fields is True. Defaults to ("E", "H").
 
     Returns:
         SimulationState: Updated state after one backward step

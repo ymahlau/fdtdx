@@ -14,11 +14,11 @@ class Sphere(StaticMultiMaterialObject):
     When all three radii are equal, the shape is a perfect sphere.
 
     Attributes:
-        radius: The default radius of the sphere in meter (used if specific axis radii are not provided).
-        material_name: Name of the material in the materials dictionary to be used for the object
-        radius_x: The radius along the x-axis in meter (optional, defaults to radius).
-        radius_y: The radius along the y-axis in meter (optional, defaults to radius).
-        radius_z: The radius along the z-axis in meter (optional, defaults to radius).
+        radius (float): The default radius of the sphere in meter (used if specific axis radii are not provided).
+        material_name (str): Name of the sphere material in the materials dictionary to be used for the object.
+        radius_x (float | None, optional): The radius along the x-axis in meter. If none, use radius. Defaults to None.
+        radius_y (float | None, optional): The radius along the y-axis in meter. If none, use radius. Defaults to None.
+        radius_z (float | None, optional): The radius along the z-axis in meter. If none, use radius. Defaults to None.
     """
 
     radius: float = frozen_field()

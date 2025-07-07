@@ -18,12 +18,12 @@ def collect_boundary_interfaces(
     boundary values that would otherwise be lost due to PML absorption.
 
     Args:
-        arrays: Container holding the field arrays (E, H fields)
-        pml_objects: Sequence of PML objects defining boundary regions
-        fields_to_collect: Which fields to collect values for (default: E and H fields)
+        arrays (ArrayContainer): Container holding the field arrays (E, H fields)
+        pml_objects (Sequence[PerfectlyMatchedLayer]): Sequence of PML objects defining boundary regions
+        fields_to_collect (Sequence[str], optional): Which fields to collect values for (default: E and H fields)
 
     Returns:
-        Dictionary mapping "{pml_name}_{field_str}" to array of interface field values
+        dict[str, jax.Array]: Dictionary mapping "{pml_name}_{field_str}" to array of interface field values
     """
     res = {}
     for field_str in fields_to_collect:
@@ -47,13 +47,13 @@ def add_boundary_interfaces(
     and is used during time-reversed automatic differentiation.
 
     Args:
-        arrays: Container holding the field arrays to update
-        values: Dictionary of saved interface values from collect_boundary_interfaces()
-        pml_objects: Sequence of PML objects defining boundary regions
-        fields_to_add: Which fields to restore values for (default: E and H fields)
+        arrays (ArrayContainer): Container holding the field arrays to update
+        values (dict[str, jax.Array]): Dictionary of saved interface values from collect_boundary_interfaces()
+        pml_objects (Sequence[PerfectlyMatchedLayer]): Sequence of PML objects defining boundary regions
+        fields_to_add (Sequence[str], optional): Which fields to restore values for (default: E and H fields)
 
     Returns:
-        Updated ArrayContainer with restored interface field values
+        ArrayContainer: Updated ArrayContainer with restored interface field values
     """
     updated_dict = {}
     for field_str in fields_to_add:

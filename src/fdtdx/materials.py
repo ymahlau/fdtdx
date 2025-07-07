@@ -11,21 +11,19 @@ class Material(TreeClass):
     This class stores the fundamental electromagnetic properties of a material for use
     in electromagnetic simulations.
 
-    Args:
-        permittivity (float): The relative permittivity (dielectric constant) of the material,
+    Attributes:
+        permittivity (float, optional): The relative permittivity (dielectric constant) of the material,
             which describes how the electric field is affected by the material. Higher values
             indicate greater electric polarization in response to an applied electric field.
-
+            Defaults to 1.0.
         permeability (float, optional): The relative permeability of the material, which
             describes how the magnetic field is affected by the material. Higher values
             indicate greater magnetic response to an applied magnetic field.
             Defaults to 1.0 (non-magnetic material).
-
         electric_conductivity (float, optional): The electrical conductivity of the material in siemens
             per meter (S/m), which describes how easily electric current can flow through it.
             Higher values indicate materials that conduct electricity more easily.
             Defaults to 0.0 (perfect insulator).
-
         magnetic_conductivity (float, optional): The magnetic conductivity, or magnetic loss of the material.
             This is an artificial parameter for numerical applications and does not represent an actual physical unit,
             even though often described in Ohm/m. The naming can be misleading, because it does not actually describe
@@ -66,10 +64,10 @@ def compute_ordered_material_name_tuples(
     4. Magnetic conductivity (ascending)
 
     Args:
-        materials: Dictionary mapping material names to Material objects
+        materials (dict[str, Material]): Dictionary mapping material names to Material objects.
 
     Returns:
-        List of Material objects ordered by their properties
+        list[tuple[str, Material]]: List of Material objects ordered by their properties.
     """
     return sorted(
         materials.items(),
