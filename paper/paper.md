@@ -48,9 +48,9 @@ Other frameworks for CPU only execution include OpenEMS [@openEMS], fdtd [@fdtd_
 Existing open-source packages that support execution on GPU are Khronos [@khronos] and FDTD-Z [@fdtdz], but both package are not maintained.
 Additionally, there exist various commercial implementations of FDTD.
 Notably, Tidy3D [@tidy3d] is an extremely fast commercial software due to its GPU acceleration.
-A comparison between the different software frameworks can be seen in Table 1.
+A comparison between the different software frameworks can be seen in \autoref{comparison}.
 
-![Table 1: Feature Comparison between different FDTD Software frameworks.](img/comparison.png)
+![Table 1: Feature Comparison between different FDTD Software frameworks.\label{comparison}](img/comparison.png)
 
 <!-- | Feature | Meep | Ceviche | openEMS | Tidy3D | FDTDX |
 |---------|------|---------|---------|--------|-------|
@@ -102,10 +102,15 @@ With two objects this is manageable, but with more objects such adaptation quick
 In contrast, in FDTDX the position between objects can be specified relative to each other.
 Consequently, if one of the object is moved, the other object automatically moves as well.
 Additionally, FDTDX implements utility functions to easily plot a visualization of the simulation scene.
-Such a visualization can be seen in Figure 1.
+Such a visualization can be seen in \autoref{setup}.
 Similarly, plotting functions for detectors are implemented to visualize the results of a simulation in form of an image or video.
 
-![Figure 1: Visualization of a simulation scene using the ```fdtdx.plot_setup``` function.](img/setup.png)
+<!-- ![Figure 1: Visualization of a simulation scene using the ```fdtdx.plot_setup``` function.\label{setup}](img/setup.png) -->
+\begin{figure}[h]
+\centering
+\includegraphics{img/setup.png}
+\caption*{**Figure 1** Visualization of a simulation scene using the fdtdx.plot_setup function.\label{setup}}
+\end{figure}
 
 # Limitations and Future Work
 
