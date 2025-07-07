@@ -50,7 +50,7 @@ Additionally, there exist various commercial implementations of FDTD.
 Notably, Tidy3D [@tidy3d] is an extremely fast commercial software due to its GPU acceleration.
 A comparison between the different software frameworks can be seen in \autoref{comparison}.
 
-![Table 1: Feature Comparison between different FDTD Software frameworks.\label{comparison}](img/comparison.png)
+![Feature Comparison between different FDTD Software frameworks.\label{comparison}](img/comparison.png)
 
 <!-- | Feature | Meep | Ceviche | openEMS | Tidy3D | FDTDX |
 |---------|------|---------|---------|--------|-------|
@@ -105,12 +105,12 @@ Additionally, FDTDX implements utility functions to easily plot a visualization 
 Such a visualization can be seen in \autoref{setup}.
 Similarly, plotting functions for detectors are implemented to visualize the results of a simulation in form of an image or video.
 
-<!-- ![Figure 1: Visualization of a simulation scene using the ```fdtdx.plot_setup``` function.\label{setup}](img/setup.png) -->
-\begin{figure}[h]
+![Visualization of a simulation scene using the ```fdtdx.plot_setup``` function.\label{setup}](img/setup.png)
+<!-- \begin{figure}[h]
 \centering
 \includegraphics{img/setup.png}
 \caption*{**Figure 1** Visualization of a simulation scene using the fdtdx.plot_setup function.\label{setup}}
-\end{figure}
+\end{figure} -->
 
 # Limitations and Future Work
 
