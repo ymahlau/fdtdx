@@ -29,18 +29,19 @@ The behavior of electromagnetic fields in complex media and structures under tim
 The temporal and spatial evolution of these fields is essential to understanding wave phenomena, antenna design, or photonic devices.
 Aside from analytical solutions for simple geometries, the majority of practical problems require robust numerical methods such as the finite-difference time-domain (FDTD) method for discretizing Maxwell's equations in both space and time.
 FDTDX is an efficient implementation of the FDTD method with GPU acceleration through the JAX framework.
-It provides a simple user interface for specifying a simulation scene and tools for inverse design of geometric components using automatic differentiation.
+It provides a simple user interface for specifying a simulation scene as well as a suite of tools for inverse design.
 
 
 # Statement of Need
 
 FDTDX implements the FDTD algorithm, which aims to simulate maxwell's equations $\frac{\partial H}{\partial t} = - \frac{1}{\mu} \nabla \times E$ and $\frac{\partial E}{\partial t} = \frac{1}{\epsilon} \nabla \times H$, where $E$ and $H$ are the electric and magnetic field components.
-This algorithm has been used in a number of research applications, for example in the field of photonic integrated circuits [augenstein2020inverse], optical computing [@mahlau2025multi] or quantum computing [@larsen2025integrated].
+This algorithm has been used in a number of research applications, for example in the field of photonic integrated circuits [@augenstein2020inverse], optical computing [@mahlau2025multi] or quantum computing [@larsen2025integrated].
 
-The FDTD algorithm has been well known for a long time and a number of open source packages already implement it.
-However, most previous packages implement the algorithm only for CPU, while GPU acceleration offers massive speedups.
+The FDTD algorithm has been well known for a long time and a number of open-source packages already implement it.
+However, most previous packages implement the algorithm only for CPU, which misses out on massive speedups through GPU acceleration.
 Additionally, the implementation of the FDTD algorithm in JAX allows for automatic differentiation using a specialized algorithm based on the time reversibility of Maxwell's equations [@schubertmahlau2025quantized].
-This makes it easy to automatically optimize optical components using gradient descent.
+In contrast to the adjoint method, the gradient computation based on time reversibility can calculate a gradient through the time domain without the need to save electric and magnetic field after every time step.
+This enables memory efficient inverse design, i.e. topological optimization of optical components using gradient descent.
 
 A non-exhaustive list of FDTD implementations must include the popular Meep [@meep], which was developed almost 20 years ago for execution on CPU and is still widely used today.
 Other frameworks for CPU only execution include OpenEMS [@openEMS], fdtd [@fdtd_laporte] and Ceviche [@ceviche].
@@ -49,12 +50,14 @@ Additionally, there exist various commercial implementations of FDTD.
 Notably, Tidy3D [@tidy3d] is an extremely fast commercial software due to its GPU acceleration.
 A comparison between the different software frameworks can be seen in Table 1.
 
-| Feature | Meep | Ceviche | openEMS | Tidy3D | FDTDX |
+![Table 1: Feature Comparison between different FDTD Software frameworks.](img/comparison.png)
+
+<!-- | Feature | Meep | Ceviche | openEMS | Tidy3D | FDTDX |
 |---------|------|---------|---------|--------|-------|
 | 3D-Simulation | yes | yes | yes | yes | yes |
 | Open-Source | yes | yes | yes | no | yes |
 | Time Reversibility | no | no | no | no | yes |
-| GPU/TPU-capable | no | no | no | yes | yes |
+| GPU/TPU-capable | no | no | no | yes | yes | -->
 
 <!-- +-------------------+------------+----------+----------+----------+----------+
 | Feature           | Meep       | Ceviche  | openEMS  | Tidy3D   |FDTDX     |
@@ -86,22 +89,23 @@ To inject light into the simulation, the Total-Field Scattered-Field (TFSF) [@ta
 This formulation allows injecting light in a single direction into the simulation.
 In contrast, a naive additive source implementation would emit light in both directions perpendicular to the injection plane.
 
-To prevent unwanted reflections at the boundary of the simulation volume, there exist two different boundary conditions.
-A periodic boundary wraps around the simulation volume and automatically injects light leaving one side of the simulation volume on the other side again.
+To prevent unwanted reflections at the boundary of the simulation volume, there exist two different boundary conditions in FDTDX.
+Firstly, a periodic boundary can be used to wrap fields around the simulation volume and automatically inject them on the other side of the volume.
 This is useful for simulating large repeating areas through a single unit cell, for example in metamaterials [@metamaterial].
-Moreover, reflections can also be prevented by using an absorbing boundary condition, implemented in the form of convolutional perfectly matching layers [@cpml].
+Secondly, reflections can also be prevented by using an absorbing boundary condition, implemented in the form of convolutional perfectly matching layers [@cpml].
 
-In FDTDX, the specification of a simulation is made easy by the implementation of a constraint system.
+In FDTDX, the specification of a simulation is simplified by the implementation of a constraint system.
 The position and size of sources, detectors or any other simulation objects can be specified using relative constraints.
 For example, it might make sense to position a detector next to a source for measuring the input energy in the simulation.
 If both detector and source are placed independently, then moving one of the objects requires also moving the other.
 With two objects this is manageable, but with more objects such adaptation quickly become a burden.
-In contrast, in FDTDX the position between these objects can be specified relative to each.
-In the example of source and detector object, moving one of these objects would automatically also move the other.
+In contrast, in FDTDX the position between objects can be specified relative to each other.
+Consequently, if one of the object is moved, the other object automatically moves as well.
 Additionally, FDTDX implements utility functions to easily plot a visualization of the simulation scene.
 Such a visualization can be seen in Figure 1.
+Similarly, plotting functions for detectors are implemented to visualize the results of a simulation in form of an image or video.
 
-![Figure 1: Visualization of a simulation scene using the ```fdtdx.plot_setup``` function.](img/scene.png)
+![Figure 1: Visualization of a simulation scene using the ```fdtdx.plot_setup``` function.](img/setup.png)
 
 # Limitations and Future Work
 
@@ -118,7 +122,7 @@ Additionally, our conference paper on large-scale FDTD simulations [@mahlau2025f
 
 # Acknowledgements
 
-We acknowledge contributions from [Antonio Calà Lesina](https://www.hot.uni-hannover.de/de/calalesina), [Reinhard Caspary](https://www.phoenixd.uni-hannover.de/de/caspary) and [Konrad Bethmann](https://www.tnt.uni-hannover.de/de/staff/bethmann/) for understanding the physics behind Maxwell's equations and how to implement them within FDTD. 
+We thank [Antonio Calà Lesina](https://www.hot.uni-hannover.de/de/calalesina), [Reinhard Caspary](https://www.phoenixd.uni-hannover.de/de/caspary) and [Konrad Bethmann](https://www.tnt.uni-hannover.de/de/staff/bethmann/) for helping us understand the physics behind Maxwell's equations and how to implement them within FDTD. 
 Additionally, we acknowledge [Fabian Hartmann](https://www.tnt.uni-hannover.de/de/staff/hartmann/) for the initial idea of implementing a GPU accelerated FDTD algorithm.
 Moreover, community contributions from [Marko Simic](https://github.com/msimicphysics), [Tianxiang Dai](https://github.com/txdai) and [Robin Giesecke](https://github.com/TheDarkchip) improved features of FDTDX.
 
