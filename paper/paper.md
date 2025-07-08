@@ -94,6 +94,8 @@ Firstly, a periodic boundary can be used to wrap fields around the simulation vo
 This is useful for simulating large repeating areas through a single unit cell, for example in metamaterials [@metamaterial].
 Secondly, reflections can also be prevented by using an absorbing boundary condition, implemented in the form of convolutional perfectly matching layers [@cpml].
 
+![Visualization of a simulation scene using the ```fdtdx.plot_setup``` function. \label{fig_setup} ](img/setup.png)
+
 In FDTDX, the specification of a simulation is simplified by the implementation of a constraint system.
 The position and size of sources, detectors or any other simulation objects can be specified using relative constraints.
 For example, it might make sense to position a detector next to a source for measuring the input energy in the simulation.
@@ -105,8 +107,6 @@ Additionally, FDTDX implements utility functions to easily plot a visualization 
 Such a visualization can be seen in \autoref{fig_setup}.
 Similarly, plotting functions for detectors are implemented to visualize the results of a simulation in form of an image or video.
 For the same simulation scene, the $E_z$ field is visualized in \autoref{fig_sim}.
-
-![Visualization of a simulation scene using the ```fdtdx.plot_setup``` function. \label{fig_setup} ](img/setup.png)
 
 ![Visualization of the $E_z$ field in a simulation as output of an ```fdtdx.FieldDetector```. \label{fig_sim} ](img/simulation.png){height="150pt"}
 
