@@ -50,7 +50,7 @@ Additionally, there exist various commercial implementations of FDTD.
 Notably, Tidy3D [@tidy3d] is an extremely fast commercial software due to its GPU acceleration.
 A comparison between the different software frameworks can be seen in \autoref{comparison}.
 
-![Feature comparison between different FDTD software frameworks.\label{comparison}](img/comparison.png)
+![Feature comparison between different FDTD software frameworks. \label{comparison} ](img/comparison.png)
 
 <!-- | Feature | Meep | Ceviche | openEMS | Tidy3D | FDTDX |
 |---------|------|---------|---------|--------|-------|
@@ -108,7 +108,7 @@ For the same simulation scene, the $E_z$ field is visualized in \autoref{fig_sim
 
 ![Visualization of a simulation scene using the ```fdtdx.plot_setup``` function. \label{fig_setup} ](img/setup.png)
 
-![Visualization of the $E_z$ field in a simulation \label{fig_sim} ](img/simulation.png)
+![Visualization of the $E_z$ field in a simulation as output of an ```fdtdx.FieldDetector```. \label{fig_sim} ]{height="0.5\linewidth"}(img/simulation.png)
 
 <!-- \begin{figure}[h]
 \centering
