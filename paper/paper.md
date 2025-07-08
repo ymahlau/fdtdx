@@ -11,7 +11,7 @@ authors:
     orcid: 0000-0003-0425-5003
     affiliation: 1
   - name: Frederik Schubert
-    orcid: 0000-0000-0000-0000
+    orcid: 0000-0001-8312-3943
     affiliation: 1
   - name: Bodo Rosenhahn
     orcid: 0000-0003-3861-1424
@@ -104,8 +104,11 @@ Consequently, if one of the object is moved, the other object automatically move
 Additionally, FDTDX implements utility functions to easily plot a visualization of the simulation scene.
 Such a visualization can be seen in \autoref{fig_setup}.
 Similarly, plotting functions for detectors are implemented to visualize the results of a simulation in form of an image or video.
+For the same simulation scene, the $E_z$ field is visualized in \autoref{fig_sim}.
 
 ![Visualization of a simulation scene using the ```fdtdx.plot_setup``` function. \label{fig_setup} ](img/setup.png)
+
+![Visualization of the $E_z$ field in a simulation \label{fig_sim} ](img/simulation.png)
 
 <!-- \begin{figure}[h]
 \centering
