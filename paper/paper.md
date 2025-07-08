@@ -50,7 +50,7 @@ Additionally, there exist various commercial implementations of FDTD.
 Notably, Tidy3D [@tidy3d] is an extremely fast commercial software due to its GPU acceleration.
 A comparison between the different software frameworks can be seen in \autoref{comparison}.
 
-![Feature comparison between different FDTD software frameworks. \label{comparison} ](img/comparison.png){height="100pt"}
+![Feature comparison between different FDTD software frameworks. \label{comparison} ](img/comparison.png){height="70pt"}
 
 <!-- | Feature | Meep | Ceviche | openEMS | Tidy3D | FDTDX |
 |---------|------|---------|---------|--------|-------|
