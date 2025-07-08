@@ -108,7 +108,7 @@ For the same simulation scene, the $E_z$ field is visualized in \autoref{fig_sim
 
 ![Visualization of a simulation scene using the ```fdtdx.plot_setup``` function. \label{fig_setup} ](img/setup.png)
 
-![Visualization of the $E_z$ field in a simulation as output of an ```fdtdx.FieldDetector```. \label{fig_sim} ]{height="0.5\linewidth"}(img/simulation.png)
+![Visualization of the $E_z$ field in a simulation as output of an ```fdtdx.FieldDetector```. \label{fig_sim} ](img/simulation.png){height="0.5\linewidth"}
 
 <!-- \begin{figure}[h]
 \centering
