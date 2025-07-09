@@ -25,12 +25,11 @@ bibliography: paper.bib
 
 # Summary
 
-The behavior of electromagnetic fields in complex media and structures under time-varying conditions leads to the propagation, scattering, and interaction of electromagnetic waves across diverse environments. 
-The temporal and spatial evolution of these fields is essential to understanding wave phenomena, antenna design, or photonic devices.
+The ability to precisely manipulate the propagation of light is an increasingly critical factor in many modern applications.
 Aside from analytical solutions for simple geometries, the majority of practical problems require robust numerical methods such as the finite-difference time-domain (FDTD) method for discretizing Maxwell's equations in both space and time.
 FDTDX is an efficient implementation of the FDTD method with GPU acceleration through the JAX framework.
 It provides a simple user interface for specifying a simulation scene as well as a suite of tools for inverse design.
-
+Using the time reversibility of maxwell's equations, gradients for optimizing the geometry of a design can be computated efficiently within FDTDX.
 
 # Statement of Need
 
