@@ -39,7 +39,7 @@ This algorithm has been used in a number of research applications, for example i
 The FDTD algorithm has been well known for a long time and a number of open-source packages already implement it.
 However, most previous packages implement the algorithm only for CPU, which misses out on massive speedups through GPU acceleration.
 Additionally, the implementation of the FDTD algorithm in JAX allows for automatic differentiation using a specialized algorithm based on the time reversibility of Maxwell's equations [@schubertmahlau2025quantized].
-In contrast to the adjoint method, the gradient computation based on time reversibility can calculate a gradient through the time-domain without the need to save electric and magnetic field after every time step.
+In contrast to the adjoint method, our custom gradient algorithm can calculate a gradient in the time-domain without the need to save electric and magnetic field after every time step.
 This enables memory efficient inverse design, i.e. topological optimization of optical components using gradient descent.
 
 A non-exhaustive list of FDTD implementations must include the popular Meep [@meep], which was developed almost 20 years ago for execution on CPU and is still widely used today.
@@ -78,10 +78,10 @@ A comparison between the different software frameworks can be seen in \autoref{c
 
 As the name suggests, the Finite-Difference Time-Domain (FDTD) algorithm discretizes Maxwell's equations in space and time.
 To compute the curl operation efficiently using only a single finite difference, the electric and magnetic fields are staggered in both space and time according to the Yee grid [@kaneyeeNumericalSolutionInitial1966].
-Given an initial electric and magnetic field, the fields are updated in a leapfrog pattern.
+The initial electric and magnetic fields are updated in a leapfrog pattern.
 Firstly, the electric field is updated based on the magnetic field.
-Afterwards, the newly computed electric field is used to update the magnetic field.
-The staggering through the yee grids makes these updates very efficient, but as a consequence fields need to be interpolated for accurate measurements.
+Afterwards, the newly computed electric field is the basis for updating the magnetic field.
+The staggering through the Yee grids makes these updates very efficient, but as a consequence fields need to be interpolated for accurate measurements.
 In FDTDX, physical values can be measured through different detectors, which automatically implement this interpolation.
 
 To inject light into the simulation, the Total-Field Scattered-Field (TFSF) [@taflove] formulation of a source is used in FDTDX. 
@@ -91,7 +91,7 @@ In contrast, a naive additive source implementation would emit light in both dir
 To prevent unwanted reflections at the boundary of the simulation volume, there exist two different boundary conditions in FDTDX.
 Firstly, a periodic boundary can be used to wrap fields around the simulation volume and automatically inject them on the other side of the volume.
 This is useful for simulating large repeating areas through a single unit cell, for example in metamaterials [@metamaterial].
-Secondly, reflections can also be prevented by using an absorbing boundary condition, implemented in the form of convolutional perfectly matching layers [@cpml].
+Secondly, reflections can also be prevented by using an absorbing boundary condition, implemented in the form of convolutional perfectly matched layers [@cpml].
 
 ![Visualization of a simulation scene using the ```fdtdx.plot_setup``` function. \label{fig_setup} ](img/setup.png)
 
