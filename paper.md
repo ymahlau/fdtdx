@@ -27,7 +27,7 @@ bibliography: paper.bib
 
 The ability to precisely manipulate the propagation of light is an increasingly critical factor in many modern applications.
 Aside from analytical solutions for simple geometries, the majority of practical problems require robust numerical methods such as the finite-difference time-domain (FDTD) method for discretizing Maxwell's equations in both space and time.
-FDTDX is an efficient implementation of the FDTD method with GPU acceleration through the JAX framework.
+We present FDTDX, an efficient implementation of the FDTD method with GPU acceleration through the JAX framework.
 It provides a simple user interface for specifying a simulation scene as well as a suite of tools for inverse design.
 Using the time reversibility of maxwell's equations, gradients for optimizing the geometry of a design can be computated efficiently within FDTDX.
 
@@ -42,7 +42,7 @@ Additionally, the implementation of the FDTD algorithm in JAX allows for automat
 In contrast to the adjoint method, our custom gradient algorithm can calculate a gradient in the time-domain without the need to save electric and magnetic field after every time step.
 This enables memory efficient inverse design, i.e. topological optimization of optical components using gradient descent.
 
-A non-exhaustive list of FDTD implementations must include the popular Meep [@meep], which was developed almost 20 years ago for execution on CPU and is still widely used today.
+A non-exhaustive list of FDTD implementations includes the popular Meep [@meep], which was developed almost 20 years ago for execution on CPU and is still widely used today.
 Other frameworks for CPU only execution include OpenEMS [@openEMS], fdtd [@fdtd_laporte] and Ceviche [@ceviche].
 Existing open-source packages that support execution on GPU are Khronos [@khronos] and FDTD-Z [@fdtdz], but both packages are not maintained.
 Additionally, various commercial implementations of FDTD exist.
