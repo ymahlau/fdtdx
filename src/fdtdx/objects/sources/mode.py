@@ -90,6 +90,7 @@ class ModePlaneSource(TFSFPlaneSource):
             mode_index=self.mode_index,
             filter_pol=self.filter_pol,
         )
+        mode_E, mode_H = jnp.real(mode_E), jnp.real(mode_H)
 
         time_offset_E, time_offset_H = calculate_time_offset_yee(
             center=center,
