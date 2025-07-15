@@ -101,7 +101,6 @@ def compute_mode(
     jax.Array,  # complex propagation constant
 ]:
     # Input validation
-    input_dtype = inv_permittivities.dtype
     if inv_permittivities.squeeze().ndim != 2:
         raise Exception(f"Invalid shape of inv_permittivities: {inv_permittivities.shape}")
     if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
