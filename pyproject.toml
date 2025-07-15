@@ -11,8 +11,7 @@ requires-python = ">=3.11"
 dependencies = [
     "loguru>=0.7.3",
     "pytreeclass>=0.11",
-    "jax>=0.4.36; platform_system != 'Linux'",
-    "jax[cuda12]>=0.4.36; platform_system == 'Linux'",
+    "jax>=0.4.36",
     "moviepy>=2.1.1",
     "optax>=0.2.4",
     "equinox>=0.11.10",
@@ -59,6 +58,12 @@ dev = [
     "ruff>=0.8.2",
     "tox-uv>=1.16.1",
     "pydoclint>=0.6.6",
+]
+cuda12 = [
+    "jax[cuda12]>=0.4.36",
+]
+rocm = [
+    "jax[rocm]>=0.4.36",
 ]
 
 [tool.pyright]
