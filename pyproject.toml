@@ -42,7 +42,7 @@ extend-select = ["I"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
-[dependency-groups]
+[project.optional-dependencies]
 dev = [
     "black>=24.10.0",
     "ipykernel>=6.29.5",
