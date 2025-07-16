@@ -39,7 +39,7 @@ class SingleFrequencyProfile(TemporalProfile):
     """Simple sinusoidal temporal profile at a single frequency."""
 
     phase_shift: float = frozen_field(default=math.pi)
-    num_startup_periods: int = 2
+    num_startup_periods: int = 4
 
     def get_amplitude(
         self,
