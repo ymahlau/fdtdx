@@ -247,7 +247,9 @@
 <p>FDTDX is a high-performance framework for electromagnetic simulations and inverse design of photonic devices. Built on JAX, it provides GPU-accelerated FDTD (Finite-Difference Time-Domain) simulations with automatic differentiation capabilities.</p>
 <h2 id="installation">Installation</h2>
 <p>Install FDTDX using pip:</p>
-<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>fdtdx
+<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>fdtdx<span class="w">  </span><span class="c1"># Basic CPU-Installation</span>
+pip<span class="w"> </span>install<span class="w"> </span>fdtdx<span class="o">[</span>cuda12<span class="o">]</span><span class="w">  </span><span class="c1"># GPU-Acceleration (Highly Recommended!)</span>
+pip<span class="w"> </span>install<span class="w"> </span>fdtdx<span class="o">[</span>rocm<span class="o">]</span><span class="w">   </span><span class="c1"># AMD-GPU (only python&lt;=3.12)</span>
 </code></pre></div>
 <p>For development installation, clone the repository and install in editable mode:</p>
 <div class="highlight"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/ymahlau/fdtdx
@@ -336,5 +338,5 @@ pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </s
 
 <!--
 MkDocs version : 1.6.1
-Build Date UTC : 2025-06-30 17:28:26.388341+00:00
+Build Date UTC : 2025-07-18 06:55:21.507145+00:00
 -->
