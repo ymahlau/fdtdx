@@ -65,9 +65,6 @@ cuda12 = [
 rocm = [
     "jax[rocm]>=0.4.36",
 ]
-tpu = [
-    "jax[tpu]>=0.4.36",
-]
 
 [tool.pyright]
 include = ["src", "examples", "checks", "test"]
