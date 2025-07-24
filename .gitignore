@@ -16,6 +16,7 @@ scripts/configs/run_config.yaml
 *.typed
 .cursorignore
 site
+docs/notebooks
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
