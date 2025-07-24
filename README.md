@@ -59,12 +59,15 @@ export NCCL_PROTO="SIMPLE,LL,LL128"
 ## Citation
 If you find this repository helpful for you work, please consider citing:
 ```
-@article{schubertmahlau2025quantized,
-  title={Quantized Inverse Design for Photonic Integrated Circuits},
+@article{schubert2025quantized,
+  title={Quantized inverse design for photonic integrated circuits},
   author={Schubert, Frederik and Mahlau, Yannik and Bethmann, Konrad and Hartmann, Fabian and Caspary, Reinhard and Munderloh, Marco and Ostermann, J{\"o}rn and Rosenhahn, Bodo},
-  journal={ACS Omega},
-  doi={10.1021/acsomega.4c10958},
-  year={2025}
+  journal={ACS omega},
+  volume={10},
+  number={5},
+  pages={5080--5086},
+  year={2025},
+  publisher={ACS Publications}
 }
 ```
 
