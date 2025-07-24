@@ -33,15 +33,6 @@ repos:
           # --check-return-types=False,
           --skip-checking-raises=True,
         ]
-  - repo: local
-    hooks:
-      - id: mkdocs-build
-        name: mkdocs-build
-        entry: mkdocs build
-        language: system
-        pass_filenames: false # Or true if you want to pass files as arguments
-        always_run: true # Usually you want to build every time
-        stages: [pre-commit]
   - repo: https://github.com/woodruffw/zizmor-pre-commit
     rev: v1.5.2
     hooks:
