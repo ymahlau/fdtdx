@@ -17,6 +17,7 @@ nav:
     - Materials Guide: tutorials/materials.md
     - Fabrication Constraints: tutorials/parameter_mapping.md
     - Interface Compression: tutorials/interface_compression.md
+    - "notebooks/*.ipynb"
   - API Reference:
     - Public:
       - "api/public/*.md"
