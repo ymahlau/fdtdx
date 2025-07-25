@@ -1,11 +1,11 @@
-from typing import Literal
+from typing import Literal, override
 
 import jax
 import jax.numpy as jnp
 
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.plotting.colors import LIGHT_BLUE
-from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState
+from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState, BoundaryTypeError
 from fdtdx.typing import GridShape3D, Slice3D, SliceTuple3D
 
 
@@ -25,7 +25,7 @@ class PeriodicBoundaryState(BaseBoundaryState):
 
 
 @autoinit
-class PeriodicBoundary(BaseBoundary):
+class PeriodicBoundary(BaseBoundary[PeriodicBoundaryState]):
     """Implements periodic boundary conditions.
 
     The periodic boundary connects opposite sides of the simulation domain,
@@ -42,6 +42,7 @@ class PeriodicBoundary(BaseBoundary):
     color: tuple[float, float, float] | None = frozen_field(default=LIGHT_BLUE)
 
     @property
+    @override
     def descriptive_name(self) -> str:
         """Gets a human-readable name describing this periodic boundary's location.
 
@@ -53,6 +54,7 @@ class PeriodicBoundary(BaseBoundary):
         return f"{direction_str}_{axis_str}"
 
     @property
+    @override
     def thickness(self) -> int:
         """Gets the thickness of the periodic boundary layer in grid points.
 
@@ -61,6 +63,7 @@ class PeriodicBoundary(BaseBoundary):
         """
         return 1
 
+    @override
     def init_state(
         self,
     ) -> PeriodicBoundaryState:
@@ -73,13 +76,15 @@ class PeriodicBoundary(BaseBoundary):
         )
         return boundary_state
 
+    @override
     def reset_state(self, state: PeriodicBoundaryState) -> PeriodicBoundaryState:
-        new_state = PeriodicBoundaryState(
+        # Reset the state by zeroing out the fields
+        return PeriodicBoundaryState(
             E_opposite=state.E_opposite * 0,
             H_opposite=state.H_opposite * 0,
         )
-        return new_state
 
+    @override
     def boundary_interface_grid_shape(self) -> GridShape3D:
         if self.axis == 0:
             return 1, self.grid_shape[1], self.grid_shape[2]
@@ -109,6 +114,7 @@ class PeriodicBoundary(BaseBoundary):
             )
         return slice_list[0], slice_list[1], slice_list[2]
 
+    @override
     def update_E_boundary_state(
         self,
         boundary_state: PeriodicBoundaryState,
@@ -133,6 +139,7 @@ class PeriodicBoundary(BaseBoundary):
             H_opposite=H_opposite,  # Update H values
         )
 
+    @override
     def update_H_boundary_state(
         self,
         boundary_state: PeriodicBoundaryState,
@@ -157,6 +164,7 @@ class PeriodicBoundary(BaseBoundary):
             H_opposite=boundary_state.H_opposite,  # Keep existing H values
         )
 
+    @override
     def update_E(
         self,
         E: jax.Array,
@@ -192,6 +200,7 @@ class PeriodicBoundary(BaseBoundary):
 
         return E
 
+    @override
     def update_H(
         self,
         H: jax.Array,
