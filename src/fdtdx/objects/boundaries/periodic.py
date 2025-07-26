@@ -5,7 +5,7 @@ import jax.numpy as jnp
 
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.plotting.colors import LIGHT_BLUE
-from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState, BoundaryTypeError
+from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState
 from fdtdx.typing import GridShape3D, Slice3D, SliceTuple3D
 
 
