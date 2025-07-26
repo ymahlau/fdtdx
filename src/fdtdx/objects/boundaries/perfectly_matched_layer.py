@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, override
 
 import jax
 import jax.numpy as jnp
@@ -14,7 +14,7 @@ from fdtdx.typing import GridShape3D, Slice3D, SliceTuple3D
 
 
 @autoinit
-class BoundaryState(BaseBoundaryState):
+class PMLBoundaryState(BaseBoundaryState):
     """State container for PML boundary conditions.
 
     Stores the auxiliary field variables and coefficients needed to implement
@@ -40,8 +40,6 @@ class BoundaryState(BaseBoundaryState):
     psi_Hx: jax.Array
     psi_Hy: jax.Array
     psi_Hz: jax.Array
-    # phi_E: jax.Array
-    # phi_H: jax.Array
     bE: jax.Array
     bH: jax.Array
     cE: jax.Array
@@ -50,7 +48,7 @@ class BoundaryState(BaseBoundaryState):
 
 
 @autoinit
-class PerfectlyMatchedLayer(BaseBoundary):
+class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
     """Implements a Convolutional Perfectly Matched Layer (CPML) boundary condition.
 
     The CPML absorbs outgoing electromagnetic waves with minimal reflection by using
@@ -74,6 +72,7 @@ class PerfectlyMatchedLayer(BaseBoundary):
     color: tuple[float, float, float] | None = frozen_field(default=DARK_GREY)
 
     @property
+    @override
     def descriptive_name(self) -> str:
         """Gets a human-readable name describing this PML boundary's location.
 
@@ -85,6 +84,7 @@ class PerfectlyMatchedLayer(BaseBoundary):
         return f"{direction_str}_{axis_str}"
 
     @property
+    @override
     def thickness(self) -> int:
         """Gets the thickness of the PML layer in grid points.
 
@@ -93,9 +93,10 @@ class PerfectlyMatchedLayer(BaseBoundary):
         """
         return self.grid_shape[self.axis]
 
+    @override
     def init_state(
         self,
-    ) -> BoundaryState:
+    ) -> PMLBoundaryState:
         dtype = self._config.dtype
         sigma_E, sigma_H = standard_sigma_from_direction_axis(
             thickness=self.thickness,
@@ -121,7 +122,7 @@ class PerfectlyMatchedLayer(BaseBoundary):
 
         ext_shape = (3,) + self.grid_shape
 
-        boundary_state = BoundaryState(
+        boundary_state = PMLBoundaryState(
             psi_Ex=jnp.zeros(shape=ext_shape, dtype=dtype),
             psi_Ey=jnp.zeros(shape=ext_shape, dtype=dtype),
             psi_Ez=jnp.zeros(shape=ext_shape, dtype=dtype),
@@ -136,7 +137,8 @@ class PerfectlyMatchedLayer(BaseBoundary):
         )
         return boundary_state
 
-    def reset_state(self, state: BoundaryState) -> BoundaryState:
+    @override
+    def reset_state(self, state: PMLBoundaryState) -> PMLBoundaryState:
         dtype = self._config.dtype
         sigma_E, sigma_H = standard_sigma_from_direction_axis(
             thickness=self.thickness,
@@ -160,7 +162,7 @@ class PerfectlyMatchedLayer(BaseBoundary):
         cE = (bE - 1) * sigma_E / (sigma_E * kappa + kappa**2 * self.alpha)
         cH = (bH - 1) * sigma_H / (sigma_H * kappa + kappa**2 * self.alpha)
 
-        new_state = BoundaryState(
+        new_state = PMLBoundaryState(
             psi_Ex=state.psi_Ex * 0,
             psi_Ey=state.psi_Ey * 0,
             psi_Ez=state.psi_Ez * 0,
@@ -204,11 +206,12 @@ class PerfectlyMatchedLayer(BaseBoundary):
             )
         return slice_list[0], slice_list[1], slice_list[2]
 
+    @override
     def update_E_boundary_state(
         self,
-        boundary_state: BoundaryState,
+        boundary_state: PMLBoundaryState,
         H: jax.Array,
-    ) -> BoundaryState:
+    ) -> PMLBoundaryState:
         Hx = H[0, *self.grid_slice]
         Hy = H[1, *self.grid_slice]
         Hz = H[2, *self.grid_slice]
@@ -250,11 +253,12 @@ class PerfectlyMatchedLayer(BaseBoundary):
 
         return boundary_state
 
+    @override
     def update_H_boundary_state(
         self,
-        boundary_state: BoundaryState,
+        boundary_state: PMLBoundaryState,
         E: jax.Array,
-    ) -> BoundaryState:
+    ) -> PMLBoundaryState:
         Ex = E[0, *self.grid_slice]
         Ey = E[1, *self.grid_slice]
         Ez = E[2, *self.grid_slice]
@@ -296,10 +300,11 @@ class PerfectlyMatchedLayer(BaseBoundary):
 
         return boundary_state
 
+    @override
     def update_E(
         self,
         E: jax.Array,
-        boundary_state: BoundaryState,
+        boundary_state: PMLBoundaryState,
         inverse_permittivity: jax.Array,
     ) -> jax.Array:
         phi_Ex = boundary_state.psi_Ex[1] - boundary_state.psi_Ex[2]
@@ -313,10 +318,11 @@ class PerfectlyMatchedLayer(BaseBoundary):
         E = E.at[:, *self.grid_slice].add(update)
         return E
 
+    @override
     def update_H(
         self,
         H: jax.Array,
-        boundary_state: BoundaryState,
+        boundary_state: PMLBoundaryState,
         inverse_permeability: jax.Array | float,
     ) -> jax.Array:
         phi_Hx = boundary_state.psi_Hx[1] - boundary_state.psi_Hx[2]
