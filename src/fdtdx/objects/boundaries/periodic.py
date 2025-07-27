@@ -128,6 +128,34 @@ class PeriodicBoundary(BaseBoundary[PeriodicBoundaryState]):
             H_opposite=boundary_state.H_opposite,  # Keep existing H values
         )
 
+    def get_boundary_and_opposite_slices(self) -> tuple[tuple[slice, ...], tuple[slice, ...]]:
+        """Get the slices for the current boundary and opposite side.
+
+        Returns:
+            tuple[tuple[slice, ...], tuple[slice, ...]]: Slices for the boundary and opposite side
+        """
+        # TODO: Overload for different number of dimensions
+        boundary_slice = list(self.grid_slice)
+        opposite_slice = list(self.grid_slice)
+
+        if self.direction == "+":
+            boundary_slice[self.axis] = slice(
+                self._grid_slice_tuple[self.axis][0], self._grid_slice_tuple[self.axis][0] + 1
+            )
+            opposite_slice[self.axis] = slice(
+                self._grid_slice_tuple[self.axis][1] - 1, self._grid_slice_tuple[self.axis][1]
+            )
+        else:
+            boundary_slice[self.axis] = slice(
+                self._grid_slice_tuple[self.axis][1] - 1, self._grid_slice_tuple[self.axis][1]
+            )
+            opposite_slice[self.axis] = slice(
+                self._grid_slice_tuple[self.axis][0], self._grid_slice_tuple[self.axis][0] + 1
+            )
+
+        # Convert to tuples for immutable slices
+        return tuple(boundary_slice), tuple(opposite_slice)
+
     @override
     def update_E(
         self,
@@ -136,31 +164,11 @@ class PeriodicBoundary(BaseBoundary[PeriodicBoundaryState]):
         inverse_permittivity: jax.Array,
     ) -> jax.Array:
         del boundary_state, inverse_permittivity
-        # Get the boundary slice
-        boundary_slice = list(self.grid_slice)
-        if self.direction == "+":
-            boundary_slice[self.axis] = slice(
-                self._grid_slice_tuple[self.axis][0], self._grid_slice_tuple[self.axis][0] + 1
-            )
-            # Copy from opposite boundary (last slice)
-            opposite_slice = list(self.grid_slice)
-            opposite_slice[self.axis] = slice(
-                self._grid_slice_tuple[self.axis][1] - 1, self._grid_slice_tuple[self.axis][1]
-            )
-        else:
-            boundary_slice[self.axis] = slice(
-                self._grid_slice_tuple[self.axis][1] - 1, self._grid_slice_tuple[self.axis][1]
-            )
-            # Copy from opposite boundary (first slice)
-            opposite_slice = list(self.grid_slice)
-            opposite_slice[self.axis] = slice(
-                self._grid_slice_tuple[self.axis][0], self._grid_slice_tuple[self.axis][0] + 1
-            )
+        # Get the boundary and opposite boundary slice
+        boundary_slice, opposite_slice = self.get_boundary_and_opposite_slices()
 
         # Copy field values from opposite boundary
-        E = E.at[..., boundary_slice[0], boundary_slice[1], boundary_slice[2]].set(
-            E[..., opposite_slice[0], opposite_slice[1], opposite_slice[2]]
-        )
+        E = E.at[..., *boundary_slice].set(E[..., *opposite_slice])
 
         return E
 
@@ -172,30 +180,10 @@ class PeriodicBoundary(BaseBoundary[PeriodicBoundaryState]):
         inverse_permeability: jax.Array | float,
     ) -> jax.Array:
         del boundary_state, inverse_permeability
-        # Get the boundary slice
-        boundary_slice = list(self.grid_slice)
-        if self.direction == "+":
-            boundary_slice[self.axis] = slice(
-                self._grid_slice_tuple[self.axis][0], self._grid_slice_tuple[self.axis][0] + 1
-            )
-            # Copy from opposite boundary (last slice)
-            opposite_slice = list(self.grid_slice)
-            opposite_slice[self.axis] = slice(
-                self._grid_slice_tuple[self.axis][1] - 1, self._grid_slice_tuple[self.axis][1]
-            )
-        else:
-            boundary_slice[self.axis] = slice(
-                self._grid_slice_tuple[self.axis][1] - 1, self._grid_slice_tuple[self.axis][1]
-            )
-            # Copy from opposite boundary (first slice)
-            opposite_slice = list(self.grid_slice)
-            opposite_slice[self.axis] = slice(
-                self._grid_slice_tuple[self.axis][0], self._grid_slice_tuple[self.axis][0] + 1
-            )
+        # Get the boundary and opposite boundary slice
+        boundary_slice, opposite_slice = self.get_boundary_and_opposite_slices()
 
         # Copy field values from opposite boundary
-        H = H.at[..., boundary_slice[0], boundary_slice[1], boundary_slice[2]].set(
-            H[..., opposite_slice[0], opposite_slice[1], opposite_slice[2]]
-        )
+        H = H.at[..., *boundary_slice].set(H[..., *opposite_slice])
 
         return H

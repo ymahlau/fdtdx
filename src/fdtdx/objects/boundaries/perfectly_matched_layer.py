@@ -87,10 +87,7 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
         """
         return self.grid_shape[self.axis]
 
-    @override
-    def init_state(
-        self,
-    ) -> PMLBoundaryState:
+    def _get_dtype_update_coefficients(self):
         dtype = self._config.dtype
         sigma_E, sigma_H = standard_sigma_from_direction_axis(
             thickness=self.thickness,
@@ -114,6 +111,14 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
         cE = (bE - 1) * sigma_E / (sigma_E * kappa + kappa**2 * self.alpha)
         cH = (bH - 1) * sigma_H / (sigma_H * kappa + kappa**2 * self.alpha)
 
+        return dtype, bE, bH, cE, cH, kappa
+
+    @override
+    def init_state(
+        self,
+    ) -> PMLBoundaryState:
+        # TODO: Check difference between this and reset_state
+        dtype, bE, bH, cE, cH, kappa = self._get_dtype_update_coefficients()
         ext_shape = (3,) + self.grid_shape
 
         boundary_state = PMLBoundaryState(
@@ -133,28 +138,7 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
 
     @override
     def reset_state(self, state: PMLBoundaryState) -> PMLBoundaryState:
-        dtype = self._config.dtype
-        sigma_E, sigma_H = standard_sigma_from_direction_axis(
-            thickness=self.thickness,
-            direction=self.direction,
-            axis=self.axis,
-            dtype=dtype,
-        )
-
-        kappa = kappa_from_direction_axis(
-            kappa_start=self.kappa_start,
-            kappa_end=self.kappa_end,
-            thickness=self.thickness,
-            direction=self.direction,
-            axis=self.axis,
-            dtype=dtype,
-        )
-
-        bE = jnp.exp(-self._config.courant_number * (sigma_E / kappa + self.alpha))
-        bH = jnp.exp(-self._config.courant_number * (sigma_H / kappa + self.alpha))
-
-        cE = (bE - 1) * sigma_E / (sigma_E * kappa + kappa**2 * self.alpha)
-        cH = (bH - 1) * sigma_H / (sigma_H * kappa + kappa**2 * self.alpha)
+        dtype, bE, bH, cE, cH, kappa = self._get_dtype_update_coefficients()
 
         new_state = PMLBoundaryState(
             psi_Ex=state.psi_Ex * 0,
