@@ -1,7 +1,8 @@
-from typing import Literal, override
+from typing import Literal
 
 import jax
 import jax.numpy as jnp
+from typing_extensions import override
 
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.plotting.colors import LIGHT_BLUE

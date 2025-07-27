@@ -12,7 +12,9 @@ from fdtdx.typing import GridShape3D
 class BaseBoundaryState(TreeClass):
     pass
 
+
 T = TypeVar("T", bound=BaseBoundaryState)
+
 
 @autoinit
 class BaseBoundary(SimulationObject, ABC, Generic[T]):
@@ -21,7 +23,7 @@ class BaseBoundary(SimulationObject, ABC, Generic[T]):
     def descriptive_name(self) -> str:
         """Gets a human-readable name describing this boundary's location."""
         raise NotImplementedError()
-    
+
     @property
     @abstractmethod
     def thickness(self) -> int:
