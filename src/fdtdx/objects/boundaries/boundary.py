@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import Generic, TypeVar
+from typing import Generic, Literal, TypeVar
 
 import jax
 
-from fdtdx.core.jax.pytrees import TreeClass, autoinit
+from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 from fdtdx.objects.object import SimulationObject
-from fdtdx.typing import GridShape3D
+from fdtdx.typing import GridShape3D, Slice3D, SliceTuple3D
 
 
 @autoinit
@@ -18,6 +18,20 @@ T = TypeVar("T", bound=BaseBoundaryState)
 
 @autoinit
 class BaseBoundary(SimulationObject, ABC, Generic[T]):
+    """Base class for all boundary conditions in FDTD simulations.
+
+    This class defines the interface for boundary conditions, including methods
+    for initializing, resetting, and updating boundary states, as well as updating
+    the electric and magnetic fields at the boundaries.
+
+    Attributes:
+        axis (int): Principal axis for boundary (0=x, 1=y, 2=z)
+        direction (Literal["+", "-"]): Direction along axis ("+" or "-")
+    """
+
+    axis: int = frozen_field()
+    direction: Literal["+", "-"] = frozen_field()
+
     @property
     @abstractmethod
     def descriptive_name(self) -> str:
@@ -74,6 +88,31 @@ class BaseBoundary(SimulationObject, ABC, Generic[T]):
     ) -> jax.Array:
         raise NotImplementedError()
 
-    @abstractmethod
-    def boundary_interface_grid_shape(self) -> GridShape3D:
-        raise NotImplementedError()
+    def interface_grid_shape(self) -> GridShape3D:
+        if self.axis == 0:
+            return 1, self.grid_shape[1], self.grid_shape[2]
+        elif self.axis == 1:
+            return self.grid_shape[0], 1, self.grid_shape[2]
+        elif self.axis == 2:
+            return self.grid_shape[0], self.grid_shape[1], 1
+        raise Exception(f"Invalid axis: {self.axis=}")
+
+    def interface_slice_tuple(self) -> SliceTuple3D:
+        slice_list = [*self._grid_slice_tuple]
+        if self.direction == "+":
+            slice_list[self.axis] = (self._grid_slice_tuple[self.axis][0], self._grid_slice_tuple[self.axis][0] + 1)
+        elif self.direction == "-":
+            slice_list[self.axis] = (self._grid_slice_tuple[self.axis][1] - 1, self._grid_slice_tuple[self.axis][1])
+        return slice_list[0], slice_list[1], slice_list[2]
+
+    def interface_slice(self) -> Slice3D:
+        slice_list = [*self.grid_slice]
+        if self.direction == "+":
+            slice_list[self.axis] = slice(
+                self._grid_slice_tuple[self.axis][0], self._grid_slice_tuple[self.axis][0] + 1
+            )
+        elif self.direction == "-":
+            slice_list[self.axis] = slice(
+                self._grid_slice_tuple[self.axis][1] - 1, self._grid_slice_tuple[self.axis][1]
+            )
+        return slice_list[0], slice_list[1], slice_list[2]

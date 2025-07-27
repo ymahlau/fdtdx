@@ -1,5 +1,3 @@
-from typing import Literal
-
 import jax
 import jax.numpy as jnp
 from typing_extensions import override
@@ -7,7 +5,6 @@ from typing_extensions import override
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.plotting.colors import LIGHT_BLUE
 from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState
-from fdtdx.typing import GridShape3D, Slice3D, SliceTuple3D
 
 
 @autoinit
@@ -33,13 +30,9 @@ class PeriodicBoundary(BaseBoundary[PeriodicBoundaryState]):
     making waves that exit one side reenter from the opposite side.
 
     Attributes:
-        axis (int): Principal axis for periodicity (0=x, 1=y, 2=z)
-        direction (Literal["+", "-"]): Direction along axis ("+" or "-")
         color (tuple[float, float, float] | None): RGB color tuple for visualization. Defaults to light blue.
     """
 
-    axis: int = frozen_field()
-    direction: Literal["+", "-"] = frozen_field()
     color: tuple[float, float, float] | None = frozen_field(default=LIGHT_BLUE)
 
     @property
@@ -84,36 +77,6 @@ class PeriodicBoundary(BaseBoundary[PeriodicBoundaryState]):
             E_opposite=state.E_opposite * 0,
             H_opposite=state.H_opposite * 0,
         )
-
-    @override
-    def boundary_interface_grid_shape(self) -> GridShape3D:
-        if self.axis == 0:
-            return 1, self.grid_shape[1], self.grid_shape[2]
-        elif self.axis == 1:
-            return self.grid_shape[0], 1, self.grid_shape[2]
-        elif self.axis == 2:
-            return self.grid_shape[0], self.grid_shape[1], 1
-        raise Exception(f"Invalid axis: {self.axis=}")
-
-    def boundary_interface_slice_tuple(self) -> SliceTuple3D:
-        slice_list = [*self._grid_slice_tuple]
-        if self.direction == "+":
-            slice_list[self.axis] = (self._grid_slice_tuple[self.axis][0], self._grid_slice_tuple[self.axis][0] + 1)
-        elif self.direction == "-":
-            slice_list[self.axis] = (self._grid_slice_tuple[self.axis][1] - 1, self._grid_slice_tuple[self.axis][1])
-        return slice_list[0], slice_list[1], slice_list[2]
-
-    def boundary_interface_slice(self) -> Slice3D:
-        slice_list = [*self.grid_slice]
-        if self.direction == "+":
-            slice_list[self.axis] = slice(
-                self._grid_slice_tuple[self.axis][0], self._grid_slice_tuple[self.axis][0] + 1
-            )
-        elif self.direction == "-":
-            slice_list[self.axis] = slice(
-                self._grid_slice_tuple[self.axis][1] - 1, self._grid_slice_tuple[self.axis][1]
-            )
-        return slice_list[0], slice_list[1], slice_list[2]
 
     @override
     def update_E_boundary_state(

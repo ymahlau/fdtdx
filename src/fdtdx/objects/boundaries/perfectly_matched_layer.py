@@ -1,5 +1,3 @@
-from typing import Literal
-
 import jax
 import jax.numpy as jnp
 from typing_extensions import override
@@ -11,7 +9,6 @@ from fdtdx.objects.boundaries.utils import (
     kappa_from_direction_axis,
     standard_sigma_from_direction_axis,
 )
-from fdtdx.typing import GridShape3D, Slice3D, SliceTuple3D
 
 
 @autoinit
@@ -57,16 +54,12 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
     axis orientation and both positive/negative directions.
 
     Attributes:
-        axis (int): Principal axis for PML (0=x, 1=y, 2=z)
-        direction (Literal["+", "-"]): Direction along axis ("+" or "-")
         alpha (float, optional): Loss parameter for complex frequency shifting. Defaults to 1e-8.
         kappa_start (float, optional): Initial kappa stretching coefficient. Defaults to 1.0.
         kappa_end (float, optional): Final kappa stretching coefficient. Defaults to 1.5.
         color (tuple[float, float, float] | None, optional): RGB color tuple for visualization. defualts to dark grey.
     """
 
-    axis: int = frozen_field()
-    direction: Literal["+", "-"] = frozen_field()
     alpha: float = frozen_field(default=1.0e-8)
     kappa_start: float = frozen_field(default=1.0)
     kappa_end: float = frozen_field(default=1.5)
@@ -177,35 +170,6 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
             kappa=kappa.astype(dtype),
         )
         return new_state
-
-    def boundary_interface_grid_shape(self) -> GridShape3D:
-        if self.axis == 0:
-            return 1, self.grid_shape[1], self.grid_shape[2]
-        elif self.axis == 1:
-            return self.grid_shape[0], 1, self.grid_shape[2]
-        elif self.axis == 2:
-            return self.grid_shape[0], self.grid_shape[1], 1
-        raise Exception(f"Invalid axis: {self.axis=}")
-
-    def boundary_interface_slice_tuple(self) -> SliceTuple3D:
-        slice_list = [*self._grid_slice_tuple]
-        if self.direction == "+":
-            slice_list[self.axis] = (self._grid_slice_tuple[self.axis][0], self._grid_slice_tuple[self.axis][0] + 1)
-        elif self.direction == "-":
-            slice_list[self.axis] = (self._grid_slice_tuple[self.axis][1] - 1, self._grid_slice_tuple[self.axis][1])
-        return slice_list[0], slice_list[1], slice_list[2]
-
-    def boundary_interface_slice(self) -> Slice3D:
-        slice_list = [*self.grid_slice]
-        if self.direction == "+":
-            slice_list[self.axis] = slice(
-                self._grid_slice_tuple[self.axis][0], self._grid_slice_tuple[self.axis][0] + 1
-            )
-        elif self.direction == "-":
-            slice_list[self.axis] = slice(
-                self._grid_slice_tuple[self.axis][1] - 1, self._grid_slice_tuple[self.axis][1]
-            )
-        return slice_list[0], slice_list[1], slice_list[2]
 
     @override
     def update_E_boundary_state(

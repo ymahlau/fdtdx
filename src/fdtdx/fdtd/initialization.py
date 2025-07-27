@@ -318,7 +318,7 @@ def _init_arrays(
     if config.gradient_config is not None and config.gradient_config.recorder is not None:
         input_shape_dtypes = {}
         for boundary in objects.pml_objects:
-            cur_shape = boundary.boundary_interface_grid_shape()
+            cur_shape = boundary.interface_grid_shape()
             extended_shape = (3, *cur_shape)
             input_shape_dtypes[f"{boundary.name}_E"] = jax.ShapeDtypeStruct(shape=extended_shape, dtype=config.dtype)
             input_shape_dtypes[f"{boundary.name}_H"] = jax.ShapeDtypeStruct(shape=extended_shape, dtype=config.dtype)
