@@ -117,7 +117,6 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
     def init_state(
         self,
     ) -> PMLBoundaryState:
-        # TODO: Check difference between this and reset_state
         dtype, bE, bH, cE, cH, kappa = self._get_dtype_update_coefficients()
         ext_shape = (3,) + self.grid_shape
 

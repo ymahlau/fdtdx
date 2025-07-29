@@ -24,18 +24,17 @@ def compute_extent(
     """
     if kind == "min_x":
         return (slice(None, thickness), slice(None), slice(None))
-    elif kind == "max_x":
+    if kind == "max_x":
         return (slice(-thickness, None), slice(None), slice(None))
-    elif kind == "min_y":
+    if kind == "min_y":
         return (slice(None), slice(None, thickness), slice(None))
-    elif kind == "max_y":
+    if kind == "max_y":
         return (slice(None), slice(-thickness, None), slice(None))
-    elif kind == "min_z":
+    if kind == "min_z":
         return (slice(None), slice(None), slice(None, thickness))
-    elif kind == "max_z":
+    if kind == "max_z":
         return (slice(None), slice(None), slice(-thickness, None))
-    else:
-        raise ValueError(f"Invalid kind: {kind}")
+    raise ValueError(f"Invalid kind: {kind}")
 
 
 def compute_extent_boundary(
