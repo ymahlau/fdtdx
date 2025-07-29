@@ -2,302 +2,306 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://ymahlau.github.io/fdtdx/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/advanced/norms/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/internal/compression/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/internal/detector/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/internal/objects/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/internal/sources/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/internal/transformation/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/ArrayContainer/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/BinaryMedianFilterModule/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/BoundaryConfig/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/BrushConstraint2D/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/ClosestIndex/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/ConnectHolesAndStructures/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/Cylinder/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/Device/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/DiagonalSymmetry2D/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/DtypeConversion/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/EnergyDetector/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/ExtrudedPolygon/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/FieldDetector/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/GaussianPlaneSource/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/GaussianPulseProfile/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/GaussianSmoothing2D/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/GradientConfig/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/GridCoordinateConstraint/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/LinearReconstructEveryK/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/Logger/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/Material/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/ModeOverlapDetector/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/ModePlaneSource/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/ObjectContainer/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/ParameterTransformation/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/PerfectlyMatchedLayer/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/PeriodicBoundary/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/PhasorDetector/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/PillarDiscretization/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/PositionConstraint/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/PoyntingFluxDetector/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/RealCoordinateConstraint/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/Recorder/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/RecordingState/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/RemoveFloatingMaterial/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/SimulationConfig/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/SimulationObject/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/SimulationVolume/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/SingleFrequencyProfile/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/SizeConstraint/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/SizeExtensionConstraint/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/Sphere/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/StandardToCustomRange/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/StandardToPlusOneMinusOneRange/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/SubpixelSmoothedProjection/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/TanhProjection/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/TreeClass/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/UniformMaterialObject/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/UniformPlaneSource/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/WaveCharacter/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/apply_params/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/autoinit/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/boundary_objects_from_config/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/circular_brush/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/compute_energy/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/compute_poynting_flux/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/constants/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/metric_efficiency/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/place_objects/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/plot_setup/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/run_fdtd/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/api/public/typing/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
+    </url>
+    <url>
+         <loc>https://ymahlau.github.io/fdtdx/notebooks/modes/</loc>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/notebooks/simulate_lossy_material/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/tutorials/interface_compression/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/tutorials/jax_introduction/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/tutorials/materials/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/tutorials/object_placement/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
     <url>
          <loc>https://ymahlau.github.io/fdtdx/tutorials/parameter_mapping/</loc>
-         <lastmod>2025-07-24</lastmod>
+         <lastmod>2025-07-29</lastmod>
     </url>
 </urlset>
