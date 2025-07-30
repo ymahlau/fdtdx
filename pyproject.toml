@@ -1,6 +1,6 @@
 [project]
 name = "fdtdx"
-version = "0.4.2"
+version = "0.4.3"
 description = "A JAX framework for the finite-difference time-domain (FDTD) method for solving Maxwell's equations with a focus on inverse design of photonic devices." 
 readme = "README.md"
 authors = [
@@ -11,8 +11,7 @@ requires-python = ">=3.11"
 dependencies = [
     "loguru>=0.7.3",
     "pytreeclass>=0.11",
-    "jax>=0.4.36; platform_system != 'Linux'",
-    "jax[cuda12]>=0.4.36; platform_system == 'Linux'",
+    "jax>=0.4.36",
     "moviepy>=2.1.1",
     "optax>=0.2.4",
     "equinox>=0.11.10",
@@ -35,7 +34,7 @@ build-backend = "hatchling.build"
 target-version = "py312"
 line-length = 120
 fix = true
-exclude = ["examples", "slurm", "checks"]
+exclude = ["examples", "slurm", "checks", "docs"]
 
 [tool.ruff.lint]
 extend-select = ["I"]
@@ -43,9 +42,10 @@ extend-select = ["I"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
-[dependency-groups]
+[project.optional-dependencies]
 dev = [
     "black>=24.10.0",
+    "ipykernel>=6.29.5",
     "mkdocs>=1.6.1",
     "mkdocs-material>=9.5.48",
     "mkdocstrings[python]>=0.27.0",
@@ -58,6 +58,12 @@ dev = [
     "ruff>=0.8.2",
     "tox-uv>=1.16.1",
     "pydoclint>=0.6.6",
+]
+cuda12 = [
+    "jax[cuda12]>=0.4.36",
+]
+rocm = [
+    "jax[rocm]>=0.4.36",
 ]
 
 [tool.pyright]

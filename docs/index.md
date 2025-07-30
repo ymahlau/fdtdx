@@ -9,7 +9,9 @@ FDTDX is a high-performance framework for electromagnetic simulations and invers
 Install FDTDX using pip:
 
 ```bash
-pip install fdtdx
+pip install fdtdx  # Basic CPU-Installation
+pip install fdtdx[cuda12]  # GPU-Acceleration (Highly Recommended!)
+pip install fdtdx[rocm]   # AMD-GPU (only python<=3.12)
 ```
 
 For development installation, clone the repository and install in editable mode:
@@ -43,11 +45,15 @@ pip install -e .
 If you find this repository helpful for your work, please consider citing:
 
 ```bibtex
-@article{schubert2024quantized,
-  title={Quantized Inverse Design for Photonic Integrated Circuits},
+@article{schubert2025quantized,
+  title={Quantized inverse design for photonic integrated circuits},
   author={Schubert, Frederik and Mahlau, Yannik and Bethmann, Konrad and Hartmann, Fabian and Caspary, Reinhard and Munderloh, Marco and Ostermann, J{\"o}rn and Rosenhahn, Bodo},
-  journal={arXiv preprint arXiv:2407.10273},
-  year={2024}
+  journal={ACS omega},
+  volume={10},
+  number={5},
+  pages={5080--5086},
+  year={2025},
+  publisher={ACS Publications}
 }
 ```
 

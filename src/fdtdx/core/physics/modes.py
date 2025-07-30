@@ -101,7 +101,6 @@ def compute_mode(
     jax.Array,  # complex propagation constant
 ]:
     # Input validation
-    input_dtype = inv_permittivities.dtype
     if inv_permittivities.squeeze().ndim != 2:
         raise Exception(f"Invalid shape of inv_permittivities: {inv_permittivities.shape}")
     if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
@@ -132,7 +131,7 @@ def compute_mode(
         elif propagation_axis == 1:
             mode_E, mode_H = (
                 np.stack([mode.Ex, mode.Ez, mode.Ey], axis=0).astype(np.complex64),
-                np.stack([mode.Hx, mode.Hz, mode.Hy], axis=0).astype(np.complex64),
+                -np.stack([mode.Hx, mode.Hz, mode.Hy], axis=0).astype(np.complex64),
             )
         elif propagation_axis == 2:
             mode_E, mode_H = (
@@ -178,8 +177,8 @@ def compute_mode(
         jax.lax.stop_gradient(permittivity_squeezed),
         jax.lax.stop_gradient(permeability_squeezed),
     )
-    mode_E = jnp.real(jnp.expand_dims(mode_E_raw, axis=propagation_axis + 1)).astype(input_dtype)
-    mode_H = jnp.real(jnp.expand_dims(mode_H_raw, axis=propagation_axis + 1)).astype(input_dtype)
+    mode_E = jnp.expand_dims(mode_E_raw, axis=propagation_axis + 1)
+    mode_H = jnp.expand_dims(mode_H_raw, axis=propagation_axis + 1)
 
     # Tidy3D uses different scaling internally, so convert back
     mode_H = mode_H * tidy3d.constants.ETA_0
