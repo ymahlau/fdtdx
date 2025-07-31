@@ -35,6 +35,7 @@ plugins:
 
 theme:
   name: readthedocs
+  custom_dir: docs/overrides
   logo: img/logo.png
 
 extra_css:
