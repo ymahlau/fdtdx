@@ -49,10 +49,14 @@ def handle_different_scales(
 def patch_fn_to_module(
     f,
     mod,
+    fn_name: str | None = None,
 ) -> None:
-    nf = copy_func(f)
-    nm = f.__name__
-    nf.__qualname__ = f"{mod.__name__}.{nm}"
-    onm = '_orig_'+nm
-    if hasattr(mod, nm) and not hasattr(mod, onm): setattr(mod, onm, getattr(mod, nm))
-    setattr(mod, nm, nf)
+    fn_copy = copy_func(f)
+    if fn_name is None:
+        fn_name = f.__name__
+    assert fn_name is not None
+    fn_copy.__qualname__ = f"{mod.__name__}.{fn_name}"
+    original_name = '_orig_' + fn_name
+    if hasattr(mod, fn_name) and not hasattr(mod, original_name):
+        setattr(mod, original_name, getattr(mod, fn_name))
+    setattr(mod, fn_name, fn_copy)

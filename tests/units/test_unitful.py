@@ -1,7 +1,21 @@
 import jax
 import plum
 import pytest
-from fdtdx.units.unitful import SI, Unit, Unitful, add, multiply, remainder, subtract
+from fdtdx.units.unitful import (
+    SI, 
+    Unit, 
+    Unitful, 
+    add, 
+    multiply, 
+    remainder, 
+    subtract,
+    eq,
+    lt,
+    gt,
+    le,
+    ne,
+    ge,
+)
 from fdtdx.units.composite import Hz, s, ms, m_per_s 
 import jax.numpy as jnp
 
@@ -181,3 +195,165 @@ def test_remainder_different_units_raises_error():
     
     with pytest.raises(ValueError):
         remainder(u1, u2)
+
+
+def test_le_magic_method():
+    """Test less than or equal magic method of Unitful objects"""
+    time1 = 2 * s
+    time2 = 3 * s
+    result = time1 <= time2
+    assert jnp.allclose(result, True)
+
+
+def test_le_same_units_success():
+    """Test less than or equal with same units"""
+    unit_m = Unit(scale=0, dim={SI.m: 1})
+    u1 = Unitful(val=jnp.array(5.0), unit=unit_m)
+    u2 = Unitful(val=jnp.array(5.0), unit=unit_m)
+    result = jnp.less_equal(u1, u2)  # type: ignore
+    assert jnp.allclose(result, True)
+
+
+def test_le_different_units_raises_error():
+    """Test that le with different units raises ValueError"""
+    unit_m = Unit(scale=0, dim={SI.m: 1})
+    unit_s = Unit(scale=0, dim={SI.s: 1})
+    u1 = Unitful(val=jnp.array(5.0), unit=unit_m)
+    u2 = Unitful(val=jnp.array(3.0), unit=unit_s)
+    with pytest.raises(ValueError):
+        le(u1, u2)
+
+
+def test_lt_magic_method():
+    """Test less than magic method of Unitful objects"""
+    time1 = 2 * s
+    time2 = 3 * s
+    result = time1 < time2
+    assert jnp.allclose(result, True)
+
+
+def test_lt_same_units_success():
+    """Test less than with same units"""
+    unit_kg = Unit(scale=0, dim={SI.kg: 1})
+    u1 = Unitful(val=jnp.array(4.0), unit=unit_kg)
+    u2 = Unitful(val=jnp.array(10.0), unit=unit_kg)
+    result = jnp.less(u1, u2)   # type: ignore
+    assert jnp.allclose(result, True)
+
+
+def test_lt_different_units_raises_error():
+    """Test that lt with different units raises ValueError"""
+    unit_K = Unit(scale=0, dim={SI.K: 1})
+    unit_A = Unit(scale=0, dim={SI.A: 1})
+    u1 = Unitful(val=jnp.array(300.0), unit=unit_K)
+    u2 = Unitful(val=jnp.array(2.0), unit=unit_A)
+    with pytest.raises(ValueError):
+        lt(u1, u2)
+
+
+def test_eq_magic_method():
+    """Test equality magic method of Unitful objects"""
+    time1 = 5 * s
+    time2 = 5 * s
+    result = time1 == time2
+    assert jnp.allclose(result, True)
+
+
+def test_eq_same_units_success():
+    """Test equality with same units"""
+    unit_mol = Unit(scale=0, dim={SI.mol: 1})
+    u1 = Unitful(val=jnp.array(7.0), unit=unit_mol)
+    u2 = Unitful(val=jnp.array(7.0), unit=unit_mol)
+    result = jnp.equal(u1, u2)  # type: ignore
+    assert jnp.allclose(result, True)
+
+
+def test_eq_different_units_raises_error():
+    """Test that eq with different units raises ValueError"""
+    unit_mol = Unit(scale=0, dim={SI.mol: 1})
+    unit_cd = Unit(scale=0, dim={SI.cd: 1})
+    u1 = Unitful(val=jnp.array(7.0), unit=unit_mol)
+    u2 = Unitful(val=jnp.array(7.0), unit=unit_cd)
+    with pytest.raises(ValueError):
+        eq(u1, u2)
+
+
+def test_neq_magic_method():
+    """Test not equal magic method of Unitful objects"""
+    time1 = 5 * s
+    time2 = 3 * s
+    result = time1 != time2
+    assert jnp.allclose(result, True)
+
+
+def test_neq_same_units_success():
+    """Test not equal with same units"""
+    unit_cd = Unit(scale=0, dim={SI.cd: 1})
+    u1 = Unitful(val=jnp.array(5.0), unit=unit_cd)
+    u2 = Unitful(val=jnp.array(3.0), unit=unit_cd)
+    result = jnp.not_equal(u1, u2)  # type: ignore
+    assert jnp.allclose(result, True)
+
+
+def test_neq_different_units_raises_error():
+    """Test that neq with different units raises ValueError"""
+    unit_m = Unit(scale=0, dim={SI.m: 1})
+    unit_kg = Unit(scale=0, dim={SI.kg: 1})
+    u1 = Unitful(val=jnp.array(5.0), unit=unit_m)
+    u2 = Unitful(val=jnp.array(5.0), unit=unit_kg)
+    with pytest.raises(ValueError):
+        ne(u1, u2)
+
+
+def test_ge_magic_method():
+    """Test greater than or equal magic method of Unitful objects"""
+    time1 = 3 * s
+    time2 = 2 * s
+    result = time1 >= time2
+    assert jnp.allclose(result, True)
+
+
+def test_ge_same_units_success():
+    """Test greater than or equal with same units"""
+    unit_A = Unit(scale=0, dim={SI.A: 1})
+    u1 = Unitful(val=jnp.array(8.0), unit=unit_A)
+    u2 = Unitful(val=jnp.array(8.0), unit=unit_A)
+    result = jnp.greater_equal(u1, u2)  # type: ignore
+    assert jnp.allclose(result, True)
+
+
+def test_ge_different_units_raises_error():
+    """Test that ge with different units raises ValueError"""
+    unit_s = Unit(scale=0, dim={SI.s: 1})
+    unit_m = Unit(scale=0, dim={SI.m: 1})
+    u1 = Unitful(val=jnp.array(10.0), unit=unit_s)
+    u2 = Unitful(val=jnp.array(3.0), unit=unit_m)
+    with pytest.raises(ValueError):
+        ge(u1, u2)
+
+
+def test_gt_magic_method():
+    """Test greater than magic method of Unitful objects"""
+    time1 = 5 * s
+    time2 = 3 * s
+    result = time1 > time2
+    assert jnp.allclose(result, True)
+
+
+def test_gt_same_units_success():
+    """Test greater than with same units"""
+    unit_K = Unit(scale=0, dim={SI.K: 1})
+    u1 = Unitful(val=jnp.array(400.0), unit=unit_K)
+    u2 = Unitful(val=jnp.array(300.0), unit=unit_K)
+    result = jnp.greater(u1, u2)  # type: ignore
+    assert jnp.allclose(result, True)
+
+
+def test_gt_different_units_raises_error():
+    """Test that gt with different units raises ValueError"""
+    unit_kg = Unit(scale=0, dim={SI.kg: 1})
+    unit_A = Unit(scale=0, dim={SI.A: 1})
+    u1 = Unitful(val=jnp.array(15.0), unit=unit_kg)
+    u2 = Unitful(val=jnp.array(5.0), unit=unit_A)
+    with pytest.raises(ValueError):
+        gt(u1, u2)

@@ -79,6 +79,23 @@ class Unitful(TreeClass):
     def __rsub__(self, other: "Unitful") -> "Unitful":
         return subtract(other, self)
     
+    def __lt__(self, other: "Unitful") -> ArrayLike:
+        return lt(self, other)
+    
+    def __le__(self, other: "Unitful") -> ArrayLike:
+        return le(self, other)
+    
+    def __eq__(self, other: "Unitful") -> ArrayLike:
+        return eq(self, other)
+    
+    def __ne__(self, other: "Unitful") -> ArrayLike:  # type: ignore
+        return ne(self, other)
+    
+    def __ge__(self, other: "Unitful") -> ArrayLike:
+        return ge(self, other)
+    
+    def __gt__(self, other: "Unitful") -> ArrayLike:
+        return gt(self, other)
     
 
 
@@ -219,13 +236,167 @@ def remainder(x, y):  # type: ignore
     del x, y
     raise NotImplementedError()
 
+## less than ##########################
+def _same_dim_binary_fn_array_return(x: Unitful, y: Unitful, op_str: str) -> ArrayLike:
+    if x.unit.dim != y.unit.dim:
+        raise ValueError(f"Cannot {op_str} two arrays with units {x.unit} and {y.unit}.")
+    x, y = align_scales(x, y)
+    orig_fn = getattr(jax.lax, op_str)
+    new_val = orig_fn(x.val, y.val)
+    return new_val
+
+@overload
+def lt(  # type: ignore
+    x: Unitful, 
+    y: Unitful
+) -> ArrayLike:
+    return _same_dim_binary_fn_array_return(x, y, "lt")
+
+@overload
+def lt(  # type: ignore
+    x: ArrayLike, 
+    y: ArrayLike
+) -> ArrayLike:
+    return jax.lax._orig_lt(x, y)  # type: ignore
+
+@dispatch
+def lt(x, y):  # type: ignore
+    del x, y
+    raise NotImplementedError()
+
+## less equal ##########################
+@overload
+def le(  # type: ignore
+    x: Unitful, 
+    y: Unitful
+) -> ArrayLike:
+    return _same_dim_binary_fn_array_return(x, y, "le")
+
+@overload
+def le(  # type: ignore
+    x: ArrayLike, 
+    y: ArrayLike
+) -> ArrayLike:
+    return jax.lax._orig_le(x, y)  # type: ignore
+
+@dispatch
+def le(x, y):  # type: ignore
+    del x, y
+    raise NotImplementedError()
+
+## equal ##########################
+@overload
+def eq(  # type: ignore
+    x: Unitful, 
+    y: Unitful
+) -> ArrayLike:
+    return _same_dim_binary_fn_array_return(x, y, "eq")
+
+@overload
+def eq(  # type: ignore
+    x: ArrayLike, 
+    y: ArrayLike
+) -> ArrayLike:
+    return jax.lax._orig_eq(x, y)  # type: ignore
+
+@dispatch
+def eq(x, y):  # type: ignore
+    del x, y
+    raise NotImplementedError()
+
+## not equal ##########################
+@overload
+def ne(  # type: ignore
+    x: Unitful, 
+    y: Unitful
+) -> ArrayLike:
+    return _same_dim_binary_fn_array_return(x, y, "ne")
+
+@overload
+def ne(  # type: ignore
+    x: ArrayLike, 
+    y: ArrayLike
+) -> ArrayLike:
+    return jax.lax._orig_ne(x, y)  # type: ignore
+
+@dispatch
+def ne(x, y):  # type: ignore
+    del x, y
+    raise NotImplementedError()
+
+## greater equal ##########################
+@overload
+def ge(  # type: ignore
+    x: Unitful, 
+    y: Unitful
+) -> ArrayLike:
+    return _same_dim_binary_fn_array_return(x, y, "ge")
+
+@overload
+def ge(  # type: ignore
+    x: ArrayLike, 
+    y: ArrayLike
+) -> ArrayLike:
+    return jax.lax._orig_ge(x, y)  # type: ignore
+
+@dispatch
+def ge(x, y):  # type: ignore
+    del x, y
+    raise NotImplementedError()
+
+## greater than ##########################
+@overload
+def gt(  # type: ignore
+    x: Unitful, 
+    y: Unitful
+) -> ArrayLike:
+    return _same_dim_binary_fn_array_return(x, y, "gt")
+
+@overload
+def gt(  # type: ignore
+    x: ArrayLike, 
+    y: ArrayLike
+) -> ArrayLike:
+    return jax.lax._orig_gt(x, y)  # type: ignore
+
+@dispatch
+def gt(x, y):  # type: ignore
+    del x, y
+    raise NotImplementedError()
+
 
 ## add to original jax.numpy ###################
-_full_patch_list = [
-    multiply,
-    add,
-    subtract,
-    remainder,
+_full_patch_list_numpy = [
+    (multiply, None),
+    (add, None),
+    (subtract, None),
+    (remainder, None),
+    (lt, "less"),
+    (le, "less_equal"),
+    (eq, "equal"),
+    (ne, "not_equal"),
+    (ge, "greater_equal"),
+    (gt, "greater"),
 ]
-for fn in _full_patch_list:
-    patch_fn_to_module(fn, jax.numpy)
+for fn, orig in _full_patch_list_numpy:
+    patch_fn_to_module(
+        f=fn, 
+        mod=jax.numpy,
+        fn_name=orig,
+    )
+
+## add to jax.lax ###################
+_full_patch_list_lax = [
+    (lt, None),
+    (le, None),
+    (eq, None),
+    (ne, None),
+    (ge, None),
+    (gt, None),
+]
+for fn, orig in _full_patch_list_lax:
+    patch_fn_to_module(
+        f=fn, 
+        mod=jax.lax,
+        fn_name=orig,
+    )
