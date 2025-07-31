@@ -8,6 +8,8 @@
 [![arXiv](https://img.shields.io/badge/arXiv-2412.12360-b31b1b.svg)](https://arxiv.org/abs/2412.12360)
 [![codecov](https://codecov.io/gh/ymahlau/fdtdx/branch/main/graph/badge.svg)](https://codecov.io/gh/ymahlau/fdtdx)
 [![PyPI version](https://img.shields.io/pypi/v/fdtdx)](https://pypi.org/project/fdtdx/)
+[![Continuous integration](https://github.com/ymahlau/fdtdx/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/ymahlau/fdtdx/actions/workflows/main.yml/badge.svg?branch=main)
+[![status](https://joss.theoj.org/papers/d0844d2ee5a573165bcc61fb51f575ae/status.svg)](https://joss.theoj.org/papers/d0844d2ee5a573165bcc61fb51f575ae)
 
 # FDTDX: Electromagnetic Simulations in JAX
 
