@@ -1,7 +1,8 @@
 import jax
 import plum
 import pytest
-from fdtdx.units.unitful import SI, Hz, Unitful, multiply, s, ms, m_per_s
+from fdtdx.units.unitful import SI, Unit, Unitful, add, multiply, remainder, subtract
+from fdtdx.units.composite import Hz, s, ms, m_per_s 
 import jax.numpy as jnp
 
 
@@ -46,7 +47,7 @@ def test_multiply_arraylike_unitful():
     scalar = 5.0
     time_val = 3 * s
     
-    result: Unitful = jnp.multiply(scalar, time_val)
+    result: Unitful = jnp.multiply(scalar, time_val)  # type: ignore
     
     assert jnp.allclose(result.val, 15.0)
     assert result.unit.scale == 0
@@ -73,7 +74,7 @@ def test_multiply_not_implemented():
 def test_multiply_with_arrays():
     """Test multiplication with array values"""
     time_array = s * jnp.array([1.0, 2.0, 3.0])
-    freq_array: Unitful = jnp.array([2.0, 3.0, 4.0]) * Hz
+    freq_array: Unitful = jnp.array([2.0, 3.0, 4.0]) * Hz   # type: ignore
     assert isinstance(freq_array, Unitful)
     assert isinstance(time_array, Unitful)
     result = multiply(time_array, freq_array)
@@ -99,3 +100,84 @@ def test_multiply_jitted():
     assert jnp.allclose(res1.val, res2.val)
     assert res1.unit.scale == -3
     assert res2.unit.scale == -6
+
+
+def test_add_same_units():
+    """Test addition of two Unitful objects with the same dimensions."""
+    # Create two lengths in meters
+    unit_m = Unit(scale=0, dim={SI.m: 1})
+    u1 = Unitful(val=jnp.array(5.0), unit=unit_m)
+    u2 = Unitful(val=jnp.array(3.0), unit=unit_m)
+    
+    result = jnp.add(u1, u2)  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.val, 8.0)
+    assert result.unit.dim == {SI.m: 1}
+    assert result.unit.scale == 0
+
+
+def test_add_different_units_raises_error():
+    """Test that addition of Unitful objects with different dimensions raises ValueError."""
+    # Create length and time units
+    unit_m = Unit(scale=0, dim={SI.m: 1})
+    unit_s = Unit(scale=0, dim={SI.s: 1})
+    u1 = Unitful(val=jnp.array(5.0), unit=unit_m)
+    u2 = Unitful(val=jnp.array(3.0), unit=unit_s)
+    
+    with pytest.raises(ValueError):
+        add(u1, u2)
+
+
+def test_subtract_same_units():
+    """Test subtraction of two Unitful objects with the same dimensions."""
+    # Create two masses in kilograms
+    unit_kg = Unit(scale=0, dim={SI.kg: 1})
+    u1 = Unitful(val=jnp.array(10.0), unit=unit_kg)
+    u2 = Unitful(val=jnp.array(4.0), unit=unit_kg)
+    
+    result = jnp.subtract(u1, u2)  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.val, 6.0)
+    assert result.unit.dim == {SI.kg: 1}
+    assert result.unit.scale == 0
+
+
+def test_subtract_different_units_raises_error():
+    """Test that subtraction of Unitful objects with different dimensions raises ValueError."""
+    # Create temperature and current units
+    unit_K = Unit(scale=0, dim={SI.K: 1})
+    unit_A = Unit(scale=0, dim={SI.A: 1})
+    u1 = Unitful(val=jnp.array(300.0), unit=unit_K)
+    u2 = Unitful(val=jnp.array(2.0), unit=unit_A)
+    
+    with pytest.raises(ValueError):
+        subtract(u1, u2)
+
+
+def test_remainder_same_units():
+    """Test remainder operation of two Unitful objects with the same dimensions."""
+    # Create two times in seconds
+    unit_s = Unit(scale=0, dim={SI.s: 1})
+    u1 = Unitful(val=jnp.array(10.0), unit=unit_s)
+    u2 = Unitful(val=jnp.array(3.0), unit=unit_s)
+    
+    result = jnp.remainder(u1, u2)  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.val, 1.0)  # 10 % 3 = 1
+    assert result.unit.dim == {SI.s: 1}
+    assert result.unit.scale == 0
+
+
+def test_remainder_different_units_raises_error():
+    """Test that remainder of Unitful objects with different dimensions raises ValueError."""
+    # Create amount of substance and luminous intensity units
+    unit_mol = Unit(scale=0, dim={SI.mol: 1})
+    unit_cd = Unit(scale=0, dim={SI.cd: 1})
+    u1 = Unitful(val=jnp.array(7.0), unit=unit_mol)
+    u2 = Unitful(val=jnp.array(2.0), unit=unit_cd)
+    
+    with pytest.raises(ValueError):
+        remainder(u1, u2)

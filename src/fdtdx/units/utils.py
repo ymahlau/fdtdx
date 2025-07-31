@@ -1,8 +1,5 @@
-
-import functools
 import numpy as np
 from fastcore.foundation import copy_func
-
 
 def handle_different_scales(
     s1: int,
@@ -49,11 +46,10 @@ def handle_different_scales(
     s2_to_zero = 10 ** (s2)
     return (0, s1_to_zero, s2_to_zero)
 
-
 def patch_fn_to_module(
     f,
     mod,
-):
+) -> None:
     nf = copy_func(f)
     nm = f.__name__
     nf.__qualname__ = f"{mod.__name__}.{nm}"
