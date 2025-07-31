@@ -20,6 +20,7 @@ dependencies = [
     "seaborn>=0.13.2",
     "matplotlib>=3.9.4",
     "rich>=13.9.4",
+    "plum-dispatch>=2.5.7"
 ]
 
 [project.urls]
