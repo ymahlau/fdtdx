@@ -1,5 +1,7 @@
 
+import functools
 import numpy as np
+from fastcore.foundation import copy_func
 
 
 def handle_different_scales(
@@ -46,3 +48,15 @@ def handle_different_scales(
     s1_to_zero = 10 ** (s1)
     s2_to_zero = 10 ** (s2)
     return (0, s1_to_zero, s2_to_zero)
+
+
+def patch_fn_to_module(
+    f,
+    mod,
+):
+    nf = copy_func(f)
+    nm = f.__name__
+    nf.__qualname__ = f"{mod.__name__}.{nm}"
+    onm = '_orig_'+nm
+    if hasattr(mod, nm) and not hasattr(mod, onm): setattr(mod, onm, getattr(mod, nm))
+    setattr(mod, nm, nf)

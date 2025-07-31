@@ -1,12 +1,19 @@
 from enum import Enum
 from numbers import Number
+from typing import TYPE_CHECKING, cast
 
+import jax
+import jax.random
 from jaxtyping import ArrayLike
 import jax.numpy as jnp
 
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 
 from plum import dispatch, overload
+from pytreeclass import tree_repr
+from fastcore.foundation import patch_to
+
+from fdtdx.units.utils import patch_fn_to_module
 
 
 class SI(Enum):
@@ -28,10 +35,10 @@ class Unit:
         self.dim = dim
 
     def __str__(self):
-        res_str = f"1e{self.scale}"
+        res_str = f"10^{self.scale} " if self.scale != 0 else ""
         for k, v in self.dim.items():
-            res_str += f"{k}^{v} "
-        return res_str
+            res_str += f"{k.name}^{v} " if v != 1 else f"{k.name} "
+        return res_str[:-1]
 
     def __repr__(self):
         return str(self)
@@ -43,7 +50,7 @@ class Unitful(TreeClass):
     unit: Unit = frozen_field()
 
     def __str__(self):
-        return f"Unitful({jnp.shape(self.val)}, {self.unit})"
+        return f"Unitful [{self.unit}]: {tree_repr(self.val)}"
 
     def __repr__(self):
         return str(self)
@@ -116,5 +123,4 @@ def multiply(x, y):  # type: ignore
     del x, y
     raise NotImplementedError()
 
-jnp.multiply = multiply
-
+patch_fn_to_module(multiply, jax.numpy)

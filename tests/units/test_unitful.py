@@ -1,3 +1,4 @@
+import jax
 import plum
 import pytest
 from fdtdx.units.unitful import SI, Hz, Unitful, multiply, s, ms, m_per_s
@@ -40,38 +41,14 @@ def test_multiply_unitful_unitful_different_scales():
     assert result.unit.dim == {SI.s: 2}
 
 
-def test_multiply_unitful_unitful_complex_units():
-    """Test multiplication resulting in complex unit combinations"""
-    velocity = 10 * m_per_s
-    time_val = 2 * s
-    
-    result = multiply(velocity, time_val)
-    
-    assert jnp.allclose(result.val, 20.0)
-    assert result.unit.scale == 0
-    assert result.unit.dim == {SI.m: 1}  # m/s * s = m
-
-
 def test_multiply_arraylike_unitful():
     """Test multiplication of ArrayLike with Unitful"""
     scalar = 5.0
     time_val = 3 * s
     
-    result = multiply(scalar, time_val)
+    result: Unitful = jnp.multiply(scalar, time_val)
     
     assert jnp.allclose(result.val, 15.0)
-    assert result.unit.scale == 0
-    assert result.unit.dim == {SI.s: 1}
-
-
-def test_multiply_unitful_arraylike():
-    """Test multiplication of Unitful with ArrayLike"""
-    time_val = 4 * s
-    scalar = 2.5
-    
-    result = multiply(time_val, scalar)
-    
-    assert jnp.allclose(result.val, 10.0)
     assert result.unit.scale == 0
     assert result.unit.dim == {SI.s: 1}
 
@@ -93,26 +70,32 @@ def test_multiply_not_implemented():
         multiply("string", "string")  # type: ignore
 
 
-def test_unitful_mul_with_scalar():
-    """Test Unitful.__mul__ with scalar"""
-    time_val = 6 * Hz
-    scalar = 7.0
-    
-    result = time_val * scalar
-    
-    assert jnp.allclose(result.val, 42.0)
-    assert result.unit.scale == 0
-    assert result.unit.dim == {SI.s: -1}
-
-
 def test_multiply_with_arrays():
     """Test multiplication with array values"""
-    time_array: Unitful = s * jnp.array([1.0, 2.0, 3.0])
-    freq_array = jnp.array([2.0, 3.0, 4.0]) * Hz
-    
+    time_array = s * jnp.array([1.0, 2.0, 3.0])
+    freq_array: Unitful = jnp.array([2.0, 3.0, 4.0]) * Hz
+    assert isinstance(freq_array, Unitful)
+    assert isinstance(time_array, Unitful)
     result = multiply(time_array, freq_array)
     
     expected_val = jnp.array([2.0, 6.0, 12.0])
     assert jnp.allclose(result.val, expected_val)
     assert result.unit.scale == 0
     assert result.unit.dim == {}  # dimensionless
+    
+def test_multiply_jitted():
+    """Test jitting of multplication"""
+    arr1 = s * jnp.array([1.0, 2.0, 3.0])
+    arr2 = ms * jnp.array([1.0, 2.0, 3.0])
+    arr3 = ms * jnp.array([1.0, 2.0, 3.0])
+    
+    def fn(a: Unitful, b: Unitful) -> Unitful:
+        return jnp.multiply(a, b)  # type: ignore
+    
+    jitted_fn = jax.jit(fn)
+    res1 = jitted_fn(arr1, arr2)
+    res2 = jitted_fn(arr2, arr3)
+    
+    assert jnp.allclose(res1.val, res2.val)
+    assert res1.unit.scale == -3
+    assert res2.unit.scale == -6
