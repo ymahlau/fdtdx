@@ -13,7 +13,7 @@ class Fraction(NamedTuple):
             return "0"
         if self.denom == 1:
             return str(self.num)
-        return f"{self.num} / {self.denom}"
+        return f"({self.num}/{self.denom})"
     
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, int | float | Fraction):

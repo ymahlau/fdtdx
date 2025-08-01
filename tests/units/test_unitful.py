@@ -1,6 +1,7 @@
 import jax
 import plum
 import pytest
+from fdtdx.core.fraction import Fraction
 from fdtdx.units.unitful import (
     SI, 
     Unit, 
@@ -357,3 +358,87 @@ def test_gt_different_units_raises_error():
     u2 = Unitful(val=jnp.array(5.0), unit=unit_A)
     with pytest.raises(ValueError):
         gt(u1, u2)
+
+
+def test_multiply_unitful_with_fractional_dimensions():
+    """Test multiplication creating and using fractional dimensions"""
+    # Create a unit with m^(1/2) dimension (like square root of area)
+    unit_sqrt_m = Unit(scale=0, dim={SI.m: Fraction(1, 2)})
+    u1 = Unitful(val=jnp.array(4.0), unit=unit_sqrt_m)
+    u2 = Unitful(val=jnp.array(3.0), unit=unit_sqrt_m)
+    
+    # Multiplying m^(1/2) * m^(1/2) should give m^1
+    result = multiply(u1, u2)
+    
+    assert jnp.allclose(result.val, 12.0)
+    assert result.unit.scale == 0
+    assert result.unit.dim == {SI.m: 1}  # 1/2 + 1/2 = 1
+
+
+def test_multiply_fractional_with_integer_dimensions():
+    """Test multiplication of fractional and integer dimensions"""
+    # Create units: m^(1/3) and m^(2/3)
+    unit_cube_root_m = Unit(scale=0, dim={SI.m: Fraction(1, 3)})
+    unit_two_thirds_m = Unit(scale=0, dim={SI.m: Fraction(2, 3)})
+    
+    u1 = Unitful(val=jnp.array(8.0), unit=unit_cube_root_m)
+    u2 = Unitful(val=jnp.array(2.0), unit=unit_two_thirds_m)
+    
+    # m^(1/3) * m^(2/3) = m^1
+    result = multiply(u1, u2)
+    
+    assert jnp.allclose(result.val, 16.0)
+    assert result.unit.scale == 0
+    assert result.unit.dim == {SI.m: 1}  # 1/3 + 2/3 = 1
+
+
+def test_multiply_fractional_dimensions_cancel_out():
+    """Test that fractional dimensions can cancel out to become dimensionless"""
+    # Create units: s^(3/4) and s^(-3/4)
+    unit_pos_frac = Unit(scale=0, dim={SI.s: Fraction(3, 4)})
+    unit_neg_frac = Unit(scale=0, dim={SI.s: Fraction(-3, 4)})
+    
+    u1 = Unitful(val=jnp.array(5.0), unit=unit_pos_frac)
+    u2 = Unitful(val=jnp.array(7.0), unit=unit_neg_frac)
+    
+    # s^(3/4) * s^(-3/4) = s^0 = dimensionless
+    result = multiply(u1, u2)
+    
+    assert jnp.allclose(result.val, 35.0)
+    assert result.unit.scale == 0
+    assert result.unit.dim == {}  # 3/4 + (-3/4) = 0, so dimension is removed
+
+
+def test_add_same_fractional_dimensions():
+    """Test addition of unitful objects with the same fractional dimensions"""
+    # Create two units with kg^(2/5) dimension
+    unit_frac_kg = Unit(scale=0, dim={SI.kg: Fraction(2, 5)})
+    u1 = Unitful(val=jnp.array(10.0), unit=unit_frac_kg)
+    u2 = Unitful(val=jnp.array(15.0), unit=unit_frac_kg)
+    
+    result = add(u1, u2)
+    
+    assert jnp.allclose(result.val, 25.0)
+    assert result.unit.dim == {SI.kg: Fraction(2, 5)}
+    assert result.unit.scale == 0
+
+
+def test_equality_fractional_dimensions():
+    """Test equality comparison with fractional dimensions"""
+    # Create units with A^(7/11) dimension
+    unit_frac_A = Unit(scale=0, dim={SI.A: Fraction(7, 11)})
+    u1 = Unitful(val=jnp.array(42.0), unit=unit_frac_A)
+    u2 = Unitful(val=jnp.array(42.0), unit=unit_frac_A)
+    u3 = Unitful(val=jnp.array(43.0), unit=unit_frac_A)
+    
+    # Test equality
+    result_equal = eq(u1, u2)
+    result_not_equal = eq(u1, u3)
+    
+    assert jnp.allclose(result_equal, True)
+    assert jnp.allclose(result_not_equal, False)
+    
+    # Also test that the units are properly preserved
+    assert u1.unit.dim == {SI.A: Fraction(7, 11)}
+    assert u2.unit.dim == {SI.A: Fraction(7, 11)}
+

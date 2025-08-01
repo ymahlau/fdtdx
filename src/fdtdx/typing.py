@@ -1,6 +1,17 @@
 from enum import Enum
 from typing import Literal, Optional
 
+
+class SI(Enum):
+    s = "second"
+    m = "meter"
+    kg = "kilogram"
+    A = "ampere"
+    K = "kelvin"
+    mol = "mole"
+    cd = "candela"
+
+
 # Real-valued shapes (physical dimensions)
 RealShape3D = tuple[float, float, float]
 """3D shape with real-valued (physical) dimensions in meters."""

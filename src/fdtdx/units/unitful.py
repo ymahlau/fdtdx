@@ -1,46 +1,33 @@
-from enum import Enum
-from numbers import Number
-from typing import TYPE_CHECKING, cast
-
 import jax
-import jax.random
 from jaxtyping import ArrayLike
 import jax.numpy as jnp
 
+from fdtdx.core.fraction import Fraction
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 
 from plum import dispatch, overload
 from pytreeclass import tree_repr
-from fastcore.foundation import patch_to
 
+from fdtdx.typing import SI
 from fdtdx.units.utils import handle_different_scales, patch_fn_to_module
 
-
-class SI(Enum):
-    s = "second"
-    m = "meter"
-    kg = "kilogram"
-    A = "ampere"
-    K = "kelvin"
-    mol = "mole"
-    cd = "candela"
 
 class Unit:
     def __init__(
         self,
         scale: int,
-        dim: dict[SI, int],
+        dim: dict[SI, int | Fraction],
     ):
         self.scale = scale
         self.dim = dim
 
-    def __str__(self):
+    def __str__(self) -> str:
         res_str = f"10^{self.scale} " if self.scale != 0 else ""
         for k, v in self.dim.items():
             res_str += f"{k.name}^{v} " if v != 1 else f"{k.name} "
         return res_str[:-1]
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self)
 
 
