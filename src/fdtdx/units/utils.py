@@ -1,5 +1,12 @@
+import equinox
+import jax
+import jax.numpy as jnp
+from jax import core
+from jaxtyping import ArrayLike
 import numpy as np
 from fastcore.foundation import copy_func
+
+from fdtdx.typing import PhysicalArrayLike
 
 def handle_different_scales(
     s1: int,
@@ -45,6 +52,63 @@ def handle_different_scales(
     s1_to_zero = 10 ** (s1)
     s2_to_zero = 10 ** (s2)
     return (0, s1_to_zero, s2_to_zero)
+
+
+def best_scale(
+    arr: PhysicalArrayLike,
+    noop_in_jit: bool = True,
+) -> tuple[PhysicalArrayLike, int]:
+    """ 
+    This uses some static approximations to find the scale of an ArrayLike that has the best numerical accuracy.
+    These approximations are only performed outside of jit. In a jitted function, this reduces to a NoOp, except if the
+    noop_in_jit is set to False.
+    
+    Args:
+        arr (ArrayLike): Scale of first dimension (10^s1)
+        noop_in_jit (bool): If True, the function reduces to Noop in jit context. Defaults to True. 
+    
+    Returns:
+        tuple[ArrayLike, int]: Tuple of the numerical arraylike, and the power of 10, which the array was multiplied 
+        with.
+    """
+    if noop_in_jit and isinstance(arr, core.Tracer):
+        return arr, 0
+    
+    # Convert to array for easier manipulation
+    arr_jax = jnp.abs(jnp.asarray(arr))
+    
+    if noop_in_jit:
+        # Handle edge case: all values are zero
+        non_zero_mask = arr_jax != 0
+        if jnp.sum(non_zero_mask) == 0:
+            return arr, 0
+        
+        # Calculate median of absolute non-zero values.
+        # Masking works here only because we are not in jitted context
+        nonzero_values = arr_jax[non_zero_mask]
+        median_abs = jnp.median(nonzero_values)
+    else:
+        # Replace zeros with NaN
+        arr_for_median = jnp.where(arr_jax == 0, jnp.nan, arr_jax)
+        
+        # Use nanmedian to ignore NaN values
+        median_abs = jnp.nanmedian(arr_for_median)
+        
+        # Handle case where all values were zero (result would be NaN)
+        median_abs = jnp.where(jnp.isnan(median_abs), 1.0, median_abs)
+    
+    # Find the power of 10 that brings median to around 1.0
+    # log10(median_abs * scale_factor) ≈ 0
+    # so scale_factor = 10^(-log10(median_abs))
+    log_median: float = jnp.log10(median_abs).item()
+    target_power = -round(log_median)
+    scale_factor = 10.0 ** target_power
+    
+    # Apply scaling
+    scaled_arr = arr * scale_factor
+    
+    return scaled_arr, target_power
+
 
 def patch_fn_to_module(
     f,

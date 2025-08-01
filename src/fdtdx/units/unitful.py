@@ -1,5 +1,5 @@
+from dataclasses import dataclass
 import jax
-from jaxtyping import ArrayLike
 import jax.numpy as jnp
 
 from fdtdx.core.fraction import Fraction
@@ -8,18 +8,13 @@ from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 from plum import dispatch, overload
 from pytreeclass import tree_repr
 
-from fdtdx.typing import SI
-from fdtdx.units.utils import handle_different_scales, patch_fn_to_module
+from fdtdx.typing import SI, PhysicalArrayLike
+from fdtdx.units.utils import best_scale, handle_different_scales, patch_fn_to_module
 
-
-class Unit:
-    def __init__(
-        self,
-        scale: int,
-        dim: dict[SI, int | Fraction],
-    ):
-        self.scale = scale
-        self.dim = dim
+@autoinit
+class Unit(TreeClass):
+    scale: int = frozen_field()
+    dim: dict[SI, int | Fraction] = frozen_field()
 
     def __str__(self) -> str:
         res_str = f"10^{self.scale} " if self.scale != 0 else ""
@@ -33,10 +28,18 @@ class Unit:
 
 @autoinit
 class Unitful(TreeClass):
-    val: ArrayLike
+    val: PhysicalArrayLike
     unit: Unit = frozen_field()
     
-    def materialise(self) -> ArrayLike:
+    def __post_init__(self):
+        new_arr, power = best_scale(self.val)
+        self.val = new_arr
+        self.unit = Unit(
+            scale=self.unit.scale - power,
+            dim=self.unit.dim,
+        )
+    
+    def materialise(self) -> PhysicalArrayLike:
         if self.unit.dim:
             raise ValueError(f"Cannot materialise unitful array with a non-zero unit: {self.unit}")
         factor = 10 ** self.unit.scale
@@ -48,10 +51,10 @@ class Unitful(TreeClass):
     def __repr__(self) -> str:
         return str(self)
     
-    def __mul__(self, other: ArrayLike | "Unitful") -> "Unitful":
+    def __mul__(self, other: PhysicalArrayLike | "Unitful") -> "Unitful":
         return multiply(self, other)
     
-    def __rmul__(self, other: ArrayLike | "Unitful") -> "Unitful":
+    def __rmul__(self, other: PhysicalArrayLike | "Unitful") -> "Unitful":
         return multiply(self, other)
     
     def __add__(self, other: "Unitful") -> "Unitful":
@@ -66,22 +69,22 @@ class Unitful(TreeClass):
     def __rsub__(self, other: "Unitful") -> "Unitful":
         return subtract(other, self)
     
-    def __lt__(self, other: "Unitful") -> ArrayLike:
+    def __lt__(self, other: "Unitful") -> PhysicalArrayLike:
         return lt(self, other)
     
-    def __le__(self, other: "Unitful") -> ArrayLike:
+    def __le__(self, other: "Unitful") -> PhysicalArrayLike:
         return le(self, other)
     
-    def __eq__(self, other: "Unitful") -> ArrayLike:
+    def __eq__(self, other: "Unitful") -> PhysicalArrayLike:
         return eq(self, other)
     
-    def __ne__(self, other: "Unitful") -> ArrayLike:  # type: ignore
+    def __ne__(self, other: "Unitful") -> PhysicalArrayLike:  # type: ignore
         return ne(self, other)
     
-    def __ge__(self, other: "Unitful") -> ArrayLike:
+    def __ge__(self, other: "Unitful") -> PhysicalArrayLike:
         return ge(self, other)
     
-    def __gt__(self, other: "Unitful") -> ArrayLike:
+    def __gt__(self, other: "Unitful") -> PhysicalArrayLike:
         return gt(self, other)
     
 
@@ -99,12 +102,12 @@ def align_scales(
     if new_scale != u1.unit.scale:
         u1 = Unitful(
             val=u1.val * factor1,
-            unit=Unit(new_scale, u1.unit.dim)
+            unit=Unit(scale=new_scale, dim=u1.unit.dim)
         )
     if new_scale != u2.unit.scale:
         u2 = Unitful(
             val=u2.val * factor2,
-            unit=Unit(new_scale, u2.unit.dim)
+            unit=Unit(scale=new_scale, dim=u2.unit.dim)
         )
     return u1, u2
 
@@ -123,29 +126,34 @@ def multiply(  # type: ignore
                 del unit_dict[k]
         else:
             unit_dict[k] = v
-    new_scale = x.unit.scale + y.unit.scale
-    new_unit = Unit(new_scale, unit_dict)
-    return Unitful(val=x.val * y.val, unit=new_unit)
+    new_val = x.val * y.val
+    optimized_val, power = best_scale(new_val)
+    new_scale = x.unit.scale + y.unit.scale - power
+    new_unit = Unit(scale=new_scale, dim=unit_dict)
+    return Unitful(val=optimized_val, unit=new_unit)
 
 @overload
 def multiply(  # type: ignore
-    x: ArrayLike, 
+    x: PhysicalArrayLike, 
     y: Unitful
 ) -> Unitful:
-    return Unitful(val=y.val * x, unit=y.unit)
+    new_val = y.val * x
+    optimized_val, power = best_scale(new_val)
+    new_unit = Unit(scale=y.unit.scale - power, dim=y.unit.dim)
+    return Unitful(val=optimized_val, unit=new_unit)
 
 @overload
 def multiply(  # type: ignore
     x: Unitful, 
-    y: ArrayLike
+    y: PhysicalArrayLike
 ) -> Unitful:
-    return Unitful(val=x.val * y, unit=x.unit)
+    return multiply(y, x)
 
 @overload
 def multiply(  # type: ignore
-    x: ArrayLike, 
-    y: ArrayLike
-) -> ArrayLike:
+    x: PhysicalArrayLike, 
+    y: PhysicalArrayLike
+) -> PhysicalArrayLike:
     return x * y
 
 
@@ -162,7 +170,9 @@ def _same_dim_binary_fn(x: Unitful, y: Unitful, op_str: str) -> Unitful:
     x, y = align_scales(x, y)
     orig_fn = getattr(jax.numpy, op_str)
     new_val = orig_fn(x.val, y.val)
-    return Unitful(val=new_val, unit=y.unit)
+    optimized_val, power = best_scale(new_val)
+    new_unit = Unit(scale=y.unit.scale - power, dim=y.unit.dim)
+    return Unitful(val=optimized_val, unit=new_unit)
 
 @overload
 def add(  # type: ignore
@@ -173,10 +183,10 @@ def add(  # type: ignore
 
 @overload
 def add(  # type: ignore
-    x: ArrayLike, 
-    y: ArrayLike
-) -> ArrayLike:
-    return jnp._orig_add(x, y)  # type: ignore
+    x: PhysicalArrayLike, 
+    y: PhysicalArrayLike
+) -> PhysicalArrayLike:
+    return x + y
 
 @dispatch
 def add(x, y):  # type: ignore
@@ -193,10 +203,10 @@ def subtract(  # type: ignore
 
 @overload
 def subtract(  # type: ignore
-    x: ArrayLike, 
-    y: ArrayLike
-) -> ArrayLike:
-    return jnp._orig_subtract(x, y)  # type: ignore
+    x: PhysicalArrayLike, 
+    y: PhysicalArrayLike
+) -> PhysicalArrayLike:
+    return x - y
 
 @dispatch
 def subtract(x, y):  # type: ignore
@@ -213,9 +223,9 @@ def remainder(  # type: ignore
 
 @overload
 def remainder(  # type: ignore
-    x: ArrayLike, 
-    y: ArrayLike
-) -> ArrayLike:
+    x: PhysicalArrayLike, 
+    y: PhysicalArrayLike
+) -> PhysicalArrayLike:
     return jnp._orig_remainder(x, y)  # type: ignore
 
 @dispatch
@@ -224,7 +234,7 @@ def remainder(x, y):  # type: ignore
     raise NotImplementedError()
 
 ## less than ##########################
-def _same_dim_binary_fn_array_return(x: Unitful, y: Unitful, op_str: str) -> ArrayLike:
+def _same_dim_binary_fn_array_return(x: Unitful, y: Unitful, op_str: str) -> PhysicalArrayLike:
     if x.unit.dim != y.unit.dim:
         raise ValueError(f"Cannot {op_str} two arrays with units {x.unit} and {y.unit}.")
     x, y = align_scales(x, y)
@@ -236,14 +246,14 @@ def _same_dim_binary_fn_array_return(x: Unitful, y: Unitful, op_str: str) -> Arr
 def lt(  # type: ignore
     x: Unitful, 
     y: Unitful
-) -> ArrayLike:
+) -> PhysicalArrayLike:
     return _same_dim_binary_fn_array_return(x, y, "lt")
 
 @overload
 def lt(  # type: ignore
-    x: ArrayLike, 
-    y: ArrayLike
-) -> ArrayLike:
+    x: PhysicalArrayLike, 
+    y: PhysicalArrayLike
+) -> PhysicalArrayLike:
     return jax.lax._orig_lt(x, y)  # type: ignore
 
 @dispatch
@@ -256,14 +266,14 @@ def lt(x, y):  # type: ignore
 def le(  # type: ignore
     x: Unitful, 
     y: Unitful
-) -> ArrayLike:
+) -> PhysicalArrayLike:
     return _same_dim_binary_fn_array_return(x, y, "le")
 
 @overload
 def le(  # type: ignore
-    x: ArrayLike, 
-    y: ArrayLike
-) -> ArrayLike:
+    x: PhysicalArrayLike, 
+    y: PhysicalArrayLike
+) -> PhysicalArrayLike:
     return jax.lax._orig_le(x, y)  # type: ignore
 
 @dispatch
@@ -276,14 +286,14 @@ def le(x, y):  # type: ignore
 def eq(  # type: ignore
     x: Unitful, 
     y: Unitful
-) -> ArrayLike:
+) -> PhysicalArrayLike:
     return _same_dim_binary_fn_array_return(x, y, "eq")
 
 @overload
 def eq(  # type: ignore
-    x: ArrayLike, 
-    y: ArrayLike
-) -> ArrayLike:
+    x: PhysicalArrayLike, 
+    y: PhysicalArrayLike
+) -> PhysicalArrayLike:
     return jax.lax._orig_eq(x, y)  # type: ignore
 
 @dispatch
@@ -296,14 +306,14 @@ def eq(x, y):  # type: ignore
 def ne(  # type: ignore
     x: Unitful, 
     y: Unitful
-) -> ArrayLike:
+) -> PhysicalArrayLike:
     return _same_dim_binary_fn_array_return(x, y, "ne")
 
 @overload
 def ne(  # type: ignore
-    x: ArrayLike, 
-    y: ArrayLike
-) -> ArrayLike:
+    x: PhysicalArrayLike, 
+    y: PhysicalArrayLike
+) -> PhysicalArrayLike:
     return jax.lax._orig_ne(x, y)  # type: ignore
 
 @dispatch
@@ -316,14 +326,14 @@ def ne(x, y):  # type: ignore
 def ge(  # type: ignore
     x: Unitful, 
     y: Unitful
-) -> ArrayLike:
+) -> PhysicalArrayLike:
     return _same_dim_binary_fn_array_return(x, y, "ge")
 
 @overload
 def ge(  # type: ignore
-    x: ArrayLike, 
-    y: ArrayLike
-) -> ArrayLike:
+    x: PhysicalArrayLike, 
+    y: PhysicalArrayLike
+) -> PhysicalArrayLike:
     return jax.lax._orig_ge(x, y)  # type: ignore
 
 @dispatch
@@ -336,14 +346,14 @@ def ge(x, y):  # type: ignore
 def gt(  # type: ignore
     x: Unitful, 
     y: Unitful
-) -> ArrayLike:
+) -> PhysicalArrayLike:
     return _same_dim_binary_fn_array_return(x, y, "gt")
 
 @overload
 def gt(  # type: ignore
-    x: ArrayLike, 
-    y: ArrayLike
-) -> ArrayLike:
+    x: PhysicalArrayLike, 
+    y: PhysicalArrayLike
+) -> PhysicalArrayLike:
     return jax.lax._orig_gt(x, y)  # type: ignore
 
 @dispatch

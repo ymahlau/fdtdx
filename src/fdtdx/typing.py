@@ -1,5 +1,7 @@
 from enum import Enum
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
+
+import jax
 
 
 class SI(Enum):
@@ -11,6 +13,12 @@ class SI(Enum):
     mol = "mole"
     cd = "candela"
 
+PhysicalArrayLike = Union[
+    int,
+    float,
+    complex,
+    jax.Array
+]
 
 # Real-valued shapes (physical dimensions)
 RealShape3D = tuple[float, float, float]
