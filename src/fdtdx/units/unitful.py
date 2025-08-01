@@ -32,18 +32,22 @@ class Unitful(TreeClass):
     unit: Unit = frozen_field()
     
     def __post_init__(self):
-        new_arr, power = best_scale(self.val)
-        self.val = new_arr
-        self.unit = Unit(
-            scale=self.unit.scale - power,
-            dim=self.unit.dim,
-        )
+        optimized_val, power = best_scale(self.val)
+        new_scale = self.unit.scale - power
+        self.val = optimized_val
+        self.unit = Unit(scale=new_scale, dim=self.unit.dim)
     
     def materialise(self) -> PhysicalArrayLike:
         if self.unit.dim:
             raise ValueError(f"Cannot materialise unitful array with a non-zero unit: {self.unit}")
         factor = 10 ** self.unit.scale
         return self.val * factor
+    
+    def value(self) -> PhysicalArrayLike:
+        scale = self.unit.scale
+        if isinstance(scale, Fraction):
+            scale = scale.value()
+        return self.val * 10 ** scale
 
     def __str__(self) -> str:
         return f"Unitful [{self.unit}]: {tree_repr(self.val)}"
@@ -87,6 +91,17 @@ class Unitful(TreeClass):
     def __gt__(self, other: "Unitful") -> PhysicalArrayLike:
         return gt(self, other)
     
+    def __len__(self):
+        if isinstance(self.val, int | float | complex):
+            return 1
+        return len(self.val)
+    
+    def __getitem__(self, key) -> "Unitful":
+        """Enable numpy-style indexing"""
+        if isinstance(self.val, int | float | complex):
+            raise Exception(f"Cannot slice Unitful with python scalar value ({self.val})")
+        new_val = self.val[key]
+        return Unitful(val=new_val, unit=self.unit)
 
 
 def align_scales(
@@ -100,15 +115,11 @@ def align_scales(
         u2.unit.scale,
     )
     if new_scale != u1.unit.scale:
-        u1 = Unitful(
-            val=u1.val * factor1,
-            unit=Unit(scale=new_scale, dim=u1.unit.dim)
-        )
+        u1 = u1.aset("val", u1.val * factor1)
+        u1 = u1.aset("unit->scale", new_scale)
     if new_scale != u2.unit.scale:
-        u2 = Unitful(
-            val=u2.val * factor2,
-            unit=Unit(scale=new_scale, dim=u2.unit.dim)
-        )
+        u2 = u2.aset("val", u2.val * factor2)
+        u2 = u2.aset("unit->scale", new_scale)
     return u1, u2
 
 
@@ -127,10 +138,8 @@ def multiply(  # type: ignore
         else:
             unit_dict[k] = v
     new_val = x.val * y.val
-    optimized_val, power = best_scale(new_val)
-    new_scale = x.unit.scale + y.unit.scale - power
-    new_unit = Unit(scale=new_scale, dim=unit_dict)
-    return Unitful(val=optimized_val, unit=new_unit)
+    new_scale = x.unit.scale + y.unit.scale
+    return Unitful(val=new_val, unit=Unit(scale=new_scale, dim=unit_dict))
 
 @overload
 def multiply(  # type: ignore
@@ -138,9 +147,7 @@ def multiply(  # type: ignore
     y: Unitful
 ) -> Unitful:
     new_val = y.val * x
-    optimized_val, power = best_scale(new_val)
-    new_unit = Unit(scale=y.unit.scale - power, dim=y.unit.dim)
-    return Unitful(val=optimized_val, unit=new_unit)
+    return Unitful(val=new_val, unit=y.unit)
 
 @overload
 def multiply(  # type: ignore
@@ -167,12 +174,10 @@ def multiply(x, y):  # type: ignore
 def _same_dim_binary_fn(x: Unitful, y: Unitful, op_str: str) -> Unitful:
     if x.unit.dim != y.unit.dim:
         raise ValueError(f"Cannot {op_str} two arrays with units {x.unit} and {y.unit}.")
-    x, y = align_scales(x, y)
+    x_align, y_align = align_scales(x, y)
     orig_fn = getattr(jax.numpy, op_str)
-    new_val = orig_fn(x.val, y.val)
-    optimized_val, power = best_scale(new_val)
-    new_unit = Unit(scale=y.unit.scale - power, dim=y.unit.dim)
-    return Unitful(val=optimized_val, unit=new_unit)
+    new_val = orig_fn(x_align.val, y_align.val)
+    return Unitful(val=new_val, unit=x_align.unit)
 
 @overload
 def add(  # type: ignore

@@ -28,8 +28,7 @@ def test_multiply_unitful_unitful_same_dimensions():
     
     result = multiply(time1, time2)
     
-    assert jnp.allclose(result.val, 6.0)
-    assert result.unit.scale == 0
+    assert jnp.allclose(result.value(), 6.0)
     assert result.unit.dim == {SI.s: 2}
 
 
@@ -40,8 +39,7 @@ def test_multiply_unitful_unitful_different_dimensions():
     
     result = multiply(time_val, freq_val)
     
-    assert jnp.allclose(result.val, 50.0)
-    assert result.unit.scale == 0
+    assert jnp.allclose(result.value(), 50.0)
     assert result.unit.dim == {}  # s^1 * s^-1 = dimensionless
 
 
@@ -52,8 +50,7 @@ def test_multiply_unitful_unitful_different_scales():
     
     result = multiply(time1, time2)
     
-    assert jnp.allclose(result.val, 6.0)
-    assert result.unit.scale == -3
+    assert jnp.allclose(result.value(), 6.0e-3)
     assert result.unit.dim == {SI.s: 2}
 
 
@@ -64,8 +61,7 @@ def test_multiply_arraylike_unitful():
     
     result: Unitful = jnp.multiply(scalar, time_val)  # type: ignore
     
-    assert jnp.allclose(result.val, 15.0)
-    assert result.unit.scale == 0
+    assert jnp.allclose(result.value(), 15.0)
     assert result.unit.dim == {SI.s: 1}
 
 
@@ -95,8 +91,7 @@ def test_multiply_with_arrays():
     result = multiply(time_array, freq_array)
     
     expected_val = jnp.array([2.0, 6.0, 12.0])
-    assert jnp.allclose(result.val, expected_val)
-    assert result.unit.scale == 0
+    assert jnp.allclose(result.value(), expected_val)
     assert result.unit.dim == {}  # dimensionless
     
 def test_multiply_jitted():
@@ -112,9 +107,7 @@ def test_multiply_jitted():
     res1 = jitted_fn(arr1, arr2)
     res2 = jitted_fn(arr2, arr3)
     
-    assert jnp.allclose(res1.val, res2.val)
-    assert res1.unit.scale == -3
-    assert res2.unit.scale == -6
+    assert jnp.allclose(res1.value(), res2.value()*1e3)
 
 
 def test_add_same_units():
@@ -127,9 +120,8 @@ def test_add_same_units():
     result = jnp.add(u1, u2)  # type: ignore
     
     assert isinstance(result, Unitful)
-    assert jnp.allclose(result.val, 8.0)
+    assert jnp.allclose(result.value(), 8.0)
     assert result.unit.dim == {SI.m: 1}
-    assert result.unit.scale == 0
 
 
 def test_add_different_units_raises_error():
@@ -154,9 +146,8 @@ def test_subtract_same_units():
     result = jnp.subtract(u1, u2)  # type: ignore
     
     assert isinstance(result, Unitful)
-    assert jnp.allclose(result.val, 6.0)
+    assert jnp.allclose(result.value(), 6.0)
     assert result.unit.dim == {SI.kg: 1}
-    assert result.unit.scale == 0
 
 
 def test_subtract_different_units_raises_error():
@@ -181,9 +172,8 @@ def test_remainder_same_units():
     result = jnp.remainder(u1, u2)  # type: ignore
     
     assert isinstance(result, Unitful)
-    assert jnp.allclose(result.val, 1.0)  # 10 % 3 = 1
+    assert jnp.allclose(result.value(), 1.0)  # 10 % 3 = 1
     assert result.unit.dim == {SI.s: 1}
-    assert result.unit.scale == 0
 
 
 def test_remainder_different_units_raises_error():
@@ -370,8 +360,7 @@ def test_multiply_unitful_with_fractional_dimensions():
     # Multiplying m^(1/2) * m^(1/2) should give m^1
     result = multiply(u1, u2)
     
-    assert jnp.allclose(result.val, 12.0)
-    assert result.unit.scale == 0
+    assert jnp.allclose(result.value(), 12.0)
     assert result.unit.dim == {SI.m: 1}  # 1/2 + 1/2 = 1
 
 
@@ -387,8 +376,7 @@ def test_multiply_fractional_with_integer_dimensions():
     # m^(1/3) * m^(2/3) = m^1
     result = multiply(u1, u2)
     
-    assert jnp.allclose(result.val, 16.0)
-    assert result.unit.scale == 0
+    assert jnp.allclose(result.value(), 16.0)
     assert result.unit.dim == {SI.m: 1}  # 1/3 + 2/3 = 1
 
 
@@ -404,8 +392,7 @@ def test_multiply_fractional_dimensions_cancel_out():
     # s^(3/4) * s^(-3/4) = s^0 = dimensionless
     result = multiply(u1, u2)
     
-    assert jnp.allclose(result.val, 35.0)
-    assert result.unit.scale == 0
+    assert jnp.allclose(result.value(), 35.0)
     assert result.unit.dim == {}  # 3/4 + (-3/4) = 0, so dimension is removed
 
 
@@ -418,9 +405,8 @@ def test_add_same_fractional_dimensions():
     
     result = add(u1, u2)
     
-    assert jnp.allclose(result.val, 25.0)
+    assert jnp.allclose(result.value(), 25.0)
     assert result.unit.dim == {SI.kg: Fraction(2, 5)}
-    assert result.unit.scale == 0
 
 
 def test_equality_fractional_dimensions():
