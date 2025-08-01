@@ -125,7 +125,7 @@ def align_scales(
 
 ## Multiplication ###########################
 @overload
-def multiply(  # type: ignore
+def multiply(
     x: Unitful, 
     y: Unitful
 ) -> Unitful:
@@ -142,7 +142,7 @@ def multiply(  # type: ignore
     return Unitful(val=new_val, unit=Unit(scale=new_scale, dim=unit_dict))
 
 @overload
-def multiply(  # type: ignore
+def multiply(
     x: PhysicalArrayLike, 
     y: Unitful
 ) -> Unitful:
@@ -150,19 +150,23 @@ def multiply(  # type: ignore
     return Unitful(val=new_val, unit=y.unit)
 
 @overload
-def multiply(  # type: ignore
+def multiply(
     x: Unitful, 
     y: PhysicalArrayLike
 ) -> Unitful:
     return multiply(y, x)
 
 @overload
-def multiply(  # type: ignore
-    x: PhysicalArrayLike, 
-    y: PhysicalArrayLike
-) -> PhysicalArrayLike:
-    return x * y
+def multiply(x: int, y: int) -> int: return x * y
 
+@overload
+def multiply(x: float, y: float) -> float: return x * y
+
+@overload
+def multiply(x: complex, y: complex) -> complex: return x * y
+
+@overload
+def multiply(x: jax.Array, y: jax.Array) -> jax.Array: return x * y
 
 @dispatch
 def multiply(x, y):  # type: ignore
@@ -180,18 +184,23 @@ def _same_dim_binary_fn(x: Unitful, y: Unitful, op_str: str) -> Unitful:
     return Unitful(val=new_val, unit=x_align.unit)
 
 @overload
-def add(  # type: ignore
+def add(
     x: Unitful, 
     y: Unitful
 ) -> Unitful:
     return _same_dim_binary_fn(x, y, "add")
 
 @overload
-def add(  # type: ignore
-    x: PhysicalArrayLike, 
-    y: PhysicalArrayLike
-) -> PhysicalArrayLike:
-    return x + y
+def add(x: int, y: int) -> int: return x + y
+
+@overload
+def add(x: float, y: float) -> float: return x + y
+
+@overload
+def add(x: complex, y: complex) -> complex: return x + y
+
+@overload
+def add(x: jax.Array, y: jax.Array) -> jax.Array: return x + y
 
 @dispatch
 def add(x, y):  # type: ignore
@@ -200,18 +209,23 @@ def add(x, y):  # type: ignore
 
 ## Subtractions ###########################
 @overload
-def subtract(  # type: ignore
+def subtract(
     x: Unitful, 
     y: Unitful
 ) -> Unitful:
     return _same_dim_binary_fn(x, y, "subtract")
 
 @overload
-def subtract(  # type: ignore
-    x: PhysicalArrayLike, 
-    y: PhysicalArrayLike
-) -> PhysicalArrayLike:
-    return x - y
+def subtract(x: int, y: int) -> int: return x - y
+
+@overload
+def subtract(x: float, y: float) -> float: return x - y
+
+@overload
+def subtract(x: complex, y: complex) -> complex: return x - y
+
+@overload
+def subtract(x: jax.Array, y: jax.Array) -> jax.Array: return x - y
 
 @dispatch
 def subtract(x, y):  # type: ignore
@@ -220,18 +234,20 @@ def subtract(x, y):  # type: ignore
 
 ## Remainder ###########################
 @overload
-def remainder(  # type: ignore
+def remainder(
     x: Unitful, 
     y: Unitful
 ) -> Unitful:
     return _same_dim_binary_fn(x, y, "remainder")
 
 @overload
-def remainder(  # type: ignore
-    x: PhysicalArrayLike, 
-    y: PhysicalArrayLike
-) -> PhysicalArrayLike:
-    return jnp._orig_remainder(x, y)  # type: ignore
+def remainder(x: int, y: int) -> int: return x % y
+
+@overload
+def remainder(x: float, y: float) -> float: return x % y
+
+@overload
+def remainder(x: jax.Array, y: jax.Array) -> jax.Array: return x % y
 
 @dispatch
 def remainder(x, y):  # type: ignore
@@ -248,18 +264,17 @@ def _same_dim_binary_fn_array_return(x: Unitful, y: Unitful, op_str: str) -> Phy
     return new_val
 
 @overload
-def lt(  # type: ignore
+def lt(
     x: Unitful, 
     y: Unitful
 ) -> PhysicalArrayLike:
     return _same_dim_binary_fn_array_return(x, y, "lt")
 
 @overload
-def lt(  # type: ignore
-    x: PhysicalArrayLike, 
-    y: PhysicalArrayLike
-) -> PhysicalArrayLike:
-    return jax.lax._orig_lt(x, y)  # type: ignore
+def lt(x: int | float, y: int | float) -> bool: return x < y
+
+@overload
+def lt(x: jax.Array, y: jax.Array) -> jax.Array: return x < y
 
 @dispatch
 def lt(x, y):  # type: ignore
@@ -268,18 +283,17 @@ def lt(x, y):  # type: ignore
 
 ## less equal ##########################
 @overload
-def le(  # type: ignore
+def le(
     x: Unitful, 
     y: Unitful
 ) -> PhysicalArrayLike:
     return _same_dim_binary_fn_array_return(x, y, "le")
 
 @overload
-def le(  # type: ignore
-    x: PhysicalArrayLike, 
-    y: PhysicalArrayLike
-) -> PhysicalArrayLike:
-    return jax.lax._orig_le(x, y)  # type: ignore
+def le(x: int | float, y: int | float) -> bool: return x <= y
+
+@overload
+def le(x: jax.Array, y: jax.Array) -> jax.Array: return x <= y
 
 @dispatch
 def le(x, y):  # type: ignore
@@ -288,18 +302,17 @@ def le(x, y):  # type: ignore
 
 ## equal ##########################
 @overload
-def eq(  # type: ignore
+def eq(
     x: Unitful, 
     y: Unitful
 ) -> PhysicalArrayLike:
     return _same_dim_binary_fn_array_return(x, y, "eq")
 
 @overload
-def eq(  # type: ignore
-    x: PhysicalArrayLike, 
-    y: PhysicalArrayLike
-) -> PhysicalArrayLike:
-    return jax.lax._orig_eq(x, y)  # type: ignore
+def eq(x: int | float | complex, y: int | float | complex) -> bool: return x == y
+
+@overload
+def eq(x: jax.Array, y: jax.Array) -> jax.Array: return x == y
 
 @dispatch
 def eq(x, y):  # type: ignore
@@ -308,18 +321,17 @@ def eq(x, y):  # type: ignore
 
 ## not equal ##########################
 @overload
-def ne(  # type: ignore
+def ne(
     x: Unitful, 
     y: Unitful
 ) -> PhysicalArrayLike:
     return _same_dim_binary_fn_array_return(x, y, "ne")
 
 @overload
-def ne(  # type: ignore
-    x: PhysicalArrayLike, 
-    y: PhysicalArrayLike
-) -> PhysicalArrayLike:
-    return jax.lax._orig_ne(x, y)  # type: ignore
+def ne(x: int | float | complex, y: int | float | complex) -> bool: return x != y
+
+@overload
+def ne(x: jax.Array, y: jax.Array) -> jax.Array: return x != y
 
 @dispatch
 def ne(x, y):  # type: ignore
@@ -328,18 +340,17 @@ def ne(x, y):  # type: ignore
 
 ## greater equal ##########################
 @overload
-def ge(  # type: ignore
+def ge(
     x: Unitful, 
     y: Unitful
 ) -> PhysicalArrayLike:
     return _same_dim_binary_fn_array_return(x, y, "ge")
 
 @overload
-def ge(  # type: ignore
-    x: PhysicalArrayLike, 
-    y: PhysicalArrayLike
-) -> PhysicalArrayLike:
-    return jax.lax._orig_ge(x, y)  # type: ignore
+def ge(x: int | float, y: int | float) -> bool: return x >= y
+
+@overload
+def ge(x: jax.Array, y: jax.Array) -> jax.Array: return x >= y
 
 @dispatch
 def ge(x, y):  # type: ignore
@@ -348,18 +359,17 @@ def ge(x, y):  # type: ignore
 
 ## greater than ##########################
 @overload
-def gt(  # type: ignore
+def gt(
     x: Unitful, 
     y: Unitful
 ) -> PhysicalArrayLike:
     return _same_dim_binary_fn_array_return(x, y, "gt")
 
 @overload
-def gt(  # type: ignore
-    x: PhysicalArrayLike, 
-    y: PhysicalArrayLike
-) -> PhysicalArrayLike:
-    return jax.lax._orig_gt(x, y)  # type: ignore
+def gt(x: int | float, y: int | float) -> bool: return x > y
+
+@overload
+def gt(x: jax.Array, y: jax.Array) -> jax.Array: return x > y
 
 @dispatch
 def gt(x, y):  # type: ignore
