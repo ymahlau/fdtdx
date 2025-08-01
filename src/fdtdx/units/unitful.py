@@ -30,6 +30,7 @@ class Unit(TreeClass):
 class Unitful(TreeClass):
     val: PhysicalArrayLike
     unit: Unit = frozen_field()
+    optimize_scale: bool = frozen_field(default=True)
     
     def __post_init__(self):
         optimized_val, power = best_scale(self.val)
@@ -59,7 +60,13 @@ class Unitful(TreeClass):
         return multiply(self, other)
     
     def __rmul__(self, other: PhysicalArrayLike | "Unitful") -> "Unitful":
-        return multiply(self, other)
+        return multiply(other, self)
+    
+    def __truediv__(self, other: PhysicalArrayLike | "Unitful") -> "Unitful":
+        return divide(self, other)
+    
+    def __rtruediv__(self, other: PhysicalArrayLike | "Unitful") -> "Unitful":
+        return divide(other, self)
     
     def __add__(self, other: "Unitful") -> "Unitful":
         return add(self, other)
@@ -102,6 +109,21 @@ class Unitful(TreeClass):
             raise Exception(f"Cannot slice Unitful with python scalar value ({self.val})")
         new_val = self.val[key]
         return Unitful(val=new_val, unit=self.unit)
+    
+    def __iter__(self):
+        """Use a generator for simplicity"""
+        if isinstance(self.val, int | float | complex):
+            raise Exception(f"Cannot iterate over Unitful with python scalar value ({self.val})")
+        for v in self.val:
+            yield(Unitful(val=v, unit=self.unit, optimize_scale=False))
+    
+    def __reversed__(self):
+        return iter(self[::-1])
+    
+    def __neg__(self):
+        return Unitful(val=-self.val, unit=self.unit)
+    
+    
 
 
 def align_scales(
@@ -171,6 +193,58 @@ def multiply(x: jax.Array, y: jax.Array) -> jax.Array: return x * y
 @dispatch
 def multiply(x, y):  # type: ignore
     del x, y
+    raise NotImplementedError()
+
+
+## Division ###########################
+@overload
+def divide(
+    x1: Unitful,
+    x2: Unitful
+) -> Unitful:
+    unit_dict = x1.unit.dim.copy()
+    for k, v in x2.unit.dim.items():
+        if k in unit_dict:
+            unit_dict[k] -= v
+            if unit_dict[k] == 0:
+                del unit_dict[k]
+        else:
+            unit_dict[k] = -v
+    new_val = x1.val / x2.val
+    new_scale = x1.unit.scale - x2.unit.scale
+    return Unitful(val=new_val, unit=Unit(scale=new_scale, dim=unit_dict))
+
+@overload
+def divide(
+    x1: PhysicalArrayLike, 
+    x2: Unitful
+) -> Unitful:
+    new_val = x1 / x2.val
+    return Unitful(val=new_val, unit=x2.unit)
+
+@overload
+def divide(
+    x1: Unitful, 
+    x2: PhysicalArrayLike
+) -> Unitful:
+    new_val = x1.val / x2
+    return Unitful(val=new_val, unit=x1.unit)
+
+@overload
+def divide(x1: int, x2: int) -> float: return x1 / x2
+
+@overload
+def divide(x1: float, x2: float) -> float: return x1 / x2
+
+@overload
+def divide(x1: complex, x2: complex) -> complex: return x1 / x2
+
+@overload
+def divide(x1: jax.Array, x2: jax.Array) -> jax.Array: return x1 / x2
+
+@dispatch
+def divide(x1, x2):  # type: ignore
+    del x1, x2
     raise NotImplementedError()
 
 
@@ -380,6 +454,8 @@ def gt(x, y):  # type: ignore
 ## add to original jax.numpy ###################
 _full_patch_list_numpy = [
     (multiply, None),
+    (divide, None),
+    (divide, "true_divide"),
     (add, None),
     (subtract, None),
     (remainder, None),

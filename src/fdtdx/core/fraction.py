@@ -252,3 +252,6 @@ class Fraction(NamedTuple):
             new_num = self.denom ** (-exponent)
             new_denom = self.num ** (-exponent)
             return Fraction(new_num, new_denom).reduced()
+    
+    def __neg__(self) -> "Fraction":
+        return Fraction(-self.num, self.denom).reduced()

@@ -428,3 +428,187 @@ def test_equality_fractional_dimensions():
     assert u1.unit.dim == {SI.A: Fraction(7, 11)}
     assert u2.unit.dim == {SI.A: Fraction(7, 11)}
 
+
+
+# Division Test Cases
+def test_divide_unitful_unitful_same_dimensions():
+    """Test division of two Unitful objects with same dimensions"""
+    distance1 = Unit(scale=0, dim={SI.m: 1})
+    distance2 = Unit(scale=0, dim={SI.m: 1})
+    u1 = Unitful(val=jnp.array(10.0), unit=distance1)
+    u2 = Unitful(val=jnp.array(2.0), unit=distance2)
+    
+    result = u1 / u2
+    
+    assert jnp.allclose(result.value(), 5.0)
+    assert result.unit.dim == {}  # m^1 / m^1 = dimensionless
+
+
+def test_divide_unitful_unitful_different_dimensions():
+    """Test division of two Unitful objects with different dimensions"""
+    distance = Unit(scale=0, dim={SI.m: 1})
+    time = Unit(scale=0, dim={SI.s: 1})
+    u1 = Unitful(val=jnp.array(20.0), unit=distance)  # 20 meters
+    u2 = Unitful(val=jnp.array(4.0), unit=time)       # 4 seconds
+    
+    result: Unitful = jnp.divide(u1, u2)  # type: ignore
+    
+    assert jnp.allclose(result.value(), 5.0)  # 20/4 = 5
+    assert result.unit.dim == {SI.m: 1, SI.s: -1}  # m/s
+
+
+def test_divide_unitful_unitful_with_fractional_dimensions():
+    """Test division creating fractional dimensions"""
+    # Create m^2 (area) and m^(1/2) 
+    area_unit = Unit(scale=0, dim={SI.m: 2})
+    sqrt_unit = Unit(scale=0, dim={SI.m: Fraction(1, 2)})
+    u1 = Unitful(val=jnp.array(16.0), unit=area_unit)
+    u2 = Unitful(val=jnp.array(4.0), unit=sqrt_unit)
+    
+    # m^2 / m^(1/2) = m^(3/2)
+    result: Unitful = jnp.divide(u1, u2)  # type: ignore
+    
+    assert jnp.allclose(result.value(), 4.0)
+    assert result.unit.dim == {SI.m: Fraction(3, 2)}
+
+
+def test_divide_magic_method():
+    """Test division using magic method (__truediv__)"""
+    velocity_unit = Unit(scale=0, dim={SI.m: 1, SI.s: -1})
+    time_unit = Unit(scale=0, dim={SI.s: 1})
+    velocity = Unitful(val=jnp.array(30.0), unit=velocity_unit)  # 30 m/s
+    time = Unitful(val=jnp.array(6.0), unit=time_unit)          # 6 s
+    
+    # This would require implementing __truediv__ in the Unitful class
+    # result = velocity / time  # Should give acceleration (m/s^2)
+    result: Unitful = jnp.divide(velocity, time)  # type: ignore
+    
+    assert jnp.allclose(result.value(), 5.0)
+    assert result.unit.dim == {SI.m: 1, SI.s: -2}  # m/s^2 (acceleration)
+
+
+def test_len_scalar_unitful():
+    """Test __len__ method with scalar Unitful object"""
+    time_unit = Unit(scale=0, dim={SI.s: 1})
+    scalar_time = Unitful(val=5.0, unit=time_unit)
+    
+    result = len(scalar_time)
+    
+    assert result == 1
+
+
+def test_len_array_unitful():
+    """Test __len__ method with array Unitful object"""
+    time_unit = Unit(scale=0, dim={SI.s: 1})
+    array_time = Unitful(val=jnp.array([1.0, 2.0, 3.0, 4.0]), unit=time_unit)
+    
+    result = len(array_time)
+    
+    assert result == 4
+
+
+def test_getitem_single_index():
+    """Test __getitem__ method with single index"""
+    distance_unit = Unit(scale=0, dim={SI.m: 1})
+    distances = Unitful(val=jnp.array([10.0, 20.0, 30.0]), unit=distance_unit)
+    
+    result = distances[1]
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), 20.0)
+    assert result.unit.dim == {SI.m: 1}
+
+
+def test_getitem_slice():
+    """Test __getitem__ method with slice"""
+    mass_unit = Unit(scale=0, dim={SI.kg: 1})
+    masses = Unitful(val=jnp.array([1.0, 2.0, 3.0, 4.0, 5.0]), unit=mass_unit)
+    
+    result = masses[1:4]
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), jnp.array([2.0, 3.0, 4.0]))
+    assert result.unit.dim == {SI.kg: 1}
+
+
+def test_iter_unitful_array():
+    """Test __iter__ method with Unitful array"""
+    current_unit = Unit(scale=0, dim={SI.A: 1})
+    currents = Unitful(val=jnp.array([1.0, 2.0, 3.0]), unit=current_unit)
+    
+    result_list = list(currents)
+    
+    assert len(result_list) == 3
+    for i, item in enumerate(result_list):
+        assert isinstance(item, Unitful)
+        assert jnp.allclose(item.value(), float(i + 1))
+        assert item.unit.dim == {SI.A: 1}
+
+
+def test_iter_unitful_scalar_raises_exception():
+    """Test that __iter__ raises exception for scalar Unitful"""
+    temp_unit = Unit(scale=0, dim={SI.K: 1})
+    scalar_temp = Unitful(val=300.0, unit=temp_unit)
+    
+    with pytest.raises(Exception, match="Cannot iterate over Unitful with python scalar value"):
+        list(scalar_temp)
+
+
+def test_reversed_unitful_array():
+    """Test __reversed__ method with Unitful array"""
+    energy_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -2})  # Joules
+    energies = Unitful(val=jnp.array([10.0, 20.0, 30.0]), unit=energy_unit)
+    
+    result_list = list(reversed(energies))
+    
+    assert len(result_list) == 3
+    expected_values = [30.0, 20.0, 10.0]
+    for i, item in enumerate(result_list):
+        assert isinstance(item, Unitful)
+        assert jnp.allclose(item.value(), expected_values[i])
+        assert item.unit.dim == {SI.kg: 1, SI.m: 2, SI.s: -2}
+
+
+def test_reversed_preserves_units():
+    """Test that __reversed__ preserves complex units correctly"""
+    # Create a complex unit: m^(3/2) * kg^(-1/3)
+    complex_unit = Unit(scale=2, dim={SI.m: Fraction(3, 2), SI.kg: Fraction(-1, 3)})
+    values = Unitful(val=jnp.array([1.0, 4.0, 9.0, 16.0]), unit=complex_unit)
+    
+    reversed_values = list(reversed(values))
+    
+    assert len(reversed_values) == 4
+    expected_order = [16.0, 9.0, 4.0, 1.0]
+    for i, item in enumerate(reversed_values):
+        assert isinstance(item, Unitful)
+        assert jnp.allclose(item.value(), expected_order[i] * 100)  # scale=2 means *100
+        assert item.unit.dim == {SI.m: Fraction(3, 2), SI.kg: Fraction(-1, 3)}
+
+
+def test_neg_scalar_unitful():
+    """Test __neg__ method with scalar Unitful object"""
+    force_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2})  # Newtons
+    force = Unitful(val=jnp.array(15.0), unit=force_unit)
+    
+    result = -force
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), -15.0)
+    assert result.unit.dim == {SI.kg: 1, SI.m: 1, SI.s: -2}
+    assert result.unit.scale == force.unit.scale
+
+
+def test_neg_array_unitful():
+    """Test __neg__ method with array Unitful object"""
+    voltage_unit = Unit(scale=-3, dim={SI.kg: 1, SI.m: 2, SI.s: -3, SI.A: -1})  # millivolts
+    voltages = Unitful(val=jnp.array([1.0, -2.0, 3.0, -4.0]), unit=voltage_unit)
+    
+    result = -voltages
+    
+    assert isinstance(result, Unitful)
+    expected_values = jnp.array([-1.0, 2.0, -3.0, 4.0])
+    assert jnp.allclose(result.val, expected_values)  # Check the raw values
+    assert result.unit.dim == voltages.unit.dim
+    assert result.unit.scale == voltages.unit.scale
+
+
