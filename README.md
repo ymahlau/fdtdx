@@ -1,10 +1,17 @@
 
+<div align="center">
+<img src="docs/img/logo.png" alt="logo"></img>
+</div>
 
 [![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://ymahlau.github.io/fdtdx)
 [![arXiv](https://img.shields.io/badge/arXiv-2407.10273-b31b1b.svg)](https://arxiv.org/abs/2407.10273)
 [![arXiv](https://img.shields.io/badge/arXiv-2412.12360-b31b1b.svg)](https://arxiv.org/abs/2412.12360)
+[![codecov](https://codecov.io/gh/ymahlau/fdtdx/branch/main/graph/badge.svg)](https://codecov.io/gh/ymahlau/fdtdx)
+[![PyPI version](https://img.shields.io/pypi/v/fdtdx)](https://pypi.org/project/fdtdx/)
+[![Continuous integration](https://github.com/ymahlau/fdtdx/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/ymahlau/fdtdx/actions/workflows/main.yml/badge.svg?branch=main)
+[![status](https://joss.theoj.org/papers/d0844d2ee5a573165bcc61fb51f575ae/status.svg)](https://joss.theoj.org/papers/d0844d2ee5a573165bcc61fb51f575ae)
 
-![image](/docs/img/logo.png)
+# FDTDX: Electromagnetic Simulations in JAX
 
 FDTDX is an efficient open-source Python package for the inverse design of three-dimensional photonic nanostructures using the Finite-Difference Time-Domain (FDTD) method. Built on JAX, it provides native GPU support and automatic differentiation capabilities, making it ideal for large-scale 3D design in nanophotonics.
 
@@ -33,7 +40,7 @@ Install FDTDX using pip:
 ```bash
 pip install fdtdx  # Basic CPU-Installation
 pip install fdtdx[cuda12]  # GPU-Acceleration (Highly Recommended!)
-pip install fdtdx[rocm]   # AMD-GPU (experimental)
+pip install fdtdx[rocm]   # AMD-GPU (only python<=3.12)
 ```
 
 For development installation, clone the repository and install in editable mode:
@@ -59,12 +66,15 @@ export NCCL_PROTO="SIMPLE,LL,LL128"
 ## Citation
 If you find this repository helpful for you work, please consider citing:
 ```
-@article{schubertmahlau2025quantized,
-  title={Quantized Inverse Design for Photonic Integrated Circuits},
+@article{schubert2025quantized,
+  title={Quantized inverse design for photonic integrated circuits},
   author={Schubert, Frederik and Mahlau, Yannik and Bethmann, Konrad and Hartmann, Fabian and Caspary, Reinhard and Munderloh, Marco and Ostermann, J{\"o}rn and Rosenhahn, Bodo},
-  journal={ACS Omega},
-  doi={10.1021/acsomega.4c10958},
-  year={2025}
+  journal={ACS omega},
+  volume={10},
+  number={5},
+  pages={5080--5086},
+  year={2025},
+  publisher={ACS Publications}
 }
 ```
 

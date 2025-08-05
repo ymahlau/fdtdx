@@ -27,11 +27,15 @@ plugins:
             show_root_heading: true
             show_root_toc_entry: false
   - mkdocs-jupyter:
+      execute: false
       include: ["docs/notebooks/*.ipynb"]
+      include_source: true
+      include_requirejs: true
   - awesome-nav
 
 theme:
   name: readthedocs
+  custom_dir: docs/overrides
   logo: img/logo.png
 
 extra_css:

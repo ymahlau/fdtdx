@@ -65,3 +65,17 @@
   --md-typeset-table-color: hsla(0, 0%, 100%, 0.12);
   --md-typeset-table-color--light: hsla(0, 0%, 100%, 0.035);
 }
+
+.wy-nav-content {
+    max-width: 1500px !important;
+}
+
+/* Reset video sizing across the documentation */
+.wy-nav-content video {
+    /* max-width: 800px !important; */
+    width: 75% !important;
+    height: auto !important;
+    display: block;
+    margin: 1em auto;
+    position: relative;
+}
