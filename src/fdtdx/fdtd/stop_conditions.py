@@ -4,7 +4,8 @@ import jax
 import jax.numpy as jnp
 
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
-from fdtdx.fdtd.container import SimulationState
+from fdtdx.fdtd.container import ArrayContainer, SimulationState
+from fdtdx.objects.detectors.detector import DetectorState
 
 
 @autoinit
@@ -20,7 +21,7 @@ class StoppingCondition(TreeClass, ABC):
         """Evaluate the stopping condition.
 
         Args:
-            state: Current simulation state (time_step, arrays)
+            state: Current simulation state (SimulationState)
 
         Returns:
             jax.Array: Boolean scalar - True if simulation should continue, False if it should stop
@@ -42,7 +43,7 @@ class TimeStepCondition(StoppingCondition):
         """Check if simulation should continue based on time step.
 
         Args:
-            state: Current simulation state (time_step, arrays)
+            state: Current simulation state (SimulationState)
 
         Returns:
             jax.Array: Boolean scalar - True if current time < end_time, False otherwise
@@ -54,8 +55,6 @@ class TimeStepCondition(StoppingCondition):
 @autoinit
 class DetectorThresholdCondition(StoppingCondition):
     """Stopping condition based on detector readings reaching a threshold.
-
-    Example implementation showing how to create detector-based stopping criteria.
     """
 
     detector_name: str = frozen_field()
@@ -67,7 +66,7 @@ class DetectorThresholdCondition(StoppingCondition):
         """Check if simulation should continue based on detector reading.
 
         Args:
-            state: Current simulation state (time_step, arrays)
+            state: Current simulation state (SimulationState)
 
         Returns:
             jax.Array: Boolean scalar - True if condition not met and time < end_time
@@ -77,40 +76,40 @@ class DetectorThresholdCondition(StoppingCondition):
         detector_condition = self._check_detector_condition(arrays)
         return time_condition & (~detector_condition)
 
-    def _check_detector_condition(self, arrays) -> jax.Array:
-        # Get detector state if it exists, otherwise use dummy values
-        def get_detector_value():
-            detector_state = arrays.detector_states[self.detector_name]
-            detector_arrays = list(detector_state.values())
-            readings = detector_arrays[0] if len(detector_arrays) > 0 else jnp.array([])
-            # Use the last reading, or 0.0 if no readings
-            last_reading = jnp.where(len(readings) > 0, readings[-1], 0.0)
-            has_readings = len(readings) > 0
-            return last_reading, has_readings
+    def _check_detector_condition(self, arrays: ArrayContainer) -> jax.Array:
+        det_state: DetectorState = arrays.detector_states[self.detector_name]
 
-        def get_dummy_value():
-            return 0.0, False
+        # DetectorState objects usually only have one value;
+        # take first value if present, else empty array
+        vals = list(det_state.values())
+        readings = vals[0] if len(vals) > 0 else jnp.asarray([], dtype=jnp.float32)
 
-        # Use jax.lax.cond to handle detector existence check
-        detector_exists = self.detector_name in arrays.detector_states
-        current_value, has_readings = jax.lax.cond(detector_exists, get_detector_value, get_dummy_value)
-
-        less_than_met = current_value < self.threshold
-        greater_than_met = current_value > self.threshold
-        equal_met = jnp.abs(current_value - self.threshold) < 1e-10
-
-        is_less_than = self.comparison == "less_than"
-        is_greater_than = self.comparison == "greater_than"
-        is_equal = self.comparison == "equal"
-        
-        condition_met = jax.lax.select(
-            is_less_than, less_than_met,
-            jax.lax.select(is_greater_than, greater_than_met,
-                          jax.lax.select(is_equal, equal_met, False))
+        n = readings.shape[0]
+        last_reading = jax.lax.cond(
+            n > 0,
+            # Some detectors have a DetectorState with a jax.Array of shape
+            # (time_steps, A, B, C...) with multiple axis after time_step. We
+            # conserve the shape of these axis when indexing like this
+            lambda r: jax.lax.dynamic_index_in_dim(r, n - 1, axis=0, keepdims=False),
+            lambda r: jnp.asarray(0.0, dtype=r.dtype),
+            readings,
         )
+        has_readings = jnp.asarray(n > 0)
 
-        # Only consider condition met if detector exists and has readings
-        return detector_exists & has_readings & condition_met
+        threshold = jnp.asarray(self.threshold, dtype=readings.dtype)
+
+        if self.comparison == "less_than":
+            met = last_reading < threshold
+        elif self.comparison == "greater_than":
+            met = last_reading > threshold
+        elif self.comparison == "equal":
+            # Tolerance suited to dtype. Could be user-configured too...
+            eps = jnp.asarray(10.0 * jnp.finfo(readings.dtype).eps)
+            met = jnp.abs(last_reading - threshold) <= eps
+        else:
+            met = jnp.array(False)
+
+        return has_readings & met
 
 
 @autoinit
@@ -126,7 +125,14 @@ class FieldConvergenceCondition(StoppingCondition):
     min_steps: int = frozen_field(default=100)  # Minimum steps before checking convergence
 
     def __call__(self, state: SimulationState) -> jax.Array:
-        """Check if simulation should continue based on field convergence."""
+        """Check if simulation should continue based on field convergence.
+
+        Args:
+            state: Current simulation state (SimulationState)
+
+        Returns:
+            jax.Array: Boolean scalar - True if condition not met and time < end_time
+        """
         time_step, arrays = state
 
         # Always continue if below minimum steps or at max time
@@ -142,5 +148,4 @@ class FieldConvergenceCondition(StoppingCondition):
         # This is a simplified version that just checks if energy is very low
         converged = total_energy < self.threshold
 
-        # Continue while time allows AND (min steps not reached OR not converged)
         return time_condition & (~min_steps_condition | ~converged)
