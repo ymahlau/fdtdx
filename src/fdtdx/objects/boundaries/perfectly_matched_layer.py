@@ -1,7 +1,6 @@
-from typing import Literal
-
 import jax
 import jax.numpy as jnp
+from typing_extensions import override
 
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.plotting.colors import DARK_GREY
@@ -10,11 +9,10 @@ from fdtdx.objects.boundaries.utils import (
     kappa_from_direction_axis,
     standard_sigma_from_direction_axis,
 )
-from fdtdx.typing import GridShape3D, Slice3D, SliceTuple3D
 
 
 @autoinit
-class BoundaryState(BaseBoundaryState):
+class PMLBoundaryState(BaseBoundaryState):
     """State container for PML boundary conditions.
 
     Stores the auxiliary field variables and coefficients needed to implement
@@ -40,8 +38,6 @@ class BoundaryState(BaseBoundaryState):
     psi_Hx: jax.Array
     psi_Hy: jax.Array
     psi_Hz: jax.Array
-    # phi_E: jax.Array
-    # phi_H: jax.Array
     bE: jax.Array
     bH: jax.Array
     cE: jax.Array
@@ -50,7 +46,7 @@ class BoundaryState(BaseBoundaryState):
 
 
 @autoinit
-class PerfectlyMatchedLayer(BaseBoundary):
+class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
     """Implements a Convolutional Perfectly Matched Layer (CPML) boundary condition.
 
     The CPML absorbs outgoing electromagnetic waves with minimal reflection by using
@@ -58,22 +54,19 @@ class PerfectlyMatchedLayer(BaseBoundary):
     axis orientation and both positive/negative directions.
 
     Attributes:
-        axis (int): Principal axis for PML (0=x, 1=y, 2=z)
-        direction (Literal["+", "-"]): Direction along axis ("+" or "-")
         alpha (float, optional): Loss parameter for complex frequency shifting. Defaults to 1e-8.
         kappa_start (float, optional): Initial kappa stretching coefficient. Defaults to 1.0.
         kappa_end (float, optional): Final kappa stretching coefficient. Defaults to 1.5.
         color (tuple[float, float, float] | None, optional): RGB color tuple for visualization. defualts to dark grey.
     """
 
-    axis: int = frozen_field()
-    direction: Literal["+", "-"] = frozen_field()
     alpha: float = frozen_field(default=1.0e-8)
     kappa_start: float = frozen_field(default=1.0)
     kappa_end: float = frozen_field(default=1.5)
     color: tuple[float, float, float] | None = frozen_field(default=DARK_GREY)
 
     @property
+    @override
     def descriptive_name(self) -> str:
         """Gets a human-readable name describing this PML boundary's location.
 
@@ -85,6 +78,7 @@ class PerfectlyMatchedLayer(BaseBoundary):
         return f"{direction_str}_{axis_str}"
 
     @property
+    @override
     def thickness(self) -> int:
         """Gets the thickness of the PML layer in grid points.
 
@@ -93,9 +87,7 @@ class PerfectlyMatchedLayer(BaseBoundary):
         """
         return self.grid_shape[self.axis]
 
-    def init_state(
-        self,
-    ) -> BoundaryState:
+    def _get_dtype_update_coefficients(self):
         dtype = self._config.dtype
         sigma_E, sigma_H = standard_sigma_from_direction_axis(
             thickness=self.thickness,
@@ -119,9 +111,16 @@ class PerfectlyMatchedLayer(BaseBoundary):
         cE = (bE - 1) * sigma_E / (sigma_E * kappa + kappa**2 * self.alpha)
         cH = (bH - 1) * sigma_H / (sigma_H * kappa + kappa**2 * self.alpha)
 
+        return dtype, bE, bH, cE, cH, kappa
+
+    @override
+    def init_state(
+        self,
+    ) -> PMLBoundaryState:
+        dtype, bE, bH, cE, cH, kappa = self._get_dtype_update_coefficients()
         ext_shape = (3,) + self.grid_shape
 
-        boundary_state = BoundaryState(
+        boundary_state = PMLBoundaryState(
             psi_Ex=jnp.zeros(shape=ext_shape, dtype=dtype),
             psi_Ey=jnp.zeros(shape=ext_shape, dtype=dtype),
             psi_Ez=jnp.zeros(shape=ext_shape, dtype=dtype),
@@ -136,31 +135,11 @@ class PerfectlyMatchedLayer(BaseBoundary):
         )
         return boundary_state
 
-    def reset_state(self, state: BoundaryState) -> BoundaryState:
-        dtype = self._config.dtype
-        sigma_E, sigma_H = standard_sigma_from_direction_axis(
-            thickness=self.thickness,
-            direction=self.direction,
-            axis=self.axis,
-            dtype=dtype,
-        )
+    @override
+    def reset_state(self, state: PMLBoundaryState) -> PMLBoundaryState:
+        dtype, bE, bH, cE, cH, kappa = self._get_dtype_update_coefficients()
 
-        kappa = kappa_from_direction_axis(
-            kappa_start=self.kappa_start,
-            kappa_end=self.kappa_end,
-            thickness=self.thickness,
-            direction=self.direction,
-            axis=self.axis,
-            dtype=dtype,
-        )
-
-        bE = jnp.exp(-self._config.courant_number * (sigma_E / kappa + self.alpha))
-        bH = jnp.exp(-self._config.courant_number * (sigma_H / kappa + self.alpha))
-
-        cE = (bE - 1) * sigma_E / (sigma_E * kappa + kappa**2 * self.alpha)
-        cH = (bH - 1) * sigma_H / (sigma_H * kappa + kappa**2 * self.alpha)
-
-        new_state = BoundaryState(
+        new_state = PMLBoundaryState(
             psi_Ex=state.psi_Ex * 0,
             psi_Ey=state.psi_Ey * 0,
             psi_Ez=state.psi_Ez * 0,
@@ -175,40 +154,12 @@ class PerfectlyMatchedLayer(BaseBoundary):
         )
         return new_state
 
-    def boundary_interface_grid_shape(self) -> GridShape3D:
-        if self.axis == 0:
-            return 1, self.grid_shape[1], self.grid_shape[2]
-        elif self.axis == 1:
-            return self.grid_shape[0], 1, self.grid_shape[2]
-        elif self.axis == 2:
-            return self.grid_shape[0], self.grid_shape[1], 1
-        raise Exception(f"Invalid axis: {self.axis=}")
-
-    def boundary_interface_slice_tuple(self) -> SliceTuple3D:
-        slice_list = [*self._grid_slice_tuple]
-        if self.direction == "+":
-            slice_list[self.axis] = (self._grid_slice_tuple[self.axis][0], self._grid_slice_tuple[self.axis][0] + 1)
-        elif self.direction == "-":
-            slice_list[self.axis] = (self._grid_slice_tuple[self.axis][1] - 1, self._grid_slice_tuple[self.axis][1])
-        return slice_list[0], slice_list[1], slice_list[2]
-
-    def boundary_interface_slice(self) -> Slice3D:
-        slice_list = [*self.grid_slice]
-        if self.direction == "+":
-            slice_list[self.axis] = slice(
-                self._grid_slice_tuple[self.axis][0], self._grid_slice_tuple[self.axis][0] + 1
-            )
-        elif self.direction == "-":
-            slice_list[self.axis] = slice(
-                self._grid_slice_tuple[self.axis][1] - 1, self._grid_slice_tuple[self.axis][1]
-            )
-        return slice_list[0], slice_list[1], slice_list[2]
-
+    @override
     def update_E_boundary_state(
         self,
-        boundary_state: BoundaryState,
+        boundary_state: PMLBoundaryState,
         H: jax.Array,
-    ) -> BoundaryState:
+    ) -> PMLBoundaryState:
         Hx = H[0, *self.grid_slice]
         Hy = H[1, *self.grid_slice]
         Hz = H[2, *self.grid_slice]
@@ -250,11 +201,12 @@ class PerfectlyMatchedLayer(BaseBoundary):
 
         return boundary_state
 
+    @override
     def update_H_boundary_state(
         self,
-        boundary_state: BoundaryState,
+        boundary_state: PMLBoundaryState,
         E: jax.Array,
-    ) -> BoundaryState:
+    ) -> PMLBoundaryState:
         Ex = E[0, *self.grid_slice]
         Ey = E[1, *self.grid_slice]
         Ez = E[2, *self.grid_slice]
@@ -296,10 +248,11 @@ class PerfectlyMatchedLayer(BaseBoundary):
 
         return boundary_state
 
+    @override
     def update_E(
         self,
         E: jax.Array,
-        boundary_state: BoundaryState,
+        boundary_state: PMLBoundaryState,
         inverse_permittivity: jax.Array,
     ) -> jax.Array:
         phi_Ex = boundary_state.psi_Ex[1] - boundary_state.psi_Ex[2]
@@ -313,10 +266,11 @@ class PerfectlyMatchedLayer(BaseBoundary):
         E = E.at[:, *self.grid_slice].add(update)
         return E
 
+    @override
     def update_H(
         self,
         H: jax.Array,
-        boundary_state: BoundaryState,
+        boundary_state: PMLBoundaryState,
         inverse_permeability: jax.Array | float,
     ) -> jax.Array:
         phi_Hx = boundary_state.psi_Hx[1] - boundary_state.psi_Hx[2]
