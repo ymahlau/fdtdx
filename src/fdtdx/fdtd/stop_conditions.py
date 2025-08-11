@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Optional
 
 import jax
 import jax.numpy as jnp
@@ -15,6 +16,11 @@ class StoppingCondition(TreeClass, ABC):
     This class provides the interface for implementing custom termination criteria
     that can depend on simulation state, detector readings, field values, etc.
     """
+
+    @abstractmethod
+    def validate(self, arrays: ArrayContainer) -> None:
+        """Optional pre-run validation; override in subclasses."""
+        return
 
     @abstractmethod
     def __call__(self, state: SimulationState) -> jax.Array:
@@ -37,7 +43,10 @@ class TimeStepCondition(StoppingCondition):
     a specified end time is reached.
     """
 
-    end_time: int = frozen_field()
+    end_time_step: int = frozen_field()
+
+    def validate(self, arrays: ArrayContainer) -> None:
+        pass
 
     def __call__(self, state: SimulationState) -> jax.Array:
         """Check if simulation should continue based on time step.
@@ -49,18 +58,54 @@ class TimeStepCondition(StoppingCondition):
             jax.Array: Boolean scalar - True if current time < end_time, False otherwise
         """
         time_step, _ = state
-        return self.end_time > time_step
+        return self.end_time_step > time_step
 
 
 @autoinit
 class DetectorThresholdCondition(StoppingCondition):
-    """Stopping condition based on detector readings reaching a threshold.
-    """
+    """Stopping condition based on detector readings reaching a threshold."""
 
     detector_name: str = frozen_field()
+    state_key: Optional[str] = frozen_field(default=None)
     threshold: float = frozen_field()
-    end_time: int = frozen_field()
+    end_time_step: int = frozen_field()
     comparison: str = frozen_field(default="less_than")  # "less_than", "greater_than", "equal"
+    expected_per_step_shape: tuple[int, ...] | None = frozen_field(default=None)
+
+    def validate(self, arrays: ArrayContainer) -> None:
+        if self.detector_name not in arrays.detector_states:
+            available = tuple(arrays.detector_states.keys())
+            raise KeyError(f"Detector '{self.detector_name}' not found. Available detectors: {available}")
+        det_state: DetectorState = arrays.detector_states[self.detector_name]
+        if self.state_key is not None:
+            if self.state_key not in det_state:
+                available = tuple(det_state.keys())
+                raise KeyError(
+                    f"Key '{self.state_key}' not found in DetectorState('{self.detector_name}'). "
+                    f"Available keys: {available}"
+                )
+            readings = det_state[self.state_key]
+        else:
+            if len(det_state) == 0:
+                raise ValueError(f"DetectorState('{self.detector_name}') is empty.")
+            if len(det_state) > 1:
+                available = tuple(det_state.keys())
+                raise ValueError(
+                    f"DetectorState('{self.detector_name}') has multiple arrays {available}. "
+                    "Specify which one via 'state_key'."
+                )
+            readings = next(iter(det_state.values()))
+
+        if readings.ndim < 1:
+            raise ValueError(
+                f"DetectorState('{self.detector_name}') array must have a time axis; got ndim={readings.ndim}."
+            )
+        per_step_shape = tuple(readings.shape[1:])
+        if self.expected_per_step_shape is not None and per_step_shape != self.expected_per_step_shape:
+            raise ValueError(
+                f"Per-step shape mismatch for detector '{self.detector_name}'. "
+                f"Expected {self.expected_per_step_shape}, got {per_step_shape}."
+            )
 
     def __call__(self, state: SimulationState) -> jax.Array:
         """Check if simulation should continue based on detector reading.
@@ -72,44 +117,47 @@ class DetectorThresholdCondition(StoppingCondition):
             jax.Array: Boolean scalar - True if condition not met and time < end_time
         """
         time_step, arrays = state
-        time_condition = time_step < self.end_time
+        time_condition = time_step < self.end_time_step
         detector_condition = self._check_detector_condition(arrays)
         return time_condition & (~detector_condition)
 
+    def _select_readings(self, det_state: DetectorState) -> jax.Array:
+        if self.state_key is not None:
+            return det_state[self.state_key]
+        # Fall back to the sole value; if more than one exists, take the first consistently
+        # (validate() enforces uniqueness when state_key is None)
+        return next(iter(det_state.values()))
+
     def _check_detector_condition(self, arrays: ArrayContainer) -> jax.Array:
+        # Assuming validate() has run. If not, KeyError may be raised here before JIT.
         det_state: DetectorState = arrays.detector_states[self.detector_name]
-
-        # DetectorState objects usually only have one value;
-        # take first value if present, else empty array
-        vals = list(det_state.values())
-        readings = vals[0] if len(vals) > 0 else jnp.asarray([], dtype=jnp.float32)
-
+        readings = self._select_readings(det_state)  # shape: (T, *S)
         n = readings.shape[0]
+
         last_reading = jax.lax.cond(
-            n > 0,
-            # Some detectors have a DetectorState with a jax.Array of shape
-            # (time_steps, A, B, C...) with multiple axis after time_step. We
-            # conserve the shape of these axis when indexing like this
+            jnp.asarray(n > 0),
             lambda r: jax.lax.dynamic_index_in_dim(r, n - 1, axis=0, keepdims=False),
-            lambda r: jnp.asarray(0.0, dtype=r.dtype),
+            lambda r: jnp.zeros(r.shape[1:], dtype=r.dtype),
             readings,
         )
-        has_readings = jnp.asarray(n > 0)
 
-        threshold = jnp.asarray(self.threshold, dtype=readings.dtype)
+        threshold = jnp.asarray(self.threshold, dtype=last_reading.dtype)
+        threshold = jnp.broadcast_to(threshold, last_reading.shape)
 
         if self.comparison == "less_than":
             met = last_reading < threshold
         elif self.comparison == "greater_than":
             met = last_reading > threshold
         elif self.comparison == "equal":
-            # Tolerance suited to dtype. Could be user-configured too...
-            eps = jnp.asarray(10.0 * jnp.finfo(readings.dtype).eps)
+            eps = jnp.asarray(10.0 * jnp.finfo(last_reading.dtype).eps)
+            eps = jnp.broadcast_to(eps, last_reading.shape)
             met = jnp.abs(last_reading - threshold) <= eps
         else:
-            met = jnp.array(False)
+            # Unsupported comparator: never met
+            met = jnp.zeros(last_reading.shape, dtype=jnp.bool_)
 
-        return has_readings & met
+        # Reduce to a scalar condition: consider "met" if any element satisfies it
+        return jnp.any(met)
 
 
 @autoinit
@@ -123,6 +171,9 @@ class FieldConvergenceCondition(StoppingCondition):
     threshold: float = frozen_field(default=1e-6)  # Relative change threshold
     end_time: int = frozen_field()
     min_steps: int = frozen_field(default=100)  # Minimum steps before checking convergence
+
+    def validate(self, arrays: ArrayContainer) -> None:
+        pass
 
     def __call__(self, state: SimulationState) -> jax.Array:
         """Check if simulation should continue based on field convergence.
