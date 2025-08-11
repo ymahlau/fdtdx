@@ -286,6 +286,7 @@ def checkpointed_fdtd(
     objects: ObjectContainer,
     config: SimulationConfig,
     key: jax.Array,
+    stopping_condition: StoppingCondition,
 ) -> SimulationState:
     """Run an FDTD simulation with gradient checkpointing for memory efficiency.
 
@@ -298,6 +299,7 @@ def checkpointed_fdtd(
         objects (ObjectContainer): Collection of physical objects in the simulation
         config (SimulationConfig): Simulation parameters including checkpointing settings
         key (jax.Array): JAX PRNGKey for any stochastic operations
+        stopping_condition (StoppingCondition): Custom stopping condition on which simulation is stopped
 
     Returns:
         SimulationState: Tuple containing final time step and ArrayContainer with final state
@@ -310,7 +312,7 @@ def checkpointed_fdtd(
     state = (jnp.asarray(0, dtype=jnp.int32), arrays)
     state = eqxi.while_loop(
         max_steps=config.time_steps_total,
-        cond_fun=lambda s: config.time_steps_total > s[0],
+        cond_fun=stopping_condition,
         body_fun=partial(
             forward,
             config=config,
@@ -337,7 +339,6 @@ def custom_fdtd_forward(
     record_detectors: bool,
     start_time: int | jax.Array,
     end_time: int | jax.Array,
-    stopping_condition: StoppingCondition | None = None,
 ) -> SimulationState:
     """Run a customizable forward FDTD simulation with a specified stopping condition.
 
@@ -353,50 +354,21 @@ def custom_fdtd_forward(
         record_detectors (bool): Whether to record detector readings
         start_time (int | jax.Array): Time step to start from
         end_time (int | jax.Array): Time step to end at
-        stopping_condition (StoppingCondition, optional): Custom stopping condition.
-            If None, defaults to time-based termination using end_time.
 
     Returns:
         SimulationState: Tuple containing final time step and ArrayContainer with final state
 
-    Raises:
-        NotImplementedError: If gradient computation or reversible FDTD features are
-            requested with custom stopping conditions (not yet supported).
-
     Notes:
         This function is useful for implementing custom simulation strategies or
         running partial simulations for analysis purposes.
-
-        Current limitations:
-        - Custom stopping conditions are not compatible with gradient computation
-        - Not compatible with reversible FDTD mode
     """
-    # Check for unsupported feature combinations
-    if stopping_condition is not None:
-        if config.gradient_config is not None:
-            raise NotImplementedError(
-                "Custom stopping conditions are not yet compatible with gradient computation. "
-                "Set config.gradient_config to None or use default time-based stopping."
-            )
-        if config.invertible_optimization:
-            raise NotImplementedError(
-                "Custom stopping conditions are not yet compatible with reversible FDTD. "
-                "Set config.invertible_optimization to False or use default time-based stopping."
-            )
-
     if reset_container:
         arrays = reset_array_container(arrays, objects)
     state = (jnp.asarray(start_time, dtype=jnp.int32), arrays)
 
-    # Use custom stopping condition if provided, otherwise default to time-based
-    if stopping_condition is None:
-        # Convert end_time to int for consistency
-        end_time_int = int(end_time) if isinstance(end_time, jax.Array) else end_time
-        stopping_condition = TimeStepCondition(end_time=end_time_int)
-
     state = eqxi.while_loop(
         max_steps=config.time_steps_total,
-        cond_fun=stopping_condition,
+        cond_fun=lambda s: end_time > s[0],
         body_fun=partial(
             forward,
             config=config,
