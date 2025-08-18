@@ -612,3 +612,31 @@ def test_neg_array_unitful():
     assert result.unit.scale == voltages.unit.scale
 
 
+def test_abs_scalar_unitful_negative():
+    """Test __abs__ method with negative scalar Unitful object"""
+    charge_unit = Unit(scale=-6, dim={SI.A: 1, SI.s: 1})  # microCoulombs
+    charge = Unitful(val=jnp.array(-15.0), unit=charge_unit)
+    
+    result = abs(charge)
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), 15.0e-6)  # 15 microCoulombs
+    assert result.unit.dim == {SI.A: 1, SI.s: 1}
+    assert result.unit.scale == charge.unit.scale
+
+
+def test_abs_array_unitful_mixed_signs():
+    """Test __abs__ method with array Unitful object containing mixed positive/negative values"""
+    # Create power unit: kg * m^2 * s^(-3) (Watts)
+    power_unit = Unit(scale=3, dim={SI.kg: 1, SI.m: 2, SI.s: -3})  # kiloWatts
+    powers = Unitful(val=jnp.array([-2.5, 0.0, 3.7, -1.2, 4.8]), unit=power_unit)
+    
+    result = abs(powers)
+    
+    assert isinstance(result, Unitful)
+    expected_values = jnp.array([2.5, 0.0, 3.7, 1.2, 4.8])
+    assert jnp.allclose(result.val, expected_values)
+    assert result.unit.dim == {SI.kg: 1, SI.m: 2, SI.s: -3}
+    assert result.unit.scale == 3
+
+

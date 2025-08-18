@@ -115,13 +115,21 @@ class Unitful(TreeClass):
         if isinstance(self.val, int | float | complex):
             raise Exception(f"Cannot iterate over Unitful with python scalar value ({self.val})")
         for v in self.val:
-            yield(Unitful(val=v, unit=self.unit, optimize_scale=False))
+            yield(Unitful(val=v, unit=self.unit))
     
     def __reversed__(self):
         return iter(self[::-1])
     
     def __neg__(self):
         return Unitful(val=-self.val, unit=self.unit)
+
+    def __pos__(self):
+        """Unary plus: +x"""
+        return Unitful(val=+self.val, unit=self.unit)
+
+    def __abs__(self):
+        """Absolute value: abs(x)"""
+        return Unitful(val=jnp.abs(self.val), unit=self.unit)
     
     
 
