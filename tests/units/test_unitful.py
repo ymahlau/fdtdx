@@ -6,7 +6,8 @@ from fdtdx.units.unitful import (
     SI, 
     Unit, 
     Unitful, 
-    add, 
+    add,
+    matmul, 
     multiply, 
     remainder, 
     subtract,
@@ -640,3 +641,55 @@ def test_abs_array_unitful_mixed_signs():
     assert result.unit.scale == 3
 
 
+def test_matmul_magic_method_same_units():
+    """Test matrix multiplication using @ operator with same units"""
+    # Create two 2x2 matrices with force units (kg*m*s^-2)
+    force_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2})
+    matrix1 = Unitful(val=jnp.array([[2.0, 3.0], [4.0, 1.0]]), unit=force_unit)
+    matrix2 = Unitful(val=jnp.array([[1.0, 2.0], [3.0, 4.0]]), unit=force_unit)
+    
+    result = matrix1 @ matrix2
+    
+    # Expected calculation: [[2*1+3*3, 2*2+3*4], [4*1+1*3, 4*2+1*4]] = [[11, 16], [7, 12]]
+    expected_vals = jnp.array([[11.0, 16.0], [7.0, 12.0]])
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), expected_vals)
+    # Force^2 units: (kg*m*s^-2)^2 = kg^2*m^2*s^-4
+    assert result.unit.dim == {SI.kg: 2, SI.m: 2, SI.s: -4}
+
+
+def test_matmul_overload_different_scales():
+    """Test matmul function with Unitful objects having different scales but same dimensions"""
+    # Create matrices with time units at different scales
+    time_unit_s = Unit(scale=0, dim={SI.s: 1})    # seconds
+    time_unit_ms = Unit(scale=-3, dim={SI.s: 1})  # milliseconds
+    
+    matrix1 = Unitful(val=jnp.array([[1.0, 2.0], [3.0, 4.0]]), unit=time_unit_s)
+    matrix2 = Unitful(val=jnp.array([[500.0, 1000.0], [1500.0, 2000.0]]), unit=time_unit_ms)
+    
+    result = matmul(matrix1, matrix2)
+    
+    # The scales should be aligned before multiplication
+    # matrix2 values become [0.5, 1.0], [1.5, 2.0] after scale alignment
+    # Expected: [[1*0.5+2*1.5, 1*1+2*2], [3*0.5+4*1.5, 3*1+4*2]] = [[3.5, 5], [7.5, 11]]
+    expected_vals = jnp.array([[3.5, 5.0], [7.5, 11.0]])
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), expected_vals)
+    # Time^2 units: s^2
+    assert result.unit.dim == {SI.s: 2}
+
+
+def test_matmul_overload_jax_arrays():
+    """Test matmul function with regular JAX arrays (non-Unitful)"""
+    # Test that the overloaded matmul still works with regular JAX arrays
+    array1 = jnp.array([[1.0, 2.0], [3.0, 4.0]])
+    array2 = jnp.array([[5.0, 6.0], [7.0, 8.0]])
+    
+    result = matmul(array1, array2)
+    
+    # Expected: [[1*5+2*7, 1*6+2*8], [3*5+4*7, 3*6+4*8]] = [[19, 22], [43, 50]]
+    expected = jnp.array([[19.0, 22.0], [43.0, 50.0]])
+    assert jnp.allclose(result, expected)
+    # Should return a regular JAX array, not a Unitful object
+    assert isinstance(result, jax.Array)
+    assert not isinstance(result, Unitful)

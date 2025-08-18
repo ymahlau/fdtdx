@@ -131,6 +131,8 @@ class Unitful(TreeClass):
         """Absolute value: abs(x)"""
         return Unitful(val=jnp.abs(self.val), unit=self.unit)
     
+    def __matmul__(self, other: "Unitful") -> "Unitful":
+        return matmul(self, other)
     
 
 
@@ -288,6 +290,30 @@ def add(x: jax.Array, y: jax.Array) -> jax.Array: return x + y
 def add(x, y):  # type: ignore
     del x, y
     raise NotImplementedError()
+
+## Matrix Multiplication ###################################
+@overload
+def matmul(
+    x: Unitful, 
+    y: Unitful,
+    **kwargs
+) -> Unitful:
+    if x.unit.dim != y.unit.dim:
+        raise ValueError(f"Cannot matmul two arrays with units {x.unit} and {y.unit}.")
+    x_align, y_align = align_scales(x, y)
+    new_val = jnp._orig_matmul(x.val, y.val)  # type: ignore
+    new_dim = {k: x_align.unit.dim[k] + y_align.unit.dim[k] for k in x_align.unit.dim.keys()}
+    return Unitful(val=new_val, unit=Unit(scale=x_align.unit.scale, dim=new_dim))
+
+@overload
+def matmul(x: jax.Array, y: jax.Array, **kwargs) -> jax.Array:
+    return jnp._orig_matmul(x, y, **kwargs)  # type: ignore
+
+@dispatch
+def matmul(x, y):  # type: ignore
+    del x, y
+    raise NotImplementedError()
+
 
 ## Subtractions ###########################
 @overload
@@ -473,6 +499,7 @@ _full_patch_list_numpy = [
     (ne, "not_equal"),
     (ge, "greater_equal"),
     (gt, "greater"),
+    (matmul, None)
 ]
 for fn, orig in _full_patch_list_numpy:
     patch_fn_to_module(
