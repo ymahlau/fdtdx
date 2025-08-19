@@ -4,7 +4,6 @@ import jax.numpy as jnp
 from jax import core
 from jaxtyping import ArrayLike
 import numpy as np
-from fastcore.foundation import copy_func
 
 from fdtdx.typing import PhysicalArrayLike
 
@@ -110,17 +109,3 @@ def best_scale(
     return scaled_arr, target_power
 
 
-def patch_fn_to_module(
-    f,
-    mod,
-    fn_name: str | None = None,
-) -> None:
-    fn_copy = copy_func(f)
-    if fn_name is None:
-        fn_name = f.__name__
-    assert fn_name is not None
-    fn_copy.__qualname__ = f"{mod.__name__}.{fn_name}"
-    original_name = '_orig_' + fn_name
-    if hasattr(mod, fn_name) and not hasattr(mod, original_name):
-        setattr(mod, original_name, getattr(mod, fn_name))
-    setattr(mod, fn_name, fn_copy)

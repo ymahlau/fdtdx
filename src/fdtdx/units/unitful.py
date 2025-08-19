@@ -9,7 +9,7 @@ from plum import dispatch, overload
 from pytreeclass import tree_repr
 
 from fdtdx.typing import SI, PhysicalArrayLike
-from fdtdx.units.utils import best_scale, handle_different_scales, patch_fn_to_module
+from fdtdx.units.utils import best_scale, handle_different_scales
 
 @autoinit
 class Unit(TreeClass):
@@ -507,43 +507,3 @@ def pow(x, y):  # type: ignore
     raise NotImplementedError()
 
 
-## add to original jax.numpy ###################
-_full_patch_list_numpy = [
-    (multiply, None),
-    (divide, None),
-    (divide, "true_divide"),
-    (add, None),
-    (subtract, None),
-    (remainder, None),
-    (lt, "less"),
-    (le, "less_equal"),
-    (eq, "equal"),
-    (ne, "not_equal"),
-    (ge, "greater_equal"),
-    (gt, "greater"),
-    (matmul, None),
-    (pow, None),
-]
-for fn, orig in _full_patch_list_numpy:
-    patch_fn_to_module(
-        f=fn, 
-        mod=jax.numpy,
-        fn_name=orig,
-    )
-
-## add to jax.lax ###################
-_full_patch_list_lax = [
-    (lt, None),
-    (le, None),
-    (eq, None),
-    (ne, None),
-    (ge, None),
-    (gt, None),
-    (pow, None)
-]
-for fn, orig in _full_patch_list_lax:
-    patch_fn_to_module(
-        f=fn, 
-        mod=jax.lax,
-        fn_name=orig,
-    )

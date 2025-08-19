@@ -24,6 +24,7 @@ from fdtdx.fdtd.backward import full_backward
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, ParameterContainer, SimulationState
 from fdtdx.fdtd.initialization import apply_params, place_objects
 from fdtdx.fdtd.wrapper import run_fdtd
+from fdtdx.functional.patching import patch_all_functions
 from fdtdx.interfaces.modules import DtypeConversion
 from fdtdx.interfaces.recorder import Recorder, RecordingState
 from fdtdx.interfaces.time_filter import LinearReconstructEveryK
@@ -75,6 +76,8 @@ from fdtdx.objects.static_material.sphere import Sphere
 from fdtdx.objects.static_material.static import SimulationVolume, UniformMaterialObject
 from fdtdx.utils.logger import Logger
 from fdtdx.utils.plot_setup import plot_setup
+
+patch_all_functions()
 
 __all__ = [
     # conversion

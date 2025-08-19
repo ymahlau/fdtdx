@@ -667,7 +667,7 @@ def test_matmul_overload_different_scales():
     matrix1 = Unitful(val=jnp.array([[1.0, 2.0], [3.0, 4.0]]), unit=time_unit_s)
     matrix2 = Unitful(val=jnp.array([[500.0, 1000.0], [1500.0, 2000.0]]), unit=time_unit_ms)
     
-    result = matmul(matrix1, matrix2)
+    result = jnp.matmul(matrix1, matrix2)  # type: ignore
     
     # The scales should be aligned before multiplication
     # matrix2 values become [0.5, 1.0], [1.5, 2.0] after scale alignment
