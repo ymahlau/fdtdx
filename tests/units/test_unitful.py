@@ -693,3 +693,60 @@ def test_matmul_overload_jax_arrays():
     # Should return a regular JAX array, not a Unitful object
     assert isinstance(result, jax.Array)
     assert not isinstance(result, Unitful)
+    
+def test_pow_magic_method():
+    """Test power operation using magic method (**) with integer exponent"""
+    # Create a length unit (meters)
+    length_unit = Unit(scale=0, dim={SI.m: 1})
+    length = Unitful(val=jnp.array(3.0), unit=length_unit)
+    
+    # Test cubing: m^3 (volume)
+    result = length ** 3
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), 27.0)  # 3^3 = 27
+    assert result.unit.dim == {SI.m: 3}
+
+
+def test_pow_overload_unitful_positive_exponent():
+    """Test pow function with Unitful object and positive integer exponent"""
+    # Create a velocity unit: m/s
+    velocity_unit = Unit(scale=0, dim={SI.m: 1, SI.s: -1})
+    velocity = Unitful(val=jnp.array(5.0), unit=velocity_unit)
+    
+    # Square it to get m^2/s^2 (like kinetic energy per unit mass)
+    result = pow(velocity, 2)
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), 25.0)  # 5^2 = 25
+    assert result.unit.dim == {SI.m: 2, SI.s: -2}
+
+
+def test_pow_overload_unitful_with_fractional_dimensions():
+    """Test pow function with Unitful object containing fractional dimensions"""
+    # Create a unit with fractional dimension: m^(2/3)
+    fractional_unit = Unit(scale=0, dim={SI.m: Fraction(2, 3)})
+    value = Unitful(val=jnp.array(8.0), unit=fractional_unit)
+    
+    # Raise to power 3: (m^(2/3))^3 = m^2
+    result = pow(value, 3)
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), 512.0)  # 8^3 = 512
+    assert result.unit.dim == {SI.m: 2}  # (2/3) * 3 = 2
+
+
+def test_pow_overload_jax_arrays():
+    """Test pow function with regular JAX arrays (non-Unitful)"""
+    # Test that the overloaded pow still works with regular JAX arrays
+    base = jnp.array([2.0, 3.0, 4.0])
+    exponent = jnp.array([2.0, 3.0, 2.0])
+    
+    result = jax.lax.pow(base, exponent)
+    
+    # Expected: [2^2, 3^3, 4^2] = [4, 27, 16]
+    expected = jnp.array([4.0, 27.0, 16.0])
+    assert jnp.allclose(result, expected)
+    # Should return a regular JAX array, not a Unitful object
+    assert isinstance(result, jax.Array)
+    assert not isinstance(result, Unitful)

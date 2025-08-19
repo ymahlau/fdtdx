@@ -134,6 +134,9 @@ class Unitful(TreeClass):
     def __matmul__(self, other: "Unitful") -> "Unitful":
         return matmul(self, other)
     
+    def __pow__(self, other: int) -> "Unitful":
+        return pow(self, other)
+    
 
 
 def align_scales(
@@ -485,6 +488,25 @@ def gt(x, y):  # type: ignore
     raise NotImplementedError()
 
 
+## power #######################################
+@overload
+def pow(x: Unitful, y: int) -> Unitful:
+    new_dim = {}
+    for k, v in x.unit.dim.items():
+        new_dim[k] = v * y
+    new_val = x.val ** y
+    new_scale = x.unit.scale * y
+    return Unitful(val=new_val, unit=Unit(scale=new_scale, dim=new_dim))
+
+@overload
+def pow(x: jax.Array, y: jax.Array) -> jax.Array: return x ** y
+
+@dispatch
+def pow(x, y):  # type: ignore
+    del x, y
+    raise NotImplementedError()
+
+
 ## add to original jax.numpy ###################
 _full_patch_list_numpy = [
     (multiply, None),
@@ -499,7 +521,8 @@ _full_patch_list_numpy = [
     (ne, "not_equal"),
     (ge, "greater_equal"),
     (gt, "greater"),
-    (matmul, None)
+    (matmul, None),
+    (pow, None),
 ]
 for fn, orig in _full_patch_list_numpy:
     patch_fn_to_module(
@@ -516,6 +539,7 @@ _full_patch_list_lax = [
     (ne, None),
     (ge, None),
     (gt, None),
+    (pow, None)
 ]
 for fn, orig in _full_patch_list_lax:
     patch_fn_to_module(
