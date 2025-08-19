@@ -17,6 +17,10 @@ from fdtdx.units.unitful import (
     pow,
 )
 
+from fdtdx.functional.numpy import (
+    sqrt
+)
+
 def patch_fn_to_module(
     f,
     mod,
@@ -50,6 +54,7 @@ def patch_all_functions():
         (gt, "greater"),
         (matmul, None),
         (pow, None),
+        (sqrt, None),
     ]
     for fn, orig in _full_patch_list_numpy:
         patch_fn_to_module(
@@ -66,7 +71,8 @@ def patch_all_functions():
         (ne, None),
         (ge, None),
         (gt, None),
-        (pow, None)
+        (pow, None),
+        (sqrt, None),
     ]
     for fn, orig in _full_patch_list_lax:
         patch_fn_to_module(
