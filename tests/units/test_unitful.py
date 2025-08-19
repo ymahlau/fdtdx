@@ -750,3 +750,295 @@ def test_pow_overload_jax_arrays():
     # Should return a regular JAX array, not a Unitful object
     assert isinstance(result, jax.Array)
     assert not isinstance(result, Unitful)
+
+
+def test_at_get_single_index():
+    """Test getting a single value using .at[].get()"""
+    distance_unit = Unit(scale=0, dim={SI.m: 1})
+    distances = Unitful(val=jnp.array([10.0, 20.0, 30.0, 40.0]), unit=distance_unit)
+    
+    result = distances.at[2].get()
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), 30.0)
+    assert result.unit.dim == {SI.m: 1}
+
+
+def test_at_get_slice():
+    """Test getting a slice using .at[].get()"""
+    time_unit = Unit(scale=-3, dim={SI.s: 1})  # milliseconds
+    times = Unitful(val=jnp.array([1.0, 2.0, 3.0, 4.0, 5.0]), unit=time_unit)
+    
+    result = times.at[1:4].get()
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), jnp.array([2.0e-3, 3.0e-3, 4.0e-3]))
+    assert result.unit.dim == {SI.s: 1}
+
+
+def test_at_set_single_index_same_units():
+    """Test setting a single value with same units using .at[].set()"""
+    mass_unit = Unit(scale=0, dim={SI.kg: 1})
+    masses = Unitful(val=jnp.array([1.0, 2.0, 3.0, 4.0]), unit=mass_unit)
+    new_mass = Unitful(val=jnp.array(99.0), unit=mass_unit)
+    
+    result = masses.at[2].set(new_mass)
+    
+    assert isinstance(result, Unitful)
+    expected = jnp.array([1.0, 2.0, 99.0, 4.0])
+    assert jnp.allclose(result.value(), expected)
+    assert result.unit.dim == {SI.kg: 1}
+
+
+def test_at_set_different_scales_same_dimensions():
+    """Test setting values with different scales but same dimensions"""
+    time_unit_s = Unit(scale=0, dim={SI.s: 1})    # seconds
+    time_unit_ms = Unit(scale=-3, dim={SI.s: 1})  # milliseconds
+    
+    times = Unitful(val=jnp.array([1.0, 2.0, 3.0]), unit=time_unit_s)
+    new_time = Unitful(val=jnp.array(5000.0), unit=time_unit_ms)  # 5000 ms = 5 s
+    
+    result = times.at[1].set(new_time)
+    
+    assert isinstance(result, Unitful)
+    expected = jnp.array([1.0, 5.0, 3.0])  # 5000 ms converted to 5 s
+    assert jnp.allclose(result.value(), expected)
+    assert result.unit.dim == {SI.s: 1}
+
+
+def test_at_add_single_index():
+    """Test adding to a single value using .at[].add()"""
+    force_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2})  # Newtons
+    forces = Unitful(val=jnp.array([10.0, 20.0, 30.0]), unit=force_unit)
+    additional_force = Unitful(val=jnp.array(5.0), unit=force_unit)
+    
+    result = forces.at[1].add(additional_force)
+    
+    assert isinstance(result, Unitful)
+    expected = jnp.array([10.0, 25.0, 30.0])  # 20 + 5 = 25
+    assert jnp.allclose(result.value(), expected)
+    assert result.unit.dim == {SI.kg: 1, SI.m: 1, SI.s: -2}
+
+
+def test_at_add_with_scale_alignment():
+    """Test adding values that require scale alignment"""
+    energy_unit_j = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -2})    # Joules
+    energy_unit_kj = Unit(scale=3, dim={SI.kg: 1, SI.m: 2, SI.s: -2})   # kiloJoules
+    
+    energies = Unitful(val=jnp.array([100.0, 200.0, 300.0]), unit=energy_unit_j)
+    additional_energy = Unitful(val=jnp.array(2.0), unit=energy_unit_kj)  # 2 kJ = 2000 J
+    
+    result = energies.at[0].add(additional_energy)
+    
+    assert isinstance(result, Unitful)
+    expected = jnp.array([2100.0, 200.0, 300.0])  # 100 + 2000 = 2100
+    assert jnp.allclose(result.value(), expected)
+    assert result.unit.dim == {SI.kg: 1, SI.m: 2, SI.s: -2}
+
+
+def test_at_subtract_single_index():
+    """Test subtracting from a single value using .at[].subtract()"""
+    voltage_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -3, SI.A: -1})  # Volts
+    voltages = Unitful(val=jnp.array([12.0, 24.0, 36.0]), unit=voltage_unit)
+    voltage_drop = Unitful(val=jnp.array(3.0), unit=voltage_unit)
+    
+    result = voltages.at[2].subtract(voltage_drop)
+    
+    assert isinstance(result, Unitful)
+    expected = jnp.array([12.0, 24.0, 33.0])  # 36 - 3 = 33
+    assert jnp.allclose(result.value(), expected)
+    assert result.unit.dim == {SI.kg: 1, SI.m: 2, SI.s: -3, SI.A: -1}
+
+
+def test_at_subtract_slice_with_fractional_dimensions():
+    """Test subtracting from a slice with fractional dimensions"""
+    # Create a unit with fractional dimension: kg^(3/4)
+    fractional_unit = Unit(scale=0, dim={SI.kg: Fraction(3, 4)})
+    values = Unitful(val=jnp.array([10.0, 20.0, 30.0, 40.0]), unit=fractional_unit)
+    subtract_value = Unitful(val=jnp.array([1.0, 2.0]), unit=fractional_unit)
+    
+    result = values.at[1:3].subtract(subtract_value)
+    
+    assert isinstance(result, Unitful)
+    expected = jnp.array([10.0, 19.0, 28.0, 40.0])  # [20-1, 30-2] = [19, 28]
+    assert jnp.allclose(result.value(), expected)
+    assert result.unit.dim == {SI.kg: Fraction(3, 4)}
+
+
+def test_at_multiply_single_index():
+    """Test multiplying a single value using .at[].multiply()"""
+    current_unit = Unit(scale=0, dim={SI.A: 1})
+    currents = Unitful(val=jnp.array([1.0, 2.0, 3.0, 4.0]), unit=current_unit)
+    multiplier = jnp.array(5.0)  # Scalar JAX array
+    
+    result = currents.at[2].multiply(multiplier)
+    
+    assert isinstance(result, Unitful)
+    expected = jnp.array([1.0, 2.0, 15.0, 4.0])  # 3 * 5 = 15
+    assert jnp.allclose(result.value(), expected)
+    assert result.unit.dim == {SI.A: 1}
+
+
+def test_at_multiply_array_slice():
+    """Test multiplying an array slice using .at[].multiply()"""
+    pressure_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: -1, SI.s: -2})  # Pascals
+    pressures = Unitful(val=jnp.array([100.0, 200.0, 300.0, 400.0]), unit=pressure_unit)
+    multipliers = jnp.array([2.0, 3.0])  # Array of multipliers
+    
+    result = pressures.at[1:3].multiply(multipliers)
+    
+    assert isinstance(result, Unitful)
+    expected = jnp.array([100.0, 400.0, 900.0, 400.0])  # [200*2, 300*3] = [400, 900]
+    assert jnp.allclose(result.value(), expected)
+    assert result.unit.dim == {SI.kg: 1, SI.m: -1, SI.s: -2}
+
+
+def test_at_divide_single_index():
+    """Test dividing a single value using .at[].divide()"""
+    frequency_unit = Unit(scale=0, dim={SI.s: -1})  # Hertz
+    frequencies = Unitful(val=jnp.array([100.0, 200.0, 300.0]), unit=frequency_unit)
+    divisor = jnp.array(4.0)
+    
+    result = frequencies.at[1].divide(divisor)
+    
+    assert isinstance(result, Unitful)
+    expected = jnp.array([100.0, 50.0, 300.0])  # 200 / 4 = 50
+    assert jnp.allclose(result.value(), expected)
+    assert result.unit.dim == {SI.s: -1}
+
+
+def test_at_divide_multiple_indices():
+    """Test dividing multiple values using .at[].divide()"""
+    temperature_unit = Unit(scale=0, dim={SI.K: 1})
+    temperatures = Unitful(val=jnp.array([300.0, 400.0, 500.0, 600.0]), unit=temperature_unit)
+    divisors = jnp.array([2.0, 5.0])
+    
+    result = temperatures.at[0:2].divide(divisors)
+    
+    assert isinstance(result, Unitful)
+    expected = jnp.array([150.0, 80.0, 500.0, 600.0])  # [300/2, 400/5] = [150, 80]
+    assert jnp.allclose(result.value(), expected)
+    assert result.unit.dim == {SI.K: 1}
+
+
+# Test error cases
+def test_at_set_different_units_raises_error():
+    """Test that setting with different units raises an exception"""
+    length_unit = Unit(scale=0, dim={SI.m: 1})
+    time_unit = Unit(scale=0, dim={SI.s: 1})
+    
+    lengths = Unitful(val=jnp.array([1.0, 2.0, 3.0]), unit=length_unit)
+    time_value = Unitful(val=jnp.array(5.0), unit=time_unit)
+    
+    with pytest.raises(Exception, match="Cannot update array value with different unit"):
+        lengths.at[1].set(time_value)
+
+
+def test_at_add_different_units_raises_error():
+    """Test that adding with different units raises an exception"""
+    mass_unit = Unit(scale=0, dim={SI.kg: 1})
+    length_unit = Unit(scale=0, dim={SI.m: 1})
+    
+    masses = Unitful(val=jnp.array([10.0, 20.0]), unit=mass_unit)
+    length_value = Unitful(val=jnp.array(3.0), unit=length_unit)
+    
+    with pytest.raises(Exception, match="Cannot update array value with different unit"):
+        masses.at[0].add(length_value)
+
+
+def test_at_multiply_with_unitful_raises_error():
+    """Test that multiplying with a Unitful object raises an exception"""
+    power_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -3})  # Watts
+    powers = Unitful(val=jnp.array([100.0, 200.0]), unit=power_unit)
+    unitful_multiplier = Unitful(val=jnp.array(2.0), unit=power_unit)
+    
+    with pytest.raises(Exception, match="Multiplying part of an array with another Unitful would lead to different units"):
+        powers.at[0].multiply(unitful_multiplier)  # type: ignore
+
+
+def test_at_divide_with_unitful_raises_error():
+    """Test that dividing with a Unitful object raises an exception"""
+    energy_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -2})  # Joules
+    energies = Unitful(val=jnp.array([1000.0, 2000.0]), unit=energy_unit)
+    unitful_divisor = Unitful(val=jnp.array(10.0), unit=energy_unit)
+    
+    with pytest.raises(Exception, match="Multiplying part of an array with another Unitful would lead to different units"):
+        energies.at[0].divide(unitful_divisor)  # type: ignore
+
+
+def test_at_power_raises_error():
+    """Test that the power method raises an exception"""
+    area_unit = Unit(scale=0, dim={SI.m: 2})
+    areas = Unitful(val=jnp.array([4.0, 9.0, 16.0]), unit=area_unit)
+    
+    with pytest.raises(Exception, match="Raising part of an array to a power is an undefined operation"):
+        areas.at[1].power(2)
+
+
+def test_at_scalar_value_raises_error():
+    """Test that using .at operations on scalar values raises exceptions"""
+    scalar_unit = Unit(scale=0, dim={SI.mol: 1})
+    scalar_value = Unitful(val=42.0, unit=scalar_unit)
+    
+    # Test various operations on scalar
+    with pytest.raises(Exception, match="Cannot index scalar value"):
+        scalar_value.at[0].get()
+    
+    with pytest.raises(Exception, match="Cannot index scalar value"):
+        scalar_value.at[0].set(Unitful(val=1.0, unit=scalar_unit))
+    
+    with pytest.raises(Exception, match="Cannot index scalar value"):
+        scalar_value.at[0].add(Unitful(val=1.0, unit=scalar_unit))
+    
+    with pytest.raises(Exception, match="Cannot index scalar value"):
+        scalar_value.at[0].multiply(jnp.array(2.0))
+
+
+def test_at_no_where_clause_raises_error():
+    """Test that operations without a where clause raise exceptions"""
+    unit = Unit(scale=0, dim={SI.cd: 1})  # Candela
+    values = Unitful(val=jnp.array([1.0, 2.0, 3.0]), unit=unit)
+    
+    # Test operations without indexing first
+    with pytest.raises(Exception, match="Cannot update value if no where clause is given"):
+        values.at.set(Unitful(val=jnp.array(5.0), unit=unit))
+    
+    with pytest.raises(Exception, match="Cannot update value if no where clause is given"):
+        values.at.add(Unitful(val=jnp.array(1.0), unit=unit))
+    
+    with pytest.raises(Exception, match="Cannot update value if no where clause is given"):
+        values.at.multiply(jnp.array(2.0))
+
+
+def test_at_double_indexing_raises_error():
+    """Test that double indexing [][] raises an exception"""
+    unit = Unit(scale=0, dim={SI.m: 1})
+    values = Unitful(val=jnp.array([[1.0, 2.0], [3.0, 4.0]]), unit=unit)
+    
+    with pytest.raises(Exception, match="Double Indexing .* is currently not supported"):
+        values.at[0][1].get()
+
+
+def test_at_get_preserves_complex_units():
+    """Test that .at[].get() preserves complex units with fractional dimensions"""
+    # Create a complex unit: m^(5/3) * kg^(-2/7) * s^(1/2)
+    complex_unit = Unit(
+        scale=-2, 
+        dim={
+            SI.m: Fraction(5, 3), 
+            SI.kg: Fraction(-2, 7), 
+            SI.s: Fraction(1, 2)
+        }
+    )
+    values = Unitful(val=jnp.array([1.0, 4.0, 9.0]), unit=complex_unit)
+    
+    result = values.at[1].get()
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), 4.0e-2)  # scale=-2 means *0.01
+    assert result.unit.dim == {
+        SI.m: Fraction(5, 3), 
+        SI.kg: Fraction(-2, 7), 
+        SI.s: Fraction(1, 2)
+    }
+

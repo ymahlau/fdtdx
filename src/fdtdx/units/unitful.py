@@ -1,12 +1,13 @@
 from dataclasses import dataclass
+from typing import Any, Callable, NamedTuple, Self
 import jax
 import jax.numpy as jnp
 
 from fdtdx.core.fraction import Fraction
-from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
+from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field
 
 from plum import dispatch, overload
-from pytreeclass import tree_repr
+from pytreeclass import AtIndexer, BaseKey, tree_repr
 
 from fdtdx.typing import SI, PhysicalArrayLike
 from fdtdx.units.utils import best_scale, handle_different_scales
@@ -26,17 +27,116 @@ class Unit(TreeClass):
         return str(self)
 
 
+@dataclass(frozen=True)
+class UnitfulIndexer:
+    unitful: "Unitful"
+    where: Any | None = None
+
+    def __getitem__(self, where: Any) -> "UnitfulIndexer":
+        if self.where is not None:
+            raise Exception("Already called [] on Unitful.at! Double Indexing [][] is currently not supported")
+        return UnitfulIndexer(self.unitful, where)
+    
+    def get(self) -> "Unitful":
+        """Get the leaf values at the specified location."""
+        if self.where is None:
+            return self.unitful
+        if isinstance(self.unitful.val, int | float | complex):
+            raise Exception(f"Cannot index scalar value: {self.unitful}")
+        new_val = self.unitful.val[self.where]
+        return Unitful(val=new_val, unit=self.unitful.unit)
+    
+    def set(self, value: "Unitful") -> "Unitful":
+        """Set the leaf values at the specified location."""
+        if self.where is None:
+            raise Exception(f"Cannot update value if no where clause is given")
+        if isinstance(self.unitful.val, int | float | complex):
+            raise Exception(f"Cannot index scalar value: {self.unitful}")
+        if self.unitful.unit.dim != value.unit.dim:
+            raise Exception(
+                f"Cannot update array value with different unit: {self.unitful.unit.dim} != {value.unit.dim}"
+            )
+        align_self, align_other = align_scales(self.unitful, value)
+        align_self_arr = align_self.val
+        assert not isinstance(align_self_arr, int | complex | float)
+        new_val: jax.Array = align_self_arr.at[self.where].set(align_other.val)
+        return Unitful(val=new_val, unit=align_self.unit)
+    
+    def add(self, value: "Unitful") -> "Unitful":
+        """Set the leaf values at the specified location."""
+        if self.where is None:
+            raise Exception(f"Cannot update value if no where clause is given")
+        if isinstance(self.unitful.val, int | float | complex):
+            raise Exception(f"Cannot index scalar value: {self.unitful}")
+        if self.unitful.unit.dim != value.unit.dim:
+            raise Exception(
+                f"Cannot update array value with different unit: {self.unitful.unit.dim} != {value.unit.dim}"
+            )
+        align_self, align_other = align_scales(self.unitful, value)
+        align_self_arr = align_self.val
+        assert not isinstance(align_self_arr, int | complex | float)
+        new_val: jax.Array = align_self_arr.at[self.where].add(align_other.val)
+        return Unitful(val=new_val, unit=align_self.unit)
+    
+    def subtract(self, value: "Unitful") -> "Unitful":
+        """Set the leaf values at the specified location."""
+        if self.where is None:
+            raise Exception(f"Cannot update value if no where clause is given")
+        if isinstance(self.unitful.val, int | float | complex):
+            raise Exception(f"Cannot index scalar value: {self.unitful}")
+        if self.unitful.unit.dim != value.unit.dim:
+            raise Exception(
+                f"Cannot update array value with different unit: {self.unitful.unit.dim} != {value.unit.dim}"
+            )
+        align_self, align_other = align_scales(self.unitful, value)
+        align_self_arr = align_self.val
+        assert not isinstance(align_self_arr, int | complex | float)
+        new_val: jax.Array = align_self_arr.at[self.where].subtract(align_other.val)
+        return Unitful(val=new_val, unit=align_self.unit)
+    
+    def multiply(self, value: jax.Array) -> "Unitful":
+        if isinstance(value, Unitful):
+            raise Exception(
+                f"Multiplying part of an array with another Unitful would lead to different units within the Array!"
+            )
+        if self.where is None:
+            raise Exception(f"Cannot update value if no where clause is given")
+        if isinstance(self.unitful.val, int | float | complex):
+            raise Exception(f"Cannot index scalar value: {self.unitful}")
+        new_val = self.unitful.val.at[self.where].multiply(value)
+        return Unitful(val=new_val, unit=self.unitful.unit)
+    
+    def divide(self, value: jax.Array) -> "Unitful":
+        if isinstance(value, Unitful):
+            raise Exception(
+                f"Multiplying part of an array with another Unitful would lead to different units within the Array!"
+            )
+        if self.where is None:
+            raise Exception(f"Cannot update value if no where clause is given")
+        if isinstance(self.unitful.val, int | float | complex):
+            raise Exception(f"Cannot index scalar value: {self.unitful}")
+        new_val = self.unitful.val.at[self.where].divide(value)
+        return Unitful(val=new_val, unit=self.unitful.unit)
+    
+    def power(self, value: Any) -> "Unitful":
+        del value
+        raise Exception(
+            f"Raising part of an array to a power is an undefined operation for a Unitful"
+        )
+
+
 @autoinit
 class Unitful(TreeClass):
     val: PhysicalArrayLike
-    unit: Unit = frozen_field()
+    unit: Unit = field()
     optimize_scale: bool = frozen_field(default=True)
     
     def __post_init__(self):
-        optimized_val, power = best_scale(self.val)
-        new_scale = self.unit.scale - power
-        self.val = optimized_val
-        self.unit = Unit(scale=new_scale, dim=self.unit.dim)
+        if self.optimize_scale:
+            optimized_val, power = best_scale(self.val)
+            new_scale = self.unit.scale - power
+            self.val = optimized_val
+            self.unit = Unit(scale=new_scale, dim=self.unit.dim)
     
     def materialise(self) -> PhysicalArrayLike:
         if self.unit.dim:
@@ -49,6 +149,26 @@ class Unitful(TreeClass):
         if isinstance(scale, Fraction):
             scale = scale.value()
         return self.val * 10 ** scale
+    
+    @property
+    def at(self) -> UnitfulIndexer:  # type: ignore
+        """Gets the indexer for this tree.
+
+        Returns:
+            UnitfulIndexer: Indexer that preserves type information
+        """
+        return UnitfulIndexer(self)
+    
+    def aset(
+        self,
+        attr_name: str,
+        val: Any,
+        create_new_ok: bool = False,
+    ) -> Self:
+        del attr_name, val, create_new_ok
+        raise Exception(
+            "the aset-method is unsafe for Unitful and therefore not implemented. Please use .at[].set() intead."
+        )
 
     def __str__(self) -> str:
         return f"Unitful [{self.unit}]: {tree_repr(self.val)}"
@@ -150,11 +270,17 @@ def align_scales(
         u2.unit.scale,
     )
     if new_scale != u1.unit.scale:
-        u1 = u1.aset("val", u1.val * factor1)
-        u1 = u1.aset("unit->scale", new_scale)
+        u1 = Unitful(
+            val=u1.val * factor1,
+            unit=Unit(scale=new_scale, dim=u1.unit.dim),
+            optimize_scale=False,
+        )
     if new_scale != u2.unit.scale:
-        u2 = u2.aset("val", u2.val * factor2)
-        u2 = u2.aset("unit->scale", new_scale)
+        u2 = Unitful(
+            val=u2.val * factor2,
+            unit=Unit(scale=new_scale, dim=u2.unit.dim),
+            optimize_scale=False,
+        )
     return u1, u2
 
 
