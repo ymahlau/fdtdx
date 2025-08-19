@@ -15,13 +15,13 @@ from fdtdx.objects.object import SimulationObject
 def plot_setup(
     config: SimulationConfig,
     objects: ObjectContainer,
-    exclude_object_list: list[SimulationObject] = [],
+    exclude_object_list: list[SimulationObject] | None = None,
     filename: str | Path | None = None,
     axs: Sequence[Any] | None = None,
     plot_legend: bool = True,
-    exclude_xy_plane_object_list: list[SimulationObject] = [],
-    exclude_yz_plane_object_list: list[SimulationObject] = [],
-    exclude_xz_plane_object_list: list[SimulationObject] = [],
+    exclude_xy_plane_object_list: list[SimulationObject] | None = None,
+    exclude_yz_plane_object_list: list[SimulationObject] | None = None,
+    exclude_xz_plane_object_list: list[SimulationObject] | None = None,
 ) -> Figure:
     """Creates a visualization of the simulation setup showing objects in XY, XZ and YZ planes.
 
@@ -47,6 +47,12 @@ def plot_setup(
         The plots show object positions in micrometers, converting from simulation units.
         PML objects are automatically excluded from their respective boundary planes.
     """
+    # default to empty lists
+    exclude_object_list = exclude_object_list or []
+    exclude_xy_plane_object_list = exclude_xy_plane_object_list or []
+    exclude_yz_plane_object_list = exclude_yz_plane_object_list or []
+    exclude_xz_plane_object_list = exclude_xz_plane_object_list or []
+
     # add boundaries to exclude lists
     for o in objects.objects:
         if not isinstance(o, (PerfectlyMatchedLayer, PeriodicBoundary)):
