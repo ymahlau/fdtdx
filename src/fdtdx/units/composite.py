@@ -2,7 +2,7 @@ from fdtdx.units.unitful import SI, Unit, Unitful
 
 s = Unitful(val=1, unit=Unit(scale=0, dim={SI.s: 1}))
 ms = Unitful(val=1, unit=Unit(scale=-3, dim={SI.s: 1}))
-µs = Unitful(val=1, unit=Unit(scale=-6, dim={SI.s: 1}))
+us = Unitful(val=1, unit=Unit(scale=-6, dim={SI.s: 1}))
 ns = Unitful(val=1, unit=Unit(scale=-9, dim={SI.s: 1}))
 ps = Unitful(val=1, unit=Unit(scale=-12, dim={SI.s: 1}))
 fs = Unitful(val=1, unit=Unit(scale=-15, dim={SI.s: 1}))
