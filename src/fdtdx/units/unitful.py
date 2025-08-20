@@ -257,6 +257,14 @@ class Unitful(TreeClass):
     def __pow__(self, other: int) -> "Unitful":
         return pow(self, other)
     
+    def min(self, **kwargs) -> "Unitful":
+        return min(self, **kwargs)
+    
+    def max(self, **kwargs) -> "Unitful":
+        return max(self, **kwargs)
+    
+    def mean(self, **kwargs) -> "Unitful":
+        return mean(self, **kwargs)
 
 
 def align_scales(
@@ -392,7 +400,7 @@ def _same_dim_binary_fn(x: Unitful, y: Unitful, op_str: str) -> Unitful:
     if x.unit.dim != y.unit.dim:
         raise ValueError(f"Cannot {op_str} two arrays with units {x.unit} and {y.unit}.")
     x_align, y_align = align_scales(x, y)
-    orig_fn = getattr(jax.numpy, op_str)
+    orig_fn = getattr(jax.numpy, f"_orig_{op_str}")
     new_val = orig_fn(x_align.val, y_align.val)
     return Unitful(val=new_val, unit=x_align.unit)
 
@@ -496,7 +504,7 @@ def _same_dim_binary_fn_array_return(x: Unitful, y: Unitful, op_str: str) -> Phy
     if x.unit.dim != y.unit.dim:
         raise ValueError(f"Cannot {op_str} two arrays with units {x.unit} and {y.unit}.")
     x, y = align_scales(x, y)
-    orig_fn = getattr(jax.lax, op_str)
+    orig_fn = getattr(jax.lax, f"_orig_{op_str}")
     new_val = orig_fn(x.val, y.val)
     return new_val
 
@@ -632,4 +640,47 @@ def pow(x, y):  # type: ignore
     del x, y
     raise NotImplementedError()
 
+
+## min #######################################
+def unary_fn(x: Unitful, op_str: str, **kwargs) -> Unitful:
+    orig_fn = getattr(jax.numpy, f"_orig_{op_str}")
+    new_val = orig_fn(x.val, **kwargs)
+    if not isinstance(new_val, PhysicalArrayLike):
+        raise Exception(f"This is an internal error: {op_str} produced {type(new_val)}")
+    return Unitful(val=new_val, unit=x.unit)
+
+@overload
+def min(x: Unitful, **kwargs) -> Unitful: return unary_fn(x, "min", **kwargs)
+
+@overload
+def min(x: jax.Array, **kwargs) -> jax.Array: return jnp._orig_min(x, **kwargs)  # type: ignore
+
+@dispatch
+def min(x, **kwargs):  # type: ignore
+    del x, kwargs
+    raise NotImplementedError()
+
+## max #######################################
+@overload
+def max(x: Unitful, **kwargs) -> Unitful: return unary_fn(x, "max", **kwargs)
+
+@overload
+def max(x: jax.Array, **kwargs) -> jax.Array: return jnp._orig_max(x, **kwargs)  # type: ignore
+
+@dispatch
+def max(x, **kwargs):  # type: ignore
+    del x, kwargs
+    raise NotImplementedError()
+
+## mean #######################################
+@overload
+def mean(x: Unitful, **kwargs) -> Unitful: return unary_fn(x, "mean", **kwargs)
+
+@overload
+def mean(x: jax.Array, **kwargs) -> jax.Array: return jnp._orig_mean(x, **kwargs)  # type: ignore
+
+@dispatch
+def mean(x, **kwargs):  # type: ignore
+    del x, kwargs
+    raise NotImplementedError()
 

@@ -15,6 +15,9 @@ from fdtdx.units.unitful import (
     gt,
     matmul,
     pow,
+    min,
+    max,
+    mean,
 )
 
 from fdtdx.functional.numpy import (
@@ -55,6 +58,9 @@ def patch_all_functions():
         (matmul, None),
         (pow, None),
         (sqrt, None),
+        (min, None),
+        (max, None),
+        (mean, None),
     ]
     for fn, orig in _full_patch_list_numpy:
         patch_fn_to_module(

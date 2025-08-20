@@ -1042,3 +1042,221 @@ def test_at_get_preserves_complex_units():
         SI.s: Fraction(1, 2)
     }
 
+
+def test_min_magic_method():
+    """Test min magic method on Unitful objects"""
+    temperature_unit = Unit(scale=0, dim={SI.K: 1})
+    temperatures = Unitful(val=jnp.array([300.0, 250.0, 400.0, 275.0]), unit=temperature_unit)
+    
+    result = temperatures.min()
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), 250.0)
+    assert result.unit.dim == {SI.K: 1}
+
+
+def test_min_overload_unitful():
+    """Test min function with Unitful objects"""
+    # Create pressure values with scale
+    pressure_unit = Unit(scale=3, dim={SI.kg: 1, SI.m: -1, SI.s: -2})  # kilopascals
+    pressures = Unitful(val=jnp.array([101.0, 95.5, 110.2, 88.7, 105.3]), unit=pressure_unit)
+    
+    result = jnp.min(pressures)  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), 88.7e3)  # 88.7 kPa = 88700 Pa
+    assert result.unit.dim == {SI.kg: 1, SI.m: -1, SI.s: -2}
+
+
+def test_min_overload_jax_arrays():
+    """Test min function with regular JAX arrays"""
+    array = jnp.array([15.0, 3.2, 42.1, 8.9, 25.6])
+    
+    result = jnp.min(array)
+    
+    assert jnp.allclose(result, 3.2)
+    assert isinstance(result, jax.Array)
+    assert not isinstance(result, Unitful)
+
+
+def test_min_with_axis_parameter():
+    """Test min method with axis parameter on 2D Unitful array"""
+    energy_unit = Unit(scale=-3, dim={SI.kg: 1, SI.m: 2, SI.s: -2})  # millijoules
+    energies = Unitful(val=jnp.array([[10.0, 20.0, 30.0], [5.0, 15.0, 25.0]]), unit=energy_unit)
+    
+    # Min along axis 0 (columns)
+    result = energies.min(axis=0)
+    
+    assert isinstance(result, Unitful)
+    expected_vals = jnp.array([5.0, 15.0, 25.0])
+    assert jnp.allclose(result.value(), expected_vals * 1e-3)  # Convert to joules
+    assert result.unit.dim == {SI.kg: 1, SI.m: 2, SI.s: -2}
+
+
+def test_min_with_fractional_dimensions():
+    """Test min with Unitful objects containing fractional dimensions"""
+    # Create a unit with fractional dimension: m^(3/2)
+    fractional_unit = Unit(scale=0, dim={SI.m: Fraction(3, 2)})
+    values = Unitful(val=jnp.array([8.0, 27.0, 64.0, 125.0]), unit=fractional_unit)
+    
+    result = values.min()
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), 8.0)
+    assert result.unit.dim == {SI.m: Fraction(3, 2)}
+
+
+def test_max_magic_method():
+    """Test max magic method on Unitful objects"""
+    current_unit = Unit(scale=-3, dim={SI.A: 1})  # milliamps
+    currents = Unitful(val=jnp.array([150.0, 200.0, 180.0, 250.0, 120.0]), unit=current_unit)
+    
+    result = currents.max()
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), 250.0e-3)  # 250 mA = 0.25 A
+    assert result.unit.dim == {SI.A: 1}
+
+
+def test_max_overload_unitful():
+    """Test max function with Unitful objects"""
+    # Create force values
+    force_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2})  # Newtons
+    forces = Unitful(val=jnp.array([12.5, 8.3, 19.7, 15.2]), unit=force_unit)
+    
+    result = jnp.max(forces)  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), 19.7)
+    assert result.unit.dim == {SI.kg: 1, SI.m: 1, SI.s: -2}
+
+
+def test_max_overload_jax_arrays():
+    """Test max function with regular JAX arrays"""
+    array = jnp.array([7.1, 23.4, 11.8, 45.2, 19.6])
+    
+    result = jnp.max(array)
+    
+    assert jnp.allclose(result, 45.2)
+    assert isinstance(result, jax.Array)
+    assert not isinstance(result, Unitful)
+
+
+def test_max_with_keepdims_parameter():
+    """Test max method with keepdims parameter on 2D Unitful array"""
+    voltage_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -3, SI.A: -1})  # Volts
+    voltages = Unitful(val=jnp.array([[12.0, 24.0], [36.0, 48.0], [6.0, 18.0]]), unit=voltage_unit)
+    
+    # Max along axis 1 with keepdims=True
+    result = voltages.max(axis=1, keepdims=True)
+    
+    assert isinstance(result, Unitful)
+    expected_vals = jnp.array([[24.0], [48.0], [18.0]])
+    assert jnp.allclose(result.value(), expected_vals)
+    assert result.unit.dim == {SI.kg: 1, SI.m: 2, SI.s: -3, SI.A: -1}
+    assert result.val.shape == (3, 1)  # type: ignore
+
+
+def test_max_with_complex_units():
+    """Test max with complex composite units"""
+    # Create power density unit: kg * s^(-3) (Watts per square meter)
+    power_density_unit = Unit(scale=2, dim={SI.kg: 1, SI.s: -3})
+    values = Unitful(val=jnp.array([0.5, 1.2, 0.8, 2.1, 1.5]), unit=power_density_unit)
+    
+    result = values.max()
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), 2.1e2)  # scale=2 means *100
+    assert result.unit.dim == {SI.kg: 1, SI.s: -3}
+
+
+def test_mean_magic_method():
+    """Test mean magic method on Unitful objects"""
+    mass_unit = Unit(scale=0, dim={SI.kg: 1})
+    masses = Unitful(val=jnp.array([10.0, 20.0, 30.0, 40.0]), unit=mass_unit)
+    
+    result = masses.mean()
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), 25.0)  # (10+20+30+40)/4 = 25
+    assert result.unit.dim == {SI.kg: 1}
+
+
+def test_mean_overload_unitful():
+    """Test mean function with Unitful objects"""
+    # Create time values with millisecond scale
+    time_unit = Unit(scale=-3, dim={SI.s: 1})  # milliseconds
+    times = Unitful(val=jnp.array([100.0, 200.0, 300.0, 400.0, 500.0]), unit=time_unit)
+    
+    result = jnp.mean(times)  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), 300.0e-3)  # 300 ms = 0.3 s
+    assert result.unit.dim == {SI.s: 1}
+
+
+def test_mean_overload_jax_arrays():
+    """Test mean function with regular JAX arrays"""
+    array = jnp.array([2.5, 7.1, 4.8, 9.3, 6.2])
+    
+    result = jnp.mean(array)
+    
+    expected = (2.5 + 7.1 + 4.8 + 9.3 + 6.2) / 5
+    assert jnp.allclose(result, expected)
+    assert isinstance(result, jax.Array)
+    assert not isinstance(result, Unitful)
+
+
+def test_mean_with_axis_parameter():
+    """Test mean method with axis parameter on 2D Unitful array"""
+    # Create a 3x4 array of distances
+    distance_unit = Unit(scale=3, dim={SI.m: 1})  # kilometers
+    distances = Unitful(val=jnp.array([
+        [1.0, 2.0, 3.0, 4.0],
+        [5.0, 6.0, 7.0, 8.0],
+        [9.0, 10.0, 11.0, 12.0]
+    ]), unit=distance_unit)
+    
+    # Mean along axis 0 (rows)
+    result = distances.mean(axis=0)
+    
+    assert isinstance(result, Unitful)
+    expected_vals = jnp.array([5.0, 6.0, 7.0, 8.0])  # Column means
+    assert jnp.allclose(result.value(), expected_vals * 1e3)  # Convert to meters
+    assert result.unit.dim == {SI.m: 1}
+    assert result.val.shape == (4,)  # type: ignore
+
+
+def test_mean_with_fractional_and_negative_dimensions():
+    """Test mean with complex fractional and negative dimensions"""
+    # Create a unit: kg^(-2/3) * m^(4/5) * s^(-1)
+    complex_unit = Unit(scale=-1, dim={
+        SI.kg: Fraction(-2, 3), 
+        SI.m: Fraction(4, 5), 
+        SI.s: -1
+    })
+    values = Unitful(val=jnp.array([2.0, 4.0, 6.0, 8.0, 10.0]), unit=complex_unit)
+    
+    result = values.mean()
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), 6.0e-1)  # mean=6.0, scale=-1 means *0.1
+    assert result.unit.dim == {
+        SI.kg: Fraction(-2, 3), 
+        SI.m: Fraction(4, 5), 
+        SI.s: -1
+    }
+
+
+def test_mean_preserves_all_unit_properties():
+    """Test that mean preserves all unit properties including complex scales"""
+    # Test with charge unit: A * s (Coulombs) at micro scale
+    charge_unit = Unit(scale=-6, dim={SI.A: 1, SI.s: 1})
+    charges = Unitful(val=jnp.array([10.0, 20.0, 30.0]), unit=charge_unit)
+    
+    result = charges.mean()  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), 20.0e-6)  # 20 microCoulombs
+    assert result.unit.dim == {SI.A: 1, SI.s: 1}
+
