@@ -18,6 +18,7 @@ from fdtdx.units.unitful import (
     min,
     max,
     mean,
+    sum,
 )
 
 from fdtdx.functional.numpy import (
@@ -61,6 +62,7 @@ def patch_all_functions():
         (min, None),
         (max, None),
         (mean, None),
+        (sum, None),
     ]
     for fn, orig in _full_patch_list_numpy:
         patch_fn_to_module(

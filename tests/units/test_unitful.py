@@ -1260,3 +1260,366 @@ def test_mean_preserves_all_unit_properties():
     assert jnp.allclose(result.value(), 20.0e-6)  # 20 microCoulombs
     assert result.unit.dim == {SI.A: 1, SI.s: 1}
 
+
+def test_sum_magic_method():
+    """Test sum magic method on Unitful objects"""
+    energy_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -2})  # Joules
+    energies = Unitful(val=jnp.array([10.0, 20.0, 30.0, 40.0]), unit=energy_unit)
+    
+    result = energies.sum()
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), 100.0)  # 10+20+30+40 = 100
+    assert result.unit.dim == {SI.kg: 1, SI.m: 2, SI.s: -2}
+
+
+def test_sum_overload_with_axis_and_scale():
+    """Test sum function with axis parameter and unit scale conversion"""
+    # Create power values with kilowatt scale
+    power_unit = Unit(scale=3, dim={SI.kg: 1, SI.m: 2, SI.s: -3})  # kilowatts
+    powers = Unitful(val=jnp.array([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+        [7.0, 8.0, 9.0]
+    ]), unit=power_unit)
+    
+    # Sum along axis 1 (rows)
+    result = jnp.sum(powers, axis=1)  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    expected_vals = jnp.array([6.0, 15.0, 24.0])  # Row sums
+    assert jnp.allclose(result.value(), expected_vals * 1e3)  # Convert to watts
+    assert result.unit.dim == {SI.kg: 1, SI.m: 2, SI.s: -3}
+    assert result.val.shape == (3,)  # type: ignore
+
+
+def test_sum_with_fractional_dimensions_and_keepdims():
+    """Test sum with complex fractional dimensions and keepdims parameter"""
+    # Create a unit with mixed fractional dimensions: m^(5/4) * kg^(-1/2) * s^(3/7)
+    complex_unit = Unit(scale=-2, dim={
+        SI.m: Fraction(5, 4), 
+        SI.kg: Fraction(-1, 2), 
+        SI.s: Fraction(3, 7)
+    })
+    values = Unitful(val=jnp.array([
+        [2.0, 4.0], 
+        [6.0, 8.0], 
+        [10.0, 12.0]
+    ]), unit=complex_unit)
+    
+    # Sum along axis 0 with keepdims=True
+    result = values.sum(axis=0, keepdims=True)
+    
+    assert isinstance(result, Unitful)
+    expected_vals = jnp.array([[18.0, 24.0]])  # Column sums: [2+6+10, 4+8+12]
+    assert jnp.allclose(result.value(), expected_vals * 1e-2)  # scale=-2 means *0.01
+    assert result.unit.dim == {
+        SI.m: Fraction(5, 4), 
+        SI.kg: Fraction(-1, 2), 
+        SI.s: Fraction(3, 7)
+    }
+    assert result.val.shape == (1, 2)  # type: ignore
+
+
+def test_shape_scalar_python_int():
+    """Test shape property with Python scalar integer"""
+    time_unit = Unit(scale=0, dim={SI.s: 1})
+    scalar_time = Unitful(val=5, unit=time_unit)
+    
+    assert scalar_time.shape == ()
+
+
+def test_shape_scalar_python_float():
+    """Test shape property with Python scalar float"""
+    mass_unit = Unit(scale=0, dim={SI.kg: 1})
+    scalar_mass = Unitful(val=2.5, unit=mass_unit)
+    
+    assert scalar_mass.shape == ()
+
+
+def test_shape_scalar_python_complex():
+    """Test shape property with Python scalar complex"""
+    impedance_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -3, SI.A: -2})
+    scalar_impedance = Unitful(val=3+4j, unit=impedance_unit)
+    
+    assert scalar_impedance.shape == ()
+
+
+def test_shape_1d_array():
+    """Test shape property with 1D JAX array"""
+    distance_unit = Unit(scale=0, dim={SI.m: 1})
+    distances = Unitful(val=jnp.array([1.0, 2.0, 3.0, 4.0, 5.0]), unit=distance_unit)
+    
+    assert distances.shape == (5,)
+
+
+def test_shape_2d_array():
+    """Test shape property with 2D JAX array"""
+    force_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2})
+    forces = Unitful(val=jnp.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]), unit=force_unit)
+    
+    assert forces.shape == (2, 3)
+
+
+def test_shape_3d_array():
+    """Test shape property with 3D JAX array"""
+    voltage_unit = Unit(scale=-3, dim={SI.kg: 1, SI.m: 2, SI.s: -3, SI.A: -1})  # millivolts
+    voltages = Unitful(val=jnp.array([[[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]]]), unit=voltage_unit)
+    
+    assert voltages.shape == (2, 2, 2)
+
+
+def test_shape_empty_array():
+    """Test shape property with empty JAX array"""
+    current_unit = Unit(scale=0, dim={SI.A: 1})
+    empty_currents = Unitful(val=jnp.array([]), unit=current_unit)
+    
+    assert empty_currents.shape == (0,)
+
+
+def test_shape_with_fractional_dimensions():
+    """Test shape property with fractional unit dimensions"""
+    fractional_unit = Unit(scale=2, dim={SI.m: Fraction(3, 2), SI.kg: Fraction(-1, 4)})
+    values = Unitful(val=jnp.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]), unit=fractional_unit)
+    
+    assert values.shape == (3, 3)
+
+
+def test_dtype_float32_array():
+    """Test dtype property with float32 JAX array"""
+    temp_unit = Unit(scale=0, dim={SI.K: 1})
+    temperatures = Unitful(val=jnp.array([300.0, 310.0, 320.0], dtype=jnp.float32), unit=temp_unit)
+    
+    assert temperatures.dtype == jnp.float32
+
+
+def test_dtype_complex64_array():
+    """Test dtype property with complex64 JAX array"""
+    impedance_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -3, SI.A: -2})
+    impedances = Unitful(val=jnp.array([1+2j, 3+4j], dtype=jnp.complex64), unit=impedance_unit)
+    
+    assert impedances.dtype == jnp.complex64
+
+
+def test_dtype_scalar_raises_exception():
+    """Test that accessing dtype on scalar values raises an exception"""
+    energy_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -2})
+    scalar_energy = Unitful(val=42.0, unit=energy_unit)
+    
+    with pytest.raises(Exception, match="Python scalar does not have dtype attribute"):
+        _ = scalar_energy.dtype
+
+
+def test_dtype_python_int_scalar_raises_exception():
+    """Test that accessing dtype on Python int scalar raises an exception"""
+    dimensionless_unit = Unit(scale=0, dim={})
+    scalar_int = Unitful(val=5, unit=dimensionless_unit)
+    
+    with pytest.raises(Exception, match="Python scalar does not have dtype attribute"):
+        _ = scalar_int.dtype
+
+
+def test_dtype_python_complex_scalar_raises_exception():
+    """Test that accessing dtype on Python complex scalar raises an exception"""
+    impedance_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -3, SI.A: -2})
+    scalar_complex = Unitful(val=3+4j, unit=impedance_unit)
+    
+    with pytest.raises(Exception, match="Python scalar does not have dtype attribute"):
+        _ = scalar_complex.dtype
+
+
+def test_ndim_scalar_python_types():
+    """Test ndim property with Python scalar types"""
+    # Test with Python int
+    int_unit = Unit(scale=0, dim={SI.mol: 1})
+    scalar_int = Unitful(val=42, unit=int_unit)
+    assert scalar_int.ndim == 0
+    
+    # Test with Python float
+    float_unit = Unit(scale=0, dim={SI.cd: 1})
+    scalar_float = Unitful(val=3.14, unit=float_unit)
+    assert scalar_float.ndim == 0
+    
+    # Test with Python complex
+    complex_unit = Unit(scale=0, dim={SI.A: 1, SI.s: 1})
+    scalar_complex = Unitful(val=2+3j, unit=complex_unit)
+    assert scalar_complex.ndim == 0
+
+
+def test_ndim_1d_array():
+    """Test ndim property with 1D JAX array"""
+    length_unit = Unit(scale=-2, dim={SI.m: 1})  # centimeters
+    lengths = Unitful(val=jnp.array([10.0, 20.0, 30.0]), unit=length_unit)
+    
+    assert lengths.ndim == 1
+
+
+def test_ndim_2d_array():
+    """Test ndim property with 2D JAX array"""
+    area_unit = Unit(scale=0, dim={SI.m: 2})
+    areas = Unitful(val=jnp.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]), unit=area_unit)
+    
+    assert areas.ndim == 2
+
+
+def test_ndim_3d_array():
+    """Test ndim property with 3D JAX array"""
+    volume_unit = Unit(scale=3, dim={SI.m: 3})  # cubic kilometers
+    volumes = Unitful(val=jnp.array([[[1.0]]]), unit=volume_unit)
+    
+    assert volumes.ndim == 3
+
+
+def test_ndim_4d_array():
+    """Test ndim property with 4D JAX array"""
+    hypervolume_unit = Unit(scale=0, dim={SI.m: 4})
+    hypervolumes = Unitful(val=jnp.ones((2, 3, 4, 5)), unit=hypervolume_unit)
+    
+    assert hypervolumes.ndim == 4
+
+
+def test_ndim_with_complex_fractional_units():
+    """Test ndim property with complex fractional unit dimensions"""
+    complex_unit = Unit(scale=-1, dim={
+        SI.kg: Fraction(2, 3), 
+        SI.m: Fraction(-5, 7), 
+        SI.s: Fraction(4, 9)
+    })
+    values = Unitful(val=jnp.array([[[1.0, 2.0]], [[3.0, 4.0]]]), unit=complex_unit)
+    
+    assert values.ndim == 3
+
+
+def test_ndim_empty_1d_array():
+    """Test ndim property with empty 1D array"""
+    power_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -3})
+    empty_powers = Unitful(val=jnp.array([]), unit=power_unit)
+    
+    assert empty_powers.ndim == 1
+
+
+def test_size_scalar_python_types():
+    """Test size property with Python scalar types"""
+    # Test with Python int
+    frequency_unit = Unit(scale=6, dim={SI.s: -1})  # megahertz
+    scalar_freq = Unitful(val=100, unit=frequency_unit)
+    assert scalar_freq.size == 1
+    
+    # Test with Python float
+    resistance_unit = Unit(scale=3, dim={SI.kg: 1, SI.m: 2, SI.s: -3, SI.A: -2})  # kiloohms
+    scalar_resistance = Unitful(val=4.7, unit=resistance_unit)
+    assert scalar_resistance.size == 1
+    
+    # Test with Python complex
+    admittance_unit = Unit(scale=-3, dim={SI.kg: -1, SI.m: -2, SI.s: 3, SI.A: 2})  # millisiemens
+    scalar_admittance = Unitful(val=1+2j, unit=admittance_unit)
+    assert scalar_admittance.size == 1
+
+
+def test_size_1d_arrays():
+    """Test size property with 1D JAX arrays of various sizes"""
+    # Small array
+    wavelength_unit = Unit(scale=-9, dim={SI.m: 1})  # nanometers
+    small_wavelengths = Unitful(val=jnp.array([400.0, 500.0, 600.0]), unit=wavelength_unit)
+    assert small_wavelengths.size == 3
+    
+    # Larger array
+    time_unit = Unit(scale=-6, dim={SI.s: 1})  # microseconds
+    times = Unitful(val=jnp.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]), unit=time_unit)
+    assert times.size == 10
+    
+    # Single element array
+    charge_unit = Unit(scale=-19, dim={SI.A: 1, SI.s: 1})  # elementary charge scale
+    single_charge = Unitful(val=jnp.array([1.602]), unit=charge_unit)
+    assert single_charge.size == 1
+
+
+def test_size_2d_arrays():
+    """Test size property with 2D JAX arrays"""
+    # 2x3 array
+    flux_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -2, SI.A: -1})  # webers
+    flux_2x3 = Unitful(val=jnp.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]), unit=flux_unit)
+    assert flux_2x3.size == 6
+    
+    # Square array
+    conductance_unit = Unit(scale=-3, dim={SI.kg: -1, SI.m: -2, SI.s: 3, SI.A: 2})  # millisiemens
+    square_array = Unitful(val=jnp.ones((4, 4)), unit=conductance_unit)
+    assert square_array.size == 16
+
+
+def test_size_3d_arrays():
+    """Test size property with 3D JAX arrays"""
+    # 2x3x4 array
+    magnetic_field_unit = Unit(scale=-3, dim={SI.kg: 1, SI.s: -2, SI.A: -1})  # millitesla
+    field_3d = Unitful(val=jnp.zeros((2, 3, 4)), unit=magnetic_field_unit)
+    assert field_3d.size == 24
+    
+    # Cubic array
+    density_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: -3})
+    cubic_density = Unitful(val=jnp.ones((5, 5, 5)), unit=density_unit)
+    assert cubic_density.size == 125
+
+
+def test_size_higher_dimensional_arrays():
+    """Test size property with higher dimensional arrays"""
+    # 4D array
+    hyperfield_unit = Unit(scale=0, dim={SI.kg: 2, SI.m: -1, SI.s: -4})
+    hyperfield_4d = Unitful(val=jnp.ones((2, 3, 4, 5)), unit=hyperfield_unit)
+    assert hyperfield_4d.size == 120
+    
+    # 5D array
+    exotic_unit = Unit(scale=-12, dim={SI.mol: Fraction(1, 3), SI.cd: Fraction(-2, 5)})
+    exotic_5d = Unitful(val=jnp.ones((2, 2, 2, 2, 2)), unit=exotic_unit)
+    assert exotic_5d.size == 32
+
+
+def test_size_empty_arrays():
+    """Test size property with empty arrays"""
+    # Empty 1D array
+    luminosity_unit = Unit(scale=0, dim={SI.cd: 1})
+    empty_1d = Unitful(val=jnp.array([]), unit=luminosity_unit)
+    assert empty_1d.size == 0
+    
+    # Empty 2D array
+    acceleration_unit = Unit(scale=0, dim={SI.m: 1, SI.s: -2})
+    empty_2d = Unitful(val=jnp.zeros((0, 5)), unit=acceleration_unit)
+    assert empty_2d.size == 0
+
+
+def test_size_with_fractional_and_negative_dimensions():
+    """Test size property with complex unit dimensions"""
+    # Complex fractional and negative dimensions
+    complex_unit = Unit(scale=7, dim={
+        SI.kg: Fraction(-3, 4),
+        SI.m: Fraction(5, 6),
+        SI.s: -2,
+        SI.A: Fraction(1, 7),
+        SI.K: Fraction(-2, 9)
+    })
+    complex_values = Unitful(val=jnp.ones((3, 7, 2)), unit=complex_unit)
+    assert complex_values.size == 42
+
+
+def test_properties_consistency_scalar():
+    """Test that all properties are consistent for scalar values"""
+    capacitance_unit = Unit(scale=-12, dim={SI.kg: -1, SI.m: -2, SI.s: 4, SI.A: 2})  # picofarads
+    scalar_cap = Unitful(val=100.0, unit=capacitance_unit)
+    
+    assert scalar_cap.shape == ()
+    assert scalar_cap.ndim == 0
+    assert scalar_cap.size == 1
+    # dtype should raise exception for scalars
+    with pytest.raises(Exception):
+        _ = scalar_cap.dtype
+
+
+def test_properties_consistency_1d_array():
+    """Test that all properties are consistent for 1D arrays"""
+    inductance_unit = Unit(scale=-3, dim={SI.kg: 1, SI.m: 2, SI.s: -2, SI.A: -2})  # millihenries
+    array_1d = Unitful(val=jnp.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=jnp.float32), unit=inductance_unit)
+    
+    assert array_1d.shape == (5,)
+    assert array_1d.ndim == 1
+    assert array_1d.size == 5
+    assert array_1d.dtype == jnp.float32
+

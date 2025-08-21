@@ -159,6 +159,30 @@ class Unitful(TreeClass):
         """
         return UnitfulIndexer(self)
     
+    @property
+    def shape(self) -> tuple[int, ...]:
+        if isinstance(self.val, int | float | complex):
+            return ()
+        return self.val.shape
+    
+    @property
+    def dtype(self):
+        if isinstance(self.val, int | float | complex):
+            raise Exception(f"Python scalar does not have dtype attribute")
+        return self.val.dtype
+    
+    @property
+    def ndim(self):
+        if isinstance(self.val, int | float | complex):
+            return 0
+        return self.val.ndim
+    
+    @property
+    def size(self):
+        if isinstance(self.val, int | float | complex):
+            return 1
+        return self.val.size
+    
     def aset(
         self,
         attr_name: str,
@@ -265,6 +289,10 @@ class Unitful(TreeClass):
     
     def mean(self, **kwargs) -> "Unitful":
         return mean(self, **kwargs)
+    
+    def sum(self, **kwargs) -> "Unitful":
+        return sum(self, **kwargs)
+        
 
 
 def align_scales(
@@ -684,3 +712,14 @@ def mean(x, **kwargs):  # type: ignore
     del x, kwargs
     raise NotImplementedError()
 
+## mean #######################################
+@overload
+def sum(x: Unitful, **kwargs) -> Unitful: return unary_fn(x, "sum", **kwargs)
+
+@overload
+def sum(x: jax.Array, **kwargs) -> jax.Array: return jnp._orig_sum(x, **kwargs)  # type: ignore
+
+@dispatch
+def sum(x, **kwargs):  # type: ignore
+    del x, kwargs
+    raise NotImplementedError()
