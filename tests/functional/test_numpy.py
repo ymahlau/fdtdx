@@ -4,7 +4,7 @@ import plum
 import pytest
 from fdtdx.core.fraction import Fraction
 from fdtdx.functional.numpy import sqrt, roll
-from fdtdx.typing import SI
+from fdtdx.units.typing import SI
 from fdtdx.units.unitful import Unit, Unitful
 from fdtdx.units.composite import Hz, s, ms, m_per_s 
 import jax.numpy as jnp

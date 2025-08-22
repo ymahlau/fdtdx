@@ -3,28 +3,13 @@ from typing import Literal, Optional, Union
 
 import jax
 
-
-class SI(Enum):
-    s = "second"
-    m = "meter"
-    kg = "kilogram"
-    A = "ampere"
-    K = "kelvin"
-    mol = "mole"
-    cd = "candela"
-
-PhysicalArrayLike = Union[
-    int,
-    float,
-    complex,
-    jax.Array
-]
+from fdtdx.units.unitful import Unitful
 
 # Real-valued shapes (physical dimensions)
-RealShape3D = tuple[float, float, float]
+RealShape3D = tuple[Unitful, Unitful, Unitful]
 """3D shape with real-valued (physical) dimensions in meters."""
 
-OptionalAxisSize = Optional[float]
+OptionalAxisSize = Optional[Unitful]
 """Optional real-valued size for a single axis."""
 
 PartialRealShape3D = tuple[OptionalAxisSize, OptionalAxisSize, OptionalAxisSize]

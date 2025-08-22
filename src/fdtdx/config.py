@@ -9,6 +9,7 @@ from fdtdx import constants
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field
 from fdtdx.interfaces.recorder import Recorder
 from fdtdx.typing import BackendOption
+from fdtdx.units.unitful import Unitful
 
 
 @autoinit
@@ -57,8 +58,8 @@ class SimulationConfig(TreeClass):
         gradient_config (GradientConfig | None, optional): Optional configuration for gradient computation.
     """
 
-    time: float = frozen_field()
-    resolution: float = frozen_field()
+    time: Unitful = frozen_field()
+    resolution: Unitful = frozen_field()
     backend: BackendOption = frozen_field(default="gpu")
     dtype: jnp.dtype = frozen_field(default=jnp.float32)
     courant_factor: float = frozen_field(default=0.99)
@@ -111,7 +112,7 @@ class SimulationConfig(TreeClass):
         return self.courant_factor / math.sqrt(3)
 
     @property
-    def time_step_duration(self) -> float:
+    def time_step_duration(self) -> Unitful:
         """Calculate the duration of a single time step.
 
         The time step duration is determined by the Courant condition to ensure
@@ -135,10 +136,13 @@ class SimulationConfig(TreeClass):
             int: Total number of time steps needed to reach the specified
                 simulation time.
         """
-        return round(self.time / self.time_step_duration)
+        time_steps = (self.time / self.time_step_duration).materialise()
+        assert isinstance(time_steps, float | int)
+        num_discrete_steps = round(time_steps)
+        return num_discrete_steps
 
     @property
-    def max_travel_distance(self) -> float:
+    def max_travel_distance(self) -> Unitful:
         """Calculate the maximum distance light can travel during the simulation.
 
         This represents the theoretical maximum distance that light could travel
@@ -179,9 +183,3 @@ class SimulationConfig(TreeClass):
         if self.gradient_config is None:
             return False
         return self.gradient_config.recorder is not None
-
-
-DUMMY_SIMULATION_CONFIG = SimulationConfig(
-    time=-1,
-    resolution=-1,
-)

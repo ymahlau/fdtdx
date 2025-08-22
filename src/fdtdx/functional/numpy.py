@@ -1,12 +1,10 @@
 import math
-from typing import Sequence
 import jax
 import jax.numpy as jnp
-from jaxtyping import ArrayLike
 from plum import dispatch, overload
 
 from fdtdx.core.fraction import Fraction
-from fdtdx.typing import SI
+from fdtdx.units.typing import SI
 from fdtdx.units.unitful import Unit, Unitful
 
 ## Square Root ###########################

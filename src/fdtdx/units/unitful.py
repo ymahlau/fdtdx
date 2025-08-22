@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Callable, NamedTuple, Self
+from typing import Any, Self
 import jax
 import jax.numpy as jnp
 
@@ -7,9 +7,9 @@ from fdtdx.core.fraction import Fraction
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field
 
 from plum import dispatch, overload
-from pytreeclass import AtIndexer, BaseKey, tree_repr
+from pytreeclass import tree_repr
 
-from fdtdx.typing import SI, PhysicalArrayLike
+from fdtdx.units.typing import SI, PhysicalArrayLike
 from fdtdx.units.utils import best_scale, handle_different_scales
 
 @autoinit

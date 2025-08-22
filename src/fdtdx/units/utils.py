@@ -1,11 +1,8 @@
-import equinox
-import jax
 import jax.numpy as jnp
 from jax import core
-from jaxtyping import ArrayLike
 import numpy as np
 
-from fdtdx.typing import PhysicalArrayLike
+from fdtdx.units.typing import PhysicalArrayLike
 
 def handle_different_scales(
     s1: int,

@@ -10,7 +10,10 @@ used in simulations.
 
 import math
 
-c: float = 299792458.0
+from fdtdx.units.composite import m_per_s
+from fdtdx.units.unitful import Unitful
+
+c: Unitful = 299792458.0 * m_per_s
 """Speed of light in vacuum (m/s)."""
 
 mu0: float = 4e-7 * math.pi
