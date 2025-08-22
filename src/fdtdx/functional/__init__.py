@@ -1,0 +1,49 @@
+from fdtdx.functional.numpy import (
+    roll, 
+    sqrt,
+    square,
+)
+from fdtdx.units.unitful import (
+    multiply,
+    divide,
+    add,
+    subtract,
+    remainder,
+    lt,
+    le,
+    eq,
+    ne,
+    ge,
+    gt,
+    matmul,
+    pow,
+    min,
+    max,
+    mean,
+    sum,
+)
+
+__all__ = [
+    # numpy methods
+    "roll",
+    "sqrt",
+    "square",
+    # unitful inherent methods
+    "multiply",
+    "divide",
+    "add",
+    "subtract",
+    "remainder",
+    "lt",
+    "le",
+    "eq",
+    "ne",
+    "ge",
+    "gt",
+    "matmul",
+    "pow",
+    "min",
+    "max",
+    "mean",
+    "sum",
+]

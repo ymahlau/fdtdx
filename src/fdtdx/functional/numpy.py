@@ -49,10 +49,7 @@ def roll(
     x: Unitful,
     *args,
     **kwargs, 
-    # shift: ArrayLike | Sequence[int],
-    # axis: int | Sequence[int] | None = None, 
 ) -> Unitful:
-    # new_val = jnp._orig_roll(x.val, shift=shift, axis=axis)  # type: ignore
     new_val = jnp._orig_roll(x.val, *args, **kwargs)  # type: ignore
     return Unitful(val=new_val, unit=x.unit)
 
@@ -61,8 +58,6 @@ def roll(
     x: int | float | complex | jax.Array,
     *args,
     **kwargs, 
-    # shift: ArrayLike | Sequence[int],
-    # axis: int | Sequence[int] | None = None, 
 ) -> jax.Array: 
     return jnp._orig_roll(x, *args, **kwargs)  # type: ignore
 
@@ -73,5 +68,37 @@ def roll(  # type: ignore
     **kwargs,
 ):
     del x, args, kwargs
+    raise NotImplementedError()
+
+## Square #####################################
+@overload
+def square(
+    x: Unitful,
+) -> Unitful:
+    return x * x
+
+@overload
+def square(
+    x: int | float
+) -> float: 
+    return x * x
+
+@overload
+def square(
+    x: complex
+) -> complex: 
+    return x * x
+
+@overload
+def square(
+    x: jax.Array
+) -> jax.Array: 
+    return x * x
+
+@dispatch
+def square(  # type: ignore
+    x,
+):
+    del x
     raise NotImplementedError()
 

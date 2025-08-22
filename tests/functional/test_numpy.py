@@ -128,4 +128,50 @@ def test_roll_multi_axis_fractional_dimensions():
     assert jnp.allclose(result.value(), expected_vals * 10)  # scale=1 means *10
     assert result.unit.dim == {SI.m: Fraction(3, 2), SI.kg: Fraction(-1, 4)}
     assert result.shape == values.shape  # Shape should be preserved
+
+
+def test_square_unitful_basic_dimensions():
+    """Test square with Unitful object having basic dimensions"""
+    # Create a unit with m dimension (length)
+    length_unit = Unit(scale=0, dim={SI.m: 1})
+    length = Unitful(val=jnp.array(5.0), unit=length_unit)
     
+    result = jnp.square(length)  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), 25.0)  # square(5) = 25
+    assert result.unit.dim == {SI.m: 2}  # square(m^1) = m^2 (area)
+
+
+def test_square_unitful_complex_fractional_dimensions_with_scale():
+    """Test square with Unitful object having fractional dimensions and non-zero scale"""
+    # Create a unit with kg^(1/3) * s^(-2/3) dimension and scale=2 (factor of 100)
+    complex_unit = Unit(scale=2, dim={SI.kg: Fraction(1, 3), SI.s: Fraction(-2, 3)})
+    value = Unitful(val=jnp.array(3.0), unit=complex_unit)
+    
+    result = jnp.square(value)  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    # square(3 * 100) = 9 * 10000 = 90000
+    # But with scale optimization: 9 * 10^4 = 9 * 10^4
+    assert jnp.allclose(result.value(), 9.0 * 10**4)  # 3^2 * (10^2)^2 = 9 * 10^4
+    # Dimensions: square(kg^(1/3) * s^(-2/3)) = kg^(2/3) * s^(-4/3)
+    assert result.unit.dim == {SI.kg: Fraction(2, 3), SI.s: Fraction(-4, 3)}
+
+
+def test_square_unitful_complex_number():
+    """Test square with Unitful object containing complex Python scalar"""
+    # Create a unit with electric charge dimension (Coulombs: A*s)
+    charge_unit = Unit(scale=-3, dim={SI.A: 1, SI.s: 1})  # milliCoulombs
+    # Complex impedance-like value: 3 + 4j
+    complex_charge = Unitful(val=3.0 + 4.0j, unit=charge_unit)
+    
+    result = jnp.square(complex_charge)  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    # square(3 + 4j) = (3 + 4j)^2 = 9 + 24j + 16j^2 = 9 + 24j - 16 = -7 + 24j
+    expected_complex = -7.0 + 24.0j
+    # With scale factor: result * 10^(-3*2) = result * 10^(-6)
+    assert jnp.allclose(result.value(), expected_complex * 10**(-6))
+    # Dimensions: square(A^1 * s^1) = A^2 * s^2
+    assert result.unit.dim == {SI.A: 2, SI.s: 2}
