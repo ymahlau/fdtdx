@@ -50,8 +50,8 @@ class SimulationConfig(TreeClass):
     and gradient computation settings.
 
     Attributes:
-        time (float): Total simulation time in seconds.
-        resolution (float): Spatial resolution of the simulation grid in meters.
+        time (Unitful): Total simulation time in seconds.
+        resolution (Unitful): Spatial resolution of the simulation grid in meters.
         backend (BackendOption, optional): Computation backend ('gpu', 'tpu', 'cpu' or 'METAL'). Defaults to "gpu".
         dtype (jnp.dtype, optional): Data type for numerical computations. Defaults to jnp.float32.
         courant_factor (float, optional): Safety factor for the Courant condition (default: 0.99).
