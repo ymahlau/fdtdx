@@ -395,7 +395,9 @@ def divide(
     x2: Unitful
 ) -> Unitful:
     new_val = x1 / x2.val
-    return Unitful(val=new_val, unit=x2.unit)
+    new_dim = {k: -v for k, v in x2.unit.dim.items()}
+    new_scale = -x2.unit.scale 
+    return Unitful(val=new_val, unit=Unit(dim=new_dim, scale=new_scale))
 
 @overload
 def divide(
