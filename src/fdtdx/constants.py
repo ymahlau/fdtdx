@@ -10,19 +10,19 @@ used in simulations.
 
 import math
 
-from fdtdx.units.composite import m_per_s
+from fdtdx.units.composite import m, s, N, A
 from fdtdx.units.unitful import Unitful
 
-c: Unitful = 299792458.0 * m_per_s
+c: Unitful = 299792458.0 * m / s
 """Speed of light in vacuum (m/s)."""
 
-mu0: float = 4e-7 * math.pi
+mu0: Unitful = 1.25663706127 * N / (A * A)
 """Vacuum permeability (H/m)."""
 
-eps0: float = 1.0 / (mu0 * c**2)
+eps0: Unitful = 1.0 / (mu0 * c**2)
 """Vacuum permittivity (F/m)."""
 
-eta0: float = mu0 * c
+eta0: Unitful = mu0 * c
 """Free space impedance (Ω)."""
 
 # Relative Permittivities of different materials
@@ -69,7 +69,7 @@ SHARD_STR: str = "shard"
 """String constant used to identify sharded computations."""
 
 
-def wavelength_to_period(wavelength: float) -> float:
+def wavelength_to_period(wavelength: Unitful) -> Unitful:
     """Convert wavelength to time period using speed of light.
 
     Uses the speed of light constant to calculate the corresponding time period
