@@ -1,6 +1,8 @@
 import math
+from typing import Sequence
 import jax
 import jax.numpy as jnp
+from jaxtyping import ArrayLike
 from plum import dispatch, overload
 
 from fdtdx.core.fraction import Fraction
@@ -42,4 +44,36 @@ def sqrt(x):  # type: ignore
     del x
     raise NotImplementedError()
 
+
+## Roll #####################################
+@overload
+def roll(
+    x: Unitful,
+    *args,
+    **kwargs, 
+    # shift: ArrayLike | Sequence[int],
+    # axis: int | Sequence[int] | None = None, 
+) -> Unitful:
+    # new_val = jnp._orig_roll(x.val, shift=shift, axis=axis)  # type: ignore
+    new_val = jnp._orig_roll(x.val, *args, **kwargs)  # type: ignore
+    return Unitful(val=new_val, unit=x.unit)
+
+@overload
+def roll(
+    x: int | float | complex | jax.Array,
+    *args,
+    **kwargs, 
+    # shift: ArrayLike | Sequence[int],
+    # axis: int | Sequence[int] | None = None, 
+) -> jax.Array: 
+    return jnp._orig_roll(x, *args, **kwargs)  # type: ignore
+
+@dispatch
+def roll(  # type: ignore
+    x,
+    *args,
+    **kwargs,
+):
+    del x, args, kwargs
+    raise NotImplementedError()
 

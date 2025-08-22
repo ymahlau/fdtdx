@@ -22,7 +22,8 @@ from fdtdx.units.unitful import (
 )
 
 from fdtdx.functional.numpy import (
-    sqrt
+    sqrt,
+    roll,
 )
 
 def patch_fn_to_module(
@@ -63,6 +64,7 @@ def patch_all_functions():
         (max, None),
         (mean, None),
         (sum, None),
+        (roll, None),
     ]
     for fn, orig in _full_patch_list_numpy:
         patch_fn_to_module(

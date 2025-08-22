@@ -3,7 +3,7 @@ import jax
 import plum
 import pytest
 from fdtdx.core.fraction import Fraction
-from fdtdx.functional.numpy import sqrt
+from fdtdx.functional.numpy import sqrt, roll
 from fdtdx.typing import SI
 from fdtdx.units.unitful import Unit, Unitful
 from fdtdx.units.composite import Hz, s, ms, m_per_s 
@@ -56,7 +56,7 @@ def test_sqrt_jax_array():
     # Test that the overloaded sqrt still works with regular JAX arrays
     array = jnp.array([4.0, 9.0, 16.0, 25.0])
     
-    result = sqrt(array)
+    result = jnp.sqrt(array)  # type: ignore
     
     # Expected: [sqrt(4), sqrt(9), sqrt(16), sqrt(25)] = [2, 3, 4, 5]
     expected = jnp.array([2.0, 3.0, 4.0, 5.0])
@@ -64,4 +64,68 @@ def test_sqrt_jax_array():
     # Should return a regular JAX array, not a Unitful object
     assert isinstance(result, jax.Array)
     assert not isinstance(result, Unitful)
+    
+    
+def test_roll_1d_unitful_basic():
+    """Test basic roll operation on 1D Unitful array"""
+    # Create a 1D array of forces
+    force_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2})  # Newtons
+    forces = Unitful(val=jnp.array([10.0, 20.0, 30.0, 40.0, 50.0]), unit=force_unit)
+    
+    # Roll by 2 positions to the right
+    result = jnp.roll(forces, shift=2)  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    expected_vals = jnp.array([40.0, 50.0, 10.0, 20.0, 30.0])
+    assert jnp.allclose(result.value(), expected_vals)
+    assert result.unit.dim == {SI.kg: 1, SI.m: 1, SI.s: -2}
+
+
+def test_roll_2d_unitful_with_axis_and_scale():
+    """Test roll operation on 2D Unitful array with specific axis and unit scale"""
+    # Create a 2D array of temperatures with millikelvin scale
+    temp_unit = Unit(scale=-3, dim={SI.K: 1})  # millikelvin
+    temperatures = Unitful(val=jnp.array([
+        [100.0, 200.0, 300.0],
+        [400.0, 500.0, 600.0],
+        [700.0, 800.0, 900.0]
+    ]), unit=temp_unit)
+    
+    # Roll along axis 1 (columns) by -1
+    result = jnp.roll(temperatures, shift=-1, axis=1)  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    expected_vals = jnp.array([
+        [200.0, 300.0, 100.0],
+        [500.0, 600.0, 400.0],
+        [800.0, 900.0, 700.0]
+    ])
+    assert jnp.allclose(result.value(), expected_vals * 1e-3)  # Convert to Kelvin
+    assert result.unit.dim == {SI.K: 1}
+
+
+def test_roll_multi_axis_fractional_dimensions():
+    """Test roll operation with multiple axes on Unitful array with fractional dimensions"""
+    # Create a unit with fractional dimensions: m^(3/2) * kg^(-1/4)
+    complex_unit = Unit(scale=1, dim={SI.m: Fraction(3, 2), SI.kg: Fraction(-1, 4)})
+    values = Unitful(val=jnp.array([
+        [[1.0, 2.0], [3.0, 4.0]],
+        [[5.0, 6.0], [7.0, 8.0]],
+        [[9.0, 10.0], [11.0, 12.0]]
+    ]), unit=complex_unit)
+    
+    # Roll along multiple axes: axis 0 by 1, axis 2 by -1
+    result = roll(values, shift=[1, -1], axis=[0, 2])
+    
+    assert isinstance(result, Unitful)
+    # Expected: first roll axis 0 by 1 (shifts the 3x2x2 along first dimension)
+    # then roll axis 2 by -1 (shifts the innermost dimension)
+    expected_vals = jnp.array([
+        [[10.0, 9.0], [12.0, 11.0]],
+        [[2.0, 1.0], [4.0, 3.0]],
+        [[6.0, 5.0], [8.0, 7.0]]
+    ])
+    assert jnp.allclose(result.value(), expected_vals * 10)  # scale=1 means *10
+    assert result.unit.dim == {SI.m: Fraction(3, 2), SI.kg: Fraction(-1, 4)}
+    assert result.shape == values.shape  # Shape should be preserved
     
