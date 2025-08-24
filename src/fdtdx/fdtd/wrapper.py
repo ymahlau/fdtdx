@@ -3,6 +3,7 @@ import jax
 from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, SimulationState
 from fdtdx.fdtd.fdtd import checkpointed_fdtd, reversible_fdtd
+from fdtdx.fdtd.stop_conditions import StoppingCondition, TimeStepCondition
 
 
 def run_fdtd(
@@ -10,7 +11,19 @@ def run_fdtd(
     objects: ObjectContainer,
     config: SimulationConfig,
     key: jax.Array,
+    stopping_condition: StoppingCondition | None = None,
 ) -> SimulationState:
+    if stopping_condition is not None:
+        if config.gradient_config is not None:
+            raise NotImplementedError(
+                "Custom stopping conditions are not yet compatible with gradient computation. "
+                "Set config.gradient_config to None or use default time-based stopping."
+            )
+        stopping_condition.validate(arrays)
+    else:
+        # Default to time step-based if no stopping condition is provided
+        stopping_condition = TimeStepCondition(end_time_step=config.time_steps_total)
+
     if config.gradient_config is None:
         # only forward simulation, use standard while loop of checkpointed fdtd
         return checkpointed_fdtd(
@@ -18,6 +31,7 @@ def run_fdtd(
             objects=objects,
             config=config,
             key=key,
+            stopping_condition=stopping_condition,
         )
     if config.gradient_config.method == "reversible":
         return reversible_fdtd(
@@ -32,6 +46,7 @@ def run_fdtd(
             objects=objects,
             config=config,
             key=key,
+            stopping_condition=stopping_condition,
         )
     else:
         raise Exception(f"Unknown gradient computation method: {config.gradient_config.method}")
