@@ -21,6 +21,7 @@ from fdtdx.units.unitful import (
     max,
     mean,
     sum,
+    abs,
 )
 
 __all__ = [
@@ -46,4 +47,5 @@ __all__ = [
     "max",
     "mean",
     "sum",
+    "abs",
 ]

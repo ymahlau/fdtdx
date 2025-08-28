@@ -1623,3 +1623,38 @@ def test_properties_consistency_1d_array():
     assert array_1d.size == 5
     assert array_1d.dtype == jnp.float32
 
+
+def test_abs_overload_unitful_with_mixed_signs():
+    """Test abs function with Unitful objects containing mixed positive/negative values"""
+    # Create electric field unit: kg * m * s^(-3) * A^(-1) (Volts per meter)
+    electric_field_unit = Unit(scale=3, dim={SI.kg: 1, SI.m: 1, SI.s: -3, SI.A: -1})  # kV/m
+    fields = Unitful(val=jnp.array([-15.0, 0.0, 25.0, -8.5, 12.3]), unit=electric_field_unit)
+    
+    result = abs(fields)
+    
+    assert isinstance(result, Unitful)
+    expected_values = jnp.array([15.0, 0.0, 25.0, 8.5, 12.3]) * 10**3
+    assert jnp.allclose(result.value(), expected_values)
+    assert result.unit.dim == {SI.kg: 1, SI.m: 1, SI.s: -3, SI.A: -1}
+
+
+def test_abs_overload_unitful_with_fractional_dimensions():
+    """Test abs function with Unitful objects containing fractional dimensions and negative values"""
+    # Create a complex unit with fractional dimensions: kg^(2/3) * m^(-1/2) * s^(3/4)
+    fractional_unit = Unit(scale=-2, dim={
+        SI.kg: Fraction(2, 3), 
+        SI.m: Fraction(-1, 2), 
+        SI.s: Fraction(3, 4)
+    })
+    values = Unitful(val=jnp.array([[-3.7, 2.1], [0.0, -8.9], [5.2, -1.4]]), unit=fractional_unit)
+    
+    result = abs(values)
+    
+    assert isinstance(result, Unitful)
+    expected_values = jnp.array([[3.7, 2.1], [0.0, 8.9], [5.2, 1.4]]) * 10**(-2)
+    assert jnp.allclose(result.value(), expected_values)
+    assert result.unit.dim == {
+        SI.kg: Fraction(2, 3), 
+        SI.m: Fraction(-1, 2), 
+        SI.s: Fraction(3, 4)
+    }

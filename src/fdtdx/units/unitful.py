@@ -272,8 +272,7 @@ class Unitful(TreeClass):
         return Unitful(val=+self.val, unit=self.unit)
 
     def __abs__(self):
-        """Absolute value: abs(x)"""
-        return Unitful(val=jnp.abs(self.val), unit=self.unit)
+        return abs(self)
     
     def __matmul__(self, other: "Unitful") -> "Unitful":
         return matmul(self, other)
@@ -725,3 +724,26 @@ def sum(x: jax.Array, **kwargs) -> jax.Array: return jnp._orig_sum(x, **kwargs) 
 def sum(x, **kwargs):  # type: ignore
     del x, kwargs
     raise NotImplementedError()
+
+
+## abs #######################################
+@overload
+def abs(x: Unitful) -> Unitful: return unary_fn(x, "abs")
+
+@overload
+def abs(x: jax.Array) -> jax.Array: return jnp._orig_abs(x)  # type: ignore
+
+@overload
+def abs(x: int) -> int: return abs(x)
+
+@overload
+def abs(x: float) -> float: return abs(x)
+
+@overload
+def abs(x: complex) -> complex: return abs(x)
+
+@dispatch
+def abs(x):  # type: ignore
+    del x
+    raise NotImplementedError()
+
