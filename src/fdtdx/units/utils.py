@@ -25,6 +25,14 @@ def handle_different_scales(
     s2_factor = 10 ** (s2 - s1)
     s1_factor = 10 ** (s1 - s2)
     
+    # if difference between the scales is 9 or more, choose the larger scale. At this level of difference, 
+    # numerical accuracy cannot be guaranteed and we only care about preventing complete failure to runtime errors.
+    if abs(s1 - s2) >= 9:
+        if s1 > s2:
+            return (s1, 1, s2_factor)
+        else:
+            return (s2, s1_factor, 1)
+    
     # if either of the scales is zero, use the other scale
     if s1 == 0:
         return (s2, s1_factor, 1)
