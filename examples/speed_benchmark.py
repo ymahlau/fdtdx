@@ -1,12 +1,15 @@
 import sys
 
-# these options will make the code slower, but more memory efficient
+# Optional: Set environment variables for memory efficiency (commented out)
+# import os
 # os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = "platform"
 # os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 # os.environ["NCCL_LL128_BUFFSIZE"] = "-2"
 # os.environ["NCCL_LL_BUFFSIZE"] = "-2"
 # os.environ["NCCL_PROTO"] = "SIMPLE,LL,LL128"
 # os.environ["JAX_TRACEBACK_FILTERING"] = "off"
+
+# Import timing and scientific libraries
 import time
 
 import jax
@@ -15,6 +18,7 @@ import pytreeclass as tc
 from loguru import logger
 import fdtdx
 
+# Import custom FDTD forward function for simulation
 from fdtdx.fdtd.fdtd import custom_fdtd_forward
 
 
@@ -61,24 +65,31 @@ REFERENCE_DESIGN_GRID = jnp.asarray(
 def main(
     seed: int,
 ):
+    # Set evaluation mode and whether to use the reference grid
     evaluation: bool = True
     use_reference_grid: bool = True
 
+    # Log experiment settings
     logger.info(f"{seed=}")
     logger.info(f"{evaluation=}")
     logger.info(f"{use_reference_grid=}")
 
+    # Define material permittivities
     permittivity_silicon = 12.25
     permittivity_silica = 2.25
 
+    # Initialize experiment logger for saving outputs
     exp_logger = fdtdx.Logger(
         experiment_name="vertical_silicon_coupler",
     )
+    # Create JAX random key for reproducibility
     key = jax.random.PRNGKey(seed=seed)
 
+    # Set simulation wavelength and calculate period
     wavelength = 1.55e-6
     period = fdtdx.constants.wavelength_to_period(wavelength)
 
+    # Define simulation configuration (duration, resolution, etc.)
     config = fdtdx.SimulationConfig(
         time=200e-15,
         resolution=20e-9,
@@ -86,22 +97,27 @@ def main(
         courant_factor=0.99,
     )
 
+    # Calculate time steps per period and log simulation info
     period_steps = round(period / config.time_step_duration)
     all_time_steps = list(range(config.time_steps_total))
     logger.info(f"{config.time_steps_total=}")
     logger.info(f"{period_steps=}")
     logger.info(f"{config.max_travel_distance=}")
 
+    # List to hold placement constraints for simulation objects
     placement_constraints = []
 
+    # Define simulation volume (physical size)
     volume = fdtdx.SimulationVolume(
         partial_real_shape=(6e-6, 4e-6, 1.5e-6),
     )
 
+    # Add boundary objects and constraints to the simulation
     bound_cfg = fdtdx.BoundaryConfig.from_uniform_bound(thickness=10)
     _, c_list = fdtdx.boundary_objects_from_config(bound_cfg, volume)
     placement_constraints.extend(c_list)
 
+    # Add silica substrate and its placement constraint
     dioxide_substrate = fdtdx.UniformMaterialObject(
         name="Silica",
         color=fdtdx.colors.LIGHT_BROWN,
@@ -117,11 +133,13 @@ def main(
         )
     )
 
+    # Define device material configuration
     material_config = {
         "Air": fdtdx.Material(permittivity=fdtdx.constants.relative_permittivity_air),
         "Silicon": fdtdx.Material(permittivity=permittivity_silicon),
     }
     
+    # Add device object and its placement constraint
     device = fdtdx.Device(
         name="Device",
         partial_real_shape=(3e-6, 3e-6, 300e-9),
@@ -140,6 +158,7 @@ def main(
         )
     )
 
+    # Define and place the source object
     source = fdtdx.UniformPlaneSource(
         partial_real_shape=(None, None, None),
         partial_grid_shape=(None, None, 1),
@@ -159,6 +178,7 @@ def main(
         ]
     )
 
+    # Define and place the input flux detector
     in_detector = fdtdx.PoyntingFluxDetector(
         name="Input Flux Detector",
         direction="-",
@@ -181,6 +201,7 @@ def main(
         ]
     )
 
+    # Define and place the waveguide object
     waveguide = fdtdx.UniformMaterialObject(
         partial_real_shape=(None, 0.4e-6, 0.3e-6),
         material=fdtdx.Material(permittivity=permittivity_silicon),
@@ -202,6 +223,7 @@ def main(
         ]
     )
 
+    # Define and place the output flux detector
     waveguide_detector = fdtdx.PoyntingFluxDetector(
         name="Output Flux Detector",
         direction="+",
@@ -226,6 +248,7 @@ def main(
         ]
     )
 
+    # Define and place the energy detector for the last time step
     energy_last_step = fdtdx.EnergyDetector(
         name="energy_last_step",
         as_slices=True,
@@ -235,6 +258,7 @@ def main(
     
     exclude_object_list: list[fdtdx.SimulationObject] = [energy_last_step]
     
+    # Optional: Define and place a video energy detector for monitoring
     if evaluation:
         video_energy_detector = fdtdx.EnergyDetector(
             name="Energy Video",
@@ -245,6 +269,7 @@ def main(
         placement_constraints.extend(video_energy_detector.same_position_and_size(volume))
         exclude_object_list.append(video_energy_detector)
 
+    # Place all defined objects within the simulation volume
     key, subkey = jax.random.split(key)
     objects, arrays, params, config, _ = fdtdx.place_objects(
         volume=volume,
@@ -253,12 +278,15 @@ def main(
         key=subkey,
     )
 
+    # Optionally, set device parameters to reference design grid
     if use_reference_grid:
         params[device.name] = REFERENCE_DESIGN_GRID
 
+    # Log the initial configuration of the simulation objects
     logger.info(tc.tree_summary(arrays, depth=2))
     print(tc.tree_diagram(config, depth=4))
 
+    # Save the initial setup as an image
     exp_logger.savefig(
         exp_logger.cwd,
         "setup.png",
@@ -269,6 +297,7 @@ def main(
         ),
     )
 
+    # Log parameters and export initial STL and figure
     changed_voxels = exp_logger.log_params(
         iter_idx=-1,
         params=params,
@@ -277,12 +306,15 @@ def main(
         export_figure=True,
     )
 
+    # Apply the parameter values to the simulation arrays and objects
     arrays, new_objects, info = fdtdx.apply_params(arrays, objects, params, key)
 
+    # Define the loss function for optimization
     def loss_func(
         arrays: fdtdx.ArrayContainer,
         key: jax.Array,
     ):
+        # Intermediate simulation to the middle of the time domain
         medium_time = config.time_steps_total - 3 * period_steps
         intermedium_state = custom_fdtd_forward(
             arrays=arrays,
@@ -295,6 +327,7 @@ def main(
             end_time=medium_time,
         )
 
+        # Final simulation from the intermediate state to the end
         final_state = custom_fdtd_forward(
             arrays=intermedium_state[1],
             objects=new_objects,
@@ -307,6 +340,7 @@ def main(
         )
 
         _, arrays = final_state
+        # Calculate the objective metric (efficiency)
         objective, objective_info = fdtdx.metric_efficiency(
             arrays.detector_states,
             in_names=(in_detector.name,),
@@ -323,16 +357,19 @@ def main(
 
     epochs = 1
 
+    # Compile the loss function with JIT
     compile_start_time = time.time()
     jit_task_id = exp_logger.progress.add_task("JIT", total=None)
     jitted_loss = jax.jit(loss_func, donate_argnames=["arrays"]).lower(arrays, key).compile()
     compile_delta_time = time.time() - compile_start_time
     exp_logger.progress.update(jit_task_id, total=1, completed=1, refresh=True)
 
+    # Optimization loop
     optim_task_id = exp_logger.progress.add_task("Optimization", total=epochs)
     run_start_time = time.time()
     key, subkey = jax.random.split(key)
 
+    # Evaluate the loss and get updated arrays and info
     loss, (arrays, info) = jitted_loss(arrays, subkey)
     loss = loss.block_until_ready()
     runtime_delta = time.time() - run_start_time
@@ -342,7 +379,7 @@ def main(
     logger.info(f"{compile_delta_time=}")
     logger.info(f"{runtime_delta=}")
 
-    # log parameters
+    # Log parameters after optimization
     changed_voxels = exp_logger.log_params(
         iter_idx=1,
         params=params,
@@ -352,9 +389,10 @@ def main(
     )
     info["changed_voxels"] = changed_voxels
 
-    # videos
+    # Optional: Log detector data as videos
     # exp_logger.log_detectors(iter_idx=1, objects=objects, detector_states=arrays.detector_states)
 
+    # Write experiment information and close logger
     exp_logger.write(info)
     exp_logger.progress.update(optim_task_id, advance=1)
 
