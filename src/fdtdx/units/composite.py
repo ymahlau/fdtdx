@@ -85,8 +85,17 @@ fF = Unitful(val=1, unit=fF_unit)
 N_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2})
 N = Unitful(val=1, unit=N_unit)
 
+J_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -2})
+J = Unitful(val=1, unit=J_unit)
+
+W_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -3})
+W = Unitful(val=1, unit=W_unit)
+
 m_per_s_unit = Unit(scale=0, dim={SI.s: -1, SI.m: 1})
 m_per_s = m / s
 
 V_per_m_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -3, SI.A: -1})
 V_per_m = V / m
+
+A_per_m_unit = Unit(scale=0, dim={SI.A: 1, SI.m: -1})
+A_per_m = A / m
