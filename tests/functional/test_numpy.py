@@ -3,7 +3,7 @@ import jax
 import plum
 import pytest
 from fdtdx.core.fraction import Fraction
-from fdtdx.functional.numpy import sqrt, roll
+from fdtdx.functional.numpy import sqrt, roll, transpose
 from fdtdx.units.typing import SI
 from fdtdx.units.unitful import Unit, Unitful
 from fdtdx.units.composite import Hz, s, ms, m_per_s 
@@ -360,3 +360,85 @@ def test_dot_jax_array_matrix_vector():
     assert not isinstance(result, Unitful)
     # Result should be 1D with shape (3,)
     assert result.shape == (3,)
+    
+    
+def test_transpose_unitful_stress_tensor():
+    """Test transpose with Unitful object containing a stress tensor (2D matrix)"""
+    # Create stress tensor unit: Pascals = kg/(m*s^2) with scale=6 (factor of 10^6, i.e., MPa)
+    stress_unit = Unit(scale=6, dim={SI.kg: 1, SI.m: -1, SI.s: -2})
+    # 3x3 stress tensor matrix
+    stress_tensor = Unitful(val=jnp.array([
+        [100.0, 50.0, 25.0],
+        [50.0, 200.0, 75.0],
+        [25.0, 75.0, 150.0]
+    ]), unit=stress_unit)
+    
+    result = jnp.transpose(stress_tensor)  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    # Transpose of the matrix: rows become columns
+    expected_vals = jnp.array([
+        [100.0, 50.0, 25.0],
+        [50.0, 200.0, 75.0], 
+        [25.0, 75.0, 150.0]
+    ])
+    # Scale factor: 10^6 for MPa
+    assert jnp.allclose(result.value(), expected_vals * 10**6)
+    assert result.unit.dim == {SI.kg: 1, SI.m: -1, SI.s: -2}
+    # Shape should be transposed: (3,3) -> (3,3) (symmetric in this case)
+    assert result.shape == (3, 3)
+
+
+def test_transpose_unitful_with_axes_parameter():
+    """Test transpose with Unitful object using specific axes parameter on 3D array"""
+    # Create velocity field unit: m/s with fractional dimensions and scale=-1 (factor of 0.1)
+    velocity_unit = Unit(scale=-1, dim={SI.m: 1, SI.s: -1, SI.kg: Fraction(1, 4)})
+    # 2x3x4 velocity field array
+    velocity_field = Unitful(val=jnp.array([
+        [[1.0, 2.0, 3.0, 4.0],
+         [5.0, 6.0, 7.0, 8.0],
+         [9.0, 10.0, 11.0, 12.0]],
+        [[13.0, 14.0, 15.0, 16.0],
+         [17.0, 18.0, 19.0, 20.0],
+         [21.0, 22.0, 23.0, 24.0]]
+    ]), unit=velocity_unit)
+    
+    # Transpose with axes=(2, 0, 1): swap dimensions 0 and 2
+    result = transpose(velocity_field, axes=(2, 0, 1))
+    
+    assert isinstance(result, Unitful)
+    # Original shape: (2, 3, 4) -> New shape: (4, 2, 3) 
+    assert result.shape == (4, 2, 3)
+    # Check a few values to ensure correct transposition
+    # Original [0, 1, 2] should be at new position [2, 0, 1]
+    assert jnp.allclose(result.value()[2, 0, 1], 7.0 * 0.1)  # type: ignore
+    # Original [1, 2, 3] should be at new position [3, 1, 2]
+    assert jnp.allclose(result.value()[3, 1, 2], 24.0 * 0.1)  # type: ignore
+    assert result.unit.dim == {SI.m: 1, SI.s: -1, SI.kg: Fraction(1, 4)}
+
+
+def test_transpose_jax_array():
+    """Test transpose with regular JAX array (non-Unitful)"""
+    # Create a 4x3 matrix
+    matrix = jnp.array([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+        [7.0, 8.0, 9.0],
+        [10.0, 11.0, 12.0]
+    ])
+    
+    result = transpose(matrix)
+    
+    # Expected transpose: 4x3 -> 3x4
+    expected = jnp.array([
+        [1.0, 4.0, 7.0, 10.0],
+        [2.0, 5.0, 8.0, 11.0],
+        [3.0, 6.0, 9.0, 12.0]
+    ])
+    
+    assert jnp.allclose(result, expected)
+    # Should return a regular JAX array, not a Unitful object
+    assert isinstance(result, jax.Array)
+    assert not isinstance(result, Unitful)
+    # Shape should be transposed: (4, 3) -> (3, 4)
+    assert result.shape == (3, 4)

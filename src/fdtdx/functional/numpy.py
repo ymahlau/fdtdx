@@ -135,7 +135,7 @@ def cross(  # type: ignore
     del a, b, args, kwargs
     raise NotImplementedError()
 
-## Cross #####################################
+## Conjugate #####################################
 @overload
 def conj(
     x: Unitful,
@@ -172,6 +172,26 @@ def dot(
 
 @overload
 def dot(
+    a: Unitful,
+    b: jax.Array,
+    *args,
+    **kwargs,
+):
+    new_val = jnp._orig_dot(a.val, b, *args, **kwargs)  # type: ignore
+    return Unitful(val=new_val, unit=a.unit)
+
+@overload
+def dot(
+    a: jax.Array,
+    b: Unitful,
+    *args,
+    **kwargs,
+):
+    new_val = jnp._orig_dot(a, b.val, *args, **kwargs)  # type: ignore
+    return Unitful(val=new_val, unit=b.unit)
+
+@overload
+def dot(
     a: jax.Array,
     b: jax.Array,
     *args,
@@ -190,3 +210,29 @@ def dot(  # type: ignore
     raise NotImplementedError()
 
 
+## Conjugate #####################################
+@overload
+def transpose(
+    x: Unitful,
+    *args,
+    **kwargs,
+) -> Unitful:
+    new_val = jnp._orig_transpose(x.val, *args, **kwargs)  # type: ignore
+    return Unitful(val=new_val, unit=x.unit)
+
+@overload
+def transpose(
+    x: jax.Array,
+    *args,
+    **kwargs,
+) -> jax.Array: 
+    return jnp._orig_transpose(x, *args, **kwargs)  # type: ignore
+
+@dispatch
+def transpose(  # type: ignore
+    x,
+    *args,
+    **kwargs,
+):
+    del x, args, kwargs
+    raise NotImplementedError()
