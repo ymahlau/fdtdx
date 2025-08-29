@@ -3,6 +3,7 @@ from fdtdx.functional.numpy import (
     sqrt,
     square,
     cross,
+    conj,
 )
 from fdtdx.units.unitful import (
     multiply,
@@ -31,6 +32,7 @@ __all__ = [
     "sqrt",
     "square",
     "cross",
+    "conj",
     # unitful inherent methods
     "multiply",
     "divide",

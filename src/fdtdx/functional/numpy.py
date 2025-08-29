@@ -142,3 +142,25 @@ def cross(  # type: ignore
     del a, b, args, kwargs
     raise NotImplementedError()
 
+## Cross #####################################
+@overload
+def conj(
+    x: Unitful,
+) -> Unitful:
+    new_val = jnp._orig_conj(x.val)  # type: ignore
+    return Unitful(val=new_val, unit=x.unit)
+
+@overload
+def conj(
+    x: int | float | complex | jax.Array,
+) -> jax.Array: 
+    return jnp._orig_conj(x)  # type: ignore
+
+@dispatch
+def conj(  # type: ignore
+    x,
+):
+    del x
+    raise NotImplementedError()
+
+

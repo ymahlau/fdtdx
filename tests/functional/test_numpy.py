@@ -256,3 +256,59 @@ def test_cross_unitful_with_axis_parameter():
     # Dimensions: (kg*m/s^2) × m = kg*m^2/s^2 (torque units)
     assert result.unit.dim == {SI.kg: 1, SI.m: 2, SI.s: -2}
     
+    
+def test_conj_unitful_complex_impedance():
+    """Test complex conjugate with Unitful object containing complex impedance values"""
+    # Create impedance unit: Ohms = kg*m^2/(A^2*s^3)
+    impedance_unit = Unit(scale=-3, dim={SI.kg: 1, SI.m: 2, SI.A: -2, SI.s: -3})  # milliohms
+    # Complex impedance array: resistance + j*reactance
+    complex_impedances = Unitful(val=jnp.array([
+        3.0 + 4.0j,    # Z1 = 3 + 4j milliohms
+        -2.0 + 5.0j,   # Z2 = -2 + 5j milliohms  
+        1.0 - 3.0j,    # Z3 = 1 - 3j milliohms
+        6.0 + 0.0j     # Z4 = 6 + 0j milliohms (purely resistive)
+    ]), unit=impedance_unit)
+    
+    result = jnp.conj(complex_impedances)  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    # Complex conjugates: conj(a + bj) = a - bj
+    expected_vals = jnp.array([
+        3.0 - 4.0j,    # conj(3 + 4j) = 3 - 4j
+        -2.0 - 5.0j,   # conj(-2 + 5j) = -2 - 5j
+        1.0 + 3.0j,    # conj(1 - 3j) = 1 + 3j
+        6.0 - 0.0j     # conj(6 + 0j) = 6 - 0j
+    ])
+    # Scale factor: 10^(-3) for milliohms
+    assert jnp.allclose(result.value(), expected_vals * 10**(-3))
+    # Units should remain unchanged
+    assert result.unit.dim == {SI.kg: 1, SI.m: 2, SI.A: -2, SI.s: -3}
+
+
+def test_conj_jax_array():
+    """Test complex conjugate with regular JAX array (non-Unitful)"""
+    # Create a complex JAX array with mixed real and complex values
+    complex_array = jnp.array([
+        2.0 + 3.0j,
+        -1.5 - 2.5j, 
+        4.0 + 0.0j,
+        0.0 - 7.0j,
+        8.5 + 1.2j
+    ])
+    
+    result = jnp.conj(complex_array)
+    
+    # Expected conjugates
+    expected = jnp.array([
+        2.0 - 3.0j,    # conj(2 + 3j) = 2 - 3j
+        -1.5 + 2.5j,   # conj(-1.5 - 2.5j) = -1.5 + 2.5j
+        4.0 - 0.0j,    # conj(4 + 0j) = 4 - 0j
+        0.0 + 7.0j,    # conj(0 - 7j) = 0 + 7j  
+        8.5 - 1.2j     # conj(8.5 + 1.2j) = 8.5 - 1.2j
+    ])
+    
+    assert jnp.allclose(result, expected)
+    # Should return a regular JAX array, not a Unitful object
+    assert isinstance(result, jax.Array)
+    assert not isinstance(result, Unitful)
+    
