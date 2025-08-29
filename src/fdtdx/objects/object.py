@@ -23,6 +23,7 @@ from fdtdx.typing import (
     Slice3D,
     SliceTuple3D,
 )
+from fdtdx.units.unitful import Unitful
 
 _GLOBAL_COUNTER = 0
 
@@ -76,7 +77,7 @@ class PositionConstraint:
     axes: tuple[int, ...]
     object_positions: tuple[float, ...]
     other_object_positions: tuple[float, ...]
-    margins: tuple[float, ...]
+    margins: tuple[Unitful, ...]
     grid_margins: tuple[int, ...]
 
 
@@ -103,7 +104,7 @@ class SizeConstraint:
     axes: tuple[int, ...]
     other_axes: tuple[int, ...]
     proportions: tuple[float, ...]
-    offsets: tuple[float, ...]
+    offsets: tuple[Unitful, ...]
     grid_offsets: tuple[int, ...]
 
 
@@ -130,7 +131,7 @@ class SizeExtensionConstraint:
     axis: int
     direction: Literal["+", "-"]
     other_position: float
-    offset: float
+    offset: Unitful
     grid_offset: int
 
 
@@ -171,7 +172,7 @@ class RealCoordinateConstraint:
     object: "SimulationObject"
     axes: tuple[int, ...]
     sides: tuple[Literal["+", "-"], ...]
-    coordinates: tuple[float, ...]
+    coordinates: tuple[Unitful, ...]
 
 
 @autoinit
@@ -282,7 +283,7 @@ class SimulationObject(TreeClass, ABC):
         axes: tuple[int, ...] | int,
         own_positions: tuple[float, ...] | float,
         other_positions: tuple[float, ...] | float,
-        margins: tuple[float, ...] | float | None = None,
+        margins: tuple[Unitful, ...] | Unitful | None = None,
         grid_margins: tuple[int, ...] | int | None = None,
     ) -> PositionConstraint:
         """Creates a PositionalConstraint between two objects. The constraint is defined by anchor points on
