@@ -102,3 +102,43 @@ def square(  # type: ignore
     del x
     raise NotImplementedError()
 
+## Cross #####################################
+@overload
+def cross(
+    a: Unitful,
+    b: Unitful,
+    *args,
+    **kwargs,
+) -> Unitful:
+    new_val = jnp._orig_cross(a.val, b.val, *args, **kwargs)  # type: ignore
+    new_scale = a.unit.scale + b.unit.scale
+    # compute new unit: same as multiplication
+    unit_dict = a.unit.dim.copy()
+    for k, v in b.unit.dim.items():
+        if k in unit_dict:
+            unit_dict[k] += v
+            if unit_dict[k] == 0:
+                del unit_dict[k]
+        else:
+            unit_dict[k] = v
+    return Unitful(val=new_val, unit=Unit(scale=new_scale, dim=unit_dict))
+
+@overload
+def cross(
+    a: jax.Array,
+    b: jax.Array,
+    *args,
+    **kwargs,
+) -> jax.Array: 
+    return jnp._orig_cross(a, b, *args, **kwargs)  # type: ignore
+
+@dispatch
+def cross(  # type: ignore
+    a,
+    b,
+    *args,
+    **kwargs,
+):
+    del a, b, args, kwargs
+    raise NotImplementedError()
+

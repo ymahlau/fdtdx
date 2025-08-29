@@ -2,6 +2,7 @@ from fdtdx.functional.numpy import (
     roll, 
     sqrt,
     square,
+    cross,
 )
 from fdtdx.units.unitful import (
     multiply,
@@ -29,6 +30,7 @@ __all__ = [
     "roll",
     "sqrt",
     "square",
+    "cross",
     # unitful inherent methods
     "multiply",
     "divide",

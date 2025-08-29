@@ -26,6 +26,7 @@ from fdtdx.functional.numpy import (
     sqrt,
     roll,
     square,
+    cross
 )
 
 def patch_fn_to_module(
@@ -69,7 +70,8 @@ def patch_all_functions():
         (roll, None),
         (square, None),
         (abs, None),
-        (abs, "absolute")
+        (abs, "absolute"),
+        (cross, None),
     ]
     for fn, orig in _full_patch_list_numpy:
         patch_fn_to_module(

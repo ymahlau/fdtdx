@@ -175,3 +175,84 @@ def test_square_unitful_complex_number():
     assert jnp.allclose(result.value(), expected_complex * 10**(-6))
     # Dimensions: square(A^1 * s^1) = A^2 * s^2
     assert result.unit.dim == {SI.A: 2, SI.s: 2}
+    
+    
+def test_cross_unitful_basic_physics():
+    """Test cross product with physics vectors: velocity × magnetic field = electric field"""
+    # Create velocity vector: m/s
+    velocity_unit = Unit(scale=0, dim={SI.m: 1, SI.s: -1})
+    velocity = Unitful(val=jnp.array([3.0, 0.0, 0.0]), unit=velocity_unit)
+    
+    # Create magnetic field vector: Tesla (kg/(A*s^2))
+    b_field_unit = Unit(scale=0, dim={SI.kg: 1, SI.A: -1, SI.s: -2})
+    b_field = Unitful(val=jnp.array([0.0, 2.0, 0.0]), unit=b_field_unit)
+    
+    result = jnp.cross(velocity, b_field)  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    # v × B = [3, 0, 0] × [0, 2, 0] = [0, 0, 6]
+    expected_vals = jnp.array([0.0, 0.0, 6.0])
+    assert jnp.allclose(result.value(), expected_vals)
+    # Dimensions: (m/s) × (kg/(A*s^2)) = kg*m/(A*s^3) = electric field units
+    assert result.unit.dim == {SI.kg: 1, SI.m: 1, SI.A: -1, SI.s: -3}
+
+
+def test_cross_unitful_fractional_dimensions_with_scale():
+    """Test cross product with fractional dimensions and different scales"""
+    # First vector: kg^(1/3) * m^(2/3) with scale=1 (factor of 10)
+    unit_a = Unit(scale=1, dim={SI.kg: Fraction(1, 3), SI.m: Fraction(2, 3)})
+    vector_a = Unitful(val=jnp.array([1.0, 2.0, 0.0]), unit=unit_a)
+    
+    # Second vector: s^(-1/2) * A^(3/4) with scale=-2 (factor of 0.01)
+    unit_b = Unit(scale=-2, dim={SI.s: Fraction(-1, 2), SI.A: Fraction(3, 4)})
+    vector_b = Unitful(val=jnp.array([0.0, 1.0, 3.0]), unit=unit_b)
+    
+    result = jnp.cross(vector_a, vector_b)  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    # Cross product: [1, 2, 0] × [0, 1, 3] = [6, -3, 1]
+    # Scale: 10 * 0.01 = 0.1, so values are multiplied by 0.1
+    expected_vals = jnp.array([6.0, -3.0, 1.0]) * 0.1
+    assert jnp.allclose(result.value(), expected_vals)
+    # Combined dimensions: kg^(1/3) * m^(2/3) * s^(-1/2) * A^(3/4)
+    expected_dims = {
+        SI.kg: Fraction(1, 3),
+        SI.m: Fraction(2, 3), 
+        SI.s: Fraction(-1, 2),
+        SI.A: Fraction(3, 4)
+    }
+    assert result.unit.dim == expected_dims
+
+
+def test_cross_unitful_with_axis_parameter():
+    """Test cross product with axis parameter on higher dimensional arrays"""
+    # Create force vectors: Newton = kg*m/s^2
+    force_unit = Unit(scale=2, dim={SI.kg: 1, SI.m: 1, SI.s: -2})  # scale=2 -> factor of 100
+    # 2x3 array of force vectors
+    forces = Unitful(val=jnp.array([
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0]
+    ]), unit=force_unit)
+    
+    # Create position vectors: meters
+    position_unit = Unit(scale=-1, dim={SI.m: 1})  # scale=-1 -> factor of 0.1
+    # 2x3 array of position vectors  
+    positions = Unitful(val=jnp.array([
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0]
+    ]), unit=position_unit)
+    
+    result = jnp.cross(forces, positions, axis=1)  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    # First cross: [1, 0, 0] × [0, 1, 0] = [0, 0, 1]
+    # Second cross: [0, 1, 0] × [0, 0, 1] = [1, 0, 0]
+    # Scale factor: 100 * 0.1 = 10
+    expected_vals = jnp.array([
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0]
+    ]) * 10
+    assert jnp.allclose(result.value(), expected_vals)
+    # Dimensions: (kg*m/s^2) × m = kg*m^2/s^2 (torque units)
+    assert result.unit.dim == {SI.kg: 1, SI.m: 2, SI.s: -2}
+    
