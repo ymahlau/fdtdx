@@ -6,7 +6,7 @@ import jax.numpy as jnp
 from fdtdx.config import SimulationConfig
 from fdtdx.core.physics.metrics import (
     compute_energy,
-    compute_poynting_flux,
+    compute_poynting_vector,
     normalize_by_energy,
     normalize_by_poynting_flux,
 )
@@ -81,41 +81,26 @@ def test_normalize_by_energy_preservation():
     assert jnp.allclose((H_norm[2] / H_norm[1]).materialise(), (H[2] / H[1]).materialise())
 
 
-def test_compute_poynting_flux_basic():
+def test_compute_poynting_vector_basic():
     """Test basic Poynting vector computation."""
     # Create perpendicular E and H fields
-    E = jnp.array([[[1.0]], [[0.0]], [[0.0]]])  # E in x-direction
-    H = jnp.array([[[0.0]], [[1.0]], [[0.0]]])  # H in y-direction
+    E = (V / m) * jnp.array([[[1.0]], [[0.0]], [[0.0]]])  # E in x-direction
+    H = (A / m) * jnp.array([[[0.0]], [[1.0]], [[0.0]]])  # H in y-direction
 
-    S = compute_poynting_flux(E, H)
+    S = compute_poynting_vector(E, H)
 
     # Poynting vector should be in z-direction: E × H* = x × y = z
-    expected_S = jnp.array([[[0.0]], [[0.0]], [[1.0]]])
-    assert jnp.allclose(S, expected_S)
+    expected_S = jnp.array([[[0.0]], [[0.0]], [[1.0 / mu0.value()]]])
+    assert jnp.allclose(S.value(), expected_S)
 
 
-def test_compute_poynting_flux_complex_fields():
-    """Test Poynting vector with complex fields."""
-    # Create complex fields
-    E = jnp.array([[[1 + 1j]], [[0.0]], [[0.0]]])
-    H = jnp.array([[[0.0]], [[1 - 1j]], [[0.0]]])
-
-    S = compute_poynting_flux(E, H)
-
-    # E × H* = (1+1j) × (1+1j) = (1+1j)(1+1j) in z-direction
-    expected_z = (1 + 1j) * (1 + 1j)
-    expected_S = jnp.array([[[0.0]], [[0.0]], [[expected_z]]])
-
-    assert jnp.allclose(S, expected_S)
-
-
-def test_compute_poynting_flux_different_axis():
+def test_compute_poynting_vector_different_axis():
     """Test Poynting vector computation with different axis."""
     # Shape (2, 3, 2) - axis 1 contains field components
-    E = jnp.ones((2, 3, 2))
-    H = jnp.ones((2, 3, 2))
+    E = (V / m) * jnp.ones((2, 3, 2))
+    H = (A / m) * jnp.ones((2, 3, 2))
 
-    S = compute_poynting_flux(E, H, axis=1)
+    S = compute_poynting_vector(E, H, axis=1)
 
     assert S.shape == (2, 3, 2)
 

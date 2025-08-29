@@ -85,7 +85,7 @@ def normalize_by_energy(
     return norm_E, norm_H
 
 
-def compute_poynting_flux(E: Unitful, H: Unitful, axis: int = 0) -> Unitful:
+def compute_poynting_vector(E: Unitful, H: Unitful, axis: int = 0) -> Unitful:
     """Calculates the Poynting vector (energy flux) from E and H fields.
 
     Args:
@@ -97,13 +97,14 @@ def compute_poynting_flux(E: Unitful, H: Unitful, axis: int = 0) -> Unitful:
         jax.Array: Poynting vector array with shape (3, nx, ny, nz) representing
         energy flux in each direction
     """
-    return jnp.cross(
-        E,
-        jnp.conj(H),
+    pv = ff.cross(
+        E / mu0,
+        H,
         axisa=axis,
         axisb=axis,
         axisc=axis,
     )
+    return pv
 
 
 def normalize_by_poynting_flux(E: jax.Array, H: jax.Array, axis: int) -> tuple[jax.Array, jax.Array]:
