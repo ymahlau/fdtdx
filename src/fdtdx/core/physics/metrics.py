@@ -85,26 +85,72 @@ def normalize_by_energy(
     return norm_E, norm_H
 
 
-def compute_poynting_vector(E: Unitful, H: Unitful, axis: int = 0) -> Unitful:
+def compute_poynting_vector(E: Unitful, B: Unitful, axis: int = 0) -> Unitful:
     """Calculates the Poynting vector (energy flux) from E and H fields.
 
     Args:
-        E (jax.Array): Electric field array with shape (3, nx, ny, nz)
-        H (jax.Array): Magnetic field array with shape (3, nx, ny, nz)
+        E (Unitful): Electric field array with E.shape[axis] == 3
+        B (Unitful): Magnetic flux density array with H.shape[axis] == 3
         axis (int, optional): Axis for computing the poynting flux. Defaults to 0.
 
     Returns:
-        jax.Array: Poynting vector array with shape (3, nx, ny, nz) representing
-        energy flux in each direction
+        Unitful: Poynting vector array with same shape as E/H representing
+        energy flux in each direction.
     """
-    pv = ff.cross(
-        E / mu0,
-        H,
+    pv = (1 / mu0) * ff.cross(
+        E,
+        B,
         axisa=axis,
         axisb=axis,
         axisc=axis,
     )
     return pv
+
+
+def compute_poynting_flux(
+    E: Unitful, 
+    B: Unitful,
+    resolution: Unitful,
+    normal_vector: tuple[float, float, float] | jax.Array,
+    axis: int = 0,
+) -> Unitful:
+    """Calculates the Poynting flux from E and H fields. In contrast to the poynting vector, the result is a scalar,
+    not a vector field. The poynting vector is integrated over the surface of E/H to form the poynting flux. Therefore,
+    an inherent assumption is that the E and H field represent a fields on a surface. 
+
+    Args:
+        E (Unitful): Electric field array with E.shape[axis] == 3
+        H (Unitful): Magnetic field array with H.shape[axis] == 3
+        resolution (Unitful): Spatial resolution of the grid points of E and H field
+        normal_vector (tuple[float, float, float] | jax.Array): Normal vector of the surface to integrate. If the normal
+            vector is not normalized already, it is normalized within this function.
+        axis (int, optional): Axis for computing the poynting flux. Defaults to 0.
+
+    Returns:
+        Unitful: scalar Poynting flux array.
+    """
+    S = compute_poynting_vector(E=E, B=B, axis=axis)
+    # normalize vector, if it is not already
+    if isinstance(normal_vector, tuple):
+        normal_vector = jnp.asarray(normal_vector)
+    assert normal_vector.ndim == 1, f"Invalid normal vector shape: {normal_vector.shape}"
+    assert normal_vector.shape[0] == 3, f"Invalid normal vector shape: {normal_vector.shape}"
+    # scale to unit length
+    normal_length = jnp.sqrt(jnp.sum(jnp.square(normal_vector)))
+    normal_vector = normal_vector / normal_length
+    # bring to correct shape
+    assert E.shape == B.shape
+    normal_vector_shape = [-1 if idx == axis else 1 for idx, _ in enumerate(E.shape)]
+    normal_vector = normal_vector.reshape(*normal_vector_shape)
+    # both S and normal need to have the axis moved to the last dimension
+    transpose_axes = [a for a in range(normal_vector.ndim) if a != axis] + [axis]
+    normal_vector = jnp.transpose(normal_vector, axes=transpose_axes)[..., None]
+    S = ff.transpose(S, axes=transpose_axes)
+    # compute flux by integration
+    product = ff.dot(S, normal_vector)
+    flux = ff.sum(product) * ff.square(resolution)
+    return flux
+
 
 
 def normalize_by_poynting_flux(E: jax.Array, H: jax.Array, axis: int) -> tuple[jax.Array, jax.Array]:

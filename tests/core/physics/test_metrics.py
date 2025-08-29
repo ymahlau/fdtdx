@@ -6,11 +6,12 @@ import jax.numpy as jnp
 from fdtdx.config import SimulationConfig
 from fdtdx.core.physics.metrics import (
     compute_energy,
+    compute_poynting_flux,
     compute_poynting_vector,
     normalize_by_energy,
     normalize_by_poynting_flux,
 )
-from fdtdx.units.composite import V, m, A, J, s
+from fdtdx.units.composite import V, W_unit, m, A, J, s
 from fdtdx.units.typing import SI
 from fdtdx.units.unitful import Unitful
 from fdtdx.constants import eps0, mu0
@@ -85,12 +86,13 @@ def test_compute_poynting_vector_basic():
     """Test basic Poynting vector computation."""
     # Create perpendicular E and H fields
     E = (V / m) * jnp.array([[[1.0]], [[0.0]], [[0.0]]])  # E in x-direction
-    H = (A / m) * jnp.array([[[0.0]], [[1.0]], [[0.0]]])  # H in y-direction
+    B = mu0 * (A / m) * jnp.array([[[0.0]], [[1.0]], [[0.0]]])  # H in y-direction
 
-    S = compute_poynting_vector(E, H)
+    S = compute_poynting_vector(E, B)
 
     # Poynting vector should be in z-direction: E × H* = x × y = z
-    expected_S = jnp.array([[[0.0]], [[0.0]], [[1.0 / mu0.value()]]])
+    expected_S = jnp.array([[[0.0]], [[0.0]], [[1.0]]])
+    assert S.unit.dim == {SI.kg: 1, SI.s: -3}
     assert jnp.allclose(S.value(), expected_S)
 
 
@@ -103,6 +105,26 @@ def test_compute_poynting_vector_different_axis():
     S = compute_poynting_vector(E, H, axis=1)
 
     assert S.shape == (2, 3, 2)
+
+
+def test_compute_poynting_flux_basic():
+    """Test basic Poynting vector computation."""
+    # Create perpendicular E and H fields
+    E = (V / m) * jnp.array([[[1.0]], [[0.0]], [[0.0]]])  # E in x-direction
+    B = mu0 * (A / m) * jnp.array([[[0.0]], [[1.0]], [[0.0]]])  # H in y-direction
+
+    flux = compute_poynting_flux(
+        E=E, 
+        B=B,
+        resolution=1*m,
+        normal_vector = (0, 0, 1),
+        axis=0,
+    )
+
+    # Poynting vector should be in z-direction: E × H* = x × y = z
+    expected_flux = 1.0
+    assert flux.unit.dim == W_unit.dim  # unit watts
+    assert jnp.allclose(flux.value(), expected_flux)
 
 
 def test_normalize_by_poynting_flux_basic():
