@@ -311,4 +311,52 @@ def test_conj_jax_array():
     # Should return a regular JAX array, not a Unitful object
     assert isinstance(result, jax.Array)
     assert not isinstance(result, Unitful)
+
+
+def test_dot_unitful_energy_calculation():
+    """Test dot product with Unitful objects: force · displacement = work/energy"""
+    # Create force vector: Newtons = kg*m/s^2 with scale=1 (factor of 10)
+    force_unit = Unit(scale=1, dim={SI.kg: 1, SI.m: 1, SI.s: -2})
+    force = Unitful(val=jnp.array([3.0, 4.0, 0.0]), unit=force_unit)
     
+    # Create displacement vector: meters with scale=-2 (factor of 0.01, i.e., centimeters)
+    displacement_unit = Unit(scale=-2, dim={SI.m: 1})
+    displacement = Unitful(val=jnp.array([2.0, 1.5, 0.0]), unit=displacement_unit)
+    
+    result = jnp.dot(force, displacement)  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    # Dot product: [3, 4, 0] · [2, 1.5, 0] = 3*2 + 4*1.5 + 0*0 = 6 + 6 = 12
+    # Scale factor: 10 * 0.01 = 0.1 (divide by 10 for scale)
+    expected_value = 12.0 * 0.1
+    assert jnp.allclose(result.value(), expected_value)
+    # Dimensions: (kg*m/s^2) · m = kg*m^2/s^2 (energy/work units: Joules)
+    assert result.unit.dim == {SI.kg: 1, SI.m: 2, SI.s: -2}
+
+
+def test_dot_jax_array_matrix_vector():
+    """Test dot product with regular JAX arrays (matrix-vector multiplication)"""
+    # Create a 3x4 matrix
+    matrix = jnp.array([
+        [1.0, 2.0, 3.0, 4.0],
+        [5.0, 6.0, 7.0, 8.0], 
+        [9.0, 10.0, 11.0, 12.0]
+    ])
+    
+    # Create a 4-element vector
+    vector = jnp.array([2.0, -1.0, 3.0, 0.5])
+    
+    result = jnp.dot(matrix, vector)
+    
+    # Expected result: matrix @ vector
+    # Row 1: 1*2 + 2*(-1) + 3*3 + 4*0.5 = 2 - 2 + 9 + 2 = 11
+    # Row 2: 5*2 + 6*(-1) + 7*3 + 8*0.5 = 10 - 6 + 21 + 4 = 29  
+    # Row 3: 9*2 + 10*(-1) + 11*3 + 12*0.5 = 18 - 10 + 33 + 6 = 47
+    expected = jnp.array([11.0, 29.0, 47.0])
+    
+    assert jnp.allclose(result, expected)
+    # Should return a regular JAX array, not a Unitful object
+    assert isinstance(result, jax.Array)
+    assert not isinstance(result, Unitful)
+    # Result should be 1D with shape (3,)
+    assert result.shape == (3,)

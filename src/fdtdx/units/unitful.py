@@ -10,7 +10,7 @@ from plum import dispatch, overload
 from pytreeclass import tree_repr
 
 from fdtdx.units.typing import SI, PhysicalArrayLike
-from fdtdx.units.utils import best_scale, handle_different_scales
+from fdtdx.units.utils import best_scale, dim_after_multiplication, handle_different_scales
 
 @autoinit
 class Unit(TreeClass):
@@ -325,14 +325,7 @@ def multiply(
     x: Unitful, 
     y: Unitful
 ) -> Unitful:
-    unit_dict = x.unit.dim.copy()
-    for k, v in y.unit.dim.items():
-        if k in unit_dict:
-            unit_dict[k] += v
-            if unit_dict[k] == 0:
-                del unit_dict[k]
-        else:
-            unit_dict[k] = v
+    unit_dict = dim_after_multiplication(x.unit.dim, y.unit.dim)
     new_val = x.val * y.val
     new_scale = x.unit.scale + y.unit.scale
     return Unitful(val=new_val, unit=Unit(scale=new_scale, dim=unit_dict))
@@ -464,12 +457,10 @@ def matmul(
     y: Unitful,
     **kwargs
 ) -> Unitful:
-    if x.unit.dim != y.unit.dim:
-        raise ValueError(f"Cannot matmul two arrays with units {x.unit} and {y.unit}.")
     x_align, y_align = align_scales(x, y)
-    new_val = jnp._orig_matmul(x.val, y.val)  # type: ignore
-    new_dim = {k: x_align.unit.dim[k] + y_align.unit.dim[k] for k in x_align.unit.dim.keys()}
-    return Unitful(val=new_val, unit=Unit(scale=x_align.unit.scale, dim=new_dim))
+    new_val = jnp._orig_matmul(x_align.val, y_align.val)  # type: ignore
+    unit_dict = dim_after_multiplication(x.unit.dim, y.unit.dim)
+    return Unitful(val=new_val, unit=Unit(scale=x_align.unit.scale, dim=unit_dict))
 
 @overload
 def matmul(x: jax.Array, y: jax.Array, **kwargs) -> jax.Array:

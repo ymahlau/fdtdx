@@ -6,6 +6,7 @@ from plum import dispatch, overload
 from fdtdx.core.fraction import Fraction
 from fdtdx.units.typing import SI
 from fdtdx.units.unitful import Unit, Unitful
+from fdtdx.units.utils import dim_after_multiplication
 
 ## Square Root ###########################
 @overload
@@ -112,15 +113,7 @@ def cross(
 ) -> Unitful:
     new_val = jnp._orig_cross(a.val, b.val, *args, **kwargs)  # type: ignore
     new_scale = a.unit.scale + b.unit.scale
-    # compute new unit: same as multiplication
-    unit_dict = a.unit.dim.copy()
-    for k, v in b.unit.dim.items():
-        if k in unit_dict:
-            unit_dict[k] += v
-            if unit_dict[k] == 0:
-                del unit_dict[k]
-        else:
-            unit_dict[k] = v
+    unit_dict = dim_after_multiplication(a.unit.dim, b.unit.dim)
     return Unitful(val=new_val, unit=Unit(scale=new_scale, dim=unit_dict))
 
 @overload
@@ -161,6 +154,39 @@ def conj(  # type: ignore
     x,
 ):
     del x
+    raise NotImplementedError()
+
+
+## dot #####################################
+@overload
+def dot(
+    a: Unitful,
+    b: Unitful,
+    *args,
+    **kwargs,
+) -> Unitful:
+    new_val = jnp._orig_dot(a.val, b.val, *args, **kwargs)  # type: ignore
+    unit_dict = dim_after_multiplication(a.unit.dim, b.unit.dim)
+    new_scale = a.unit.scale + b.unit.scale
+    return Unitful(val=new_val, unit=Unit(scale=new_scale, dim=unit_dict))
+
+@overload
+def dot(
+    a: jax.Array,
+    b: jax.Array,
+    *args,
+    **kwargs,
+) -> jax.Array: 
+    return jnp._orig_dot(a, b, *args, **kwargs)  # type: ignore
+
+@dispatch
+def dot(  # type: ignore
+    a,
+    b,
+    *args,
+    **kwargs,
+):
+    del a, b, args, kwargs
     raise NotImplementedError()
 
 

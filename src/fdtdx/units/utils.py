@@ -2,7 +2,8 @@ import jax.numpy as jnp
 from jax import core
 import numpy as np
 
-from fdtdx.units.typing import PhysicalArrayLike
+from fdtdx.core.fraction import Fraction
+from fdtdx.units.typing import SI, PhysicalArrayLike
 
 def handle_different_scales(
     s1: int,
@@ -114,3 +115,16 @@ def best_scale(
     return scaled_arr, target_power
 
 
+def dim_after_multiplication(
+    dim1: dict[SI, int | Fraction],
+    dim2: dict[SI, int | Fraction],
+) -> dict[SI, int | Fraction]:
+    unit_dict = dim1.copy()
+    for k, v in dim2.items():
+        if k in unit_dict:
+            unit_dict[k] += v
+            if unit_dict[k] == 0:
+                del unit_dict[k]
+        else:
+            unit_dict[k] = v
+    return unit_dict
