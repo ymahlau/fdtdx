@@ -181,35 +181,35 @@ class SimulationObject(TreeClass, ABC):
     This class provides the foundation for simulation objects with spatial properties and positioning capabilities
     in both real and grid coordinate systems. It supports random positioning offsets.
 
-    Attributes:
-        partial_real_shape (PartialRealShape3D, optional): The object's shape in real-world
-            coordinates. Defaults to UNDEFINED_SHAPE_3D if not specified.
-        partial_grid_shape (PartialGridShape3D, optional): The object's shape in grid coordinates.
-            Defaults to UNDEFINED_SHAPE_3D if not specified.
-        color (tuple[float, float, float] | None, optional): RGB color values for the object,
-            where each component is in the interval [0, 1]. None indicates no color
-            is specified. Defaults to None.
-        name (str, optional): Unique identifier for the object. Automatically enforced to be
-            unique through the UniqueName validator. The user can also set a name manually.
-        max_random_real_offsets (tuple[float, float, float], optional): Maximum random offset
-            values that can be applied to the object's position in real coordinates
-            for each axis (x, y, z). Defaults to (0, 0, 0) for no random offset.
-        max_random_grid_offsets (tuple[int, int, int], optional): Maximum random offset values
-            that can be applied to the object's position in grid coordinates for each
-            axis (x, y, z). Defaults to (0, 0, 0) for no random offset.
-
     Note:
         This is an abstract base class and cannot be instantiated directly.
     """
 
+    #: The object's shape in real-world coordinates.
+    #: Defaults to UNDEFINED_SHAPE_3D if not specified.
     partial_real_shape: PartialRealShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
+
+    #: The object's shape in grid coordinates.
+    #: Defaults to UNDEFINED_SHAPE_3D if not specified.
     partial_grid_shape: PartialGridShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
-    color: tuple[float, float, float] | None = frozen_field(default=None)  # RGB, interval[0, 1]
+
+    #: RGB color values for the object, where each component is in the interval [0, 1]. None indicates no color
+    #: is specified. Defaults to None.
+    color: tuple[float, float, float] | None = frozen_field(default=None)
+
+    #: Unique identifier for the object. Automatically enforced to be unique through the UniqueName validator.
+    #: The user can also set a name manually.
     name: str = frozen_field(  # type: ignore
         default=None,
         on_setattr=[UniqueName()],
     )
+
+    #: Maximum random offset values that can be applied to the object's position in real coordinates
+    #: for each axis (x, y, z). Defaults to (0, 0, 0) for no random offset.
     max_random_real_offsets: tuple[float, float, float] = frozen_field(default=(0, 0, 0))
+
+    #: Maximum random offset values that can be applied to the object's position in grid coordinates for each
+    #: axis (x, y, z). Defaults to (0, 0, 0) for no random offset.
     max_random_grid_offsets: tuple[int, int, int] = frozen_field(default=(0, 0, 0))
 
     _grid_slice_tuple: SliceTuple3D = frozen_private_field(
