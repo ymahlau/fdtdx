@@ -3,8 +3,8 @@ curl -L https://github.com/ymahlau/fdtdx-notebooks/archive/refs/heads/main.zip -
 
 # Extract to notebooks folder
 unzip repo.zip
-mkdir -p docs/source/_static/notebooks/
-mv fdtdx-notebooks-main/*.ipynb docs/source/_static/notebooks/
+mkdir -p docs/source/notebooks/
+mv fdtdx-notebooks-main/*.ipynb docs/source/notebooks/
 
 # Clean up
 rm repo.zip
