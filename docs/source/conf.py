@@ -9,7 +9,7 @@
 project = 'FDTDX'
 copyright = '2025, Yannik Mahlau'
 author = 'Yannik Mahlau'
-release = '0.1'
+release = '0.4.3'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
