@@ -184,20 +184,20 @@ class SimulationObject(TreeClass, ABC):
     Note:
         This is an abstract base class and cannot be instantiated directly.
     """
-    
+
     #: The object's shape in real-world coordinates.
     #: Defaults to UNDEFINED_SHAPE_3D if not specified.
     partial_real_shape: PartialRealShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
-    
+
     #: The object's shape in grid coordinates.
     #: Defaults to UNDEFINED_SHAPE_3D if not specified.
     partial_grid_shape: PartialGridShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
-    
+
     #: RGB color values for the object, where each component is in the interval [0, 1]. None indicates no color
     #: is specified. Defaults to None.
     color: tuple[float, float, float] | None = frozen_field(default=None)
 
-    #: Unique identifier for the object. Automatically enforced to be unique through the UniqueName validator. 
+    #: Unique identifier for the object. Automatically enforced to be unique through the UniqueName validator.
     #: The user can also set a name manually.
     name: str = frozen_field(  # type: ignore
         default=None,
