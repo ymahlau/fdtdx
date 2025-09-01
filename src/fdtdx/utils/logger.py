@@ -202,7 +202,7 @@ class Logger:
         iter_idx: int,
         objects: ObjectContainer,
         detector_states: dict[str, DetectorState],
-        exclude: Sequence[str] = [],
+        exclude: Sequence[str] = (),
     ):
         """Log detector states and generate visualization plots.
 
