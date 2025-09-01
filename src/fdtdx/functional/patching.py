@@ -32,6 +32,7 @@ from fdtdx.functional.numpy import (
     transpose,
     pad,
     stack,
+    isfinite,
 )
 
 def patch_fn_to_module(
@@ -83,6 +84,7 @@ def patch_all_functions():
         (transpose, None),
         (pad, None),
         (stack, None),
+        (isfinite, None),
     ]
     for fn, orig in _full_patch_list_numpy:
         patch_fn_to_module(

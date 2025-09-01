@@ -8,6 +8,7 @@ from fdtdx.functional.numpy import (
     transpose,
     pad,
     stack,
+    isfinite,
 )
 from fdtdx.units.unitful import (
     multiply,
@@ -41,6 +42,7 @@ __all__ = [
     "transpose",
     "pad",
     "stack",
+    "isfinite",
     # unitful inherent methods
     "multiply",
     "divide",

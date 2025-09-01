@@ -108,6 +108,10 @@ def best_scale(
     if noop_in_jit and isinstance(arr, core.Tracer):
         return arr, 0
     
+    # if nans are in the array do nothing
+    if jnp.any(jnp.isnan(arr)) or jnp.any(jnp.isinf(arr)):
+        return arr, 0
+    
     # Convert to array for easier manipulation
     arr_jax = jnp.abs(jnp.asarray(arr))
     

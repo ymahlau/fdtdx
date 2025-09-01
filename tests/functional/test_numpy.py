@@ -601,3 +601,69 @@ def test_stack_jax_array():
     # Shape should be (3, 2, 2)
     assert result.shape == (3, 2, 2)
     
+
+def test_isfinite_unitful_with_special_values():
+    """Test isfinite with Unitful object containing finite, infinite, and NaN values"""
+    # Create energy unit: Joules = kg*m^2/s^2 with scale=3 (kilojoules)
+    energy_unit = Unit(scale=3, dim={SI.kg: 1, SI.m: 2, SI.s: -2})
+    # Array with mix of finite, infinite, and NaN values
+    energies = Unitful(val=jnp.array([
+        10.5,           # finite
+        jnp.inf,        # positive infinity
+        -25.0,          # finite negative
+        jnp.nan,        # NaN
+        -jnp.inf,       # negative infinity
+        0.0,            # finite zero
+        1e-10           # finite small value
+    ]), unit=energy_unit)
+    
+    result = jnp.isfinite(energies)  # type: ignore
+    
+    # Expected: only finite values should return True
+    expected = jnp.array([
+        True,   # 10.5 is finite
+        False,  # inf is not finite
+        True,   # -25.0 is finite
+        False,  # nan is not finite
+        False,  # -inf is not finite
+        True,   # 0.0 is finite
+        True    # 1e-10 is finite
+    ])
+    
+    assert jnp.array_equal(result, expected)
+    # Should return a regular JAX array of booleans, not a Unitful object
+    assert isinstance(result, jax.Array)
+    assert not isinstance(result, Unitful)
+    # Result should have boolean dtype
+    assert result.dtype == jnp.bool_
+    # Shape should match input
+    assert result.shape == energies.shape
+
+
+def test_isfinite_jax_array():
+    """Test isfinite with regular JAX array (non-Unitful) containing special values"""
+    # Create array with various finite and non-finite values
+    array = jnp.array([
+        [1.5, jnp.inf, -3.7],
+        [jnp.nan, 0.0, -jnp.inf],
+        [42.0, 1e20, -1e-15]
+    ])
+    
+    result = jnp.isfinite(array)  # type: ignore
+    
+    # Expected: finite values return True, inf and nan return False
+    expected = jnp.array([
+        [True, False, True],    # 1.5 finite, inf not finite, -3.7 finite
+        [False, True, False],   # nan not finite, 0.0 finite, -inf not finite
+        [True, True, True]      # all finite (including very large and very small)
+    ])
+    
+    assert jnp.array_equal(result, expected)
+    # Should return a regular JAX array, not a Unitful object
+    assert isinstance(result, jax.Array)
+    assert not isinstance(result, Unitful)
+    # Result should have boolean dtype
+    assert result.dtype == jnp.bool_
+    # Shape should match input: (3, 3)
+    assert result.shape == (3, 3)
+    

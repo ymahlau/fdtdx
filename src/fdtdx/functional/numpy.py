@@ -309,3 +309,31 @@ def stack(  # type: ignore
 ):
     del x, args, kwargs
     raise NotImplementedError()
+
+
+## isfinite #####################################
+@overload
+def isfinite(
+    x: Unitful,
+    *args,
+    **kwargs,
+) -> jax.Array:
+    new_val = jnp._orig_isfinite(x.val, *args, **kwargs)  # type: ignore
+    return new_val
+
+@overload
+def isfinite(
+    x: jax.Array,
+    *args,
+    **kwargs,
+) -> jax.Array: 
+    return jnp._orig_isfinite(x, *args, **kwargs)  # type: ignore
+
+@dispatch
+def isfinite(  # type: ignore
+    x,
+    *args,
+    **kwargs,
+):
+    del x, args, kwargs
+    raise NotImplementedError()
