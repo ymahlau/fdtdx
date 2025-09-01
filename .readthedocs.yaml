@@ -1,0 +1,17 @@
+version: 2
+formats: [htmlzip]
+sphinx:
+   configuration: docs/conf.py
+python:
+   install:
+     - method: pip
+       path: .
+       extra_requirements:
+         - dev
+build:
+  os: "ubuntu-22.04"
+  tools:
+    python: "3.11"
+  jobs:
+    pre-build:
+      - sh docs/scripts/sync_notebooks.sh
