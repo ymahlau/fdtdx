@@ -1,12 +1,14 @@
 import jax
 import jax.numpy as jnp
+import fdtdx.functional as ff
+from fdtdx.units.unitful import Unitful
 
 
 def interpolate_fields(
-    E_field: jax.Array,
-    H_field: jax.Array,
+    E_field: Unitful,
+    H_field: Unitful,
     periodic_axes: tuple[bool, bool, bool] = (False, False, False),
-) -> tuple[jax.Array, jax.Array]:
+) -> tuple[Unitful, Unitful]:
     """Interpolates E and H fields onto E_z in a FDTD grid with PEC/periodic boundary conditions.
 
     Performs spatial interpolation of the electric and magnetic fields to align them
@@ -14,15 +16,15 @@ def interpolate_fields(
     naturally staggered in the Yee grid.
 
     Args:
-        E_field (jax.Array): 4D tensor representing the electric field.
+        E_field (Unitful): 4D tensor representing the electric field.
                 Dimensions are (width, depth, height, direction).
-        H_field (jax.Array): 4D tensor representing the magnetic field.
+        H_field (Unitful): 4D tensor representing the magnetic field.
                 Dimensions are (width, depth, height, direction).
         periodic_axes (tuple[bool, bool, bool], optional): Tuple of booleans indicating which axes use periodic
             boundaries (periodic_x, periodic_y, periodic_z). Defaults to (False, False, False).
 
     Returns:
-        tuple[jax.Array, jax.Array]: A tuple (E_interp, H_interp) containing:
+        tuple[Unitful, Unitful]: A tuple (E_interp, H_interp) containing:
             - E_interp: Interpolated electric field as 4D tensor
             - H_interp: Interpolated magnetic field as 4D tensor
 
@@ -40,8 +42,8 @@ def interpolate_fields(
             pad_width = ((0, 0), (0, 0), (1, 1), (0, 0))
         else:  # i == 2
             pad_width = ((0, 0), (0, 0), (0, 0), (1, 1))
-        E_field = jnp.pad(E_field, pad_width, mode=pad_mode)
-        H_field = jnp.pad(H_field, pad_width, mode=pad_mode)
+        E_field = ff.pad(E_field, pad_width, mode=pad_mode)
+        H_field = ff.pad(H_field, pad_width, mode=pad_mode)
 
     E_x, E_y, E_z = E_field[0], E_field[1], E_field[2]
     H_x, H_y, H_z = H_field[0], H_field[1], H_field[2]
@@ -64,13 +66,17 @@ def interpolate_fields(
     ) / 8.0
 
     # Constructing the interpolated fields
-    E_interp = jnp.stack([E_x, E_y, E_z], axis=0)
-    H_interp = jnp.stack([H_x, H_y, H_z], axis=0)
+    E_interp = ff.stack([E_x, E_y, E_z], axis=0)
+    H_interp = ff.stack([H_x, H_y, H_z], axis=0)
 
     return E_interp, H_interp
 
 
-def curl_E(E: jax.Array, periodic_axes: tuple[bool, bool, bool] = (False, False, False)) -> jax.Array:
+def curl_E(
+    E: Unitful,
+    resolution: Unitful,
+    periodic_axes: tuple[bool, bool, bool] = (False, False, False),
+) -> Unitful:
     """Transforms an E-type field into an H-type field by performing a curl operation.
 
     Computes the discrete curl of the electric field to obtain the corresponding
@@ -79,14 +85,15 @@ def curl_E(E: jax.Array, periodic_axes: tuple[bool, bool, bool] = (False, False,
     (half-integer grid points).
 
     Args:
-        E (jax.Array): Electric field to take the curl of. A 4D tensor representing the E-type field
+        E (Unitful): Electric field to take the curl of. A 4D tensor representing the E-type field
             located on the edges of the grid cell (integer gridpoints).
             Shape is (3, nx, ny, nz) for the 3 field components.
+        resolution (Unitful): Distance between the discretized grid points.
         periodic_axes (tuple[bool, bool, bool], optional): Tuple of booleans indicating which axes use periodic
             boundaries (periodic_x, periodic_y, periodic_z). Defaults to (False, False, False).
 
     Returns:
-        jax.Array: The curl of E - an H-type field located on the faces of the grid
+        Unitful: The curl of E - an H-type field located on the faces of the grid
                   (half-integer grid points). Has same shape as input (3, nx, ny, nz).
     """
     # Pad each axis separately based on boundary conditions
@@ -100,17 +107,22 @@ def curl_E(E: jax.Array, periodic_axes: tuple[bool, bool, bool] = (False, False,
             pad_width = ((0, 0), (0, 0), (1, 1), (0, 0))
         else:  # i == 2
             pad_width = ((0, 0), (0, 0), (0, 0), (1, 1))
-        E_pad = jnp.pad(E_pad, pad_width, mode=pad_mode)
+        E_pad = ff.pad(E_pad, pad_width, mode=pad_mode)
 
-    curl_x = jnp.roll(E_pad[2], -1, axis=1) - E_pad[2] + E_pad[1] - jnp.roll(E_pad[1], -1, axis=2)
-    curl_y = jnp.roll(E_pad[0], -1, axis=2) - E_pad[0] + E_pad[2] - jnp.roll(E_pad[2], -1, axis=0)
-    curl_z = jnp.roll(E_pad[1], -1, axis=0) - E_pad[1] + E_pad[0] - jnp.roll(E_pad[0], -1, axis=1)
-    curl = jnp.stack((curl_x, curl_y, curl_z), axis=0)[:, 1:-1, 1:-1, 1:-1]
+    curl_x = ff.roll(E_pad[2], -1, axis=1) - E_pad[2] + E_pad[1] - ff.roll(E_pad[1], -1, axis=2)
+    curl_y = ff.roll(E_pad[0], -1, axis=2) - E_pad[0] + E_pad[2] - ff.roll(E_pad[2], -1, axis=0)
+    curl_z = ff.roll(E_pad[1], -1, axis=0) - E_pad[1] + E_pad[0] - ff.roll(E_pad[0], -1, axis=1)
+    curl = ff.stack((curl_x, curl_y, curl_z), axis=0)[:, 1:-1, 1:-1, 1:-1]
+    curl = curl / resolution
 
     return curl
 
 
-def curl_H(H: jax.Array, periodic_axes: tuple[bool, bool, bool] = (False, False, False)) -> jax.Array:
+def curl_H(
+    H: Unitful,
+    resolution: Unitful,
+    periodic_axes: tuple[bool, bool, bool] = (False, False, False)
+) -> Unitful:
     """Transforms an H-type field into an E-type field by performing a curl operation.
 
     Computes the discrete curl of the magnetic field to obtain the corresponding
@@ -119,14 +131,15 @@ def curl_H(H: jax.Array, periodic_axes: tuple[bool, bool, bool] = (False, False,
     (integer grid points).
 
     Args:
-        H (jax.Array): Magnetic field to take the curl of. A 4D tensor representing the H-type field
+        H (Unitful): Magnetic field to take the curl of. A 4D tensor representing the H-type field
             located on the faces of the grid (half-integer grid points).
             Shape is (3, nx, ny, nz) for the 3 field components.
+        resolution (Unitful): Distance between the discretized grid points.
         periodic_axes (tuple[bool, bool, bool], optional): Tuple of booleans indicating which axes use periodic
             boundaries (periodic_x, periodic_y, periodic_z). Defaults to (False, False, False).
 
     Returns:
-        jax.Array: The curl of H - an E-type field located on the edges of the grid
+        Unitful: The curl of H - an E-type field located on the edges of the grid
                   (integer grid points). Has same shape as input (3, nx, ny, nz).
     """
     # Pad each axis separately based on boundary conditions
@@ -140,11 +153,12 @@ def curl_H(H: jax.Array, periodic_axes: tuple[bool, bool, bool] = (False, False,
             pad_width = ((0, 0), (0, 0), (1, 1), (0, 0))
         else:  # i == 2
             pad_width = ((0, 0), (0, 0), (0, 0), (1, 1))
-        H_pad = jnp.pad(H_pad, pad_width, mode=pad_mode)
+        H_pad = ff.pad(H_pad, pad_width, mode=pad_mode)
 
-    curl_x = H_pad[2] - jnp.roll(H_pad[2], 1, axis=1) - H_pad[1] + jnp.roll(H_pad[1], 1, axis=2)
-    curl_y = H_pad[0] - jnp.roll(H_pad[0], 1, axis=2) - H_pad[2] + jnp.roll(H_pad[2], 1, axis=0)
-    curl_z = H_pad[1] - jnp.roll(H_pad[1], 1, axis=0) - H_pad[0] + jnp.roll(H_pad[0], 1, axis=1)
-    curl = jnp.stack((curl_x, curl_y, curl_z), axis=0)[:, 1:-1, 1:-1, 1:-1]
+    curl_x = H_pad[2] - ff.roll(H_pad[2], 1, axis=1) - H_pad[1] + ff.roll(H_pad[1], 1, axis=2)
+    curl_y = H_pad[0] - ff.roll(H_pad[0], 1, axis=2) - H_pad[2] + ff.roll(H_pad[2], 1, axis=0)
+    curl_z = H_pad[1] - ff.roll(H_pad[1], 1, axis=0) - H_pad[0] + ff.roll(H_pad[0], 1, axis=1)
+    curl = ff.stack((curl_x, curl_y, curl_z), axis=0)[:, 1:-1, 1:-1, 1:-1]
+    curl = curl / resolution
 
     return curl
