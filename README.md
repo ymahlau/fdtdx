@@ -1,6 +1,6 @@
 
 <div align="center">
-<img src="docs/img/logo.png" alt="logo"></img>
+<img src="docs/source/_static/logo.png" alt="logo"></img>
 </div>
 
 [![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://ymahlau.github.io/fdtdx)
