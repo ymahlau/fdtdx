@@ -130,27 +130,42 @@ def test_compute_poynting_flux_basic():
 def test_normalize_by_poynting_flux_basic():
     """Test basic normalization by Poynting flux."""
     # Create fields with known Poynting vector
-    E = jnp.array([[[2.0]], [[0.0]], [[0.0]]])
-    H = jnp.array([[[0.0]], [[2.0]], [[0.0]]])
-    axis = 2  # z-direction
+    E = (V / m) * jnp.array([[[2.0]], [[0.0]], [[0.0]]])
+    B = mu0 * (A / m) * jnp.array([[[0.0]], [[2.0]], [[0.0]]])
 
-    E_norm, H_norm = normalize_by_poynting_flux(E, H, axis)
+    E_norm, B_norm = normalize_by_poynting_flux(
+        E=E,
+        B=B,
+        resolution=1*m,
+        normal_vector = (0, 0, 1),
+        axis=0,
+    )
 
     # Check that normalized fields have unit power flow
-    S_norm = jnp.cross(jnp.conj(E_norm), H_norm, axisa=0, axisb=0, axisc=0)
-    power = jnp.abs(jnp.sum(0.5 * jnp.real(S_norm[axis])))
+    flux = compute_poynting_flux(
+        E=E_norm, 
+        B=B_norm,
+        resolution=1*m,
+        normal_vector = (0, 0, 1),
+        axis=0,
+    )
 
-    assert jnp.allclose(power, 1.0)
+    assert jnp.allclose(flux.value(), 1.0)
 
 
 def test_normalize_by_poynting_flux_preservation():
     """Test that normalization preserves field structure."""
-    E = jnp.array([[[1.0]], [[2.0]], [[0.0]]])
-    H = jnp.array([[[3.0]], [[4.0]], [[0.0]]])
-    axis = 2
+    E = (V / m) * jnp.array([[[1.0]], [[2.0]], [[0.0]]])
+    B = mu0 * (A / m) * jnp.array([[[3.0]], [[4.0]], [[0.0]]])
 
-    E_norm, H_norm = normalize_by_poynting_flux(E, H, axis)
+    E_norm, B_norm = normalize_by_poynting_flux(
+        E=E,
+        B=B,
+        resolution=1*m,
+        normal_vector = (0, 0, 1),
+        axis=0,
+    )
 
     # Check that field ratios are preserved
-    assert jnp.allclose(E_norm[1] / E_norm[0], E[1] / E[0])
-    assert jnp.allclose(H_norm[1] / H_norm[0], H[1] / H[0])
+    assert jnp.allclose((E_norm[1] / E_norm[0]).materialise(), (E[1] / E[0]).materialise())
+    assert jnp.allclose((B_norm[1] / B_norm[0]).materialise(), (B[1] / B[0]).materialise())

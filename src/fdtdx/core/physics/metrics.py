@@ -9,7 +9,7 @@ FDTD field array shapes.
 import jax
 import jax.numpy as jnp
 
-from fdtdx.units.composite import J, V_per_m_unit, A_per_m_unit
+from fdtdx.units.composite import J, W, V_per_m_unit, A_per_m_unit
 from fdtdx.units.typing import SI
 from fdtdx.units.unitful import Unitful
 import fdtdx.functional as ff
@@ -120,7 +120,7 @@ def compute_poynting_flux(
 
     Args:
         E (Unitful): Electric field array with E.shape[axis] == 3
-        H (Unitful): Magnetic field array with H.shape[axis] == 3
+        B (Unitful): Magnetic field array with H.shape[axis] == 3
         resolution (Unitful): Spatial resolution of the grid points of E and H field
         normal_vector (tuple[float, float, float] | jax.Array): Normal vector of the surface to integrate. If the normal
             vector is not normalized already, it is normalized within this function.
@@ -153,17 +153,26 @@ def compute_poynting_flux(
 
 
 
-def normalize_by_poynting_flux(E: jax.Array, H: jax.Array, axis: int) -> tuple[jax.Array, jax.Array]:
+def normalize_by_poynting_flux(
+    E: Unitful, 
+    B: Unitful,
+    resolution: Unitful,
+    normal_vector: tuple[float, float, float] | jax.Array,
+    axis: int = 0,
+    normalization_target: Unitful = 1*W,
+) -> tuple[Unitful, Unitful]:
     """Normalize fields so that Poynting flux along given axis = 1."""
     # Compute Poynting vector components
-    S_complex = jnp.cross(jnp.conj(E), H, axisa=0, axisb=0, axisc=0)
-    S_real = 0.5 * jnp.real(S_complex[axis])  # power flow in desired direction
-
-    # Integrate over transverse plane (axis orthogonal to `axis`)
-    power = jnp.abs(jnp.sum(S_real))
-
-    # Normalize
-    norm_factor = jnp.sqrt(power)
-    E_norm = E / norm_factor
-    H_norm = H / norm_factor
-    return E_norm, H_norm
+    flux = compute_poynting_flux(
+        E=E,
+        B=B,
+        resolution=resolution,
+        normal_vector=normal_vector,
+        axis=axis,
+    )
+    norm_factor = (flux / normalization_target).materialise()
+    factor = jnp.sign(norm_factor) / jnp.sqrt(jnp.abs(norm_factor))
+    
+    norm_E = E * factor
+    norm_B = B * factor
+    return norm_E, norm_B
