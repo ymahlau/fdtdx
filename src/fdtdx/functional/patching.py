@@ -30,6 +30,8 @@ from fdtdx.functional.numpy import (
     conj,
     dot,
     transpose,
+    pad,
+    stack,
 )
 
 def patch_fn_to_module(
@@ -78,7 +80,9 @@ def patch_all_functions():
         (conj, None),
         (conj, "conjugate"),
         (dot, None),
-        (transpose, None)
+        (transpose, None),
+        (pad, None),
+        (stack, None),
     ]
     for fn, orig in _full_patch_list_numpy:
         patch_fn_to_module(

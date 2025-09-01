@@ -1,9 +1,38 @@
+from typing import Sequence
 import jax.numpy as jnp
 from jax import core
 import numpy as np
 
 from fdtdx.core.fraction import Fraction
 from fdtdx.units.typing import SI, PhysicalArrayLike
+
+
+def handle_n_scales(
+    scales: Sequence[int],
+) -> tuple[int, list[float]]:
+    """ 
+    This uses some static approximations to best maintain numerical
+    stability while minimizing overhead from too many conversions.
+    
+    Args:
+        scales (Sequence[int]): Scales (10^s)
+    
+    Returns:
+        tuple[int, list[float]]: Tuple of the new scale, and factors to multiply with original scales
+    """
+    if len(scales) == 1:
+        return scales[0], [1.0]
+    if len(scales) == 2:
+        new_scale, f1, f2 = handle_different_scales(scales[0], scales[1])
+        return new_scale, [f1, f2]
+    
+    min_scale, max_scale = min(scales), max(scales)
+    new_scale, _, _ = handle_different_scales(min_scale, max_scale)
+    factors = [10 ** (f - new_scale) for f in scales]
+    return new_scale, factors
+    
+    
+
 
 def handle_different_scales(
     s1: int,

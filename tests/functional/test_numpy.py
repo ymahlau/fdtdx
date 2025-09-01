@@ -442,3 +442,162 @@ def test_transpose_jax_array():
     assert not isinstance(result, Unitful)
     # Shape should be transposed: (4, 3) -> (3, 4)
     assert result.shape == (3, 4)
+    
+
+def test_pad_unitful_temperature_field():
+    """Test pad with Unitful object containing a temperature field with fractional dimensions"""
+    # Create temperature unit: Kelvin with fractional dimension and scale=-3 (millikelvin)
+    temp_unit = Unit(scale=-3, dim={SI.K: 1, SI.m: Fraction(-1, 2)})  # K/sqrt(m)
+    # 2x3 temperature field array
+    temp_field = Unitful(val=jnp.array([
+        [100.0, 200.0, 300.0],
+        [400.0, 500.0, 600.0]
+    ]), unit=temp_unit)
+    
+    # Pad with constant value and symmetric padding
+    result: Unitful = jnp.pad(temp_field, pad_width=((1, 1), (2, 1)), mode='constant', constant_values=0.0)  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    # Expected shape: original (2, 3) + padding ((1,1), (2,1)) = (4, 6)
+    assert result.shape == (4, 6)
+    # Check padded values (should be 0 with proper scale factor)
+    assert jnp.allclose(result.value()[0, :], 0.0)  # type: ignore First row should be zeros
+    assert jnp.allclose(result.value()[-1, :], 0.0)  # type: ignore Last row should be zeros
+    assert jnp.allclose(result.value()[:, :2], 0.0)  # type: ignore First two columns should be zeros
+    assert jnp.allclose(result.value()[:, -1], 0.0)  # type: ignore Last column should be zeros
+    # Check original values are preserved in the center with scale factor 10^(-3)
+    assert jnp.allclose(result.value()[1, 2], 100.0 * 1e-3)  # type: ignore Original [0,0] -> [1,2]
+    assert jnp.allclose(result.value()[2, 4], 600.0 * 1e-3)  # type: ignore Original [1,2] -> [2,4]
+    # Units should be preserved
+    assert result.unit.dim == {SI.K: 1, SI.m: Fraction(-1, 2)}
+
+
+def test_pad_jax_array():
+    """Test pad with regular JAX array (non-Unitful) using edge mode"""
+    # Create a 3x2 matrix
+    matrix = jnp.array([
+        [1.0, 2.0],
+        [3.0, 4.0],
+        [5.0, 6.0]
+    ])
+    
+    # Pad with edge values (replicate border values)
+    result = jnp.pad(matrix, pad_width=((1, 2), (1, 1)), mode='edge')  # type: ignore
+    
+    # Expected result: 3x2 -> 6x4 with edge padding
+    # Top padding: replicate first row
+    # Bottom padding: replicate last row  
+    # Left padding: replicate first column
+    # Right padding: replicate last column
+    expected = jnp.array([
+        [1.0, 1.0, 2.0, 2.0],  # Top padding: replicate [1, 2]
+        [1.0, 1.0, 2.0, 2.0],  # Original row 0 with side padding
+        [3.0, 3.0, 4.0, 4.0],  # Original row 1 with side padding
+        [5.0, 5.0, 6.0, 6.0],  # Original row 2 with side padding
+        [5.0, 5.0, 6.0, 6.0],  # Bottom padding: replicate [5, 6]
+        [5.0, 5.0, 6.0, 6.0]   # Bottom padding: replicate [5, 6]
+    ])
+    
+    assert jnp.allclose(result, expected)
+    # Should return a regular JAX array, not a Unitful object
+    assert isinstance(result, jax.Array)
+    assert not isinstance(result, Unitful)
+    # Shape should be padded: (3, 2) + ((1,2), (1,1)) = (6, 4)
+    assert result.shape == (6, 4)
+    
+    
+def test_stack_unitful_same_unit():
+    """Test stack with multiple Unitful objects having identical units"""
+    # Create force vectors with same unit: Newtons = kg*m/s^2 with scale=0
+    force_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2})
+    
+    force1 = Unitful(val=jnp.array([10.0, 20.0, 30.0]), unit=force_unit)
+    force2 = Unitful(val=jnp.array([40.0, 50.0, 60.0]), unit=force_unit)
+    force3 = Unitful(val=jnp.array([70.0, 80.0, 90.0]), unit=force_unit)
+    
+    # Stack along axis 0 (default)
+    result = jnp.stack([force1, force2, force3])  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    # Expected shape: 3 arrays of shape (3,) stacked -> (3, 3)
+    assert result.shape == (3, 3)
+    # Check values are correctly stacked
+    expected_vals = jnp.array([
+        [10.0, 20.0, 30.0],
+        [40.0, 50.0, 60.0],
+        [70.0, 80.0, 90.0]
+    ])
+    assert jnp.allclose(result.value(), expected_vals)
+    # Units should be preserved
+    assert result.unit.dim == {SI.kg: 1, SI.m: 1, SI.s: -2}
+
+
+def test_stack_unitful_same_dimension_different_scale():
+    """Test stack with Unitful objects having same dimensions but different scales"""
+    # Create pressure values with same dimensions but different scales
+    pressure_dim: dict[SI, int | Fraction] = {SI.kg: 1, SI.m: -1, SI.s: -2}  # Pascal dimensions
+    
+    # Pressure in Pascals (scale=0)
+    pressure_pa = Unitful(val=jnp.array([1000.0, 2000.0]), unit=Unit(scale=0, dim=pressure_dim))
+    # Pressure in kilopascals (scale=3)
+    pressure_kpa = Unitful(val=jnp.array([5.0, 8.0]), unit=Unit(scale=3, dim=pressure_dim))
+    # Pressure in megapascals (scale=6)
+    pressure_mpa = Unitful(val=jnp.array([0.003, 0.007]), unit=Unit(scale=6, dim=pressure_dim))
+    
+    # Stack along axis 1
+    result = jnp.stack([pressure_pa, pressure_kpa, pressure_mpa], axis=1)  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    # Expected shape: 3 arrays of shape (2,) stacked along axis 1 -> (2, 3)
+    assert result.shape == (2, 3)
+    # All values should be converted to the same scale
+    # Expected: scale normalization should bring all to a common scale
+    # pressure_pa: [1000, 2000] Pa (scale=0)
+    # pressure_kpa: [5000, 8000] Pa (scale=0 equivalent)
+    # pressure_mpa: [3000, 7000] Pa (scale=0 equivalent)
+    expected_vals = jnp.array([
+        [1000.0, 5000.0, 3000.0],  # First element from each array
+        [2000.0, 8000.0, 7000.0]   # Second element from each array
+    ])
+    assert jnp.allclose(result.value(), expected_vals)
+    assert result.unit.dim == pressure_dim
+
+
+def test_stack_unitful_different_units_should_raise():
+    """Test stack with Unitful objects having different dimensions should raise exception"""
+    # Create objects with incompatible dimensions
+    force_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2})  # Newton
+    mass_unit = Unit(scale=0, dim={SI.kg: 1})  # kilogram
+    
+    force = Unitful(val=jnp.array([10.0, 20.0]), unit=force_unit)
+    mass = Unitful(val=jnp.array([5.0, 8.0]), unit=mass_unit)
+    
+    # Should raise an exception due to incompatible dimensions
+    with pytest.raises(Exception):
+        jnp.stack([force, mass])  # type: ignore
+
+
+def test_stack_jax_array():
+    """Test stack with regular JAX arrays (non-Unitful)"""
+    # Create regular JAX arrays
+    array1 = jnp.array([[1.0, 2.0], [3.0, 4.0]])
+    array2 = jnp.array([[5.0, 6.0], [7.0, 8.0]])
+    array3 = jnp.array([[9.0, 10.0], [11.0, 12.0]])
+    
+    # Stack along axis 0 (default)
+    result = jnp.stack([array1, array2, array3])  # type: ignore
+    
+    # Expected result: 3 arrays of shape (2, 2) stacked -> (3, 2, 2)
+    expected = jnp.array([
+        [[1.0, 2.0], [3.0, 4.0]],
+        [[5.0, 6.0], [7.0, 8.0]],
+        [[9.0, 10.0], [11.0, 12.0]]
+    ])
+    
+    assert jnp.allclose(result, expected)
+    # Should return a regular JAX array, not a Unitful object
+    assert isinstance(result, jax.Array)
+    assert not isinstance(result, Unitful)
+    # Shape should be (3, 2, 2)
+    assert result.shape == (3, 2, 2)
+    

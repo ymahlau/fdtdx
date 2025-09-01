@@ -1,12 +1,15 @@
 import math
+from typing import Sequence
 import jax
 import jax.numpy as jnp
+from jaxtyping import ArrayLike
+import numpy as np
 from plum import dispatch, overload
 
 from fdtdx.core.fraction import Fraction
 from fdtdx.units.typing import SI
 from fdtdx.units.unitful import Unit, Unitful
-from fdtdx.units.utils import dim_after_multiplication
+from fdtdx.units.utils import dim_after_multiplication, handle_n_scales
 
 ## Square Root ###########################
 @overload
@@ -210,7 +213,7 @@ def dot(  # type: ignore
     raise NotImplementedError()
 
 
-## Conjugate #####################################
+## Transpose #####################################
 @overload
 def transpose(
     x: Unitful,
@@ -230,6 +233,76 @@ def transpose(
 
 @dispatch
 def transpose(  # type: ignore
+    x,
+    *args,
+    **kwargs,
+):
+    del x, args, kwargs
+    raise NotImplementedError()
+
+
+## pad #####################################
+@overload
+def pad(
+    x: Unitful,
+    *args,
+    **kwargs,
+) -> Unitful:
+    new_val = jnp._orig_pad(x.val, *args, **kwargs)  # type: ignore
+    return Unitful(val=new_val, unit=x.unit)
+
+@overload
+def pad(
+    x: jax.Array,
+    *args,
+    **kwargs,
+) -> jax.Array: 
+    return jnp._orig_pad(x, *args, **kwargs)  # type: ignore
+
+@dispatch
+def pad(  # type: ignore
+    x,
+    *args,
+    **kwargs,
+):
+    del x, args, kwargs
+    raise NotImplementedError()
+
+
+## stack #####################################
+@overload
+def stack(
+    arrays: Unitful | Sequence[Unitful],
+    *args,
+    **kwargs,
+) -> Unitful:
+    if isinstance(arrays, Sequence):
+        for a in arrays:
+            if a.unit.dim != arrays[0].unit.dim:
+                raise Exception(
+                    f"jnp.stack requires all Unitful to have the same dimension, but got: {arrays}"
+                )
+        # bring all values to same scale
+        new_scale, factors = handle_n_scales([a.unit.scale for a in arrays])
+        scaled = [a.val * f for a, f in zip(arrays, factors)]
+        # simply call original function
+        new_val = jnp._orig_stack(scaled, *args, **kwargs)  # type: ignore
+        new_unit = Unit(scale=new_scale, dim=arrays[0].unit.dim)
+    else:
+        new_val = jnp._orig_stack(arrays, *args, **kwargs)  # type: ignore
+        new_unit = arrays.unit
+    return Unitful(val=new_val, unit=new_unit)
+
+@overload
+def stack(
+    x: jax.Array | np.ndarray | Sequence[ArrayLike],
+    *args,
+    **kwargs,
+) -> jax.Array: 
+    return jnp._orig_stack(x, *args, **kwargs)  # type: ignore
+
+@dispatch
+def stack(  # type: ignore
     x,
     *args,
     **kwargs,

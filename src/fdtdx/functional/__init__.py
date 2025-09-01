@@ -6,6 +6,8 @@ from fdtdx.functional.numpy import (
     conj,
     dot,
     transpose,
+    pad,
+    stack,
 )
 from fdtdx.units.unitful import (
     multiply,
@@ -37,6 +39,8 @@ __all__ = [
     "conj",
     "dot",
     "transpose",
+    "pad",
+    "stack",
     # unitful inherent methods
     "multiply",
     "divide",
