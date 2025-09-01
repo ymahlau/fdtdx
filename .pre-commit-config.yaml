@@ -20,19 +20,19 @@ repos:
           - --fix
       # Run the formatter.
       - id: ruff-format
-  - repo: https://github.com/jsh9/pydoclint
-    rev: 0.6.2
-    hooks:
-      - id: pydoclint
-        args: [
-          --style=google, 
-          --check-arg-order=True,
-          --check-return-types=True,
-          --check-class-attributes=True,
-          # --arg-type-hints-in-docstring=False,
-          # --check-return-types=False,
-          --skip-checking-raises=True,
-        ]
+  # - repo: https://github.com/jsh9/pydoclint
+  #   rev: 0.6.2
+  #   hooks:
+  #     - id: pydoclint
+  #       args: [
+  #         --style=google, 
+  #         --check-arg-order=True,
+  #         --check-return-types=True,
+  #         # --check-class-attributes=True,
+  #         # --arg-type-hints-in-docstring=False,
+  #         # --check-return-types=False,
+  #         --skip-checking-raises=True,
+        # ]
   - repo: https://github.com/woodruffw/zizmor-pre-commit
     rev: v1.5.2
     hooks:

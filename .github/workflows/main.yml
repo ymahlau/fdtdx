@@ -5,6 +5,7 @@ on:
     types: [opened, synchronize, reopened]
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -30,7 +31,7 @@ jobs:
         run: uv run pre-commit run -a --show-diff-on-failure
 
       - name: build docs
-        run: sh docs/scripts/sync_notebooks.sh && uv run mkdocs build
+        run: sh docs/scripts/sync_notebooks.sh && uv run sphinx-build docs/source/ docs/build/
 
       - name: Check lock file consistency
         run: uv sync --locked
@@ -61,8 +62,10 @@ jobs:
       - name: Run tests
         run: uv run python -m pytest tests --cov --cov-branch --cov-config=pyproject.toml --cov-report=xml
 
-      - name: Upload coverage reports to Codecov with GitHub Action on Python 3.12 for Ubuntu
-        uses: codecov/codecov-action@v3
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
         if: ${{ matrix.python-version == '3.11' }}
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          fail_ci_if_error: true
