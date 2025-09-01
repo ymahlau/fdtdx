@@ -337,3 +337,31 @@ def isfinite(  # type: ignore
 ):
     del x, args, kwargs
     raise NotImplementedError()
+
+
+## isfinite #####################################
+@overload
+def roll(
+    a: Unitful,
+    *args,
+    **kwargs,
+) -> Unitful:
+    new_val = jnp._orig_roll(a.val, *args, **kwargs)  # type: ignore
+    return Unitful(val=new_val, unit=a.unit)
+
+@overload
+def roll(
+    a: jax.Array,
+    *args,
+    **kwargs,
+) -> jax.Array: 
+    return jnp._orig_roll(a, *args, **kwargs)  # type: ignore
+
+@dispatch
+def roll(  # type: ignore
+    a,
+    *args,
+    **kwargs,
+):
+    del a, args, kwargs
+    raise NotImplementedError()

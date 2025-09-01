@@ -667,3 +667,62 @@ def test_isfinite_jax_array():
     # Shape should match input: (3, 3)
     assert result.shape == (3, 3)
     
+    
+def test_roll_unitful_returns_jax_array():
+    """Test roll with Unitful object returns JAX array (units are stripped)"""
+    # Create magnetic field unit: Tesla = kg/(A*s^2) with scale=-3 (millitesla)
+    magnetic_unit = Unit(scale=0, dim={SI.kg: 1, SI.A: -1, SI.s: -2})
+    # 2D magnetic field array
+    magnetic_field = Unitful(val=jnp.array([
+        [100.0, 200.0, 300.0, 400.0],
+        [500.0, 600.0, 700.0, 800.0],
+        [900.0, 1000.0, 1100.0, 1200.0]
+    ]), unit=magnetic_unit)
+    
+    # Roll along axis 1 by 2 positions
+    result: Unitful = jnp.roll(magnetic_field, shift=2, axis=1)  # type: ignore
+    
+    # Should return a regular JAX array, NOT a Unitful object
+    assert not isinstance(result, jax.Array)
+    assert isinstance(result, Unitful)
+    
+    # Values should be rolled but WITHOUT unit scaling applied
+    # Original values are used directly (no scale factor of 10^-3 applied)
+    expected_vals = jnp.array([
+        [300.0, 400.0, 100.0, 200.0],      # Row 0 rolled by 2
+        [700.0, 800.0, 500.0, 600.0],      # Row 1 rolled by 2
+        [1100.0, 1200.0, 900.0, 1000.0]    # Row 2 rolled by 2
+    ])
+    assert jnp.allclose(result.value(), expected_vals)
+    # Shape should be preserved
+    assert result.shape == (3, 4)
+
+
+def test_roll_jax_array_multi_axis():
+    """Test roll with regular JAX array using multiple axes"""
+    # Create a 3D array
+    array = jnp.array([
+        [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]],
+        [[7.0, 8.0], [9.0, 10.0], [11.0, 12.0]],
+        [[13.0, 14.0], [15.0, 16.0], [17.0, 18.0]]
+    ])
+    
+    # Roll along multiple axes: axis 0 by 1, axis 2 by -1
+    result = jnp.roll(array, shift=[1, -1], axis=[0, 2])  # type: ignore
+    
+    # Expected: first roll axis 0 by 1, then roll axis 2 by -1
+    # After rolling axis 0 by 1: last "page" moves to front
+    # After rolling axis 2 by -1: second column moves to first position
+    expected = jnp.array([
+        [[14.0, 13.0], [16.0, 15.0], [18.0, 17.0]],  # From original [2,:,:]
+        [[2.0, 1.0], [4.0, 3.0], [6.0, 5.0]],        # From original [0,:,:]
+        [[8.0, 7.0], [10.0, 9.0], [12.0, 11.0]]      # From original [1,:,:]
+    ])
+    
+    assert jnp.allclose(result, expected)
+    # Should return a regular JAX array, not a Unitful object
+    assert isinstance(result, jax.Array)
+    assert not isinstance(result, Unitful)
+    # Shape should be preserved: (3, 3, 2)
+    assert result.shape == (3, 3, 2)
+    
