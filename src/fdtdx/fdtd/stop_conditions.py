@@ -41,6 +41,10 @@ class TimeStepCondition(StoppingCondition):
 
     This recreates the original behavior where simulation continues until
     a specified end time is reached.
+
+    Attributes:
+        end_time_step (int): Time step at which simulation ends.
+            Can be found at SimulationConfig.time_step_duration
     """
 
     end_time_step: int = frozen_field()
@@ -63,7 +67,26 @@ class TimeStepCondition(StoppingCondition):
 
 @autoinit
 class DetectorThresholdCondition(StoppingCondition):
-    """Stopping condition based on detector readings reaching a threshold."""
+    """Stopping condition based on detector readings reaching a threshold.
+
+    Attributes:
+        detector_name (str): Unique identifier for the detector. Used for
+            logging and reference.
+        state_key (Optional[str]): Name of the state variable to monitor.
+            Defaults to None. If None, the detector operates without
+            referencing a specific state.
+        threshold (float): The numerical threshold against which values are
+            compared.
+        end_time_step (int): The last time step (inclusive) up to which
+            simulation progresses if the threshold is not reached.
+            Can be found at SimulationConfig.time_step_duration
+        comparison (str): The comparison operation used to evaluate values
+            against the threshold. Must be one of: `"less_than"`,
+            `"greater_than"`, or `"equal"`. Defaults to `"less_than"`.
+        expected_per_step_shape (tuple[int, ...] | None): The expected shape of
+            the per-step input values. If None, no shape check is enforced.
+            Defaults to None.
+    """
 
     detector_name: str = frozen_field()
     state_key: Optional[str] = frozen_field(default=None)
@@ -129,9 +152,12 @@ class DetectorThresholdCondition(StoppingCondition):
         return next(iter(det_state.values()))
 
     def _check_detector_condition(self, arrays: ArrayContainer) -> jax.Array:
-        # Assuming validate() has run. If not, KeyError may be raised here before JIT.
+        # Assuming validate() has run. If not, KeyError may be raised here before JIT
         det_state: DetectorState = arrays.detector_states[self.detector_name]
-        readings = self._select_readings(det_state)  # shape: (T, *S)
+        readings = self._select_readings(det_state)  # shape: (total_detector_steps, *S)
+        # total_detector_steps is not necessarily the number of time steps in the simulation,
+        # as the detector constructor might ingest an `OnOffSwitch` which makes the detector
+        # update at a different cadence than every time step, reducing its size in the first axis
         n = readings.shape[0]
 
         last_reading = jax.lax.cond(
@@ -164,8 +190,19 @@ class DetectorThresholdCondition(StoppingCondition):
 class FieldConvergenceCondition(StoppingCondition):
     """Stopping condition based on field convergence.
 
-    Stops when the relative change in field energy between time steps
-    falls below a specified threshold.
+    This condition stops a simulation when the relative change in field
+    energy between time steps falls below a specified threshold. A minimum
+    number of steps can be enforced before convergence checks are applied,
+    and a hard cutoff is imposed at ``end_time``.
+
+    Attributes:
+        threshold (float): Relative change threshold for determining
+            convergence. Defaults to ``1e-6``.
+        end_time (int): The maximum number of time steps before the
+            simulation is stopped, regardless of convergence.
+        min_steps (int): The minimum number of time steps that must be
+            completed before convergence checking begins. Defaults to
+            ``100``.
     """
 
     threshold: float = frozen_field(default=1e-6)  # Relative change threshold
