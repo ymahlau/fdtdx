@@ -1,17 +1,19 @@
 import math
 
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
+from fdtdx.units.unitful import Unitful
+from fdtdx.units.composite import s
 
 
 @autoinit
 class OnOffSwitch(TreeClass):
-    start_time: float | None = frozen_field(default=None)
-    start_after_periods: float | None = frozen_field(default=None)
-    end_time: float | None = frozen_field(default=None)
-    end_after_periods: float | None = frozen_field(default=None)
-    on_for_time: float | None = frozen_field(default=None)
-    on_for_periods: float | None = frozen_field(default=None)
-    period: float | None = frozen_field(default=None)
+    start_time: Unitful | None = frozen_field(default=None)
+    start_after_periods: Unitful | None = frozen_field(default=None)
+    end_time: Unitful | None = frozen_field(default=None)
+    end_after_periods: Unitful | None = frozen_field(default=None)
+    on_for_time: Unitful | None = frozen_field(default=None)
+    on_for_periods: Unitful | None = frozen_field(default=None)
+    period: Unitful | None = frozen_field(default=None)
     fixed_on_time_steps: list[int] | None = frozen_field(default=None)
     is_always_off: bool = frozen_field(default=False)
     interval: int = frozen_field(default=1)
@@ -19,7 +21,7 @@ class OnOffSwitch(TreeClass):
     def calculate_on_list(
         self,
         num_total_time_steps: int,
-        time_step_duration: float,
+        time_step_duration: Unitful,
     ) -> list[bool]:
         # case 1: list with fixed time steps is provided
         if self.fixed_on_time_steps is not None:
@@ -41,7 +43,7 @@ class OnOffSwitch(TreeClass):
     def is_on_at_time_step(
         self,
         time_step: int,
-        time_step_duration: float,
+        time_step_duration: Unitful,
     ) -> bool:
         return is_on_at_time_step(
             is_always_off=self.is_always_off,
@@ -59,7 +61,7 @@ class OnOffSwitch(TreeClass):
     def calculate_time_step_to_on_arr_idx(
         self,
         num_total_time_steps: int,
-        time_step_duration: float,
+        time_step_duration: Unitful,
     ) -> list[int]:
         on_list = self.calculate_on_list(
             num_total_time_steps=num_total_time_steps,
@@ -76,15 +78,15 @@ class OnOffSwitch(TreeClass):
 
 def is_on_at_time_step(
     is_always_off: bool,
-    start_time: float | None,
-    start_after_periods: float | None,
-    end_time: float | None,
-    end_after_periods: float | None,
-    on_for_time: float | None,
-    on_for_periods: float | None,
+    start_time: Unitful | None,
+    start_after_periods: Unitful | None,
+    end_time: Unitful | None,
+    end_after_periods: Unitful | None,
+    on_for_time: Unitful | None,
+    on_for_periods: Unitful | None,
     time_step: int,
-    time_step_duration: float,
-    period: float | None,
+    time_step_duration: Unitful,
+    period: Unitful | None,
 ) -> bool:  # scalar bool
     """Determines if a time-dependent component should be active at a given time step.
 
@@ -123,7 +125,7 @@ def is_on_at_time_step(
     if num_start_specs > 1:
         raise Exception("Invalid start time specification!")
     if num_start_specs == 0:
-        start_time = 0
+        start_time = 0 * s
     num_end_specs = sum(
         [
             end_time is not None,
@@ -137,7 +139,7 @@ def is_on_at_time_step(
     if num_end_specs > 1:
         raise Exception("Invalid end time specification!")
     if num_end_specs == 0:
-        end_time = math.inf
+        end_time = math.inf * s
 
     # period to actual time
     if start_after_periods is not None:
@@ -171,19 +173,6 @@ def is_on_at_time_step(
     on = True
     on = on and (start_time <= time_passed)
     on = on and (time_passed <= end_time)
+    assert isinstance(on, bool)
     return on
 
-
-def is_on_at_time_step_from_switch(time_step: int, time_step_duration: float, switch: OnOffSwitch) -> bool:
-    return is_on_at_time_step(
-        is_always_off=switch.is_always_off,
-        start_time=switch.start_time,
-        start_after_periods=switch.start_after_periods,
-        end_time=switch.end_time,
-        end_after_periods=switch.end_after_periods,
-        on_for_time=switch.on_for_time,
-        on_for_periods=switch.on_for_periods,
-        time_step=time_step,
-        time_step_duration=time_step_duration,
-        period=switch.period,
-    )

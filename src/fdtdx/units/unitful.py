@@ -224,22 +224,22 @@ class Unitful(TreeClass):
     def __rsub__(self, other: "Unitful") -> "Unitful":
         return subtract(other, self)
     
-    def __lt__(self, other: "Unitful") -> PhysicalArrayLike:
+    def __lt__(self, other: "Unitful") -> jax.Array | bool:
         return lt(self, other)
     
-    def __le__(self, other: "Unitful") -> PhysicalArrayLike:
+    def __le__(self, other: "Unitful") -> jax.Array | bool:
         return le(self, other)
     
-    def __eq__(self, other: "Unitful") -> PhysicalArrayLike:
+    def __eq__(self, other: "Unitful") -> jax.Array | bool:
         return eq(self, other)
     
-    def __ne__(self, other: "Unitful") -> PhysicalArrayLike:  # type: ignore
+    def __ne__(self, other: "Unitful") -> jax.Array | bool:  # type: ignore
         return ne(self, other)
     
-    def __ge__(self, other: "Unitful") -> PhysicalArrayLike:
+    def __ge__(self, other: "Unitful") -> jax.Array | bool:
         return ge(self, other)
     
-    def __gt__(self, other: "Unitful") -> PhysicalArrayLike:
+    def __gt__(self, other: "Unitful") -> jax.Array | bool:
         return gt(self, other)
     
     def __len__(self):
@@ -520,7 +520,7 @@ def remainder(x, y):  # type: ignore
     raise NotImplementedError()
 
 ## less than ##########################
-def _same_dim_binary_fn_array_return(x: Unitful, y: Unitful, op_str: str) -> PhysicalArrayLike:
+def _same_dim_binary_fn_bool_return(x: Unitful, y: Unitful, op_str: str) -> jax.Array | bool:
     if x.unit.dim != y.unit.dim:
         raise ValueError(f"Cannot {op_str} two arrays with units {x.unit} and {y.unit}.")
     x, y = align_scales(x, y)
@@ -532,8 +532,8 @@ def _same_dim_binary_fn_array_return(x: Unitful, y: Unitful, op_str: str) -> Phy
 def lt(
     x: Unitful, 
     y: Unitful
-) -> PhysicalArrayLike:
-    return _same_dim_binary_fn_array_return(x, y, "lt")
+) ->  jax.Array | bool:
+    return _same_dim_binary_fn_bool_return(x, y, "lt")
 
 @overload
 def lt(x: int | float, y: int | float) -> bool: return x < y
@@ -551,8 +551,8 @@ def lt(x, y):  # type: ignore
 def le(
     x: Unitful, 
     y: Unitful
-) -> PhysicalArrayLike:
-    return _same_dim_binary_fn_array_return(x, y, "le")
+) -> jax.Array | bool:
+    return _same_dim_binary_fn_bool_return(x, y, "le")
 
 @overload
 def le(x: int | float, y: int | float) -> bool: return x <= y
@@ -570,8 +570,8 @@ def le(x, y):  # type: ignore
 def eq(
     x: Unitful, 
     y: Unitful
-) -> PhysicalArrayLike:
-    return _same_dim_binary_fn_array_return(x, y, "eq")
+) ->  jax.Array | bool:
+    return _same_dim_binary_fn_bool_return(x, y, "eq")
 
 @overload
 def eq(x: int | float | complex, y: int | float | complex) -> bool: return x == y
@@ -589,8 +589,8 @@ def eq(x, y):  # type: ignore
 def ne(
     x: Unitful, 
     y: Unitful
-) -> PhysicalArrayLike:
-    return _same_dim_binary_fn_array_return(x, y, "ne")
+) ->  jax.Array | bool:
+    return _same_dim_binary_fn_bool_return(x, y, "ne")
 
 @overload
 def ne(x: int | float | complex, y: int | float | complex) -> bool: return x != y
@@ -608,8 +608,8 @@ def ne(x, y):  # type: ignore
 def ge(
     x: Unitful, 
     y: Unitful
-) -> PhysicalArrayLike:
-    return _same_dim_binary_fn_array_return(x, y, "ge")
+) ->  jax.Array | bool:
+    return _same_dim_binary_fn_bool_return(x, y, "ge")
 
 @overload
 def ge(x: int | float, y: int | float) -> bool: return x >= y
@@ -627,8 +627,8 @@ def ge(x, y):  # type: ignore
 def gt(
     x: Unitful, 
     y: Unitful
-) -> PhysicalArrayLike:
-    return _same_dim_binary_fn_array_return(x, y, "gt")
+) ->  jax.Array | bool:
+    return _same_dim_binary_fn_bool_return(x, y, "gt")
 
 @overload
 def gt(x: int | float, y: int | float) -> bool: return x > y
