@@ -5,10 +5,12 @@ from typing import List, Literal
 import jax
 import jax.numpy as jnp
 import numpy as np
-import tidy3d
 from tidy3d.components.mode.solver import compute_modes as _compute_modes
 
-from fdtdx.core.physics.metrics import normalize_by_poynting_flux
+from fdtdx.core.physics.metrics import normalize_by_averaged_flux, normalize_by_poynting_flux
+from fdtdx.core.wavelength import WaveCharacter
+from fdtdx.units.unitful import Unitful
+from fdtdx.units.composite import A, V, Hz, um, m
 
 ModeTupleType = namedtuple("Mode", ["neff", "Ex", "Ey", "Ez", "Hx", "Hy", "Hz"])
 """A named tuple containing the mode fields and effective index.
@@ -88,16 +90,16 @@ def sort_modes(
 
 
 def compute_mode(
-    frequency: float,
+    wave_character: WaveCharacter,
     inv_permittivities: jax.Array,  # shape (nx, ny, nz)
     inv_permeabilities: jax.Array | float,
-    resolution: float,
+    resolution: Unitful,
     direction: Literal["+", "-"],
     mode_index: int = 0,
     filter_pol: Literal["te", "tm"] | None = None,
 ) -> tuple[
-    jax.Array,  # E
-    jax.Array,  # H
+    Unitful,  # E
+    Unitful,  # H
     jax.Array,  # complex propagation constant
 ]:
     # Input validation
@@ -106,8 +108,11 @@ def compute_mode(
     if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
         if inv_permeabilities.squeeze().ndim != 2:
             raise Exception(f"Invalid shape of inv_permeabilities: {inv_permeabilities.shape}")
-        # raise Exception("Mode solver currently does not support metallic materials")
 
+    # convert unitful to float with implicit Hz frequency
+    frequency = (wave_character.get_frequency() / Hz).materialise()
+    assert isinstance(frequency, float)
+    
     def mode_helper(permittivity, permeability):
         modes = tidy3d_mode_computation_wrapper(
             frequency=frequency,
@@ -148,7 +153,7 @@ def compute_mode(
     permittivities = 1 / inv_permittivities
     other_axes = [a for a in range(3) if permittivities.shape[a] != 1]
     propagation_axis = permittivities.shape.index(1)
-    coords = [np.arange(permittivities.shape[dim] + 1) * resolution / 1e-6 for dim in other_axes]
+    coords = [np.arange(permittivities.shape[dim] + 1) * (resolution / um).materialise() for dim in other_axes]
     permittivity_squeezed = jnp.take(
         permittivities,
         indices=0,
@@ -181,11 +186,28 @@ def compute_mode(
     mode_H = jnp.expand_dims(mode_H_raw, axis=propagation_axis + 1)
 
     # Tidy3D uses different scaling internally, so convert back
-    mode_H = mode_H * tidy3d.constants.ETA_0
+    # mode_H = mode_H * tidy3d.constants.ETA_0
+    
+    mode_E_unit = (V / m) * mode_E
+    mode_H_unit = (A / m) * mode_H
+    
+    # pv = compute_time_averaged_poynting_vector(
+    #     E=mode_E_unit,
+    #     H=mode_H_unit,
+    # )
+    # mode_E_norm, mode_H_norm = normalize_by_poynting_flux(mode_E, mode_H, axis=propagation_axis)
+    normal_vector = [0, 0, 0]
+    normal_vector[propagation_axis] = 1 if direction == "+" else -1
+    
+    result_E, result_H = normalize_by_averaged_flux(
+        E=mode_E_unit,
+        H=mode_H_unit,
+        resolution=resolution,
+        normal_vector=(normal_vector[0], normal_vector[1], normal_vector[2]),
+        axis=0,
+    )
 
-    mode_E_norm, mode_H_norm = normalize_by_poynting_flux(mode_E, mode_H, axis=propagation_axis)
-
-    return mode_E_norm, mode_H_norm, eff_idx
+    return result_E, result_H, eff_idx
 
 
 def tidy3d_mode_computation_wrapper(

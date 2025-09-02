@@ -86,7 +86,9 @@ def normalize_by_energy(
 
 
 def compute_poynting_vector(E: Unitful, B: Unitful, axis: int = 0) -> Unitful:
-    """Calculates the Poynting vector (energy flux) from E and H fields.
+    """Calculates the instantaneous Poynting vector (energy flux) from E and B fields according to
+    $ 1 / \\mu_0 E \\times B $. This is the instantaneous poynting flux of real E and B fields, for the time averaged
+    flux of oscillating fields see ```compute_time_averaged_poynting_flux```
 
     Args:
         E (Unitful): Electric field array with E.shape[axis] == 3
@@ -107,6 +109,33 @@ def compute_poynting_vector(E: Unitful, B: Unitful, axis: int = 0) -> Unitful:
     return pv
 
 
+def flux_from_poynting_vector(
+    S: Unitful,
+    resolution: Unitful,
+    normal_vector: tuple[float, float, float] | jax.Array,
+    axis: int = 0,
+) -> Unitful:
+    # normalize vector, if it is not already
+    if isinstance(normal_vector, tuple):
+        normal_vector = jnp.asarray(normal_vector)
+    assert normal_vector.ndim == 1, f"Invalid normal vector shape: {normal_vector.shape}"
+    assert normal_vector.shape[0] == 3, f"Invalid normal vector shape: {normal_vector.shape}"
+    # scale to unit length
+    normal_length = jnp.sqrt(jnp.sum(jnp.square(normal_vector)))
+    normal_vector = normal_vector / normal_length
+    # bring to correct shape
+    normal_vector_shape = [-1 if idx == axis else 1 for idx, _ in enumerate(S.shape)]
+    normal_vector = normal_vector.reshape(*normal_vector_shape)
+    # both S and normal need to have the axis moved to the last dimension
+    transpose_axes = [a for a in range(normal_vector.ndim) if a != axis] + [axis]
+    normal_vector = jnp.transpose(normal_vector, axes=transpose_axes)[..., None]
+    S = ff.transpose(S, axes=transpose_axes)
+    # compute flux by integration
+    product = ff.dot(S, normal_vector)
+    flux = ff.sum(product) * ff.square(resolution)
+    return flux
+
+
 def compute_poynting_flux(
     E: Unitful, 
     B: Unitful,
@@ -115,7 +144,7 @@ def compute_poynting_flux(
     axis: int = 0,
 ) -> Unitful:
     """Calculates the Poynting flux from E and H fields. In contrast to the poynting vector, the result is a scalar,
-    not a vector field. The poynting vector is integrated over the surface of E/H to form the poynting flux. Therefore,
+    not a vector field. The poynting vector is integrated over the surface of E and H to form the poynting flux. Therefore,
     an inherent assumption is that the E and H field represent a fields on a surface. 
 
     Args:
@@ -129,29 +158,16 @@ def compute_poynting_flux(
     Returns:
         Unitful: scalar Poynting flux array.
     """
-    S = compute_poynting_vector(E=E, B=B, axis=axis)
-    # normalize vector, if it is not already
-    if isinstance(normal_vector, tuple):
-        normal_vector = jnp.asarray(normal_vector)
-    assert normal_vector.ndim == 1, f"Invalid normal vector shape: {normal_vector.shape}"
-    assert normal_vector.shape[0] == 3, f"Invalid normal vector shape: {normal_vector.shape}"
-    # scale to unit length
-    normal_length = jnp.sqrt(jnp.sum(jnp.square(normal_vector)))
-    normal_vector = normal_vector / normal_length
-    # bring to correct shape
     assert E.shape == B.shape
-    normal_vector_shape = [-1 if idx == axis else 1 for idx, _ in enumerate(E.shape)]
-    normal_vector = normal_vector.reshape(*normal_vector_shape)
-    # both S and normal need to have the axis moved to the last dimension
-    transpose_axes = [a for a in range(normal_vector.ndim) if a != axis] + [axis]
-    normal_vector = jnp.transpose(normal_vector, axes=transpose_axes)[..., None]
-    S = ff.transpose(S, axes=transpose_axes)
-    # compute flux by integration
-    product = ff.dot(S, normal_vector)
-    flux = ff.sum(product) * ff.square(resolution)
+    S = compute_poynting_vector(E=E, B=B, axis=axis)
+    flux = flux_from_poynting_vector(
+        S=S,
+        resolution=resolution,
+        normal_vector=normal_vector,
+        axis=axis,
+    )
     return flux
-
-
+    
 
 def normalize_by_poynting_flux(
     E: Unitful, 
@@ -171,8 +187,56 @@ def normalize_by_poynting_flux(
         axis=axis,
     )
     norm_factor = (flux / normalization_target).materialise()
-    factor = jnp.sign(norm_factor) / jnp.sqrt(jnp.abs(norm_factor))
+    factor = jnp.sqrt(jnp.abs(norm_factor))
     
     norm_E = E * factor
     norm_B = B * factor
     return norm_E, norm_B
+
+
+def compute_averaged_poynting_vector(
+    E: Unitful, 
+    H: Unitful,
+) -> Unitful:
+    S_m = 0.5 * ff.cross(E, ff.conj(H), axis=0)
+    return S_m
+
+
+def compute_averaged_flux(
+    E: Unitful, 
+    H: Unitful,
+    resolution: Unitful,
+    normal_vector: tuple[float, float, float] | jax.Array,
+    axis: int = 0,
+):
+    S_m = compute_averaged_poynting_vector(E=E, H=H)
+    flux = flux_from_poynting_vector(
+        S=ff.real(S_m),
+        resolution=resolution,
+        normal_vector=normal_vector,
+        axis=axis,
+    )
+    return flux
+
+
+def normalize_by_averaged_flux(
+    E: Unitful, 
+    H: Unitful,
+    resolution: Unitful,
+    normal_vector: tuple[float, float, float] | jax.Array,
+    axis: int = 0,
+    normalization_target: Unitful = 1*W,
+) -> tuple[Unitful, Unitful]:
+    avg_flux = compute_averaged_flux(
+        E=E,
+        H=H,
+        resolution=resolution,
+        normal_vector=normal_vector,
+        axis=axis,
+    )
+    norm_factor = (avg_flux / normalization_target).materialise()
+    factor = jnp.sqrt(jnp.abs(norm_factor))
+    
+    norm_E = E * factor
+    norm_H = H * factor
+    return norm_E, norm_H
