@@ -725,4 +725,109 @@ def test_roll_jax_array_multi_axis():
     assert not isinstance(result, Unitful)
     # Shape should be preserved: (3, 3, 2)
     assert result.shape == (3, 3, 2)
+
+
+def test_real_unitful_complex_impedance():
+    """Test real with Unitful object containing complex impedance values"""
+    # Create impedance unit: Ohms = kg*m^2/(A^2*s^3) with scale=2 (hundred ohms)
+    impedance_unit = Unit(scale=2, dim={SI.kg: 1, SI.m: 2, SI.A: -2, SI.s: -3})
+    # Complex impedance array: resistance + j*reactance
+    complex_impedances = Unitful(val=jnp.array([
+        3.5 + 4.2j,     # Z1 = 3.5 + 4.2j hundred ohms
+        -2.1 + 1.8j,    # Z2 = -2.1 + 1.8j hundred ohms
+        5.0 + 0.0j,     # Z3 = 5.0 + 0j hundred ohms (purely resistive)
+        0.0 - 3.3j,     # Z4 = 0 - 3.3j hundred ohms (purely reactive)
+        -1.7 - 2.9j     # Z5 = -1.7 - 2.9j hundred ohms
+    ]), unit=impedance_unit)
     
+    result = jnp.real(complex_impedances)  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    # Real parts extracted with proper scale factor (10^2 = 100)
+    expected_vals = jnp.array([3.5, -2.1, 5.0, 0.0, -1.7]) * 100
+    assert jnp.allclose(result.value(), expected_vals)
+    # Units should be preserved
+    assert result.unit.dim == {SI.kg: 1, SI.m: 2, SI.A: -2, SI.s: -3}
+    # Result should be real-valued (no complex dtype)
+    assert not jnp.iscomplexobj(result.val)
+
+
+def test_real_jax_array():
+    """Test real with regular JAX array containing complex values"""
+    # Create complex JAX array with mixed values
+    complex_array = jnp.array([
+        [2.7 + 1.4j, -3.2 - 5.1j, 8.0 + 0.0j],
+        [0.0 + 6.3j, -4.5 + 2.8j, 1.1 - 7.9j],
+        [9.6 - 0.5j, 0.0 + 0.0j, -6.8 - 3.4j]
+    ])
+    
+    result = jnp.real(complex_array)  # type: ignore
+    
+    # Expected real parts
+    expected = jnp.array([
+        [2.7, -3.2, 8.0],    # Real parts from row 0
+        [0.0, -4.5, 1.1],    # Real parts from row 1  
+        [9.6, 0.0, -6.8]     # Real parts from row 2
+    ])
+    
+    assert jnp.allclose(result, expected)
+    # Should return a regular JAX array, not a Unitful object
+    assert isinstance(result, jax.Array)
+    assert not isinstance(result, Unitful)
+    # Result should be real-valued (no complex dtype)
+    assert not jnp.iscomplexobj(result)
+    # Shape should be preserved: (3, 3)
+    assert result.shape == (3, 3)
+    
+    
+def test_imag_unitful_complex_voltage():
+    """Test imag with Unitful object containing complex voltage values"""
+    # Create voltage unit: Volts = kg*m^2/(A*s^3) with scale=-3 (millivolts)
+    voltage_unit = Unit(scale=-3, dim={SI.kg: 1, SI.m: 2, SI.A: -1, SI.s: -3})
+    # Complex voltage array: real voltage + j*reactive voltage
+    complex_voltages = Unitful(val=jnp.array([
+        120.0 + 85.0j,    # V1 = 120 + 85j millivolts
+        -45.0 + 30.0j,    # V2 = -45 + 30j millivolts
+        220.0 + 0.0j,     # V3 = 220 + 0j millivolts (purely real)
+        0.0 + 150.0j,     # V4 = 0 + 150j millivolts (purely imaginary)
+        -75.0 - 60.0j     # V5 = -75 - 60j millivolts
+    ]), unit=voltage_unit)
+    
+    result = jnp.imag(complex_voltages)  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    # Imaginary parts extracted with proper scale factor (10^-3 = 0.001)
+    expected_vals = jnp.array([85.0, 30.0, 0.0, 150.0, -60.0]) * 1e-3
+    assert jnp.allclose(result.value(), expected_vals)
+    # Units should be preserved
+    assert result.unit.dim == {SI.kg: 1, SI.m: 2, SI.A: -1, SI.s: -3}
+    # Result should be real-valued (no complex dtype)
+    assert not jnp.iscomplexobj(result.val)
+
+
+def test_imag_jax_array():
+    """Test imag with regular JAX array containing complex values"""
+    # Create complex JAX array with mixed values
+    complex_array = jnp.array([
+        [4.2 - 1.8j, 0.0 + 7.3j, -2.5 + 3.9j],
+        [6.1 + 0.0j, -8.7 - 4.2j, 1.4 + 9.6j],
+        [0.0 - 5.5j, 3.8 + 2.1j, -7.9 + 0.0j]
+    ])
+    
+    result = jnp.imag(complex_array)  # type: ignore
+    
+    # Expected imaginary parts
+    expected = jnp.array([
+        [-1.8, 7.3, 3.9],    # Imaginary parts from row 0
+        [0.0, -4.2, 9.6],    # Imaginary parts from row 1
+        [-5.5, 2.1, 0.0]     # Imaginary parts from row 2
+    ])
+    
+    assert jnp.allclose(result, expected)
+    # Should return a regular JAX array, not a Unitful object
+    assert isinstance(result, jax.Array)
+    assert not isinstance(result, Unitful)
+    # Result should be real-valued (no complex dtype)
+    assert not jnp.iscomplexobj(result)
+    # Shape should be preserved: (3, 3)
+    assert result.shape == (3, 3)

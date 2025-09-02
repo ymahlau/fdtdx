@@ -34,6 +34,8 @@ from fdtdx.functional.numpy import (
     stack,
     isfinite,
     roll,
+    real,
+    imag,
 )
 
 def patch_fn_to_module(
@@ -87,6 +89,8 @@ def patch_all_functions():
         (stack, None),
         (isfinite, None),
         (roll, None),
+        (real, None),
+        (imag, None),
     ]
     for fn, orig in _full_patch_list_numpy:
         patch_fn_to_module(

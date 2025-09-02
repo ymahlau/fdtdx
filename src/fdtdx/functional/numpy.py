@@ -339,7 +339,7 @@ def isfinite(  # type: ignore
     raise NotImplementedError()
 
 
-## isfinite #####################################
+## roll #####################################
 @overload
 def roll(
     a: Unitful,
@@ -364,4 +364,60 @@ def roll(  # type: ignore
     **kwargs,
 ):
     del a, args, kwargs
+    raise NotImplementedError()
+
+
+## real #####################################
+@overload
+def real(
+    val: Unitful,
+    *args,
+    **kwargs,
+) -> Unitful:
+    new_val = jnp._orig_real(val.val, *args, **kwargs)  # type: ignore
+    return Unitful(val=new_val, unit=val.unit)
+
+@overload
+def real(
+    val: jax.Array,
+    *args,
+    **kwargs,
+) -> jax.Array: 
+    return jnp._orig_real(val, *args, **kwargs)  # type: ignore
+
+@dispatch
+def real(  # type: ignore
+    val,
+    *args,
+    **kwargs,
+):
+    del val, args, kwargs
+    raise NotImplementedError()
+
+
+## imag #####################################
+@overload
+def imag(
+    val: Unitful,
+    *args,
+    **kwargs,
+) -> Unitful:
+    new_val = jnp._orig_imag(val.val, *args, **kwargs)  # type: ignore
+    return Unitful(val=new_val, unit=val.unit)
+
+@overload
+def imag(
+    val: jax.Array,
+    *args,
+    **kwargs,
+) -> jax.Array: 
+    return jnp._orig_imag(val, *args, **kwargs)  # type: ignore
+
+@dispatch
+def imag(  # type: ignore
+    val,
+    *args,
+    **kwargs,
+):
+    del val, args, kwargs
     raise NotImplementedError()
