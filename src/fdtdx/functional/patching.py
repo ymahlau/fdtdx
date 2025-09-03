@@ -20,6 +20,7 @@ from fdtdx.units.unitful import (
     mean,
     sum,
     abs,
+    astype,
 )
 
 from fdtdx.functional.numpy import (
@@ -91,6 +92,7 @@ def patch_all_functions():
         (roll, None),
         (real, None),
         (imag, None),
+        (astype, None),
     ]
     for fn, orig in _full_patch_list_numpy:
         patch_fn_to_module(

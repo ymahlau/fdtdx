@@ -2,6 +2,7 @@ import jax
 import plum
 import pytest
 from fdtdx.core.fraction import Fraction
+from fdtdx.core.jax.pytrees import TreeClass, autoinit
 from fdtdx.units.unitful import (
     SI, 
     Unit, 
@@ -18,7 +19,7 @@ from fdtdx.units.unitful import (
     ne,
     ge,
 )
-from fdtdx.units.composite import Hz, s, ms, m_per_s 
+from fdtdx.units import Hz, s, ms, m_per_s 
 import jax.numpy as jnp
 
 
@@ -1658,3 +1659,99 @@ def test_abs_overload_unitful_with_fractional_dimensions():
         SI.m: Fraction(-1, 2), 
         SI.s: Fraction(3, 4)
     }
+    
+
+def test_aset_unitful_should_raise():
+    """Test that aset method on Unitful raises an exception (intentionally disabled)"""
+    # Create a Unitful object with force units
+    force_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2})
+    force = Unitful(val=jnp.array([10.0, 20.0, 30.0]), unit=force_unit)
+    
+    # Attempting to use aset should raise an exception
+    with pytest.raises(Exception, match="the aset-method is unsafe for Unitful internals"):
+        force.aset("val", jnp.array([40.0, 50.0, 60.0]))
+
+
+def test_aset_structure_containing_unitful():
+    """Test that aset works on structures containing Unitful objects"""
+    from dataclasses import dataclass
+    
+    # Create a structure containing Unitful objects
+    @autoinit
+    class PhysicsData(TreeClass):
+        force: Unitful
+        mass: Unitful
+        name: str
+    
+    force_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2})
+    mass_unit = Unit(scale=0, dim={SI.kg: 1})
+    
+    physics_data = PhysicsData(
+        force=Unitful(val=jnp.array([100.0, 200.0]), unit=force_unit),
+        mass=Unitful(val=jnp.array([5.0, 10.0]), unit=mass_unit),
+        name="test_data"
+    )
+    
+    # Using aset on the structure should work (this tests that aset works on containers)
+    new_force = Unitful(val=jnp.array([300.0, 400.0]), unit=force_unit)
+    new_data = physics_data.aset("force", new_force)
+
+    assert jnp.allclose(new_data.force.value(), jnp.array([300.0, 400.0]))
+    assert new_data.force.unit.dim == {SI.kg: 1, SI.m: 1, SI.s: -2}
+
+
+def test_astype_unitful_float_to_complex():
+    """Test astype with Unitful object converting float to complex dtype"""
+    # Create a Unitful object with float values
+    voltage_unit = Unit(scale=-3, dim={SI.kg: 1, SI.m: 2, SI.A: -1, SI.s: -3})  # millivolts
+    voltage = Unitful(val=jnp.array([1.5, 2.7, 3.9]), unit=voltage_unit)
+    
+    # Convert to complex dtype
+    result: Unitful = jnp.astype(voltage, jnp.complex64)  # type: ignore
+    
+    assert isinstance(result, Unitful)
+    # Values should be converted to complex with zero imaginary part
+    expected_vals = jnp.array([1.5+0j, 2.7+0j, 3.9+0j], dtype=jnp.complex64)
+    assert jnp.allclose(result.val, expected_vals)
+    # Units should be preserved
+    assert result.unit.dim == {SI.kg: 1, SI.m: 2, SI.A: -1, SI.s: -3}
+    # Check dtype conversion worked
+    assert result.val.dtype == jnp.complex64  # type: ignore
+
+
+def test_astype_jax_array():
+    """Test astype with regular JAX array"""
+    # Create a float array
+    array = jnp.array([1.2, 3.7, 5.8, 9.1])
+    
+    # Convert to int32
+    result = jnp.astype(array, jnp.int32)
+    
+    # Should return a regular JAX array with truncated values
+    expected = jnp.array([1, 3, 5, 9], dtype=jnp.int32)
+    assert jnp.array_equal(result, expected)
+    assert isinstance(result, jax.Array)
+    assert not isinstance(result, Unitful)
+    assert result.dtype == jnp.int32
+
+
+def test_unitful_astype_method():
+    """Test the Unitful.astype method directly on the class"""
+    # Create a Unitful object with integer values
+    energy_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -2})  # kilojoules
+    energy = Unitful(val=jnp.array([10, 25, 40], dtype=jnp.float32), unit=energy_unit)
+    
+    # Use the instance method to convert to float64
+    result = energy.astype(jnp.bfloat16)
+    
+    assert isinstance(result, Unitful)
+    # Values should be converted to float
+    expected_vals = jnp.array([10.0, 25.0, 40.0], dtype=jnp.bfloat16)
+    assert jnp.allclose(result.value(), expected_vals)
+    # Units should be preserved
+    assert result.unit.dim == {SI.kg: 1, SI.m: 2, SI.s: -2}
+    # Check dtype conversion worked
+    assert result.val.dtype == jnp.bfloat16  # type: ignore
+    # Original should be unchanged
+    assert energy.val.dtype == jnp.float32  # type: ignore
+    

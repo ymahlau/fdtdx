@@ -211,8 +211,17 @@ class Unitful(TreeClass):
     ) -> Self:
         del attr_name, val, create_new_ok
         raise Exception(
-            "the aset-method is unsafe for Unitful and therefore not implemented. Please use .at[].set() intead."
+            "the aset-method is unsafe for Unitful internals and therefore not implemented. "
+            "Please use .at[].set() intead. Note that using aset on structures containing unitful is safe and "
+            " implemented, just the internals of Unitful should not changed this way."
         )
+        
+    def astype(
+        self,
+        *args,
+        **kwargs
+    ) -> "Unitful":
+        return astype(self, *args, **kwargs)
 
     def __str__(self) -> str:
         return f"Unitful [{self.unit}]: {tree_repr(self.val)}"
@@ -758,3 +767,17 @@ def abs(x):  # type: ignore
     del x
     raise NotImplementedError()
 
+
+## astype #######################################
+@overload
+def astype(x: Unitful, *args, **kwargs) -> Unitful:
+    new_val = jnp._orig_astype(x.val, *args, **kwargs)  # type: ignore
+    return Unitful(val=new_val, unit=x.unit)
+
+@overload
+def astype(x: jax.Array, *args, **kwargs) -> jax.Array: return jnp._orig_astype(x, *args, **kwargs)  # type: ignore
+
+@dispatch
+def astype(x, *args, **kwargs):  # type: ignore
+    del x, args, kwargs
+    raise NotImplementedError()

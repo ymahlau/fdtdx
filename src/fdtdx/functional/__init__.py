@@ -32,6 +32,7 @@ from fdtdx.units.unitful import (
     mean,
     sum,
     abs,
+    astype,
 )
 
 __all__ = [
@@ -68,4 +69,5 @@ __all__ = [
     "mean",
     "sum",
     "abs",
+    "astype",
 ]
