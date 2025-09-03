@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import pytreeclass as tc
 from loguru import logger
 import fdtdx
-
+import fdtdx.units as fu
 
 def main():
     # Initialize experiment logger for saving outputs and tracking progress
@@ -17,19 +17,20 @@ def main():
     key = jax.random.PRNGKey(seed=42)
 
     # Set simulation wavelength and calculate corresponding period
-    wavelength = 1.55e-6
+    wavelength = 1.55e-6 * fu.m
     period = fdtdx.constants.wavelength_to_period(wavelength)
 
     # Define simulation configuration (duration, resolution, data type, etc.)
     config = fdtdx.SimulationConfig(
-        time=100e-15,
-        resolution=100e-9,
+        time=100e-15 * fu.s,
+        resolution=100e-9 * fu.m,
         dtype=jnp.float32,
         courant_factor=0.99,
     )
 
     # Calculate number of time steps per period and log simulation info
-    period_steps = round(period / config.time_step_duration)
+    exact_period_steps = (period / config.time_step_duration).float_materialise()
+    period_steps = round(exact_period_steps)
     logger.info(f"{config.time_steps_total=}")
     logger.info(f"{period_steps=}")
     logger.info(f"{config.max_travel_distance=}")
@@ -49,7 +50,7 @@ def main():
 
     # Define the simulation volume and background material
     volume = fdtdx.SimulationVolume(
-        partial_real_shape=(12.0e-6, 12e-6, 12e-6),
+        partial_real_shape=(12.0e-6 * fu.m, 12e-6 * fu.m, 12e-6 * fu.m),
         material=fdtdx.Material(  # Background material
             permittivity=2.0,
         )
@@ -68,10 +69,10 @@ def main():
     # Define and place the Gaussian source in the simulation volume
     source = fdtdx.GaussianPlaneSource(
         partial_grid_shape=(None, None, 1),
-        partial_real_shape=(10e-6, 10e-6, None),
+        partial_real_shape=(10e-6 * fu.m, 10e-6 * fu.m, None),
         fixed_E_polarization_vector=(1, 0, 0),
-        wave_character=fdtdx.WaveCharacter(wavelength=1.550e-6),
-        radius=4e-6,
+        wave_character=fdtdx.WaveCharacter(wavelength=1.550e-6 * fu.m),
+        radius=4e-6 * fu.m,
         std=1 / 3,
         direction="-",
         elevation_angle=-20.0,

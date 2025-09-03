@@ -9,7 +9,7 @@ FDTD field array shapes.
 import jax
 import jax.numpy as jnp
 
-from fdtdx.units.composite import J, W, V_per_m_unit, A_per_m_unit
+from fdtdx.units import J, W, V_per_m_unit, A_per_m_unit
 from fdtdx.units.typing import SI
 from fdtdx.units.unitful import Unitful
 import fdtdx.functional as ff

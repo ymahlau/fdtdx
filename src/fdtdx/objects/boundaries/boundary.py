@@ -6,6 +6,7 @@ import jax
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 from fdtdx.objects.object import SimulationObject
 from fdtdx.typing import GridShape3D, Slice3D, SliceTuple3D
+from fdtdx.units.unitful import Unitful
 
 
 @autoinit
@@ -58,7 +59,7 @@ class BaseBoundary(SimulationObject, ABC, Generic[T]):
     def update_E_boundary_state(
         self,
         boundary_state: T,
-        H: jax.Array,
+        H: Unitful,
     ) -> T:
         raise NotImplementedError()
 
@@ -66,26 +67,26 @@ class BaseBoundary(SimulationObject, ABC, Generic[T]):
     def update_H_boundary_state(
         self,
         boundary_state: T,
-        E: jax.Array,
+        E: Unitful,
     ) -> T:
         raise NotImplementedError()
 
     @abstractmethod
     def update_E(
         self,
-        E: jax.Array,
+        E: Unitful,
         boundary_state: T,
         inverse_permittivity: jax.Array,
-    ) -> jax.Array:
+    ) -> Unitful:
         raise NotImplementedError()
 
     @abstractmethod
     def update_H(
         self,
-        H: jax.Array,
+        H: Unitful,
         boundary_state: T,
         inverse_permeability: jax.Array | float,
-    ) -> jax.Array:
+    ) -> Unitful:
         raise NotImplementedError()
 
     def interface_grid_shape(self) -> GridShape3D:

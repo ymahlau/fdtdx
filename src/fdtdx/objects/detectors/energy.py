@@ -3,6 +3,7 @@ import jax
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.objects.detectors.detector import Detector, DetectorState
+from fdtdx.units.unitful import Unitful
 
 
 @autoinit
@@ -51,8 +52,8 @@ class EnergyDetector(Detector):
     def update(
         self,
         time_step: jax.Array,
-        E: jax.Array,
-        H: jax.Array,
+        E: Unitful,
+        H: Unitful,
         state: DetectorState,
         inv_permittivity: jax.Array,
         inv_permeability: jax.Array | float,

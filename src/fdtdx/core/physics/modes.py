@@ -10,7 +10,7 @@ from tidy3d.components.mode.solver import compute_modes as _compute_modes
 from fdtdx.core.physics.metrics import normalize_by_averaged_flux, normalize_by_poynting_flux
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.units.unitful import Unitful
-from fdtdx.units.composite import A, V, Hz, um, m
+from fdtdx.units import A, V, Hz, um, m
 
 ModeTupleType = namedtuple("Mode", ["neff", "Ex", "Ey", "Ez", "Hx", "Hy", "Hz"])
 """A named tuple containing the mode fields and effective index.

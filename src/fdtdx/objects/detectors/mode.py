@@ -9,6 +9,8 @@ from fdtdx.core.physics.modes import compute_mode
 from fdtdx.objects.detectors.detector import DetectorState
 from fdtdx.objects.detectors.phasor import PhasorDetector
 from fdtdx.typing import SliceTuple3D
+from fdtdx.units.unitful import Unitful
+import fdtdx.functional as ff
 
 
 @autoinit
@@ -46,8 +48,8 @@ class ModeOverlapDetector(PhasorDetector):
         init=False,  # in this detector, we always want all components. Do not give user a choice
     )  # noqa: DOC603, DOC601
     plot: bool = frozen_field(default=False, init=False)  # noqa: DOC603, DOC601 # single scalar is useless for plotting
-    _mode_E: jax.Array = private_field()
-    _mode_H: jax.Array = private_field()
+    _mode_E: Unitful = private_field()
+    _mode_H: Unitful = private_field()
 
     @property
     def propagation_axis(self) -> int:
@@ -85,7 +87,7 @@ class ModeOverlapDetector(PhasorDetector):
             inv_permeability_slice = inv_permeabilities
 
         mode_E, mode_H, _ = compute_mode(
-            frequency=self.wave_characters[0].frequency,
+            wave_character=self.wave_characters[0],
             inv_permittivities=inv_permittivity_slice,
             inv_permeabilities=inv_permeability_slice,
             resolution=self._config.resolution,
@@ -101,27 +103,27 @@ class ModeOverlapDetector(PhasorDetector):
     def compute_overlap_to_mode(
         self,
         state: DetectorState,
-        mode_E: jax.Array,
-        mode_H: jax.Array,
-    ) -> jax.Array:
+        mode_E: Unitful,
+        mode_H: Unitful,
+    ) -> Unitful:
         # shape (time step, num_freqs, num_components, *spatial)
         # time steps is always 1 and num_components always 6
         phasors = state["phasor"]
         phasors_E, phasors_H = phasors[0, 0, :3], phasors[0, 0, 3:]
 
-        E_cross_H_star_sim = jnp.cross(
+        E_cross_H_star_sim = ff.cross(
             mode_E,
-            jnp.conj(phasors_H),
+            ff.conj(phasors_H),
             axis=0,
         )[self.propagation_axis]
 
-        E_star_cross_H_sim = jnp.cross(
-            jnp.conj(phasors_E),
+        E_star_cross_H_sim = ff.cross(
+            ff.conj(phasors_E),
             mode_H,
             axis=0,
         )[self.propagation_axis]
 
-        alpha_coeff = jnp.sum(E_cross_H_star_sim + E_star_cross_H_sim)
+        alpha_coeff = ff.sum(E_cross_H_star_sim + E_star_cross_H_sim)
         alpha_coeff = alpha_coeff / 4.0
 
         return alpha_coeff
@@ -129,7 +131,7 @@ class ModeOverlapDetector(PhasorDetector):
     def compute_overlap(
         self,
         state: DetectorState,
-    ) -> jax.Array:
+    ) -> Unitful:
         if self._mode_E is None or self._mode_H is None:
             raise Exception("Need to call apply on ModeOverlapDetector before calling compute_mode_overlap!")
         return self.compute_overlap_to_mode(

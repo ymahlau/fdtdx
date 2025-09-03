@@ -2,9 +2,11 @@ from typing import Literal
 
 import jax
 
+from fdtdx import constants
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
-from fdtdx.core.physics.metrics import compute_poynting_flux
+from fdtdx.core.physics.metrics import compute_poynting_vector
 from fdtdx.objects.detectors.detector import Detector, DetectorState
+from fdtdx.units.unitful import Unitful
 
 
 @autoinit
@@ -67,17 +69,20 @@ class PoyntingFluxDetector(Detector):
     def update(
         self,
         time_step: jax.Array,
-        E: jax.Array,
-        H: jax.Array,
+        E: Unitful,
+        H: Unitful,
         state: DetectorState,
         inv_permittivity: jax.Array,
         inv_permeability: jax.Array | float,
     ) -> DetectorState:
-        del inv_permeability, inv_permittivity
+        del inv_permittivity
         cur_E = E[:, *self.grid_slice]
         cur_H = H[:, *self.grid_slice]
 
-        pf = compute_poynting_flux(cur_E, cur_H)
+        pf = compute_poynting_vector(
+            E=cur_E, 
+            B=constants.mu0 * cur_H / inv_permeability,
+        )
         if not self.keep_all_components:
             pf = pf[self.propagation_axis]
         if self.direction == "-":

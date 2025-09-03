@@ -20,6 +20,7 @@ from fdtdx.objects.device.device import Device
 from fdtdx.objects.object import SimulationObject
 from fdtdx.objects.sources.source import Source
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject, UniformMaterialObject
+from fdtdx.units.unitful import Unitful
 
 # Type alias for parameter dictionaries containing JAX arrays
 ParameterContainer = dict[str, dict[str, jax.Array] | jax.Array]
@@ -201,15 +202,15 @@ class ArrayContainer(TreeClass):
         magnetic_conductivity (jax.Array | None, optional): field for magnetic conductivity terms. Defaults to None.
     """
 
-    E: jax.Array
-    H: jax.Array
+    E: Unitful
+    H: Unitful
     inv_permittivities: jax.Array
     inv_permeabilities: jax.Array | float
     boundary_states: dict[str, BaseBoundaryState]
     detector_states: dict[str, DetectorState]
     recording_state: RecordingState | None
-    electric_conductivity: jax.Array | None = None
-    magnetic_conductivity: jax.Array | None = None
+    electric_conductivity: Unitful | None = None
+    magnetic_conductivity: Unitful | None = None
 
 
 # time step and arrays

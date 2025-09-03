@@ -6,6 +6,7 @@ from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.misc import add_boundary_interfaces, collect_boundary_interfaces
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.detectors.detector import Detector
+from fdtdx.units.unitful import Unitful
 
 
 def get_periodic_axes(objects: ObjectContainer) -> tuple[bool, bool, bool]:
@@ -58,7 +59,11 @@ def update_E(
 
     # Get periodic axes for curl operation
     periodic_axes = get_periodic_axes(objects)
-    curl = curl_H(arrays.H, periodic_axes)
+    curl = curl_H(
+        H=arrays.H,
+        resolution=config.resolution,
+        periodic_axes=periodic_axes
+    )
     inv_eps = arrays.inv_permittivities
     c = config.courant_number
     sigma_E = arrays.electric_conductivity
@@ -67,7 +72,8 @@ def update_E(
     if sigma_E is not None:
         # update formula for lossy material. Simplifies to Noop for conductivity = 0
         # for details see Schneider, chapter 3.12
-        factor = 1 - c * sigma_E * inv_eps / 2
+        # factor = 1.0 - c * sigma_E * inv_eps / 2
+        raise NotImplementedError()
 
     # standard update formula using lossless material
     E = factor * arrays.E + c * curl * inv_eps
@@ -75,7 +81,8 @@ def update_E(
     if sigma_E is not None:
         # update formula for lossy material. Simplifies to Noop for conductivity = 0
         # for details see Schneider, chapter 3.12
-        E = E / (1 + c * sigma_E * inv_eps / 2)
+        # E = E / (1 + c * sigma_E * inv_eps / 2)
+        raise NotImplementedError()
 
     for source in objects.sources:
 
@@ -152,19 +159,24 @@ def update_E_reverse(
 
     # Get periodic axes for curl operation
     periodic_axes = get_periodic_axes(objects)
-    curl = curl_H(arrays.H, periodic_axes)
+    curl = curl_H(
+        H=arrays.H, 
+        resolution=config.resolution,
+        periodic_axes=periodic_axes,
+    )
     inv_eps = arrays.inv_permittivities
     c = config.courant_number
     sigma_E = arrays.electric_conductivity
     factor = 1
 
     if sigma_E is not None:
-        E = E * (1 + c * sigma_E * inv_eps / 2)
-        factor = 1 - c * sigma_E * inv_eps / 2
+        raise NotImplementedError()
+        # E = E * (1 + c * sigma_E * inv_eps / 2)
+        # factor = 1 - c * sigma_E * inv_eps / 2
 
     E = E / factor - c * curl * inv_eps
 
-    arrays = arrays.at["E"].set(E)
+    arrays = arrays.aset("E", E)
 
     return arrays
 
@@ -206,7 +218,11 @@ def update_H(
 
     # Get periodic axes for curl operation
     periodic_axes = get_periodic_axes(objects)
-    curl = curl_E(arrays.E, periodic_axes)
+    curl = curl_E(
+        E=arrays.E,
+        resolution=config.resolution,
+        periodic_axes=periodic_axes
+    )
     inv_mu = arrays.inv_permeabilities
     c = config.courant_number
     sigma_H = arrays.magnetic_conductivity
@@ -214,7 +230,8 @@ def update_H(
     if sigma_H is not None:
         # update formula for lossy material. Simplifies to Noop for conductivity = 0
         # for details see Schneider, chapter 3.12
-        factor = 1 - c * sigma_H * inv_mu / 2
+        # factor = 1 - c * sigma_H * inv_mu / 2
+        raise NotImplementedError()
 
     # standard update formula for lossless material
     H = factor * arrays.H - c * curl * inv_mu
@@ -222,7 +239,8 @@ def update_H(
     if sigma_H is not None:
         # update formula for lossy material. Simplifies to NoOp for conductivity = 0
         # for details see Schneider, chapter 3.12
-        H = H / (1 + c * sigma_H * inv_mu / 2)
+        # H = H / (1 + c * sigma_H * inv_mu / 2)
+        raise NotImplementedError()
 
     for source in objects.sources:
 
@@ -250,7 +268,7 @@ def update_H(
                 inverse_permeability=arrays.inv_permeabilities,
             )
 
-    arrays = arrays.at["H"].set(H)
+    arrays = arrays.aset("H", H)
     if simulate_boundaries:
         arrays = arrays.aset("boundary_states", boundary_states)
 
@@ -299,7 +317,11 @@ def update_H_reverse(
 
     # Get periodic axes for curl operation
     periodic_axes = get_periodic_axes(objects)
-    curl = curl_E(arrays.E, periodic_axes)
+    curl = curl_E(
+        E=arrays.E,
+        resolution=config.resolution,
+        periodic_axes=periodic_axes,
+    )
     inv_mu = arrays.inv_permeabilities
     c = config.courant_number
     sigma_H = arrays.magnetic_conductivity
@@ -307,12 +329,13 @@ def update_H_reverse(
 
     if sigma_H is not None:
         # lossy materials get gain when simulating backwards
-        H = H * (1 + c * sigma_H * inv_mu / 2)
-        factor = 1 - c * sigma_H * inv_mu / 2
+        # H = H * (1 + c * sigma_H * inv_mu / 2)
+        # factor = 1 - c * sigma_H * inv_mu / 2
+        raise NotImplementedError()
 
     H = H / factor + c * curl * inv_mu
 
-    arrays = arrays.at["H"].set(H)
+    arrays = arrays.aset("H", H)
 
     return arrays
 
@@ -321,7 +344,7 @@ def update_detector_states(
     time_step: jax.Array,
     arrays: ArrayContainer,
     objects: ObjectContainer,
-    H_prev: jax.Array,
+    H_prev: Unitful,
     inverse: bool,
 ) -> ArrayContainer:
     """Updates detector states based on current field values.

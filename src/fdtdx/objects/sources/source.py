@@ -13,6 +13,8 @@ from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.object import SimulationObject
 from fdtdx.objects.sources.profile import SingleFrequencyProfile, TemporalProfile
 from fdtdx.typing import SliceTuple3D
+from fdtdx.units import J
+from fdtdx.units.unitful import Unitful
 
 
 @autoinit
@@ -66,12 +68,12 @@ class Source(SimulationObject, ABC):
     @abstractmethod
     def update_E(
         self,
-        E: jax.Array,
+        E: Unitful,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
         time_step: jax.Array,
         inverse: bool,
-    ) -> jax.Array:
+    ) -> Unitful:
         """Update the electric field component.
 
         Args:
@@ -89,12 +91,12 @@ class Source(SimulationObject, ABC):
     @abstractmethod
     def update_H(
         self,
-        H: jax.Array,
+        H: Unitful,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
         time_step: jax.Array,
         inverse: bool,
-    ) -> jax.Array:
+    ) -> Unitful:
         """Update the magnetic field component.
 
         Args:
@@ -138,18 +140,18 @@ class DirectionalPlaneSourceBase(Source, ABC):
 
 @autoinit
 class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
-    amplitude: float = frozen_field(default=1.0)
+    amplitude: Unitful = frozen_field(default=1.0*J)
     fixed_E_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
     fixed_H_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
 
     def update_E(
         self,
-        E: jax.Array,
+        E: Unitful,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
         time_step: jax.Array,
         inverse: bool,
-    ) -> jax.Array:
+    ) -> Unitful:
         del inv_permittivities, inv_permeabilities
         if inverse:
             return E
@@ -170,12 +172,12 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
 
     def update_H(
         self,
-        H: jax.Array,
+        H: Unitful,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
         time_step: jax.Array,
         inverse: bool,
-    ):
+    ) -> Unitful:
         del inv_permeabilities, inv_permittivities
         if inverse:
             return H

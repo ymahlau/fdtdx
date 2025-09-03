@@ -5,6 +5,8 @@ import jax.numpy as jnp
 
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.objects.detectors.detector import Detector, DetectorState
+from fdtdx.units.unitful import Unitful
+import fdtdx.functional as ff
 
 
 @autoinit
@@ -33,8 +35,8 @@ class FieldDetector(Detector):
     def update(
         self,
         time_step: jax.Array,
-        E: jax.Array,
-        H: jax.Array,
+        E: Unitful,
+        H: Unitful,
         state: DetectorState,
         inv_permittivity: jax.Array,
         inv_permeability: jax.Array | float,
@@ -42,7 +44,7 @@ class FieldDetector(Detector):
         del inv_permeability, inv_permittivity
 
         E, H = E[:, *self.grid_slice], H[:, *self.grid_slice]
-        fields = []
+        fields: list[Unitful] = []
         if "Ex" in self.components:
             fields.append(E[0])
         if "Ey" in self.components:
@@ -56,7 +58,7 @@ class FieldDetector(Detector):
         if "Hz" in self.components:
             fields.append(H[2])
 
-        EH = jnp.stack(fields, axis=0)
+        EH = ff.stack(fields, axis=0)
 
         if self.reduce_volume:
             EH = EH.mean(axis=(1, 2, 3))

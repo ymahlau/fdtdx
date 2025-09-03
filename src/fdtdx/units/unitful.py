@@ -144,11 +144,31 @@ class Unitful(TreeClass):
         factor = 10 ** self.unit.scale
         return self.val * factor
     
+    def float_materialise(self) -> float:
+        v = self.materialise()
+        assert isinstance(v, float), f"safe_float_materialise called on Unitful with non-float value: {self}"
+        return v
+    
+    def array_materialise(self) -> jax.Array:
+        v = self.materialise()
+        assert isinstance(v, jax.Array), f"safe_array_materialise called on Unitful with non-array value: {self}"
+        return v
+    
     def value(self) -> PhysicalArrayLike:
         scale = self.unit.scale
         if isinstance(scale, Fraction):
             scale = scale.value()
         return self.val * 10 ** scale
+    
+    def array_value(self) -> jax.Array:
+        v = self.value()
+        assert isinstance(v, jax.Array), f"safe_array_value called on Unitful with non-array value: {self}"
+        return v
+    
+    def float_value(self) -> float:
+        v = self.value()
+        assert isinstance(v, float), f"safe_float_value called on Unitful with non-float value: {self}"
+        return v
     
     @property
     def at(self) -> UnitfulIndexer:  # type: ignore

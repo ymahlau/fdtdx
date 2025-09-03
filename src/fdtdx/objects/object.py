@@ -24,6 +24,7 @@ from fdtdx.typing import (
     SliceTuple3D,
 )
 from fdtdx.units.unitful import Unitful
+from fdtdx.units import m
 
 _GLOBAL_COUNTER = 0
 
@@ -207,7 +208,9 @@ class SimulationObject(TreeClass, ABC):
 
     #: Maximum random offset values that can be applied to the object's position in real coordinates
     #: for each axis (x, y, z). Defaults to (0, 0, 0) for no random offset.
-    max_random_real_offsets: tuple[float, float, float] = frozen_field(default=(0, 0, 0))
+    max_random_real_offsets: tuple[Unitful, Unitful, Unitful] = frozen_field(
+        default=(0*m, 0*m, 0*m)
+    )
 
     #: Maximum random offset values that can be applied to the object's position in grid coordinates for each
     #: axis (x, y, z). Defaults to (0, 0, 0) for no random offset.
@@ -309,12 +312,12 @@ class SimulationObject(TreeClass, ABC):
             own_positions = (float(own_positions),)
         if isinstance(other_positions, int | float):
             other_positions = (float(other_positions),)
-        if isinstance(margins, int | float):
-            margins = (float(margins),)
+        if isinstance(margins, Unitful):
+            margins = (margins,)
         if isinstance(grid_margins, int):
             grid_margins = (grid_margins,)
         if margins is None:
-            margins = tuple([0 for _ in axes])
+            margins = tuple([0*m for _ in axes])
         if grid_margins is None:
             grid_margins = tuple([0 for _ in axes])
         if (
@@ -341,7 +344,7 @@ class SimulationObject(TreeClass, ABC):
         axes: tuple[int, ...] | int,
         other_axes: tuple[int, ...] | int | None = None,
         proportions: tuple[float, ...] | float | None = None,
-        offsets: tuple[float, ...] | float | None = None,
+        offsets: tuple[Unitful, ...] | Unitful | None = None,
         grid_offsets: tuple[int, ...] | int | None = None,
     ) -> SizeConstraint:
         """Creates a SizeConstraint between two objects. The constraint defines the size of this object relative
@@ -370,12 +373,12 @@ class SimulationObject(TreeClass, ABC):
             other_axes = (other_axes,)
         if isinstance(proportions, int | float):
             proportions = (float(proportions),)
-        if isinstance(offsets, int | float):
+        if isinstance(offsets, Unitful):
             offsets = (offsets,)
         if isinstance(grid_offsets, int):
             grid_offsets = (grid_offsets,)
         if offsets is None:
-            offsets = tuple([0 for _ in axes])
+            offsets = tuple([0*m for _ in axes])
         if grid_offsets is None:
             grid_offsets = tuple([0 for _ in axes])
         if proportions is None:
@@ -399,7 +402,7 @@ class SimulationObject(TreeClass, ABC):
         self,
         other: "SimulationObject",
         axes: tuple[int, ...] | int = (0, 1, 2),
-        offsets: tuple[float, ...] | float | None = None,
+        offsets: tuple[Unitful, ...] | Unitful | None = None,
         grid_offsets: tuple[int, ...] | int | None = None,
     ) -> SizeConstraint:
         """Creates a SizeConstraint that makes this object the same size as another object along specified axes.
@@ -435,7 +438,7 @@ class SimulationObject(TreeClass, ABC):
         axes: tuple[int, ...] | int = (0, 1, 2),
         own_positions: tuple[float, ...] | float | None = None,
         other_positions: tuple[float, ...] | float | None = None,
-        margins: tuple[float, ...] | float | None = None,
+        margins: tuple[Unitful, ...] | Unitful | None = None,
         grid_margins: tuple[int, ...] | int | None = None,
     ) -> PositionConstraint:
         """Creates a PositionConstraint that centers this object relative to another object along specified axes.
@@ -503,7 +506,7 @@ class SimulationObject(TreeClass, ABC):
         self,
         other: "SimulationObject",
         axes: tuple[int, ...] | int,
-        margins: tuple[float, ...] | float | None = None,
+        margins: tuple[Unitful, ...] | Unitful | None = None,
         grid_margins: tuple[int, ...] | int | None = None,
     ) -> PositionConstraint:
         """Creates a PositionConstraint that places this object facing another object in the positive direction
@@ -538,7 +541,7 @@ class SimulationObject(TreeClass, ABC):
         self,
         other: "SimulationObject",
         axes: tuple[int, ...] | int,
-        margins: tuple[float, ...] | float | None = None,
+        margins: tuple[Unitful, ...] | Unitful | None = None,
         grid_margins: tuple[int, ...] | int | None = None,
     ) -> PositionConstraint:
         """Creates a PositionConstraint that places this object facing another object in the negative direction
@@ -572,7 +575,7 @@ class SimulationObject(TreeClass, ABC):
     def place_above(
         self,
         other: "SimulationObject",
-        margins: tuple[float, ...] | float | None = None,
+        margins: tuple[Unitful, ...] | Unitful | None = None,
         grid_margins: tuple[int, ...] | int | None = None,
     ) -> PositionConstraint:
         """Creates a PositionConstraint that places this object above another object along the z-axis.
@@ -599,7 +602,7 @@ class SimulationObject(TreeClass, ABC):
     def place_below(
         self,
         other: "SimulationObject",
-        margins: tuple[float, ...] | float | None = None,
+        margins: tuple[Unitful, ...] | Unitful | None = None,
         grid_margins: tuple[int, ...] | int | None = None,
     ) -> PositionConstraint:
         """Creates a PositionConstraint that places this object below another object along the z-axis.
@@ -661,7 +664,7 @@ class SimulationObject(TreeClass, ABC):
         self,
         axes: tuple[int, ...] | int,
         sides: tuple[Literal["+", "-"], ...] | Literal["+", "-"],
-        coordinates: tuple[float, ...] | float,
+        coordinates: tuple[Unitful, ...] | Unitful,
     ) -> RealCoordinateConstraint:
         """Creates a RealCoordinateConstraint that forces specific sides of this object to align with
         given real-space coordinates. Used for precise positioning in physical units.
@@ -680,8 +683,8 @@ class SimulationObject(TreeClass, ABC):
             axes = (axes,)
         if isinstance(sides, str):
             sides = (sides,)
-        if isinstance(coordinates, int | float):
-            coordinates = (float(coordinates),)
+        if isinstance(coordinates, Unitful):
+            coordinates = (coordinates,)
         if len(axes) != len(sides) or len(axes) != len(coordinates):
             raise Exception("All inputs need to have the same lengths!")
         return RealCoordinateConstraint(
@@ -697,7 +700,7 @@ class SimulationObject(TreeClass, ABC):
         axis: int,
         direction: Literal["+", "-"],
         other_position: float | None = None,
-        offset: float = 0,
+        offset: Unitful = 0*m,
         grid_offset: int = 0,
     ) -> SizeExtensionConstraint:
         """Creates a SizeExtensionConstraint that extends this object along a specified axis until it

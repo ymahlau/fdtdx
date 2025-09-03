@@ -4,6 +4,7 @@ import jax.numpy as jnp
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
+from fdtdx.units.unitful import Unitful
 
 
 @autoinit
@@ -19,7 +20,7 @@ class Cylinder(StaticMultiMaterialObject):
         material_name (str): Name of the material in the materials dictionary to be used for the object.
     """
 
-    radius: float = frozen_field()
+    radius: Unitful = frozen_field()
     axis: int = frozen_field()
     material_name: str = frozen_field()
 

@@ -6,12 +6,13 @@ from fdtdx.fdtd.update import collect_interfaces, update_detector_states, update
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.objects.boundaries.boundary import BaseBoundaryState
 from fdtdx.objects.detectors.detector import DetectorState
+from fdtdx.units.unitful import Unitful
 
 
 def forward_single_args_wrapper(
     time_step: jax.Array,
-    E: jax.Array,
-    H: jax.Array,
+    E: Unitful,
+    H: Unitful,
     inv_permittivities: jax.Array,
     inv_permeabilities: jax.Array,
     boundary_states: dict[str, BaseBoundaryState],
@@ -25,8 +26,8 @@ def forward_single_args_wrapper(
     simulate_boundaries: bool,
 ) -> tuple[
     jax.Array,
-    jax.Array,
-    jax.Array,
+    Unitful,
+    Unitful,
     jax.Array,
     jax.Array | float,
     dict[str, BaseBoundaryState],

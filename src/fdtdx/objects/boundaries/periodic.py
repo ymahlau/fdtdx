@@ -7,6 +7,8 @@ from typing_extensions import override
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.plotting.colors import LIGHT_BLUE
 from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState
+from fdtdx.units.unitful import Unitful
+from fdtdx.units import m, A, V
 
 
 @autoinit
@@ -20,8 +22,8 @@ class PeriodicBoundaryState(BaseBoundaryState):
         H_opposite (jax.Array): Magnetic field values from opposite boundary
     """
 
-    E_opposite: jax.Array
-    H_opposite: jax.Array
+    E_opposite: Unitful
+    H_opposite: Unitful
 
 
 @autoinit
@@ -67,8 +69,8 @@ class PeriodicBoundary(BaseBoundary[PeriodicBoundaryState]):
         ext_shape = (3,) + self.grid_shape
 
         boundary_state = PeriodicBoundaryState(
-            E_opposite=jnp.zeros(shape=ext_shape, dtype=dtype),
-            H_opposite=jnp.zeros(shape=ext_shape, dtype=dtype),
+            E_opposite=(V / m) * jnp.zeros(shape=ext_shape, dtype=dtype),
+            H_opposite=(A / m) * jnp.zeros(shape=ext_shape, dtype=dtype),
         )
         return boundary_state
 
@@ -84,10 +86,10 @@ class PeriodicBoundary(BaseBoundary[PeriodicBoundaryState]):
     def update_E_boundary_state(
         self,
         boundary_state: PeriodicBoundaryState,
-        H: jax.Array,
+        H: Unitful,
     ) -> PeriodicBoundaryState:
         # Store H field values from opposite boundary
-        H_opposite = jnp.array(H[..., *self.opposite_slice])
+        H_opposite = H[..., *self.opposite_slice]
 
         return PeriodicBoundaryState(
             E_opposite=boundary_state.E_opposite,  # Keep existing E values
@@ -98,10 +100,10 @@ class PeriodicBoundary(BaseBoundary[PeriodicBoundaryState]):
     def update_H_boundary_state(
         self,
         boundary_state: PeriodicBoundaryState,
-        E: jax.Array,
+        E: Unitful,
     ) -> PeriodicBoundaryState:
         # Store E field values from opposite boundary
-        E_opposite = jnp.array(E[..., *self.opposite_slice])
+        E_opposite = E[..., *self.opposite_slice]
 
         return PeriodicBoundaryState(
             E_opposite=E_opposite,  # Update E values
@@ -147,10 +149,10 @@ class PeriodicBoundary(BaseBoundary[PeriodicBoundaryState]):
     @override
     def update_E(
         self,
-        E: jax.Array,
+        E: Unitful,
         boundary_state: PeriodicBoundaryState,
         inverse_permittivity: jax.Array,
-    ) -> jax.Array:
+    ) -> Unitful:
         del boundary_state, inverse_permittivity
 
         # Copy field values from opposite boundary
@@ -161,10 +163,10 @@ class PeriodicBoundary(BaseBoundary[PeriodicBoundaryState]):
     @override
     def update_H(
         self,
-        H: jax.Array,
+        H: Unitful,
         boundary_state: PeriodicBoundaryState,
         inverse_permeability: jax.Array | float,
-    ) -> jax.Array:
+    ) -> Unitful:
         del boundary_state, inverse_permeability
 
         # Copy field values from opposite boundary

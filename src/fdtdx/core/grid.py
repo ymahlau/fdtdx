@@ -4,6 +4,7 @@ import numpy as np
 from matplotlib.path import Path
 
 from fdtdx import constants
+from fdtdx.units.unitful import Unitful
 
 
 def calculate_spatial_offsets_yee() -> tuple[jax.Array, jax.Array]:
@@ -81,8 +82,8 @@ def calculate_time_offset_yee(
 
 
 def polygon_to_mask(
-    boundary: tuple[float, float, float, float],
-    resolution: float,
+    boundary: tuple[Unitful, Unitful, Unitful, Unitful],
+    resolution: Unitful,
     polygon_vertices: np.ndarray,
 ) -> np.ndarray:
     """

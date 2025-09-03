@@ -6,6 +6,8 @@ import jax.numpy as jnp
 from fdtdx.core.jax.pytrees import autoinit, field, frozen_field
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.detectors.detector import Detector, DetectorState
+from fdtdx.units.unitful import Unitful
+import fdtdx.functional as ff
 
 
 @autoinit
@@ -43,9 +45,9 @@ class PhasorDetector(Detector):
             raise Exception(f"Invalid dtype in PhasorDetector: {self.dtype}")
 
     @property
-    def _angular_frequencies(self) -> jax.Array:
-        freqs = [wc.frequency for wc in self.wave_characters]
-        return 2 * jnp.pi * jnp.array(freqs)
+    def _angular_frequencies(self) -> Unitful:
+        freqs = [wc.get_frequency() for wc in self.wave_characters]
+        return 2 * jnp.pi * ff.stack(freqs, axis=0)
 
     def _num_latent_time_steps(self) -> int:
         return 1
@@ -63,8 +65,8 @@ class PhasorDetector(Detector):
     def update(
         self,
         time_step: jax.Array,
-        E: jax.Array,
-        H: jax.Array,
+        E: Unitful,
+        H: Unitful,
         state: DetectorState,
         inv_permittivity: jax.Array,
         inv_permeability: jax.Array | float,
@@ -74,7 +76,7 @@ class PhasorDetector(Detector):
         static_scale = 2 / self.num_time_steps_recorded
 
         E, H = E[:, *self.grid_slice], H[:, *self.grid_slice]
-        fields = []
+        fields: list[Unitful] = []
         if "Ex" in self.components:
             fields.append(E[0])
         if "Ey" in self.components:
@@ -88,10 +90,10 @@ class PhasorDetector(Detector):
         if "Hz" in self.components:
             fields.append(H[2])
 
-        EH = jnp.stack(fields, axis=0)
+        EH = ff.stack(fields, axis=0)
 
         # Vectorized phasor calculation for all frequencies
-        phase_angles = self._angular_frequencies[:, None] * time_passed  # Shape: (num_freqs, 1)
+        phase_angles = (self._angular_frequencies[:, None] * time_passed).materialise()  # Shape: (num_freqs, 1)
         phasors = jnp.exp(1j * phase_angles)  # Shape: (num_freqs, 1)
         new_phasors = EH[None, ...] * phasors[..., None] * static_scale  # Broadcasting handles the multiplication
 
@@ -104,4 +106,4 @@ class PhasorDetector(Detector):
             result = state["phasor"] - new_phasors[None, ...]
         else:
             result = state["phasor"] + new_phasors[None, ...]
-        return {"phasor": result.astype(self.dtype)}
+        return {"phasor": result}

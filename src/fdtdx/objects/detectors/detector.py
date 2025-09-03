@@ -16,8 +16,9 @@ from fdtdx.objects.detectors.plotting.plot2d import plot_2d_from_slices
 from fdtdx.objects.detectors.plotting.video import generate_video_from_slices, plot_from_slices
 from fdtdx.objects.object import SimulationObject
 from fdtdx.typing import SliceTuple3D
+from fdtdx.units.unitful import Unitful
 
-DetectorState = dict[str, jax.Array]
+DetectorState = dict[str, Unitful]
 
 
 @autoinit
@@ -152,8 +153,8 @@ class Detector(SimulationObject, ABC):
     def update(
         self,
         time_step: jax.Array,
-        E: jax.Array,
-        H: jax.Array,
+        E: Unitful,
+        H: Unitful,
         state: DetectorState,
         inv_permittivity: jax.Array,
         inv_permeability: jax.Array | float,
@@ -219,8 +220,8 @@ class Detector(SimulationObject, ABC):
         figs = {}
         if squeezed_ndim == 1 and self.num_time_steps_recorded > 1:
             # do line plot
-            time_steps = np.where(np.asarray(self._is_on_at_time_step_arr))[0]
-            time_steps = time_steps * self._config.time_step_duration
+            time_steps = jnp.where(jnp.asarray(self._is_on_at_time_step_arr))[0]
+            time_steps = np.asarray((self._config.time_step_duration * time_steps).value())
             for k, v in squeezed_arrs.items():
                 fig = plot_line_over_time(arr=v, time_steps=time_steps.tolist(), metric_name=f"{self.name}: {k}")
                 figs[k] = fig
@@ -243,7 +244,7 @@ class Detector(SimulationObject, ABC):
         elif squeezed_ndim == 2 and self.num_time_steps_recorded > 1:
             # multiple time steps, 1d spatial data - visualize as 2D waterfall plot
             time_steps = np.where(np.asarray(self._is_on_at_time_step_arr))[0]
-            time_steps = time_steps * self._config.time_step_duration
+            time_steps = time_steps * self._config.time_step_duration.float_value()
 
             # Determine spatial axis based on which dimension has size > 1
             SCALE = 10  # μm per grid point
@@ -274,9 +275,9 @@ class Detector(SimulationObject, ABC):
                     xz_slice=squeezed_arrs["XZ Plane"],
                     yz_slice=squeezed_arrs["YZ Plane"],
                     resolutions=(
-                        self._config.resolution,
-                        self._config.resolution,
-                        self._config.resolution,
+                        self._config.resolution.float_value(),
+                        self._config.resolution.float_value(),
+                        self._config.resolution.float_value(),
                     ),
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,
@@ -295,9 +296,9 @@ class Detector(SimulationObject, ABC):
                     progress=progress,
                     num_worker=self.num_video_workers,
                     resolutions=(
-                        self._config.resolution,
-                        self._config.resolution,
-                        self._config.resolution,
+                        self._config.resolution.float_value(),
+                        self._config.resolution.float_value(),
+                        self._config.resolution.float_value(),
                     ),
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,
@@ -319,9 +320,9 @@ class Detector(SimulationObject, ABC):
                     xz_slice=xz_slice,
                     yz_slice=yz_slice,
                     resolutions=(
-                        self._config.resolution,
-                        self._config.resolution,
-                        self._config.resolution,
+                        self._config.resolution.float_value(),
+                        self._config.resolution.float_value(),
+                        self._config.resolution.float_value(),
                     ),
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,
@@ -341,9 +342,9 @@ class Detector(SimulationObject, ABC):
                     progress=progress,
                     num_worker=self.num_video_workers,
                     resolutions=(
-                        self._config.resolution,
-                        self._config.resolution,
-                        self._config.resolution,
+                        self._config.resolution.float_value(),
+                        self._config.resolution.float_value(),
+                        self._config.resolution.float_value(),
                     ),
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,

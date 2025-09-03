@@ -6,6 +6,7 @@ from fdtdx.core.grid import polygon_to_mask
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
+from fdtdx.units.unitful import Unitful
 
 
 @autoinit
@@ -22,7 +23,7 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
 
     material_name: str = frozen_field()
     axis: int = frozen_field()
-    vertices: np.ndarray = frozen_field()
+    vertices: Unitful = frozen_field()
 
     @property
     def horizontal_axis(self) -> int:

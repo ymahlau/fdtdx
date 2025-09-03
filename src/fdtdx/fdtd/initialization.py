@@ -24,6 +24,7 @@ from fdtdx.objects.object import (
 )
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject, UniformMaterialObject
 from fdtdx.typing import SliceTuple3D
+from fdtdx.units import V, A, m
 
 
 def place_objects(
@@ -100,7 +101,7 @@ def place_objects(
     )
     params = _init_params(
         objects=objects,
-        key=key,
+        key=key,y
     )
     arrays, config, info = _init_arrays(
         objects=objects,
@@ -198,14 +199,14 @@ def _init_arrays(
     # create E/H fields
     volume_shape = objects.volume.grid_shape
     ext_shape = (3, *volume_shape)
-    E = create_named_sharded_matrix(
+    arr_E = create_named_sharded_matrix(
         ext_shape,
         sharding_axis=1,
         value=0.0,
         dtype=config.dtype,
         backend=config.backend,
     )
-    H = create_named_sharded_matrix(
+    arr_H = create_named_sharded_matrix(
         ext_shape,
         value=0.0,
         dtype=config.dtype,
@@ -335,15 +336,17 @@ def _init_arrays(
         config = config.aset("gradient_config", grad_cfg)
 
     arrays = ArrayContainer(
-        E=E,
-        H=H,
+        E=(V/ m) * arr_E,
+        H=(A/m) * arr_H,
         inv_permittivities=inv_permittivities,
         inv_permeabilities=inv_permeabilities,
         boundary_states=boundary_states,
         detector_states=detector_states,
         recording_state=recording_state,
-        electric_conductivity=electric_conductivity,
-        magnetic_conductivity=magnetic_conductivity,
+        # electric_conductivity=electric_conductivity, TODO: fix
+        # magnetic_conductivity=magnetic_conductivity,
+        electric_conductivity=None,
+        magnetic_conductivity=None,
     )
     return arrays, config, info
 
@@ -436,9 +439,10 @@ def _resolve_object_constraints(
         for axis in range(3):
             if o.partial_grid_shape[axis] is not None:
                 shape_dict[o][axis] = o.partial_grid_shape[axis]
-            if o.partial_real_shape[axis] is not None:
+            cur_real_shape = o.partial_real_shape[axis]
+            if cur_real_shape is not None:
                 cur_grid_shape = round(
-                    o.partial_real_shape[axis] / resolution  # type: ignore
+                    (cur_real_shape / resolution).float_materialise()
                 )
                 shape_dict[o][axis] = cur_grid_shape
 
@@ -511,7 +515,9 @@ def _resolve_object_constraints(
             # absolute real coordinate constraints
             if isinstance(c, RealCoordinateConstraint):
                 for axis_idx, axis in enumerate(c.axes):
-                    cur_size = round(c.coordinates[axis_idx] / resolution)
+                    real_term = (c.coordinates[axis_idx] / resolution).materialise()
+                    assert isinstance(real_term, float)
+                    cur_size = round(real_term)
                     o = c.object
                     b_idx = 0 if c.sides[axis_idx] == "-" else 1
                     if slice_dict[o][axis][b_idx] is None:
@@ -537,7 +543,8 @@ def _resolve_object_constraints(
                     if c.grid_offsets[axis_idx] is not None:
                         grid_offset += c.grid_offsets[axis_idx]
                     if c.offsets[axis_idx] is not None:
-                        grid_offset += c.offsets[axis_idx] / resolution
+                        grid_offset += (c.offsets[axis_idx] / resolution).materialise()
+                    assert isinstance(grid_offset, float)
                     object_shape = round(other_shape * proportion + grid_offset)
                     # update or check consistency
                     if shape_dict[o][axis] is None:
@@ -571,7 +578,8 @@ def _resolve_object_constraints(
                     if grid_margin is not None:
                         other_offset += grid_margin
                     if real_margin is not None:
-                        other_offset += real_margin / resolution
+                        other_offset += (real_margin / resolution).materialise()
+                        assert isinstance(other_offset, float)
                     other_anchor = other_midpoint + factor * other_pos + other_offset
                     # calculate position of object
                     obj_pos = c.object_positions[axis_idx]
@@ -625,7 +633,8 @@ def _resolve_object_constraints(
                     if c.grid_offset is not None:
                         other_offset += c.grid_offset
                     if c.offset is not None:
-                        other_offset += c.offset / resolution
+                        other_offset += (c.offset / resolution).materialise()
+                        assert isinstance(other_offset, float)
                     other_anchor = round(other_midpoint + factor * c.other_position + other_offset)
                 else:
                     # if other is not specified, extend to boundary of simulation volume

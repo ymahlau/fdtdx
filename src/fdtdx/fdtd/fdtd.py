@@ -11,6 +11,7 @@ from fdtdx.fdtd.forward import forward, forward_single_args_wrapper
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.objects.boundaries.boundary import BaseBoundaryState
 from fdtdx.objects.detectors.detector import DetectorState
+from fdtdx.units.unitful import Unitful
 
 
 def reversible_fdtd(
@@ -84,8 +85,8 @@ def reversible_fdtd(
 
     @jax.custom_vjp
     def reversible_fdtd_primal(
-        E: jax.Array,
-        H: jax.Array,
+        E: Unitful,
+        H: Unitful,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array,
         boundary_states: dict[str, BaseBoundaryState],
@@ -203,8 +204,8 @@ def reversible_fdtd(
         )
 
     def fdtd_fwd(
-        E: jax.Array,
-        H: jax.Array,
+        E: Unitful,
+        H: Unitful,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array,
         boundary_states: dict[str, BaseBoundaryState],

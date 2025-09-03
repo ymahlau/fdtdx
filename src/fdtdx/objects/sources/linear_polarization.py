@@ -9,6 +9,8 @@ from fdtdx.core.linalg import get_wave_vector_raw, rotate_vector
 from fdtdx.core.misc import linear_interpolated_indexing, normalize_polarization_for_source
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.objects.sources.tfsf import TFSFPlaneSource
+from fdtdx.units import J
+from fdtdx.units.unitful import Unitful
 
 
 @autoinit
@@ -23,10 +25,10 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
     ) -> tuple[
-        jax.Array,  # E: (3, *grid_shape)
-        jax.Array,  # H: (3, *grid_shape)
-        jax.Array,  # time_offset_E: (3, *grid_shape)
-        jax.Array,  # time_offset_H: (3, *grid_shape)
+        Unitful,  # E: (3, *grid_shape)
+        Unitful,  # H: (3, *grid_shape)
+        Unitful,  # time_offset_E: (3, *grid_shape)
+        Unitful,  # time_offset_H: (3, *grid_shape)
     ]:
         inv_permittivities = inv_permittivities[*self.grid_slice]
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
@@ -130,7 +132,7 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
 
 @autoinit
 class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
-    radius: float = frozen_field()
+    radius: Unitful = frozen_field()
     std: float = frozen_field(default=1 / 3)  # relative to radius
 
     @staticmethod
@@ -176,7 +178,7 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
 
 @autoinit
 class UniformPlaneSource(LinearlyPolarizedPlaneSource):
-    amplitude: float = frozen_field(default=1.0)
+    amplitude: Unitful = frozen_field(default=1.0*J)
 
     def _get_amplitude_raw(
         self,

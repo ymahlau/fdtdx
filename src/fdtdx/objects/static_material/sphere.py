@@ -4,6 +4,7 @@ import jax.numpy as jnp
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
+from fdtdx.units.unitful import Unitful
 
 
 @autoinit
@@ -21,12 +22,12 @@ class Sphere(StaticMultiMaterialObject):
         radius_z (float | None, optional): The radius along the z-axis in meter. If none, use radius. Defaults to None.
     """
 
-    radius: float = frozen_field()
+    radius: Unitful = frozen_field()
     material_name: str = frozen_field()
     # Optional parameters for ellipsoid shape
-    radius_x: float | None = frozen_field(default=None)
-    radius_y: float | None = frozen_field(default=None)
-    radius_z: float | None = frozen_field(default=None)
+    radius_x: Unitful | None = frozen_field(default=None)
+    radius_y: Unitful | None = frozen_field(default=None)
+    radius_z: Unitful | None = frozen_field(default=None)
 
     def get_voxel_mask_for_shape(self) -> jax.Array:
         """Generates a voxel mask for a sphere or ellipsoid shape.

@@ -10,7 +10,7 @@ used in simulations.
 
 import math
 
-from fdtdx.units.composite import m, s, N, A
+from fdtdx.units import m, s, N, A
 from fdtdx.units.unitful import Unitful
 
 c: Unitful = 299792458.0 * m / s

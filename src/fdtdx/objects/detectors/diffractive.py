@@ -6,6 +6,7 @@ import jax.numpy as jnp
 from fdtdx import constants
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.objects.detectors.detector import Detector, DetectorState
+from fdtdx.units.unitful import Unitful
 
 
 @autoinit
@@ -96,12 +97,13 @@ class DiffractiveDetector(Detector):
     def update(
         self,
         time_step: jax.Array,
-        E: jax.Array,
-        H: jax.Array,
+        E: Unitful,
+        H: Unitful,
         state: DetectorState,
         inv_permittivity: jax.Array,
         inv_permeability: jax.Array | float,
     ) -> DetectorState:
+        raise NotImplementedError()
         del inv_permittivity, inv_permeability
 
         # Get grid dimensions for the plane perpendicular to propagation axis
