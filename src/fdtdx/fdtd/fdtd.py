@@ -312,7 +312,10 @@ def checkpointed_fdtd(
     state = (jnp.asarray(0, dtype=jnp.int32), arrays)
     state = eqxi.while_loop(
         max_steps=config.time_steps_total,
-        cond_fun=stopping_condition,
+        cond_fun=partial(
+            stopping_condition,
+            objects=objects,
+        ),
         body_fun=partial(
             forward,
             config=config,
