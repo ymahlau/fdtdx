@@ -1,12 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Optional
 
 import jax
 import jax.numpy as jnp
 
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
-from fdtdx.fdtd.container import ArrayContainer, SimulationState
-from fdtdx.objects.detectors.detector import DetectorState
+from fdtdx.fdtd.container import ArrayContainer, DetectorState, SimulationState, ObjectContainer
 
 
 @autoinit
@@ -18,12 +16,12 @@ class StoppingCondition(TreeClass, ABC):
     """
 
     @abstractmethod
-    def validate(self, arrays: ArrayContainer) -> None:
+    def validate(self, arrays: ArrayContainer, objects: ObjectContainer) -> None:
         """Optional pre-run validation; override in subclasses."""
         return
 
     @abstractmethod
-    def __call__(self, state: SimulationState) -> jax.Array:
+    def __call__(self, state: SimulationState, objects: ObjectContainer) -> jax.Array:
         """Evaluate the stopping condition.
 
         Args:
@@ -49,10 +47,10 @@ class TimeStepCondition(StoppingCondition):
 
     end_time_step: int = frozen_field()
 
-    def validate(self, arrays: ArrayContainer) -> None:
+    def validate(self, arrays: ArrayContainer, objects: ObjectContainer) -> None:
         pass
 
-    def __call__(self, state: SimulationState) -> jax.Array:
+    def __call__(self, state: SimulationState, objects: ObjectContainer) -> jax.Array:
         """Check if simulation should continue based on time step.
 
         Args:
@@ -68,7 +66,7 @@ class TimeStepCondition(StoppingCondition):
 @autoinit
 class EnergyConvergenceCondition(StoppingCondition):
     """Stopping condition based on convergence of energy values read off by an
-    EnergyDetector.
+    EnergyDetector with `reduce_volume=True`.
 
     This condition stops a simulation when the relative change in field
     energy between time steps falls below a specified threshold. A minimum
@@ -83,16 +81,40 @@ class EnergyConvergenceCondition(StoppingCondition):
         min_steps (int): The minimum number of time steps that must be
             completed before convergence checking begins. Defaults to
             ``100``.
+        detector_name (str): The name of the EnergyDetector from which
+            energy values will be obtained in order to determine the stopping condition.
     """
 
     threshold: float = frozen_field(default=1e-6)  # Relative change threshold
     end_time: int = frozen_field()
     min_steps: int = frozen_field(default=100)  # Minimum steps before checking convergence
+    detector_name: str = frozen_field()
 
-    def validate(self, arrays: ArrayContainer) -> None:
-        pass
+    def validate(self, arrays: ArrayContainer, objects: ObjectContainer) -> None:
+        if self.detector_name not in arrays.detector_states:
+            available = tuple(arrays.detector_states.keys())
+            raise KeyError(f"Detector '{self.detector_name}' not found. Available detectors: {available}")
+        det_state: DetectorState = arrays.detector_states[self.detector_name]
+        if "energy_detector" not in det_state:
+            available = tuple(det_state.keys())
+            raise KeyError(
+                f"Chosen detector does not seem to be an EnergyDetector, \"energy_detector\" key not found in DetectorState('{self.detector_name}'). "
+                f"Available keys: {available}"
+            )
+        readings = det_state["energy"]
 
-    def __call__(self, state: SimulationState) -> jax.Array:
+        if readings.ndim < 1:
+            raise ValueError(
+                f"DetectorState('{self.detector_name}') array must have a time axis; got ndim={readings.ndim}."
+            )
+        per_step_shape = tuple(readings.shape[1:])
+        if per_step_shape != (1,):
+            raise ValueError(
+                f"Per-step shape mismatch for detector '{self.detector_name}'. "
+                f"Expected {(1,)}, got {per_step_shape}."
+            )
+
+    def __call__(self, state: SimulationState, objects: ObjectContainer) -> jax.Array:
         """Check if simulation should continue based on field convergence.
 
         Args:
