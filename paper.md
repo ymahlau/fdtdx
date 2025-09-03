@@ -13,6 +13,9 @@ authors:
   - name: Frederik Schubert
     orcid: 0000-0001-8312-3943
     affiliation: 1
+  - name: Lukas Berg
+    oricd: 0000-0002-5684-6975
+    affiliation: 1
   - name: Bodo Rosenhahn
     orcid: 0000-0003-3861-1424
     affiliation: 1
@@ -132,8 +135,8 @@ Additionally, our conference paper on large-scale FDTD simulations [@mahlau2025f
 
 We thank [Antonio Calà Lesina](https://www.hot.uni-hannover.de/de/calalesina), [Reinhard Caspary](https://www.phoenixd.uni-hannover.de/de/caspary) and [Konrad Bethmann](https://www.tnt.uni-hannover.de/de/staff/bethmann/) for helping us understand the physics behind Maxwell's equations and how to implement them within FDTD. 
 Additionally, we acknowledge [Fabian Hartmann](https://www.tnt.uni-hannover.de/de/staff/hartmann/) for the initial idea of implementing a GPU accelerated FDTD algorithm.
-Moreover, community contributions from [Marko Simic](https://github.com/msimicphysics), [Tianxiang Dai](https://github.com/txdai) and [Robin Giesecke](https://github.com/TheDarkchip) improved features of FDTDX.
+Moreover, community contributions from [Marko Simic](https://github.com/msimicphysics), [Tianxiang Dai](https://github.com/txdai), [Vatsal Limbachia](https://github.com/renaissancenerd), [Agustín Galante](https://github.com/galcerte) and [Robin Giesecke](https://github.com/TheDarkchip) improved features of FDTDX.
 
-This work was supported by the Federal Ministry of Education and Research (BMBF), Germany under the AI service center KISSKI (grant no. 01IS22093C), the Lower Saxony Ministry of Science and Culture (MWK) through the zukunft.niedersachsen program of the Volkswagen Foundation and the Deutsche Forschungsgemeinschaft (DFG) under Germany’s Excellence Strategy within the Cluster of Excellence PhoenixD (EXC 2122) and (RO2497/17-1). Additionally, this was funded by the Deutsche Forschungsgemeinschaft (DFG, German Research Foundation) – 517733257.
+This work was supported by the Federal Ministry of Education and Research (BMBF), Germany under the AI service center KISSKI (grant no. 01IS22093C), the European Union within the Horizon Europe research and innovation programme under grant agreement no. 101136006 – XTREME, the Lower Saxony Ministry of Science and Culture (MWK) through the zukunft.niedersachsen program of the Volkswagen Foundation and the Deutsche Forschungsgemeinschaft (DFG) under Germany’s Excellence Strategy within the Cluster of Excellence PhoenixD (EXC 2122) and (RO2497/17-1). Additionally, this was funded by the Deutsche Forschungsgemeinschaft (DFG, German Research Foundation) – 517733257.
 
 # References
