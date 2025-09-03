@@ -14,7 +14,7 @@ authors:
     orcid: 0000-0001-8312-3943
     affiliation: 1
   - name: Lukas Berg
-    oricd: 0000-0002-5684-6975
+    orcid: 0000-0002-5684-6975
     affiliation: 1
   - name: Bodo Rosenhahn
     orcid: 0000-0003-3861-1424
