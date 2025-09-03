@@ -41,11 +41,11 @@ class TimeStepCondition(StoppingCondition):
     a specified end time is reached.
 
     Attributes:
-        end_time_step (int): Time step at which simulation ends.
+        end_step (int): Time step at which simulation ends.
             Can be found at SimulationConfig.time_step_duration
     """
 
-    end_time_step: int = frozen_field()
+    end_step: int = frozen_field()
 
     def validate(self, arrays: ArrayContainer, objects: ObjectContainer) -> None:
         pass
@@ -60,7 +60,7 @@ class TimeStepCondition(StoppingCondition):
             jax.Array: Boolean scalar - True if current time < end_time, False otherwise
         """
         time_step, _ = state
-        return self.end_time_step > time_step
+        return self.end_step > time_step
 
 
 @autoinit
@@ -76,7 +76,7 @@ class EnergyConvergenceCondition(StoppingCondition):
     Attributes:
         threshold (float): Relative change threshold for determining
             convergence. Defaults to ``1e-6``.
-        end_time (int): The maximum number of time steps before the
+        end_step (int): The maximum number of time steps before the
             simulation is stopped, regardless of convergence.
         min_steps (int): The minimum number of time steps that must be
             completed before convergence checking begins. Defaults to
@@ -86,7 +86,7 @@ class EnergyConvergenceCondition(StoppingCondition):
     """
 
     threshold: float = frozen_field(default=1e-6)  # Relative change threshold
-    end_time: int = frozen_field()
+    end_step: int = frozen_field()
     min_steps: int = frozen_field(default=100)  # Minimum steps before checking convergence
     detector_name: str = frozen_field()
 
@@ -110,12 +110,12 @@ class EnergyConvergenceCondition(StoppingCondition):
         per_step_shape = tuple(readings.shape[1:])
         if per_step_shape != (1,):
             raise ValueError(
-                f"Per-step shape mismatch for detector '{self.detector_name}'. "
+                f"Per-timestep shape mismatch for detector '{self.detector_name}'. "
                 f"Expected {(1,)}, got {per_step_shape}."
             )
 
     def __call__(self, state: SimulationState, objects: ObjectContainer) -> jax.Array:
-        """Check if simulation should continue based on field convergence.
+        """Check if simulation should continue based on energy convergence.
 
         Args:
             state: Current simulation state (SimulationState)
@@ -123,33 +123,38 @@ class EnergyConvergenceCondition(StoppingCondition):
         Returns:
             jax.Array: Boolean scalar - True if condition not met and time < end_time
         """
-        time_step, arrays = state
+        curr_time_step, arrays = state
         converged: jnp.ndarray = jnp.array(False, dtype=bool)
+        energy_readings: jax.Array = arrays.detector_states[self.detector_name]["energy"]
 
-        # Always continue if below minimum steps or at max time
-        time_condition = time_step < self.end_time
-        min_steps_condition = time_step >= self.min_steps
+        # Always continue if below minimum steps or below max time
+        time_condition = curr_time_step < self.end_step
+        min_steps_condition = curr_time_step >= self.min_steps
 
-        # Calculate current field energy
-        E_energy = jnp.sum(arrays.E**2)
-        H_energy = jnp.sum(arrays.H**2)
-        curr_total_energy = E_energy + H_energy
+        # Getting index of detector reading array from time step
+        # Detector reading does not necessarily have same number of readings as time steps
+        # due to an OnOffSwitch possibly being ingested
+        mapping = objects[self.detector_name]._time_step_to_arr_idx
+        time_steps = jnp.arange(self.end_step)
+        valid_mask = (time_steps <= curr_time_step) & (mapping != -1)
+        last_valid_pos = jnp.max(jnp.where(valid_mask, time_steps, -1))
+        # Clamp to 0 if no valid index found
+        last_valid_pos = jnp.maximum(last_valid_pos, 0)
+        idx = jnp.take(mapping, last_valid_pos)
 
-        # Mask
-        past_boundary = time_step > (self.min_steps - 1)
+        prev_idx = jnp.maximum(idx - 1, 0)
+        curr_total_energy = jax.lax.dynamic_index_in_dim(energy_readings, idx, axis=0, keepdims=False)
+        prev_total_energy = jax.lax.dynamic_index_in_dim(energy_readings, prev_idx, axis=0, keepdims=False)
 
-        # Compute with the *old* prev_total_energy
+        # Mask -- we do not check convergence until past_boundary is true,
+        # ergo we do not check it until after self.min_steps time steps have
+        # passed
+        past_boundary = curr_time_step > (self.min_steps - 1)
+
         converged = jnp.where(
             past_boundary,
             (curr_total_energy - prev_total_energy) < self.threshold,
             converged,
         )
         
-        # Update prev_total_energy
-        prev_total_energy = jnp.where(
-            time_step >= (self.min_steps - 1),
-            curr_total_energy,
-            prev_total_energy,
-        )
-
         return time_condition & (~min_steps_condition | ~converged)
