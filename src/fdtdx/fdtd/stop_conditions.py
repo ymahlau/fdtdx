@@ -66,8 +66,9 @@ class TimeStepCondition(StoppingCondition):
 
 
 @autoinit
-class FieldConvergenceCondition(StoppingCondition):
-    """Stopping condition based on field convergence.
+class EnergyConvergenceCondition(StoppingCondition):
+    """Stopping condition based on convergence of energy values read off by an
+    EnergyDetector.
 
     This condition stops a simulation when the relative change in field
     energy between time steps falls below a specified threshold. A minimum
