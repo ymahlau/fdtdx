@@ -29,8 +29,11 @@ class StoppingCondition(TreeClass, ABC):
 
         Returns:
             jax.Array: Boolean scalar - True if simulation should continue, False if it should stop
+
+        Raises:
+            NotImplementedError: Must be implemented by subclasses.
         """
-        pass
+        raise NotImplementedError()
 
 
 @autoinit
