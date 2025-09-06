@@ -2,14 +2,15 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from fdtdx.fdtd.fdtd import reversible_fdtd, checkpointed_fdtd, custom_fdtd_forward
-from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.config import SimulationConfig
+from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
+from fdtdx.fdtd.fdtd import checkpointed_fdtd, custom_fdtd_forward, reversible_fdtd
 from fdtdx.objects.object import SimulationObject
 
 
 class DummySimulationObject(SimulationObject):
     """Minimal mock implementation of a SimulationObject."""
+
     def __init__(self, name="dummy"):
         self.name = name
 
@@ -19,8 +20,8 @@ class DummySimulationObject(SimulationObject):
 
 @pytest.fixture
 def dummy_arrays():
-    field_shape = (3, 2, 2, 2)   # (components, nx, ny, nz)
-    mat_shape   = (2, 2, 2)      # scalar per voxel
+    field_shape = (3, 2, 2, 2)  # (components, nx, ny, nz)
+    mat_shape = (2, 2, 2)  # scalar per voxel
 
     return ArrayContainer(
         E=jnp.zeros(field_shape),
@@ -78,9 +79,14 @@ def test_checkpointed_fdtd_runs(dummy_arrays, dummy_objects, dummy_config):
 def test_custom_fdtd_forward_runs(dummy_arrays, dummy_objects, dummy_config):
     key = jax.random.PRNGKey(0)
     t, arrs = custom_fdtd_forward(
-        dummy_arrays, dummy_objects, dummy_config, key,
-        reset_container=True, record_detectors=False,
-        start_time=0, end_time=1
+        dummy_arrays,
+        dummy_objects,
+        dummy_config,
+        key,
+        reset_container=True,
+        record_detectors=False,
+        start_time=0,
+        end_time=1,
     )
 
     assert isinstance(t, jax.Array)
@@ -88,6 +94,7 @@ def test_custom_fdtd_forward_runs(dummy_arrays, dummy_objects, dummy_config):
 
 
 # --- Edge case tests ---
+
 
 def test_zero_time(dummy_arrays, dummy_objects):
     config = SimulationConfig(
@@ -114,9 +121,14 @@ def test_empty_objects(dummy_arrays, empty_objects, dummy_config):
 def test_custom_fdtd_forward_same_start_end(dummy_arrays, dummy_objects, dummy_config):
     key = jax.random.PRNGKey(0)
     t, arrs = custom_fdtd_forward(
-        dummy_arrays, dummy_objects, dummy_config, key,
-        reset_container=False, record_detectors=False,
-        start_time=1, end_time=1
+        dummy_arrays,
+        dummy_objects,
+        dummy_config,
+        key,
+        reset_container=False,
+        record_detectors=False,
+        start_time=1,
+        end_time=1,
     )
     # No evolution should occur
     assert int(t) == 1
