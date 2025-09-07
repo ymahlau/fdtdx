@@ -26,6 +26,7 @@ class StoppingCondition(TreeClass, ABC):
 
         Args:
             state: Current simulation state (SimulationState)
+            objects: Objects in simulation (ObjectContainer)
 
         Returns:
             jax.Array: Boolean scalar - True if simulation should continue, False if it should stop
@@ -58,6 +59,7 @@ class TimeStepCondition(StoppingCondition):
 
         Args:
             state: Current simulation state (SimulationState)
+            objects: Objects in simulation (ObjectContainer)
 
         Returns:
             jax.Array: Boolean scalar - True if current time < end_time, False otherwise
@@ -88,9 +90,9 @@ class EnergyConvergenceCondition(StoppingCondition):
             energy values will be obtained in order to determine the stopping condition.
     """
 
-    threshold: float = frozen_field(default=1e-6)  # Relative change threshold
+    threshold: float = frozen_field(default=1e-6)
     end_step: int = frozen_field()
-    min_steps: int = frozen_field(default=100)  # Minimum steps before checking convergence
+    min_steps: int = frozen_field(default=100)
     detector_name: str = frozen_field()
 
     def validate(self, arrays: ArrayContainer, objects: ObjectContainer) -> None:
@@ -122,6 +124,7 @@ class EnergyConvergenceCondition(StoppingCondition):
 
         Args:
             state: Current simulation state (SimulationState)
+            objects: Objects in simulation (ObjectContainer)
 
         Returns:
             jax.Array: Boolean scalar - True if condition not met and time < end_time
