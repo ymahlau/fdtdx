@@ -19,10 +19,10 @@ def run_fdtd(
                 "Custom stopping conditions are not yet compatible with gradient computation. "
                 "Set config.gradient_config to None or use default time-based stopping."
             )
-        stopping_condition.validate(arrays)
+        stopping_condition.validate(arrays, objects)
     else:
         # Default to time step-based if no stopping condition is provided
-        stopping_condition = TimeStepCondition(end_time_step=config.time_steps_total)
+        stopping_condition = TimeStepCondition(end_step=config.time_steps_total)
 
     if config.gradient_config is None:
         # only forward simulation, use standard while loop of checkpointed fdtd
