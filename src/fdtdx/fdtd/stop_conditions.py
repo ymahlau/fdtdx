@@ -16,7 +16,7 @@ class StoppingCondition(TreeClass, ABC):
     """
 
     @abstractmethod
-    def validate(self, arrays: ArrayContainer, objects: ObjectContainer) -> None:
+    def validate(self, state: SimulationState, objects: ObjectContainer) -> None:
         """Optional pre-run validation; override in subclasses."""
         return
 
@@ -51,7 +51,7 @@ class TimeStepCondition(StoppingCondition):
 
     end_step: int = frozen_field()
 
-    def validate(self, arrays: ArrayContainer, objects: ObjectContainer) -> None:
+    def validate(self, state: SimulationState, objects: ObjectContainer) -> None:
         pass
 
     def __call__(self, state: SimulationState, objects: ObjectContainer) -> jax.Array:
@@ -69,9 +69,54 @@ class TimeStepCondition(StoppingCondition):
 
 
 @autoinit
-class EnergyConvergenceCondition(StoppingCondition):
-    """Stopping condition based on convergence of energy values read off by an
-    EnergyDetector with `reduce_volume=True`.
+class EnergyThresholdCondition(StoppingCondition):
+    """This condition stops a simulation when the total energy in the simulation volume
+    falls below a specified threshold. A minimum number of steps can be enforced
+    before convergence checks are applied, and a hard cutoff is imposed at
+    ``end_time``. This condition is intended to be used with pulsed sources, where
+    the total amount of energy input in the volume is finite, therefore total energy
+    in the system is expected to converge towards zero eventually.
+
+    Attributes:
+        threshold (float): Lower energy threshold for determining
+            simulation termination. Defaults to ``1e-6``.
+        end_step (int): The maximum number of time steps before the
+            simulation is stopped, regardless of the threshold being reached.
+        min_steps (int): The minimum number of time steps that must be
+            completed before convergence checking begins. Defaults to
+            ``100``.
+    """
+
+    threshold: float = frozen_field(default=1e-6)
+    end_step: int = frozen_field()
+    min_steps: int = frozen_field(default=100)
+
+    def validate(self, state: SimulationState, objects: ObjectContainer) -> None:
+        pass
+
+    def __call__(self, state: SimulationState, objects: ObjectContainer) -> jax.Array:
+        """Check if simulation should continue based on energy reaching a threshold.
+        Energy checks are only able to terminate the simulation after the time step is larger than ``min_steps``.
+
+        Args:
+            state: Current simulation state (SimulationState)
+            objects: Objects in simulation (ObjectContainer)
+
+        Returns:
+            jax.Array: Boolean scalar - True if condition not met and time < end_time
+        """
+        curr_time_step, arrays = state
+        time_condition = curr_time_step < self.end_step
+        total_energy = jnp.sum(arrays.E**2) + jnp.sum(arrays.H**2)
+        converged = total_energy < self.threshold
+
+        return time_condition & (~(curr_time_step < self.min_steps) | ~converged)
+
+
+@autoinit
+class DetectorConvergenceCondition(StoppingCondition):
+    """Stopping condition based on convergence of values read off by a
+    Detector with `reduce_volume=True`.
 
     This condition stops a simulation when the relative change in field
     energy between time steps falls below a specified threshold. A minimum
@@ -95,15 +140,17 @@ class EnergyConvergenceCondition(StoppingCondition):
     min_steps: int = frozen_field(default=100)
     detector_name: str = frozen_field()
 
-    def validate(self, arrays: ArrayContainer, objects: ObjectContainer) -> None:
+    def validate(self, state: SimulationState, objects: ObjectContainer) -> None:
+        _, arrays = state
         if self.detector_name not in arrays.detector_states:
             available = tuple(arrays.detector_states.keys())
             raise KeyError(f"Detector '{self.detector_name}' not found. Available detectors: {available}")
         det_state: DetectorState = arrays.detector_states[self.detector_name]
-        if "energy_detector" not in det_state:
+        if ("energy" not in det_state) or ("poynting_flux" not in det_state) or ("fields" not in det_state):
             available = tuple(det_state.keys())
             raise KeyError(
-                f"Chosen detector does not seem to be an EnergyDetector, \"energy_detector\" key not found in DetectorState('{self.detector_name}'). "
+                f"Chosen detector does not seem to be an EnergyDetector, PoyntingFluxDetector, FieldDetector"
+                f"with reduce_volume=True, \"energy_detector\" key not found in DetectorState('{self.detector_name}').\n "
                 f"Available keys: {available}"
             )
         readings = det_state["energy"]
