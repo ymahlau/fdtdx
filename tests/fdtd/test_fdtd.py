@@ -50,7 +50,7 @@ def empty_objects():
 @pytest.fixture
 def dummy_config():
     return SimulationConfig(
-        time=1.0,
+        time=0.1,
         resolution=1.0,
         backend="gpu",
         dtype=jnp.float32,
