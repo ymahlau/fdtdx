@@ -1,8 +1,19 @@
 import pytest
 import jax.numpy as jnp
-from fdtdx.units.composite import m, s
+from fdtdx.units import m, s
 from fdtdx.units.unitful import Unitful
-from fdtdx.constants import wavelength_to_period, c
+from fdtdx.constants import wavelength_to_period, c, mu0, eps0, eta0
+
+
+def test_eps0():
+    calculated_eps0 = 1.0 / (mu0 * c**2)
+    assert jnp.allclose(calculated_eps0.value(), eps0.value())
+    assert calculated_eps0.unit.dim == eps0.unit.dim
+    
+def test_eta0():
+    calculated_eta0 = mu0 * c
+    assert jnp.allclose(calculated_eta0.value(), eta0.value())
+    assert calculated_eta0.unit.dim == eta0.unit.dim
 
 
 def test_wavelength_to_period_basic_calculation():

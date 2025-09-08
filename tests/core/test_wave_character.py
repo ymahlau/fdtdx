@@ -3,7 +3,7 @@ import jax.numpy as jnp
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.units.unitful import Unit, Unitful
 from fdtdx.units.typing import SI
-from fdtdx.units.composite import Hz, s, m
+from fdtdx.units import Hz, s, m
 from fdtdx import constants
 
 

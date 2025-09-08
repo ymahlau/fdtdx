@@ -1,10 +1,8 @@
 import math
 import pytest
 import jax.numpy as jnp
-from fdtdx.core.fraction import Fraction
 from fdtdx.units.typing import SI
 from fdtdx.units.unitful import Unit, Unitful
-from fdtdx.units.composite import s, m, Hz
 from fdtdx.config import SimulationConfig
 from fdtdx import constants
 

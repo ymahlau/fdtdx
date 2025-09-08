@@ -3,7 +3,7 @@ import jax.numpy as jnp
 
 from fdtdx.core.physics.modes import compute_mode
 from fdtdx.core.wavelength import WaveCharacter
-from fdtdx.units.composite import m, V, A
+from fdtdx.units import m, V, A
 
 def test_modes_basic():
     inv_perm = jnp.ones((200, 200, 1))

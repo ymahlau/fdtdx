@@ -11,7 +11,7 @@ from fdtdx.core.physics.metrics import (
     normalize_by_energy,
     normalize_by_poynting_flux,
 )
-from fdtdx.units.composite import V, W_unit, m, A, J, s
+from fdtdx.units import V, W_unit, m, A
 from fdtdx.units.typing import SI
 from fdtdx.units.unitful import Unitful
 from fdtdx.constants import eps0, mu0

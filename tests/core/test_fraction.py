@@ -247,5 +247,5 @@ class TestFraction(unittest.TestCase):
             self.zero ** -1
         
         # Non-integer exponents should return NotImplemented
-        result = self.f1.__pow__(2.5)
+        result = self.f1.__pow__(2.5)  # type: ignore
         self.assertEqual(result, NotImplemented)

@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 import fdtdx.functional as ff
 from fdtdx.core.physics.curl import curl_E, curl_H, interpolate_fields
-from fdtdx.units.composite import V, m, A
+from fdtdx.units import V, m, A
 
 
 def test_interpolate_fields_basic():
