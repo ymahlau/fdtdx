@@ -6,7 +6,7 @@ from fdtdx.core.fraction import Fraction
 from fdtdx.functional.numpy import sqrt, roll, transpose
 from fdtdx.units.typing import SI
 from fdtdx.units.unitful import Unit, Unitful
-from fdtdx.units.composite import Hz, s, ms, m_per_s 
+from fdtdx.units import Hz, s, ms, m_per_s 
 import jax.numpy as jnp
 
 def test_sqrt_unitful_even_integer_dimensions():

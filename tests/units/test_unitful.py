@@ -9,8 +9,7 @@ from fdtdx.units.unitful import (
     Unitful, 
     add,
     matmul, 
-    multiply, 
-    remainder, 
+    multiply,
     subtract,
     eq,
     lt,
@@ -162,32 +161,6 @@ def test_subtract_different_units_raises_error():
     
     with pytest.raises(ValueError):
         subtract(u1, u2)
-
-
-def test_remainder_same_units():
-    """Test remainder operation of two Unitful objects with the same dimensions."""
-    # Create two times in seconds
-    unit_s = Unit(scale=0, dim={SI.s: 1})
-    u1 = Unitful(val=jnp.array(10.0), unit=unit_s)
-    u2 = Unitful(val=jnp.array(3.0), unit=unit_s)
-    
-    result = jnp.remainder(u1, u2)  # type: ignore
-    
-    assert isinstance(result, Unitful)
-    assert jnp.allclose(result.value(), 1.0)  # 10 % 3 = 1
-    assert result.unit.dim == {SI.s: 1}
-
-
-def test_remainder_different_units_raises_error():
-    """Test that remainder of Unitful objects with different dimensions raises ValueError."""
-    # Create amount of substance and luminous intensity units
-    unit_mol = Unit(scale=0, dim={SI.mol: 1})
-    unit_cd = Unit(scale=0, dim={SI.cd: 1})
-    u1 = Unitful(val=jnp.array(7.0), unit=unit_mol)
-    u2 = Unitful(val=jnp.array(2.0), unit=unit_cd)
-    
-    with pytest.raises(ValueError):
-        remainder(u1, u2)
 
 
 def test_le_magic_method():

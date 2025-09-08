@@ -1,9 +1,11 @@
-from typing import Sequence
+import math
+from typing import Any, Sequence
+import jax
 import jax.numpy as jnp
-from jax import core
 import numpy as np
 
 from fdtdx.core.fraction import Fraction
+from fdtdx.core.jax.utils import is_traced
 from fdtdx.units.typing import SI, PhysicalArrayLike
 
 
@@ -90,7 +92,7 @@ def handle_different_scales(
 
 def best_scale(
     arr: PhysicalArrayLike,
-    noop_in_jit: bool = True,
+    previous_scale: int,
 ) -> tuple[PhysicalArrayLike, int]:
     """ 
     This uses some static approximations to find the scale of an ArrayLike that has the best numerical accuracy.
@@ -105,47 +107,50 @@ def best_scale(
         tuple[ArrayLike, int]: Tuple of the numerical arraylike, and the power of 10, which the array was multiplied 
         with.
     """
-    if noop_in_jit and isinstance(arr, core.Tracer):
+    # we cannot optimize traced values, leave unchanged
+    if is_traced(arr):
         return arr, 0
     
-    # if nans are in the array do nothing
-    if jnp.any(jnp.isnan(arr)) or jnp.any(jnp.isinf(arr)):
-        return arr, 0
+    def scalar_helper(abs_val):
+        if math.isnan(abs_val):
+            raise Exception(
+                f"Detected NaN-value in Unitful array: {arr}"
+            )
+        # best scale is zero, so eliminate previous scale
+        if not math.isfinite(abs_val) or abs_val == 0:
+            return arr, previous_scale
+        log_offset = -round(math.log(abs_val, 10))
+        new_arr = arr * (10 ** log_offset)
+        return new_arr, log_offset
     
-    # Convert to array for easier manipulation
-    arr_jax = jnp.abs(jnp.asarray(arr))
+    # scalar logic: absolute value as close to one
+    if isinstance(arr, float | complex | int):
+        abs_val = abs(arr)
+        return scalar_helper(abs_val)
     
-    if noop_in_jit:
-        # Handle edge case: all values are zero
-        non_zero_mask = arr_jax != 0
-        if jnp.sum(non_zero_mask) == 0:
-            return arr, 0
-        
-        # Calculate median of absolute non-zero values.
-        # Masking works here only because we are not in jitted context
-        nonzero_values = arr_jax[non_zero_mask]
-        median_abs = jnp.median(nonzero_values)
-    else:
-        # Replace zeros with NaN
-        arr_for_median = jnp.where(arr_jax == 0, jnp.nan, arr_jax)
-        
-        # Use nanmedian to ignore NaN values
-        median_abs = jnp.nanmedian(arr_for_median)
-        
-        # Handle case where all values were zero (result would be NaN)
-        median_abs = jnp.where(jnp.isnan(median_abs), 1.0, median_abs)
+    assert isinstance(arr, jax.Array | np.ndarray), "Internal error, please report"
     
-    # Find the power of 10 that brings median to around 1.0
-    # log10(median_abs * scale_factor) ≈ 0
-    # so scale_factor = 10^(-log10(median_abs))
-    log_median: float = jnp.log10(median_abs).item()
-    target_power = -round(log_median)
-    scale_factor = 10.0 ** target_power
+    # array of size 1 can be handled the same as 
+    if arr.size == 1:
+        abs_val = abs(arr.item())
+        return scalar_helper(abs_val)
     
-    # Apply scaling
-    scaled_arr = arr * scale_factor
+    np_arr = np.asarray(arr)
     
-    return scaled_arr, target_power
+    
+    # all values are zero: best scale is zero, so eliminate previous scale
+    if np.any(np.isnan(arr)) or not np.all(np.isfinite(np_arr)) or np.all(np_arr == 0):
+        return arr, previous_scale
+    
+    # Calculate median of absolute non-zero values.
+    # Masking works here only because we are not working with jax arrays
+    non_zero_mask = np_arr != 0
+    nonzero_values = np_arr[non_zero_mask]
+    median_abs = np.median(np.abs(nonzero_values)).item()
+    log_offset = -round(math.log(median_abs, 10))
+    
+    scaled_arr = arr * (10.0 ** log_offset)
+    return scaled_arr, log_offset
 
 
 def dim_after_multiplication(
@@ -161,3 +166,20 @@ def dim_after_multiplication(
         else:
             unit_dict[k] = v
     return unit_dict
+
+
+def is_struct_optimizable(
+    a: Any
+) -> bool:
+    if is_traced(a):
+        return False
+    if isinstance(a, PhysicalArrayLike):
+        return True
+    if isinstance(a, Sequence):
+        return all([
+            is_struct_optimizable(a_i)
+            for a_i in a
+        ])
+    return False
+
+

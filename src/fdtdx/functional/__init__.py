@@ -12,13 +12,13 @@ from fdtdx.functional.numpy import (
     roll,
     real,
     imag,
+    asarray,
 )
 from fdtdx.units.unitful import (
     multiply,
     divide,
     add,
     subtract,
-    remainder,
     lt,
     le,
     eq,
@@ -31,7 +31,7 @@ from fdtdx.units.unitful import (
     max,
     mean,
     sum,
-    abs,
+    abs_impl as abs,
     astype,
 )
 
@@ -50,12 +50,12 @@ __all__ = [
     "roll",
     "real",
     "imag",
+    "asarray",
     # unitful inherent methods
     "multiply",
     "divide",
     "add",
     "subtract",
-    "remainder",
     "lt",
     "le",
     "eq",

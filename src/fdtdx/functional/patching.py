@@ -6,7 +6,6 @@ from fdtdx.units.unitful import (
     divide,
     add,
     subtract,
-    remainder,
     lt,
     le,
     eq,
@@ -19,7 +18,7 @@ from fdtdx.units.unitful import (
     max,
     mean,
     sum,
-    abs,
+    abs_impl,
     astype,
 )
 
@@ -37,6 +36,7 @@ from fdtdx.functional.numpy import (
     roll,
     real,
     imag,
+    asarray,
 )
 
 def patch_fn_to_module(
@@ -63,7 +63,6 @@ def patch_all_functions():
         (divide, "true_divide"),
         (add, None),
         (subtract, None),
-        (remainder, None),
         (lt, "less"),
         (le, "less_equal"),
         (eq, "equal"),
@@ -79,8 +78,8 @@ def patch_all_functions():
         (sum, None),
         (roll, None),
         (square, None),
-        (abs, None),
-        (abs, "absolute"),
+        (abs_impl, "abs"),
+        (abs_impl, "absolute"),
         (cross, None),
         (conj, None),
         (conj, "conjugate"),
@@ -93,6 +92,7 @@ def patch_all_functions():
         (real, None),
         (imag, None),
         (astype, None),
+        (asarray, None)
     ]
     for fn, orig in _full_patch_list_numpy:
         patch_fn_to_module(
