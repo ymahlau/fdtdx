@@ -30,10 +30,10 @@ def calculate_time_offset_yee(
     wave_vector: jax.Array,
     inv_permittivities: jax.Array,
     inv_permeabilities: jax.Array | float,
-    resolution: float,
-    time_step_duration: float,
+    resolution: Unitful,
+    time_step_duration: Unitful,
     effective_index: jax.Array | float | None = None,
-) -> tuple[jax.Array, jax.Array]:
+) -> tuple[Unitful, Unitful]:
     if inv_permittivities.squeeze().ndim != 2 or inv_permittivities.ndim != 3:
         raise Exception(f"Invalid permittivity shape: {inv_permittivities.shape=}")
     if 1 not in inv_permittivities.shape:
@@ -76,8 +76,8 @@ def calculate_time_offset_yee(
     if effective_index is not None:
         refractive_idx = effective_index * jnp.ones_like(refractive_idx)
     velocity = (constants.c / refractive_idx)[None, ...]
-    time_offset_E = travel_offset_E * resolution / (velocity * time_step_duration)
-    time_offset_H = travel_offset_H * resolution / (velocity * time_step_duration)
+    time_offset_E = resolution * travel_offset_E / (velocity * time_step_duration)
+    time_offset_H = resolution * travel_offset_H / (velocity * time_step_duration)
     return time_offset_E, time_offset_H
 
 

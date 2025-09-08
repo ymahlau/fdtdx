@@ -77,9 +77,9 @@ def normalize_by_energy(
         inv_permeability=inv_permeability,
     )
     energy_sum = ff.sum(total_energy) * resolution**3
-    norm_factor = (energy_sum / normalization_target).materialise()
-    norm_E = E / jnp.sqrt(norm_factor)
-    norm_H = H / jnp.sqrt(norm_factor)
+    norm_factor = energy_sum / normalization_target
+    norm_E = E / ff.sqrt(norm_factor)
+    norm_H = H / ff.sqrt(norm_factor)
     assert norm_E.unit.dim == E.unit.dim
     assert norm_H.unit.dim == H.unit.dim
     return norm_E, norm_H
@@ -186,8 +186,8 @@ def normalize_by_poynting_flux(
         normal_vector=normal_vector,
         axis=axis,
     )
-    norm_factor = (flux / normalization_target).materialise()
-    factor = jnp.sqrt(jnp.abs(norm_factor))
+    norm_factor = flux / normalization_target
+    factor = ff.sqrt(ff.abs(norm_factor))
     
     norm_E = E * factor
     norm_B = B * factor
@@ -234,8 +234,8 @@ def normalize_by_averaged_flux(
         normal_vector=normal_vector,
         axis=axis,
     )
-    norm_factor = (avg_flux / normalization_target).materialise()
-    factor = jnp.sqrt(jnp.abs(norm_factor))
+    norm_factor = avg_flux / normalization_target
+    factor = ff.sqrt(ff.abs(norm_factor))
     
     norm_E = E * factor
     norm_H = H * factor

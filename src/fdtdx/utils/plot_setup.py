@@ -73,7 +73,6 @@ def plot_setup(
     else:
         fig = None
     assert axs is not None
-    resolution = config.resolution / 1.0e-6  # Convert to µm
 
     # get a color map
     colored_objects: list[SimulationObject] = [o for o in object_list if o.color is not None]
@@ -105,18 +104,21 @@ def plot_setup(
             frameon=False,
         )
 
+    def resolution_helper(p: int) -> float:
+            return (p * config.resolution).float_value()
+    
     # Plot each object on the corresponding subplot
     for obj in colored_objects:
         slices = obj.grid_slice_tuple
         color = obj.color
-
+        
         # XY plane at Z center
         if exclude_xy_plane_object_list is None or obj not in exclude_xy_plane_object_list:
             axs[0].add_patch(
                 Rectangle(
-                    (slices[0][0] * resolution, slices[1][0] * resolution),
-                    (slices[0][1] - slices[0][0]) * resolution,
-                    (slices[1][1] - slices[1][0]) * resolution,
+                    (resolution_helper(slices[0][0]), resolution_helper(slices[1][0])),
+                    resolution_helper(slices[0][1] - slices[0][0]),
+                    resolution_helper(slices[1][1] - slices[1][0]),
                     color=color,
                     alpha=0.5,
                     linestyle="--" if isinstance(obj, PeriodicBoundary) else "-",
@@ -127,9 +129,9 @@ def plot_setup(
         if exclude_xz_plane_object_list is None or obj not in exclude_xz_plane_object_list:
             axs[1].add_patch(
                 Rectangle(
-                    (slices[0][0] * resolution, slices[2][0] * resolution),
-                    (slices[0][1] - slices[0][0]) * resolution,
-                    (slices[2][1] - slices[2][0]) * resolution,
+                    (resolution_helper(slices[0][0]), resolution_helper(slices[2][0])),
+                    resolution_helper(slices[0][1] - slices[0][0]),
+                    resolution_helper(slices[2][1] - slices[2][0]),
                     color=color,
                     alpha=0.5,
                     linestyle="--" if isinstance(obj, PeriodicBoundary) else "-",
@@ -140,9 +142,9 @@ def plot_setup(
         if exclude_yz_plane_object_list is None or obj not in exclude_yz_plane_object_list:
             axs[2].add_patch(
                 Rectangle(
-                    (slices[1][0] * resolution, slices[2][0] * resolution),
-                    (slices[1][1] - slices[1][0]) * resolution,
-                    (slices[2][1] - slices[2][0]) * resolution,
+                    (resolution_helper(slices[1][0]), resolution_helper(slices[2][0])),
+                    resolution_helper(slices[1][1] - slices[1][0]),
+                    resolution_helper(slices[2][1] - slices[2][0]),
                     color=color,
                     alpha=0.5,
                     linestyle="--" if isinstance(obj, PeriodicBoundary) else "-",
@@ -150,23 +152,23 @@ def plot_setup(
             )
 
     # Set labels and titles
-    axs[0].set_xlabel("x (µm)")
-    axs[0].set_ylabel("y (µm)")
+    axs[0].set_xlabel("x [m]")
+    axs[0].set_ylabel("y [m]")
     axs[0].set_title("XY plane")
-    axs[0].set_xlim([0, volume.grid_shape[0] * resolution])
-    axs[0].set_ylim([0, volume.grid_shape[1] * resolution])
+    axs[0].set_xlim([0, resolution_helper(volume.grid_shape[0])])
+    axs[0].set_ylim([0, resolution_helper(volume.grid_shape[1])])
 
-    axs[1].set_xlabel("x (µm)")
-    axs[1].set_ylabel("z (µm)")
+    axs[1].set_xlabel("x [m]")
+    axs[1].set_ylabel("z [m]")
     axs[1].set_title("XZ plane")
-    axs[1].set_xlim([0, volume.grid_shape[0] * resolution])
-    axs[1].set_ylim([0, volume.grid_shape[2] * resolution])
+    axs[1].set_xlim([0, resolution_helper(volume.grid_shape[0])])
+    axs[1].set_ylim([0, resolution_helper(volume.grid_shape[2])])
 
-    axs[2].set_xlabel("y (µm)")
-    axs[2].set_ylabel("z (µm)")
+    axs[2].set_xlabel("y [m]")
+    axs[2].set_ylabel("z [m]")
     axs[2].set_title("YZ plane")
-    axs[2].set_xlim([0, volume.grid_shape[1] * resolution])
-    axs[2].set_ylim([0, volume.grid_shape[2] * resolution])
+    axs[2].set_xlim([0, resolution_helper(volume.grid_shape[1])])
+    axs[2].set_ylim([0, resolution_helper(volume.grid_shape[2])])
 
     # Adjust the plots for better visualization
     for ax in axs:

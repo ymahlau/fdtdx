@@ -8,21 +8,20 @@ The module also defines standard permittivity configurations for different mater
 used in simulations.
 """
 
-import math
+from fdtdx.units.unitful import Unitful, Unit, SI
 
-from fdtdx.units import m, s, N, A
-from fdtdx.units.unitful import Unitful
-
-c: Unitful = 299792458.0 * m / s
+c: Unitful = Unitful(val=2.99792458, unit=Unit(scale=8, dim={SI.m: 1, SI.s: -1}))
 """Speed of light in vacuum (m/s)."""
 
-mu0: Unitful = 1.25663706127 * N / (A * A)
+mu0: Unitful = Unitful(val=1.25663706127, unit=Unit(scale=-6, dim={SI.kg: 1, SI.m: 1, SI.s: -2, SI.A: -2}))
 """Vacuum permeability (H/m)."""
 
-eps0: Unitful = 1.0 / (mu0 * c**2)
+# eps0: Unitful = 1.0 / (mu0 * c**2)
+eps0: Unitful = Unitful(val=8.8541878188, unit=Unit(scale=-12, dim={SI.A: 2, SI.kg: -1, SI.m: -3, SI.s: 4}))
 """Vacuum permittivity (F/m)."""
 
-eta0: Unitful = mu0 * c
+# eta0: Unitful = mu0 * c
+eta0: Unitful = Unitful(val=3.76730313412, unit=Unit(scale=2, dim={SI.kg: 1, SI.m: 2, SI.s: -3, SI.A: -2}))
 """Free space impedance (Ω)."""
 
 # Relative Permittivities of different materials

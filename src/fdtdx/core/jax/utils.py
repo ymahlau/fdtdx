@@ -1,5 +1,6 @@
 import jax
-
+import jax.numpy as jnp
+from jax import core
 
 def check_specs(
     arrays: dict[str, jax.Array] | jax.Array,
@@ -43,3 +44,9 @@ def check_shape_dtype(
             raise Exception(f"Wrong dtype: {exp_shape_dtype.dtype} != {arr.dtype}")
         if arr.shape != exp_shape_dtype.shape:
             raise Exception(f"Wrong shape: {exp_shape_dtype.shape} != {arr.shape}")
+
+def is_currently_jitting() -> bool:
+    return isinstance(jnp.array(1) + 1, core.Tracer)
+
+def is_traced(x) -> bool:
+    return isinstance(x, core.Tracer)
