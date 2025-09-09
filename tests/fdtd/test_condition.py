@@ -62,7 +62,7 @@ class TestCondition:
         arrays = sim_data["arrays"]
         end_step = 100
 
-        # 1. Test TimeStepCondition
+        # TimeStepCondition
         time_step_cond = TimeStepCondition(end_step=end_step)
         ts_result = time_step_cond(state, objects)
         
@@ -70,7 +70,7 @@ class TestCondition:
         assert ts_result.dtype == jnp.bool_
         assert ts_result.shape == ()
 
-        # 2. Test EnergyThresholdCondition
+        # EnergyThresholdCondition
         energy_threshold_cond = EnergyThresholdCondition(
             threshold=1e-6,
             end_step=end_step,
@@ -82,7 +82,7 @@ class TestCondition:
         assert et_result.dtype == jnp.bool_
         assert et_result.shape == ()
 
-        # 3. Test DetectorConvergenceCondition
+        # Test DetectorConvergenceCondition
         # Mock dependencies for DetectorConvergenceCondition
         detector_name = "test_detector"
         arrays.detector_states[detector_name] = {"energy": jnp.zeros((end_step, 1))}
@@ -122,8 +122,8 @@ class TestCondition:
         state = (jnp.array(end_step + 1), state[1])
         assert not cond_fun(state, objects)
 
-    def test_energy_convergence_condition(self, setup_simulation_state):
-        """Test the EnergyConvergenceCondition stopping condition."""
+    def test_energy_threshold_condition(self, setup_simulation_state):
+        """Test the EnergyThresholdCondition stopping condition."""
         sim_data = setup_simulation_state
         objects = sim_data["objects"]
         arrays = sim_data["arrays"]
@@ -150,6 +150,65 @@ class TestCondition:
             threshold=threshold,
             end_step=end_step,
             min_steps=min_steps,
+        )
+
+        # Test before min_steps -> should continue
+        state_before_min = (jnp.array(min_steps - 10), arrays)
+        assert cond_fun(state_before_min, objects)
+
+        # Test after min_steps, but not converged -> should continue
+        # Energy difference is larger than threshold
+        state_not_converged = (jnp.array(min_steps + 1), arrays)
+        assert cond_fun(state_not_converged, objects)
+
+        # Test after min_steps and under threshold -> should stop
+        # To simulate having a lower energy than the threshold, we'll manually
+        # create a state where the energy is below the threshold
+        converged_energy_readings = jnp.ones(end_step).reshape(-1, 1)
+        converged_energy_readings = converged_energy_readings.at[min_steps + 1].set(
+            converged_energy_readings[min_steps] + threshold / 10
+        )
+        arrays.detector_states[detector_name]["energy"] = converged_energy_readings
+        state_converged = (jnp.array(min_steps + 1), arrays)
+        assert not cond_fun(state_converged, objects)
+
+        # Test at end_step -> should stop regardless of convergence
+        state_at_end = (jnp.array(end_step), arrays)
+        assert not cond_fun(state_at_end, objects)
+
+    def test_detector_convergence_condition(self, setup_simulation_state):
+        """Test the DetectorConvergenceCondition stopping condition."""
+        sim_data = setup_simulation_state
+        objects = sim_data["objects"]
+        arrays = sim_data["arrays"]
+        config = sim_data["config"]
+        cw_source_period = 5e-11  # 20 GHz
+
+        detector_name = "energy_detector"
+        end_step = 200
+        min_steps = 100
+        threshold = 1e-5
+
+        # Mock the energy detector readings and object properties
+        energy_readings = jnp.linspace(1.0, 0.0, end_step).reshape(-1, 1)
+        
+        # Create a mock for the detector state that can be indexed
+        detector_state_mock = {"energy": energy_readings}
+        arrays.detector_states[detector_name] = detector_state_mock
+
+        # Mock the object with the time step to array index mapping
+        detector_object_mock = Mock()
+        # Simple 1-to-1 mapping for this test
+        detector_object_mock._time_step_to_arr_idx = jnp.arange(end_step)
+        objects[detector_name] = detector_object_mock
+
+        cond_fun = DetectorConvergenceCondition(
+            k=5,
+            spp=(cw_source_period / 2) / config.time_step_duration,
+            threshold=threshold,
+            end_step=end_step,
+            min_steps=min_steps,
+            detector_name=detector_name,
         )
 
         # Test before min_steps -> should continue
