@@ -12,11 +12,14 @@ from fdtdx.functional.numpy import (
     roll,
     real,
     imag,
-    asarray,
-    array,
     sin,
     cos,
     tan,
+    asarray,
+    array,
+    exp,
+    expand_dims,
+    where,
 )
 from fdtdx.units.unitful import (
     multiply,
@@ -38,6 +41,7 @@ from fdtdx.units.unitful import (
     abs_impl as abs,
     astype,
     squeeze,
+    reshape,
 )
 from fdtdx.functional.linalg import (
     norm
@@ -61,11 +65,14 @@ __all__ = [
     "roll",
     "real",
     "imag",
-    "asarray",
-    "array",
     "sin",
     "cos",
     "tan",
+    "asarray",
+    "array",
+    "exp",
+    "expand_dims",
+    "where",
     # unitful inherent methods
     "multiply",
     "divide",
@@ -86,6 +93,7 @@ __all__ = [
     "abs",
     "astype",
     "squeeze",
+    "reshape",
     # linalg
     "norm",
     # jax

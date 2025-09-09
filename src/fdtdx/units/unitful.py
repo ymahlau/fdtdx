@@ -12,7 +12,7 @@ from plum import add_conversion_method, dispatch, overload
 from pytreeclass import tree_repr
 
 from fdtdx.core.jax.utils import is_currently_jitting, is_traced
-from fdtdx.units.typing import PHYSICAL_DTYPES, SI, PhysicalArrayLike, StaticPhysicalArrayLike
+from fdtdx.units.typing import PHYSICAL_DTYPES, SI, PhysicalArrayLike, RealPhysicalArrayLike, StaticPhysicalArrayLike
 from fdtdx.units.utils import best_scale, dim_after_multiplication, handle_different_scales
 
 """ This determines the maximum size where an array can be saved statically for optimization during jit tracing"""
@@ -280,6 +280,13 @@ class Unitful(TreeClass):
         axis: int | None = None,
     ) -> "Unitful":
         return squeeze(self, axis)
+    
+    def reshape(
+        self,
+        *args,
+        **kwargs,
+    ) -> "Unitful":
+        return reshape(self, args, **kwargs)
 
     def __str__(self) -> str:
         try:
@@ -302,34 +309,34 @@ class Unitful(TreeClass):
     def __rtruediv__(self, other: PhysicalArrayLike | "Unitful") -> "Unitful":
         return divide(other, self)
     
-    def __add__(self, other: "Unitful") -> "Unitful":
+    def __add__(self, other: "Unitful | PhysicalArrayLike") -> "Unitful":
         return add(self, other)
     
-    def __radd__(self, other: "Unitful") -> "Unitful":
+    def __radd__(self, other: "Unitful | PhysicalArrayLike") -> "Unitful":
         return add(self, other)
     
-    def __sub__(self, other: "Unitful") -> "Unitful":
+    def __sub__(self, other: "Unitful | PhysicalArrayLike") -> "Unitful":
         return subtract(self, other)
     
-    def __rsub__(self, other: "Unitful") -> "Unitful":
+    def __rsub__(self, other: "Unitful | PhysicalArrayLike") -> "Unitful":
         return subtract(other, self)
     
-    def __lt__(self, other: "Unitful") -> jax.Array | bool:
+    def __lt__(self, other: "Unitful | RealPhysicalArrayLike") -> jax.Array | bool:
         return lt(self, other)
     
-    def __le__(self, other: "Unitful") -> jax.Array | bool:
+    def __le__(self, other: "Unitful | RealPhysicalArrayLike") -> jax.Array | bool:
         return le(self, other)
     
-    def __eq__(self, other: "Unitful") -> jax.Array | bool:
+    def __eq__(self, other: "Unitful | RealPhysicalArrayLike") -> jax.Array | bool:
         return eq(self, other)
     
-    def __ne__(self, other: "Unitful") -> jax.Array | bool:  # type: ignore
+    def __ne__(self, other: "Unitful | RealPhysicalArrayLike") -> jax.Array | bool:  # type: ignore
         return ne(self, other)
     
-    def __ge__(self, other: "Unitful") -> jax.Array | bool:
+    def __ge__(self, other: "Unitful | RealPhysicalArrayLike") -> jax.Array | bool:
         return ge(self, other)
     
-    def __gt__(self, other: "Unitful") -> jax.Array | bool:
+    def __gt__(self, other: "Unitful | RealPhysicalArrayLike") -> jax.Array | bool:
         return gt(self, other)
     
     def __len__(self):
@@ -746,6 +753,22 @@ def lt(
     return _same_dim_binary_fn_bool_return(x, y, "lt")
 
 @overload
+def lt(
+    x: Unitful,
+    y: RealPhysicalArrayLike,
+) -> jax.Array | bool:
+    assert x.unit.dim == {}, f"Cannot compare unitful with dim {x.unit.dim} to unitless quantity"
+    return lt(x, Unitful(val=float(y), unit=EMPTY_UNIT))
+
+@overload
+def lt(
+    x: RealPhysicalArrayLike,
+    y: Unitful,
+) -> jax.Array | bool:
+    assert y.unit.dim == {}, f"Cannot compare unitful with dim {y.unit.dim} to unitless quantity"
+    return lt(Unitful(val=float(x), unit=EMPTY_UNIT), y)
+
+@overload
 def lt(x: int | float, y: int | float) -> bool: return x < y
 
 @overload
@@ -765,6 +788,22 @@ def le(
     if isinstance(x.val, float | int | complex) and isinstance(y.val, float | int | complex):
         return x.value() <= y.value()  # type: ignore
     return _same_dim_binary_fn_bool_return(x, y, "le")
+
+@overload
+def le(
+    x: Unitful,
+    y: RealPhysicalArrayLike,
+) -> jax.Array | bool:
+    assert x.unit.dim == {}, f"Cannot compare unitful with dim {x.unit.dim} to unitless quantity"
+    return le(x, Unitful(val=float(y), unit=EMPTY_UNIT))
+
+@overload
+def le(
+    x: RealPhysicalArrayLike,
+    y: Unitful,
+) -> jax.Array | bool:
+    assert y.unit.dim == {}, f"Cannot compare unitful with dim {y.unit.dim} to unitless quantity"
+    return le(Unitful(val=float(x), unit=EMPTY_UNIT), y)
 
 @overload
 def le(x: int | float, y: int | float) -> bool: return x <= y
@@ -788,6 +827,22 @@ def eq(
     return _same_dim_binary_fn_bool_return(x, y, "eq")
 
 @overload
+def eq(
+    x: Unitful,
+    y: RealPhysicalArrayLike,
+) -> jax.Array | bool:
+    assert x.unit.dim == {}, f"Cannot compare unitful with dim {x.unit.dim} to unitless quantity"
+    return eq(x, Unitful(val=float(y), unit=EMPTY_UNIT))
+
+@overload
+def eq(
+    x: RealPhysicalArrayLike,
+    y: Unitful,
+) -> jax.Array | bool:
+    assert y.unit.dim == {}, f"Cannot compare unitful with dim {y.unit.dim} to unitless quantity"
+    return eq(Unitful(val=float(x), unit=EMPTY_UNIT), y)
+
+@overload
 def eq(x: int | float | complex, y: int | float | complex) -> bool: return x == y
 
 @overload
@@ -807,6 +862,22 @@ def ne(
     if isinstance(x.val, float | int | complex) and isinstance(y.val, float | int | complex):
         return x.value() != y.value()
     return _same_dim_binary_fn_bool_return(x, y, "ne")
+
+@overload
+def ne(
+    x: Unitful,
+    y: RealPhysicalArrayLike,
+) -> jax.Array | bool:
+    assert x.unit.dim == {}, f"Cannot compare unitful with dim {x.unit.dim} to unitless quantity"
+    return ne(x, Unitful(val=float(y), unit=EMPTY_UNIT))
+
+@overload
+def ne(
+    x: RealPhysicalArrayLike,
+    y: Unitful,
+) -> jax.Array | bool:
+    assert y.unit.dim == {}, f"Cannot compare unitful with dim {y.unit.dim} to unitless quantity"
+    return ne(Unitful(val=float(x), unit=EMPTY_UNIT), y)
 
 @overload
 def ne(x: int | float | complex, y: int | float | complex) -> bool: return x != y
@@ -830,6 +901,22 @@ def ge(
     return _same_dim_binary_fn_bool_return(x, y, "ge")
 
 @overload
+def ge(
+    x: Unitful,
+    y: RealPhysicalArrayLike,
+) -> jax.Array | bool:
+    assert x.unit.dim == {}, f"Cannot compare unitful with dim {x.unit.dim} to unitless quantity"
+    return ge(x, Unitful(val=float(y), unit=EMPTY_UNIT))
+
+@overload
+def ge(
+    x: RealPhysicalArrayLike,
+    y: Unitful,
+) -> jax.Array | bool:
+    assert y.unit.dim == {}, f"Cannot compare unitful with dim {y.unit.dim} to unitless quantity"
+    return ge(Unitful(val=float(x), unit=EMPTY_UNIT), y)
+
+@overload
 def ge(x: int | float, y: int | float) -> bool: return x >= y
 
 @overload
@@ -849,6 +936,22 @@ def gt(
     if isinstance(x.val, float | int | complex) and isinstance(y.val, float | int | complex):
         return x.value() > y.value()  # type: ignore
     return _same_dim_binary_fn_bool_return(x, y, "gt")
+
+@overload
+def gt(
+    x: Unitful,
+    y: RealPhysicalArrayLike,
+) -> jax.Array | bool:
+    assert x.unit.dim == {}, f"Cannot compare unitful with dim {x.unit.dim} to unitless quantity"
+    return gt(x, Unitful(val=float(y), unit=EMPTY_UNIT))
+
+@overload
+def gt(
+    x: RealPhysicalArrayLike,
+    y: Unitful,
+) -> jax.Array | bool:
+    assert y.unit.dim == {}, f"Cannot compare unitful with dim {y.unit.dim} to unitless quantity"
+    return gt(Unitful(val=float(x), unit=EMPTY_UNIT), y)
 
 @overload
 def gt(x: int | float, y: int | float) -> bool: return x > y
@@ -1023,5 +1126,20 @@ def squeeze(x: jax.Array, *args, **kwargs) -> jax.Array:
 
 @dispatch
 def squeeze(x, *args, **kwargs):  # type: ignore
+    del x, args, kwargs
+    raise NotImplementedError()
+
+
+## reshape #######################################
+@overload
+def reshape(x: Unitful, *args, **kwargs) -> Unitful:
+    return unary_fn(x, "reshape", *args, **kwargs)
+
+@overload
+def reshape(x: jax.Array, *args, **kwargs) -> jax.Array:
+    return jnp._orig_reshape(x, *args, **kwargs)  # type: ignore
+
+@dispatch
+def reshape(x, *args, **kwargs):  # type: ignore
     del x, args, kwargs
     raise NotImplementedError()

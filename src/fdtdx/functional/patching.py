@@ -21,6 +21,7 @@ from fdtdx.units.unitful import (
     abs_impl,
     astype,
     squeeze,
+    reshape,
 )
 
 from fdtdx.functional.numpy import (
@@ -37,11 +38,14 @@ from fdtdx.functional.numpy import (
     roll,
     real,
     imag,
-    asarray,
-    array,
     sin,
     cos,
     tan,
+    asarray,
+    array,
+    exp,
+    expand_dims,
+    where,
 )
 from fdtdx.functional.linalg import (
     norm,
@@ -104,12 +108,16 @@ def patch_all_functions():
         (real, None),
         (imag, None),
         (astype, None),
-        (asarray, None),
-        (array, None),
         (squeeze, None),
         (sin, None),
         (cos, None),
         (tan, None),
+        (asarray, None),
+        (array, None),
+        (exp, None),
+        (expand_dims, None),
+        (where, None),
+        (reshape, None),
     ]
     for fn, orig in _full_patch_list_numpy:
         patch_fn_to_module(

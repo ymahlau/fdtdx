@@ -14,6 +14,14 @@ PhysicalArrayLike = Union[
     np.ndarray,
 ]
 
+RealPhysicalArrayLike = Union[
+    int,
+    float,
+    jax.Array,
+    np.number,
+    np.ndarray,
+]
+
 StaticPhysicalArrayLike = Union[
     int,
     float,

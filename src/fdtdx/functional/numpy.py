@@ -11,7 +11,7 @@ from plum import dispatch, overload
 from fdtdx.core.fraction import Fraction
 from fdtdx.core.jax.utils import is_currently_jitting, is_traced
 from fdtdx.units.typing import PHYSICAL_DTYPES, SI, PhysicalArrayLike
-from fdtdx.units.unitful import EMPTY_UNIT, MAX_OPTIMIZED_ARR_SIZE, Unit, Unitful, get_static_operand, output_unitful_for_array, unary_fn
+from fdtdx.units.unitful import EMPTY_UNIT, MAX_OPTIMIZED_ARR_SIZE, Unit, Unitful, align_scales, get_static_operand, output_unitful_for_array, unary_fn
 from fdtdx.units.utils import dim_after_multiplication, handle_n_scales, is_struct_optimizable
 
 ## Square Root ###########################
@@ -628,10 +628,8 @@ def tan(x: np.ndarray | np.number) -> np.ndarray:
 @dispatch
 def tan(  # type: ignore
     x,
-    *args,
-    **kwargs,
 ):
-    del x, args, kwargs
+    del x
     raise NotImplementedError()
 
 
@@ -642,7 +640,13 @@ def asarray(
     *args,
     **kwargs,
 ) -> jax.Array:
-    result: jax.Array = jnp._orig_asarray(a, *args, **kwargs)  # type: ignore
+    materialised = jax.tree_map(
+        lambda x: x.materialise() if isinstance(x, Unitful) else x,
+        a,
+        is_leaf=lambda x: isinstance(x, Unitful),
+    )
+    result: jax.Array = jnp._orig_asarray(materialised, *args, **kwargs)  # type: ignore
+        
     if not output_unitful_for_array(result):
         # cannot use this as Unitful, wrong dtype
         return result
@@ -664,3 +668,135 @@ def array(
 ) -> jax.Array:
     return asarray(a, *args, **kwargs)
 
+
+## exp #########################################
+@overload
+def exp(
+    x: Unitful,
+) -> Unitful:
+    assert x.unit.dim == {}, f"Cannot use unitful with dim {x.unit.dim} as exponent"
+    # TODO: improve numerical accuracy
+    new_val = jnp._orig_exp((10 ** x.unit.scale) * x.val)  # type: ignore
+    # static arr
+    new_static_arr = None
+    if is_traced(new_val):
+        x_arr = get_static_operand(x)
+        if x_arr is not None:
+            new_static_arr = np.exp((10 ** x.unit.scale) * x_arr)
+    return Unitful(val=new_val, unit=Unit(scale=0, dim={}), static_arr = new_static_arr)
+
+@overload
+def exp(
+    x: jax.Array,
+) -> jax.Array:
+    return jnp._orig_exp(x)  # type: ignore
+
+@overload
+def exp(x: int | float) -> float:
+    return math.exp(x)
+
+@dispatch
+def exp(  # type: ignore
+    x,
+):
+    del x
+    raise NotImplementedError()
+
+
+## expand dims #########################################
+@overload
+def expand_dims(
+    x: Unitful,
+    *args,
+    **kwargs,
+) -> Unitful:
+    new_val = jnp._orig_expand_dims(x.val, *args, **kwargs)  # type: ignore
+    # static arr
+    new_static_arr = None
+    if is_traced(new_val):
+        x_arr = get_static_operand(x)
+        if x_arr is not None:
+            new_static_arr = np.expand_dims(x_arr, *args, **kwargs)
+    return Unitful(val=new_val, unit=x.unit, static_arr = new_static_arr)
+
+@overload
+def expand_dims(
+    x: jax.Array,
+    *args,
+    **kwargs,
+) -> jax.Array:
+    return jnp._orig_expand_dims(x, *args, **kwargs)  # type: ignore
+
+@dispatch
+def expand_dims(  # type: ignore
+    x,
+    *args,
+    **kwargs
+):
+    del x, args, kwargs
+    raise NotImplementedError()
+
+
+## where #########################################
+@overload
+def where(
+    condition: jax.Array,
+    x: Unitful,
+    y: Unitful,
+    *args,
+    **kwargs,
+) -> Unitful:
+    assert x.unit.dim == y.unit.dim, f"{x} and {y} need the same units for jnp.where"
+    x_align, y_align = align_scales(x, y)
+    new_val = jnp._orig_where(condition, x_align.val, y_align.val, *args, **kwargs)  # type: ignore
+    # static arr
+    new_static_arr = None
+    if is_traced(new_val):
+        x_arr = get_static_operand(x)
+        y_arr = get_static_operand(y)
+        c_arr = get_static_operand(condition)
+        if x_arr is not None and y_arr is not None and c_arr is not None:
+            new_static_arr = np.where(c_arr, x_arr, y_arr, *args, **kwargs)
+    return Unitful(val=new_val, unit=x.unit, static_arr = new_static_arr)
+
+@overload
+def where(
+    condition: jax.Array,
+    x: PhysicalArrayLike,
+    y: Unitful,
+    *args,
+    **kwargs,
+) -> Unitful:
+    return where(condition, Unitful(val=x, unit=EMPTY_UNIT), y, *args, **kwargs)
+
+@overload
+def where(
+    condition: jax.Array,
+    x: Unitful,
+    y: PhysicalArrayLike,
+    *args,
+    **kwargs,
+) -> Unitful:
+    return where(condition, x, Unitful(val=y, unit=EMPTY_UNIT), *args, **kwargs)
+
+@overload
+def where(
+    condition: jax.Array,
+    x: PhysicalArrayLike,
+    y: PhysicalArrayLike,
+    *args,
+    **kwargs,
+) -> jax.Array:
+    return jnp._orig_where(condition, x, y, *args, **kwargs)  # type: ignore
+
+
+@dispatch
+def where(  # type: ignore
+    condition,
+    x,
+    y,
+    *args,
+    **kwargs
+):
+    del condition, x, y, args, kwargs
+    raise NotImplementedError()
