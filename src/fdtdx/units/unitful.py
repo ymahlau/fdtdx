@@ -8,14 +8,20 @@ from jax import core
 from fdtdx.core.fraction import Fraction
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field
 
-from plum import dispatch, overload
+from plum import add_conversion_method, dispatch, overload
 from pytreeclass import tree_repr
 
-from fdtdx.core.jax.utils import is_traced
-from fdtdx.units.typing import SI, PhysicalArrayLike, StaticPhysicalArrayLike
+from fdtdx.core.jax.utils import is_currently_jitting, is_traced
+from fdtdx.units.typing import PHYSICAL_DTYPES, SI, PhysicalArrayLike, StaticPhysicalArrayLike
 from fdtdx.units.utils import best_scale, dim_after_multiplication, handle_different_scales
 
+""" This determines the maximum size where an array can be saved statically for optimization during jit tracing"""
 MAX_OPTIMIZED_ARR_SIZE = int(1e5)
+
+""" Global optimization stop flag. If True, then no arrays are statically saved. Additionally, no jax functions 
+like jnp.ones will return a Unitful instead of Array for scale optimization.
+"""
+OPTIMIZATION_STOP_FLAG = False
 
 @autoinit
 class Unit(TreeClass):
@@ -30,6 +36,8 @@ class Unit(TreeClass):
 
     def __repr__(self) -> str:
         return str(self)
+    
+EMPTY_UNIT = Unit(scale=0, dim={})
 
 
 @dataclass(frozen=True)
@@ -266,9 +274,18 @@ class Unitful(TreeClass):
         **kwargs
     ) -> "Unitful":
         return astype(self, *args, **kwargs)
+    
+    def squeeze(
+        self,
+        axis: int | None = None,
+    ) -> "Unitful":
+        return squeeze(self, axis)
 
     def __str__(self) -> str:
-        return f"Unitful [{self.unit}]: {tree_repr(self.val)}"
+        try:
+            return f"Unitful [{self.unit}]: {tree_repr(self.val)}"
+        except:
+            return f"Unitful [{self.unit}]: {self.shape}"
 
     def __repr__(self) -> str:
         return str(self)
@@ -394,6 +411,8 @@ def align_scales(
 def get_static_operand(
     x: Unitful | PhysicalArrayLike, 
 ) -> StaticPhysicalArrayLike | None:
+    if OPTIMIZATION_STOP_FLAG:
+        return None
     # Physical arraylike without a unit
     if isinstance(x, PhysicalArrayLike):
         if is_traced(x):
@@ -416,6 +435,22 @@ def get_static_operand(
             x_arr = np.asarray(x_arr, copy=True)
     return x_arr
 
+def output_unitful_for_array(x: jax.Array | jax.ShapeDtypeStruct) -> bool:
+    if x.dtype not in PHYSICAL_DTYPES or x.size > MAX_OPTIMIZED_ARR_SIZE:
+        return False
+    return is_currently_jitting() and not OPTIMIZATION_STOP_FLAG
+
+
+def unitful_to_array_conversion(obj: Unitful) -> jax.Array:
+    assert obj.unit.dim == {}
+    if is_currently_jitting():
+        return obj  # type: ignore
+    return obj.array_materialise()
+
+# This conversion method is necessary, because within jit-context we lie to the dispatcher.
+# Specifically, functions that are supposed to return a jax array will return a unitful to be able to perform
+# scale optimization.
+add_conversion_method(type_from=Unitful, type_to=jax.Array, f=unitful_to_array_conversion)
 
 ## Multiplication ###########################
 @overload
@@ -846,7 +881,7 @@ def pow(x: Unitful, y: int) -> Unitful:
 def pow(x: jax.Array, y: jax.Array) -> jax.Array: return x ** y
 
 @overload
-def pow(x: PhysicalArrayLike, y: PhysicalArrayLike) -> PhysicalArrayLike: return x ** y
+def pow(x: StaticPhysicalArrayLike, y: StaticPhysicalArrayLike) -> StaticPhysicalArrayLike: return x ** y
 
 @dispatch
 def pow(x, y):  # type: ignore
@@ -865,17 +900,19 @@ def unary_fn(x: Unitful, op_str: str, *args, **kwargs) -> Unitful:
         x_arr = get_static_operand(x)
         if x_arr is not None:
             np_fn = getattr(np, f"{op_str}")
-            new_static_arr = np_fn(x.static_arr, *args, **kwargs)
+            new_static_arr = np_fn(x_arr, *args, **kwargs)
     return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
 
 @overload
 def min(x: Unitful, *args, **kwargs) -> Unitful: return unary_fn(x, "min", *args, **kwargs)
 
 @overload
-def min(x: jax.Array, *args, **kwargs) -> jax.Array: return jnp._orig_min(x, *args, **kwargs)  # type: ignore
-
-@overload
-def min(x: PhysicalArrayLike, *args, **kwargs) -> jax.Array: return jnp._orig_min(x, *args, **kwargs)  # type: ignore
+def min(x: PhysicalArrayLike, *args, **kwargs) -> jax.Array:
+    result_shape_dtype = jax.eval_shape(jnp._orig_min, x, *args, **kwargs)  # type: ignore
+    if output_unitful_for_array(result_shape_dtype):
+        unit_result = unary_fn(Unitful(val=x, unit=EMPTY_UNIT), "min", *args, **kwargs)
+        return unit_result  # type: ignore
+    return jnp._orig_min(x, *args, **kwargs)  # type: ignore
 
 @dispatch
 def min(x, *args, **kwargs):  # type: ignore
@@ -887,7 +924,12 @@ def min(x, *args, **kwargs):  # type: ignore
 def max(x: Unitful, *args, **kwargs) -> Unitful: return unary_fn(x, "max", *args, **kwargs)
 
 @overload
-def max(x: jax.Array, *args, **kwargs) -> jax.Array: return jnp._orig_max(x, *args, **kwargs)  # type: ignore
+def max(x: PhysicalArrayLike, *args, **kwargs) -> jax.Array:
+    result_shape_dtype = jax.eval_shape(jnp._orig_max, x, *args, **kwargs)  # type: ignore
+    if output_unitful_for_array(result_shape_dtype):
+        unit_result = unary_fn(Unitful(val=x, unit=EMPTY_UNIT), "max", *args, **kwargs)
+        return unit_result  # type: ignore
+    return jnp._orig_max(x, *args, **kwargs)  # type: ignore
 
 @dispatch
 def max(x, *args, **kwargs):  # type: ignore
@@ -899,10 +941,12 @@ def max(x, *args, **kwargs):  # type: ignore
 def mean(x: Unitful, *args, **kwargs) -> Unitful: return unary_fn(x, "mean", *args, **kwargs)
 
 @overload
-def mean(x: jax.Array, *args, **kwargs) -> jax.Array: return jnp._orig_mean(x, *args, **kwargs)  # type: ignore
-
-@overload
-def mean(x: PhysicalArrayLike, *args, **kwargs) -> jax.Array: return jnp._orig_mean(x, *args, **kwargs)  # type: ignore
+def mean(x: PhysicalArrayLike, *args, **kwargs) -> jax.Array:
+    result_shape_dtype = jax.eval_shape(jnp._orig_mean, x, *args, **kwargs)  # type: ignore
+    if output_unitful_for_array(result_shape_dtype):
+        unit_result = unary_fn(Unitful(val=x, unit=EMPTY_UNIT), "mean", *args, **kwargs)
+        return unit_result  # type: ignore
+    return jnp._orig_mean(x, *args, **kwargs)  # type: ignore
 
 @dispatch
 def mean(x, *args, **kwargs):  # type: ignore
@@ -914,10 +958,12 @@ def mean(x, *args, **kwargs):  # type: ignore
 def sum(x: Unitful, *args, **kwargs) -> Unitful: return unary_fn(x, "sum", *args, **kwargs)
 
 @overload
-def sum(x: jax.Array, *args, **kwargs) -> jax.Array: return jnp._orig_sum(x, *args, **kwargs)  # type: ignore
-
-@overload
-def sum(x: PhysicalArrayLike, *args, **kwargs) -> jax.Array: return jnp._orig_sum(x, *args, **kwargs)  # type: ignore
+def sum(x: PhysicalArrayLike, *args, **kwargs) -> jax.Array:
+    result_shape_dtype = jax.eval_shape(jnp._orig_sum, x, *args, **kwargs)  # type: ignore
+    if output_unitful_for_array(result_shape_dtype):
+        unit_result = unary_fn(Unitful(val=x, unit=EMPTY_UNIT), "sum", *args, **kwargs)
+        return unit_result  # type: ignore
+    return jnp._orig_sum(x, *args, **kwargs)  # type: ignore
 
 @dispatch
 def sum(x, *args, **kwargs):  # type: ignore
@@ -930,7 +976,8 @@ def sum(x, *args, **kwargs):  # type: ignore
 def abs_impl(x: Unitful) -> Unitful: return unary_fn(x, "abs")
 
 @overload
-def abs_impl(x: jax.Array) -> jax.Array: return jnp._orig_abs(x)  # type: ignore
+def abs_impl(x: jax.Array) -> jax.Array:
+    return jnp._orig_abs(x)  # type: ignore
 
 @overload
 def abs_impl(x: int) -> int: return abs(x)
@@ -953,9 +1000,28 @@ def astype(x: Unitful, *args, **kwargs) -> Unitful:
     return unary_fn(x, "astype", *args, **kwargs)
 
 @overload
-def astype(x: PhysicalArrayLike, *args, **kwargs) -> jax.Array: return jnp._orig_astype(x, *args, **kwargs)  # type: ignore
+def astype(x: PhysicalArrayLike, *args, **kwargs) -> jax.Array:
+    result_shape_dtype = jax.eval_shape(jnp._orig_astype, x, *args, **kwargs)  # type: ignore
+    if output_unitful_for_array(result_shape_dtype):
+        unit_result = unary_fn(Unitful(val=x, unit=EMPTY_UNIT), "astype", *args, **kwargs)
+        return unit_result  # type: ignore
+    return jnp._orig_astype(x, *args, **kwargs)  # type: ignore
 
 @dispatch
 def astype(x, *args, **kwargs):  # type: ignore
+    del x, args, kwargs
+    raise NotImplementedError()
+
+## squeeze #######################################
+@overload
+def squeeze(x: Unitful, *args, **kwargs) -> Unitful:
+    return unary_fn(x, "squeeze", *args, **kwargs)
+
+@overload
+def squeeze(x: jax.Array, *args, **kwargs) -> jax.Array:
+    return jnp._orig_squeeze(x, *args, **kwargs)  # type: ignore
+
+@dispatch
+def squeeze(x, *args, **kwargs):  # type: ignore
     del x, args, kwargs
     raise NotImplementedError()

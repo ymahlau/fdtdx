@@ -20,6 +20,7 @@ from fdtdx.units.unitful import (
     sum,
     abs_impl,
     astype,
+    squeeze,
 )
 
 from fdtdx.functional.numpy import (
@@ -37,6 +38,17 @@ from fdtdx.functional.numpy import (
     real,
     imag,
     asarray,
+    array,
+    sin,
+    cos,
+    tan,
+)
+from fdtdx.functional.linalg import (
+    norm,
+)
+
+from fdtdx.functional.jax import (
+    jit
 )
 
 def patch_fn_to_module(
@@ -92,7 +104,12 @@ def patch_all_functions():
         (real, None),
         (imag, None),
         (astype, None),
-        (asarray, None)
+        (asarray, None),
+        (array, None),
+        (squeeze, None),
+        (sin, None),
+        (cos, None),
+        (tan, None),
     ]
     for fn, orig in _full_patch_list_numpy:
         patch_fn_to_module(
@@ -116,5 +133,27 @@ def patch_all_functions():
         patch_fn_to_module(
             f=fn, 
             mod=jax.lax,
+            fn_name=orig,
+        )
+        
+    ## add to jax.mumpy.linalg ###################
+    _full_patch_list_linalg = [
+        (norm, None)
+    ]
+    for fn, orig in _full_patch_list_linalg:
+        patch_fn_to_module(
+            f=fn,
+            mod=jax.numpy.linalg,
+            fn_name=orig,
+        )
+
+    ## add to jax ###################
+    _full_patch_list_jax = [
+        (jit, None)
+    ]
+    for fn, orig in _full_patch_list_jax:
+        patch_fn_to_module(
+            f=fn,
+            mod=jax,
             fn_name=orig,
         )

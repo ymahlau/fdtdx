@@ -46,7 +46,21 @@ def check_shape_dtype(
             raise Exception(f"Wrong shape: {exp_shape_dtype.shape} != {arr.shape}")
 
 def is_currently_jitting() -> bool:
-    return isinstance(jnp.array(1) + 1, core.Tracer)
+    return isinstance(
+        jnp._orig_array(1) + 1, # type: ignore
+        core.Tracer
+    )
 
 def is_traced(x) -> bool:
     return isinstance(x, core.Tracer)
+
+
+def hash_abstract_pytree(tree) -> int:
+    avals = jax.tree_map(
+        lambda x: jax.eval_shape(lambda: x) if isinstance(x, jax.Array) else x,
+        tree
+    )
+    flat_avals, treedef = jax.tree.flatten(avals)
+    flat_avals_tuple = tuple(flat_avals)
+    return hash((flat_avals_tuple, treedef))
+

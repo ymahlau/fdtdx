@@ -13,6 +13,10 @@ from fdtdx.functional.numpy import (
     real,
     imag,
     asarray,
+    array,
+    sin,
+    cos,
+    tan,
 )
 from fdtdx.units.unitful import (
     multiply,
@@ -33,6 +37,13 @@ from fdtdx.units.unitful import (
     sum,
     abs_impl as abs,
     astype,
+    squeeze,
+)
+from fdtdx.functional.linalg import (
+    norm
+)
+from fdtdx.functional.jax import (
+    jit
 )
 
 __all__ = [
@@ -51,6 +62,10 @@ __all__ = [
     "real",
     "imag",
     "asarray",
+    "array",
+    "sin",
+    "cos",
+    "tan",
     # unitful inherent methods
     "multiply",
     "divide",
@@ -70,4 +85,9 @@ __all__ = [
     "sum",
     "abs",
     "astype",
+    "squeeze",
+    # linalg
+    "norm",
+    # jax
+    "jit"
 ]
