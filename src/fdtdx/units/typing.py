@@ -5,6 +5,16 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+# Enum of SI units. Intentionally omits mol as this is a "count" rather than an actual unit.
+class SI(Enum):
+    s = "second"
+    m = "meter"
+    kg = "kilogram"
+    A = "ampere"
+    K = "kelvin"
+    cd = "candela"
+
+# Types whose scale can be optimized
 PhysicalArrayLike = Union[
     int,
     float,
@@ -14,6 +24,7 @@ PhysicalArrayLike = Union[
     np.ndarray,
 ]
 
+# Types whose scale can be optimized and are real
 RealPhysicalArrayLike = Union[
     int,
     float,
@@ -22,23 +33,32 @@ RealPhysicalArrayLike = Union[
     np.ndarray,
 ]
 
-StaticPhysicalArrayLike = Union[
+# Types who remain static during jit-context
+StaticArrayLike = Union[
     int,
+    bool,
+    np.bool_,
     float,
     complex,
     np.number,
     np.ndarray,
 ]
 
-class SI(Enum):
-    s = "second"
-    m = "meter"
-    kg = "kilogram"
-    A = "ampere"
-    K = "kelvin"
-    mol = "mole"
-    cd = "candela"
+# Types who remain static during jit-context and whose scale can be optimized
+StaticPhysicalArrayLike = Union[
+    float,
+    complex,
+    np.number,
+    np.ndarray,
+]
 
+# Types whose scale cannot be optimized
+NonPhysicalArrayLike = Union[
+    bool,
+    np.bool_,
+]
+
+# array data types which allow for scale optimization
 PHYSICAL_DTYPES = [
     jnp.float32,
     jnp.float64,

@@ -194,7 +194,7 @@ def test_lt_magic_method():
     """Test less than magic method of Unitful objects"""
     time1 = 2 * s
     time2 = 3 * s
-    result = time1 < time2
+    result = jax.jit(lambda: time1 < time2)()
     assert jnp.allclose(result, True)
 
 
@@ -227,18 +227,18 @@ def test_eq_magic_method():
 
 def test_eq_same_units_success():
     """Test equality with same units"""
-    unit_mol = Unit(scale=0, dim={SI.mol: 1})
-    u1 = Unitful(val=jnp.array(7.0), unit=unit_mol)
-    u2 = Unitful(val=jnp.array(7.0), unit=unit_mol)
+    unit_kg = Unit(scale=0, dim={SI.kg: 1})
+    u1 = Unitful(val=jnp.array(7.0), unit=unit_kg)
+    u2 = Unitful(val=jnp.array(7.0), unit=unit_kg)
     result = jnp.equal(u1, u2)  # type: ignore
     assert jnp.allclose(result, True)
 
 
 def test_eq_different_units_raises_error():
     """Test that eq with different units raises ValueError"""
-    unit_mol = Unit(scale=0, dim={SI.mol: 1})
+    unit_kg = Unit(scale=0, dim={SI.kg: 1})
     unit_cd = Unit(scale=0, dim={SI.cd: 1})
-    u1 = Unitful(val=jnp.array(7.0), unit=unit_mol)
+    u1 = Unitful(val=jnp.array(7.0), unit=unit_kg)
     u2 = Unitful(val=jnp.array(7.0), unit=unit_cd)
     with pytest.raises(ValueError):
         eq(u1, u2)
@@ -951,7 +951,7 @@ def test_at_power_raises_error():
 
 def test_at_scalar_value_raises_error():
     """Test that using .at operations on scalar values raises exceptions"""
-    scalar_unit = Unit(scale=0, dim={SI.mol: 1})
+    scalar_unit = Unit(scale=0, dim={SI.kg: 1})
     scalar_value = Unitful(val=42.0, unit=scalar_unit)
     
     # Test various operations on scalar
@@ -1405,7 +1405,7 @@ def test_dtype_python_complex_scalar_raises_exception():
 def test_ndim_scalar_python_types():
     """Test ndim property with Python scalar types"""
     # Test with Python int
-    int_unit = Unit(scale=0, dim={SI.mol: 1})
+    int_unit = Unit(scale=0, dim={SI.kg: 1})
     scalar_int = Unitful(val=42, unit=int_unit)
     assert scalar_int.ndim == 0
     
@@ -1542,7 +1542,7 @@ def test_size_higher_dimensional_arrays():
     assert hyperfield_4d.size == 120
     
     # 5D array
-    exotic_unit = Unit(scale=-12, dim={SI.mol: Fraction(1, 3), SI.cd: Fraction(-2, 5)})
+    exotic_unit = Unit(scale=-12, dim={SI.kg: Fraction(1, 3), SI.cd: Fraction(-2, 5)})
     exotic_5d = Unitful(val=jnp.ones((2, 2, 2, 2, 2)), unit=exotic_unit)
     assert exotic_5d.size == 32
 

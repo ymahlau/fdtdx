@@ -46,6 +46,8 @@ from fdtdx.functional.numpy import (
     exp,
     expand_dims,
     where,
+    arange,
+    meshgrid,
 )
 from fdtdx.functional.linalg import (
     norm,
@@ -118,6 +120,8 @@ def patch_all_functions():
         (expand_dims, None),
         (where, None),
         (reshape, None),
+        (arange, None),
+        (meshgrid, None),
     ]
     for fn, orig in _full_patch_list_numpy:
         patch_fn_to_module(

@@ -31,7 +31,7 @@ class CustomJitWrapped:
         # do actual jit compilation on function
         optimized_result = self.jitted_fun(*args, **kwargs)
         # materialise the results according to mask from unitful to arrays
-        materialised_result = jax.tree_map(
+        materialised_result = jax.tree.map(
             lambda x, y: x.array_materialise() if y else x,
             optimized_result,
             to_materialise_mask,
@@ -47,7 +47,7 @@ class CustomJitWrapped:
     ):
         # first get shape dtypes without any array to unitful optimizations
         # The functools.partial prevents jax from caching the function call
-        unitful.OPTIMIZATION_STOP_FLAG = True
+        unitful.STATIC_OPTIM_STOP_FLAG = True
         desired_shape_dtype = jax.eval_shape(
             jax._orig_jit(  # type: ignore
                 partial(self.fun), 
@@ -56,14 +56,14 @@ class CustomJitWrapped:
             *args,
             **kwargs,
         )
-        is_array_mask = jax.tree_map(
+        is_array_mask = jax.tree.map(
             lambda x: isinstance(x, jax.ShapeDtypeStruct),
             desired_shape_dtype,
             is_leaf=lambda x: isinstance(x, Unitful),
         )
         
         # then get the result of the actual jit step
-        unitful.OPTIMIZATION_STOP_FLAG = False
+        unitful.STATIC_OPTIM_STOP_FLAG = False
         optimized_shape_dtype = jax.eval_shape(
             jax._orig_jit(   # type: ignore
                 partial(self.fun), 
@@ -72,13 +72,13 @@ class CustomJitWrapped:
             *args,
             **kwargs,
         )
-        is_unitful_mask = jax.tree_map(
+        is_unitful_mask = jax.tree.map(
             lambda x: isinstance(x, Unitful),
             optimized_shape_dtype,
             is_leaf=lambda x: isinstance(x, Unitful),
         )
         # we need to convert all unitfuls back to arrays which are only arrays because of scale optimization
-        to_materialise_mask = jax.tree_map(
+        to_materialise_mask = jax.tree.map(
             lambda x, y: x and y,
             is_unitful_mask,
             is_array_mask,

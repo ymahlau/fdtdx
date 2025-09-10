@@ -56,7 +56,7 @@ def is_traced(x) -> bool:
 
 
 def hash_abstract_pytree(tree) -> int:
-    avals = jax.tree_map(
+    avals = jax.tree.map(
         lambda x: jax.eval_shape(lambda: x) if isinstance(x, jax.Array) else x,
         tree
     )

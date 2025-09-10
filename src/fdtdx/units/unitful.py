@@ -1,7 +1,8 @@
 from dataclasses import dataclass
-from typing import Any, Self
+from typing import Any, Self, Union
 import jax
 import jax.numpy as jnp
+from jaxtyping import ArrayLike
 import numpy as np
 from jax import core
 
@@ -12,16 +13,16 @@ from plum import add_conversion_method, dispatch, overload
 from pytreeclass import tree_repr
 
 from fdtdx.core.jax.utils import is_currently_jitting, is_traced
-from fdtdx.units.typing import PHYSICAL_DTYPES, SI, PhysicalArrayLike, RealPhysicalArrayLike, StaticPhysicalArrayLike
+from fdtdx.units.typing import PHYSICAL_DTYPES, SI, NonPhysicalArrayLike, PhysicalArrayLike, RealPhysicalArrayLike, StaticArrayLike, StaticPhysicalArrayLike
 from fdtdx.units.utils import best_scale, dim_after_multiplication, handle_different_scales
 
 """ This determines the maximum size where an array can be saved statically for optimization during jit tracing"""
-MAX_OPTIMIZED_ARR_SIZE = int(1e5)
+MAX_STATIC_OPTIMIZED_SIZE = int(1e5)
 
 """ Global optimization stop flag. If True, then no arrays are statically saved. Additionally, no jax functions 
 like jnp.ones will return a Unitful instead of Array for scale optimization.
 """
-OPTIMIZATION_STOP_FLAG = False
+STATIC_OPTIM_STOP_FLAG = False
 
 @autoinit
 class Unit(TreeClass):
@@ -54,7 +55,7 @@ class UnitfulIndexer:
         """Get the leaf values at the specified location."""
         if self.where is None:
             return self.unitful
-        if isinstance(self.unitful.val, int | float | complex | np.number):
+        if not isinstance(self.unitful.val, jax.Array | np.ndarray):
             raise Exception(f"Cannot index scalar value: {self.unitful}")
         new_val = self.unitful.val[self.where]
         return Unitful(val=new_val, unit=self.unitful.unit)
@@ -63,7 +64,7 @@ class UnitfulIndexer:
         """Set the leaf values at the specified location."""
         if self.where is None:
             raise Exception(f"Cannot update value if no where clause is given")
-        if isinstance(self.unitful.val, int | float | complex | np.number):
+        if not isinstance(self.unitful.val, jax.Array | np.ndarray):
             raise Exception(f"Cannot index scalar value: {self.unitful}")
         if self.unitful.unit.dim != value.unit.dim:
             raise Exception(
@@ -71,7 +72,7 @@ class UnitfulIndexer:
             )
         align_self, align_other = align_scales(self.unitful, value)
         align_self_arr = align_self.val
-        assert not isinstance(align_self_arr, int | complex | float | np.number)
+        assert isinstance(align_self_arr, jax.Array | np.ndarray)
         if isinstance(align_self_arr, np.ndarray):
             new_val = np.copy(align_self_arr)
             new_val[self.where] = align_other.val
@@ -83,7 +84,7 @@ class UnitfulIndexer:
         """Set the leaf values at the specified location."""
         if self.where is None:
             raise Exception(f"Cannot update value if no where clause is given")
-        if isinstance(self.unitful.val, int | float | complex):
+        if not isinstance(self.unitful.val, jax.Array | np.ndarray):
             raise Exception(f"Cannot index scalar value: {self.unitful}")
         if self.unitful.unit.dim != value.unit.dim:
             raise Exception(
@@ -91,7 +92,7 @@ class UnitfulIndexer:
             )
         align_self, align_other = align_scales(self.unitful, value)
         align_self_arr = align_self.val
-        assert not isinstance(align_self_arr, int | complex | float | np.number)
+        assert isinstance(align_self_arr, jax.Array | np.ndarray)
         if isinstance(align_self_arr, np.ndarray):
             new_val = np.copy(align_self_arr)
             new_val[self.where] += align_other.val
@@ -103,7 +104,7 @@ class UnitfulIndexer:
         """Set the leaf values at the specified location."""
         if self.where is None:
             raise Exception(f"Cannot update value if no where clause is given")
-        if isinstance(self.unitful.val, int | float | complex):
+        if not isinstance(self.unitful.val, jax.Array | np.ndarray):
             raise Exception(f"Cannot index scalar value: {self.unitful}")
         if self.unitful.unit.dim != value.unit.dim:
             raise Exception(
@@ -111,7 +112,7 @@ class UnitfulIndexer:
             )
         align_self, align_other = align_scales(self.unitful, value)
         align_self_arr = align_self.val
-        assert not isinstance(align_self_arr, int | complex | float | np.number)
+        assert isinstance(align_self_arr, jax.Array | np.ndarray)
         if isinstance(align_self_arr, np.ndarray):
             new_val = np.copy(align_self_arr)
             new_val[self.where] += align_other.val
@@ -126,7 +127,7 @@ class UnitfulIndexer:
             )
         if self.where is None:
             raise Exception(f"Cannot update value if no where clause is given")
-        if isinstance(self.unitful.val, int | float | complex | np.number):
+        if not isinstance(self.unitful.val, jax.Array | np.ndarray):
             raise Exception(f"Cannot index scalar value: {self.unitful}")
         v = self.unitful.val
         if isinstance(v, np.ndarray):
@@ -143,7 +144,7 @@ class UnitfulIndexer:
             )
         if self.where is None:
             raise Exception(f"Cannot update value if no where clause is given")
-        if isinstance(self.unitful.val, int | float | complex | np.number):
+        if not isinstance(self.unitful.val, jax.Array | np.ndarray):
             raise Exception(f"Cannot index scalar value: {self.unitful}")
         v = self.unitful.val
         if isinstance(v, np.ndarray):
@@ -162,64 +163,77 @@ class UnitfulIndexer:
 
 @autoinit
 class Unitful(TreeClass):
-    val: PhysicalArrayLike
+    val: ArrayLike
     unit: Unit = field()
     optimize_scale: bool = frozen_field(default=True)
-    static_arr: StaticPhysicalArrayLike | None = frozen_field(default=None)
+    static_arr: StaticArrayLike | None = frozen_field(default=None)
+    
+    def _validate(self):
+        bad_dtype = (
+            isinstance(self.val, jax.Array | np.ndarray | np.number) 
+            and self.dtype not in PHYSICAL_DTYPES
+        )
+        if isinstance(self.val, NonPhysicalArrayLike) or bad_dtype:
+            if self.unit.scale != 0:
+                raise Exception(f"Cannot have non-zero scale for non-physical {self}")
+            if self.unit.dim != {}:
+                raise Exception(f"Cannot have non-empty dimension for non-physical {self}")
     
     def __post_init__(self):
-        if not self.optimize_scale:
+        self._validate()
+        if not self.optimize_scale or not can_optimize_scale(self):
             return
         orig_val = self.val
         if is_traced(self.val):
-            # if value is traced and there is no static arr we cannot optimize
-            if self.static_arr is None:
-                return
+            # if value is traced then optimize with static array
+            assert self.static_arr is not None and isinstance(self.static_arr, StaticPhysicalArrayLike)
             optimized_val, power = best_scale(self.static_arr, self.unit.scale)
             assert isinstance(optimized_val, StaticPhysicalArrayLike)
             self.static_arr = optimized_val
             self.val = self.val * (10 ** power)
         else:
             # non-traced case: optimize scale
+            assert isinstance(self.val, PhysicalArrayLike)
             optimized_val, power = best_scale(self.val, self.unit.scale)
             self.val = optimized_val
         new_scale = self.unit.scale - power
         self.unit = Unit(scale=new_scale, dim=self.unit.dim)
-        # special case: The value might have been static jax array and scale optimization converted it to tracer.
-        # In this case, create a static array from the original array
-        if not is_traced(orig_val) and is_traced(self.val) and self.size <= MAX_OPTIMIZED_ARR_SIZE:
-            self.static_arr = get_static_operand(orig_val)
+        # special case: The value might have been static jax array within jit context and scale optimization converted 
+        # it to tracer. In this case, create a static array from the original array
+        if not is_traced(orig_val) and is_traced(self.val):
+            self.static_arr = get_static_operand(orig_val) * (10 ** power)
     
-    def materialise(self) -> PhysicalArrayLike:
+    def materialise(self) -> ArrayLike:
         if self.unit.dim:
             raise ValueError(f"Cannot materialise unitful array with a non-zero unit: {self.unit}")
-        factor = 10 ** self.unit.scale
-        return self.val * factor
+        return self.value()
     
     def float_materialise(self) -> float:
         v = self.materialise()
-        assert isinstance(v, float), f"safe_float_materialise called on Unitful with non-float value: {self}"
+        assert isinstance(v, float), f"safe float_materialise called on Unitful with non-float value: {self}"
         return v
     
     def array_materialise(self) -> jax.Array:
         v = self.materialise()
-        assert isinstance(v, jax.Array), f"safe_array_materialise called on Unitful with non-array value: {self}"
+        assert isinstance(v, jax.Array), f"safe array_materialise called on Unitful with non-array value: {self}"
         return v
     
-    def value(self) -> PhysicalArrayLike:
+    def value(self) -> ArrayLike:
         scale = self.unit.scale
         if isinstance(scale, Fraction):
             scale = scale.value()
-        return self.val * 10 ** scale
+        if scale == 0:
+            return self.val
+        return self.val * (10 ** scale)
     
     def array_value(self) -> jax.Array:
         v = self.value()
-        assert isinstance(v, jax.Array), f"safe_array_value called on Unitful with non-array value: {self}"
+        assert isinstance(v, jax.Array), f"safe array_value called on Unitful with non-array value: {self}"
         return v
     
     def float_value(self) -> float:
         v = self.value()
-        assert isinstance(v, float), f"safe_float_value called on Unitful with non-float value: {self}"
+        assert isinstance(v, float), f"safe float_value called on Unitful with non-float value: {self}"
         return v
     
     @property
@@ -233,25 +247,25 @@ class Unitful(TreeClass):
     
     @property
     def shape(self) -> tuple[int, ...]:
-        if isinstance(self.val, int | float | complex):
+        if isinstance(self.val, int | float | complex | bool):
             return ()
         return self.val.shape
     
     @property
     def dtype(self):
-        if isinstance(self.val, int | float | complex):
+        if isinstance(self.val, int | float | complex | bool):
             raise Exception(f"Python scalar does not have dtype attribute")
         return self.val.dtype
     
     @property
     def ndim(self):
-        if isinstance(self.val, int | float | complex):
+        if isinstance(self.val, int | float | complex | bool):
             return 0
         return self.val.ndim
     
     @property
     def size(self):
-        if isinstance(self.val, int | float | complex):
+        if isinstance(self.val, int | float | complex | bool):
             return 1
         return self.val.size
     
@@ -340,20 +354,20 @@ class Unitful(TreeClass):
         return gt(self, other)
     
     def __len__(self):
-        if isinstance(self.val, int | float | complex | np.number):
+        if not isinstance(self.val, jax.Array | np.ndarray):
             return 1
         return len(self.val)
     
     def __getitem__(self, key) -> "Unitful":
         """Enable numpy-style indexing"""
-        if isinstance(self.val, int | float | complex | np.number):
+        if not isinstance(self.val, jax.Array | np.ndarray):
             raise Exception(f"Cannot slice Unitful with python scalar value ({self.val})")
         new_val = self.val[key]
         return Unitful(val=new_val, unit=self.unit)
     
     def __iter__(self):
         """Use a generator for simplicity"""
-        if isinstance(self.val, int | float | complex | np.number):
+        if not isinstance(self.val, jax.Array | np.ndarray):
             raise Exception(f"Cannot iterate over Unitful with python scalar value ({self.val})")
         for v in self.val:
             yield(Unitful(val=v, unit=self.unit))
@@ -362,10 +376,14 @@ class Unitful(TreeClass):
         return iter(self[::-1])
     
     def __neg__(self):
+        if isinstance(self.val, NonPhysicalArrayLike):
+            raise Exception(f"Cannot perform negation on non-physcal value {self}")
         return Unitful(val=-self.val, unit=self.unit)
 
     def __pos__(self):
         """Unary plus: +x"""
+        if isinstance(self.val, NonPhysicalArrayLike):
+            raise Exception(f"Cannot perform unary plus on non-physcal value {self}")
         return Unitful(val=+self.val, unit=self.unit)
 
     def __abs__(self):
@@ -405,30 +423,30 @@ def align_scales(
             val=u1.val * factor1,
             unit=Unit(scale=new_scale, dim=u1.unit.dim),
             optimize_scale=False,
+            static_arr=None if u1.static_arr is None else u1.static_arr * factor1
         )
     if new_scale != u2.unit.scale:
         u2 = Unitful(
             val=u2.val * factor2,
             unit=Unit(scale=new_scale, dim=u2.unit.dim),
             optimize_scale=False,
+            static_arr=None if u2.static_arr is None else u2.static_arr * factor2
         )
     return u1, u2
 
 
 def get_static_operand(
-    x: Unitful | PhysicalArrayLike, 
-) -> StaticPhysicalArrayLike | None:
-    if OPTIMIZATION_STOP_FLAG:
+    x: Unitful | ArrayLike,
+) -> StaticArrayLike | None:
+    if STATIC_OPTIM_STOP_FLAG:
         return None
     # Physical arraylike without a unit
-    if isinstance(x, PhysicalArrayLike):
-        if is_traced(x):
-            return None
+    if isinstance(x, ArrayLike):
+        if is_traced(x): return None
         if isinstance(x, jax.Array):
-            if x.size >= MAX_OPTIMIZED_ARR_SIZE:
-                return None
+            if x.size >= MAX_STATIC_OPTIMIZED_SIZE: return None
             return np.asarray(x, copy=True)
-        assert isinstance(x, StaticPhysicalArrayLike), "Internal error, please report"
+        assert isinstance(x, StaticArrayLike), "Internal error, please report"
         return x
     # Unitful
     x_arr = None
@@ -437,33 +455,69 @@ def get_static_operand(
     elif not is_traced(x.val):
         x_arr = x.val
         if isinstance(x_arr, jax.Array):
-            if x_arr.size >= MAX_OPTIMIZED_ARR_SIZE:
-                return None
+            if x_arr.size >= MAX_STATIC_OPTIMIZED_SIZE: return None
             x_arr = np.asarray(x_arr, copy=True)
     return x_arr
 
-def output_unitful_for_array(x: jax.Array | jax.ShapeDtypeStruct) -> bool:
-    if x.dtype not in PHYSICAL_DTYPES or x.size > MAX_OPTIMIZED_ARR_SIZE:
+
+def can_perform_scatic_ops(x: StaticArrayLike | None):
+    if x is None: return False
+    if isinstance(x, NonPhysicalArrayLike): return False
+    return True
+
+
+def output_unitful_for_array(x: ArrayLike | jax.ShapeDtypeStruct) -> bool:
+    if is_traced(x): return False
+    if isinstance(x, jax.Array | np.ndarray | jax.ShapeDtypeStruct):
+        if x.size > MAX_STATIC_OPTIMIZED_SIZE: return False
+    return is_currently_jitting() and not STATIC_OPTIM_STOP_FLAG
+
+
+def can_optimize_scale(obj: Unitful | ArrayLike) -> bool:
+    v = obj.val if isinstance(obj, Unitful) else obj
+    if isinstance(v, NonPhysicalArrayLike):
         return False
-    return is_currently_jitting() and not OPTIMIZATION_STOP_FLAG
+    if isinstance(v, jax.Array | np.ndarray):
+        if v.dtype not in PHYSICAL_DTYPES:
+            return False
+    if is_traced(v) and not isinstance(obj, Unitful):
+        return False
+    if is_traced(v):
+        assert isinstance(obj, Unitful)
+        if obj.static_arr is None:
+            return False
+        if not can_optimize_scale(obj.static_arr):
+            return False
+    return True
 
 
-def unitful_to_array_conversion(obj: Unitful) -> jax.Array:
+# This conversion method is necessary, because within jit-context we lie to the dispatcher.
+# Specifically, functions that are supposed to return a jax array will return a unitful to be able to perform
+# scale optimization.
+def unitful_to_array_conversion(obj: Unitful):
     assert obj.unit.dim == {}
     if is_currently_jitting():
         return obj  # type: ignore
     return obj.array_materialise()
 
-# This conversion method is necessary, because within jit-context we lie to the dispatcher.
-# Specifically, functions that are supposed to return a jax array will return a unitful to be able to perform
-# scale optimization.
 add_conversion_method(type_from=Unitful, type_to=jax.Array, f=unitful_to_array_conversion)
+
+def unitful_to_array_conversion_with_bool(obj: Unitful) -> jax.Array | bool:
+    assert obj.unit.dim == {}
+    if is_currently_jitting():
+        result: jax.Array | bool = obj  # type: ignore
+    else:
+        result: jax.Array | bool = obj.materialise()  # type: ignore
+    return result
+
+add_conversion_method(type_from=Unitful, type_to=jax.Array | bool, f=unitful_to_array_conversion_with_bool) # type: ignore
+
 
 ## Multiplication ###########################
 @overload
 def multiply(
     x: Unitful, 
-    y: Unitful
+    y: Unitful,
 ) -> Unitful:
     unit_dict = dim_after_multiplication(x.unit.dim, y.unit.dim)
     new_val = x.val * y.val
@@ -479,11 +533,11 @@ def multiply(
 
 @overload
 def multiply(
-    x: PhysicalArrayLike, 
+    x: ArrayLike, 
     y: Unitful
 ) -> Unitful:
     scale_offset = 0
-    if not is_traced(x):
+    if can_optimize_scale(x):
         # optimize scale of x
         unit_x = Unitful(val=x, unit=Unit(scale=0, dim={}))
         x = unit_x.val
@@ -502,7 +556,7 @@ def multiply(
 @overload
 def multiply(
     x: Unitful, 
-    y: PhysicalArrayLike
+    y: ArrayLike,
 ) -> Unitful:
     return multiply(y, x)
 
@@ -519,7 +573,7 @@ def multiply(x: complex, y: complex) -> complex: return x * y
 def multiply(x: jax.Array, y: jax.Array) -> jax.Array: return x * y
 
 @overload
-def multiply(x: PhysicalArrayLike, y: PhysicalArrayLike) -> PhysicalArrayLike: return x * y
+def multiply(x: ArrayLike, y: ArrayLike) -> ArrayLike: return x * y
 
 @dispatch
 def multiply(x, y):  # type: ignore
@@ -554,7 +608,7 @@ def divide(
 
 @overload
 def divide(
-    x1: PhysicalArrayLike, 
+    x1: ArrayLike, 
     x2: Unitful
 ) -> Unitful:
     new_dim = {k: -v for k, v in x2.unit.dim.items()}
@@ -577,7 +631,7 @@ def divide(
 @overload
 def divide(
     x1: Unitful, 
-    x2: PhysicalArrayLike
+    x2: ArrayLike
 ) -> Unitful:
     scale_offset = 0
     if not is_traced(x2):
@@ -608,7 +662,7 @@ def divide(x1: complex, x2: complex) -> complex: return x1 / x2
 def divide(x1: jax.Array, x2: jax.Array) -> jax.Array: return x1 / x2
 
 @overload
-def divide(x1: PhysicalArrayLike, x2: PhysicalArrayLike) -> PhysicalArrayLike: return x1 / x2
+def divide(x1: ArrayLike, x2: ArrayLike) -> ArrayLike: return x1 / x2
 
 @dispatch
 def divide(x1, x2):  # type: ignore
@@ -626,21 +680,21 @@ def add(x: Unitful, y: Unitful) -> Unitful:
     # if static arrays exist, perform add with static arrs
     new_static_arr = None
     if is_traced(new_val):
-        x_arr = get_static_operand(x)
-        y_arr = get_static_operand(y)
+        x_arr = get_static_operand(x_align)
+        y_arr = get_static_operand(y_align)
         if x_arr is not None and y_arr is not None:
             new_static_arr = x_arr + y_arr
     return Unitful(val=new_val, unit=x_align.unit, static_arr=new_static_arr)
 
 @overload
-def add(x: Unitful, y: PhysicalArrayLike) -> Unitful:
+def add(x: Unitful, y: ArrayLike) -> Unitful:
     if x.unit.dim:
         raise ValueError(f"Cannot add non-unitful to array with unit {x.unit}.")
     y_unitful = Unitful(val=y, unit=Unit(scale=0, dim={}))
     return add(x, y_unitful)
 
 @overload
-def add(x: PhysicalArrayLike, y: Unitful) -> Unitful: return add(y, x)
+def add(x: ArrayLike, y: Unitful) -> Unitful: return add(y, x)
 
 @overload
 def add(x: int, y: int) -> int: return x + y
@@ -655,7 +709,7 @@ def add(x: complex, y: complex) -> complex: return x + y
 def add(x: jax.Array, y: jax.Array) -> jax.Array: return x + y
 
 @overload
-def add(x: PhysicalArrayLike, y: PhysicalArrayLike) -> PhysicalArrayLike: return x + y
+def add(x: ArrayLike, y: ArrayLike) -> ArrayLike: return x + y
 
 @dispatch
 def add(x, y):  # type: ignore
@@ -665,10 +719,11 @@ def add(x, y):  # type: ignore
 ## Matrix Multiplication ###################################
 @overload
 def matmul(
-    x: Unitful, 
+    x: Unitful,
     y: Unitful,
     **kwargs
 ) -> Unitful:
+    # TODO: numpy values should stay numpy if possible
     x_align, y_align = align_scales(x, y)
     new_val = jnp._orig_matmul(x_align.val, y_align.val)  # type: ignore
     unit_dict = dim_after_multiplication(x.unit.dim, y.unit.dim)
@@ -690,25 +745,27 @@ def subtract(x: Unitful, y: Unitful) -> Unitful:
     if x.unit.dim != y.unit.dim:
         raise ValueError(f"Cannot subtract two arrays with units {x.unit} and {y.unit}.")
     x_align, y_align = align_scales(x, y)
+    if isinstance(x_align.val, NonPhysicalArrayLike) or isinstance(y_align.val, NonPhysicalArrayLike):
+        raise Exception(f"Cannot subtract non-physcal unitfuls {x} - {y}")
     new_val = x_align.val - y_align.val
     # if static arrays exist, perform subtract with static arrs
     new_static_arr = None
     if is_traced(new_val):
-        x_arr = get_static_operand(x)
-        y_arr = get_static_operand(y)
-        if x_arr is not None and y_arr is not None:
-            new_static_arr = x_arr - y_arr
+        x_arr = get_static_operand(x_align)
+        y_arr = get_static_operand(y_align)
+        if can_perform_scatic_ops(x_arr) and can_perform_scatic_ops(y_arr):
+            new_static_arr = x_arr - y_arr  # type: ignore
     return Unitful(val=new_val, unit=x_align.unit, static_arr=new_static_arr)
 
 @overload
-def subtract(x: Unitful, y: PhysicalArrayLike) -> Unitful:
+def subtract(x: Unitful, y: ArrayLike) -> Unitful:
     if x.unit.dim:
         raise ValueError(f"Cannot add non-unitful to array with unit {x.unit}.")
     y_unitful = Unitful(val=y, unit=Unit(scale=0, dim={}))
     return subtract(x, y_unitful)
 
 @overload
-def subtract(x: PhysicalArrayLike, y: Unitful) -> Unitful:
+def subtract(x: ArrayLike, y: Unitful) -> Unitful:
     if y.unit.dim:
         raise ValueError(f"Cannot add non-unitful to array with unit {y.unit}.")
     x_unitful = Unitful(val=x, unit=Unit(scale=0, dim={}))
@@ -734,23 +791,42 @@ def subtract(x, y):  # type: ignore
     del x, y
     raise NotImplementedError()
 
+
 ## less than ##########################
-def _same_dim_binary_fn_bool_return(x: Unitful, y: Unitful, op_str: str) -> jax.Array | bool:
+def _same_dim_binary_fn_bool_return(
+    x: Unitful, 
+    y: Unitful, 
+    op_str: str, 
+    np_op_str: str | None = None,
+) -> tuple[jax.Array, StaticArrayLike | None]:
+    # TODO: handling of numpy arrays -> should return numpy arr if both inputs are numpy
     if x.unit.dim != y.unit.dim:
         raise ValueError(f"Cannot {op_str} two arrays with units {x.unit} and {y.unit}.")
     x, y = align_scales(x, y)
     orig_fn = getattr(jax.lax, f"_orig_{op_str}")
     new_val = orig_fn(x.val, y.val)
-    return new_val
+    new_static_arr = None
+    if is_traced(new_val) and np_op_str is not None:
+        x_arr = get_static_operand(x)
+        y_arr = get_static_operand(y)
+        if x_arr is not None and y_arr is not None:
+            np_fun = getattr(np, np_op_str)
+            new_static_arr = np_fun(x_arr, y_arr)
+    return new_val, new_static_arr
 
 @overload
 def lt(
-    x: Unitful, 
+    x: Unitful,
     y: Unitful
 ) ->  jax.Array | bool:
-    if isinstance(x.val, float | int | complex) and isinstance(y.val, float | int | complex):
+    if isinstance(x.val, float | int) and isinstance(y.val, float | int):
         return x.value() < y.value()  # type: ignore
-    return _same_dim_binary_fn_bool_return(x, y, "lt")
+    val, static_result = _same_dim_binary_fn_bool_return(x, y, "lt", "less")
+    # test if we should return unitful instead of array
+    if not is_traced(val) or static_result is None or not output_unitful_for_array(static_result):
+        return val
+    # return Unitful instead of array
+    return Unitful(val=val, unit=EMPTY_UNIT, static_arr=static_result)  # type: ignore
 
 @overload
 def lt(
@@ -758,7 +834,8 @@ def lt(
     y: RealPhysicalArrayLike,
 ) -> jax.Array | bool:
     assert x.unit.dim == {}, f"Cannot compare unitful with dim {x.unit.dim} to unitless quantity"
-    return lt(x, Unitful(val=float(y), unit=EMPTY_UNIT))
+    result = lt(x, Unitful(val=float(y), unit=EMPTY_UNIT))
+    return result
 
 @overload
 def lt(
@@ -785,9 +862,14 @@ def le(
     x: Unitful, 
     y: Unitful
 ) -> jax.Array | bool:
-    if isinstance(x.val, float | int | complex) and isinstance(y.val, float | int | complex):
+    if isinstance(x.val, float | int) and isinstance(y.val, float | int):
         return x.value() <= y.value()  # type: ignore
-    return _same_dim_binary_fn_bool_return(x, y, "le")
+    val, static_result = _same_dim_binary_fn_bool_return(x, y, "le", "less_equal")
+    # test if we should return unitful instead of array
+    if not is_traced(val) or static_result is None or not output_unitful_for_array(static_result):
+        return val
+    # return Unitful instead of array
+    return Unitful(val=val, unit=EMPTY_UNIT, static_arr=static_result)  # type: ignore
 
 @overload
 def le(
@@ -822,9 +904,14 @@ def eq(
     x: Unitful, 
     y: Unitful
 ) ->  jax.Array | bool:
-    if isinstance(x.val, float | int | complex) and isinstance(y.val, float | int | complex):
+    if isinstance(x.val, float | int) and isinstance(y.val, float | int):
         return x.value() == y.value()  # type: ignore
-    return _same_dim_binary_fn_bool_return(x, y, "eq")
+    val, static_result = _same_dim_binary_fn_bool_return(x, y, "eq", "equal")
+    # test if we should return unitful instead of array
+    if not is_traced(val) or static_result is None or not output_unitful_for_array(static_result):
+        return val
+    # return Unitful instead of array
+    return Unitful(val=val, unit=EMPTY_UNIT, static_arr=static_result)  # type: ignore
 
 @overload
 def eq(
@@ -861,7 +948,12 @@ def ne(
 ) ->  jax.Array | bool:
     if isinstance(x.val, float | int | complex) and isinstance(y.val, float | int | complex):
         return x.value() != y.value()
-    return _same_dim_binary_fn_bool_return(x, y, "ne")
+    val, static_result = _same_dim_binary_fn_bool_return(x, y, "ne", "not_equal")
+    # test if we should return unitful instead of array
+    if not is_traced(val) or static_result is None or not output_unitful_for_array(static_result):
+        return val
+    # return Unitful instead of array
+    return Unitful(val=val, unit=EMPTY_UNIT, static_arr=static_result)  # type: ignore
 
 @overload
 def ne(
@@ -896,9 +988,14 @@ def ge(
     x: Unitful, 
     y: Unitful
 ) ->  jax.Array | bool:
-    if isinstance(x.val, float | int | complex) and isinstance(y.val, float | int | complex):
+    if isinstance(x.val, float | int) and isinstance(y.val, float | int):
         return x.value() >= y.value()  # type: ignore
-    return _same_dim_binary_fn_bool_return(x, y, "ge")
+    val, static_result = _same_dim_binary_fn_bool_return(x, y, "ge", "greater_equal")
+    # test if we should return unitful instead of array
+    if not is_traced(val) or static_result is None or not output_unitful_for_array(static_result):
+        return val
+    # return Unitful instead of array
+    return Unitful(val=val, unit=EMPTY_UNIT, static_arr=static_result)  # type: ignore
 
 @overload
 def ge(
@@ -933,9 +1030,14 @@ def gt(
     x: Unitful, 
     y: Unitful
 ) ->  jax.Array | bool:
-    if isinstance(x.val, float | int | complex) and isinstance(y.val, float | int | complex):
+    if isinstance(x.val, float | int) and isinstance(y.val, float | int):
         return x.value() > y.value()  # type: ignore
-    return _same_dim_binary_fn_bool_return(x, y, "gt")
+    val, static_result = _same_dim_binary_fn_bool_return(x, y, "gt", "greater")
+    # test if we should return unitful instead of array
+    if not is_traced(val) or static_result is None or not output_unitful_for_array(static_result):
+        return val
+    # return Unitful instead of array
+    return Unitful(val=val, unit=EMPTY_UNIT, static_arr=static_result)  # type: ignore
 
 @overload
 def gt(
@@ -983,6 +1085,7 @@ def pow(x: Unitful, y: int) -> Unitful:
 @overload
 def pow(x: jax.Array, y: jax.Array) -> jax.Array: return x ** y
 
+# TODO: more fine-grained overloads
 @overload
 def pow(x: StaticPhysicalArrayLike, y: StaticPhysicalArrayLike) -> StaticPhysicalArrayLike: return x ** y
 
@@ -994,6 +1097,7 @@ def pow(x, y):  # type: ignore
 
 ## min #######################################
 def unary_fn(x: Unitful, op_str: str, *args, **kwargs) -> Unitful:
+    # TODO: handling of numpy arrays
     orig_fn = getattr(jax.numpy, f"_orig_{op_str}")
     new_val = orig_fn(x.val, *args, **kwargs)
     if not isinstance(new_val, jax.Array):

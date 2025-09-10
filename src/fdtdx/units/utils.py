@@ -96,15 +96,13 @@ def best_scale(
 ) -> tuple[PhysicalArrayLike, int]:
     """ 
     This uses some static approximations to find the scale of an ArrayLike that has the best numerical accuracy.
-    These approximations are only performed outside of jit. In a jitted function, this reduces to a NoOp, except if the
-    noop_in_jit is set to False.
     
     Args:
         arr (ArrayLike): Scale of first dimension (10^s1)
-        noop_in_jit (bool): If True, the function reduces to Noop in jit context. Defaults to True. 
+        previous_scale (int): Previously used scale for the array
     
     Returns:
-        tuple[ArrayLike, int]: Tuple of the numerical arraylike, and the power of 10, which the array was multiplied 
+        tuple[PhysicalArrayLike, int]: Tuple of the numerical arraylike, and the power of 10, which the array was multiplied 
         with.
     """
     # we cannot optimize traced values, leave unchanged
@@ -137,17 +135,19 @@ def best_scale(
     
     np_arr = np.asarray(arr)
     
-    
     # all values are zero: best scale is zero, so eliminate previous scale
     if np.any(np.isnan(arr)) or not np.all(np.isfinite(np_arr)) or np.all(np_arr == 0):
         return arr, previous_scale
     
     # Calculate median of absolute non-zero values.
     # Masking works here only because we are not working with jax arrays
-    non_zero_mask = np_arr != 0
-    nonzero_values = np_arr[non_zero_mask]
-    median_abs = np.median(np.abs(nonzero_values)).item()
-    log_offset = -round(math.log(median_abs, 10))
+    # non_zero_mask = np_arr != 0
+    # nonzero_values = np_arr[non_zero_mask]
+    # median_abs = np.median(np.abs(nonzero_values)).item()
+    # log_offset = -round(math.log(median_abs, 10))
+    
+    base_val = np.max(np.abs(np_arr)).item()
+    log_offset = -round(math.log(base_val, 10))
     
     scaled_arr = arr * (10.0 ** log_offset)
     return scaled_arr, log_offset

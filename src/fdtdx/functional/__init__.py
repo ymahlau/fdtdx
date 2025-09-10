@@ -20,6 +20,8 @@ from fdtdx.functional.numpy import (
     exp,
     expand_dims,
     where,
+    arange,
+    meshgrid,
 )
 from fdtdx.units.unitful import (
     multiply,
@@ -73,6 +75,8 @@ __all__ = [
     "exp",
     "expand_dims",
     "where",
+    "arange",
+    "meshgrid",
     # unitful inherent methods
     "multiply",
     "divide",
