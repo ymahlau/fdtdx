@@ -1,7 +1,14 @@
 import jax
 
 
-def straight_through_estimator(x: jax.Array, y: jax.Array) -> jax.Array:
+def straight_through_estimator(
+    #: jax.Array, the original continuous values before quantization/discretization.
+    #: Gradients will be computed with respect to these values.
+    x: jax.Array,
+    #: jax.Array, the discrete/quantized values used in the forward pass.
+    #: Must have the same shape as x.
+    y: jax.Array,
+) -> jax.Array:
     """Straight Through Estimator for gradient estimation with discrete variables.
 
     This function applies the straight through estimator (STE) by taking the gradient
@@ -14,17 +21,8 @@ def straight_through_estimator(x: jax.Array, y: jax.Array) -> jax.Array:
 
     This ensures during the forward pass we use y, but during backprop the
     gradient flows through x.
-
-    Args:
-        x (jax.Array): jax.Array, the original continuous values before quantization/discretization.
-            Gradients will be computed with respect to these values.
-        y (jax.Array): jax.Array, the discrete/quantized values used in the forward pass.
-            Must have the same shape as x.
-
-    Returns:
-        jax.Array: The result of applying the straight through estimator, which
-        is the same shape as `x` and `y`. In the forward pass this equals y,
-        but gradients flow through x.
     """
 
+    #: The result of applying the straight through estimator, which is the same shape as `x` and `y`.
+    #: In the forward pass this equals y, but gradients flow through x.
     return x - jax.lax.stop_gradient(x) + jax.lax.stop_gradient(y)

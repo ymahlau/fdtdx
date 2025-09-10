@@ -15,18 +15,32 @@ from matplotlib import pyplot as plt
 
 
 def plot_filled_std_curves(
+    #: Array of x-axis values.
     x: np.ndarray,
+    #: Array of y-axis values for the mean curve.
     mean: np.ndarray,
+    #: Color for the mean curve line.
     color: Any,
+    #: Color for the filled standard deviation region.
     lighter_color: Any,
+    #: Optional standard deviation array.
+    #: If provided, used to compute upper/lower bounds. Defaults to None.
     std: np.ndarray | None = None,
+    #: Optional array of upper bound values. Must be provided with lower.
     upper: np.ndarray | None = None,
+    #: Optional array of lower bound values. Must be provided with upper.
     lower: np.ndarray | None = None,
+    #: Style of the mean curve line. Defaults to solid line "-".
     linestyle: str = "-",
+    #: Optional marker style for data points on the mean curve. Defaults to None
     marker: str | None = None,
+    #: Optional label for the plot legend. Defaults to None.
     label: str | None = None,
+    #: Transparency value for the filled region. Defaults to 0.2.
     alpha: float = 0.2,
+    #: Optional minimum value to clip the curves. Defaults to None.
     min_val: float | None = None,
+    #: Optional maximum value to clip the curves. Defaults to None.
     max_val: float | None = None,
 ):
     """Plots a curve with filled standard deviation or confidence intervals.
@@ -40,22 +54,6 @@ def plot_filled_std_curves(
     2. Custom bounds mode: Provide explicit upper and lower bound arrays
 
     The plotted curves can be optionally clipped to minimum/maximum values.
-
-    Args:
-        x (np.ndarray): Array of x-axis values.
-        mean (np.ndarray): Array of y-axis values for the mean curve.
-        color (Any): Color for the mean curve line.
-        lighter_color (Any): Color for the filled standard deviation region.
-        std (np.ndarray | None, optional): Optional standard deviation array.
-            If provided, used to compute upper/lower bounds. Defaults to None.
-        upper (np.ndarray | None, optional): Optional array of upper bound values. Must be provided with lower.
-        lower (np.ndarray | None, optional): Optional array of lower bound values. Must be provided with upper.
-        linestyle (str, optional): Style of the mean curve line. Defaults to solid line "-".
-        marker (str | None, optional): Optional marker style for data points on the mean curve. Defaults to None
-        label (str | None, optional): Optional label for the plot legend. Defaults to None.
-        alpha (float, optional): Transparency value for the filled region. Defaults to 0.2.
-        min_val (float | None, optional): Optional minimum value to clip the curves. Defaults to None.
-        max_val (float | None, optional): Optional maximum value to clip the curves. Defaults to None.
 
     Example:
         >>> x = np.linspace(0, 10, 100)

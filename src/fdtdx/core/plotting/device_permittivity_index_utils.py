@@ -13,47 +13,32 @@ from fdtdx.materials import Material, compute_ordered_names
 from fdtdx.typing import ParameterType
 
 
-def index_matrix_to_str(indices: jax.Array) -> str:
-    """Converts a 2D matrix of indices to a formatted string representation.
-
-    Args:
-        indices (jax.Array): A 2D JAX array containing numerical indices.
-
-    Returns:
-        str: A string representation of the matrix where each row is space-separated
-        and rows are separated by newlines.
-    """
+def index_matrix_to_str(
+    #: A 2D JAX array containing numerical indices.
+    indices: jax.Array,
+) -> str:
+    """Converts a 2D matrix of indices to a formatted string representation."""
     indices_str = ""
     for i in range(indices.shape[0]):
         for j in range(indices.shape[1]):
             indices_str += str(indices[i, j].squeeze()) + " "
         indices_str += "\n"
+
+    #: A string representation of the matrix where each row is space-separated and rows are separated by newlines.
     return indices_str
 
 
 def device_matrix_index_figure(
+    #: A 3D JAX array containing the device matrix indices.
+    #: Shape should be (height, width, channels) where channels is typically 1.
     device_matrix_indices: jax.Array,
+    #: A tuple of (name, value) pairs defining the permittivity configurations, where name is a string identifier (e.g., "Air")
+    #: and value is the corresponding permittivity value.
     material: dict[str, Material],
+    #: Type of the parameters to be plotted
     parameter_type: ParameterType,
 ) -> Figure:
-    """Creates a visualization figure of device matrix indices with permittivity configurations.
-
-    Args:
-        device_matrix_indices (jax.Array): A 3D JAX array containing the device matrix indices.
-            Shape should be (height, width, channels) where channels is typically 1.
-        material (dict[str, Material]): A tuple of (name, value) pairs defining the permittivity
-            configurations, where name is a string identifier (e.g., "Air") and value
-            is the corresponding permittivity value.
-        parameter_type (ParameterType): Type of the parameters to be plotted
-
-    Returns:
-        Figure: A matplotlib Figure object containing the visualization with:
-        - A heatmap of the device matrix indices
-        - Color-coded regions based on permittivity configurations
-        - Optional text labels showing index values (for smaller matrices)
-        - A legend mapping colors to permittivity configurations
-        - Proper axis labels and grid settings
-    """
+    """Creates a visualization figure of device matrix indices with permittivity configurations."""
     assert device_matrix_indices.ndim == 3
 
     fig, ax = cast(tuple[Figure, Axes], plt.subplots(figsize=(12, 12)))
@@ -135,4 +120,11 @@ def device_matrix_index_figure(
     ax.set_aspect("equal")
     for line in ax.get_xgridlines() + ax.get_ygridlines():
         line.set_alpha(0.0)
+
+    #: A matplotlib Figure object containing the visualization with:
+    #:  - A heatmap of the device matrix indices
+    #:  - Color-coded regions based on permittivity configurations
+    #:  - Optional text labels showing index values (for smaller matrices)
+    #:  - A legend mapping colors to permittivity configurations
+    #:  - Proper axis labels and grid settings
     return fig

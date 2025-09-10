@@ -130,8 +130,12 @@ class TreeClass(tc.TreeClass):
 
     def aset(
         self,
+        #: Name of attribute to set
         attr_name: str,
+        #: Value to set the attribute to
         val: Any,
+        #: If false (default), throw an error if the attribute does not exist.
+        #: If true, creates a new attribute if the attribute name does not exist yet.
         create_new_ok: bool = False,
     ) -> Self:
         """Sets an attribute of this class. In contrast to the classical .at[].set(), this method updates the class
@@ -145,15 +149,6 @@ class TreeClass(tc.TreeClass):
         the dictionary key 'name'.
 
         Note that dictionary keys cannot contain square brackets or single quotes (even if they are escaped).
-
-        Args:
-            attr_name (str): Name of attribute to set
-            val (Any): Value to set the attribute to
-            create_new_ok (bool, optional): If false (default), throw an error if the attribute does not exist.
-                If true, creates a new attribute if the attribute name does not exist yet.
-
-        Returns:
-            Self: Updated instance with new attribute value
         """
         # parse operations
         ops = self._parse_operations(attr_name)
@@ -216,6 +211,8 @@ class TreeClass(tc.TreeClass):
                 raise Exception(f"Invalid operation type: {op_type}. This is an internal bug!")
 
         assert cur_attr.__class__ == self.__class__
+
+        #: Updated instance with new attribute value
         return cur_attr
 
 
@@ -251,31 +248,28 @@ def field(
 
 def field(
     *,
+    # . The default value for the field. Defaults to None.
     default: Any = NULL,
+    #: Whether to include the field in __init__. Defaults to True.
     init: bool = True,
+    #: Whether to include the field in __repr__. Defaults to True.
     repr: bool = True,
+    #: The argument kind (POS_ONLY, POS_OR_KW, etc.). Defaults to KW_ONLY.
     kind: ArgKindType = "KW_ONLY",
+    #: Additional metadata for the field. Defaults to None.
     metadata: dict[str, Any] | None = None,
+    #: Additional setattr callbacks. Defaults to no callbacks.
     on_setattr: Sequence[Any] = (),
+    #: Additional getattr callbacks. Defaults to no callbacks.
     on_getattr: Sequence[Any] = (),
+    #: Alternative name for the field in __init__. Defaults to None
     alias: str | None = None,
 ) -> Any:
     """
     A wrapper for pytreeclass fields. Allows specification of more advanced features.
-
-    Args:
-        default (Any, optional): The default value for the field. Defaults to None.
-        init (bool, optional): Whether to include the field in __init__. Defaults to True.
-        repr (bool, optional): Whether to include the field in __repr__. Defaults to True.
-        kind (ArgKindType, optional): The argument kind (POS_ONLY, POS_OR_KW, etc.). Defaults to KW_ONLY.
-        metadata (dict[str, Any] | None, optional): Additional metadata for the field. Defaults to None.
-        on_setattr (Sequence[Any], optional): Additional setattr callbacks. Defaults to no callbacks.
-        on_getattr (Sequence[Any], optional): Additional getattr callbacks. Defaults to no callbacks.
-        alias (str | None, optional): Alternative name for the field in __init__. Defaults to None
-
-    Returns:
-        Any: A Field instance configured with freeze/unfreeze behavior
     """
+
+    #: A Field instance configured with freeze/unfreeze behavior
     return tc_field(
         default=default,
         init=init,
@@ -317,31 +311,28 @@ def private_field(
 
 def private_field(
     *,
+    #: The default value for the field. Defaults to None.
     default: Any = NULL,
+    #: Whether to include the field in __init__. Defaults to False.
     init: bool = False,
+    #: Whether to include the field in __repr__. Defaults to True.
     repr: bool = True,
+    #: The argument kind (POS_ONLY, POS_OR_KW, etc.). Defaults to KW_ONLY.
     kind: ArgKindType = "KW_ONLY",
+    #: Additional metadata for the field. Defaults to None.
     metadata: dict[str, Any] | None = None,
+    #: Additional setattr callbacks. Defaults to no callbacks.
     on_setattr: Sequence[Any] = (),
+    #: Additional getattr callbacks. Defaults to no callbacks.
     on_getattr: Sequence[Any] = (),
+    #: Alternative name for the field in __init__. Defaults to None
     alias: str | None = None,
 ) -> Any:
     """
     Creates a field that sets the default to None and init to False.
-
-    Args:
-        default (Any, optional): The default value for the field. Defaults to None.
-        init (bool, optional): Whether to include the field in __init__. Defaults to False.
-        repr (bool, optional): Whether to include the field in __repr__. Defaults to True.
-        kind (ArgKindType, optional): The argument kind (POS_ONLY, POS_OR_KW, etc.). Defaults to KW_ONLY.
-        metadata (dict[str, Any] | None, optional): Additional metadata for the field. Defaults to None.
-        on_setattr (Sequence[Any], optional): Additional setattr callbacks. Defaults to no callbacks.
-        on_getattr (Sequence[Any], optional): Additional getattr callbacks. Defaults to no callbacks.
-        alias (str | None, optional): Alternative name for the field in __init__. Defaults to None
-
-    Returns:
-        Any: A private field instance.
     """
+
+    #: A private field instance.
     return tc_field(
         default=default,
         init=init,
@@ -383,35 +374,30 @@ def frozen_field(
 
 def frozen_field(
     *,
+    #: The default value for the field. Defaults to None.
     default: Any = NULL,
+    #: Whether to include the field in __init__. Defaults to True
     init: bool = True,
+    #: Whether to include the field in __repr__. Defaults to True.
     repr: bool = True,
+    #: The argument kind (POS_ONLY, POS_OR_KW, etc.). Defaults to KW_ONLY.
     kind: ArgKindType = "KW_ONLY",
+    #: Additional metadata for the field. Defaults to None.
     metadata: dict[str, Any] | None = None,
+    #: Additional setattr callbacks (applied after freezing). Defaults to no callbacks.
     on_setattr: Sequence[Any] = (),
+    #: Additional getattr callbacks (applied after unfreezing). Defaults to no callbacks.
     on_getattr: Sequence[Any] = (),
+    #: Alternative name for the field in __init__. Defaults to None
     alias: str | None = None,
 ) -> Any:
     """Creates a field that automatically freezes on set and unfreezes on get.
 
     This field behaves like a regular pytreeclass field but ensures values are
     frozen when stored and unfrozen when accessed.
-
-    Args:
-        default (Any, optional): The default value for the field. Defaults to None.
-        init (bool, optional): Whether to include the field in __init__. Defaults to True.
-        repr (bool, optional): Whether to include the field in __repr__. Defaults to True.
-        kind (ArgKindType, optional): The argument kind (POS_ONLY, POS_OR_KW, etc.). Defaults to KW_ONLY.
-        metadata (dict[str, Any] | None, optional): Additional metadata for the field. Defaults to None.
-        on_setattr (Sequence[Any], optional): Additional setattr callbacks (applied after freezing).
-            Defaults to no callbacks.
-        on_getattr (Sequence[Any], optional): Additional getattr callbacks (applied after unfreezing).
-            Defaults to no callbacks.
-        alias (str | None, optional): Alternative name for the field in __init__. Defaults to None
-
-    Returns:
-        Any: A Field instance configured with freeze/unfreeze behavior
     """
+
+    #: A Field instance configured with freeze/unfreeze behavior
     return tc_field(
         default=default,
         init=init,
@@ -453,13 +439,21 @@ def frozen_private_field(
 
 def frozen_private_field(
     *,
+    #: The default value for the field. Defaults to None.
     default: Any = None,
+    #: Whether to include the field in __init__. Defaults to False.
     init: bool = False,
+    #: Whether to include the field in __repr__. Defaults to True.
     repr: bool = True,
+    #: The argument kind (POS_ONLY, POS_OR_KW, etc.). Defaults to KW_ONLY.
     kind: ArgKindType = "KW_ONLY",
+    #: Additional metadata for the field. Defaults to None.
     metadata: dict[str, Any] | None = None,
+    #: Additional setattr callbacks (applied after freezing). Defaults to no callbacks.
     on_setattr: Sequence[Any] = (),
+    #: Additional getattr callbacks (applied after unfreezing). Defaults to no callbacks.
     on_getattr: Sequence[Any] = (),
+    #: Alternative name for the field in __init__. Defaults to None.
     alias: str | None = None,
 ) -> Any:
     """Creates a field that automatically freezes on set and unfreezes on get,
@@ -467,22 +461,9 @@ def frozen_private_field(
 
     This field behaves like a regular pytreeclass field but ensures values are
     frozen when stored and unfrozen when accessed.
-
-    Args:
-        default (Any, optional): The default value for the field. Defaults to None.
-        init (bool, optional): Whether to include the field in __init__. Defaults to False.
-        repr (bool, optional): Whether to include the field in __repr__. Defaults to True.
-        kind (ArgKindType, optional): The argument kind (POS_ONLY, POS_OR_KW, etc.). Defaults to KW_ONLY.
-        metadata (dict[str, Any] | None, optional): Additional metadata for the field. Defaults to None.
-        on_setattr (Sequence[Any], optional): Additional setattr callbacks (applied after freezing).
-            Defaults to no callbacks.
-        on_getattr (Sequence[Any], optional): Additional getattr callbacks (applied after unfreezing).
-            Defaults to no callbacks.
-        alias (str | None, optional): Alternative name for the field in __init__. Defaults to None.
-
-    Returns:
-        Any: A Field instance configured with freeze/unfreeze behavior
     """
+
+    #: A Field instance configured with freeze/unfreeze behavior
     return frozen_field(
         default=default,
         init=init,

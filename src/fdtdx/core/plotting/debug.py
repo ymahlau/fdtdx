@@ -21,11 +21,19 @@ def generate_unique_filename(prefix="file", extension=None):
 
 
 def debug_plot_2d(
+    #: The 2D array to visualize. Can be either a numpy array or JAX array.
     array: np.ndarray | jax.Array,
+    #: The matplotlib colormap to use for the visualization. Defaults to "viridis".
     cmap: str = "viridis",
+    #: If True, overlays the numerical values on each cell. Defaults to False.
     show_values: bool = False,
+    #: Directory where the plot will be saved. Will be created if it doesn't exist.
+    #: Defaults to "outputs/tmp/debug".
     tmp_dir: str | Path = "outputs/tmp/debug",
+    #: Name for the output file. If None, generates a unique name using timestamp.
+    #: The .png extension will be added automatically. Defaults to None.
     filename: str | None = None,
+    #: If true, center all values around x=0. Defaults to False.
     center_zero: bool = False,
 ) -> None:
     """Creates a debug visualization of a 2D array and saves it to disk.
@@ -33,16 +41,6 @@ def debug_plot_2d(
     This function is useful for debugging array values during development and testing.
     It creates a heatmap visualization with optional value annotations and automatically
     saves it to a specified directory.
-
-    Args:
-        array (np.ndarray | jax.Array): The 2D array to visualize. Can be either a numpy array or JAX array.
-        cmap (str, optional): The matplotlib colormap to use for the visualization. Defaults to "viridis".
-        show_values (bool, optional): If True, overlays the numerical values on each cell. Defaults to False.
-        tmp_dir (str | Path, optional): Directory where the plot will be saved. Will be created if it doesn't exist.
-            Defaults to "outputs/tmp/debug".
-        filename (str | None, optional): Name for the output file. If None, generates a unique name using timestamp.
-            The .png extension will be added automatically. Defaults to None.
-        center_zero (bool, optional): If true, center all values around x=0. Defaults to False.
 
     The resulting plot includes:
         - A heatmap visualization of the array values
@@ -97,17 +95,35 @@ def debug_plot_2d(
 
 
 def debug_plot_lines(
+    #: Dictionary mapping names to 1D arrays (numpy or JAX arrays).
     data_dict: dict[str, np.ndarray | jax.Array],
+    #: Optional x-axis values for all lines.
+    #: If None, indices will be used. Defaults to None.
     x_values: np.ndarray | jax.Array | None = None,
+    #: Optional dictionary mapping names to colors.
+    #: If None, default color cycle is used.
     colors: dict[str, str] | None = None,
+    #: Optional dictionary mapping names to line styles.
+    #: If None, solid lines are used.
     line_styles: dict[str, str] | None = None,
+    #: Optional dictionary mapping names to markers.
+    #: If None, no markers are used.
     markers: dict[str, str] | None = None,
+    #: Label for the x-axis. Defaults to "X".
     x_label: str = "X",
+    #: Label for the y-axis. Defaults to "Y".
     y_label: str = "Y",
+    #: Title for the plot. Defaults to "Debug Line Plot".
     title: str = "Debug Line Plot",
+    #: Location for the legend. Defaults to "best".
     legend_loc: str = "best",
+    #: If True, adds grid lines to the plot. Defaults to True.
     grid: bool = True,
+    #: Directory where the plot will be saved. Will be created if it doesn't exist.
+    #: Defaults to "outputs/tmp/debug".
     tmp_dir: str | Path = "outputs/tmp/debug",
+    #: Name for the output file. If None, generates a unique name using timestamp.
+    #: The .png extension will be added automatically.
     filename: str | None = None,
 ) -> None:
     """Creates a debug visualization of multiple 1D arrays as line plots and saves it to disk.
@@ -115,24 +131,6 @@ def debug_plot_lines(
     This function is useful for debugging array values during development and testing.
     It creates a multi-line plot for comparing multiple 1D arrays and automatically
     saves it to a specified directory.
-
-    Args:
-        data_dict (dict[str, np.ndarray | jax.Array]): Dictionary mapping names to 1D arrays (numpy or JAX arrays).
-        x_values (np.ndarray | jax.Array | None, optional): Optional x-axis values for all lines.
-            If None, indices will be used. Defaults to None.
-        colors (dict[str, str] | None, optional): Optional dictionary mapping names to colors.
-            If None, default color cycle is used.
-        line_styles (dict[str, str] | None, optional): Optional dictionary mapping names to line styles. If None, solid lines are used.
-        markers (dict[str, str] | None, optional): Optional dictionary mapping names to markers. If None, no markers are used.
-        x_label (str, optional): Label for the x-axis. Defaults to "X".
-        y_label (str, optional): Label for the y-axis. Defaults to "Y".
-        title (str, optional): Title for the plot. Defaults to "Debug Line Plot".
-        legend_loc (str, optional): Location for the legend. Defaults to "best".
-        grid (bool, optional): If True, adds grid lines to the plot. Defaults to True.
-        tmp_dir (str | Path, optional): Directory where the plot will be saved. Will be created if it doesn't exist.
-            Defaults to "outputs/tmp/debug".
-        filename (str | None, optional): Name for the output file. If None, generates a unique name using timestamp.
-            The .png extension will be added automatically.
 
     The resulting plot includes:
         - Multiple lines representing each 1D array in the input dictionary

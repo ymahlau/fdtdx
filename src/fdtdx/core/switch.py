@@ -75,30 +75,28 @@ class OnOffSwitch(TreeClass):
 
 
 def is_on_at_time_step(
+    #: Base on/off state
     is_always_off: bool,
+    #: Absolute start time
     start_time: float | None,
+    #: Start time in terms of periods
     start_after_periods: float | None,
+    #: Absolute end time
     end_time: float | None,
+    #: End time in terms of periods
     end_after_periods: float | None,
+    #: Duration to stay on in absolute time
     on_for_time: float | None,
+    #: Duration to stay on in terms of periods
     on_for_periods: float | None,
+    #: Current simulation time step
     time_step: int,
+    #: Duration of each time step
     time_step_duration: float,
+    #: Period length for period-based timing
     period: float | None,
 ) -> bool:  # scalar bool
     """Determines if a time-dependent component should be active at a given time step.
-
-    Args:
-        is_always_off (bool): Base on/off state
-        start_time (float | None): Absolute start time
-        start_after_periods (float | None): Start time in terms of periods
-        end_time (float | None): Absolute end time
-        end_after_periods (float | None): End time in terms of periods
-        on_for_time (float | None): Duration to stay on in absolute time
-        on_for_periods (float | None): Duration to stay on in terms of periods
-        time_step (int): Current simulation time step
-        time_step_duration (float): Duration of each time step
-        period (float | None): Period length for period-based timing
 
     Returns:
         bool: True if the component should be active at the given time step

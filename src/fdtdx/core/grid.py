@@ -81,23 +81,17 @@ def calculate_time_offset_yee(
 
 
 def polygon_to_mask(
+    #: tuple of (min_x, min_y, max_x, max_y). Rectangular boundary in metrical units (meter).
     boundary: tuple[float, float, float, float],
+    #: Grid resolution (spacing between grid points) in metrical units
     resolution: float,
+    #: list of (x, y) tuples
+    #: Vertices of the polygon in metrical units. Last point should equal first point.
+    #: Must have shape (N, 2).
     polygon_vertices: np.ndarray,
 ) -> np.ndarray:
     """
     Generate a 2D binary mask from a polygon.
-
-    Args:
-        boundary (tuple[float, float, float, float]): tuple of (min_x, min_y, max_x, max_y)
-            Rectangular boundary in metrical units (meter).
-        resolution (float): float
-            Grid resolution (spacing between grid points) in metrical units
-        polygon_vertices (np.ndarray): list of (x, y) tuples
-            Vertices of the polygon in metrical units. Last point should equal first point.
-            Must have shape (N, 2).
-    Returns:
-        np.ndarray: 2D binary mask where 1 indicates inside polygon, 0 indicates outside
     """
     assert polygon_vertices.ndim == 2
     assert polygon_vertices.shape[1] == 2
@@ -122,4 +116,5 @@ def polygon_to_mask(
     # Reshape back to 2D grid
     mask = inside_polygon.reshape(Y.shape).astype(bool)
 
+    #: 2D binary mask where 1 indicates inside polygon, 0 indicates outside
     return mask

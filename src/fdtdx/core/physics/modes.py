@@ -12,33 +12,18 @@ from fdtdx.core.physics.metrics import normalize_by_poynting_flux
 
 ModeTupleType = namedtuple("Mode", ["neff", "Ex", "Ey", "Ez", "Hx", "Hy", "Hz"])
 """A named tuple containing the mode fields and effective index.
-
-Attributes:
-    neff: Complex effective refractive index of the mode
-    Ex: x-component of the electric field
-    Ey: y-component of the electric field
-    Ez: z-component of the electric field
-    Hx: x-component of the magnetic field
-    Hy: y-component of the magnetic field
-    Hz: z-component of the magnetic field
 """
 
 
 def compute_mode_polarization_fraction(
+    #: a ModeTupleType instance
     mode: ModeTupleType,
+    #: indices of transverse E-field component axes.
     tangential_axes: tuple[int, int],
+    #: "te" or "tm" determines which axis is 'E1'
     pol: Literal["te", "tm"],
 ) -> float:
-    """Mode polarization fraction.
-
-    Args:
-        mode (ModeTupleType): a ModeTupleType instance
-        tangential_axes (tuple[int, int]): indices of transverse E-field component axes.
-        pol (Literal["te", "tm"]): "te" or "tm" determines which axis is 'E1'
-
-    Returns:
-        float: Polarization fraction between 0 and 1.
-    """
+    """Mode polarization fraction."""
 
     E_fields = [mode.Ex, mode.Ey, mode.Ez]
     E1 = E_fields[tangential_axes[0]]
@@ -52,24 +37,21 @@ def compute_mode_polarization_fraction(
         raise ValueError(f"pol must be 'te' or 'tm', but got {pol}")
 
     denominator = np.sum(np.abs(E1) ** 2 + np.abs(E2) ** 2) + 1e-18
+
+    #: Polarization fraction between 0 and 1.
     return numerator / denominator
 
 
 def sort_modes(
+    #: list of modes.
     modes: list[ModeTupleType],
+    #: If not none, sort by polarization specificaton.
     filter_pol: Literal["te", "tm"] | None,
+    #: indices of transverse E-field component axes.
     tangential_axes: tuple[int, int],
 ) -> list[ModeTupleType]:
     """
     Sort modes by polarization.
-
-    Args:
-        modes (list[ModeTupleType]): list of modes.
-        filter_pol (Literal["te", "tm"] | None): If not none, sort by polarization specificaton.
-        tangential_axes (tuple[int, int]): indices of transverse E-field component axes.
-
-    Returns:
-        list[ModeTupleType]: sorted list of modes.
     """
     if filter_pol is None:
         return sorted(modes, key=lambda m: float(np.real(m.neff)), reverse=True)
@@ -84,6 +66,7 @@ def sort_modes(
     matching_sorted = sorted(matching, key=lambda m: float(np.real(m.neff)), reverse=True)
     non_matching_sorted = sorted(non_matching, key=lambda m: float(np.real(m.neff)), reverse=True)
 
+    #: sorted list of modes.
     return matching_sorted + non_matching_sorted
 
 
@@ -189,15 +172,25 @@ def compute_mode(
 
 
 def tidy3d_mode_computation_wrapper(
+    #: Operating frequency in Hz
     frequency: float,
+    #: 2D array of relative permittivity values
     permittivity_cross_section: np.ndarray,
+    #: List of coordinate arrays [x, y] defining the grid
     coords: List[np.ndarray],
+    #: Propagation direction, either "+" or "-"
     direction: Literal["+", "-"],
+    #: 2D array of relative permeability values. Defauts to None.
     permeability_cross_section: np.ndarray | None = None,
+    #: Target effective index to search around. Defaults to None
     target_neff: float | None = None,
+    #: Polar angle in radians. Defaults to 0.0.
     angle_theta: float = 0.0,
+    #: Azimuthal angle in radians. Defaults to 0.0
     angle_phi: float = 0.0,
+    #: Number of modes to compute. Defaults to 10
     num_modes: int = 10,
+    #: Numerical precision. Defaults to "double"
     precision: Literal["single", "double"] = "double",
 ) -> List[ModeTupleType]:
     """Compute optical modes of a waveguide cross-section.
@@ -205,25 +198,8 @@ def tidy3d_mode_computation_wrapper(
     This function uses the Tidy3D mode solver to compute the optical modes of a given
     waveguide cross-section defined by its permittivity distribution.
 
-    Args:
-        frequency (float): Operating frequency in Hz
-        permittivity_cross_section (np.ndarray): 2D array of relative permittivity values
-        coords (List[np.ndarray]): List of coordinate arrays [x, y] defining the grid
-        direction (Literal["+", "-"], optional): Propagation direction, either "+" or "-"
-        permeability_cross_section (np.ndarray | None, optional): 2D array of relative permeability values.
-            Defauts to None.
-        target_neff (float | None, optional): Target effective index to search around. Defaults to None.
-        angle_theta (float, optional): Polar angle in radians. Defaults to 0.0.
-        angle_phi (float, optional): Azimuthal angle in radians. Defaults to 0.0.
-        num_modes (int, optional): Number of modes to compute. Defaults to 10.
-        precision (Literal["single", "double"], optional): Numerical precision. Defaults to "double".
-
     Notes:
         tidy3d assumes propagation in z-direction. The output fields should be handled accordingly.
-
-    Returns:
-        List[ModeTupleType]: List of computed modes sorted by decreasing real part of
-            effective index. Each mode contains the field components and effective index.
     """
     # see https://docs.flexcompute.com/projects/tidy3d/en/latest/_autosummary/tidy3d.ModeSpec.html#tidy3d.ModeSpec
     mode_spec = SimpleNamespace(
@@ -279,12 +255,19 @@ def tidy3d_mode_computation_wrapper(
     if num_modes == 1:
         modes = [
             ModeTupleType(
+                #: x-component of the electric field
                 Ex=Ex,
+                #: y-component of the electric field
                 Ey=Ey,
+                #: z-component of the electric field
                 Ez=Ez,
+                #: x-component of the magnetic field
                 Hx=Hx,
+                #: y-component of the magnetic field
                 Hy=Hy,
+                #: z-component of the magnetic field
                 Hz=Hz,
+                #: Complex effective refractive index of the mode
                 neff=float(neffs.real) + 1j * float(neffs.imag),
             )
             for _ in range(num_modes)
@@ -302,4 +285,7 @@ def tidy3d_mode_computation_wrapper(
             )
             for i in range(num_modes)
         ]
+
+    #: List of computed modes sorted by decreasing real part of effective index.
+    #: Each mode contains the field components and effective index.
     return modes

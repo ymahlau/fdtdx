@@ -11,23 +11,18 @@ import jax.numpy as jnp
 
 
 def compute_energy(
+    #: Electric field array with shape (3, nx, ny, nz)
     E: jax.Array,
+    #: Magnetic field array with shape (3, nx, ny, nz)
     H: jax.Array,
+    #: Inverse of the electric permittivity array
     inv_permittivity: jax.Array | float,
+    #: Inverse of the magnetic permeability array
     inv_permeability: jax.Array | float,
+    #: Axis index of the X,Y,Z component for the E and H field. Defaults to 0.
     axis: int = 0,
 ) -> jax.Array:
-    """Computes the total electromagnetic energy density of the field.
-
-    Args:
-        E (jax.Array): Electric field array with shape (3, nx, ny, nz)
-        H (jax.Array): Magnetic field array with shape (3, nx, ny, nz)
-        inv_permittivity (jax.Array | float): Inverse of the electric permittivity array
-        inv_permeability (jax.Array | float): Inverse of the magnetic permeability array
-        axis (int, optional): Axis index of the X,Y,Z component for the E and H field. Defaults to 0.
-    Returns:
-        jax.Array: Total energy density array with shape (nx, ny, nz)
-    """
+    """Computes the total electromagnetic energy density of the field."""
     abs_E = jnp.sum(jnp.square(jnp.abs(E)), axis=axis)
     energy_E = 0.5 * (1 / inv_permittivity) * abs_E
 
@@ -35,26 +30,22 @@ def compute_energy(
     energy_H = 0.5 * (1 / inv_permeability) * abs_H
 
     total_energy = energy_E + energy_H
+
+    #: Total energy density array with shape (nx, ny, nz)
     return total_energy
 
 
 def normalize_by_energy(
+    #: Electric field array with shape (3, nx, ny, nz)
     E: jax.Array,
+    #: Magnetic field array with shape (3, nx, ny, nz)
     H: jax.Array,
+    #: Inverse of the electric permittivity array
     inv_permittivity: jax.Array | float,
+    #: Inverse of the magnetic permeability array
     inv_permeability: jax.Array | float,
 ) -> tuple[jax.Array, jax.Array]:
-    """Normalizes electromagnetic fields by their total energy.
-
-    Args:
-        E (jax.Array): Electric field array with shape (3, nx, ny, nz)
-        H (jax.Array): Magnetic field array with shape (3, nx, ny, nz)
-        inv_permittivity (jax.Array | float): Inverse of the electric permittivity array
-        inv_permeability (jax.Array | float): Inverse of the magnetic permeability array
-
-    Returns:
-        tuple[jax.Array, jax.Array]: Tuple of (normalized E field, normalized H field)
-    """
+    """Normalizes electromagnetic fields by their total energy."""
     total_energy = compute_energy(
         E=E,
         H=H,
@@ -64,21 +55,22 @@ def normalize_by_energy(
     energy_root = jnp.sqrt(jnp.sum(total_energy))
     norm_E = E / energy_root
     norm_H = H / energy_root
+
+    #: Tuple of (normalized E field, normalized H field)
     return norm_E, norm_H
 
 
-def compute_poynting_flux(E: jax.Array, H: jax.Array, axis: int = 0) -> jax.Array:
-    """Calculates the Poynting vector (energy flux) from E and H fields.
+def compute_poynting_flux(
+    #: Electric field array with shape (3, nx, ny, nz)
+    E: jax.Array,
+    #: Magnetic field array with shape (3, nx, ny, nz)
+    H: jax.Array,
+    #: Axis for computing the poynting flux. Defaults to 0.
+    axis: int = 0,
+) -> jax.Array:
+    """Calculates the Poynting vector (energy flux) from E and H fields."""
 
-    Args:
-        E (jax.Array): Electric field array with shape (3, nx, ny, nz)
-        H (jax.Array): Magnetic field array with shape (3, nx, ny, nz)
-        axis (int, optional): Axis for computing the poynting flux. Defaults to 0.
-
-    Returns:
-        jax.Array: Poynting vector array with shape (3, nx, ny, nz) representing
-        energy flux in each direction
-    """
+    #: Poynting vector array with shape (3, nx, ny, nz) representing energy flux in each direction
     return jnp.cross(
         E,
         jnp.conj(H),

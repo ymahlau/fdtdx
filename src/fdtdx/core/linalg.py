@@ -45,18 +45,12 @@ def get_orthogonal_vector(
 
 
 def get_single_directional_rotation_matrix(
+    #: Axis around which to rotate (0=x, 1=y, 2=z)
     rotation_axis: int,
+    #: Rotation angle in radians
     angle_radians: float | jax.Array,
 ) -> jax.Array:  # rotation matrix of shape (3, 3)
-    """Generate a 3D rotation matrix for rotation around a specified axis.
-
-    Args:
-        rotation_axis (int): Axis around which to rotate (0=x, 1=y, 2=z)
-        angle_radians (float | jax.Array): Rotation angle in radians
-
-    Returns:
-        jax.Array: 3x3 rotation matrix
-    """
+    """Generate a 3D rotation matrix for rotation around a specified axis."""
     if rotation_axis == 0:
         return jnp.asarray(
             [
@@ -74,6 +68,7 @@ def get_single_directional_rotation_matrix(
             ]
         )
     elif rotation_axis == 2:
+        #: 3x3 rotation matrix
         return jnp.asarray(
             [
                 [jnp.cos(angle_radians), -jnp.sin(angle_radians), 0],
@@ -85,25 +80,19 @@ def get_single_directional_rotation_matrix(
 
 
 def rotate_vector(
+    #: Input vector to rotate
     vector: jax.Array,
+    #: Rotation angle around vertical axis in radians
     azimuth_angle: float | jax.Array,
+    #: Rotation angle around horizontal axis in radians
     elevation_angle: float | jax.Array,
+    #: tuple of axes specifying horizontal_axis, vertical_axis, and propagation_axis.
     axes_tuple: tuple[int, int, int],
 ) -> jax.Array:
     """Rotate a vector by specified azimuth and elevation angles.
 
     Transforms the vector from the global coordinate system to a rotated coordinate
     system defined by the azimuth and elevation angles.
-
-    Args:
-        vector (jax.Array): Input vector to rotate
-        azimuth_angle (float | jax.Array): Rotation angle around vertical axis in radians
-        elevation_angle (float | jax.Array): Rotation angle around horizontal axis in radians
-        axes_tuple (tuple[int, int, int]): tuple of axes specifying horizontal_axis, vertical_axis,
-            and propagation_axis.
-
-    Returns:
-        jax.Array: Rotated vector in global coordinates
     """
 
     horizontal_axis, vertical_axis, propagation_axis = axes_tuple
@@ -145,4 +134,5 @@ def rotate_vector(
     global_rotated = global_rotated / jnp.linalg.norm(global_rotated)
     global_rotated = global_rotated * jnp.linalg.norm(vector)
 
+    #: Rotated vector in global coordinates
     return global_rotated

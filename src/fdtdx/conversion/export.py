@@ -34,24 +34,17 @@ def xyz_to_idx(
 
 
 def export_stl(
+    #: 3D boolean numpy array representing the voxel grid.
     matrix: np.ndarray,
+    #: Output STL file path. If given, save the stl to this path. Defaults to None.
     stl_filename: Path | str | None = None,
+    #: Physical size of each voxel as (x, y, z) integers. Defaults to (1, 1, 1).
     voxel_grid_size: tuple[int, int, int] = (1, 1, 1),
-) -> trimesh.Trimesh:
+) -> trimesh.Trimesh:  #: STL mesh
     """Export a 3D boolean matrix to an STL file.
 
     Converts a 3D boolean matrix into a mesh representation and saves it as an STL file.
     True values in the matrix are converted to solid voxels in the output mesh.
-
-    Args:
-        matrix (np.ndarray): 3D boolean numpy array representing the voxel grid.
-        stl_filename (Path | str | None, optional): Output STL file path. If given, save the stl to this path.
-            Defaults to None.
-        voxel_grid_size (tuple[int, int, int], optional): Physical size of each voxel as (x, y, z) integers.
-            Defaults to (1, 1, 1).
-
-    Returns:
-        trimesh.Trimesh: STL mesh.
 
     Raises:
         Exception: If input matrix is not 3-dimensional.
