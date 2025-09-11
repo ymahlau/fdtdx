@@ -1,6 +1,5 @@
 # Unitful design decisions
 
-
 * A unitful can have the following values:
     * any python internal datatypes (including int and bool, which only work without a unit)
     * np.ndarray and np.number
@@ -23,5 +22,9 @@
 
 * The scale of a unitful is optimized
     * if it is possible to do so (proper value type, not traced, etc...)
+
+
+# Limitations:
+* vmap: might be extremely slow to compile
 
 

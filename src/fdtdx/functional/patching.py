@@ -161,7 +161,7 @@ def patch_all_functions():
 
     ## add to jax ###################
     _full_patch_list_jax = [
-        (jit, None)
+        (jit, None),
     ]
     for fn, orig in _full_patch_list_jax:
         patch_fn_to_module(

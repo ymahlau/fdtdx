@@ -405,7 +405,7 @@ def main(
             info["lr"] = opt_state_finetune.inner_opt_state.hyperparams["learning_rate"]
             params = optax.apply_updates(params, updates)
             # Clip parameters to [0, 1] range
-            params = jax.tree_util.tree_map(lambda p: jnp.clip(p, 0, 1), params)
+            params = jax.tree.map(lambda p: jnp.clip(p, 0, 1), params)
             # Log gradient and update norms
             info["grad_norm"] = optax.global_norm(grads)
             info["update_norm"] = optax.global_norm(updates)

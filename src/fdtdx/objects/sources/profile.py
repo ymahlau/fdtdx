@@ -5,6 +5,7 @@ import jax
 import jax.numpy as jnp
 
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
+from fdtdx.units.unitful import Unitful
 
 
 @autoinit
@@ -17,8 +18,8 @@ class TemporalProfile(TreeClass, ABC):
     @abstractmethod
     def get_amplitude(
         self,
-        time: jax.Array,
-        period: float,
+        time: Unitful,
+        period: Unitful,
         phase_shift: float = 0.0,
     ) -> jax.Array:
         """Calculate the temporal amplitude at given time points.
@@ -43,14 +44,16 @@ class SingleFrequencyProfile(TemporalProfile):
 
     def get_amplitude(
         self,
-        time: jax.Array,
-        period: float,
+        time: Unitful,
+        period: Unitful,
         phase_shift: float = 0.0,
     ) -> jax.Array:
-        time_phase = 2 * jnp.pi * time / period + phase_shift + self.phase_shift
+        num_periods = (time / period).materialise()
+        time_phase = 2 * jnp.pi * num_periods + phase_shift + self.phase_shift
         raw_amplitude = jnp.real(jnp.exp(-1j * time_phase))
         startup_time = self.num_startup_periods * period
-        factor = jnp.clip(time / startup_time, 0, 1)
+        relative_time = (time / startup_time).materialise()
+        factor = jnp.clip(relative_time, 0, 1)
         return factor * raw_amplitude
 
 
@@ -63,10 +66,11 @@ class GaussianPulseProfile(TemporalProfile):
 
     def get_amplitude(
         self,
-        time: jax.Array,
-        period: float,
+        time: Unitful,
+        period: Unitful,
         phase_shift: float = 0.0,
     ) -> jax.Array:
+        raise NotImplementedError()
         del period
         # Calculate envelope parameters
         sigma_t = 1.0 / (2 * jnp.pi * self.spectral_width)

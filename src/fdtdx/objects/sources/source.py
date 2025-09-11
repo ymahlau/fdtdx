@@ -15,6 +15,7 @@ from fdtdx.objects.sources.profile import SingleFrequencyProfile, TemporalProfil
 from fdtdx.typing import SliceTuple3D
 from fdtdx.units import J
 from fdtdx.units.unitful import Unitful
+import fdtdx.functional as ff
 
 
 @autoinit
@@ -157,7 +158,7 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
             return E
         delta_t = self._config.time_step_duration
         time_phase = 2 * jnp.pi * time_step * delta_t / self.wave_character.period + self.wave_character.phase_shift
-        magnitude = jnp.real(self.amplitude * jnp.exp(-1j * time_phase))
+        magnitude = ff.real(self.amplitude * jnp.exp(-1j * time_phase))
         magnitude = magnitude * self.static_amplitude_factor
         e_pol, _ = normalize_polarization_for_source(
             direction=self.direction,
@@ -165,9 +166,9 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
             fixed_E_polarization_vector=self.fixed_E_polarization_vector,
             fixed_H_polarization_vector=self.fixed_E_polarization_vector,
         )
-        E_update = e_pol[:, None, None, None] * magnitude
+        E_update = magnitude * e_pol[:, None, None, None]
 
-        E = E.at[:, *self.grid_slice].set(E_update.astype(E.dtype))
+        E = E.at[:, *self.grid_slice].set(E_update)
         return E
 
     def update_H(
@@ -183,7 +184,7 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
             return H
         delta_t = self._config.time_step_duration
         time_phase = 2 * jnp.pi * time_step * delta_t / self.wave_character.period + self.wave_character.phase_shift
-        magnitude = jnp.real(self.amplitude * jnp.exp(-1j * time_phase))
+        magnitude = ff.real(self.amplitude * jnp.exp(-1j * time_phase))
         magnitude = magnitude * self.static_amplitude_factor
         _, h_pol = normalize_polarization_for_source(
             direction=self.direction,
@@ -191,7 +192,7 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
             fixed_E_polarization_vector=self.fixed_E_polarization_vector,
             fixed_H_polarization_vector=self.fixed_E_polarization_vector,
         )
-        H_update = h_pol[:, None, None, None] * magnitude
+        H_update =  magnitude * h_pol[:, None, None, None]
 
         H = H.at[:, *self.grid_slice].set(H_update.astype(H.dtype))
         return H

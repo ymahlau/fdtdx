@@ -1,15 +1,17 @@
 from abc import ABC, abstractmethod
+from functools import partial
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from fdtdx.core.grid import calculate_time_offset_yee
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.linalg import get_wave_vector_raw, rotate_vector
 from fdtdx.core.misc import linear_interpolated_indexing, normalize_polarization_for_source
-from fdtdx.core.physics.metrics import compute_energy
+from fdtdx.core.physics.metrics import normalize_by_averaged_flux
 from fdtdx.objects.sources.tfsf import TFSFPlaneSource
-from fdtdx.units import J
+from fdtdx.units import J, V, m, A
 from fdtdx.units.unitful import Unitful
 
 
@@ -17,11 +19,10 @@ from fdtdx.units.unitful import Unitful
 class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
     fixed_E_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
     fixed_H_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
-    normalize_by_energy: bool = frozen_field(default=True)
+    normalize_by_flux: bool = frozen_field(default=True)
 
     def get_EH_variation(
         self,
-        key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
     ) -> tuple[
@@ -46,13 +47,13 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
             propagation_axis=self.propagation_axis,
         )
 
-        center, azimuth, elevation = self._get_random_parts(key)
+        center = self._get_center()
 
         # tilt polarizations
         axes_tpl = (self.horizontal_axis, self.vertical_axis, self.propagation_axis)
-        wave_vector = rotate_vector(wave_vector_raw, azimuth, elevation, axes_tpl)
-        e_pol = rotate_vector(e_pol_raw, azimuth, elevation, axes_tpl)
-        h_pol = rotate_vector(h_pol_raw, azimuth, elevation, axes_tpl)
+        wave_vector = rotate_vector(wave_vector_raw, self.azimuth_radians, self.elevation_radians, axes_tpl)
+        e_pol = rotate_vector(e_pol_raw, self.azimuth_radians, self.elevation_radians, axes_tpl)
+        h_pol = rotate_vector(h_pol_raw, self.azimuth_radians, self.elevation_radians, axes_tpl)
 
         # update is amplitude multiplied by polarization
         amplitude_raw = self._get_amplitude_raw(center)[None, ...]
@@ -64,7 +65,7 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
             indexing="ij",
         )
         wh_indices = jnp.stack((w, h), axis=-1)
-        wh_indices -= center
+        wh_indices -= jnp.asarray(center)
         # basis in plane
         h_list = [0, 0, 0]
         h_list[self.horizontal_axis] = 1
@@ -85,25 +86,24 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
             return jnp.asarray((u, v), dtype=jnp.float32)
 
         float_projected = jax.vmap(project)(wh_indices.reshape(-1, 2))
-        float_projected += center
+        float_projected += jnp.asarray(center)
         # interpolate floating indices in original array
         index_fn = jax.vmap(linear_interpolated_indexing, in_axes=(0, None))
         interp = index_fn(float_projected, amplitude_raw.squeeze())
         amplitude = interp.reshape(*amplitude_raw.shape)
 
-        E = amplitude * e_pol[:, None, None, None]
-        H = amplitude * h_pol[:, None, None, None]
+        E = (V / m) * amplitude * e_pol[:, None, None, None]
+        H = (A / m) * amplitude * h_pol[:, None, None, None]
 
-        if self.normalize_by_energy:
-            energy = compute_energy(
+        if self.normalize_by_flux:
+            normal_vec = [0, 0, 0]
+            normal_vec[self.propagation_axis] = 1 if self.direction == "+" else -1
+            E, H = normalize_by_averaged_flux(
                 E=E,
                 H=H,
-                inv_permittivity=inv_permittivities,
-                inv_permeability=inv_permeabilities,
+                resolution=self._config.resolution,
+                normal_vector=(normal_vec[0], normal_vec[1], normal_vec[2]),
             )
-            total_energy_root = jnp.sqrt(energy.sum())
-            E = E / total_energy_root
-            H = H / total_energy_root
 
         # adjust H for impedance of the medium
         impedance = jnp.sqrt(inv_permittivities / inv_permeabilities)
@@ -123,7 +123,7 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
     @abstractmethod
     def _get_amplitude_raw(
         self,
-        center: jax.Array,
+        center: tuple[float, float],
     ) -> jax.Array:  # shape (*grid_shape)
         # in normal coordinates, not yee grid
         del center
@@ -140,7 +140,7 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
         width: int,
         height: int,
         axis: int,
-        center: tuple[float, float] | jax.Array,
+        center: tuple[float, float],
         radii: tuple[float, float],
         std: float,
     ) -> jax.Array:  # shape (*grid_shape)
@@ -162,9 +162,9 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
 
     def _get_amplitude_raw(
         self,
-        center: jax.Array,
+        center: tuple[float, float],
     ) -> jax.Array:
-        grid_radius = self.radius / self._config.resolution
+        grid_radius = (self.radius / self._config.resolution).float_materialise()
         profile = self._gauss_profile(
             width=self.grid_shape[self.horizontal_axis],
             height=self.grid_shape[self.vertical_axis],
@@ -178,12 +178,11 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
 
 @autoinit
 class UniformPlaneSource(LinearlyPolarizedPlaneSource):
-    amplitude: Unitful = frozen_field(default=1.0*J)
 
     def _get_amplitude_raw(
         self,
-        center: jax.Array,
+        center: tuple[float, float],
     ) -> jax.Array:
         del center
         profile = jnp.ones(shape=self.grid_shape, dtype=jnp.float32)
-        return self.amplitude * profile
+        return profile

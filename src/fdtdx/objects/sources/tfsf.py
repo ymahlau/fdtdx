@@ -5,8 +5,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field, frozen_private_field, private_field
 from fdtdx.objects.sources.source import DirectionalPlaneSourceBase
+from fdtdx.units.unitful import Unitful
+from fdtdx.units import m
 
 
 @autoinit
@@ -19,14 +21,11 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
 
     azimuth_angle: float = frozen_field(default=0.0)
     elevation_angle: float = frozen_field(default=0.0)
-    max_angle_random_offset: float = frozen_field(default=0.0)
-    max_vertical_offset: float = frozen_field(default=0.0)
-    max_horizontal_offset: float = frozen_field(default=0.0)
 
-    _E: jax.Array = private_field()
-    _H: jax.Array = private_field()
-    _time_offset_E: jax.Array = private_field()
-    _time_offset_H: jax.Array = private_field()
+    _E: Unitful = private_field()
+    _H: Unitful = private_field()
+    _time_offset_E: Unitful = private_field()
+    _time_offset_H: Unitful = private_field()
 
     @property
     def azimuth_radians(self) -> float:
@@ -35,7 +34,7 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         Returns:
             float: Azimuth angle in radians.
         """
-        return np.deg2rad(self.azimuth_angle)
+        return np.deg2rad(self.azimuth_angle).item()
 
     @property
     def elevation_radians(self) -> float:
@@ -44,59 +43,10 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         Returns:
             float: Elevation angle in radians.
         """
-        return np.deg2rad(self.elevation_angle)
+        return np.deg2rad(self.elevation_angle).item()
 
-    @property
-    def max_angle_random_offset_radians(self) -> float:
-        """Convert maximum random angle offset from degrees to radians.
 
-        Returns:
-            float: Maximum random angle offset in radians.
-        """
-        return np.deg2rad(self.max_angle_random_offset)
-
-    @property
-    def max_vertical_offset_grid(self) -> float:
-        """Convert maximum vertical offset from physical units to grid points.
-
-        Returns:
-            float: Maximum vertical offset in grid points.
-        """
-        return self.max_vertical_offset / self._config.resolution
-
-    @property
-    def max_horizontal_offset_grid(self) -> float:
-        """Convert maximum horizontal offset from physical units to grid points.
-
-        Returns:
-            float: Maximum horizontal offset in grid points.
-        """
-        return self.max_horizontal_offset / self._config.resolution
-
-    def _get_azimuth_elevation(
-        self,
-        key: jax.Array,
-    ) -> tuple[
-        jax.Array,  # azimuth (radians)
-        jax.Array,  # elevation (radians)
-    ]:
-        # Generate random azimuth and elevation angles within allowed offset ranges
-        key1, key2 = jax.random.split(key)
-        elevation_radians = jax.random.uniform(
-            key1,
-            shape=(),
-            minval=self.elevation_radians - self.max_angle_random_offset_radians,
-            maxval=self.elevation_radians + self.max_angle_random_offset_radians,
-        )
-        azimuth_radians = jax.random.uniform(
-            key2,
-            shape=(),
-            minval=self.azimuth_radians - self.max_angle_random_offset_radians,
-            maxval=self.azimuth_radians + self.max_angle_random_offset_radians,
-        )
-        return azimuth_radians, elevation_radians
-
-    def _get_center(self, key: jax.Array) -> jax.Array:  # shape(2,)
+    def _get_center(self) -> tuple[float, float]:
         # Calculate center position with random offset
         horizontal_size = self.grid_shape[self.horizontal_axis]
         vertical_size = self.grid_shape[self.vertical_axis]
@@ -105,46 +55,18 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         center_horizontal = (horizontal_size - 1) / 2
         center_vertical = (vertical_size - 1) / 2
 
-        key, subkey = jax.random.split(key)
-        horizontal_offset = jax.random.uniform(
-            key=subkey,
-            shape=(1,),
-            minval=-self.max_horizontal_offset_grid,
-            maxval=self.max_horizontal_offset_grid,
-        )
-        vertical_offset = jax.random.uniform(
-            key=key,
-            shape=(1,),
-            minval=-self.max_vertical_offset_grid,
-            maxval=self.max_vertical_offset_grid,
-        )
-
-        center = jnp.asarray(
-            [center_horizontal + horizontal_offset, center_vertical + vertical_offset],
-            dtype=jnp.float32,
-        ).squeeze()
-        return center
-
-    def _get_random_parts(self, key: jax.Array):
-        key, subkey = jax.random.split(key)
-        center = self._get_center(subkey)
-
-        key, subkey = jax.random.split(key)
-        azimuth, elevation = self._get_azimuth_elevation(subkey)
-
-        return center, azimuth, elevation
+        return (center_horizontal, center_vertical)
 
     @abstractmethod
     def get_EH_variation(
         self,
-        key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
     ) -> tuple[
-        jax.Array,  # E: (3, *grid_shape)
-        jax.Array,  # H: (3, *grid_shape)
-        jax.Array,  # time_offset_E: (3, *grid_shape)
-        jax.Array,  # time_offset_H: (3, *grid_shape)
+        Unitful,  # E: (3, *grid_shape)
+        Unitful,  # H: (3, *grid_shape)
+        Unitful,  # time_offset_E: (3, *grid_shape)
+        Unitful,  # time_offset_H: (3, *grid_shape)
     ]:
         # normal coordinates
         raise NotImplementedError()
@@ -161,7 +83,6 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
             inv_permeabilities=inv_permeabilities,
         )
         E, H, time_offset_E, time_offset_H = self.get_EH_variation(
-            key=key,
             inv_permittivities=inv_permittivities,
             inv_permeabilities=inv_permeabilities,
         )
@@ -173,12 +94,12 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
 
     def update_E(
         self,
-        E: jax.Array,
+        E: Unitful,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
         time_step: jax.Array,
         inverse: bool,
-    ) -> jax.Array:
+    ) -> Unitful:
         del inv_permeabilities
         if self._E is None or self._H is None or self._time_offset_E is None or self._time_offset_H is None:
             raise Exception("Need to apply random key before calling update")
@@ -187,19 +108,19 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         inv_permittivity_slice = inv_permittivities[*self.grid_slice]
 
         # Calculate time points for E and H fields
-        time_H_h = (time_step + self._time_offset_H[self.horizontal_axis]) * delta_t
-        time_H_v = (time_step + self._time_offset_H[self.vertical_axis]) * delta_t
+        time_H_h = (delta_t * time_step) + self._time_offset_H[self.horizontal_axis]
+        time_H_v = (delta_t * time_step) + self._time_offset_H[self.vertical_axis]
 
         # Get temporal amplitudes from profile
         amplitude_H_h = self.temporal_profile.get_amplitude(
             time=time_H_h,
-            period=self.wave_character.period,
+            period=self.wave_character.get_period(),
             phase_shift=self.wave_character.phase_shift,
         )
         amplitude_H_h = amplitude_H_h * self.static_amplitude_factor
         amplitude_H_v = self.temporal_profile.get_amplitude(
             time=time_H_v,
-            period=self.wave_character.period,
+            period=self.wave_character.get_period(),
             phase_shift=self.wave_character.phase_shift,
         )
         amplitude_H_v = amplitude_H_v * self.static_amplitude_factor
@@ -230,12 +151,12 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
 
     def update_H(
         self,
-        H: jax.Array,
+        H: Unitful,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
         time_step: jax.Array,
         inverse: bool,
-    ) -> jax.Array:
+    ) -> Unitful:
         del inv_permittivities
         if self._E is None or self._H is None or self._time_offset_E is None or self._time_offset_H is None:
             raise Exception("Need to apply random key before calling update")
@@ -247,19 +168,19 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
             inv_permeability_slice = inv_permeabilities
 
         # Calculate time points for E and H fields
-        time_E_h = (time_step + self._time_offset_E[self.horizontal_axis]) * delta_t
-        time_E_v = (time_step + self._time_offset_E[self.vertical_axis]) * delta_t
+        time_E_h = (delta_t * time_step) + self._time_offset_E[self.horizontal_axis]
+        time_E_v = (delta_t * time_step) + self._time_offset_E[self.vertical_axis]
 
         # Get temporal amplitudes from profile
         amplitude_E_h = self.temporal_profile.get_amplitude(
             time=time_E_h,
-            period=self.wave_character.period,
+            period=self.wave_character.get_period(),
             phase_shift=self.wave_character.phase_shift,
         )
         amplitude_E_h = amplitude_E_h * self.static_amplitude_factor
         amplitude_E_v = self.temporal_profile.get_amplitude(
             time=time_E_v,
-            period=self.wave_character.period,
+            period=self.wave_character.get_period(),
             phase_shift=self.wave_character.phase_shift,
         )
         amplitude_E_v = amplitude_E_v * self.static_amplitude_factor

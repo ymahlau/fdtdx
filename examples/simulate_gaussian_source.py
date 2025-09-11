@@ -105,7 +105,7 @@ def main():
         switch=fdtdx.OnOffSwitch(interval=3),
         inverse=True,
         exact_interpolation=True,
-        num_video_workers=8, 
+        num_video_workers=8,
     )
     constraints.extend(backwards_video_energy_detector.same_position_and_size(volume))
 
@@ -134,6 +134,10 @@ def main():
             ],
         ),
     )
+    
+    x, tmp, _ = jax.jit(fdtdx.apply_params)(arrays, objects, params, key)
+    x2, tmp2, _ = fdtdx.apply_params(arrays, objects, params, key)
+    a = 1
 
     # Define simulation function (forward and backward propagation)
     def sim_fn(
@@ -154,14 +158,14 @@ def main():
         _, arrays = final_state
 
         # Run backward simulation (for gradients or adjoint fields)
-        _, arrays = fdtdx.full_backward(
-            state=final_state,
-            objects=new_objects,
-            config=config,
-            key=key,
-            record_detectors=True,
-            reset_fields=True,
-        )
+        # _, arrays = fdtdx.full_backward(
+        #     state=final_state,
+        #     objects=new_objects,
+        #     config=config,
+        #     key=key,
+        #     record_detectors=True,
+        #     reset_fields=True,
+        # )
 
         new_info = {
             **info,

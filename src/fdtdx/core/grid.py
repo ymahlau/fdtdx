@@ -26,7 +26,7 @@ def calculate_spatial_offsets_yee() -> tuple[jax.Array, jax.Array]:
 
 
 def calculate_time_offset_yee(
-    center: jax.Array,
+    center: tuple[float, float],
     wave_vector: jax.Array,
     inv_permittivities: jax.Array,
     inv_permeabilities: jax.Array | float,
