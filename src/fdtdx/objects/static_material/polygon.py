@@ -13,15 +13,15 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
     """A polygon object specified by a list of vertices. The coordinate system has its origin at the lower left of the
     bounding box of the polygon.
 
-    Attributes:
-        material_name (str): Name of the material in the materials dictionary to be used for the object
-        axis (int): The extrusion axis.
-        vertices (np.ndarray): numpy array of shape (N, 2) specifying the position of vertices in metrical units
-            (meter).
     """
 
+    #: Name of the material in the materials dictionary to be used for the object
     material_name: str = frozen_field()
+
+    #: The extrusion axis.
     axis: int = frozen_field()
+
+    #: numpy array of shape (N, 2) specifying the position of vertices in metrical units (meter).
     vertices: np.ndarray = frozen_field()
 
     @property

@@ -9,16 +9,14 @@ from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 @autoinit
 class FieldDetector(Detector):
-    """Detector for measuring field components of electromagnetic fields in the time domain.
+    """Detector for measuring field components of electromagnetic fields in the time domain."""
 
-    Attributes:
-        reduce_volume (bool, optional): If True, reduces the volume of recorded data. Defaults to False.
-        components (Sequence[Literal["Ex", "Ey", "Ez", "Hx", "Hy", "Hz"]], optional): Sequence of field components to
-            measure. Can include any of: "Ex", "Ey", "Ez", "Hx", "Hy", "Hz".
-            Defaults to ("Ex", "Ey", "Ez", "Hx", "Hy", "Hz").
-    """
-
+    #: If True, reduces the volume of recorded data. Defaults to False.
     reduce_volume: bool = frozen_field(default=False)
+
+    #: Sequence of field components to
+    #: measure. Can include any of: "Ex", "Ey", "Ez", "Hx", "Hy", "Hz".
+    #: Defaults to ("Ex", "Ey", "Ez", "Hx", "Hy", "Hz").
     components: Sequence[Literal["Ex", "Ey", "Ez", "Hx", "Hy", "Hz"]] = frozen_field(
         default=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"),
     )

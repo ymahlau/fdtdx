@@ -13,14 +13,15 @@ class Cylinder(StaticMultiMaterialObject):
     This class represents a cylindrical fiber with customizable radius, material,
     and orientation. The fiber can be positioned along any of the three principal axes.
 
-    Attributes:
-        radius (float): The radius of the fiber in meter.
-        axis (int): The principal axis along which the fiber extends (0=x, 1=y, 2=z).
-        material_name (str): Name of the material in the materials dictionary to be used for the object.
     """
 
+    #: The radius of the fiber in meter.
     radius: float = frozen_field()
+
+    #: The principal axis along which the fiber extends (0=x, 1=y, 2=z).
     axis: int = frozen_field()
+
+    #: Name of the material in the materials dictionary to be used for the object.
     material_name: str = frozen_field()
 
     @property
