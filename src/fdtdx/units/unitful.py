@@ -716,6 +716,7 @@ def add(x, y):  # type: ignore
     del x, y
     raise NotImplementedError()
 
+
 ## Matrix Multiplication ###################################
 @overload
 def matmul(
@@ -727,7 +728,14 @@ def matmul(
     x_align, y_align = align_scales(x, y)
     new_val = jnp._orig_matmul(x_align.val, y_align.val)  # type: ignore
     unit_dict = dim_after_multiplication(x.unit.dim, y.unit.dim)
-    return Unitful(val=new_val, unit=Unit(scale=x_align.unit.scale, dim=unit_dict))
+    # if static arrays exist, perform subtract with static arrs
+    new_static_arr = None
+    if is_traced(new_val):
+        x_arr = get_static_operand(x_align)
+        y_arr = get_static_operand(y_align)
+        if can_perform_scatic_ops(x_arr) and can_perform_scatic_ops(y_arr):
+            new_static_arr = x_arr @ y_arr  # type: ignore
+    return Unitful(val=new_val, unit=Unit(scale=x_align.unit.scale, dim=unit_dict), static_arr=new_static_arr)
 
 @overload
 def matmul(x: jax.Array, y: jax.Array, **kwargs) -> jax.Array:
