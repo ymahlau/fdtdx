@@ -16,24 +16,24 @@ class PhasorDetector(Detector):
     frequencies, enabling frequency-domain analysis of the electromagnetic fields.
     The amplitude and phase of the original phase can be reconstructed using jnp.abs(phasor) and jnp.angle(phasor).
     The reconstruction itself can then be achieved using amplitude * jnp.cos(2 * jnp.pi * freq * t + phase).
-
-    Attributes:
-        wave_characters (Sequence[WaveCharacter]): WaveCharacters to analyze.
-        reduce_volume (bool, optional): If True, reduces the volume of recorded data. Defaults to False.
-        components (Sequence[Literal["Ex", "Ey", "Ez", "Hx", "Hy", "Hz"]]): Sequence of field components to measure.
-            Can include any of: "Ex", "Ey", "Ez", "Hx", "Hy", "Hz".
-        dtype (jnp.dtype, optional): data type of the saved fields. Defaults to jnp.complex64
-        plot (bool, optional): Wether to plot the measured data. Defaults to False.
     """
 
+    #: WaveCharacters to analyze.
     wave_characters: Sequence[WaveCharacter] = field()
+
+    #: If True, reduces the volume of recorded data. Defaults to False.
     reduce_volume: bool = frozen_field(default=False)
+
+    #: Sequence of field components to measure.
+    #: Can include any of: "Ex", "Ey", "Ez", "Hx", "Hy", "Hz".
     components: Sequence[Literal["Ex", "Ey", "Ez", "Hx", "Hy", "Hz"]] = frozen_field(
         default=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"),
     )
     dtype: jnp.dtype = frozen_field(
         default=jnp.complex64,
     )
+
+    #: Whether to plot the measured data. Defaults to False.
     plot: bool = frozen_field(default=False)
 
     def __post_init__(

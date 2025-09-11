@@ -28,12 +28,10 @@ class RemoveFloatingMaterial(SameShapeTypeParameterTransform):
 
     The module only works with binary material systems (2 permittivities) where one
     material represents air.
-
-    Attributes:
-        background_material (str | None, optional): Name of the background material. If none, the material with the
-            lowest permittivity is used. Defaults to None.
     """
 
+    #: Name of the background material. If none, the material with the
+    #: lowest permittivity is used. Defaults to None.
     background_material: str | None = frozen_field(default=None)
 
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
@@ -72,15 +70,14 @@ class ConnectHolesAndStructures(SameShapeTypeParameterTransform):
     2. Ensuring all air holes are connected to the outside (no trapped air)
 
     The bottom (lower z) is treated as the substrate reference.
-
-    Attributes:
-        fill_material (str | None, optional): Name of material to use for filling gaps when connecting regions.
-            Required when working with more than 2 materials. Defaults to None.
-        background_material (str | None, optional): Name of the background material. If none, the material with the
-            lowest permittivity is used. Defaults to None.
     """
 
+    #: Name of material to use for filling gaps when connecting regions.
+    #: Required when working with more than 2 materials. Defaults to None.
     fill_material: str | None = frozen_field(default=None)
+
+    #: Name of the background material. If none, the material with the
+    #: lowest permittivity is used. Defaults to None.
     background_material: str | None = frozen_field(default=None)
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
         default=(ParameterType.DISCRETE, ParameterType.BINARY),
@@ -150,15 +147,15 @@ class BinaryMedianFilterModule(SameShapeTypeParameterTransform):
 
     Applies a 3D median filter to smooth and clean up binary material distributions.
     This helps remove small features and noise while preserving larger structures.
-
-    Attributes:
-        padding_cfg (PaddingConfig): Configuration for padding behavior at boundaries.
-        kernel_sizes (tuple[int, int, int]): 3-tuple of kernel sizes for each dimension.
-        num_repeats (int, optional): Number of times to apply the filter consecutively. Defaults to one.
     """
 
+    #: Configuration for padding behavior at boundaries.
     padding_cfg: PaddingConfig = frozen_field()
+
+    #:  3-tuple of kernel sizes for each dimension.
     kernel_sizes: tuple[int, int, int] = frozen_field()
+
+    #: Number of times to apply the filter consecutively. Defaults to one.
     num_repeats: int = frozen_field(default=1)
 
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(

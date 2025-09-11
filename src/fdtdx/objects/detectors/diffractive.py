@@ -15,17 +15,18 @@ class DiffractiveDetector(Detector):
     This detector computes field amplitudes for specific diffraction orders and frequencies through
     a specified plane in the simulation volume. It can measure diffraction in either positive or negative
     direction along the propagation axis.
-
-    Attributes:
-        frequencies (Sequence[float]): List of frequencies to analyze (in Hz)
-        direction (Literal["+", "-"]): Either "+" or "-" for positive or negative direction.
-        orders (Sequence[Tuple[int, int]], optional): Tuple of (nx, ny) pairs specifying diffraction orders to compute
-        dtype (jnp.dtype, optional): Data type of the saved data.
     """
 
+    #: List of frequencies to analyze (in Hz)
     frequencies: Sequence[float] = frozen_field()
+
+    #: Either "+" or "-" for positive or negative direction.
     direction: Literal["+", "-"] = frozen_field()
+
+    #: Tuple of (nx, ny) pairs specifying diffraction orders to compute
     orders: Sequence[Tuple[int, int]] = frozen_field(default=((0, 0),))
+
+    #: Data type of the saved data.
     dtype: jnp.dtype = frozen_field(default=jnp.complex64)
 
     def __post_init__(self):
