@@ -45,7 +45,7 @@ def check_shape_dtype(
         if arr.shape != exp_shape_dtype.shape:
             raise Exception(f"Wrong shape: {exp_shape_dtype.shape} != {arr.shape}")
 
-def is_currently_jitting() -> bool:
+def is_currently_compiling() -> bool:
     return isinstance(
         jnp._orig_array(1) + 1, # type: ignore
         core.Tracer

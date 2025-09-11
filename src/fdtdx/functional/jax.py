@@ -5,7 +5,7 @@ from jax._src import pjit
 from typing import Any, Callable
 
 from fdtdx.core.jax.pytrees import TreeClass, autoinit
-from fdtdx.core.jax.utils import hash_abstract_pytree, is_currently_jitting
+from fdtdx.core.jax.utils import hash_abstract_pytree, is_currently_compiling
 from fdtdx.units import unitful
 from fdtdx.units.unitful import Unitful
 

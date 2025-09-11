@@ -12,7 +12,7 @@ from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field
 from plum import add_conversion_method, dispatch, overload
 from pytreeclass import tree_repr
 
-from fdtdx.core.jax.utils import is_currently_jitting, is_traced
+from fdtdx.core.jax.utils import is_currently_compiling, is_traced
 from fdtdx.units.typing import PHYSICAL_DTYPES, SI, NonPhysicalArrayLike, PhysicalArrayLike, RealPhysicalArrayLike, StaticArrayLike, StaticPhysicalArrayLike
 from fdtdx.units.utils import best_scale, dim_after_multiplication, handle_different_scales
 
@@ -470,7 +470,7 @@ def output_unitful_for_array(x: ArrayLike | jax.ShapeDtypeStruct) -> bool:
     if is_traced(x): return False
     if isinstance(x, jax.Array | np.ndarray | jax.ShapeDtypeStruct):
         if x.size > MAX_STATIC_OPTIMIZED_SIZE: return False
-    return is_currently_jitting() and not STATIC_OPTIM_STOP_FLAG
+    return is_currently_compiling() and not STATIC_OPTIM_STOP_FLAG
 
 
 def can_optimize_scale(obj: Unitful | ArrayLike) -> bool:
@@ -496,7 +496,7 @@ def can_optimize_scale(obj: Unitful | ArrayLike) -> bool:
 # scale optimization.
 def unitful_to_array_conversion(obj: Unitful):
     assert obj.unit.dim == {}
-    if is_currently_jitting():
+    if is_currently_compiling():
         return obj  # type: ignore
     return obj.array_materialise()
 
@@ -504,7 +504,7 @@ add_conversion_method(type_from=Unitful, type_to=jax.Array, f=unitful_to_array_c
 
 def unitful_to_array_conversion_with_bool(obj: Unitful) -> jax.Array | bool:
     assert obj.unit.dim == {}
-    if is_currently_jitting():
+    if is_currently_compiling():
         result: jax.Array | bool = obj  # type: ignore
     else:
         result: jax.Array | bool = obj.materialise()  # type: ignore
