@@ -286,7 +286,7 @@ def checkpointed_fdtd(
     objects: ObjectContainer,
     config: SimulationConfig,
     key: jax.Array,
-    stopping_condition: StoppingCondition,
+    stopping_condition: StoppingCondition | None = None,
 ) -> SimulationState:
     """Run an FDTD simulation with gradient checkpointing for memory efficiency.
 
@@ -299,7 +299,8 @@ def checkpointed_fdtd(
         objects (ObjectContainer): Collection of physical objects in the simulation
         config (SimulationConfig): Simulation parameters including checkpointing settings
         key (jax.Array): JAX PRNGKey for any stochastic operations
-        stopping_condition (StoppingCondition): Custom stopping condition on which simulation is stopped
+        stopping_condition (StoppingCondition, optional): Custom stopping condition on which simulation is halted.
+            If none is provided, we default to TimeStepCondition (simulation progresses until max time is reached)
 
     Returns:
         SimulationState: Tuple containing final time step and ArrayContainer with final state
@@ -308,6 +309,8 @@ def checkpointed_fdtd(
         The number of checkpoints can be configured through config.gradient_config.num_checkpoints.
         More checkpoints reduce recomputation but increase memory usage.
     """
+    if stopping_condition is None:
+        stopping_condition = TimeStepCondition(end_step=config.time_steps_total)
     arrays = reset_array_container(arrays, objects)
     state = (jnp.asarray(0, dtype=jnp.int32), arrays)
     state = eqxi.while_loop(
