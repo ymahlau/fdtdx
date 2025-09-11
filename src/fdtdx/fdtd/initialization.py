@@ -6,6 +6,7 @@ import jax.numpy as jnp
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
 from fdtdx.core.jax.ste import straight_through_estimator
+from fdtdx.core.jax.utils import is_currently_jitting
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, ParameterContainer
 from fdtdx.materials import (
     compute_allowed_electric_conductivities,
@@ -64,6 +65,8 @@ def place_objects(
             - Updated SimulationConfig
             - Dictionary with additional initialization info
     """
+    assert not is_currently_jitting(), "Cannot call fdtdx.place_objects within JIT context!"
+    
     slice_tuple_dict = _resolve_object_constraints(
         volume=volume,
         constraints=constraints,
@@ -101,7 +104,7 @@ def place_objects(
     )
     params = _init_params(
         objects=objects,
-        key=key,y
+        key=key,
     )
     arrays, config, info = _init_arrays(
         objects=objects,
