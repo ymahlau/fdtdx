@@ -1,0 +1,9 @@
+.bd-sidebar-primary {
+    width: 300px !important;
+    min-width: 300px !important;
+    flex: 0 0 300px !important;
+}
+
+.bd-sidebar-primary {
+    padding-left: 0 !important; /* Default is usually 1rem or more */
+}
