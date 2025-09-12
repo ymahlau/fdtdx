@@ -10,13 +10,12 @@ class RecordingState(TreeClass):
     """Container for simulation recording state data.
 
     Holds field data and state information for FDTD simulations.
-
-    Attributes:
-        data (dict[str, jax.Array]): Dictionary mapping field names to their array values.
-        state (dict[str, jax.Array]): Dictionary mapping state variable names to their array values.
     """
 
+    #: Dictionary mapping field names to their array values.
     data: dict[str, jax.Array]
+
+    #: Dictionary mapping state variable names to their array values.
     state: dict[str, jax.Array]
 
 

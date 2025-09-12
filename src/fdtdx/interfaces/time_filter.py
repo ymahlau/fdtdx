@@ -142,13 +142,12 @@ class LinearReconstructEveryK(TimeStepFilter):
 
     This filter saves field values every k time steps and uses linear interpolation
     to reconstruct values at intermediate time steps.
-
-    Attributes:
-        k (int): Number of time steps between saved values.
-        start_recording_after (int, optional): Time step to start recording from. Defaults to zero.
     """
 
+    #: Number of time steps between saved values.
     k: int = frozen_field()
+
+    #: Time step to start recording from. Defaults to zero.
     start_recording_after: int = frozen_field(default=0)
     _save_time_steps: jax.Array = frozen_private_field(default=None)  # type: ignore
     _time_to_arr_idx: jax.Array = frozen_private_field(default=None)  # type: ignore

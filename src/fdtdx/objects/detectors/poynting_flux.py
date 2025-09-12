@@ -15,22 +15,22 @@ class PoyntingFluxDetector(Detector):
     in the simulation volume. It can measure flux in either positive or negative
     direction along the propagation axis, and optionally reduce measurements to a
     single value by summing over the detection surface.
-
-    Attributes:
-        direction (Literal["+", "-"]): Direction of flux measurement, either "+" for positive or "-" for
-            negative along the propagation axis.
-        reduce_volume (bool, optional): If True, reduces measurements to a single value by summing
-            over the detection surface. If False, maintains spatial distribution. Defaults to True.
-        fixed_propagation_axis (int | None, optional): By default, the propagation axis for calculating the poynting
-            flux is the axis, where the detector has a grid shape of 1. If the detector has a shape of 1 in more than
-            one axes or a different axis should be used, then this attribute can/has to be set. Defaults to None.
-        keep_all_components (bool, optional): By default, only the poynting flux component for the propagation axis
-            is returned (scalar). If true, all three vector components are returned. Defaults to False.
     """
 
+    #: Direction of flux measurement, either "+" for positive or "-" for negative along the propagation axis.
     direction: Literal["+", "-"] = frozen_field()
+
+    #: If True, reduces measurements to a single value by summing over the detection surface.
+    #: If False, maintains spatial distribution. Defaults to True.
     reduce_volume: bool = frozen_field(default=True)
+
+    #: By default, the propagation axis for calculating the poynting
+    #: flux is the axis, where the detector has a grid shape of 1. If the detector has a shape of 1 in more than
+    #: one axes or a different axis should be used, then this attribute can/has to be set. Defaults to None.
     fixed_propagation_axis: int | None = frozen_field(default=None)
+
+    #: By default, only the poynting flux component for the propagation axis
+    #: is returned (scalar). If true, all three vector components are returned. Defaults to False.
     keep_all_components: bool = frozen_field(default=False)
 
     @property

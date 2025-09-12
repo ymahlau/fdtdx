@@ -23,28 +23,28 @@ class ModeOverlapDetector(PhasorDetector):
     analyzing waveguide coupling efficiency, transmission coefficients, and modal
     decomposition of electromagnetic fields.
 
-    Attributes:
-        direction (Literal["+", "-"]): Direction of mode propagation, either "+" (forward) or "-" (backward).
-                  Determines which direction along the waveguide axis the mode is
-                  assumed to propagate.
-        mode_index (int, optional): Index of the waveguide mode to use for overlap calculation.
-                   Defaults to 0 (fundamental mode). Higher indices correspond to higher-order modes.
-        filter_pol (Literal["te", "tm"] | None, optional): Optional polarization filter for the mode calculation.
-                   Can be "te" (transverse electric), "tm" (transverse magnetic), or None (no filtering).
-                   When specified, only modes of the given polarization type are considered. Defaults to None.
-        components (Sequence[Literal["Ex", "Ey", "Ez", "Hx", "Hy", "Hz"]], optional): Cannot be specified here since
-            the detector needs all components.
-        plot (bool, optional): Cannot be specified here since plotting a single scalar is useless.
-
     """
 
+    #: Direction of mode propagation, either "+" (forward) or "-" (backward).
+    #: Determines which direction along the waveguide axis the mode is assumed to propagate.
     direction: Literal["+", "-"] = frozen_field()
+
+    #: Index of the waveguide mode to use for overlap calculation.
+    #: Defaults to 0 (fundamental mode). Higher indices correspond to higher-order modes.
     mode_index: int = frozen_field(default=0)
+
+    #: Optional polarization filter for the mode calculation.
+    #: Can be "te" (transverse electric), "tm" (transverse magnetic), or None (no filtering).
+    #: When specified, only modes of the given polarization type are considered. Defaults to None.
     filter_pol: Literal["te", "tm"] | None = frozen_field(default=None)
+
+    #: Cannot be specified here since the detector needs all components.
     components: Sequence[Literal["Ex", "Ey", "Ez", "Hx", "Hy", "Hz"]] = frozen_field(
         default=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"),
         init=False,  # in this detector, we always want all components. Do not give user a choice
     )  # noqa: DOC603, DOC601
+
+    #: Cannot be specified here since plotting a single scalar is useless.
     plot: bool = frozen_field(default=False, init=False)  # noqa: DOC603, DOC601 # single scalar is useless for plotting
     _mode_E: jax.Array = private_field()
     _mode_H: jax.Array = private_field()

@@ -29,23 +29,23 @@ class Device(OrderableObject, ABC):
     This class defines the common interface and functionality for both discrete and
     continuous devices that can be optimized through gradient-based methods.
 
-    Attributes:
-        materials (dict[str, Material]): Dictionary of materials to be used in the device.
-        param_transforms (Sequence[ParameterTransformation]): A Sequence of parameter transformation to be applied to
-            the parameters when mapping them to simulation materials.
-        color (tuple[float, float, float] | None, optional): Color of the object when plotted. Defaults to Pink.
-        partial_voxel_grid_shape (PartialGridShape3D, optional): Size of the material voxels used within the device in
-            metrical units (meter). Note that this is independent of the simulation voxel size. Defaults to undefined
-            shape. For all three axes, either the voxel grid or real shape needs to be defined.
-        partial_voxel_real_shape (PartialRealShape3D, optional): Size of the material voxels used within the device in
-            simulation voxels. Defaults to undefined shape. For all three axes, either the voxel grid or real shape
-            needs to be defined.
     """
 
+    #: Dictionary of materials to be used in the device.
     materials: dict[str, Material] = field()
+
+    #: A Sequence of parameter transformation to be applied to the parameters when mapping them to simulation materials.
     param_transforms: Sequence[ParameterTransformation] = field()
+
+    #: Color of the object when plotted. Defaults to Pink.
     color: tuple[float, float, float] | None = frozen_field(default=PINK)
+
+    #: Size of the material voxels used within the device in metrical units (meter). Note that this is independent of the simulation voxel size.
+    #: Defaults to undefined shape. For all three axes, either the voxel grid or real shape needs to be defined.
     partial_voxel_grid_shape: PartialGridShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
+
+    #: Size of the material voxels used within the device in simulation voxels. Defaults to undefined shape.
+    #: For all three axes, either the voxel grid or real shape needs to be defined.
     partial_voxel_real_shape: PartialRealShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
 
     _single_voxel_grid_shape: tuple[int, int, int] = frozen_private_field(default=INVALID_SHAPE_3D)
