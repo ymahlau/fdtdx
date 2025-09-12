@@ -2,12 +2,12 @@ Quickstart
 ==========
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :caption: Contents:
 
-   notebooks/JAX_in_FDTDX.ipynb
-   notebooks/Object_placement_guide.ipynb
-   notebooks/Materials_guide.ipynb
+   notebooks/jax_introduction.ipynb
+   notebooks/basic_materials.ipynb
+   notebooks/object_placement_guide.ipynb
 
 
 More guides will follow shortly!
