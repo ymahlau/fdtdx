@@ -26,7 +26,7 @@ FDTDX is an efficient open-source Python package for the inverse design of three
 
 ## Documentation
 
-Visit our [documentation](https://ymahlau.github.io/fdtdx) for:
+Visit our [documentation](https://fdtdx.readthedocs.io/en/latest/) for:
 - Detailed API reference
 - Tutorial guides
 - Best practices
