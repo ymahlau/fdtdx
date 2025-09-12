@@ -35,7 +35,7 @@ RealPhysicalArrayLike = Union[
 StaticArrayLike = Union[
     int,
     bool,
-    np.bool_,
+    np.bool,
     float,
     complex,
     np.number,
@@ -54,7 +54,7 @@ StaticPhysicalArrayLike = Union[
 NonPhysicalArrayLike = Union[
     int,
     bool,
-    np.bool_,
+    np.bool,
 ]
 
 # array data types which allow for scale optimization

@@ -284,6 +284,19 @@ class Unitful(TreeClass):
             return 1
         return self.val.size
     
+    @property
+    def T(self):
+        if not isinstance(self.val, jax.Array | np.ndarray | np.number | np.bool):
+            raise Exception(f"Cannot call .T on {self}")
+        new_val = self.val.T
+        new_static_arr = None
+        if is_traced(new_val):
+            arr = get_static_operand(self)
+            if arr is not None:
+                assert isinstance(arr, jax.Array | np.ndarray | np.number | np.bool)
+                new_static_arr = arr.T
+        return Unitful(val=new_val, unit=self.unit, static_arr=new_static_arr)
+    
     def aset(
         self,
         attr_name: str,
