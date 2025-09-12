@@ -764,6 +764,7 @@ def matmul(
     x_align, y_align = align_scales(x, y)
     new_val = jnp._orig_matmul(x_align.val, y_align.val)  # type: ignore
     unit_dict = dim_after_multiplication(x.unit.dim, y.unit.dim)
+    new_scale = 2 * x_align.unit.scale
     # if static arrays exist, perform subtract with static arrs
     new_static_arr = None
     if is_traced(new_val):
@@ -771,7 +772,7 @@ def matmul(
         y_arr = get_static_operand(y_align)
         if can_perform_scatic_ops(x_arr) and can_perform_scatic_ops(y_arr):
             new_static_arr = x_arr @ y_arr  # type: ignore
-    return Unitful(val=new_val, unit=Unit(scale=x_align.unit.scale, dim=unit_dict), static_arr=new_static_arr)
+    return Unitful(val=new_val, unit=Unit(scale=new_scale, dim=unit_dict), static_arr=new_static_arr)
 
 @overload
 def matmul(x: jax.Array, y: jax.Array, **kwargs) -> jax.Array:
@@ -1322,7 +1323,8 @@ def astype(x: Unitful, *args, **kwargs) -> Unitful:
 
 @overload
 def astype(x: PhysicalArrayLike, *args, **kwargs) -> jax.Array:
-    result_shape_dtype = jax.eval_shape(jnp._orig_astype, x, *args, **kwargs)  # type: ignore
+    partial_fn = jax.tree_util.Partial(jnp._orig_astype, x, *args, **kwargs)  # type: ignore
+    result_shape_dtype = jax.eval_shape(partial_fn)
     if output_unitful_for_array(result_shape_dtype):
         unit_result = unary_fn(Unitful(val=x, unit=EMPTY_UNIT), "astype", *args, **kwargs)
         return unit_result  # type: ignore

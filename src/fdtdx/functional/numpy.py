@@ -406,7 +406,7 @@ def stack(
     else:
         all_physical = output_unitful_for_array(x)
     # axis/dtype args/kwargs needs to be static for eval_shape
-    partial_orig_fn = partial(jnp._orig_stack, x, *args, **kwargs)  # type: ignore
+    partial_orig_fn = jax.tree_util.Partial(jnp._orig_stack, x, *args, **kwargs)  # type: ignore
     result_shape_dtype = jax.eval_shape(partial_orig_fn)
     # if we cannot convert to unitful just call original function
     if not output_unitful_for_array(result_shape_dtype) or not all_physical:
@@ -644,7 +644,7 @@ def asarray(
         a,
         is_leaf=lambda x: isinstance(x, Unitful),
     )
-    partial_orig_fn = partial(jnp._orig_asarray, materialised, *args, **kwargs)  # type: ignore
+    partial_orig_fn = jax.tree_util.Partial(jnp._orig_asarray, materialised, *args, **kwargs)  # type: ignore
     result_shape_dtype = jax.eval_shape(partial_orig_fn)
     result: jax.Array = jnp._orig_asarray(materialised, *args, **kwargs)  # type: ignore
     if not output_unitful_for_array(result_shape_dtype):
@@ -812,7 +812,7 @@ def arange(
     **kwargs,
 ) -> ArrayLike:
     # test if we should output unitful instead of array
-    partial_orig_fn = partial(jnp._orig_arange, *args, **kwargs)  # type: ignore
+    partial_orig_fn = jax.tree_util.Partial(jnp._orig_arange, *args, **kwargs)  # type: ignore
     result_shape_dtype = jax.eval_shape(partial_orig_fn)
     result = jnp._orig_arange(*args, **kwargs)  # type: ignore
     if not output_unitful_for_array(result_shape_dtype):
