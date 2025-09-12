@@ -34,21 +34,17 @@ exclude_patterns = []
 
 html_theme = 'sphinx_book_theme'
 html_static_path = ['_static']
-html_logo = "_static/logo.png"
 html_css_files = [
     'custom.css',
 ]
 html_favicon = '_static/fdtdx_icon_64.ico'
+html_logo = '_static/fdtdx_icon_200.png'
 
 html_theme_options = {
     "repository_url": "https://github.com/ymahlau/fdtdx",
     "repository_branch": "main",  # or "master" if that's your default branch
     "use_repository_button": True,  # This enables the repository button
 }
-html_context = {
-    'google_site_verification': 'Au3fTqdYzcm77AO7QU3X3MH1ZRFntjEN9i5DAsoQVK8'
-}
-
 
 napoleon_google_docstring = True
 autosummary_generate = True
