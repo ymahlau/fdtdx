@@ -361,7 +361,7 @@ def linear_interpolated_indexing(
     weights = (1 - jnp.abs(to_interpolate - point[None, :])).prod(axis=-1)
     for axis in range(arr.ndim):
         invalid_mask = (to_interpolate[:, axis] < 0) | (to_interpolate[:, axis] >= arr.shape[axis])
-        weights = jnp.where(invalid_mask, 0, weights)
+        weights = jnp.where(invalid_mask, 0.0, weights)
         to_interpolate = jnp.where(invalid_mask[:, None], 0, to_interpolate)
     indexed_vals = arr[tuple(to_interpolate.T)]
     result = (weights * indexed_vals).sum() / (weights.sum() + 1e-8)

@@ -16,7 +16,6 @@ class SI(Enum):
 
 # Types whose scale can be optimized
 PhysicalArrayLike = Union[
-    int,
     float,
     complex,
     jax.Array,
@@ -26,7 +25,6 @@ PhysicalArrayLike = Union[
 
 # Types whose scale can be optimized and are real
 RealPhysicalArrayLike = Union[
-    int,
     float,
     jax.Array,
     np.number,
@@ -54,6 +52,7 @@ StaticPhysicalArrayLike = Union[
 
 # Types whose scale cannot be optimized
 NonPhysicalArrayLike = Union[
+    int,
     bool,
     np.bool_,
 ]
@@ -71,4 +70,11 @@ PHYSICAL_DTYPES = [
     jnp.float8_e4m3fnuz,
     jnp.float8_e5m2,
     jnp.float8_e5m2fnuz,
+    np.float16,
+    np.float32,
+    np.float64,
+    np.float128,
+    np.complex64,
+    np.complex128,
+    np.complex256,
 ]    

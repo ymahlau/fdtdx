@@ -22,6 +22,8 @@ from fdtdx.functional.numpy import (
     where,
     arange,
     meshgrid,
+    floor,
+    ceil,
 )
 from fdtdx.units.unitful import (
     multiply,
@@ -44,6 +46,7 @@ from fdtdx.units.unitful import (
     astype,
     squeeze,
     reshape,
+    prod,
 )
 from fdtdx.functional.linalg import (
     norm
@@ -77,6 +80,8 @@ __all__ = [
     "where",
     "arange",
     "meshgrid",
+    "floor",
+    "ceil",
     # unitful inherent methods
     "multiply",
     "divide",
@@ -98,6 +103,7 @@ __all__ = [
     "astype",
     "squeeze",
     "reshape",
+    "prod",
     # linalg
     "norm",
     # jax

@@ -22,6 +22,7 @@ from fdtdx.units.unitful import (
     astype,
     squeeze,
     reshape,
+    prod,
 )
 
 from fdtdx.functional.numpy import (
@@ -48,6 +49,8 @@ from fdtdx.functional.numpy import (
     where,
     arange,
     meshgrid,
+    floor,
+    ceil,
 )
 from fdtdx.functional.linalg import (
     norm,
@@ -122,6 +125,9 @@ def patch_all_functions():
         (reshape, None),
         (arange, None),
         (meshgrid, None),
+        (floor, None),
+        (ceil, None),
+        (prod, None),
     ]
     for fn, orig in _full_patch_list_numpy:
         patch_fn_to_module(

@@ -155,7 +155,7 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
         exp_part = jnp.exp(-0.5 * euc_dist / std**2)
         exp_part = jnp.expand_dims(exp_part, axis=axis)
 
-        profile = jnp.where(mask, exp_part, 0)
+        profile = jnp.where(mask, exp_part, 0.0)
         profile = profile / profile.sum()
 
         return profile

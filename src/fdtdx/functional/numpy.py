@@ -764,7 +764,7 @@ def where(
 @overload
 def where(
     condition: jax.Array | Unitful,
-    x: PhysicalArrayLike,
+    x: ArrayLike,
     y: Unitful,
     *args,
     **kwargs,
@@ -776,7 +776,7 @@ def where(
 def where(
     condition: jax.Array | Unitful,
     x: Unitful,
-    y: PhysicalArrayLike,
+    y: ArrayLike,
     *args,
     **kwargs,
 ) -> Unitful:
@@ -786,8 +786,8 @@ def where(
 @overload
 def where(
     condition: jax.Array,
-    x: PhysicalArrayLike,
-    y: PhysicalArrayLike,
+    x: ArrayLike,
+    y: ArrayLike,
     *args,
     **kwargs,
 ) -> jax.Array:
@@ -870,4 +870,74 @@ def meshgrid(  # type: ignore
     **kwargs,
 ):
     del args, kwargs
+    raise NotImplementedError()
+
+
+## floor #########################################
+@overload
+def floor(
+    x: Unitful,
+    *args,
+    **kwargs,
+) -> Unitful:
+    assert x.unit.dim == {}, f"Cannot use floor on a value with non-empty unit: {x}"
+    new_val = jnp._orig_floor(x.materialise(), *args, **kwargs)  # type: ignore
+    # static arr
+    new_static_arr = None
+    if is_traced(new_val):
+        x_arr = get_static_operand(x)
+        if x_arr is not None:
+            new_static_arr = np.floor(x_arr * (10 ** x.unit.scale), *args, **kwargs)
+    return Unitful(val=new_val, unit=x.unit, static_arr = new_static_arr)
+
+@overload
+def floor(
+    x: jax.Array,
+    *args,
+    **kwargs,
+) -> jax.Array:
+    return jnp._orig_floor(x, *args, **kwargs)  # type: ignore
+
+@dispatch
+def floor(  # type: ignore
+    x,
+    *args,
+    **kwargs
+):
+    del x, args, kwargs
+    raise NotImplementedError()
+
+
+## ceil #########################################
+@overload
+def ceil(
+    x: Unitful,
+    *args,
+    **kwargs,
+) -> Unitful:
+    assert x.unit.dim == {}, f"Cannot use floor on a value with non-empty unit: {x}"
+    new_val = jnp._orig_ceil(x.materialise(), *args, **kwargs)  # type: ignore
+    # static arr
+    new_static_arr = None
+    if is_traced(new_val):
+        x_arr = get_static_operand(x)
+        if x_arr is not None:
+            new_static_arr = np.ceil(x_arr  * (10 ** x.unit.scale), *args, **kwargs)
+    return Unitful(val=new_val, unit=x.unit, static_arr = new_static_arr)
+
+@overload
+def ceil(
+    x: jax.Array,
+    *args,
+    **kwargs,
+) -> jax.Array:
+    return jnp._orig_ceil(x, *args, **kwargs)  # type: ignore
+
+@dispatch
+def ceil(  # type: ignore
+    x,
+    *args,
+    **kwargs
+):
+    del x, args, kwargs
     raise NotImplementedError()
