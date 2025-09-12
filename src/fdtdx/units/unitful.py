@@ -1,10 +1,9 @@
 from dataclasses import dataclass
-from typing import Any, Self, Union
+from typing import Any, Self
 import jax
 import jax.numpy as jnp
 from jaxtyping import ArrayLike
 import numpy as np
-from jax import core
 
 from fdtdx.core.fraction import Fraction
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field
@@ -386,10 +385,20 @@ class Unitful(TreeClass):
             return 1
         return len(self.val)
     
-    def __getitem__(self, key) -> "Unitful":
+    def __getitem__(self, key: Any) -> "Unitful":
         """Enable numpy-style indexing"""
         if not isinstance(self.val, jax.Array | np.ndarray):
             raise Exception(f"Cannot slice Unitful with python scalar value ({self.val})")
+        if isinstance(key, Unitful):
+            key = key.materialise()
+        if isinstance(key, tuple):
+            new_list = []
+            for k in key:
+                if isinstance(k, Unitful):
+                    new_list.append(k.materialise())
+                else:
+                    new_list.append(k)
+            key = tuple(new_list)
         new_val = self.val[key]
         return Unitful(val=new_val, unit=self.unit)
     
