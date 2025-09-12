@@ -45,6 +45,10 @@ html_theme_options = {
     "repository_branch": "main",  # or "master" if that's your default branch
     "use_repository_button": True,  # This enables the repository button
 }
+html_context = {
+    'google_site_verification': 'Au3fTqdYzcm77AO7QU3X3MH1ZRFntjEN9i5DAsoQVK8'
+}
+
 
 napoleon_google_docstring = True
 autosummary_generate = True
