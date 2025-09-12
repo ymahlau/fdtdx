@@ -21,6 +21,7 @@ extensions = [
     'sphinx_autodoc_typehints',
     "myst_nb",
     "sphinx.ext.mathjax",
+    "sphinx.ext.viewcode",
 ]
 
 templates_path = ['_templates']
@@ -37,7 +38,13 @@ html_logo = "_static/logo.png"
 html_css_files = [
     'custom.css',
 ]
-html_favicon = '_static/icons8-documentation-64.png'
+html_favicon = '_static/fdtdx_icon_64.ico'
+
+html_theme_options = {
+    "repository_url": "https://github.com/ymahlau/fdtdx",
+    "repository_branch": "main",  # or "master" if that's your default branch
+    "use_repository_button": True,  # This enables the repository button
+}
 
 napoleon_google_docstring = True
 autosummary_generate = True

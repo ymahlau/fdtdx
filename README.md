@@ -3,7 +3,7 @@
 <img src="docs/source/_static/logo.png" alt="logo"></img>
 </div>
 
-[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://ymahlau.github.io/fdtdx)
+[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://fdtdx.readthedocs.io/en/latest/)
 [![arXiv](https://img.shields.io/badge/arXiv-2407.10273-b31b1b.svg)](https://arxiv.org/abs/2407.10273)
 [![arXiv](https://img.shields.io/badge/arXiv-2412.12360-b31b1b.svg)](https://arxiv.org/abs/2412.12360)
 [![codecov](https://codecov.io/gh/ymahlau/fdtdx/branch/main/graph/badge.svg)](https://codecov.io/gh/ymahlau/fdtdx)

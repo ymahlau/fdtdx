@@ -17,7 +17,8 @@ Key Features
 - Multi-GPU scaling for large simulations 
 - Memory-efficient time-reversal implementation
 - Optimized for large-scale inverse design
-- Flexible boundary conditions with PML support
+
+Check out the Quickstart Guides for an introduction into FDTDX and the examples in the github repository!
 
 Installation
 -------------
@@ -40,9 +41,6 @@ For development installation, clone the repository and install in editable mode:
    pip install -e . --extra dev
 
 
-Guides
---------------
-- More guides will follow shortly
 
 Citation
 --------------
