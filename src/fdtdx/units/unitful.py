@@ -790,8 +790,8 @@ def subtract(x: Unitful, y: Unitful) -> Unitful:
     if x.unit.dim != y.unit.dim:
         raise ValueError(f"Cannot subtract two arrays with units {x.unit} and {y.unit}.")
     x_align, y_align = align_scales(x, y)
-    if isinstance(x_align.val, NonPhysicalArrayLike) or isinstance(y_align.val, NonPhysicalArrayLike):
-        raise Exception(f"Cannot subtract non-physcal unitfuls {x} - {y}")
+    if isinstance(x_align.val, np.bool) or isinstance(y_align.val, np.bool):
+        raise Exception(f"Subtract not supported for bool: {x}, {y}")
     new_val = x_align.val - y_align.val
     # if static arrays exist, perform subtract with static arrs
     new_static_arr = None
@@ -806,14 +806,14 @@ def subtract(x: Unitful, y: Unitful) -> Unitful:
 def subtract(x: Unitful, y: ArrayLike) -> Unitful:
     if x.unit.dim:
         raise ValueError(f"Cannot add non-unitful to array with unit {x.unit}.")
-    y_unitful = Unitful(val=y, unit=Unit(scale=0, dim={}))
+    y_unitful = Unitful(val=y, unit=EMPTY_UNIT)
     return subtract(x, y_unitful)
 
 @overload
 def subtract(x: ArrayLike, y: Unitful) -> Unitful:
     if y.unit.dim:
         raise ValueError(f"Cannot add non-unitful to array with unit {y.unit}.")
-    x_unitful = Unitful(val=x, unit=Unit(scale=0, dim={}))
+    x_unitful = Unitful(val=x, unit=EMPTY_UNIT)
     return subtract(x_unitful, y)
 
 @overload
