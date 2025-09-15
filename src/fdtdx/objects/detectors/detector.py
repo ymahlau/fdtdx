@@ -212,9 +212,9 @@ class Detector(SimulationObject, ABC):
         for k, v in state.items():
             v_squeezed = v.squeeze()
             if self.inverse and self.if_inverse_plot_backwards and self.num_time_steps_recorded > 1:
-                squeezed_arrs[k] = v_squeezed[::-1, ...]
+                squeezed_arrs[k] = np.asarray(v_squeezed[::-1, ...])
             else:
-                squeezed_arrs[k] = v_squeezed
+                squeezed_arrs[k] = np.asarray(v_squeezed)
             if squeezed_ndim is None:
                 squeezed_ndim = len(v_squeezed.shape)
             else:
