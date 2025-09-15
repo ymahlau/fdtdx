@@ -100,6 +100,29 @@ def compute_mode(
     jax.Array,  # H
     jax.Array,  # complex propagation constant
 ]:
+    """Compute optical modes of a waveguide cross-section.
+
+    This function uses the Tidy3D mode solver to compute the optical modes of a given waveguide cross-section defined
+    by its permittivity distribution.
+
+    By default modes are sorted by their effective index. The mode_index argument indexes this sorted list of modes and
+    returns the desired mode. With filter_pol, it is also possible to only index a specific polarization.
+
+    Args:
+        frequency (float): Operating frequency in Hz
+        inv_permittivities (jax.Array): 3D array of inverse relative permittivity values
+        inv_permeabilities (jax.Array | float): 3D array of inverse relative permittivity values or single float for
+            uniform permeability distribution.
+        resolution (float): resolution of the simulation grid in meter. For example a grid spacing of 10nm should be
+            given as 10e-9.
+        direction (Literal["+", "-"]): Propagation direction, either "+" or "-".
+        mode_index (int, optional): Index of the mode to compute. Defaults to 0.
+        filter_pol (Literal["te", "tm"] | None, optional). If not None, modes are filtered by polarization.
+
+    Returns:
+        Tuple[jax.Array, jax.Array, jax.Array]:
+            Tuple of E, H field and the effective index as complex-valued jax arrays.
+    """
     # Input validation
     if inv_permittivities.squeeze().ndim != 2:
         raise Exception(f"Invalid shape of inv_permittivities: {inv_permittivities.shape}")
