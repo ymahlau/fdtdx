@@ -10,9 +10,13 @@ from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.objects.boundaries.boundary import BaseBoundaryState
 from fdtdx.objects.detectors.detector import DetectorState
+from fdtdx.core.wavelength import WaveCharacter
+from fdtdx.objects.detectors.energy import EnergyDetector
+from fdtdx.objects.static_material.static import SimulationVolume
 
 # Import the module to test
 from fdtdx.fdtd.stop_conditions import TimeStepCondition, EnergyThresholdCondition, DetectorConvergenceCondition
+from fdtdx.objects.detectors.energy import EnergyDetector
 
 
 class TestCondition:
@@ -26,8 +30,8 @@ class TestCondition:
         inv_permeabilities = jnp.ones((10, 10, 10))
 
         # Create mock boundary and detector states
-        boundary_states = {"pml": Mock(spec=BaseBoundaryState)}
-        detector_states = {"detector1": Mock(spec=DetectorState)}
+        boundary_states = {"pml": BaseBoundaryState()}
+        detector_states = {"detector1": DetectorState()}
         recording_state = Mock(spec=RecordingState)
 
         # Create array container
@@ -56,212 +60,217 @@ class TestCondition:
 
     def test_condition_function_signature(self, setup_simulation_state):
         """Test that stopping condition function has the correct signature and returns expected types."""
-        sim_data = setup_simulation_state
-        state = sim_data["state"]
-        objects = sim_data["objects"]
-        arrays = sim_data["arrays"]
-        end_step = 100
+        state = setup_simulation_state["state"]
+        arrays = setup_simulation_state["arrays"]
+        cw_source_period = 5e-11  # 20 GHz
+        wave_character = WaveCharacter(period=cw_source_period)
+        threshold = 1e-6
+        min_steps = 10
+
+        detector_name = "test_detector"
+        detector_object = EnergyDetector(name=detector_name)
+        config = SimulationConfig(time=100e-11, resolution=1e-4)
+        volume = SimulationVolume(partial_real_shape=(1e-3, 1e-3, 1e-3))
+        objects = ObjectContainer(
+            object_list=[volume, detector_object], volume_idx=0,
+        )
+        arrays.detector_states[detector_name] = {"energy": jnp.zeros((config.time_steps_total, 1))}
 
         # TimeStepCondition
-        time_step_cond = TimeStepCondition(end_step=end_step)
-        ts_result = time_step_cond(state, objects)
-        
+        time_step_cond = TimeStepCondition()
+        ts_result = time_step_cond(state, config, objects)
+
         assert isinstance(ts_result, jax.Array)
         assert ts_result.dtype == jnp.bool_
         assert ts_result.shape == ()
 
         # EnergyThresholdCondition
-        energy_threshold_cond = EnergyThresholdCondition(
-            threshold=1e-6,
-            end_step=end_step,
-            min_steps=10,
+        energy_thresh_cond = EnergyThresholdCondition(
+            threshold=threshold,
+            min_steps=min_steps,
         )
-        et_result = energy_threshold_cond(state, objects)
+        energy_thresh_cond = energy_thresh_cond.setup(state, config, objects)
+        et_result = energy_thresh_cond(state, config, objects)
 
         assert isinstance(et_result, jax.Array)
         assert et_result.dtype == jnp.bool_
         assert et_result.shape == ()
 
-        # Test DetectorConvergenceCondition
-        # Mock dependencies for DetectorConvergenceCondition
-        detector_name = "test_detector"
-        arrays.detector_states[detector_name] = {"energy": jnp.zeros((end_step, 1))}
-        detector_object_mock = Mock()
-        detector_object_mock._time_step_to_arr_idx = jnp.arange(end_step)
-        objects[detector_name] = detector_object_mock
+        # DetectorConvergenceCondition
+        objects[detector_name] = detector_object
 
         detector_cond = DetectorConvergenceCondition(
-            threshold=1e-5,
-            end_step=end_step,
-            min_steps=10,
             detector_name=detector_name,
+            wave_character=wave_character,
+            prev_periods=5,
+            threshold=threshold,
+            min_steps=min_steps,
         )
-        dc_result = detector_cond(state, objects)
+        detector_cond = detector_cond.setup(state, config, objects)
+        dc_result = detector_cond(state, config, objects)
 
         assert isinstance(dc_result, jax.Array)
         assert dc_result.dtype == jnp.bool_
         assert dc_result.shape == ()
 
     def test_time_step_condition(self, setup_simulation_state):
-        """Test the TimeStepCondition stopping condition."""
         state = setup_simulation_state["state"]
         objects = setup_simulation_state["objects"]
-        end_step = 100
+        config = SimulationConfig(time=10e-11, resolution=1e-4)
 
         # Create the condition function
-        cond_fun = TimeStepCondition(end_step=end_step)
+        cond_fun = TimeStepCondition()
 
         # Test when time_step < end_step
-        assert cond_fun(state, objects)
+        assert cond_fun(state, config, objects)
 
         # Test when time_step == end_step
-        state = (jnp.array(end_step), state[1])
-        assert not cond_fun(state, objects)
+        state = (jnp.array(config.time_steps_total), state[1])
+        assert not cond_fun(state, config, objects)
 
         # Test when time_step > end_step
-        state = (jnp.array(end_step + 1), state[1])
-        assert not cond_fun(state, objects)
+        state = (jnp.array(config.time_steps_total + 1), state[1])
+        assert not cond_fun(state, config, objects)
 
     def test_energy_threshold_condition(self, setup_simulation_state):
-        """Test the EnergyThresholdCondition stopping condition."""
-        sim_data = setup_simulation_state
-        objects = sim_data["objects"]
-        arrays = sim_data["arrays"]
+        objects = setup_simulation_state["objects"]
+        arrays = setup_simulation_state["arrays"]
+        config = SimulationConfig(time=10e-11, resolution=1e-4)
 
-        detector_name = "energy_detector"
-        end_step = 200
         min_steps = 100
         threshold = 1e-5
-
-        # Mock the energy detector readings and object properties
-        energy_readings = jnp.linspace(1.0, 0.0, end_step).reshape(-1, 1)
-        
-        # Create a mock for the detector state that can be indexed
-        detector_state_mock = {"energy": energy_readings}
-        arrays.detector_states[detector_name] = detector_state_mock
-
-        # Mock the object with the time step to array index mapping
-        detector_object_mock = Mock()
-        # Simple 1-to-1 mapping for this test
-        detector_object_mock._time_step_to_arr_idx = jnp.arange(end_step)
-        objects[detector_name] = detector_object_mock
 
         cond_fun = EnergyThresholdCondition(
             threshold=threshold,
-            end_step=end_step,
             min_steps=min_steps,
         )
 
         # Test before min_steps -> should continue
         state_before_min = (jnp.array(min_steps - 10), arrays)
-        assert cond_fun(state_before_min, objects)
+        assert cond_fun(state_before_min, config, objects)
 
         # Test after min_steps, but not converged -> should continue
         # Energy difference is larger than threshold
         state_not_converged = (jnp.array(min_steps + 1), arrays)
-        assert cond_fun(state_not_converged, objects)
+        assert cond_fun(state_not_converged, config, objects)
 
         # Test after min_steps and under threshold -> should stop
         # To simulate having a lower energy than the threshold, we'll manually
-        # create a state where the energy is below the threshold
-        converged_energy_readings = jnp.ones(end_step).reshape(-1, 1)
-        converged_energy_readings = converged_energy_readings.at[min_steps + 1].set(
-            converged_energy_readings[min_steps] + threshold / 10
-        )
-        arrays.detector_states[detector_name]["energy"] = converged_energy_readings
-        state_converged = (jnp.array(min_steps + 1), arrays)
-        assert not cond_fun(state_converged, objects)
+        # create a state where the energy is below the threshold,
+        # by setting its attributes, E and H, to a small value
+        nE = arrays.E.size
+        nH = arrays.H.size
+        v = jnp.sqrt(threshold / float(nE + nH)) * 0.9
+        v = jnp.asarray(v, dtype=arrays.E.dtype)
+        print(v)
+        E_new = jnp.full_like(arrays.E, v)
+        H_new = jnp.full_like(arrays.H, v)
+        arrays_new = arrays.aset("E", E_new).aset("H", H_new)
+        state_converged = (jnp.array(min_steps + 1), arrays_new)
+        assert not cond_fun(state_converged, config, objects)
 
         # Test at end_step -> should stop regardless of convergence
-        state_at_end = (jnp.array(end_step), arrays)
-        assert not cond_fun(state_at_end, objects)
+        state_at_end = (jnp.array(config.time_steps_total), arrays)
+        assert not cond_fun(state_at_end, config, objects)
 
     def test_detector_convergence_condition(self, setup_simulation_state):
-        """Test the DetectorConvergenceCondition stopping condition."""
-        sim_data = setup_simulation_state
-        objects = sim_data["objects"]
-        arrays = sim_data["arrays"]
-        config = sim_data["config"]
-        cw_source_period = 5e-11  # 20 GHz
-
+        objects = setup_simulation_state["objects"]
+        arrays = setup_simulation_state["arrays"]
+        config = SimulationConfig(
+            time=10e-11,
+            resolution=1e-4,
+            courant_factor=0.99,
+        )
+        # If courant_factor=0.99 and resolution=1e-4, then time_step_duration ≈ 1.906e-13 s
+        # Therefore we have time / time_step_duration ≈ 524.5, which is rounded up to 525.
+        # This is the number of time steps. Remember that min_steps cannot be larger than this
         detector_name = "energy_detector"
-        end_step = 200
+        cw_source_period = 5e-11  # 20 GHz
+        wave_character = WaveCharacter(frequency=1/cw_source_period)
+        prev_periods = 5
         min_steps = 100
         threshold = 1e-5
 
-        # Mock the energy detector readings and object properties
-        energy_readings = jnp.linspace(1.0, 0.0, end_step).reshape(-1, 1)
+        # Make dummy energy detector readings
+        energy_readings = jnp.linspace(1.0, 0.0, config.time_steps_total).reshape(-1, 1)
         
-        # Create a mock for the detector state that can be indexed
-        detector_state_mock = {"energy": energy_readings}
-        arrays.detector_states[detector_name] = detector_state_mock
-
-        # Mock the object with the time step to array index mapping
-        detector_object_mock = Mock()
-        # Simple 1-to-1 mapping for this test
-        detector_object_mock._time_step_to_arr_idx = jnp.arange(end_step)
-        objects[detector_name] = detector_object_mock
+        # Create a dummy dict for the detector state that can be indexed
+        detector_state = {"energy": energy_readings}
+        arrays.detector_states[detector_name] = detector_state
+        detector_object = EnergyDetector(name=detector_name)
+        volume = SimulationVolume(partial_real_shape=(1e-3, 1e-3, 1e-3))
+        objects = ObjectContainer(
+            object_list=[volume, detector_object], volume_idx=0,
+        )
 
         cond_fun = DetectorConvergenceCondition(
-            k=5,
-            spp=(cw_source_period / 2) / config.time_step_duration,
-            threshold=threshold,
-            end_step=end_step,
-            min_steps=min_steps,
             detector_name=detector_name,
+            wave_character=wave_character,
+            prev_periods=prev_periods,
+            threshold=threshold,
+            min_steps=min_steps,
         )
 
         # Test before min_steps -> should continue
         state_before_min = (jnp.array(min_steps - 10), arrays)
-        assert cond_fun(state_before_min, objects)
+        cond_fun = cond_fun.setup(state_before_min, config, objects)
+        assert cond_fun(state_before_min, config, objects)
 
         # Test after min_steps, but not converged -> should continue
         # Energy difference is larger than threshold
         state_not_converged = (jnp.array(min_steps + 1), arrays)
-        assert cond_fun(state_not_converged, objects)
+        cond_fun = cond_fun.setup(state_not_converged, config, objects)
+        assert cond_fun(state_not_converged, config, objects)
 
         # Test after min_steps and converged -> should stop
         # To simulate convergence, we'll manually create a state where the
         # energy difference is below the threshold.
-        converged_energy_readings = jnp.ones(end_step).reshape(-1, 1)
+        converged_energy_readings = jnp.ones(config.time_steps_total).reshape(-1, 1)
         converged_energy_readings = converged_energy_readings.at[min_steps + 1].set(
             converged_energy_readings[min_steps] + threshold / 10
         )
         arrays.detector_states[detector_name]["energy"] = converged_energy_readings
         state_converged = (jnp.array(min_steps + 1), arrays)
-        assert not cond_fun(state_converged, objects)
+        cond_fun = cond_fun.setup(state_converged, config, objects)
+        assert not cond_fun(state_converged, config, objects)
 
         # Test at end_step -> should stop regardless of convergence
-        state_at_end = (jnp.array(end_step), arrays)
-        assert not cond_fun(state_at_end, objects)
+        state_at_end = (jnp.array(config.time_steps_total), arrays)
+        cond_fun = cond_fun.setup(state_at_end, config, objects)
+        assert not cond_fun(state_at_end, config, objects)
 
     def test_jit_compatibility(self, setup_simulation_state):
-        """Test that stopping conditions are JIT-compatible."""
-        sim_data = setup_simulation_state
-        state = sim_data["state"]
-        objects = sim_data["objects"]
-        arrays = sim_data["arrays"]
+        state = setup_simulation_state["state"]
+        arrays = setup_simulation_state["arrays"]
+        config = SimulationConfig(
+            time=10e-11,
+            resolution=1e-4,
+            courant_factor=0.99,
+        )
+        detector_name = "energy_detector"
+        volume = SimulationVolume(partial_real_shape=(1e-3, 1e-3, 1e-3))
+        detector_object = EnergyDetector(name=detector_name)
+        objects = ObjectContainer(
+            object_list=[volume, detector_object], volume_idx=0,
+        )
 
         # TimeStepCondition
-        ts_cond_fun = TimeStepCondition(end_step=100)
+        ts_cond_fun = TimeStepCondition()
         jitted_ts_cond_fun = jax.jit(ts_cond_fun)
-        result = jitted_ts_cond_fun(state, objects)
+        result = jitted_ts_cond_fun(state, config, objects)
         assert isinstance(result, jax.Array)
 
         # EnergyThresholdCondition
-        detector_name = "energy_detector"
-        end_step = 100
-        # Mock dependencies for EnergyThresholdCondition
-        arrays.detector_states[detector_name] = {"energy": jnp.zeros((end_step, 1))}
-        detector_object_mock = Mock()
-        detector_object_mock._time_step_to_arr_idx = jnp.arange(end_step)
-        objects[detector_name] = detector_object_mock
-
         ec_cond_fun = EnergyThresholdCondition(
             threshold=1e-5,
-            end_step=end_step,
             min_steps=10,
         )
         jitted_ec_cond_fun = jax.jit(ec_cond_fun)
         result = jitted_ec_cond_fun(state, objects)
         assert isinstance(result, jax.Array)
+
+        # DetectorConvergenceCondition
+        cw_source_period = 5e-11  # 20 GHz
+        wave_character = WaveCharacter(period=cw_source_period)
+        arrays.detector_states[detector_name] = {"energy": jnp.zeros((end_step, 1))}
+        objects[detector_name] = detector_object
