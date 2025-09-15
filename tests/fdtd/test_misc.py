@@ -17,6 +17,9 @@ class MockPML:
         # Select the first column (so arr[:, 0:1])
         return (slice(0, 1),)
 
+    def interface_slice(self):
+        return (slice(0, 1),)
+
 
 class MockArrayContainer:
     """Mock replacement for ArrayContainer.
