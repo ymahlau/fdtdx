@@ -79,4 +79,5 @@ API
     fdtdx.GradientConfig
     fdtdx.wavelength_to_period
     fdtdx.Material
+    fdtdx.compute_mode
 

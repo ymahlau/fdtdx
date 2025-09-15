@@ -17,6 +17,7 @@ from fdtdx.core.physics.metrics import (
     normalize_by_energy,
     normalize_by_poynting_flux,
 )
+from fdtdx.core.physics.modes import compute_mode
 from fdtdx.core.plotting import colors
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
@@ -95,6 +96,7 @@ __all__ = [
     "normalize_by_poynting_flux",
     "OnOffSwitch",
     "WaveCharacter",
+    "compute_mode",
     # fdtd
     "run_fdtd",
     "place_objects",
