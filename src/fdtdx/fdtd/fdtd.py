@@ -310,13 +310,15 @@ def checkpointed_fdtd(
         More checkpoints reduce recomputation but increase memory usage.
     """
     if stopping_condition is None:
-        stopping_condition = TimeStepCondition(end_step=config.time_steps_total)
+        stopping_condition = TimeStepCondition()
     arrays = reset_array_container(arrays, objects)
     state = (jnp.asarray(0, dtype=jnp.int32), arrays)
+    stopping_condition = stopping_condition.setup(state, config, objects)
     state = eqxi.while_loop(
         max_steps=config.time_steps_total,
         cond_fun=partial(
             stopping_condition,
+            config=config,
             objects=objects,
         ),
         body_fun=partial(
