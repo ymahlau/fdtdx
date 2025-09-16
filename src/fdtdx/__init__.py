@@ -1,7 +1,8 @@
 from fdtdx import constants
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.constants import wavelength_to_period
-from fdtdx.conversion.export import export_stl
+from fdtdx.conversion.json import export_json, export_json_str, import_from_json
+from fdtdx.conversion.stl import export_stl
 from fdtdx.core.jax.pytrees import (
     TreeClass,
     autoinit,
@@ -82,6 +83,9 @@ __all__ = [
     "Detector",
     # conversion
     "export_stl",
+    "export_json",
+    "export_json_str",
+    "import_from_json",
     # core
     "TreeClass",
     "autoinit",

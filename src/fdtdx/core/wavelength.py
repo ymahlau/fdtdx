@@ -30,38 +30,36 @@ class WaveCharacter(TreeClass):
     def _check_input(self):
         if sum([self.period is not None, self.frequency is not None, self.wavelength is not None]) != 1:
             raise Exception("Need to set exactly one of Period, Frequency or Wavelength in WaveCharacter")
-        if self.period is None:
-            if self.wavelength is not None:
-                self.period = self.wavelength / constants.c
-            elif self.frequency is not None:
-                self.period = 1.0 / self.frequency
-            else:
-                raise Exception("This should never happen")
-
-        if self.wavelength is None:
-            if self.period is not None:
-                self.wavelength = self.period * constants.c
-            elif self.frequency is not None:
-                self.wavelength = constants.c / self.frequency
-            else:
-                raise Exception("This should never happen")
-
-        if self.frequency is None:
-            if self.period is not None:
-                self.frequency = 1.0 / self.period
-            elif self.wavelength is not None:
-                self.frequency = constants.c / self.wavelength
-            else:
-                raise Exception("This should never happen")
 
     def get_period(self) -> float:
+        if self.period is None:
+            if self.wavelength is not None:
+                return self.wavelength / constants.c
+            elif self.frequency is not None:
+                return 1.0 / self.frequency
+            else:
+                raise Exception("This should never happen")
         assert self.period is not None, "This should never happen"
         return self.period
 
     def get_wavelength(self) -> float:
+        if self.wavelength is None:
+            if self.period is not None:
+                return self.period * constants.c
+            elif self.frequency is not None:
+                return constants.c / self.frequency
+            else:
+                raise Exception("This should never happen")
         assert self.wavelength is not None, "This should never happen"
         return self.wavelength
 
     def get_frequency(self) -> float:
+        if self.frequency is None:
+            if self.period is not None:
+                return 1.0 / self.period
+            elif self.wavelength is not None:
+                return constants.c / self.wavelength
+            else:
+                raise Exception("This should never happen")
         assert self.frequency is not None, "This should never happen"
         return self.frequency
