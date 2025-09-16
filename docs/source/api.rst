@@ -24,6 +24,8 @@ API
     fdtdx.DiagonalSymmetry2D
     fdtdx.DtypeConversion
     fdtdx.EnergyDetector
+    fdtdx.export_json
+    fdtdx.export_json_str
     fdtdx.export_stl
     fdtdx.ExtrudedPolygon
     fdtdx.field
@@ -36,6 +38,7 @@ API
     fdtdx.GaussianSmoothing2D
     fdtdx.GradientConfig
     fdtdx.GridCoordinateConstraint
+    fdtdx.import_from_json
     fdtdx.LinearReconstructEveryK
     fdtdx.Logger
     fdtdx.Material
