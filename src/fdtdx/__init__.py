@@ -1,7 +1,7 @@
 from fdtdx import constants
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.constants import wavelength_to_period
-from fdtdx.conversion.export import export_stl
+from fdtdx.conversion.stl import export_stl
 from fdtdx.core.jax.pytrees import (
     TreeClass,
     autoinit,
