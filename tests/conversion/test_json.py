@@ -17,7 +17,7 @@ def test_energy_detector_json():
     rec = import_from_json(s)
     assert rec.name == "Detector"
     assert rec.partial_real_shape == (1e-6, None, None)
-    
+
 
 def test_object_container_json():
     obj_list = [
@@ -31,4 +31,3 @@ def test_object_container_json():
     assert isinstance(rec.object_list, list)
     assert rec.object_list[1].wave_character.wavelength == 1e-6
     assert rec.object_list[1].direction == "-"
-

@@ -1,6 +1,6 @@
 import importlib
 import json
-from typing import Any, Literal, Sequence
+from typing import Any, Sequence
 
 import jax
 
@@ -9,7 +9,6 @@ from fdtdx.core.null import NULL
 from fdtdx.typing import JAX_DTYPES
 
 
-  
 def _export_json(obj: Any) -> dict | float | int | str | bool | None:
     if type(obj).__name__ != type(obj).__qualname__:
         raise NotImplementedError()
@@ -26,11 +25,8 @@ def _export_json(obj: Any) -> dict | float | int | str | bool | None:
         return {
             "__dtype__": str_name,
         }
-    # composite types need module and name 
-    result_dict: dict = {
-        '__module__': f"{type(obj).__module__}",
-        '__name__': f"{type(obj).__name__}"
-    }
+    # composite types need module and name
+    result_dict: dict = {"__module__": f"{type(obj).__module__}", "__name__": f"{type(obj).__name__}"}
     # tree classes
     if isinstance(obj, TreeClass):
         public_fields = obj.get_public_fields()
@@ -41,7 +37,8 @@ def _export_json(obj: Any) -> dict | float | int | str | bool | None:
     # dictionaries
     if isinstance(obj, dict):
         for k, v in obj.items():
-            if not isinstance(k, str): raise NotImplementedError()
+            if not isinstance(k, str):
+                raise NotImplementedError()
             assert k not in ["__module__", "__name__"]
             result_dict[k] = _export_json(v)
         return result_dict
@@ -51,7 +48,7 @@ def _export_json(obj: Any) -> dict | float | int | str | bool | None:
         result_dict["__value__"] = val_list
         return result_dict
     raise NotImplementedError()
-        
+
 
 def export_json(obj: Any) -> dict:
     """
@@ -111,15 +108,9 @@ def _import_obj_from_json(obj: dict | float | int | str | bool | None) -> Any:
         return cls(imported_vals)
     # dictionary
     if "__name__" == "dict":
-        return {
-            k: _import_obj_from_json(v)
-            for k, v in obj.items() if k not in ["__module__", "__name__"]
-        }
+        return {k: _import_obj_from_json(v) for k, v in obj.items() if k not in ["__module__", "__name__"]}
     # other classes
-    kwargs_dict = {
-        k: _import_obj_from_json(v)
-        for k, v in obj.items() if k not in ["__module__", "__name__"]
-    }
+    kwargs_dict = {k: _import_obj_from_json(v) for k, v in obj.items() if k not in ["__module__", "__name__"]}
     return cls(**kwargs_dict)
 
 

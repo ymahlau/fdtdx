@@ -30,11 +30,11 @@ class WaveCharacter(TreeClass):
     def _check_input(self):
         if sum([self.period is not None, self.frequency is not None, self.wavelength is not None]) != 1:
             raise Exception("Need to set exactly one of Period, Frequency or Wavelength in WaveCharacter")
-        
+
     def get_period(self) -> float:
         if self.period is None:
             if self.wavelength is not None:
-               return self.wavelength / constants.c
+                return self.wavelength / constants.c
             elif self.frequency is not None:
                 return 1.0 / self.frequency
             else:
@@ -47,7 +47,7 @@ class WaveCharacter(TreeClass):
             if self.period is not None:
                 return self.period * constants.c
             elif self.frequency is not None:
-               return constants.c / self.frequency
+                return constants.c / self.frequency
             else:
                 raise Exception("This should never happen")
         assert self.wavelength is not None, "This should never happen"

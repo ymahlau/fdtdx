@@ -1,5 +1,5 @@
 from dataclasses import dataclass, fields
-from typing import Any, Callable, Literal, Self, Sequence, TypeVar, get_args, overload
+from typing import Any, Callable, Literal, Self, Sequence, TypeVar, overload
 
 import pytreeclass as tc
 from pytreeclass._src.code_build import (
@@ -39,7 +39,7 @@ class ExtendedTreeClassIndexer(TreeClassIndexer):
 class TreeClassField:
     name: str
     type: Any
-    default: Any = NULL,
+    default: Any = (NULL,)
     init: bool = True
     repr: bool = True
     kind: Literal["POS_ONLY", "POS_OR_KW", "VAR_POS", "KW_ONLY", "VAR_KW"] = "POS_OR_KW"
@@ -48,7 +48,7 @@ class TreeClassField:
     on_getattr: Sequence[Callable] = ()
     alias: str | None = None
     value: Any = NULL
-    
+
     def __iter__(self):
         """Allow conversion to dict via dict(obj)"""
         for field in fields(self):
@@ -70,29 +70,27 @@ class TreeClass(tc.TreeClass):
             ExtendedTreeClassIndexer: Indexer that preserves type information
         """
         return super().at  # type: ignore
-    
+
     def get_class_fields(self) -> list[TreeClassField]:
         fields = tc.fields(self)
         tc_fields = []
         for f in fields:
-            input_dict = {
-                s: getattr(f, s)
-                for s in f.__slots__ 
-            }
+            input_dict = {s: getattr(f, s) for s in f.__slots__}
             if repr(input_dict["default"]) == "NULL":  # TODO: can we make this more robust? Do we need to?
                 input_dict["default"] = NULL
             tc_fields.append(TreeClassField(**input_dict))
         return tc_fields
-    
+
     def get_public_fields(self) -> list[TreeClassField]:
         class_fields = self.get_class_fields()
         value_fields = []
         for f in class_fields:
-            if not f.init: continue
+            if not f.init:
+                continue
             cur_field_dict = dict(f)
             cur_field_dict["value"] = getattr(self, f.name)
             value_fields.append(TreeClassField(**cur_field_dict))
-        return value_fields    
+        return value_fields
 
     def _aset(
         self,

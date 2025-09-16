@@ -1,5 +1,6 @@
 from enum import Enum
 from typing import Literal, Optional
+
 import jax.numpy as jnp
 
 # Real-valued shapes (physical dimensions)
@@ -60,6 +61,7 @@ class ParameterType(Enum):
     CONTINUOUS = 0
     DISCRETE = 1
     BINARY = 2
+
 
 JAX_DTYPES = [
     jnp.complex128,
