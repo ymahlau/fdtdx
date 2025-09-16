@@ -1,8 +1,8 @@
-from typing import Any, Self, Sequence, TypeVar, overload
+from dataclasses import dataclass, fields
+from typing import Any, Callable, Literal, Self, Sequence, TypeVar, get_args, overload
 
 import pytreeclass as tc
 from pytreeclass._src.code_build import (
-    NULL,
     ArgKindType,
     Field,
     build_init_method,
@@ -13,6 +13,8 @@ from pytreeclass._src.code_build import (
     field as tc_field,
 )
 from pytreeclass._src.tree_base import TreeClassIndexer
+
+from fdtdx.core.null import NULL
 
 
 def safe_hasattr(obj, name) -> bool:
@@ -33,6 +35,26 @@ class ExtendedTreeClassIndexer(TreeClassIndexer):
         return super().__getitem__(where)  # type: ignore
 
 
+@dataclass(frozen=True)
+class TreeClassField:
+    name: str
+    type: Any
+    default: Any = NULL,
+    init: bool = True
+    repr: bool = True
+    kind: Literal["POS_ONLY", "POS_OR_KW", "VAR_POS", "KW_ONLY", "VAR_KW"] = "POS_OR_KW"
+    metadata: dict[str, Any] | None = None
+    on_setattr: Sequence[Callable] = ()
+    on_getattr: Sequence[Callable] = ()
+    alias: str | None = None
+    value: Any = NULL
+    
+    def __iter__(self):
+        """Allow conversion to dict via dict(obj)"""
+        for field in fields(self):
+            yield field.name, getattr(self, field.name)
+
+
 class TreeClass(tc.TreeClass):
     """Extended tree class with improved attribute setting functionality.
 
@@ -48,6 +70,29 @@ class TreeClass(tc.TreeClass):
             ExtendedTreeClassIndexer: Indexer that preserves type information
         """
         return super().at  # type: ignore
+    
+    def get_class_fields(self) -> list[TreeClassField]:
+        fields = tc.fields(self)
+        tc_fields = []
+        for f in fields:
+            input_dict = {
+                s: getattr(f, s)
+                for s in f.__slots__ 
+            }
+            if repr(input_dict["default"]) == "NULL":  # TODO: can we make this more robust? Do we need to?
+                input_dict["default"] = NULL
+            tc_fields.append(TreeClassField(**input_dict))
+        return tc_fields
+    
+    def get_public_fields(self) -> list[TreeClassField]:
+        class_fields = self.get_class_fields()
+        value_fields = []
+        for f in class_fields:
+            if not f.init: continue
+            cur_field_dict = dict(f)
+            cur_field_dict["value"] = getattr(self, f.name)
+            value_fields.append(TreeClassField(**cur_field_dict))
+        return value_fields    
 
     def _aset(
         self,
