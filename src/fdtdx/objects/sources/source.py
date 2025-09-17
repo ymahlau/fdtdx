@@ -120,10 +120,9 @@ class DirectionalPlaneSourceBase(Source, ABC):
     Implements common functionality for plane wave sources that propagate in a specific
     direction. Provides methods for calculating wave vectors and orthogonal field components.
 
-    Attributes:
-        direction (Literal["+", "-"]): Direction of propagation ('+' or '-' along propagation axis).
     """
 
+    #: Direction of propagation ('+' or '-' along propagation axis).
     direction: Literal["+", "-"] = frozen_field()
 
     @property

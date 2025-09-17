@@ -24,13 +24,12 @@ class BaseBoundary(SimulationObject, ABC, Generic[T]):
     This class defines the interface for boundary conditions, including methods
     for initializing, resetting, and updating boundary states, as well as updating
     the electric and magnetic fields at the boundaries.
-
-    Attributes:
-        axis (int): Principal axis for boundary (0=x, 1=y, 2=z)
-        direction (Literal["+", "-"]): Direction along axis ("+" or "-")
     """
 
+    #: Principal axis for boundary (0=x, 1=y, 2=z)
     axis: int = frozen_field()
+
+    #: Direction along axis ("+" or "-")
     direction: Literal["+", "-"] = frozen_field()
 
     @property

@@ -27,7 +27,7 @@ dependencies = [
 
 [project.urls]
 Repository = "https://github.com/ymahlau/fdtdx"
-Documentation = "https://ymahlau.github.io/fdtdx/"
+Documentation = "https://fdtdx.readthedocs.io/en/latest/"
 
 [build-system]
 requires = ["hatchling"]

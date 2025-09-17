@@ -28,32 +28,39 @@ class Detector(SimulationObject, ABC):
     This class provides core functionality for recording and analyzing electromagnetic field data
     during FDTD simulations. It supports flexible timing control, data collection intervals,
     and visualization of results.
-
-    Attributes:
-        dtype (jnp.dtype): Data type for detector arrays, defaults to float32.
-        exact_interpolation (bool, optional): Whether to use exact field interpolation. Defaults to True.
-        inverse (bool, optional): Whether to record fields in inverse time order. Defaults to false.
-        switch (OnOffSwitch, optional): This switch controls the time steps that the detector is on, i.e. records data.
-            Defaults to all time steps.
-        plot (bool, optional): Whether to generate plots of recorded data. Defaults to true.
-        if_inverse_plot_backwards (bool): Plot inverse data in reverse time order.
-        num_video_workers (int | None): Number of workers for video generation. If None (default), then no
-            multiprocessing is used. Note that the combination of multiprocessing and matplotlib is known to produce
-            problems and can cause the entire system to freeze. It does make the video generation much faster though.
-        color (tuple[float, float, float] | None, optional): RGB color for plotting. Defaults to light green.
-        plot_interpolation (str, optional): Interpolation method for plots. Defualts to "gaussian".
-        plot_dpi (int | None, optional): DPI resolution for plots. Defaults to None.
     """
 
+    #: Data type for detector arrays, defaults to float32.
     dtype: jnp.dtype = frozen_field(default=jnp.float32)
+
+    #: Whether to use exact field interpolation. Defaults to True.
     exact_interpolation: bool = frozen_field(default=True)
+
+    #: Whether to record fields in inverse time order. Defaults to false.
     inverse: bool = frozen_field(default=False)
+
+    #: This switch controls the time steps that the detector is on, i.e. records data.
+    #: Defaults to all time steps.
     switch: OnOffSwitch = frozen_field(default=OnOffSwitch())
+
+    #: Whether to generate plots of recorded data. Defaults to true.
     plot: bool = frozen_field(default=True)
+
+    #: Plot inverse data in reverse time order.
     if_inverse_plot_backwards: bool = frozen_field(default=True)
+
+    #: Number of workers for video generation. If None (default), then no
+    #: multiprocessing is used. Note that the combination of multiprocessing and matplotlib is known to produce
+    #: problems and can cause the entire system to freeze. It does make the video generation much faster though.
     num_video_workers: int | None = frozen_field(default=None)  # only used when generating video
+
+    #: RGB color for plotting. Defaults to light green.
     color: tuple[float, float, float] | None = frozen_field(default=LIGHT_GREEN)
+
+    #: Interpolation method for plots. Defualts to "gaussian".
     plot_interpolation: str = frozen_field(default="gaussian")
+
+    #: DPI resolution for plots. Defaults to None.
     plot_dpi: int | None = frozen_field(default=None)
 
     _num_time_steps_on: int = frozen_private_field()
@@ -206,9 +213,9 @@ class Detector(SimulationObject, ABC):
         for k, v in state.items():
             v_squeezed = v.squeeze()
             if self.inverse and self.if_inverse_plot_backwards and self.num_time_steps_recorded > 1:
-                squeezed_arrs[k] = v_squeezed[::-1, ...]
+                squeezed_arrs[k] = np.asarray(v_squeezed[::-1, ...])
             else:
-                squeezed_arrs[k] = v_squeezed
+                squeezed_arrs[k] = np.asarray(v_squeezed)
             if squeezed_ndim is None:
                 squeezed_ndim = len(v_squeezed.shape)
             else:

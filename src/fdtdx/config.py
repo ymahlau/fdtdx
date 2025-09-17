@@ -19,19 +19,17 @@ class GradientConfig(TreeClass):
     This class handles settings for automatic differentiation, supporting either
     invertible differentiation with a recorder or checkpointing-based differentiation.
 
-    Attributes:
-        method (Literal["reversible", "checkpointed"], optional): Method for gradient computation.
-            Can be either "reversible" when using the time reversible autodiff, or "checkpointed" for the exact
-            checkpointing algorithm.
-        recorder (Recorder | None, optional): Optional recorder for invertible differentiation. Needs to be provided for
-            reversible autodiff. Defaults to None
-        num_checkpoints (int | None, optional): Optional number of checkpoints for checkpointing-based
-            differentiation. Needs to be provided for checkpointing gradient computation. Defaults to None.
-
     """
 
+    #: Method for gradient computation.
+    #: Can be either "reversible" when using the time reversible autodiff, or "checkpointed" for the exact checkpointing algorithm.
     method: Literal["reversible", "checkpointed"] = frozen_field(default="reversible")
+
+    #: Optional recorder for invertible differentiation. Needs to be provided for reversible autodiff. Defaults to None
     recorder: Recorder | None = field(default=None)
+
+    #: Optional number of checkpoints for checkpointing-based differentiation.
+    #: Needs to be provided for checkpointing gradient computation. Defaults to None.
     num_checkpoints: int | None = frozen_field(default=None)
 
     def __post_init__(self):
@@ -49,20 +47,24 @@ class SimulationConfig(TreeClass):
     simulation, including spatial and temporal discretization, hardware backend,
     and gradient computation settings.
 
-    Attributes:
-        time (Unitful): Total simulation time in seconds.
-        resolution (Unitful): Spatial resolution of the simulation grid in meters.
-        backend (BackendOption, optional): Computation backend ('gpu', 'tpu', 'cpu' or 'METAL'). Defaults to "gpu".
-        dtype (jnp.dtype, optional): Data type for numerical computations. Defaults to jnp.float32.
-        courant_factor (float, optional): Safety factor for the Courant condition (default: 0.99).
-        gradient_config (GradientConfig | None, optional): Optional configuration for gradient computation.
     """
 
-    time: Unitful = frozen_field()
-    resolution: Unitful = frozen_field()
+    #: Total simulation time in seconds.
+    time: float = frozen_field()
+
+    #: Spatial resolution of the simulation grid in meters.
+    resolution: float = frozen_field()
+
+    #: Computation backend ('gpu', 'tpu', 'cpu' or 'METAL'). Defaults to "gpu".
     backend: BackendOption = frozen_field(default="gpu")
+
+    #:  Data type for numerical computations. Defaults to jnp.float32.
     dtype: jnp.dtype = frozen_field(default=jnp.float32)
+
+    #: Safety factor for the Courant condition (default: 0.99).
     courant_factor: float = frozen_field(default=0.99)
+
+    #: Optional configuration for gradient computation.
     gradient_config: GradientConfig | None = field(default=None)
 
     def __post_init__(self):

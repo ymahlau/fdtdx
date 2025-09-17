@@ -1,7 +1,8 @@
 from fdtdx import constants
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.constants import wavelength_to_period
-from fdtdx.conversion.export import export_stl
+from fdtdx.conversion.json import export_json, export_json_str, import_from_json
+from fdtdx.conversion.stl import export_stl
 from fdtdx.core.jax.pytrees import (
     TreeClass,
     autoinit,
@@ -17,6 +18,7 @@ from fdtdx.core.physics.metrics import (
     normalize_by_energy,
     normalize_by_poynting_flux,
 )
+from fdtdx.core.physics.modes import compute_mode
 from fdtdx.core.plotting import colors
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
@@ -84,6 +86,9 @@ __all__ = [
     "Detector",
     # conversion
     "export_stl",
+    "export_json",
+    "export_json_str",
+    "import_from_json",
     # core
     "TreeClass",
     "autoinit",
@@ -98,6 +103,7 @@ __all__ = [
     "normalize_by_poynting_flux",
     "OnOffSwitch",
     "WaveCharacter",
+    "compute_mode",
     # fdtd
     "run_fdtd",
     "place_objects",
