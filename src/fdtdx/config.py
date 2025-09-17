@@ -50,10 +50,10 @@ class SimulationConfig(TreeClass):
     """
 
     #: Total simulation time in seconds.
-    time: float = frozen_field()
+    time: Unitful = frozen_field()
 
     #: Spatial resolution of the simulation grid in meters.
-    resolution: float = frozen_field()
+    resolution: Unitful = frozen_field()
 
     #: Computation backend ('gpu', 'tpu', 'cpu' or 'METAL'). Defaults to "gpu".
     backend: BackendOption = frozen_field(default="gpu")

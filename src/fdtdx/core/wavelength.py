@@ -15,14 +15,14 @@ class WaveCharacter(TreeClass):
 
     #: Optional period in seconds. Mutually exclusive with wavelength and frequency.
     #: Defaults to None.
-    period: float | None = frozen_field(default=None)
+    period: Unitful | None = frozen_field(default=None)
 
     #: Optional wavelength in meters for free space propagation.
     #: Mutually exclusive with period and frequency. Defaults to None.
-    wavelength: float | None = frozen_field(default=None)
+    wavelength: Unitful | None = frozen_field(default=None)
 
     #: Optional frequency in Hz. Mutually exclusive with period and wavelength.
-    frequency: float | None = frozen_field(default=None)
+    frequency: Unitful | None = frozen_field(default=None)
 
     def __post_init__(
         self,
@@ -33,7 +33,7 @@ class WaveCharacter(TreeClass):
         if sum([self.period is not None, self.frequency is not None, self.wavelength is not None]) != 1:
             raise Exception("Need to set exactly one of Period, Frequency or Wavelength in WaveCharacter")
 
-    def get_period(self) -> float:
+    def get_period(self) -> Unitful:
         if self.period is None:
             if self.wavelength is not None:
                 return self.wavelength / constants.c
@@ -44,7 +44,7 @@ class WaveCharacter(TreeClass):
         assert self.period is not None, "This should never happen"
         return self.period
 
-    def get_wavelength(self) -> float:
+    def get_wavelength(self) -> Unitful:
         if self.wavelength is None:
             if self.period is not None:
                 return self.period * constants.c
@@ -55,7 +55,7 @@ class WaveCharacter(TreeClass):
         assert self.wavelength is not None, "This should never happen"
         return self.wavelength
 
-    def get_frequency(self) -> float:
+    def get_frequency(self) -> Unitful:
         if self.frequency is None:
             if self.period is not None:
                 return 1.0 / self.period
