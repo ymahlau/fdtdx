@@ -5,14 +5,14 @@ from typing import Any, Sequence
 import jax
 
 from fdtdx.core.jax.pytrees import TreeClass
-from fdtdx.core.null import NULL
+from fdtdx.core.null import CUSTOM_NULL
 from fdtdx.typing import JAX_DTYPES
 
 
 def _export_json(obj: Any) -> dict | float | int | str | bool | None:
     if type(obj).__name__ != type(obj).__qualname__:
         raise NotImplementedError()
-    if obj is NULL:
+    if obj is CUSTOM_NULL:
         raise Exception("Object should not contain NULL")
     if obj is None:
         return None

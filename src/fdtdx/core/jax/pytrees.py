@@ -11,10 +11,11 @@ from pytreeclass._src.code_build import (
 )
 from pytreeclass._src.code_build import (
     field as tc_field,
+    NULL,
 )
 from pytreeclass._src.tree_base import TreeClassIndexer
 
-from fdtdx.core.null import NULL
+from fdtdx.core.null import CUSTOM_NULL
 
 
 def safe_hasattr(obj, name) -> bool:
@@ -39,7 +40,7 @@ class ExtendedTreeClassIndexer(TreeClassIndexer):
 class TreeClassField:
     name: str
     type: Any
-    default: Any = (NULL,)
+    default: Any = CUSTOM_NULL
     init: bool = True
     repr: bool = True
     kind: Literal["POS_ONLY", "POS_OR_KW", "VAR_POS", "KW_ONLY", "VAR_KW"] = "POS_OR_KW"
@@ -47,7 +48,7 @@ class TreeClassField:
     on_setattr: Sequence[Callable] = ()
     on_getattr: Sequence[Callable] = ()
     alias: str | None = None
-    value: Any = NULL
+    value: Any = CUSTOM_NULL
 
     def __iter__(self):
         """Allow conversion to dict via dict(obj)"""
@@ -77,7 +78,7 @@ class TreeClass(tc.TreeClass):
         for f in fields:
             input_dict = {s: getattr(f, s) for s in f.__slots__}
             if repr(input_dict["default"]) == "NULL":  # TODO: can we make this more robust? Do we need to?
-                input_dict["default"] = NULL
+                input_dict["default"] = CUSTOM_NULL
             tc_fields.append(TreeClassField(**input_dict))
         return tc_fields
 

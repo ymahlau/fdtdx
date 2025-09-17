@@ -1,4 +1,4 @@
-class Null:
+class CustomNull:
     __slots__ = ()
 
     def __repr__(self) -> str:
@@ -11,4 +11,4 @@ class Null:
         return False
 
 
-NULL = Null()
+CUSTOM_NULL = CustomNull()
