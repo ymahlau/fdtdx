@@ -193,13 +193,13 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         # Get temporal amplitudes from profile
         amplitude_H_h = self.temporal_profile.get_amplitude(
             time=time_H_h,
-            period=self.wave_character.period,
+            period=self.wave_character.get_period(),
             phase_shift=self.wave_character.phase_shift,
         )
         amplitude_H_h = amplitude_H_h * self.static_amplitude_factor
         amplitude_H_v = self.temporal_profile.get_amplitude(
             time=time_H_v,
-            period=self.wave_character.period,
+            period=self.wave_character.get_period(),
             phase_shift=self.wave_character.phase_shift,
         )
         amplitude_H_v = amplitude_H_v * self.static_amplitude_factor
@@ -253,13 +253,13 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         # Get temporal amplitudes from profile
         amplitude_E_h = self.temporal_profile.get_amplitude(
             time=time_E_h,
-            period=self.wave_character.period,
+            period=self.wave_character.get_period(),
             phase_shift=self.wave_character.phase_shift,
         )
         amplitude_E_h = amplitude_E_h * self.static_amplitude_factor
         amplitude_E_v = self.temporal_profile.get_amplitude(
             time=time_E_v,
-            period=self.wave_character.period,
+            period=self.wave_character.get_period(),
             phase_shift=self.wave_character.phase_shift,
         )
         amplitude_E_v = amplitude_E_v * self.static_amplitude_factor
