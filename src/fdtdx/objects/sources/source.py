@@ -153,7 +153,7 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
         if inverse:
             return E
         delta_t = self._config.time_step_duration
-        time_phase = 2 * jnp.pi * time_step * delta_t / self.wave_character.period + self.wave_character.phase_shift
+        time_phase = 2 * jnp.pi * time_step * delta_t / self.wave_character.get_period() + self.wave_character.phase_shift
         magnitude = jnp.real(self.amplitude * jnp.exp(-1j * time_phase))
         magnitude = magnitude * self.static_amplitude_factor
         e_pol, _ = normalize_polarization_for_source(
@@ -179,7 +179,7 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
         if inverse:
             return H
         delta_t = self._config.time_step_duration
-        time_phase = 2 * jnp.pi * time_step * delta_t / self.wave_character.period + self.wave_character.phase_shift
+        time_phase = 2 * jnp.pi * time_step * delta_t / self.wave_character.get_period() + self.wave_character.phase_shift
         magnitude = jnp.real(self.amplitude * jnp.exp(-1j * time_phase))
         magnitude = magnitude * self.static_amplitude_factor
         _, h_pol = normalize_polarization_for_source(
