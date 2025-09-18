@@ -11,6 +11,7 @@ from fdtdx.fdtd.forward import forward, forward_single_args_wrapper
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.objects.boundaries.boundary import BaseBoundaryState
 from fdtdx.objects.detectors.detector import DetectorState
+from fdtdx.fdtd.stop_conditions import StoppingCondition, TimeStepCondition
 
 
 def reversible_fdtd(
@@ -285,6 +286,7 @@ def checkpointed_fdtd(
     objects: ObjectContainer,
     config: SimulationConfig,
     key: jax.Array,
+    stopping_condition: StoppingCondition | None = None,
 ) -> SimulationState:
     """Run an FDTD simulation with gradient checkpointing for memory efficiency.
 
@@ -297,6 +299,8 @@ def checkpointed_fdtd(
         objects (ObjectContainer): Collection of physical objects in the simulation
         config (SimulationConfig): Simulation parameters including checkpointing settings
         key (jax.Array): JAX PRNGKey for any stochastic operations
+        stopping_condition (StoppingCondition, optional): Custom stopping condition on which simulation is halted.
+            If none is provided, we default to TimeStepCondition (simulation progresses until max time is reached)
 
     Returns:
         SimulationState: Tuple containing final time step and ArrayContainer with final state
@@ -305,11 +309,18 @@ def checkpointed_fdtd(
         The number of checkpoints can be configured through config.gradient_config.num_checkpoints.
         More checkpoints reduce recomputation but increase memory usage.
     """
+    if stopping_condition is None:
+        stopping_condition = TimeStepCondition()
     arrays = reset_array_container(arrays, objects)
     state = (jnp.asarray(0, dtype=jnp.int32), arrays)
+    stopping_condition = stopping_condition.setup(state, config, objects)
     state = eqxi.while_loop(
         max_steps=config.time_steps_total,
-        cond_fun=lambda s: config.time_steps_total > s[0],
+        cond_fun=partial(
+            stopping_condition,
+            config=config,
+            objects=objects,
+        ),
         body_fun=partial(
             forward,
             config=config,
@@ -337,7 +348,7 @@ def custom_fdtd_forward(
     start_time: int | jax.Array,
     end_time: int | jax.Array,
 ) -> SimulationState:
-    """Run a customizable forward FDTD simulation between specified time steps.
+    """Run a customizable forward FDTD simulation with a specified stopping condition.
 
     This function provides fine-grained control over the simulation execution,
     allowing partial time evolution and customization of recording behavior.
@@ -362,6 +373,7 @@ def custom_fdtd_forward(
     if reset_container:
         arrays = reset_array_container(arrays, objects)
     state = (jnp.asarray(start_time, dtype=jnp.int32), arrays)
+
     state = eqxi.while_loop(
         max_steps=config.time_steps_total,
         cond_fun=lambda s: end_time > s[0],
