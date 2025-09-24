@@ -32,13 +32,12 @@ class ObjectContainer(TreeClass):
     This class provides a structured way to organize and access different types of simulation
     objects like sources, detectors, PML/periodic boundaries and devices. It maintains object lists
     and provides filtered access to specific object types.
-
-    Attributes:
-        object_list (list[SimulationObject]): List of all simulation objects in the container.
-        volume_idx (int): Index of the volume object in the object list.
     """
 
+    #: List of all simulation objects in the container.
     object_list: list[SimulationObject]
+
+    #: Index of the volume object in the object list.
     volume_idx: int = frozen_field()
 
     @property
@@ -188,27 +187,33 @@ class ArrayContainer(TreeClass):
     This class holds the electromagnetic field arrays and various state information
     needed during FDTD simulation. It includes the E and H fields, material properties,
     and states for boundaries, detectors and recordings.
-
-    Attributes:
-        E (jax.Array): Electric field array.
-        H (jax.Array): Magnetic field array.
-        inv_permittivities (jax.Array): Inverse permittivity values array.
-        inv_permeabilities (jax.Array | float): Inverse permeability values array.
-        boundary_states (dict[str, BaseBoundaryState]): Dictionary mapping boundary names to their states.
-        detector_states (dict[str, DetectorState]): Dictionary mapping detector names to their states.
-        recording_state (RecordingState | None): Optional state for recording simulation data.
-        electric_conductivity (jax.Array | None, optional): field for electric conductivity terms. Defaults to None.
-        magnetic_conductivity (jax.Array | None, optional): field for magnetic conductivity terms. Defaults to None.
     """
 
+    #: Electric field array.
     E: jax.Array
+
+    #: Magnetic field array.
     H: jax.Array
+
+    #: Inverse permittivity values array.
     inv_permittivities: jax.Array
+
+    #: Inverse permeability values array.
     inv_permeabilities: jax.Array | float
+
+    #: Dictionary mapping boundary names to their states.
     boundary_states: dict[str, BaseBoundaryState]
+
+    #: Dictionary mapping detector names to their states.
     detector_states: dict[str, DetectorState]
+
+    #: Optional state for recording simulation data.
     recording_state: RecordingState | None
+
+    #: field for electric conductivity terms. Defaults to None.
     electric_conductivity: jax.Array | None = None
+
+    #: field for magnetic conductivity terms. Defaults to None.
     magnetic_conductivity: jax.Array | None = None
 
 

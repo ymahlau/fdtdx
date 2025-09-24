@@ -184,13 +184,11 @@ class TanhProjection(SameShapeTypeParameterTransform):
     convergence and robust formulations in topology optimization.
     Structural and Multidisciplinary Optimization, 43(6), pp. 767-784 (2011).
 
-    Attributes:
-        projection_midpoint (float, optional): Midpoint of the TanhProjection. Defaults to 0.5.
-
     Notes:
         The call method requires a beta parameter as a keyword argument passed to the parameter transformation
     """
 
+    #: Midpoint of the TanhProjection. Defaults to 0.5.
     projection_midpoint: float = frozen_field(default=0.5)
 
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
@@ -247,13 +245,11 @@ class SubpixelSmoothedProjection(SameShapeTypeParameterTransform):
     continuous both as the interface leaves the cell, *and* as it crosses the
     center. To ensure this, we need to account for the different possibilities.
 
-    Attributes:
-        projection_midpoint (float, optional): midpoint of the tanh projection. Defaults to 0.5
-
     Notes:
         The call method requires a beta parameter as a keyword argument passed to the parameter transformation
     """
 
+    #: midpoint of the tanh projection. Defaults to 0.5
     projection_midpoint: float = frozen_field(default=0.5)
 
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(

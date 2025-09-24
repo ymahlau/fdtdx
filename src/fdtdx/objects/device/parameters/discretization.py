@@ -83,17 +83,16 @@ class BrushConstraint2D(ParameterTransformation):
 
     This ensures minimum feature sizes and connectivity in 2D designs by using
     morphological operations with a brush kernel.
-
-    Attributes:
-        brush (jax.Array): Array defining the brush kernel for morphological operations.
-        axis (int): Axis along which to apply the 2D constraint (perpendicular plane).
-        background_material (str | None, optional): Name of the background material in the material
-            dictionary of the device. If None, the material with the lowest permittivity
-            is used. Defaults to None.
     """
 
+    #: Array defining the brush kernel for morphological operations.
     brush: jax.Array = frozen_field()
+
+    #: Axis along which to apply the 2D constraint (perpendicular plane).
     axis: int = frozen_field()
+
+    #: Name of the background material in the material
+    #: dictionary of the device. If None, the material with the lowest permittivity is used. Defaults to None.
     background_material: str | None = frozen_field(default=None)
 
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
@@ -297,27 +296,25 @@ class PillarDiscretization(ParameterTransformation):
     Maps arbitrary pillar structures to the nearest allowed configurations based on
     material constraints and geometry requirements. Ensures structures meet fabrication
     rules like single polymer columns and no trapped air holes.
-
-    Attributes:
-        axis (int): Axis along which to enforce pillar constraints (0=x, 1=y, 2=z).
-        single_polymer_columns (bool): If True, restrict to single polymer columns.
-        distance_metric (Literal["euclidean", "permittivity_differences_plus_average_permittivity"], optional):
-            Method to compute distances between material distributions:
-            - "euclidean": Standard Euclidean distance between permittivity values.
-            - "permittivity_differences_plus_average_permittivity": Weighted combination
-              of permittivity differences and average permittivity values, optimized
-              for material distribution comparisons.
-            Defaults to "permittivity_differences_plus_average_permittivity".
-        background_material (str | None, optional):
-            Name of the background material in the materials dictionary of the corresponding device.
-            If None, the material with lowest permittivity is used. Defaults to None.
     """
 
+    #: Axis along which to enforce pillar constraints (0=x, 1=y, 2=z).
     axis: int = frozen_field()
+
+    #: If True, restrict to single polymer columns.
     single_polymer_columns: bool = frozen_field()
+
+    #: Method to compute distances between material distributions:
+    #: - "euclidean": Standard Euclidean distance between permittivity values.
+    #: - "permittivity_differences_plus_average_permittivity": Weighted combination
+    #:  of permittivity differences and average permittivity values, optimized for material distribution comparisons.
+    #: Defaults to "permittivity_differences_plus_average_permittivity".
     distance_metric: Literal["euclidean", "permittivity_differences_plus_average_permittivity"] = frozen_field(
         default="permittivity_differences_plus_average_permittivity",
     )
+
+    #: Name of the background material in the materials dictionary of the corresponding device.
+    #: If None, the material with lowest permittivity is used. Defaults to None.
     background_material: str | None = frozen_field(default=None)
 
     _allowed_indices: jax.Array = frozen_private_field()

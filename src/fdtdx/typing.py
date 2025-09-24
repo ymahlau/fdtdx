@@ -1,6 +1,8 @@
 from enum import Enum
 from typing import Literal, Optional
 
+import jax.numpy as jnp
+
 # Real-valued shapes (physical dimensions)
 RealShape3D = tuple[float, float, float]
 """3D shape with real-valued (physical) dimensions in meters."""
@@ -59,3 +61,22 @@ class ParameterType(Enum):
     CONTINUOUS = 0
     DISCRETE = 1
     BINARY = 2
+
+
+JAX_DTYPES = [
+    jnp.complex128,
+    jnp.complex64,
+    jnp.float64,
+    jnp.float32,
+    jnp.float16,
+    jnp.bfloat16,
+    jnp.float8_e4m3b11fnuz,
+    jnp.float8_e4m3fn,
+    jnp.float8_e5m2,
+    jnp.float8_e5m2fnuz,
+    jnp.int64,
+    jnp.int32,
+    jnp.int16,
+    jnp.int8,
+    jnp.int4,
+]

@@ -19,13 +19,10 @@ class Recorder(TreeClass):
     It supports both compression modules that reduce data size and time filters that control
     when data is recorded. The recorder handles initialization, compression and decompression
     of simulation data through its module pipeline.
-
-    Attributes:
-        modules (Sequence[CompressionModule | TimeStepFilter]): Sequence of processing modules to apply to the
-            simulation data. Can be either CompressionModule for data reduction or TimeStepFilter
-            for controlling recording frequency.
     """
 
+    #: Sequence of processing modules to apply to the simulation data. Can be either CompressionModule for data reduction
+    #: or TimeStepFilter for controlling recording frequency.
     modules: Sequence[CompressionModule | TimeStepFilter]
     _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field(default=None)  # type:ignore
     _output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field(default=None)  # type:ignore

@@ -101,13 +101,12 @@ class DtypeConversion(CompressionModule):
 
     This module changes the data type of field values while preserving their shape,
     useful for reducing memory usage or meeting precision requirements.
-
-    Attributes:
-        dtype (jnp.dtype): Target data type for conversion.
-        exclude_filter (Sequence[str]): List of field names to exclude from conversion.
     """
 
+    #: Target data type for conversion.
     dtype: jnp.dtype = frozen_field(kind="KW_ONLY")  # type: ignore
+
+    #: List of field names to exclude from conversion.
     exclude_filter: Sequence[str] = frozen_field(default=tuple([]), kind="KW_ONLY")
 
     def init_shapes(

@@ -5,6 +5,8 @@ curl -L https://github.com/ymahlau/fdtdx-notebooks/archive/refs/heads/main.zip -
 unzip repo.zip
 mkdir -p docs/source/notebooks/
 mv fdtdx-notebooks-main/*.ipynb docs/source/notebooks/
+mv fdtdx-notebooks-main/quickstart/*.ipynb docs/source/notebooks/
+mv fdtdx-notebooks-main/advanced/*.ipynb docs/source/notebooks/
 
 # Clean up
 rm repo.zip

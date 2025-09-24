@@ -61,22 +61,27 @@ class PositionConstraint:
     margins and offsets. Used to specify how objects should be placed in the
     simulation volume relative to each other.
 
-    Attributes:
-        object (SimulationObject): The "child" object whose position is being adjusted
-        other_object (SimulationObject): The "parent" object that serves as reference
-        axes (tuple[int, ...]): Which axes (x,y,z) this constraint applies to
-        object_positions (tuple[float, ...]): Relative positions on child object (-1 to 1)
-        other_object_positions (tuple[float, ...]): Relative positions on parent object (-1 to 1)
-        margins (tuple[float, ...]): Optional real-space margins between objects
-        grid_margins (tuple[int, ...]): Optional grid-space margins between objects
     """
 
-    object: "SimulationObject"  # "child" object, whose pos is adjusted
+    #: The "child" object whose position is being adjusted
+    object: "SimulationObject"
+
+    #: The "parent" object that serves as reference
     other_object: "SimulationObject"  # "parent" object
+
+    #: Which axes (x,y,z) this constraint applies to
     axes: tuple[int, ...]
+
+    #: Relative positions on child object (-1 to 1)
     object_positions: tuple[float, ...]
+
+    #: Relative positions on parent object (-1 to 1)
     other_object_positions: tuple[float, ...]
+
+    #: Optional real-space margins between objects
     margins: tuple[float, ...]
+
+    #: Optional grid-space margins between objects
     grid_margins: tuple[int, ...]
 
 
@@ -88,22 +93,27 @@ class SizeConstraint:
     optional proportions and offsets. Used to specify how objects should be
     sized relative to each other in the simulation.
 
-    Attributes:
-        object (SimulationObject): The "child" object whose size is being adjusted
-        other_object (SimulationObject): The "parent" object that serves as reference
-        axes (tuple[int, ...]): Which axes of the child to constrain
-        other_axes (tuple[int, ...]): Which axes of the parent to reference
-        proportions (tuple[float, ...]): Size multipliers relative to parent
-        offsets (tuple[float, ...]): Additional real-space size offsets
-        grid_offsets (tuple[int, ...]): Additional grid-space size offsets
     """
 
-    object: "SimulationObject"  # "child" object, whose size is adjusted
-    other_object: "SimulationObject"  # "parent" object
+    #: The "child" object whose size is being adjusted
+    object: "SimulationObject"
+
+    #: The "parent" object that serves as reference
+    other_object: "SimulationObject"
+
+    #: Which axes of the child to constrain
     axes: tuple[int, ...]
+
+    #: Which axes of the parent to reference
     other_axes: tuple[int, ...]
+
+    #: Size multipliers relative to parent
     proportions: tuple[float, ...]
+
+    #: Additional real-space size offsets
     offsets: tuple[float, ...]
+
+    #: Additional grid-space size offsets
     grid_offsets: tuple[int, ...]
 
 
@@ -115,22 +125,27 @@ class SizeExtensionConstraint:
     or the simulation boundary. Can extend in positive or negative direction
     along an axis.
 
-    Attributes:
-        object (SimulationObject): The object being extended
-        other_object (Optional["SimulationObject"]): Optional target object to extend to
-        axis (int): Which axis to extend along
-        direction (Literal["+", "-"]): Direction to extend ('+' or '-')
-        other_position (float): Relative position on target (-1 to 1)
-        offset (float): Additional real-space offset
-        grid_offset (int): Additional grid-space offset
     """
 
-    object: "SimulationObject"  # "child" object, whose size is adjusted
-    other_object: Optional["SimulationObject"]  # "parent" object
+    #: The object being extended
+    object: "SimulationObject"
+
+    #: Optional target object to extend to
+    other_object: Optional["SimulationObject"]
+
+    #: Which axis to extend along
     axis: int
+
+    #: Direction to extend ('+' or '-')
     direction: Literal["+", "-"]
+
+    #: Relative position on target (-1 to 1)
     other_position: float
+
+    #: Additional real-space offset
     offset: float
+
+    #: Additional grid-space offset
     grid_offset: int
 
 
@@ -141,16 +156,18 @@ class GridCoordinateConstraint:
     Forces specific sides of an object to align with given grid coordinates.
     Used for precise positioning in the discretized simulation space.
 
-    Attributes:
-        object (SimulationObject): The object to position
-        axes (tuple[int, ...]): Which axes to constrain
-        sides (tuple[Literal["+", "-"], ...]): Which side of each axis ('+' or '-')
-        coordinates (tuple[int, ...]): Grid coordinates to align with
     """
 
+    #: The object to position
     object: "SimulationObject"
+
+    #: Which axes to constrain
     axes: tuple[int, ...]
+
+    #: Which side of each axis ('+' or '-')
     sides: tuple[Literal["+", "-"], ...]
+
+    #: Grid coordinates to align with
     coordinates: tuple[int, ...]
 
 
@@ -161,16 +178,18 @@ class RealCoordinateConstraint:
     Forces specific sides of an object to align with given real-space coordinates.
     Used for precise positioning in physical units.
 
-    Attributes:
-        object (SimulationObject): The object to position
-        axes (tuple[int, ...]): Which axes to constrain
-        sides (tuple[Literal["+", "-"], ...]): Which side of each axis ('+' or '-')
-        coordinates (tuple[float, ...]): Real-space coordinates to align with
     """
 
+    #: The object to position
     object: "SimulationObject"
+
+    #: Which axes to constrain
     axes: tuple[int, ...]
+
+    #: Which side of each axis ('+' or '-')
     sides: tuple[Literal["+", "-"], ...]
+
+    #: Real-space coordinates to align with
     coordinates: tuple[float, ...]
 
 

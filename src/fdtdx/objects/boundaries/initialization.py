@@ -16,57 +16,78 @@ class BoundaryConfig(TreeClass):
     This class stores parameters for boundary conditions in all six directions (min/max x/y/z).
     Supports both PML and periodic boundaries. For PML, the parameters control the absorption
     properties and physical size of the PML regions.
-
-    Attributes:
-        boundary_type_minx (str): Boundary type at minimum x ("pml" or "periodic"). Default "pml".
-        boundary_type_maxx (str): Boundary type at maximum x ("pml" or "periodic"). Default "pml".
-        boundary_type_miny (str): Boundary type at minimum y ("pml" or "periodic"). Default "pml".
-        boundary_type_maxy (str): Boundary type at maximum y ("pml" or "periodic"). Default "pml".
-        boundary_type_minz (str): Boundary type at minimum z ("pml" or "periodic"). Default "pml".
-        boundary_type_maxz (str): Boundary type at maximum z ("pml" or "periodic"). Default "pml".
-        thickness_grid_minx (int): Number of grid cells for PML at minimum x boundary. Default 10.
-        thickness_grid_maxx (int): Number of grid cells for PML at maximum x boundary. Default 10.
-        thickness_grid_miny (int): Number of grid cells for PML at minimum y boundary. Default 10.
-        thickness_grid_maxy (int): Number of grid cells for PML at maximum y boundary. Default 10.
-        thickness_grid_minz (int): Number of grid cells for PML at minimum z boundary. Default 10.
-        thickness_grid_maxz (int): Number of grid cells for PML at maximum z boundary. Default 10.
-        kappa_start_minx (float): Initial kappa value at min x boundary. Default 1.0.
-        kappa_end_minx (float): Final kappa value at min x boundary. Default 1.5.
-        kappa_start_maxx (float): Initial kappa value at max x boundary. Default 1.0.
-        kappa_end_maxx (float): Final kappa value at max x boundary. Default 1.5.
-        kappa_start_miny (float): Initial kappa value at min y boundary. Default 1.0.
-        kappa_end_miny (float): Final kappa value at min y boundary. Default 1.5.
-        kappa_start_maxy (float): Initial kappa value at max y boundary. Default 1.0.
-        kappa_end_maxy (float): Final kappa value at max y boundary. Default 1.5.
-        kappa_start_minz (float): Initial kappa value at min z boundary. Default 1.0.
-        kappa_end_minz (float): Final kappa value at min z boundary. Default 1.5.
-        kappa_start_maxz (float): Initial kappa value at max z boundary. Default 1.0.
-        kappa_end_maxz (float): Final kappa value at max z boundary. Default 1.5.
     """
 
+    #: Boundary type at minimum x ("pml" or "periodic"). Default "pml".
     boundary_type_minx: str = frozen_field(default="pml")
+
+    #: Boundary type at maximum x ("pml" or "periodic"). Default "pml".
     boundary_type_maxx: str = frozen_field(default="pml")
+
+    #: Boundary type at minimum y ("pml" or "periodic"). Default "pml".
     boundary_type_miny: str = frozen_field(default="pml")
+
+    #: Boundary type at maximum y ("pml" or "periodic"). Default "pml".
     boundary_type_maxy: str = frozen_field(default="pml")
+
+    #: Boundary type at minimum z ("pml" or "periodic"). Default "pml".
     boundary_type_minz: str = frozen_field(default="pml")
+
+    #: Number of grid cells for PML at maximum z boundary. Default 10.
     boundary_type_maxz: str = frozen_field(default="pml")
+
+    #: Number of grid cells for PML at minimum x boundary. Default 10.
     thickness_grid_minx: int = frozen_field(default=10)
+
+    #: Number of grid cells for PML at maximum x boundary. Default 10.
     thickness_grid_maxx: int = frozen_field(default=10)
+
+    #: Boundary type at minimum y ("pml" or "periodic"). Default "pml".
     thickness_grid_miny: int = frozen_field(default=10)
+
+    #: Number of grid cells for PML at maximum y boundary. Default 10.
     thickness_grid_maxy: int = frozen_field(default=10)
+
+    #: Number of grid cells for PML at minimum z boundary. Default 10.
     thickness_grid_minz: int = frozen_field(default=10)
+
+    #: Number of grid cells for PML at maximum z boundary. Default 10.
     thickness_grid_maxz: int = frozen_field(default=10)
+
+    #: Initial kappa value at min x boundary. Default 1.0.
     kappa_start_minx: float = frozen_field(default=1.0)
+
+    #: Final kappa value at min x boundary. Default 1.5.
     kappa_end_minx: float = frozen_field(default=1.5)
+
+    #: Initial kappa value at max x boundary. Default 1.0.
     kappa_start_maxx: float = frozen_field(default=1.0)
+
+    #: Final kappa value at max x boundary. Default 1.5.
     kappa_end_maxx: float = frozen_field(default=1.5)
+
+    #: Initial kappa value at min y boundary. Default 1.0.
     kappa_start_miny: float = frozen_field(default=1.0)
+
+    #: Final kappa value at min y boundary. Default 1.5.
     kappa_end_miny: float = frozen_field(default=1.5)
+
+    #: Initial kappa value at max y boundary. Default 1.0.
     kappa_start_maxy: float = frozen_field(default=1.0)
+
+    #: Final kappa value at max y boundary. Default 1.5.
     kappa_end_maxy: float = frozen_field(default=1.5)
+
+    #: Initial kappa value at min z boundary. Default 1.0.
     kappa_start_minz: float = frozen_field(default=1.0)
+
+    #: Final kappa value at min z boundary. Default 1.5.
     kappa_end_minz: float = frozen_field(default=1.5)
+
+    #: Initial kappa value at max z boundary. Default 1.0.
     kappa_start_maxz: float = frozen_field(default=1.0)
+
+    #: Final kappa value at max z boundary. Default 1.5.
     kappa_end_maxz: float = frozen_field(default=1.5)
 
     def get_dict(self) -> dict[str, int]:

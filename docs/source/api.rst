@@ -4,79 +4,83 @@ API
 .. autosummary::
     :toctree: api/
 
-    fdtdx.Detector
-    fdtdx.export_stl
-    fdtdx.TreeClass
+    fdtdx.apply_params
+    fdtdx.ArrayContainer
     fdtdx.autoinit
+    fdtdx.BinaryMedianFilterModule
+    fdtdx.BOTTOM_Z_PADDING_CONFIG_REPEAT
+    fdtdx.boundary_objects_from_config
+    fdtdx.BoundaryConfig
+    fdtdx.BrushConstraint2D
+    fdtdx.circular_brush
+    fdtdx.ClosestIndex
+    fdtdx.compute_energy
+    fdtdx.compute_mode
+    fdtdx.compute_poynting_flux
+    fdtdx.ConnectHolesAndStructures
+    fdtdx.Cylinder
+    fdtdx.Detector
+    fdtdx.Device
+    fdtdx.DiagonalSymmetry2D
+    fdtdx.DtypeConversion
+    fdtdx.EnergyDetector
+    fdtdx.export_json
+    fdtdx.export_json_str
+    fdtdx.export_stl
+    fdtdx.ExtrudedPolygon
     fdtdx.field
-    fdtdx.private_field
+    fdtdx.FieldDetector
     fdtdx.frozen_field
     fdtdx.frozen_private_field
-    fdtdx.metric_efficiency
-    fdtdx.compute_energy
-    fdtdx.normalize_by_energy
-    fdtdx.compute_poynting_flux
-    fdtdx.normalize_by_poynting_flux
-    fdtdx.OnOffSwitch
-    fdtdx.WaveCharacter
-    fdtdx.run_fdtd
-    fdtdx.place_objects
-    fdtdx.apply_params
     fdtdx.full_backward
-    fdtdx.ArrayContainer
-    fdtdx.ParameterContainer
-    fdtdx.ObjectContainer
-    fdtdx.SimulationState
-    fdtdx.Recorder
-    fdtdx.RecordingState
-    fdtdx.DtypeConversion
-    fdtdx.LinearReconstructEveryK
-    fdtdx.SimulationObject
-    fdtdx.PositionConstraint
-    fdtdx.SizeConstraint
-    fdtdx.SizeExtensionConstraint
+    fdtdx.GaussianPlaneSource
+    fdtdx.GaussianPulseProfile
+    fdtdx.GaussianSmoothing2D
+    fdtdx.GradientConfig
     fdtdx.GridCoordinateConstraint
-    fdtdx.RealCoordinateConstraint
+    fdtdx.import_from_json
+    fdtdx.LinearReconstructEveryK
+    fdtdx.Logger
+    fdtdx.Material
+    fdtdx.metric_efficiency
+    fdtdx.ModeOverlapDetector
+    fdtdx.ModePlaneSource
+    fdtdx.normalize_by_energy
+    fdtdx.normalize_by_poynting_flux
+    fdtdx.ObjectContainer
+    fdtdx.OnOffSwitch
+    fdtdx.ParameterContainer
+    fdtdx.ParameterTransformation
     fdtdx.PerfectlyMatchedLayer
     fdtdx.PeriodicBoundary
-    fdtdx.BoundaryConfig
-    fdtdx.boundary_objects_from_config
-    fdtdx.EnergyDetector
-    fdtdx.PoyntingFluxDetector
-    fdtdx.FieldDetector
     fdtdx.PhasorDetector
-    fdtdx.ModeOverlapDetector
-    fdtdx.Device
-    fdtdx.StandardToInversePermittivityRange
-    fdtdx.StandardToCustomRange
-    fdtdx.StandardToPlusOneMinusOneRange
-    fdtdx.GaussianSmoothing2D
-    fdtdx.RemoveFloatingMaterial
-    fdtdx.ConnectHolesAndStructures
-    fdtdx.BinaryMedianFilterModule
-    fdtdx.ClosestIndex
-    fdtdx.BrushConstraint2D
     fdtdx.PillarDiscretization
-    fdtdx.TanhProjection
-    fdtdx.SubpixelSmoothedProjection
-    fdtdx.DiagonalSymmetry2D
-    fdtdx.ParameterTransformation
-    fdtdx.circular_brush
-    fdtdx.BOTTOM_Z_PADDING_CONFIG_REPEAT
-    fdtdx.GaussianPlaneSource
-    fdtdx.UniformPlaneSource
-    fdtdx.ModePlaneSource
-    fdtdx.SingleFrequencyProfile
-    fdtdx.GaussianPulseProfile
-    fdtdx.Cylinder
-    fdtdx.Sphere
-    fdtdx.ExtrudedPolygon
-    fdtdx.UniformMaterialObject
-    fdtdx.SimulationVolume
-    fdtdx.Logger
+    fdtdx.place_objects
     fdtdx.plot_setup
+    fdtdx.PositionConstraint
+    fdtdx.PoyntingFluxDetector
+    fdtdx.private_field
+    fdtdx.RealCoordinateConstraint
+    fdtdx.Recorder
+    fdtdx.RecordingState
+    fdtdx.RemoveFloatingMaterial
+    fdtdx.run_fdtd
     fdtdx.SimulationConfig
-    fdtdx.GradientConfig
+    fdtdx.SimulationObject
+    fdtdx.SimulationState
+    fdtdx.SimulationVolume
+    fdtdx.SingleFrequencyProfile
+    fdtdx.SizeConstraint
+    fdtdx.SizeExtensionConstraint
+    fdtdx.Sphere
+    fdtdx.StandardToCustomRange
+    fdtdx.StandardToInversePermittivityRange
+    fdtdx.StandardToPlusOneMinusOneRange
+    fdtdx.SubpixelSmoothedProjection
+    fdtdx.TanhProjection
+    fdtdx.TreeClass
+    fdtdx.UniformMaterialObject
+    fdtdx.UniformPlaneSource
+    fdtdx.WaveCharacter
     fdtdx.wavelength_to_period
-    fdtdx.Material
 

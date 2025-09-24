@@ -17,31 +17,39 @@ class PMLBoundaryState(BaseBoundaryState):
 
     Stores the auxiliary field variables and coefficients needed to implement
     the convolutional perfectly matched layer (CPML) boundary conditions.
-
-    Attributes:
-        psi_Ex (jax.Array): Auxiliary field for Ex component
-        psi_Ey (jax.Array): Auxiliary field for Ey component
-        psi_Ez (jax.Array): Auxiliary field for Ez component
-        psi_Hx (jax.Array): Auxiliary field for Hx component
-        psi_Hy (jax.Array): Auxiliary field for Hy component
-        psi_Hz (jax.Array): Auxiliary field for Hz component
-        bE (jax.Array): Electric field scaling coefficient
-        bH (jax.Array): Magnetic field scaling coefficient
-        cE (jax.Array): Electric field update coefficient
-        cH (jax.Array): Magnetic field update coefficient
-        kappa (jax.Array): PML stretching coefficient
     """
 
+    #: Auxiliary field for Ex component
     psi_Ex: jax.Array
+
+    #: Auxiliary field for Ey component
     psi_Ey: jax.Array
+
+    #: Auxiliary field for Ez component
     psi_Ez: jax.Array
+
+    #:  Auxiliary field for Hx component
     psi_Hx: jax.Array
+
+    #: Auxiliary field for Hy component
     psi_Hy: jax.Array
+
+    #: Auxiliary field for Hz component
     psi_Hz: jax.Array
+
+    #: Electric field scaling coefficient
     bE: jax.Array
+
+    #: Magnetic field scaling coefficient
     bH: jax.Array
+
+    #: Electric field update coefficient
     cE: jax.Array
+
+    #: Magnetic field update coefficient
     cH: jax.Array
+
+    #: PML stretching coefficient
     kappa: jax.Array
 
 
@@ -52,17 +60,18 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
     The CPML absorbs outgoing electromagnetic waves with minimal reflection by using
     a complex coordinate stretching approach. This implementation supports arbitrary
     axis orientation and both positive/negative directions.
-
-    Attributes:
-        alpha (float, optional): Loss parameter for complex frequency shifting. Defaults to 1e-8.
-        kappa_start (float, optional): Initial kappa stretching coefficient. Defaults to 1.0.
-        kappa_end (float, optional): Final kappa stretching coefficient. Defaults to 1.5.
-        color (tuple[float, float, float] | None, optional): RGB color tuple for visualization. defualts to dark grey.
     """
 
+    #: Loss parameter for complex frequency shifting. Defaults to 1e-8.
     alpha: float = frozen_field(default=1.0e-8)
+
+    #: Initial kappa stretching coefficient. Defaults to 1.0.
     kappa_start: float = frozen_field(default=1.0)
+
+    #: Final kappa stretching coefficient. Defaults to 1.5.
     kappa_end: float = frozen_field(default=1.5)
+
+    #: RGB color tuple for visualization. defaults to dark grey.
     color: tuple[float, float, float] | None = frozen_field(default=DARK_GREY)
 
     @property

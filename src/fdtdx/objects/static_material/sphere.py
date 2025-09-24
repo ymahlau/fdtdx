@@ -13,19 +13,22 @@ class Sphere(StaticMultiMaterialObject):
     This class represents a sphere or ellipsoid with customizable radius/radii and material.
     When all three radii are equal, the shape is a perfect sphere.
 
-    Attributes:
-        radius (float): The default radius of the sphere in meter (used if specific axis radii are not provided).
-        material_name (str): Name of the sphere material in the materials dictionary to be used for the object.
-        radius_x (float | None, optional): The radius along the x-axis in meter. If none, use radius. Defaults to None.
-        radius_y (float | None, optional): The radius along the y-axis in meter. If none, use radius. Defaults to None.
-        radius_z (float | None, optional): The radius along the z-axis in meter. If none, use radius. Defaults to None.
     """
 
+    #: The default radius of the sphere in meter (used if specific axis radii are not provided).
     radius: float = frozen_field()
+
+    #: Name of the sphere material in the materials dictionary to be used for the object.
     material_name: str = frozen_field()
     # Optional parameters for ellipsoid shape
+
+    #: The radius along the x-axis in meter. If none, use radius. Defaults to None.
     radius_x: float | None = frozen_field(default=None)
+
+    #: The radius along the y-axis in meter. If none, use radius. Defaults to None.
     radius_y: float | None = frozen_field(default=None)
+
+    #: The radius along the z-axis in meter. If none, use radius. Defaults to None.
     radius_z: float | None = frozen_field(default=None)
 
     def get_voxel_mask_for_shape(self) -> jax.Array:

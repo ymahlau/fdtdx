@@ -14,28 +14,28 @@ class EnergyDetector(Detector):
     full 3D data, 2D slices, or reduced volume measurements.
     """
 
-    # If True, returns energy measurements as 2D slices through the volume.
-    # Defaults to False.
+    #: If True, returns energy measurements as 2D slices through the volume.
+    #: Defaults to False.
     as_slices: bool = frozen_field(default=False)
 
-    # If True, reduces the volume data to a single energy value.
-    # Defaults to False.
+    #: If True, reduces the volume data to a single energy value.
+    #: Defaults to False.
     reduce_volume: bool = frozen_field(default=False)
 
-    # real-world positions for slice extraction.
-    # Defaults to None.
+    #: real-world positions for slice extraction.
+    #: Defaults to None.
     x_slice: float | None = frozen_field(default=None)
 
-    # real-world positions for slice extraction.
-    # Defaults to None.
+    #: real-world positions for slice extraction.
+    #: Defaults to None.
     y_slice: float | None = frozen_field(default=None)
 
-    # real-world positions for slice extraction.
-    # Defaults to None.
+    #: real-world positions for slice extraction.
+    #: Defaults to None.
     z_slice: float | None = frozen_field(default=None)
 
-    # If "mean", aggregates slices by averaging instead of using position.
-    # If None, mean is used. Defaults to None.
+    #: If "mean", aggregates slices by averaging instead of using position.
+    #: If None, mean is used. Defaults to None.
     aggregate: str | None = frozen_field(default=None)  # e.g., "mean"
 
     def _shape_dtype_single_time_step(

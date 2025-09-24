@@ -52,13 +52,12 @@ class StandardToCustomRange(SameShapeTypeParameterTransform):
 
     Linearly maps values from [0,1] to a custom range specified by min_value
     and max_value parameters.
-
-    Attributes:
-        min_value (float, optional): Minimum value of target range. Defaults to zero.
-        max_value (float, optional): Maximum value of target range. Defaults to one.
     """
 
+    #: Minimum value of target range. Defaults to zero.
     min_value: float = frozen_field(default=0)
+
+    #: Maximum value of target range. Defaults to one.
     max_value: float = frozen_field(default=1)
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
         default=ParameterType.CONTINUOUS
@@ -96,12 +95,9 @@ class GaussianSmoothing2D(SameShapeTypeParameterTransform):
 
     This transform convolves the input with a 2D Gaussian kernel,
     which helps reduce noise and smooth the data.
-
-    Attributes:
-        std_discrete (int): Integer specifying the standard deviation of the
-                     Gaussian kernel in discrete units.
     """
 
+    #: Integer specifying the standard deviation of the Gaussian kernel in discrete units.
     std_discrete: int = frozen_field()
 
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
