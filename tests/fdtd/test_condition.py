@@ -1,4 +1,4 @@
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import jax
 import jax.numpy as jnp
@@ -7,7 +7,6 @@ import pytest
 from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 
-from fdtdx.interfaces.state import RecordingState
 from fdtdx.objects.boundaries.boundary import BaseBoundaryState
 from fdtdx.objects.detectors.detector import DetectorState
 from fdtdx.core.wavelength import WaveCharacter
@@ -16,7 +15,6 @@ from fdtdx.objects.static_material.static import SimulationVolume
 
 # Import the module to test
 from fdtdx.fdtd.stop_conditions import TimeStepCondition, EnergyThresholdCondition, DetectorConvergenceCondition
-from fdtdx.objects.detectors.energy import EnergyDetector
 
 
 class TestCondition:
@@ -32,7 +30,6 @@ class TestCondition:
         # Create mock boundary and detector states
         boundary_states = {"pml": BaseBoundaryState()}
         detector_states = {"detector1": DetectorState()}
-        recording_state = Mock(spec=RecordingState)
 
         # Create array container
         arrays = ArrayContainer(
@@ -42,15 +39,20 @@ class TestCondition:
             inv_permeabilities=inv_permeabilities,
             boundary_states=boundary_states,
             detector_states=detector_states,
-            recording_state=recording_state,
+            recording_state=None,
+            electric_conductivity=None,
+            magnetic_conductivity=None,
         )
 
         # Create simulation state
         time_step = jnp.array(0)
         state = (time_step, arrays)
 
-        # Create mock config and objects
-        config = Mock(spec=SimulationConfig)
+        config = SimulationConfig(
+            time=100e-11,
+            resolution=1e-4,
+            courant_factor=0.99,
+        )
         objects = Mock(spec=ObjectContainer)
 
         # Create random key
@@ -65,7 +67,8 @@ class TestCondition:
         cw_source_period = 5e-11  # 20 GHz
         wave_character = WaveCharacter(period=cw_source_period)
         threshold = 1e-6
-        min_steps = 10
+        min_steps = 1572 # Approximately 5 periods at 20 GHz with dt ~ 1.906e-13 s.
+        # It's so specific because we ensure min_steps > spp * (prev_periods + 1), otherwise a ValueError is raised
 
         detector_name = "test_detector"
         detector_object = EnergyDetector(name=detector_name)
@@ -115,11 +118,11 @@ class TestCondition:
 
     def test_time_step_condition(self, setup_simulation_state):
         state = setup_simulation_state["state"]
+        config = setup_simulation_state["config"]
         objects = setup_simulation_state["objects"]
-        config = SimulationConfig(time=10e-11, resolution=1e-4)
 
-        # Create the condition function
         cond_fun = TimeStepCondition()
+        cond_fun = cond_fun.setup(state, config, objects)
 
         # Test when time_step < end_step
         assert cond_fun(state, config, objects)
@@ -134,11 +137,10 @@ class TestCondition:
 
     def test_energy_threshold_condition(self, setup_simulation_state):
         objects = setup_simulation_state["objects"]
+        config = setup_simulation_state["config"]
         arrays = setup_simulation_state["arrays"]
-        config = SimulationConfig(time=10e-11, resolution=1e-4)
-
-        min_steps = 100
         threshold = 1e-5
+        min_steps = 10
 
         cond_fun = EnergyThresholdCondition(
             threshold=threshold,
@@ -147,11 +149,13 @@ class TestCondition:
 
         # Test before min_steps -> should continue
         state_before_min = (jnp.array(min_steps - 10), arrays)
+        cond_fun = cond_fun.setup(state_before_min, config, objects)
         assert cond_fun(state_before_min, config, objects)
 
         # Test after min_steps, but not converged -> should continue
         # Energy difference is larger than threshold
         state_not_converged = (jnp.array(min_steps + 1), arrays)
+        cond_fun = cond_fun.setup(state_not_converged, config, objects)
         assert cond_fun(state_not_converged, config, objects)
 
         # Test after min_steps and under threshold -> should stop
@@ -162,33 +166,30 @@ class TestCondition:
         nH = arrays.H.size
         v = jnp.sqrt(threshold / float(nE + nH)) * 0.9
         v = jnp.asarray(v, dtype=arrays.E.dtype)
-        print(v)
         E_new = jnp.full_like(arrays.E, v)
         H_new = jnp.full_like(arrays.H, v)
         arrays_new = arrays.aset("E", E_new).aset("H", H_new)
         state_converged = (jnp.array(min_steps + 1), arrays_new)
+        cond_fun = cond_fun.setup(state_converged, config, objects)
         assert not cond_fun(state_converged, config, objects)
 
         # Test at end_step -> should stop regardless of convergence
         state_at_end = (jnp.array(config.time_steps_total), arrays)
+        cond_fun = cond_fun.setup(state_at_end, config, objects)
         assert not cond_fun(state_at_end, config, objects)
 
     def test_detector_convergence_condition(self, setup_simulation_state):
         objects = setup_simulation_state["objects"]
         arrays = setup_simulation_state["arrays"]
-        config = SimulationConfig(
-            time=10e-11,
-            resolution=1e-4,
-            courant_factor=0.99,
-        )
+        config = setup_simulation_state["config"]
         # If courant_factor=0.99 and resolution=1e-4, then time_step_duration ≈ 1.906e-13 s
         # Therefore we have time / time_step_duration ≈ 524.5, which is rounded up to 525.
         # This is the number of time steps. Remember that min_steps cannot be larger than this
         detector_name = "energy_detector"
         cw_source_period = 5e-11  # 20 GHz
         wave_character = WaveCharacter(frequency=1/cw_source_period)
-        prev_periods = 5
-        min_steps = 100
+        prev_periods = 2
+        min_steps = 786
         threshold = 1e-5
 
         # Make dummy energy detector readings
@@ -224,13 +225,13 @@ class TestCondition:
 
         # Test after min_steps and converged -> should stop
         # To simulate convergence, we'll manually create a state where the
-        # energy difference is below the threshold.
+        # energy difference is below the threshold
         converged_energy_readings = jnp.ones(config.time_steps_total).reshape(-1, 1)
         converged_energy_readings = converged_energy_readings.at[min_steps + 1].set(
             converged_energy_readings[min_steps] + threshold / 10
         )
         arrays.detector_states[detector_name]["energy"] = converged_energy_readings
-        state_converged = (jnp.array(min_steps + 1), arrays)
+        state_converged = (jnp.array(min_steps + 2), arrays)
         cond_fun = cond_fun.setup(state_converged, config, objects)
         assert not cond_fun(state_converged, config, objects)
 
@@ -242,11 +243,7 @@ class TestCondition:
     def test_jit_compatibility(self, setup_simulation_state):
         state = setup_simulation_state["state"]
         arrays = setup_simulation_state["arrays"]
-        config = SimulationConfig(
-            time=10e-11,
-            resolution=1e-4,
-            courant_factor=0.99,
-        )
+        config = setup_simulation_state["config"]
         detector_name = "energy_detector"
         volume = SimulationVolume(partial_real_shape=(1e-3, 1e-3, 1e-3))
         detector_object = EnergyDetector(name=detector_name)
@@ -256,6 +253,7 @@ class TestCondition:
 
         # TimeStepCondition
         ts_cond_fun = TimeStepCondition()
+        ts_cond_fun = ts_cond_fun.setup(state, config, objects)
         jitted_ts_cond_fun = jax.jit(ts_cond_fun)
         result = jitted_ts_cond_fun(state, config, objects)
         assert isinstance(result, jax.Array)
@@ -265,12 +263,25 @@ class TestCondition:
             threshold=1e-5,
             min_steps=10,
         )
+        ec_cond_fun = ec_cond_fun.setup(state, config, objects)
         jitted_ec_cond_fun = jax.jit(ec_cond_fun)
-        result = jitted_ec_cond_fun(state, objects)
+        result = jitted_ec_cond_fun(state, config, objects)
         assert isinstance(result, jax.Array)
 
         # DetectorConvergenceCondition
-        cw_source_period = 5e-11  # 20 GHz
-        wave_character = WaveCharacter(period=cw_source_period)
-        arrays.detector_states[detector_name] = {"energy": jnp.zeros((end_step, 1))}
-        objects[detector_name] = detector_object
+        arrays.detector_states[detector_name] = {"energy": jnp.zeros((config.time_steps_total, 1))}
+        # Choose a small period so spp is small and feasible for this config:
+        # e.g., period = 2 * dt -> spp ~= 2, prev_periods=1 => (k+1)*spp = 4 << T
+        wave_character = WaveCharacter(period=2 * config.time_step_duration)
+
+        dc_cond_fun = DetectorConvergenceCondition(
+            detector_name=detector_name,
+            wave_character=wave_character,
+            prev_periods=1,
+            threshold=1e-5,
+            min_steps=None,
+        )
+        dc_cond_fun = dc_cond_fun.setup(state, config, objects)
+        jitted_dc_cond_fun = jax.jit(dc_cond_fun)
+        result = jitted_dc_cond_fun(state, config, objects)
+        assert isinstance(result, jax.Array)
