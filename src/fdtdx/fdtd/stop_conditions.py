@@ -81,7 +81,7 @@ class EnergyThresholdCondition(StoppingCondition):
     """This condition stops a simulation when the total energy in the simulation volume
     falls below a specified threshold. A minimum number of steps can be enforced
     before convergence checks are applied, and a hard cutoff is imposed at
-    ``config.time_steps_total``. This condition is intended to be used with
+    ``SimulationConfig.time_steps_total``. This condition is intended to be used with
     pulsed sources, where the total amount of energy input in the volume is
     finite, therefore total energy in the system is expected to converge towards zero eventually.
 
@@ -94,17 +94,21 @@ class EnergyThresholdCondition(StoppingCondition):
     """
 
     threshold: float = frozen_field(default=1e-6)
-    min_steps: int = frozen_field(default=100)
+    max_steps: int | None = frozen_field(default=None)
+    min_steps: int | None = frozen_field(default=None)
 
     def setup(self, state: SimulationState, config: SimulationConfig, objects: ObjectContainer) -> Self:
+        self = self.aset("max_steps", config.time_steps_total if self.max_steps is None else self.max_steps, create_new_ok=True)
+        self = self.aset("min_steps", int(round(config.time_steps_total * 0.1)) if self.min_steps is None else self.min_steps, create_new_ok=True)
         self._validate(state, config, objects)
+
         return self
 
     def _validate(self, state: SimulationState, config: SimulationConfig, objects: ObjectContainer) -> None:
         if self.threshold < 0:
             raise ValueError(f"Energy threshold must be non-negative, got {self.threshold}.")
 
-        if self.min_steps < 0:
+        if self.min_steps is not None and self.min_steps < 0:
             raise ValueError(f"Minimum steps must be non-negative, got {self.min_steps}.")
 
     def __call__(self, state: SimulationState, config: SimulationConfig, objects: ObjectContainer) -> jax.Array:
@@ -120,11 +124,12 @@ class EnergyThresholdCondition(StoppingCondition):
             jax.Array: Boolean scalar - True if condition not met and time < end_time.
         """
         curr_time_step, arrays = state
-        time_condition = curr_time_step < config.time_steps_total
+        time_condition = curr_time_step < self.max_steps
+        min_steps_condition = curr_time_step < self.min_steps
         total_energy = jnp.sum(arrays.E**2) + jnp.sum(arrays.H**2)
         converged = total_energy < self.threshold
 
-        return time_condition & (~(curr_time_step < self.min_steps) | ~converged)
+        return time_condition & (min_steps_condition | ~converged)
 
 
 @autoinit
@@ -148,6 +153,11 @@ class DetectorConvergenceCondition(StoppingCondition):
     checks are applied, and a hard cutoff is imposed when the time step is equal
     to ``config.time_steps_total``.
 
+    The minimum number of steps before convergence checking begins
+    defaults to ``(prev_periods + 1) * spp``, where ``spp`` is samples per period of
+    the source. This ensures that there are enough readings to compute the
+    Fourier transforms.
+
     Attributes:
         detector_name (str): The name of the Detector from which
             readings will be obtained in order to determine when to
@@ -159,39 +169,43 @@ class DetectorConvergenceCondition(StoppingCondition):
         prev_periods (int): Number of previous full periods used as a reference (>=1).
         threshold (float): Relative change threshold for determining
             convergence. Defaults to ``1e-6``.
-        end_step (int): The maximum number of time steps before the
+        max_steps (int, optional): The maximum number of time steps before the
             simulation is stopped, regardless of convergence.
-            Can be obtained from SimulationConfig.time_steps_total.
-        min_steps (int): The minimum number of time steps that must be
-            completed before convergence checking begins. A good value would be
-            (k_periods + 1) * spp, where spp is samples per period. Defaults to
-            ``100``.
+            Defaults to ``SimulationConfig.time_steps_total``.
+        min_steps (int, optional): The minimum number of time steps that must be
+            completed before convergence checking begins. Defaults to
+            ``(prev_periods + 1) * spp``, where ``spp`` is samples per period of
+            the source.
     """
 
     detector_name: str = frozen_field()
     wave_character: WaveCharacter = frozen_field()
     prev_periods: int = frozen_field(default=4)
     threshold: float = frozen_field(default=1e-6)
-    min_steps: int = frozen_field(default=100)
-    _spp: int = frozen_private_field() # type: ignore
+    max_steps: int | None = frozen_field(default=None)
+    min_steps: int | None = frozen_field(default=None)
+    _spp: int | None = frozen_private_field(default=None) # type: ignore
 
     def setup(self, state: SimulationState, config: SimulationConfig, objects: ObjectContainer) -> Self:
-        """Validating inputs and setting up internal attributes."""
-        self._validate(state, config, objects)
+        """Setting up internal attributes and validating inputs."""
         spp = int(round(self.wave_character.period / config.time_step_duration))
-
-        if (self.prev_periods + 1) * spp > config.time_steps_total:
-            raise ValueError(
-                "Number of samples over which DetectorConvergenceCondition computes is greater than the number of time steps in the simulation. "
-                "Increase the time over which the simulation runs in SimulationConfig, decrease prev_periods, or use a source with a shorter period."
-            )
-
         self = self.aset("_spp", spp, create_new_ok=True)
+        self = self.aset("max_steps", config.time_steps_total if self.max_steps is None else self.max_steps, create_new_ok=True)
+        self = self.aset("min_steps", int(round((self.prev_periods + 1) * spp)) if self.min_steps is None else self.min_steps, create_new_ok=True)
+        self._validate(state, config, objects)
 
         return self
 
     def _validate(self, state: SimulationState, config: SimulationConfig, objects: ObjectContainer) -> None:
         _, arrays = state
+
+        if (self.prev_periods + 1) * self._spp > config.time_steps_total:
+            raise ValueError(
+                "Number of samples over which DetectorConvergenceCondition computes is "
+                "greater than the number of time steps in the simulation. "
+                "Increase the time over which the simulation runs in SimulationConfig, "
+                "decrease prev_periods, or use a source with a shorter period."
+            )
 
         if self.detector_name not in arrays.detector_states:
             available = tuple(arrays.detector_states.keys())
@@ -222,6 +236,17 @@ class DetectorConvergenceCondition(StoppingCondition):
         if self.prev_periods < 1:
             raise ValueError(f"prev_periods must be >= 1; got {self.prev_periods}.")
 
+        if self.threshold < 0:
+            raise ValueError(f"Detector convergence threshold must be non-negative, got {self.threshold}.")
+
+        if self.min_steps is not None and self.min_steps < (self.prev_periods + 1) * self._spp:
+            raise ValueError(
+                "min_steps must be larger than the number of steps used to compute convergence, "
+                f"got {self.min_steps}, need more than {(self.prev_periods + 1) * self._spp}. "
+                "You can also decrease prev_periods to match min_steps, or you can leave min_steps unset, "
+                "as a suitable default will be used."
+            )
+
     def __call__(self, state: SimulationState, config: SimulationConfig, objects: ObjectContainer) -> jax.Array:
         """Check if simulation should continue based on the L2 norm between Fourier
         transforms of the last period and an average over a number of previous
@@ -238,11 +263,10 @@ class DetectorConvergenceCondition(StoppingCondition):
         curr_time_step, arrays = state
         converged: jnp.ndarray = jnp.array(False, dtype=bool)
         readings: jax.Array = next(iter(arrays.detector_states[self.detector_name].values()))
-        min_steps = jnp.maximum(self.min_steps, (self.prev_periods + 1) * self._spp)
 
         # Always continue if below minimum steps, always stop if at end_step
         time_condition = curr_time_step < config.time_steps_total
-        min_steps_condition = curr_time_step >= min_steps
+        min_steps_condition = curr_time_step >= self.min_steps
 
         # Wrapping this in a func so we don't compute it until min_steps_condition == True
         def _compute_converged(_):
@@ -276,4 +300,4 @@ class DetectorConvergenceCondition(StoppingCondition):
             operand=None,
         )
 
-        return time_condition & (~min_steps_condition | ~converged)
+        return (~min_steps_condition) | (time_condition & (~converged))
