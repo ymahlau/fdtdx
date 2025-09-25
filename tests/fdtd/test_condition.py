@@ -67,15 +67,17 @@ class TestCondition:
         cw_source_period = 5e-11  # 20 GHz
         wave_character = WaveCharacter(period=cw_source_period)
         threshold = 1e-6
-        min_steps = 1572 # Approximately 5 periods at 20 GHz with dt ~ 1.906e-13 s.
-        # It's so specific because we ensure min_steps > spp * (prev_periods + 1), otherwise a ValueError is raised
+        min_steps = 1572  # Approximately 5 periods at 20 GHz with dt ~ 1.906e-13 s.
+        # It's so specific because we ensure min_steps > spp * (prev_periods+1),
+        # otherwise a ValueError is raised
 
         detector_name = "test_detector"
         detector_object = EnergyDetector(name=detector_name)
         config = SimulationConfig(time=100e-11, resolution=1e-4)
         volume = SimulationVolume(partial_real_shape=(1e-3, 1e-3, 1e-3))
         objects = ObjectContainer(
-            object_list=[volume, detector_object], volume_idx=0,
+            object_list=[volume, detector_object],
+            volume_idx=0,
         )
         arrays.detector_states[detector_name] = {"energy": jnp.zeros((config.time_steps_total, 1))}
 
@@ -187,21 +189,22 @@ class TestCondition:
         # This is the number of time steps. Remember that min_steps cannot be larger than this
         detector_name = "energy_detector"
         cw_source_period = 5e-11  # 20 GHz
-        wave_character = WaveCharacter(frequency=1/cw_source_period)
+        wave_character = WaveCharacter(frequency=1 / cw_source_period)
         prev_periods = 2
         min_steps = 786
         threshold = 1e-5
 
         # Make dummy energy detector readings
         energy_readings = jnp.linspace(1.0, 0.0, config.time_steps_total).reshape(-1, 1)
-        
+
         # Create a dummy dict for the detector state that can be indexed
         detector_state = {"energy": energy_readings}
         arrays.detector_states[detector_name] = detector_state
         detector_object = EnergyDetector(name=detector_name)
         volume = SimulationVolume(partial_real_shape=(1e-3, 1e-3, 1e-3))
         objects = ObjectContainer(
-            object_list=[volume, detector_object], volume_idx=0,
+            object_list=[volume, detector_object],
+            volume_idx=0,
         )
 
         cond_fun = DetectorConvergenceCondition(
@@ -247,8 +250,11 @@ class TestCondition:
         detector_name = "energy_detector"
         volume = SimulationVolume(partial_real_shape=(1e-3, 1e-3, 1e-3))
         detector_object = EnergyDetector(name=detector_name)
+        volume = volume.aset("_config", config, create_new_ok=True)
+        detector_object = detector_object.aset("_config", config, create_new_ok=True)
         objects = ObjectContainer(
-            object_list=[volume, detector_object], volume_idx=0,
+            object_list=[volume, detector_object],
+            volume_idx=0,
         )
 
         # TimeStepCondition
