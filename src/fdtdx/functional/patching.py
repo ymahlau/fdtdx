@@ -23,6 +23,7 @@ from fdtdx.units.unitful import (
     squeeze,
     reshape,
     prod,
+    argmax,
 )
 
 from fdtdx.functional.numpy import (
@@ -128,6 +129,7 @@ def patch_all_functions():
         (floor, None),
         (ceil, None),
         (prod, None),
+        (argmax, None),
     ]
     for fn, orig in _full_patch_list_numpy:
         patch_fn_to_module(
