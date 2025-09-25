@@ -4,10 +4,10 @@ from typing import Self
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field, frozen_private_field
-from fdtdx.fdtd.container import DetectorState, SimulationState, ObjectContainer
-from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.config import SimulationConfig
+from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field, frozen_private_field
+from fdtdx.core.wavelength import WaveCharacter
+from fdtdx.fdtd.container import DetectorState, ObjectContainer, SimulationState
 
 
 @autoinit
@@ -98,8 +98,14 @@ class EnergyThresholdCondition(StoppingCondition):
     min_steps: int | None = frozen_field(default=None)
 
     def setup(self, state: SimulationState, config: SimulationConfig, objects: ObjectContainer) -> Self:
-        self = self.aset("max_steps", config.time_steps_total if self.max_steps is None else self.max_steps, create_new_ok=True)
-        self = self.aset("min_steps", int(round(config.time_steps_total * 0.1)) if self.min_steps is None else self.min_steps, create_new_ok=True)
+        self = self.aset(
+            "max_steps", config.time_steps_total if self.max_steps is None else self.max_steps, create_new_ok=True
+        )
+        self = self.aset(
+            "min_steps",
+            int(round(config.time_steps_total * 0.1)) if self.min_steps is None else self.min_steps,
+            create_new_ok=True,
+        )
         self._validate(state, config, objects)
 
         return self
@@ -184,14 +190,20 @@ class DetectorConvergenceCondition(StoppingCondition):
     threshold: float = frozen_field(default=1e-6)
     max_steps: int | None = frozen_field(default=None)
     min_steps: int | None = frozen_field(default=None)
-    _spp: int | None = frozen_private_field(default=None) # type: ignore
+    _spp: int | None = frozen_private_field(default=None)  # type: ignore
 
     def setup(self, state: SimulationState, config: SimulationConfig, objects: ObjectContainer) -> Self:
         """Setting up internal attributes and validating inputs."""
         spp = int(round(self.wave_character.get_period() / config.time_step_duration))
         self = self.aset("_spp", spp, create_new_ok=True)
-        self = self.aset("max_steps", config.time_steps_total if self.max_steps is None else self.max_steps, create_new_ok=True)
-        self = self.aset("min_steps", int(round((self.prev_periods + 1) * spp)) if self.min_steps is None else self.min_steps, create_new_ok=True)
+        self = self.aset(
+            "max_steps", config.time_steps_total if self.max_steps is None else self.max_steps, create_new_ok=True
+        )
+        self = self.aset(
+            "min_steps",
+            int(round((self.prev_periods + 1) * spp)) if self.min_steps is None else self.min_steps,
+            create_new_ok=True,
+        )
         self._validate(state, config, objects)
 
         return self
@@ -226,7 +238,7 @@ class DetectorConvergenceCondition(StoppingCondition):
                 f"the DetectorState('{self.detector_name}') array must have two "
                 f"dimensions; got ndim={readings.ndim}.\n"
             )
-        
+
         if readings.shape[0] != config.time_steps_total:
             raise ValueError(
                 f"The number of detector readings must be exactly the same as the number of time steps in the simulation. "
@@ -289,7 +301,7 @@ class DetectorConvergenceCondition(StoppingCondition):
 
             fft_ref = jnp.fft.rfft(ref_mean, n=self._spp)  # (spp//2 + 1,)
             fft_last = jnp.fft.rfft(readings_last, n=self._spp)  # (spp//2 + 1,)
-        
+
             spectra_distance = jnp.linalg.norm(jnp.abs(fft_ref) - jnp.abs(fft_last))
             return spectra_distance < self.threshold
 

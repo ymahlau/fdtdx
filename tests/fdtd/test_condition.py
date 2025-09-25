@@ -5,16 +5,15 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 
+# Import the module to test
+from fdtdx.fdtd.stop_conditions import DetectorConvergenceCondition, EnergyThresholdCondition, TimeStepCondition
 from fdtdx.objects.boundaries.boundary import BaseBoundaryState
 from fdtdx.objects.detectors.detector import DetectorState
-from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.static_material.static import SimulationVolume
-
-# Import the module to test
-from fdtdx.fdtd.stop_conditions import TimeStepCondition, EnergyThresholdCondition, DetectorConvergenceCondition
 
 
 class TestCondition:
