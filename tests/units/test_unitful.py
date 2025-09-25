@@ -1725,4 +1725,50 @@ def test_unitful_astype_method():
     assert result.val.dtype == jnp.bfloat16  # type: ignore
     # Original should be unchanged
     assert energy.val.dtype == jnp.float32  # type: ignore
+
+def test_argmax_magic_method():
+    """Test argmax magic method on Unitful objects"""
+    temperature_unit = Unit(scale=0, dim={SI.K: 1})
+    temperatures = Unitful(val=jnp.array([300.0, 250.0, 400.0, 275.0, 325.0]), unit=temperature_unit)
+    temperatures_float = Unitful(val=float(3.0), unit=temperature_unit)
+
+    result = temperatures.argmax()
+    result_float = temperatures_float.argmax()
     
+    assert isinstance(result, jax.Array)
+    assert isinstance(result_float, jax.Array)
+    assert result == jnp.array(2)
+    assert result_float == jnp.array(0)
+
+def test_argmax_overload_unitful():
+    """Test argmax function with Unitful objects"""
+    pressure_unit = Unit(scale=3, dim={SI.kg: 1, SI.m: -1, SI.s: -2})
+    pressures = Unitful(val=jnp.array([101.0, 95.5, 110.2, 88.7, 105.3]), unit=pressure_unit)
+    print("test function running")
+
+    result = jnp.argmax(pressures) # type: ignore
+
+    assert result == jnp.array(2)
+
+def test_argmax_overload_jax_arrays():
+    """Test argmax function with regular JAX arrays"""
+    array = jnp.array([3.4, 7.1, 2.8, 9.3, 6.2])
+    
+    result = jnp.argmax(array)
+    
+    assert result == jnp.array(3)
+    assert isinstance(result, jax.Array)
+    assert not isinstance(result, Unitful)
+
+def test_argmax_with_axis_parameter():
+    """Test argmax method with axis parameter on 2D Unitful array"""
+    force_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2})  # Newtons
+    forces = Unitful(val=jnp.array([[2.0, 8.0, 5.0], [7.0, 3.0, 9.0]]), unit=force_unit)
+    
+    # Argmax along axis 1 (rows)
+    result = forces.argmax(axis=1)
+    
+    assert isinstance(result, jax.Array) or isinstance(result, jnp.ndarray)
+    expected_indices = jnp.array([1, 2])
+    assert jnp.all(result == expected_indices)
+
