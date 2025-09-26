@@ -44,7 +44,7 @@ class PhasorDetector(Detector):
 
     @property
     def _angular_frequencies(self) -> jax.Array:
-        freqs = [wc.frequency for wc in self.wave_characters]
+        freqs = [wc.get_frequency() for wc in self.wave_characters]
         return 2 * jnp.pi * jnp.array(freqs)
 
     def _num_latent_time_steps(self) -> int:
