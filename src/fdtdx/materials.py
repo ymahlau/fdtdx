@@ -1,4 +1,5 @@
 import math
+from typing import overload
 
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 
@@ -7,7 +8,7 @@ def _normalize_material_property(value: float | tuple[float, float, float]) -> t
     """Normalize material property to a 3-tuple for (x, y, z) components.
 
     Args:
-        value: Either a scalar (isotropic) or 3-tuple (non-isotropic) material property
+        value: Either a scalar (isotropic) or 3-tuple (anisotropic) material property
 
     Returns:
         tuple[float, float, float]: Material property as (x, y, z) components
@@ -27,7 +28,7 @@ class Material(TreeClass):
     Represents an electromagnetic material with specific electrical and magnetic properties.
 
     This class stores the fundamental electromagnetic properties of a material for use
-    in electromagnetic simulations. Supports both isotropic and non-isotropic (anisotropic) materials.
+    in electromagnetic simulations. Supports both isotropic and anisotropic materials.
 
     Note:
         All material properties are stored internally as 3-tuples (x, y, z components).
@@ -37,7 +38,7 @@ class Material(TreeClass):
 
     #: The relative permittivity (dielectric constant) of the material, which describes how the electric field is affected by the material.
     #: Higher values indicate greater electric polarization in response to an applied electric field.
-    #: For isotropic materials, provide a scalar float. For non-isotropic materials, provide a tuple of 3 floats (εx, εy, εz).
+    #: For isotropic materials, provide a scalar float. For anisotropic materials, provide a tuple of 3 floats (εx, εy, εz).
     #: Stored internally as a 3-tuple. Defaults to (1.0, 1.0, 1.0).
     permittivity: tuple[float, float, float] = frozen_field(
         default=(1.0, 1.0, 1.0),
@@ -46,7 +47,7 @@ class Material(TreeClass):
 
     #: The relative permeability of the material, which describes how the magnetic field is affected by the material.
     #: Higher values indicate greater magnetic response to an applied magnetic field.
-    #: For isotropic materials, provide a scalar float. For non-isotropic materials, provide a tuple of 3 floats (μx, μy, μz).
+    #: For isotropic materials, provide a scalar float. For anisotropic materials, provide a tuple of 3 floats (μx, μy, μz).
     #: Stored internally as a 3-tuple. Defaults to (1.0, 1.0, 1.0).
     permeability: tuple[float, float, float] = frozen_field(
         default=(1.0, 1.0, 1.0),
@@ -55,7 +56,7 @@ class Material(TreeClass):
 
     #: The electrical conductivity of the material in siemens per meter (S/m), which describes how easily electric current can flow through it.
     #: Higher values indicate materials that conduct electricity more easily.
-    #: For isotropic materials, provide a scalar float. For non-isotropic materials, provide a tuple of 3 floats (σx, σy, σz).
+    #: For isotropic materials, provide a scalar float. For anisotropic materials, provide a tuple of 3 floats (σx, σy, σz).
     #: Stored internally as a 3-tuple. Defaults to (0.0, 0.0, 0.0).
     electric_conductivity: tuple[float, float, float] = frozen_field(
         default=(0.0, 0.0, 0.0),
@@ -66,19 +67,60 @@ class Material(TreeClass):
     #: This is an artificial parameter for numerical applications and does not represent an actual physical unit,
     #: even though often described in Ohm/m. The naming can be misleading, because it does not actually describe
     #:  a conductivity, but rather an "equivalent magnetic loss parameter".
-    #: For isotropic materials, provide a scalar float. For non-isotropic materials, provide a tuple of 3 floats.
+    #: For isotropic materials, provide a scalar float. For anisotropic materials, provide a tuple of 3 floats.
     #: Stored internally as a 3-tuple. Defaults to (0.0, 0.0, 0.0).
     magnetic_conductivity: tuple[float, float, float] = frozen_field(
         default=(0.0, 0.0, 0.0),
         on_setattr=[_normalize_material_property],
     )
 
+    @overload
+    def __init__(
+        self,
+        *,
+        permittivity: float = ...,
+        permeability: float = ...,
+        electric_conductivity: float = ...,
+        magnetic_conductivity: float = ...,
+    ) -> None: ...
+
+    @overload
+    def __init__(
+        self,
+        *,
+        permittivity: tuple[float, float, float] = ...,
+        permeability: tuple[float, float, float] = ...,
+        electric_conductivity: tuple[float, float, float] = ...,
+        magnetic_conductivity: tuple[float, float, float] = ...,
+    ) -> None: ...
+
+    @overload
+    def __init__(
+        self,
+        *,
+        permittivity: float | tuple[float, float, float] = ...,
+        permeability: float | tuple[float, float, float] = ...,
+        electric_conductivity: float | tuple[float, float, float] = ...,
+        magnetic_conductivity: float | tuple[float, float, float] = ...,
+    ) -> None: ...
+
+    def __init__(
+        self,
+        *,
+        permittivity: float | tuple[float, float, float] = (1.0, 1.0, 1.0),
+        permeability: float | tuple[float, float, float] = (1.0, 1.0, 1.0),
+        electric_conductivity: float | tuple[float, float, float] = (0.0, 0.0, 0.0),
+        magnetic_conductivity: float | tuple[float, float, float] = (0.0, 0.0, 0.0),
+    ) -> None:
+        """Implementation provided by @autoinit decorator."""
+        pass
+
     @property
     def is_isotropic(self) -> bool:
         """Check if all material properties are isotropic (all components equal).
 
         Returns:
-            bool: True if material is isotropic, False if non-isotropic
+            bool: True if material is isotropic, False if anisotropic
         """
         def _is_property_isotropic(prop: tuple[float, float, float]) -> bool:
             return math.isclose(prop[0], prop[1]) and math.isclose(prop[1], prop[2])

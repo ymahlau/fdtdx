@@ -137,7 +137,7 @@ class TestInitialization:
         """Test the apply_params function."""
         # Create a proper mock for arrays with JAX array operations
         # Create real JAX arrays for the ArrayContainer
-        # inv_permittivities now has shape (3, Nx, Ny, Nz) for non-isotropic materials
+        # inv_permittivities now has shape (3, Nx, Ny, Nz) for anisotropic materials
         inv_permittivities = jnp.ones((3, 10, 10, 10), dtype=jnp.float32)
 
         # Create a real ArrayContainer with the JAX arrays

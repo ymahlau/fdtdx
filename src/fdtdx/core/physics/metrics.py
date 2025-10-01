@@ -22,17 +22,21 @@ def compute_energy(
     Args:
         E (jax.Array): Electric field array with shape (3, nx, ny, nz)
         H (jax.Array): Magnetic field array with shape (3, nx, ny, nz)
-        inv_permittivity (jax.Array | float): Inverse of the electric permittivity array
-        inv_permeability (jax.Array | float): Inverse of the magnetic permeability array
+        inv_permittivity (jax.Array | float): Inverse permittivity. Shape (3, nx, ny, nz) for anisotropic or scalar
+        inv_permeability (jax.Array | float): Inverse permeability. Shape (3, nx, ny, nz) for anisotropic or scalar
         axis (int, optional): Axis index of the X,Y,Z component for the E and H field. Defaults to 0.
     Returns:
         jax.Array: Total energy density array with shape (nx, ny, nz)
     """
-    abs_E = jnp.sum(jnp.square(jnp.abs(E)), axis=axis)
-    energy_E = 0.5 * (1 / inv_permittivity) * abs_E
+    # For anisotropic materials: energy = 0.5 * sum_i(ε_i * |E_i|² + μ_i * |H_i|²)
+    # Component-wise calculation then sum
+    E_squared = jnp.square(jnp.abs(E))  # shape: (3, nx, ny, nz)
+    energy_E = 0.5 * (1 / inv_permittivity) * E_squared  # component-wise multiplication
+    energy_E = jnp.sum(energy_E, axis=axis)  # sum over components
 
-    abs_H = jnp.sum(jnp.square(jnp.abs(H)), axis=axis)
-    energy_H = 0.5 * (1 / inv_permeability) * abs_H
+    H_squared = jnp.square(jnp.abs(H))  # shape: (3, nx, ny, nz)
+    energy_H = 0.5 * (1 / inv_permeability) * H_squared  # component-wise multiplication
+    energy_H = jnp.sum(energy_H, axis=axis)  # sum over components
 
     total_energy = energy_E + energy_H
     return total_energy

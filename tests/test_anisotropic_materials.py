@@ -1,4 +1,4 @@
-"""Tests for non-isotropic (anisotropic) material support."""
+"""Tests for anisotropic material support."""
 
 import jax.numpy as jnp
 import pytest
@@ -13,7 +13,7 @@ from fdtdx.materials import (
 
 
 class TestMaterialClass:
-    """Tests for the Material class with isotropic and non-isotropic inputs."""
+    """Tests for the Material class with isotropic and anisotropic inputs."""
 
     def test_isotropic_material_scalar_input(self):
         """Test that scalar inputs are converted to tuples."""
@@ -45,9 +45,9 @@ class TestMaterialClass:
         assert mat.magnetic_conductivity == (0.01, 0.02, 0.03)
 
     def test_mixed_isotropic_and_non_isotropic(self):
-        """Test material with some isotropic and some non-isotropic properties."""
+        """Test material with some isotropic and some anisotropic properties."""
         mat = Material(
-            permittivity=(2.0, 2.5, 3.0),  # non-isotropic
+            permittivity=(2.0, 2.5, 3.0),  # anisotropic
             permeability=1.0,  # isotropic
         )
         assert mat.permittivity == (2.0, 2.5, 3.0)
@@ -182,7 +182,7 @@ class TestMaterialHelperFunctions:
 
 
 class TestArrayShapes:
-    """Tests for array shapes with non-isotropic materials."""
+    """Tests for array shapes with anisotropic materials."""
 
     def test_permittivity_array_conversion(self):
         """Test that tuples convert correctly to JAX arrays."""

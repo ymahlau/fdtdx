@@ -222,7 +222,7 @@ def _init_arrays(
         backend=config.backend,
     )
 
-    # permittivity - shape (3, Nx, Ny, Nz) for non-isotropic materials
+    # permittivity - shape (3, Nx, Ny, Nz) for anisotropic materials
     # First dimension is for (x, y, z) components
     shape_params = (3, *volume_shape)
     inv_permittivities = create_named_sharded_matrix(
@@ -233,7 +233,7 @@ def _init_arrays(
         backend=config.backend,
     )
 
-    # permeability - shape (3, Nx, Ny, Nz) for non-isotropic materials
+    # permeability - shape (3, Nx, Ny, Nz) for anisotropic materials
     # Use scalar 1.0 only if all materials are non-magnetic AND isotropic
     if objects.all_objects_non_magnetic:
         inv_permeabilities = 1.0
@@ -246,7 +246,7 @@ def _init_arrays(
             backend=config.backend,
         )
 
-    # electric conductivity - shape (3, Nx, Ny, Nz) for non-isotropic materials
+    # electric conductivity - shape (3, Nx, Ny, Nz) for anisotropic materials
     electric_conductivity = None
     if not objects.all_objects_non_electrically_conductive:
         electric_conductivity = create_named_sharded_matrix(
@@ -257,7 +257,7 @@ def _init_arrays(
             backend=config.backend,
         )
 
-    # magnetic conductivity - shape (3, Nx, Ny, Nz) for non-isotropic materials
+    # magnetic conductivity - shape (3, Nx, Ny, Nz) for anisotropic materials
     magnetic_conductivity = None
     if not objects.all_objects_non_magnetically_conductive:
         magnetic_conductivity = create_named_sharded_matrix(
@@ -283,7 +283,7 @@ def _init_arrays(
                 inv_perm_value = 1.0 / o.material.permittivity[i]
                 inv_permittivities = inv_permittivities.at[i, *o.grid_slice].set(inv_perm_value)
 
-            if not isinstance(inv_permeabilities, (float, int)):
+            if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
                 # inv_permeabilities is a jax.Array with shape (3, Nx, Ny, Nz)
                 inv_perm_array: jax.Array = inv_permeabilities
                 for i in range(3):
@@ -318,7 +318,7 @@ def _init_arrays(
                 diff = component_values - inv_permittivities[i, *o.grid_slice]
                 inv_permittivities = inv_permittivities.at[i, *o.grid_slice].add(mask * diff)
 
-            if not isinstance(inv_permeabilities, (float, int)):
+            if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
                 # inv_permeabilities is a jax.Array with shape (3, Nx, Ny, Nz)
                 inv_perm_array: jax.Array = inv_permeabilities
                 allowed_perms = jnp.asarray(compute_allowed_permeabilities(o.materials))  # shape: (num_materials, 3)

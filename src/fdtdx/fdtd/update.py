@@ -71,7 +71,7 @@ def update_E(
         factor = 1 - c * sigma_E * inv_eps / 2
 
     # standard update formula using lossless material
-    # Component-wise multiplication for non-isotropic materials:
+    # Component-wise multiplication for anisotropic materials:
     # E[i, x, y, z] = factor * E[i, x, y, z] + c * curl[i, x, y, z] * inv_eps[i, x, y, z]
     E = factor * arrays.E + c * curl * inv_eps
 
@@ -162,11 +162,11 @@ def update_E_reverse(
     factor = 1
 
     if sigma_E is not None:
-        # Component-wise operations for non-isotropic materials
+        # Component-wise operations for anisotropic materials
         E = E * (1 + c * sigma_E * inv_eps / 2)
         factor = 1 - c * sigma_E * inv_eps / 2
 
-    # Component-wise operations for non-isotropic materials
+    # Component-wise operations for anisotropic materials
     E = E / factor - c * curl * inv_eps
 
     arrays = arrays.at["E"].set(E)
@@ -224,7 +224,7 @@ def update_H(
         factor = 1 - c * sigma_H * inv_mu / 2
 
     # standard update formula for lossless material
-    # Component-wise multiplication for non-isotropic materials:
+    # Component-wise multiplication for anisotropic materials:
     # H[i, x, y, z] = factor * H[i, x, y, z] - c * curl[i, x, y, z] * inv_mu[i, x, y, z]
     # If inv_mu is scalar 1.0 (non-magnetic), it broadcasts automatically
     H = factor * arrays.H - c * curl * inv_mu
@@ -317,11 +317,11 @@ def update_H_reverse(
 
     if sigma_H is not None:
         # lossy materials get gain when simulating backwards
-        # Component-wise operations for non-isotropic materials
+        # Component-wise operations for anisotropic materials
         H = H * (1 + c * sigma_H * inv_mu / 2)
         factor = 1 - c * sigma_H * inv_mu / 2
 
-    # Component-wise operations for non-isotropic materials
+    # Component-wise operations for anisotropic materials
     H = H / factor + c * curl * inv_mu
 
     arrays = arrays.at["H"].set(H)
