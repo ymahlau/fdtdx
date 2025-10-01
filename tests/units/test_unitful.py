@@ -1762,28 +1762,40 @@ def test_argmax_with_axis_parameter():
     expected_indices = jnp.array([1, 2])
     assert jnp.all(result == expected_indices)
 
-# todo: handling of numpy arrays in unary_fn()
 def test_argmax_unitfil_with_numpy_arrays():
-    pass
+    """Test argmax function with Unitful objects containing NumPy arrays"""
+    pressure_unit = Unit(scale=3, dim={SI.kg: 1, SI.m: -1, SI.s: -2})
+    pressures = Unitful(val=np.array([101.0, 95.5, 110.2, 88.7, 105.3]), unit=pressure_unit)
+
+    result = pressures.argmax()
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, np.integer)
+    assert result == 2
 
 def test_argmax_unitful_with_StaticScalar():
     """Test argmax function with Unitful objects containing StaticScalar"""
 
     speed_unit = Unit(scale=0, dim={SI.m: 1, SI.s: -1})
     speeds_float = Unitful(val=100.0, unit=speed_unit)
+    speeds_np0darray = Unitful(val=np.array(100.0), unit=speed_unit)
     speeds_jax0darray = Unitful(val=jnp.array(100.0), unit=speed_unit)
     
-    result_float = speeds_float.argmax()  # type: ignore
-    result_jax0darray = speeds_jax0darray.argmax()  # type: ignore
+    result_float = speeds_float.argmax()
+    result_np0darray = speeds_np0darray.argmax()
+    result_jax0darray = speeds_jax0darray.argmax()
     
     assert isinstance(result_float, Unitful)
+    assert isinstance(result_np0darray, Unitful)
     assert isinstance(result_jax0darray, Unitful)
 
-    assert isinstance(result_float.val, jax.Array)
+    assert isinstance(result_float.val, jax.Array) # todo: return val as a Python scalar if possible
+    assert isinstance(result_np0darray.val, np.integer)
     assert isinstance(result_jax0darray.val, jax.Array)
 
-    assert result_float == jnp.array(0)
-    assert result_jax0darray == jnp.array(0)
+    assert result_float == 0
+    assert result_np0darray == 0
+    assert result_jax0darray == 0
 
 def test_argmax_overload_jax_arrays():
     """Test argmax function with regular JAX arrays"""
