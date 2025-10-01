@@ -70,10 +70,11 @@ class TestInitialization:
     def mock_uniform_material_object(self):
         """Create a mock UniformMaterialObject for testing."""
         material = Mock()
-        material.permittivity = 2.0
-        material.permeability = 1.0
-        material.electric_conductivity = 0.0
-        material.magnetic_conductivity = 0.0
+        # Material properties are now tuples (x, y, z components)
+        material.permittivity = (2.0, 2.0, 2.0)
+        material.permeability = (1.0, 1.0, 1.0)
+        material.electric_conductivity = (0.0, 0.0, 0.0)
+        material.magnetic_conductivity = (0.0, 0.0, 0.0)
 
         obj = Mock(spec=UniformMaterialObject)
         obj.name = "material_object"
@@ -136,7 +137,8 @@ class TestInitialization:
         """Test the apply_params function."""
         # Create a proper mock for arrays with JAX array operations
         # Create real JAX arrays for the ArrayContainer
-        inv_permittivities = jnp.ones((10, 10, 10), dtype=jnp.float32)
+        # inv_permittivities now has shape (3, Nx, Ny, Nz) for non-isotropic materials
+        inv_permittivities = jnp.ones((3, 10, 10, 10), dtype=jnp.float32)
 
         # Create a real ArrayContainer with the JAX arrays
         arrays = ArrayContainer(
@@ -175,7 +177,8 @@ class TestInitialization:
 
         # Mock the compute_allowed_permittivities function
         with patch("fdtdx.fdtd.initialization.compute_allowed_permittivities") as mock_compute_permittivities:
-            mock_compute_permittivities.return_value = [1.0, 2.0]
+            # Return list of tuples (x, y, z components) instead of scalars
+            mock_compute_permittivities.return_value = [(1.0, 1.0, 1.0), (2.0, 2.0, 2.0)]
 
             # Call the function
             arrays, objects, info = apply_params(
@@ -205,7 +208,10 @@ class TestInitialization:
 
         # Mock the create_named_sharded_matrix function
         with patch("fdtdx.fdtd.initialization.create_named_sharded_matrix") as mock_create_matrix:
-            mock_create_matrix.return_value = jnp.zeros((10, 10, 10), dtype=mock_config.dtype)
+            # Return arrays with new shape (3, Nx, Ny, Nz) for material properties
+            def create_matrix_side_effect(shape, **kwargs):
+                return jnp.zeros(shape, dtype=mock_config.dtype)
+            mock_create_matrix.side_effect = create_matrix_side_effect
 
             # Call the function
             arrays, config, info = _init_arrays(objects=mock_objects, config=mock_config)
