@@ -447,7 +447,7 @@ class Unitful(TreeClass):
     def prod(self, **kwargs) -> "Unitful":
         return prod(self, **kwargs)
     
-    def argmax(self, **kwargs) -> np.number | np.ndarray | jax.Array:
+    def argmax(self, **kwargs) -> "Unitful":
         return argmax(self, **kwargs)
         
 
@@ -1211,7 +1211,7 @@ def pow(x, y):  # type: ignore
 
 
 ## min #######################################
-def unary_fn(x: Unitful, op_str: str, *args, **kwargs) -> Unitful | ArrayLike:
+def unary_fn(x: Unitful, op_str: str, *args, **kwargs) -> Unitful:
     # TODO: handling of numpy arrays
     orig_fn = getattr(jax.numpy, f"_orig_{op_str}")
     new_val = orig_fn(x.val, *args, **kwargs)
@@ -1223,12 +1223,12 @@ def unary_fn(x: Unitful, op_str: str, *args, **kwargs) -> Unitful | ArrayLike:
         if x_arr is not None:
             np_fn = getattr(np, f"{op_str}")
             new_static_arr = np_fn(x_arr, *args, **kwargs)
-    if not output_unitful_for_array(new_static_arr):
-        return new_val
+    if new_val.dtype not in PHYSICAL_DTYPES:
+        return Unitful(val=new_val, unit=EMPTY_UNIT, static_arr=new_static_arr)
     return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
 
 @overload
-def min(x: Unitful, *args, **kwargs) -> Unitful: return unary_fn(x, "min", *args, **kwargs) # type: ignore
+def min(x: Unitful, *args, **kwargs) -> Unitful: return unary_fn(x, "min", *args, **kwargs)
 
 @overload
 def min(x: PhysicalArrayLike, *args, **kwargs) -> jax.Array:
@@ -1245,7 +1245,7 @@ def min(x, *args, **kwargs):  # type: ignore
 
 ## max #######################################
 @overload
-def max(x: Unitful, *args, **kwargs) -> Unitful: return unary_fn(x, "max", *args, **kwargs) # type: ignore
+def max(x: Unitful, *args, **kwargs) -> Unitful: return unary_fn(x, "max", *args, **kwargs)
 
 @overload
 def max(x: PhysicalArrayLike, *args, **kwargs) -> jax.Array:
@@ -1262,7 +1262,7 @@ def max(x, *args, **kwargs):  # type: ignore
 
 ## mean #######################################
 @overload
-def mean(x: Unitful, *args, **kwargs) -> Unitful: return unary_fn(x, "mean", *args, **kwargs) # type: ignore
+def mean(x: Unitful, *args, **kwargs) -> Unitful: return unary_fn(x, "mean", *args, **kwargs)
 
 @overload
 def mean(x: PhysicalArrayLike, *args, **kwargs) -> jax.Array:
@@ -1279,7 +1279,7 @@ def mean(x, *args, **kwargs):  # type: ignore
 
 ## sum #######################################
 @overload
-def sum(x: Unitful, *args, **kwargs) -> Unitful: return unary_fn(x, "sum", *args, **kwargs) # type: ignore
+def sum(x: Unitful, *args, **kwargs) -> Unitful: return unary_fn(x, "sum", *args, **kwargs)
 
 @overload
 def sum(x: PhysicalArrayLike, *args, **kwargs) -> jax.Array:
@@ -1304,7 +1304,7 @@ def prod(x: Unitful, *args, **kwargs) -> Unitful:
     new_static_arr = x.static_value()
     new_val = x.value()
     unary_input = Unitful(val=new_val, unit=EMPTY_UNIT, optimize_scale=False, static_arr=new_static_arr)
-    return unary_fn(unary_input, "prod", *args, **kwargs) # type: ignore
+    return unary_fn(unary_input, "prod", *args, **kwargs)
 
 @overload
 def prod(x: PhysicalArrayLike, *args, **kwargs) -> jax.Array:
@@ -1322,7 +1322,7 @@ def prod(x, *args, **kwargs):  # type: ignore
 
 ## abs #######################################
 @overload
-def abs_impl(x: Unitful) -> Unitful: return unary_fn(x, "abs") # type: ignore
+def abs_impl(x: Unitful) -> Unitful: return unary_fn(x, "abs")
 
 @overload
 def abs_impl(x: jax.Array) -> jax.Array:
@@ -1346,7 +1346,7 @@ def abs_impl(x):  # type: ignore
 ## astype #######################################
 @overload
 def astype(x: Unitful, *args, **kwargs) -> Unitful:
-    return unary_fn(x, "astype", *args, **kwargs) # type: ignore
+    return unary_fn(x, "astype", *args, **kwargs)
 
 @overload
 def astype(x: PhysicalArrayLike, *args, **kwargs) -> jax.Array:
@@ -1365,7 +1365,7 @@ def astype(x, *args, **kwargs):  # type: ignore
 ## squeeze #######################################
 @overload
 def squeeze(x: Unitful, *args, **kwargs) -> Unitful:
-    return unary_fn(x, "squeeze", *args, **kwargs) # type: ignore
+    return unary_fn(x, "squeeze", *args, **kwargs)
 
 @overload
 def squeeze(x: jax.Array, *args, **kwargs) -> jax.Array:
@@ -1380,7 +1380,7 @@ def squeeze(x, *args, **kwargs):  # type: ignore
 ## reshape #######################################
 @overload
 def reshape(x: Unitful, *args, **kwargs) -> Unitful:
-    return unary_fn(x, "reshape", *args, **kwargs) # type: ignore
+    return unary_fn(x, "reshape", *args, **kwargs)
 
 @overload
 def reshape(x: jax.Array, *args, **kwargs) -> jax.Array:
@@ -1393,16 +1393,16 @@ def reshape(x, *args, **kwargs):  # type: ignore
 
 ## argmax #######################################
 @overload
-def argmax(x: Unitful, *args, **kwargs) -> np.number | np.ndarray | jax.Array:
-    return unary_fn(x, "argmax", *args, **kwargs) # type: ignore
+def argmax(x: Unitful, *args, **kwargs) -> Unitful:
+    return unary_fn(x, "argmax", *args, **kwargs)
 
 @overload
-def argmax(x: PhysicalArrayLike, *args, **kwargs) -> np.number | np.ndarray | jax.Array:
-    result_shape_dtype = jax.eval_shape(jnp._orig_mean, x, *args, **kwargs)  # type: ignore
-    if output_unitful_for_array(result_shape_dtype):
-        unit_result = unary_fn(Unitful(val=x, unit=EMPTY_UNIT), "argmax", *args, **kwargs)
-        return unit_result  # type: ignore
-    return jnp._orig_argmax(x, *args, **kwargs)  # type: ignore
+def argmax(x: jax.Array, *args, **kwargs) -> jax.Array:
+    return jnp._orig_argmax(x, *args, **kwargs) # type: ignore
+
+@overload
+def argmax(x: np.ndarray, *args, **kwargs) -> np.ndarray:
+    return np.argmax(x, *args, **kwargs)
 
 @dispatch
 def argmax(x, *args, **kwargs):  # type: ignore

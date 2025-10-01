@@ -2,6 +2,7 @@ import jax
 import plum
 import pytest
 from fdtdx.core.fraction import Fraction
+from fdtdx.core.jax.utils import is_currently_compiling
 from fdtdx.core.jax.pytrees import TreeClass, autoinit
 from fdtdx.units.unitful import (
     SI, 
@@ -20,6 +21,7 @@ from fdtdx.units.unitful import (
 )
 from fdtdx.units import Hz, s, ms, m_per_s 
 import jax.numpy as jnp
+import numpy as np
 
 
 def test_multiply_unitful_unitful_same_dimensions():
@@ -1729,36 +1731,24 @@ def test_unitful_astype_method():
 def test_argmax_magic_method():
     """Test argmax magic method on Unitful objects"""
     temperature_unit = Unit(scale=0, dim={SI.K: 1})
-    temperatures = Unitful(val=jnp.array([300.0, 250.0, 400.0, 275.0, 325.0]), unit=temperature_unit)
-    temperatures_float = Unitful(val=float(3.0), unit=temperature_unit)
+    temperatures = Unitful(val=jnp.array([3.0, 250.0, 400.0, 275.0, 325.0], dtype=jnp.float32), unit=temperature_unit)
 
     result = temperatures.argmax()
-    result_float = temperatures_float.argmax()
     
-    assert isinstance(result, jax.Array)
-    assert isinstance(result_float, jax.Array)
-    assert result == jnp.array(2)
-    assert result_float == jnp.array(0)
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+    assert result.val == jnp.array(2)
 
 def test_argmax_overload_unitful():
     """Test argmax function with Unitful objects"""
     pressure_unit = Unit(scale=3, dim={SI.kg: 1, SI.m: -1, SI.s: -2})
     pressures = Unitful(val=jnp.array([101.0, 95.5, 110.2, 88.7, 105.3]), unit=pressure_unit)
-    print("test function running")
 
     result = jnp.argmax(pressures) # type: ignore
 
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
     assert result == jnp.array(2)
-
-def test_argmax_overload_jax_arrays():
-    """Test argmax function with regular JAX arrays"""
-    array = jnp.array([3.4, 7.1, 2.8, 9.3, 6.2])
-    
-    result = jnp.argmax(array)
-    
-    assert result == jnp.array(3)
-    assert isinstance(result, jax.Array)
-    assert not isinstance(result, Unitful)
 
 def test_argmax_with_axis_parameter():
     """Test argmax method with axis parameter on 2D Unitful array"""
@@ -1768,7 +1758,97 @@ def test_argmax_with_axis_parameter():
     # Argmax along axis 1 (rows)
     result = forces.argmax(axis=1)
     
-    assert isinstance(result, jax.Array) or isinstance(result, jnp.ndarray)
+    assert isinstance(result, Unitful)
     expected_indices = jnp.array([1, 2])
     assert jnp.all(result == expected_indices)
 
+# todo: handling of numpy arrays in unary_fn()
+def test_argmax_unitfil_with_numpy_arrays():
+    pass
+
+def test_argmax_unitful_with_StaticScalar():
+    """Test argmax function with Unitful objects containing StaticScalar"""
+
+    speed_unit = Unit(scale=0, dim={SI.m: 1, SI.s: -1})
+    speeds_float = Unitful(val=100.0, unit=speed_unit)
+    speeds_jax0darray = Unitful(val=jnp.array(100.0), unit=speed_unit)
+    
+    result_float = speeds_float.argmax()  # type: ignore
+    result_jax0darray = speeds_jax0darray.argmax()  # type: ignore
+    
+    assert isinstance(result_float, Unitful)
+    assert isinstance(result_jax0darray, Unitful)
+
+    assert isinstance(result_float.val, jax.Array)
+    assert isinstance(result_jax0darray.val, jax.Array)
+
+    assert result_float == jnp.array(0)
+    assert result_jax0darray == jnp.array(0)
+
+def test_argmax_overload_jax_arrays():
+    """Test argmax function with regular JAX arrays"""
+    array = jnp.array([3.4, 7.1, 2.8, 9.3, 6.2])
+    
+    result = jnp.argmax(array)
+    
+    assert result == jnp.array(3)
+    assert isinstance(result, jax.Array)
+
+def test_argmax_overload_numpy_arrays():
+    """Test argmax function with regular NumPy arrays"""
+    array = np.array([3.4, 7.1, 2.8, 9.3, 6.2])
+    
+    result = array.argmax()
+    
+    expected_index = 3
+    assert result == np.array(expected_index)
+    assert isinstance(result, np.integer)
+
+def test_argmax_untiful_jitted():
+    """Test argmax function within a JIT-compiled function when input as unitful"""
+    length_unit = Unit(scale=-2, dim={SI.m: 1})
+    lengths = Unitful(val=jnp.array([12.0, 25.5, 18.3, 30.1, 22.7]), unit=length_unit)
+
+    def fn(x: Unitful) -> Unitful:
+        return x.argmax()
+    
+    jitted_fn = jax.jit(fn)
+    result = jitted_fn(lengths)
+    
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+    assert result == jnp.array(3)
+
+def test_argmax_jax_arrays_jitted():
+    """Test argmax function within a JIT-compiled function when input as jax array """
+    array = jnp.array([3.4, 7.1, 2.8, 9.3, 6.2])
+
+    def fn(x: Unitful) -> Unitful:
+        return x.argmax()
+    
+    jitted_fn = jax.jit(fn)
+    result = jitted_fn(array)
+    
+    assert isinstance(result, jax.Array)
+    assert result == jnp.array(3)
+
+# todo: check static arr behavior while jitting
+def test_argmax_jitted_static():
+    speed_unit = Unit(scale=0, dim={SI.m: 1, SI.s: -1})
+    x = Unitful(val=jnp.asarray([1.0, 100.0, 213.0]), unit=speed_unit, static_arr=np.array([1.0, 99.0, 212.0]))
+
+    def fn(x: Unitful) -> Unitful:
+        if is_currently_compiling:
+            print("Currently compiling before")
+            assert x.static_arr is not None
+        result = x.argmax()
+        if is_currently_compiling:
+            print("Currently compiling after")
+            assert result.static_arr is not None
+        return result
+    
+    jitted_fn = jax.jit(fn)
+    result = jitted_fn(x)
+    
+    assert isinstance(result, jax.Array)
+    assert result == jnp.array(2)
