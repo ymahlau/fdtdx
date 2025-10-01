@@ -491,6 +491,43 @@ class SimulationObject(TreeClass, ABC):
         )
         return constraint
 
+    def same_position(
+        self,
+        other: "SimulationObject",
+        axes: tuple[int, ...] | int = (0, 1, 2),
+        own_positions: tuple[float, ...] | float | None = None,
+        other_positions: tuple[float, ...] | float | None = None,
+        margins: tuple[float, ...] | float | None = None,
+        grid_margins: tuple[int, ...] | int | None = None,
+    ) -> PositionConstraint:
+        """Creates a PositionConstraint that places this object at the same position as another object.
+        This is a convenience wrapper around place_at_center() for more intuitive naming.
+
+        Args:
+            other (SimulationObject): Another object in the simulation scene
+            axes (tuple[int, ...] | int, optional): Either a single integer or a tuple describing which axes to match
+                position on. Defaults to all axes (0, 1, 2).
+            own_positions (tuple[float, ...] | float | None, optional): Relative positions on this object (-1 to 1).
+                If None, uses center (0). Defaults to None.
+            other_positions (tuple[float, ...] | float | None, optional): Relative positions on other object (-1 to 1).
+                If None, uses center (0). Defaults to None.
+            margins (tuple[float, ...] | float | None, optional): Additional margins in meters between objects.
+                Must have same length as axes. If None, no margin is used. Defaults to None.
+            grid_margins ( tuple[int, ...] | int | None, optional): Additional margins in Yee-grid voxels between
+                objects. Must have same length as axes. If None, no margin is used. Defaults to None.
+
+        Returns:
+            PositionConstraint: Position constraint placing objects at the same position
+        """
+        return self.place_at_center(
+            other=other,
+            axes=axes,
+            own_positions=own_positions,
+            other_positions=other_positions,
+            margins=margins,
+            grid_margins=grid_margins,
+        )
+
     def same_position_and_size(
         self,
         other: "SimulationObject",
