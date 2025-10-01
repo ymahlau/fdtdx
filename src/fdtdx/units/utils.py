@@ -122,7 +122,7 @@ def best_scale(
         return new_arr, log_offset
     
     # scalar logic: absolute value as close to one
-    if isinstance(arr, float | complex | int):
+    if isinstance(arr, float | complex | int | np.number):
         abs_val = abs(arr)
         return scalar_helper(abs_val)
     

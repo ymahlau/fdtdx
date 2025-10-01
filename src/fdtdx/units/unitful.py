@@ -446,6 +446,9 @@ class Unitful(TreeClass):
     
     def prod(self, **kwargs) -> "Unitful":
         return prod(self, **kwargs)
+    
+    def argmax(self, **kwargs) -> "Unitful":
+        return argmax(self, **kwargs)
         
 
 def align_scales(
@@ -1209,7 +1212,17 @@ def pow(x, y):  # type: ignore
 
 ## min #######################################
 def unary_fn(x: Unitful, op_str: str, *args, **kwargs) -> Unitful:
-    # TODO: handling of numpy arrays
+    # handling of numpy arrays
+    if isinstance(x.val, np.ndarray | np.number):
+        np_fn = getattr(np, f"{op_str}")
+        new_val = np_fn(x.val, *args, **kwargs)
+        if not isinstance(new_val, np.ndarray) and not isinstance(new_val, np.number):
+            raise Exception(f"This is an internal error: {op_str} produced {type(new_val)}")
+        if new_val.dtype not in PHYSICAL_DTYPES:
+            return Unitful(val=new_val, unit=EMPTY_UNIT, static_arr=None)
+        return Unitful(val=new_val, unit=x.unit, static_arr=None)
+    
+    # handling of other jax array or other types
     orig_fn = getattr(jax.numpy, f"_orig_{op_str}")
     new_val = orig_fn(x.val, *args, **kwargs)
     if not isinstance(new_val, jax.Array):
@@ -1220,6 +1233,8 @@ def unary_fn(x: Unitful, op_str: str, *args, **kwargs) -> Unitful:
         if x_arr is not None:
             np_fn = getattr(np, f"{op_str}")
             new_static_arr = np_fn(x_arr, *args, **kwargs)
+    if new_val.dtype not in PHYSICAL_DTYPES:
+        return Unitful(val=new_val, unit=EMPTY_UNIT, static_arr=new_static_arr)
     return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
 
 @overload
@@ -1383,5 +1398,23 @@ def reshape(x: jax.Array, *args, **kwargs) -> jax.Array:
 
 @dispatch
 def reshape(x, *args, **kwargs):  # type: ignore
+    del x, args, kwargs
+    raise NotImplementedError()
+
+## argmax #######################################
+@overload
+def argmax(x: Unitful, *args, **kwargs) -> Unitful:
+    return unary_fn(x, "argmax", *args, **kwargs)
+
+@overload
+def argmax(x: jax.Array, *args, **kwargs) -> jax.Array:
+    return jnp._orig_argmax(x, *args, **kwargs) # type: ignore
+
+@overload
+def argmax(x: np.ndarray, *args, **kwargs) -> np.ndarray:
+    return np.argmax(x, *args, **kwargs)
+
+@dispatch
+def argmax(x, *args, **kwargs):  # type: ignore
     del x, args, kwargs
     raise NotImplementedError()
