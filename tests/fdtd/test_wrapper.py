@@ -39,10 +39,12 @@ class TestRunFdtd:
             mock_result = Mock(spec=SimulationState)
             mock_checkpointed.return_value = mock_result
 
-            result = run_fdtd(arrays, objects, config, key)
+            result = run_fdtd(arrays, objects, config, key, stopping_condition=None)
 
             # Verify checkpointed_fdtd was called
-            mock_checkpointed.assert_called_once_with(arrays=arrays, objects=objects, config=config, key=key)
+            mock_checkpointed.assert_called_once_with(
+                arrays=arrays, objects=objects, config=config, key=key, stopping_condition=None
+            )
 
             # Verify the result is returned
             assert result == mock_result
@@ -83,10 +85,12 @@ class TestRunFdtd:
             mock_result = Mock(spec=SimulationState)
             mock_checkpointed.return_value = mock_result
 
-            result = run_fdtd(arrays, objects, config, key)
+            result = run_fdtd(arrays, objects, config, key, stopping_condition=None)
 
             # Verify checkpointed_fdtd was called
-            mock_checkpointed.assert_called_once_with(arrays=arrays, objects=objects, config=config, key=key)
+            mock_checkpointed.assert_called_once_with(
+                arrays=arrays, objects=objects, config=config, key=key, stopping_condition=None
+            )
 
             # Verify the result is returned
             assert result == mock_result
@@ -116,10 +120,12 @@ class TestRunFdtd:
             mock_result = Mock(spec=SimulationState)
             mock_checkpointed.return_value = mock_result
 
-            run_fdtd(arrays, objects, config, key)
+            run_fdtd(arrays, objects, config, key, stopping_condition=None)
 
             # Verify checkpointed_fdtd was called
-            mock_checkpointed.assert_called_once_with(arrays=arrays, objects=objects, config=config, key=key)
+            mock_checkpointed.assert_called_once_with(
+                arrays=arrays, objects=objects, config=config, key=key, stopping_condition=None
+            )
 
     def test_gradient_config_with_none_method(self, setup):
         """Test edge case where gradient_config exists but method is None"""
