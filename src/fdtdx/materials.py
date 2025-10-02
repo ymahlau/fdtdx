@@ -22,7 +22,6 @@ def _normalize_material_property(value: float | tuple[float, float, float]) -> t
         return (value, value, value)
 
 
-@autoinit
 class Material(TreeClass):
     """
     Represents an electromagnetic material with specific electrical and magnetic properties.
@@ -78,30 +77,20 @@ class Material(TreeClass):
     def __init__(
         self,
         *,
-        permittivity: float = ...,
-        permeability: float = ...,
-        electric_conductivity: float = ...,
-        magnetic_conductivity: float = ...,
+        permittivity: float = 1.0,
+        permeability: float = 1.0,
+        electric_conductivity: float = 0.0,
+        magnetic_conductivity: float = 0.0,
     ) -> None: ...
 
     @overload
     def __init__(
         self,
         *,
-        permittivity: tuple[float, float, float] = ...,
-        permeability: tuple[float, float, float] = ...,
-        electric_conductivity: tuple[float, float, float] = ...,
-        magnetic_conductivity: tuple[float, float, float] = ...,
-    ) -> None: ...
-
-    @overload
-    def __init__(
-        self,
-        *,
-        permittivity: float | tuple[float, float, float] = ...,
-        permeability: float | tuple[float, float, float] = ...,
-        electric_conductivity: float | tuple[float, float, float] = ...,
-        magnetic_conductivity: float | tuple[float, float, float] = ...,
+        permittivity: tuple[float, float, float] = (1.0, 1.0, 1.0),
+        permeability: tuple[float, float, float] = (1.0, 1.0, 1.0),
+        electric_conductivity: tuple[float, float, float] = (0.0, 0.0, 0.0),
+        magnetic_conductivity: tuple[float, float, float] = (0.0, 0.0, 0.0),
     ) -> None: ...
 
     def __init__(
@@ -112,8 +101,10 @@ class Material(TreeClass):
         electric_conductivity: float | tuple[float, float, float] = (0.0, 0.0, 0.0),
         magnetic_conductivity: float | tuple[float, float, float] = (0.0, 0.0, 0.0),
     ) -> None:
-        """Implementation provided by @autoinit decorator."""
-        pass
+        object.__setattr__(self, "permittivity", _normalize_material_property(permittivity))
+        object.__setattr__(self, "permeability", _normalize_material_property(permeability))
+        object.__setattr__(self, "electric_conductivity", _normalize_material_property(electric_conductivity))
+        object.__setattr__(self, "magnetic_conductivity", _normalize_material_property(magnetic_conductivity))
 
     @property
     def is_isotropic(self) -> bool:
