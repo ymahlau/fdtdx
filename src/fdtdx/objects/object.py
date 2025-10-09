@@ -23,8 +23,8 @@ from fdtdx.typing import (
     Slice3D,
     SliceTuple3D,
 )
-from fdtdx.units.unitful import Unitful
 from fdtdx.units import m
+from fdtdx.units.unitful import Unitful
 
 _GLOBAL_COUNTER = 0
 
@@ -227,9 +227,7 @@ class SimulationObject(TreeClass, ABC):
 
     #: Maximum random offset values that can be applied to the object's position in real coordinates
     #: for each axis (x, y, z). Defaults to (0, 0, 0) for no random offset.
-    max_random_real_offsets: tuple[Unitful, Unitful, Unitful] = frozen_field(
-        default=(0*m, 0*m, 0*m)
-    )
+    max_random_real_offsets: tuple[Unitful, Unitful, Unitful] = frozen_field(default=(0 * m, 0 * m, 0 * m))
 
     #: Maximum random offset values that can be applied to the object's position in grid coordinates for each
     #: axis (x, y, z). Defaults to (0, 0, 0) for no random offset.
@@ -336,7 +334,7 @@ class SimulationObject(TreeClass, ABC):
         if isinstance(grid_margins, int):
             grid_margins = (grid_margins,)
         if margins is None:
-            margins = tuple([0*m for _ in axes])
+            margins = tuple([0 * m for _ in axes])
         if grid_margins is None:
             grid_margins = tuple([0 for _ in axes])
         if (
@@ -397,7 +395,7 @@ class SimulationObject(TreeClass, ABC):
         if isinstance(grid_offsets, int):
             grid_offsets = (grid_offsets,)
         if offsets is None:
-            offsets = tuple([0*m for _ in axes])
+            offsets = tuple([0 * m for _ in axes])
         if grid_offsets is None:
             grid_offsets = tuple([0 for _ in axes])
         if proportions is None:
@@ -719,7 +717,7 @@ class SimulationObject(TreeClass, ABC):
         axis: int,
         direction: Literal["+", "-"],
         other_position: float | None = None,
-        offset: Unitful = 0*m,
+        offset: Unitful = 0 * m,
         grid_offset: int = 0,
     ) -> SizeExtensionConstraint:
         """Creates a SizeExtensionConstraint that extends this object along a specified axis until it

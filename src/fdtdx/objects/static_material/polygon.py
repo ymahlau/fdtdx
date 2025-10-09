@@ -6,7 +6,6 @@ from fdtdx.core.grid import polygon_to_mask
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
-from fdtdx.units.unitful import Unitful
 
 
 @autoinit

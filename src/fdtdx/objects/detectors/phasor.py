@@ -3,11 +3,11 @@ from typing import Literal, Sequence
 import jax
 import jax.numpy as jnp
 
+import fdtdx.functional as ff
 from fdtdx.core.jax.pytrees import autoinit, field, frozen_field
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 from fdtdx.units.unitful import Unitful
-import fdtdx.functional as ff
 
 
 @autoinit

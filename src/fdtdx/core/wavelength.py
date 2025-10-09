@@ -1,6 +1,5 @@
 from fdtdx import constants
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
-from fdtdx.units.typing import SI
 from fdtdx.units.unitful import Unitful
 
 

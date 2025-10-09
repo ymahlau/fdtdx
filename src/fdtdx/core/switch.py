@@ -1,9 +1,11 @@
 import math
 
-from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
-from fdtdx.units.unitful import Unitful
-from fdtdx.units import s
 import jax.numpy as jnp
+
+from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
+from fdtdx.units import s
+from fdtdx.units.unitful import Unitful
+
 
 @autoinit
 class OnOffSwitch(TreeClass):
@@ -170,10 +172,9 @@ def is_on_at_time_step(
     if start_time is None or end_time is None:
         raise Exception("This should never happen")
     time_passed = time_step * time_step_duration
-    
+
     on = True
     on = on and jnp.array(start_time <= time_passed).item()
     on = on and jnp.array(time_passed <= end_time).item()
     assert isinstance(on, bool)
     return on
-

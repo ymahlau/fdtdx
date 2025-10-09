@@ -1,10 +1,13 @@
+# ruff: noqa: F811
+
+import jax
+import jax.numpy as jnp
 import numpy as np
+from plum import dispatch, overload
+
 from fdtdx.core.jax.utils import is_traced
 from fdtdx.units.typing import PhysicalArrayLike
 from fdtdx.units.unitful import Unitful, get_static_operand
-from plum import dispatch, overload
-import jax
-import jax.numpy as jnp
 
 
 ## norm #####################################
@@ -23,6 +26,7 @@ def norm(
             new_static_arr = np.linalg.norm(x_arr, *args, **kwargs)
     return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
 
+
 @overload
 def norm(
     x: PhysicalArrayLike,
@@ -30,6 +34,7 @@ def norm(
     **kwargs,
 ) -> jax.Array:
     return jnp.linalg._orig_norm(x, *args, **kwargs)  # type: ignore
+
 
 @dispatch
 def norm(  # type: ignore
@@ -39,5 +44,3 @@ def norm(  # type: ignore
 ):
     del x, args, kwargs
     raise NotImplementedError()
-
-

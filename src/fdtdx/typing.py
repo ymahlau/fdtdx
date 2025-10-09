@@ -1,11 +1,9 @@
 from enum import Enum
-from typing import Literal, Optional, Union
-
-import jax
-
-from fdtdx.units.unitful import Unitful
+from typing import Literal, Optional
 
 import jax.numpy as jnp
+
+from fdtdx.units.unitful import Unitful
 
 # Real-valued shapes (physical dimensions)
 RealShape3D = tuple[Unitful, Unitful, Unitful]

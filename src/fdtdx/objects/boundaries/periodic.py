@@ -7,8 +7,8 @@ from typing_extensions import override
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.plotting.colors import LIGHT_BLUE
 from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState
+from fdtdx.units import A, V, m
 from fdtdx.units.unitful import Unitful
-from fdtdx.units import m, A, V
 
 
 @autoinit

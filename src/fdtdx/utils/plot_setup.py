@@ -105,13 +105,13 @@ def plot_setup(
         )
 
     def resolution_helper(p: int) -> float:
-            return (p * config.resolution).float_value()
-    
+        return (p * config.resolution).float_value()
+
     # Plot each object on the corresponding subplot
     for obj in colored_objects:
         slices = obj.grid_slice_tuple
         color = obj.color
-        
+
         # XY plane at Z center
         if exclude_xy_plane_object_list is None or obj not in exclude_xy_plane_object_list:
             axs[0].add_patch(

@@ -1,9 +1,7 @@
 from abc import ABC, abstractmethod
-from functools import partial
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 
 from fdtdx.core.grid import calculate_time_offset_yee
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
@@ -11,7 +9,7 @@ from fdtdx.core.linalg import get_wave_vector_raw, rotate_vector
 from fdtdx.core.misc import linear_interpolated_indexing, normalize_polarization_for_source
 from fdtdx.core.physics.metrics import normalize_by_averaged_flux
 from fdtdx.objects.sources.tfsf import TFSFPlaneSource
-from fdtdx.units import J, V, m, A
+from fdtdx.units import A, V, m
 from fdtdx.units.unitful import Unitful
 
 
@@ -178,7 +176,6 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
 
 @autoinit
 class UniformPlaneSource(LinearlyPolarizedPlaneSource):
-
     def _get_amplitude_raw(
         self,
         center: tuple[float, float],

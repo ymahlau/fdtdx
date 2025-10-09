@@ -3,6 +3,7 @@ from typing import Any, Callable, Literal, Self, Sequence, TypeVar, overload
 
 import pytreeclass as tc
 from pytreeclass._src.code_build import (
+    NULL,
     ArgKindType,
     Field,
     build_init_method,
@@ -11,7 +12,6 @@ from pytreeclass._src.code_build import (
 )
 from pytreeclass._src.code_build import (
     field as tc_field,
-    NULL,
 )
 from pytreeclass._src.tree_base import TreeClassIndexer
 

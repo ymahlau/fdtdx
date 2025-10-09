@@ -1,8 +1,8 @@
 from typing import Literal, Self, Sequence
 
 import jax
-import jax.numpy as jnp
 
+import fdtdx.functional as ff
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.physics.modes import compute_mode
@@ -10,7 +10,6 @@ from fdtdx.objects.detectors.detector import DetectorState
 from fdtdx.objects.detectors.phasor import PhasorDetector
 from fdtdx.typing import SliceTuple3D
 from fdtdx.units.unitful import Unitful
-import fdtdx.functional as ff
 
 
 @autoinit

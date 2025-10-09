@@ -1,64 +1,62 @@
-from fastcore.foundation import copy_func
 import jax
+from fastcore.foundation import copy_func
 
-from fdtdx.units.unitful import (
-    multiply,
-    divide,
-    add,
-    subtract,
-    lt,
-    le,
-    eq,
-    ne,
-    ge,
-    gt,
-    matmul,
-    pow,
-    min,
-    max,
-    mean,
-    sum,
-    abs_impl,
-    astype,
-    squeeze,
-    reshape,
-    prod,
-)
-
-from fdtdx.functional.numpy import (
-    sqrt,
-    roll,
-    square,
-    cross,
-    conj,
-    dot,
-    transpose,
-    pad,
-    stack,
-    isfinite,
-    roll,
-    real,
-    imag,
-    sin,
-    cos,
-    tan,
-    asarray,
-    array,
-    exp,
-    expand_dims,
-    where,
-    arange,
-    meshgrid,
-    floor,
-    ceil,
-)
+from fdtdx.functional.jax import jit
 from fdtdx.functional.linalg import (
     norm,
 )
-
-from fdtdx.functional.jax import (
-    jit
+from fdtdx.functional.numpy import (
+    arange,
+    array,
+    asarray,
+    ceil,
+    conj,
+    cos,
+    cross,
+    dot,
+    exp,
+    expand_dims,
+    floor,
+    imag,
+    isfinite,
+    meshgrid,
+    pad,
+    real,
+    roll,
+    sin,
+    sqrt,
+    square,
+    stack,
+    tan,
+    transpose,
+    where,
 )
+from fdtdx.units.unitful import (
+    abs_impl,
+    add,
+    argmax,
+    argmin,
+    astype,
+    divide,
+    eq,
+    ge,
+    gt,
+    le,
+    lt,
+    matmul,
+    max,
+    mean,
+    min,
+    multiply,
+    ne,
+    pow,
+    prod,
+    reshape,
+    squeeze,
+    subtract,
+    sum,
+)
+
 
 def patch_fn_to_module(
     f,
@@ -70,7 +68,7 @@ def patch_fn_to_module(
         fn_name = f.__name__
     assert fn_name is not None
     fn_copy.__qualname__ = f"{mod.__name__}.{fn_name}"
-    original_name = '_orig_' + fn_name
+    original_name = "_orig_" + fn_name
     if hasattr(mod, fn_name) and not hasattr(mod, original_name):
         setattr(mod, original_name, getattr(mod, fn_name))
     setattr(mod, fn_name, fn_copy)
@@ -128,10 +126,12 @@ def patch_all_functions():
         (floor, None),
         (ceil, None),
         (prod, None),
+        (argmax, None),
+        (argmin, None),
     ]
     for fn, orig in _full_patch_list_numpy:
         patch_fn_to_module(
-            f=fn, 
+            f=fn,
             mod=jax.numpy,
             fn_name=orig,
         )
@@ -149,15 +149,13 @@ def patch_all_functions():
     ]
     for fn, orig in _full_patch_list_lax:
         patch_fn_to_module(
-            f=fn, 
+            f=fn,
             mod=jax.lax,
             fn_name=orig,
         )
-        
+
     ## add to jax.mumpy.linalg ###################
-    _full_patch_list_linalg = [
-        (norm, None)
-    ]
+    _full_patch_list_linalg = [(norm, None)]
     for fn, orig in _full_patch_list_linalg:
         patch_fn_to_module(
             f=fn,

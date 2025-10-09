@@ -1,5 +1,3 @@
-import jax
-import jax.numpy as jnp
 import fdtdx.functional as ff
 from fdtdx.units.unitful import Unitful
 
@@ -118,11 +116,7 @@ def curl_E(
     return curl
 
 
-def curl_H(
-    H: Unitful,
-    resolution: Unitful,
-    periodic_axes: tuple[bool, bool, bool] = (False, False, False)
-) -> Unitful:
+def curl_H(H: Unitful, resolution: Unitful, periodic_axes: tuple[bool, bool, bool] = (False, False, False)) -> Unitful:
     """Transforms an H-type field into an E-type field by performing a curl operation.
 
     Computes the discrete curl of the magnetic field to obtain the corresponding

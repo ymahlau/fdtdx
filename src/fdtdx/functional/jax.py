@@ -1,14 +1,11 @@
 from functools import partial
-import jax
-import jax.numpy as jnp
-from jax._src import pjit
 from typing import Any, Callable
 
-from fdtdx.core.jax.pytrees import TreeClass, autoinit
-from fdtdx.core.jax.utils import hash_abstract_pytree, is_currently_compiling
+import jax
+
+from fdtdx.core.jax.utils import hash_abstract_pytree
 from fdtdx.units import unitful
 from fdtdx.units.unitful import Unitful
-
 
 
 class CustomJitWrapped:
@@ -20,12 +17,10 @@ class CustomJitWrapped:
         self.fun = fun
         self.jit_kwargs = jit_kwargs
         self.jitted_fun = jax._orig_jit(  # type: ignore
-            fun,
-            **jit_kwargs
+            fun, **jit_kwargs
         )
         self.cache = {}
-    
-    
+
     def _call_from_cache(self, input_hash, *args, **kwargs):
         to_materialise_mask = self.cache[input_hash]
         # do actual jit compilation on function
@@ -38,8 +33,7 @@ class CustomJitWrapped:
             is_leaf=lambda x: isinstance(x, Unitful),
         )
         return materialised_result
-    
-    
+
     def _compute_materialisation_mask(
         self,
         *args,
@@ -50,8 +44,7 @@ class CustomJitWrapped:
         unitful.STATIC_OPTIM_STOP_FLAG = True
         desired_shape_dtype = jax.eval_shape(
             jax._orig_jit(  # type: ignore
-                partial(self.fun), 
-                **self.jit_kwargs
+                partial(self.fun), **self.jit_kwargs
             ),
             *args,
             **kwargs,
@@ -61,13 +54,12 @@ class CustomJitWrapped:
             desired_shape_dtype,
             is_leaf=lambda x: isinstance(x, Unitful),
         )
-        
+
         # then get the result of the actual jit step
         unitful.STATIC_OPTIM_STOP_FLAG = False
         optimized_shape_dtype = jax.eval_shape(
-            jax._orig_jit(   # type: ignore
-                partial(self.fun), 
-                **self.jit_kwargs
+            jax._orig_jit(  # type: ignore
+                partial(self.fun), **self.jit_kwargs
             ),
             *args,
             **kwargs,
@@ -84,8 +76,7 @@ class CustomJitWrapped:
             is_array_mask,
         )
         return to_materialise_mask
-        
-    
+
     def __call__(self, *args, **kwargs):
         # input hashing to avoid recompilation
         input_hash = hash_abstract_pytree((args, kwargs))
@@ -93,9 +84,8 @@ class CustomJitWrapped:
             # compute the materialisation mask
             to_materialise_mask = self._compute_materialisation_mask(*args, **kwargs)
             self.cache[input_hash] = to_materialise_mask
-            
+
         return self._call_from_cache(input_hash, *args, **kwargs)
-          
 
 
 def jit(fun: Callable, **kwargs) -> CustomJitWrapped:

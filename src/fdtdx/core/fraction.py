@@ -1,20 +1,21 @@
 import math
 from typing import Any, NamedTuple, Union, overload
 
+
 class Fraction(NamedTuple):
     num: int
     denom: int
-    
+
     def __repr__(self) -> str:
         return str(self)
-    
+
     def __str__(self) -> str:
         if self.num == 0:
             return "0"
         if self.denom == 1:
             return str(self.num)
         return f"({self.num}/{self.denom})"
-    
+
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, int | float | Fraction):
             return False
@@ -30,35 +31,35 @@ class Fraction(NamedTuple):
         if isinstance(other, float):
             # Compare float values (be careful with floating point precision)
             return abs(self.value() - other) < 1e-15
-    
+
     def value(self) -> float:
         return self.num / self.denom
-        
+
     def reduced(self) -> "Fraction":
         if self.num == 0:
             return Fraction(0, 1)
-        
+
         common_divisor = math.gcd(abs(self.num), abs(self.denom))
         reduced_num = self.num // common_divisor
         reduced_denom = self.denom // common_divisor
-        
+
         # Ensure denominator is positive
         if reduced_denom < 0:
             reduced_num = -reduced_num
             reduced_denom = -reduced_denom
-        
+
         return Fraction(reduced_num, reduced_denom)
-    
+
     # Addition
     @overload
     def __add__(self, other: "Fraction") -> "Fraction": ...
-    
+
     @overload
     def __add__(self, other: int) -> "Fraction": ...  # type: ignore
-    
+
     @overload
     def __add__(self, other: float) -> float: ...
-    
+
     def __add__(self, other: Any) -> Union["Fraction", float]:  # type: ignore
         if isinstance(other, Fraction):
             new_num = self.num * other.denom + other.num * self.denom
@@ -69,29 +70,29 @@ class Fraction(NamedTuple):
         elif isinstance(other, float):
             return self.value() + other
         return NotImplemented
-    
+
     @overload
     def __radd__(self, other: "Fraction") -> "Fraction": ...
-    
+
     @overload
     def __radd__(self, other: int) -> "Fraction": ...  # type: ignore
-    
+
     @overload
     def __radd__(self, other: float) -> float: ...
-    
+
     def __radd__(self, other: Any) -> Union["Fraction", float]:
         return self.__add__(other)
-    
+
     # Multiplication
     @overload
     def __mul__(self, other: "Fraction") -> "Fraction": ...
-    
+
     @overload
     def __mul__(self, other: int) -> "Fraction": ...  # type: ignore
-    
+
     @overload
     def __mul__(self, other: float) -> float: ...
-    
+
     def __mul__(self, other: Any) -> Union["Fraction", float]:  # type: ignore
         if isinstance(other, Fraction):
             new_num = self.num * other.num
@@ -102,29 +103,29 @@ class Fraction(NamedTuple):
         elif isinstance(other, float):
             return self.value() * other
         return NotImplemented
-    
+
     @overload
     def __rmul__(self, other: "Fraction") -> "Fraction": ...
-    
+
     @overload
     def __rmul__(self, other: int) -> "Fraction": ...  # type: ignore
-    
+
     @overload
     def __rmul__(self, other: float) -> float: ...
-    
+
     def __rmul__(self, other: Any) -> Union["Fraction", float]:  # type: ignore
         return self.__mul__(other)
-    
+
     # Division
     @overload
     def __truediv__(self, other: "Fraction") -> "Fraction": ...
-    
+
     @overload
     def __truediv__(self, other: int) -> "Fraction": ...  # type: ignore
-    
+
     @overload
     def __truediv__(self, other: float) -> float: ...
-    
+
     def __truediv__(self, other: Any) -> Union["Fraction", float]:
         if isinstance(other, Fraction):
             if other.num == 0:
@@ -141,16 +142,16 @@ class Fraction(NamedTuple):
                 raise ZeroDivisionError("Cannot divide by zero")
             return self.value() / other
         return NotImplemented
-    
+
     @overload
     def __rtruediv__(self, other: "Fraction") -> "Fraction": ...
-    
+
     @overload
     def __rtruediv__(self, other: int) -> "Fraction": ...  # type: ignore
-    
+
     @overload
     def __rtruediv__(self, other: float) -> float: ...
-    
+
     def __rtruediv__(self, other: Any) -> Union["Fraction", float]:
         if isinstance(other, Fraction):
             return other.__truediv__(self)
@@ -163,17 +164,17 @@ class Fraction(NamedTuple):
                 raise ZeroDivisionError("Cannot divide by zero")
             return other / self.value()
         return NotImplemented
-    
+
     # Subtraction
     @overload
     def __sub__(self, other: "Fraction") -> "Fraction": ...
-    
+
     @overload
     def __sub__(self, other: int) -> "Fraction": ...  # type: ignore
-    
+
     @overload
     def __sub__(self, other: float) -> float: ...
-    
+
     def __sub__(self, other: Any) -> Union["Fraction", float]:
         if isinstance(other, Fraction):
             new_num = self.num * other.denom - other.num * self.denom
@@ -184,16 +185,16 @@ class Fraction(NamedTuple):
         elif isinstance(other, float):
             return self.value() - other
         return NotImplemented
-    
+
     @overload
     def __rsub__(self, other: "Fraction") -> "Fraction": ...
-    
+
     @overload
     def __rsub__(self, other: int) -> "Fraction": ...  # type: ignore
-    
+
     @overload
     def __rsub__(self, other: float) -> float: ...
-    
+
     def __rsub__(self, other: Any) -> Union["Fraction", float]:
         if isinstance(other, Fraction):
             return other.__sub__(self)
@@ -202,7 +203,7 @@ class Fraction(NamedTuple):
         elif isinstance(other, float):
             return other - self.value()
         return NotImplemented
-    
+
     # Comparison operators
     def __lt__(self, other: Any) -> bool:
         if isinstance(other, Fraction):
@@ -213,13 +214,13 @@ class Fraction(NamedTuple):
         elif isinstance(other, float):
             return self.value() < other
         return NotImplemented
-    
+
     def __le__(self, other: Any) -> bool:
         return self < other or self == other
-    
+
     def __ne__(self, other: Any) -> bool:
         return not self.__eq__(other)
-    
+
     def __gt__(self, other: Any) -> bool:
         if isinstance(other, Fraction):
             return self.num * other.denom > other.num * self.denom
@@ -228,22 +229,22 @@ class Fraction(NamedTuple):
         elif isinstance(other, float):
             return self.value() > other
         return NotImplemented
-    
+
     def __ge__(self, other: Any) -> bool:
         return self > other or self == other
-    
+
     # Integer power
     def __pow__(self, exponent: int) -> "Fraction":
         if not isinstance(exponent, int):
             return NotImplemented
-        
+
         if exponent == 0:
             if self.num == 0:
                 raise ZeroDivisionError("0^0 is undefined")
             return Fraction(1, 1)
         elif exponent > 0:
-            new_num = self.num ** exponent
-            new_denom = self.denom ** exponent
+            new_num = self.num**exponent
+            new_denom = self.denom**exponent
             return Fraction(new_num, new_denom).reduced()
         else:  # exponent < 0
             if self.num == 0:
@@ -252,6 +253,6 @@ class Fraction(NamedTuple):
             new_num = self.denom ** (-exponent)
             new_denom = self.num ** (-exponent)
             return Fraction(new_num, new_denom).reduced()
-    
+
     def __neg__(self) -> "Fraction":
         return Fraction(-self.num, self.denom).reduced()

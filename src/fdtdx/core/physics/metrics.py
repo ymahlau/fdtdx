@@ -9,11 +9,11 @@ FDTD field array shapes.
 import jax
 import jax.numpy as jnp
 
-from fdtdx.units import J, W, V_per_m_unit, A_per_m_unit
-from fdtdx.units.typing import SI
-from fdtdx.units.unitful import Unitful
 import fdtdx.functional as ff
 from fdtdx.constants import eps0, mu0
+from fdtdx.units import A_per_m_unit, J, V_per_m_unit, W
+from fdtdx.units.unitful import Unitful
+
 
 def compute_energy(
     E: Unitful,
@@ -35,7 +35,7 @@ def compute_energy(
     """
     assert E.unit.dim == V_per_m_unit.dim
     assert H.unit.dim == A_per_m_unit.dim
-    
+
     patched_E = ff.square(ff.abs(E))
     sum_fields_E = ff.sum(patched_E, axis=axis)
     energy_E = 0.5 * eps0 * (1 / inv_permittivity) * sum_fields_E
@@ -56,7 +56,7 @@ def normalize_by_energy(
     inv_permittivity: jax.Array | float,
     inv_permeability: jax.Array | float,
     resolution: Unitful,
-    normalization_target: Unitful = 1*J,
+    normalization_target: Unitful = 1 * J,
 ) -> tuple[Unitful, Unitful]:
     """Normalizes electromagnetic fields by their total energy.
 
@@ -137,7 +137,7 @@ def flux_from_poynting_vector(
 
 
 def compute_poynting_flux(
-    E: Unitful, 
+    E: Unitful,
     B: Unitful,
     resolution: Unitful,
     normal_vector: tuple[float, float, float] | jax.Array,
@@ -145,7 +145,7 @@ def compute_poynting_flux(
 ) -> Unitful:
     """Calculates the Poynting flux from E and H fields. In contrast to the poynting vector, the result is a scalar,
     not a vector field. The poynting vector is integrated over the surface of E and H to form the poynting flux. Therefore,
-    an inherent assumption is that the E and H field represent a fields on a surface. 
+    an inherent assumption is that the E and H field represent a fields on a surface.
 
     Args:
         E (Unitful): Electric field array with E.shape[axis] == 3
@@ -167,15 +167,15 @@ def compute_poynting_flux(
         axis=axis,
     )
     return flux
-    
+
 
 def normalize_by_poynting_flux(
-    E: Unitful, 
+    E: Unitful,
     B: Unitful,
     resolution: Unitful,
     normal_vector: tuple[float, float, float] | jax.Array,
     axis: int = 0,
-    normalization_target: Unitful = 1*W,
+    normalization_target: Unitful = 1 * W,
 ) -> tuple[Unitful, Unitful]:
     """Normalize fields so that Poynting flux along given axis = 1."""
     # Compute Poynting vector components
@@ -188,14 +188,14 @@ def normalize_by_poynting_flux(
     )
     norm_factor = flux / normalization_target
     factor = ff.sqrt(ff.abs(norm_factor))
-    
+
     norm_E = E * factor
     norm_B = B * factor
     return norm_E, norm_B
 
 
 def compute_averaged_poynting_vector(
-    E: Unitful, 
+    E: Unitful,
     H: Unitful,
 ) -> Unitful:
     S_m = 0.5 * ff.cross(E, ff.conj(H), axis=0)
@@ -203,7 +203,7 @@ def compute_averaged_poynting_vector(
 
 
 def compute_averaged_flux(
-    E: Unitful, 
+    E: Unitful,
     H: Unitful,
     resolution: Unitful,
     normal_vector: tuple[float, float, float] | jax.Array,
@@ -220,12 +220,12 @@ def compute_averaged_flux(
 
 
 def normalize_by_averaged_flux(
-    E: Unitful, 
+    E: Unitful,
     H: Unitful,
     resolution: Unitful,
     normal_vector: tuple[float, float, float] | jax.Array,
     axis: int = 0,
-    normalization_target: Unitful = 1*W,
+    normalization_target: Unitful = 1 * W,
 ) -> tuple[Unitful, Unitful]:
     avg_flux = compute_averaged_flux(
         E=E,
@@ -236,7 +236,7 @@ def normalize_by_averaged_flux(
     )
     norm_factor = avg_flux / normalization_target
     factor = ff.sqrt(ff.abs(norm_factor))
-    
+
     norm_E = E * factor
     norm_H = H * factor
     return norm_E, norm_H

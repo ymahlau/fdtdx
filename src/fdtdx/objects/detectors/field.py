@@ -1,12 +1,11 @@
 from typing import Literal, Sequence
 
 import jax
-import jax.numpy as jnp
 
+import fdtdx.functional as ff
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 from fdtdx.units.unitful import Unitful
-import fdtdx.functional as ff
 
 
 @autoinit
