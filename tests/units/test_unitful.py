@@ -1,34 +1,38 @@
 import jax
+import jax.numpy as jnp
+import numpy as np
 import plum
 import pytest
+
+import fdtdx.units.unitful as unitful
 from fdtdx.core.fraction import Fraction
 from fdtdx.core.jax.pytrees import TreeClass, autoinit
+from fdtdx.core.jax.utils import is_currently_compiling
+from fdtdx.units import Hz, ms, s
 from fdtdx.units.unitful import (
-    SI, 
-    Unit, 
-    Unitful, 
+    SI,
+    Unit,
+    Unitful,
     add,
-    matmul, 
-    multiply,
-    subtract,
     eq,
-    lt,
+    ge,
     gt,
     le,
+    lt,
+    matmul,
+    multiply,
     ne,
-    ge,
+    subtract,
 )
-from fdtdx.units import Hz, s, ms, m_per_s 
-import jax.numpy as jnp
 
 
 def test_multiply_unitful_unitful_same_dimensions():
     """Test multiplication of two Unitful objects with same dimensions"""
     time1 = s * 2
     time2 = 3 * s
-    
+
     result = multiply(time1, time2)
-    
+
     assert jnp.allclose(result.value(), 6.0)
     assert result.unit.dim == {SI.s: 2}
 
@@ -37,20 +41,20 @@ def test_multiply_unitful_unitful_different_dimensions():
     """Test multiplication of two Unitful objects with different dimensions"""
     time_val = 5 * s
     freq_val = 10 * Hz
-    
+
     result = multiply(time_val, freq_val)
-    
+
     assert jnp.allclose(result.value(), 50.0)
     assert result.unit.dim == {}  # s^1 * s^-1 = dimensionless
 
 
 def test_multiply_unitful_unitful_different_scales():
     """Test multiplication of Unitful objects with different scales"""
-    time1 = 2 * s    # scale 0
-    time2 = 3 * ms   # scale -3
-    
+    time1 = 2 * s  # scale 0
+    time2 = 3 * ms  # scale -3
+
     result = multiply(time1, time2)
-    
+
     assert jnp.allclose(result.value(), 6.0e-3)
     assert result.unit.dim == {SI.s: 2}
 
@@ -59,9 +63,9 @@ def test_multiply_arraylike_unitful():
     """Test multiplication of ArrayLike with Unitful"""
     scalar = 5.0
     time_val = 3 * s
-    
+
     result: Unitful = jnp.multiply(scalar, time_val)  # type: ignore
-    
+
     assert jnp.allclose(result.value(), 15.0)
     assert result.unit.dim == {SI.s: 1}
 
@@ -70,9 +74,9 @@ def test_multiply_arraylike_arraylike():
     """Test multiplication of two ArrayLike objects"""
     arr1 = jnp.array([1.0, 2.0, 3.0])
     arr2 = jnp.array([4.0, 5.0, 6.0])
-    
+
     result = multiply(arr1, arr2)
-    
+
     expected = jnp.array([4.0, 10.0, 18.0])
     assert jnp.allclose(result, expected)
 
@@ -86,29 +90,30 @@ def test_multiply_not_implemented():
 def test_multiply_with_arrays():
     """Test multiplication with array values"""
     time_array = s * jnp.array([1.0, 2.0, 3.0])
-    freq_array: Unitful = jnp.array([2.0, 3.0, 4.0]) * Hz   # type: ignore
+    freq_array: Unitful = jnp.array([2.0, 3.0, 4.0]) * Hz  # type: ignore
     assert isinstance(freq_array, Unitful)
     assert isinstance(time_array, Unitful)
     result = multiply(time_array, freq_array)
-    
+
     expected_val = jnp.array([2.0, 6.0, 12.0])
     assert jnp.allclose(result.value(), expected_val)
     assert result.unit.dim == {}  # dimensionless
-    
+
+
 def test_multiply_jitted():
     """Test jitting of multplication"""
     arr1 = s * jnp.array([1.0, 2.0, 3.0])
     arr2 = ms * jnp.array([1.0, 2.0, 3.0])
     arr3 = ms * jnp.array([1.0, 2.0, 3.0])
-    
+
     def fn(a: Unitful, b: Unitful) -> Unitful:
         return jnp.multiply(a, b)  # type: ignore
-    
+
     jitted_fn = jax.jit(fn)
     res1 = jitted_fn(arr1, arr2)
     res2 = jitted_fn(arr2, arr3)
-    
-    assert jnp.allclose(res1.value(), res2.value()*1e3)
+
+    assert jnp.allclose(res1.value(), res2.value() * 1e3)
 
 
 def test_add_same_units():
@@ -117,9 +122,9 @@ def test_add_same_units():
     unit_m = Unit(scale=0, dim={SI.m: 1})
     u1 = Unitful(val=jnp.array(5.0), unit=unit_m)
     u2 = Unitful(val=jnp.array(3.0), unit=unit_m)
-    
+
     result = jnp.add(u1, u2)  # type: ignore
-    
+
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), 8.0)
     assert result.unit.dim == {SI.m: 1}
@@ -132,7 +137,7 @@ def test_add_different_units_raises_error():
     unit_s = Unit(scale=0, dim={SI.s: 1})
     u1 = Unitful(val=jnp.array(5.0), unit=unit_m)
     u2 = Unitful(val=jnp.array(3.0), unit=unit_s)
-    
+
     with pytest.raises(ValueError):
         add(u1, u2)
 
@@ -143,9 +148,9 @@ def test_subtract_same_units():
     unit_kg = Unit(scale=0, dim={SI.kg: 1})
     u1 = Unitful(val=jnp.array(10.0), unit=unit_kg)
     u2 = Unitful(val=jnp.array(4.0), unit=unit_kg)
-    
+
     result = jnp.subtract(u1, u2)  # type: ignore
-    
+
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), 6.0)
     assert result.unit.dim == {SI.kg: 1}
@@ -158,7 +163,7 @@ def test_subtract_different_units_raises_error():
     unit_A = Unit(scale=0, dim={SI.A: 1})
     u1 = Unitful(val=jnp.array(300.0), unit=unit_K)
     u2 = Unitful(val=jnp.array(2.0), unit=unit_A)
-    
+
     with pytest.raises(ValueError):
         subtract(u1, u2)
 
@@ -203,7 +208,7 @@ def test_lt_same_units_success():
     unit_kg = Unit(scale=0, dim={SI.kg: 1})
     u1 = Unitful(val=jnp.array(4.0), unit=unit_kg)
     u2 = Unitful(val=jnp.array(10.0), unit=unit_kg)
-    result = jnp.less(u1, u2)   # type: ignore
+    result = jnp.less(u1, u2)  # type: ignore
     assert jnp.allclose(result, True)
 
 
@@ -331,10 +336,10 @@ def test_multiply_unitful_with_fractional_dimensions():
     unit_sqrt_m = Unit(scale=0, dim={SI.m: Fraction(1, 2)})
     u1 = Unitful(val=jnp.array(4.0), unit=unit_sqrt_m)
     u2 = Unitful(val=jnp.array(3.0), unit=unit_sqrt_m)
-    
+
     # Multiplying m^(1/2) * m^(1/2) should give m^1
     result = multiply(u1, u2)
-    
+
     assert jnp.allclose(result.value(), 12.0)
     assert result.unit.dim == {SI.m: 1}  # 1/2 + 1/2 = 1
 
@@ -344,13 +349,13 @@ def test_multiply_fractional_with_integer_dimensions():
     # Create units: m^(1/3) and m^(2/3)
     unit_cube_root_m = Unit(scale=0, dim={SI.m: Fraction(1, 3)})
     unit_two_thirds_m = Unit(scale=0, dim={SI.m: Fraction(2, 3)})
-    
+
     u1 = Unitful(val=jnp.array(8.0), unit=unit_cube_root_m)
     u2 = Unitful(val=jnp.array(2.0), unit=unit_two_thirds_m)
-    
+
     # m^(1/3) * m^(2/3) = m^1
     result = multiply(u1, u2)
-    
+
     assert jnp.allclose(result.value(), 16.0)
     assert result.unit.dim == {SI.m: 1}  # 1/3 + 2/3 = 1
 
@@ -360,13 +365,13 @@ def test_multiply_fractional_dimensions_cancel_out():
     # Create units: s^(3/4) and s^(-3/4)
     unit_pos_frac = Unit(scale=0, dim={SI.s: Fraction(3, 4)})
     unit_neg_frac = Unit(scale=0, dim={SI.s: Fraction(-3, 4)})
-    
+
     u1 = Unitful(val=jnp.array(5.0), unit=unit_pos_frac)
     u2 = Unitful(val=jnp.array(7.0), unit=unit_neg_frac)
-    
+
     # s^(3/4) * s^(-3/4) = s^0 = dimensionless
     result = multiply(u1, u2)
-    
+
     assert jnp.allclose(result.value(), 35.0)
     assert result.unit.dim == {}  # 3/4 + (-3/4) = 0, so dimension is removed
 
@@ -377,9 +382,9 @@ def test_add_same_fractional_dimensions():
     unit_frac_kg = Unit(scale=0, dim={SI.kg: Fraction(2, 5)})
     u1 = Unitful(val=jnp.array(10.0), unit=unit_frac_kg)
     u2 = Unitful(val=jnp.array(15.0), unit=unit_frac_kg)
-    
+
     result = add(u1, u2)
-    
+
     assert jnp.allclose(result.value(), 25.0)
     assert result.unit.dim == {SI.kg: Fraction(2, 5)}
 
@@ -391,18 +396,17 @@ def test_equality_fractional_dimensions():
     u1 = Unitful(val=jnp.array(42.0), unit=unit_frac_A)
     u2 = Unitful(val=jnp.array(42.0), unit=unit_frac_A)
     u3 = Unitful(val=jnp.array(43.0), unit=unit_frac_A)
-    
+
     # Test equality
     result_equal = eq(u1, u2)
     result_not_equal = eq(u1, u3)
-    
+
     assert jnp.allclose(result_equal, True)
     assert jnp.allclose(result_not_equal, False)
-    
+
     # Also test that the units are properly preserved
     assert u1.unit.dim == {SI.A: Fraction(7, 11)}
     assert u2.unit.dim == {SI.A: Fraction(7, 11)}
-
 
 
 # Division Test Cases
@@ -412,9 +416,9 @@ def test_divide_unitful_unitful_same_dimensions():
     distance2 = Unit(scale=0, dim={SI.m: 1})
     u1 = Unitful(val=jnp.array(10.0), unit=distance1)
     u2 = Unitful(val=jnp.array(2.0), unit=distance2)
-    
+
     result = u1 / u2
-    
+
     assert jnp.allclose(result.value(), 5.0)
     assert result.unit.dim == {}  # m^1 / m^1 = dimensionless
 
@@ -424,25 +428,25 @@ def test_divide_unitful_unitful_different_dimensions():
     distance = Unit(scale=0, dim={SI.m: 1})
     time = Unit(scale=0, dim={SI.s: 1})
     u1 = Unitful(val=jnp.array(20.0), unit=distance)  # 20 meters
-    u2 = Unitful(val=jnp.array(4.0), unit=time)       # 4 seconds
-    
+    u2 = Unitful(val=jnp.array(4.0), unit=time)  # 4 seconds
+
     result: Unitful = jnp.divide(u1, u2)  # type: ignore
-    
+
     assert jnp.allclose(result.value(), 5.0)  # 20/4 = 5
     assert result.unit.dim == {SI.m: 1, SI.s: -1}  # m/s
 
 
 def test_divide_unitful_unitful_with_fractional_dimensions():
     """Test division creating fractional dimensions"""
-    # Create m^2 (area) and m^(1/2) 
+    # Create m^2 (area) and m^(1/2)
     area_unit = Unit(scale=0, dim={SI.m: 2})
     sqrt_unit = Unit(scale=0, dim={SI.m: Fraction(1, 2)})
     u1 = Unitful(val=jnp.array(16.0), unit=area_unit)
     u2 = Unitful(val=jnp.array(4.0), unit=sqrt_unit)
-    
+
     # m^2 / m^(1/2) = m^(3/2)
     result: Unitful = jnp.divide(u1, u2)  # type: ignore
-    
+
     assert jnp.allclose(result.value(), 4.0)
     assert result.unit.dim == {SI.m: Fraction(3, 2)}
 
@@ -452,12 +456,12 @@ def test_divide_magic_method():
     velocity_unit = Unit(scale=0, dim={SI.m: 1, SI.s: -1})
     time_unit = Unit(scale=0, dim={SI.s: 1})
     velocity = Unitful(val=jnp.array(30.0), unit=velocity_unit)  # 30 m/s
-    time = Unitful(val=jnp.array(6.0), unit=time_unit)          # 6 s
-    
+    time = Unitful(val=jnp.array(6.0), unit=time_unit)  # 6 s
+
     # This would require implementing __truediv__ in the Unitful class
     # result = velocity / time  # Should give acceleration (m/s^2)
     result: Unitful = jnp.divide(velocity, time)  # type: ignore
-    
+
     assert jnp.allclose(result.value(), 5.0)
     assert result.unit.dim == {SI.m: 1, SI.s: -2}  # m/s^2 (acceleration)
 
@@ -466,9 +470,9 @@ def test_len_scalar_unitful():
     """Test __len__ method with scalar Unitful object"""
     time_unit = Unit(scale=0, dim={SI.s: 1})
     scalar_time = Unitful(val=5.0, unit=time_unit)
-    
+
     result = len(scalar_time)
-    
+
     assert result == 1
 
 
@@ -476,9 +480,9 @@ def test_len_array_unitful():
     """Test __len__ method with array Unitful object"""
     time_unit = Unit(scale=0, dim={SI.s: 1})
     array_time = Unitful(val=jnp.array([1.0, 2.0, 3.0, 4.0]), unit=time_unit)
-    
+
     result = len(array_time)
-    
+
     assert result == 4
 
 
@@ -486,9 +490,9 @@ def test_getitem_single_index():
     """Test __getitem__ method with single index"""
     distance_unit = Unit(scale=0, dim={SI.m: 1})
     distances = Unitful(val=jnp.array([10.0, 20.0, 30.0]), unit=distance_unit)
-    
+
     result = distances[1]
-    
+
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), 20.0)
     assert result.unit.dim == {SI.m: 1}
@@ -498,9 +502,9 @@ def test_getitem_slice():
     """Test __getitem__ method with slice"""
     mass_unit = Unit(scale=0, dim={SI.kg: 1})
     masses = Unitful(val=jnp.array([1.0, 2.0, 3.0, 4.0, 5.0]), unit=mass_unit)
-    
+
     result = masses[1:4]
-    
+
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), jnp.array([2.0, 3.0, 4.0]))
     assert result.unit.dim == {SI.kg: 1}
@@ -510,9 +514,9 @@ def test_iter_unitful_array():
     """Test __iter__ method with Unitful array"""
     current_unit = Unit(scale=0, dim={SI.A: 1})
     currents = Unitful(val=jnp.array([1.0, 2.0, 3.0]), unit=current_unit)
-    
+
     result_list = list(currents)
-    
+
     assert len(result_list) == 3
     for i, item in enumerate(result_list):
         assert isinstance(item, Unitful)
@@ -524,7 +528,7 @@ def test_iter_unitful_scalar_raises_exception():
     """Test that __iter__ raises exception for scalar Unitful"""
     temp_unit = Unit(scale=0, dim={SI.K: 1})
     scalar_temp = Unitful(val=300.0, unit=temp_unit)
-    
+
     with pytest.raises(Exception, match="Cannot iterate over Unitful with python scalar value"):
         list(scalar_temp)
 
@@ -533,9 +537,9 @@ def test_reversed_unitful_array():
     """Test __reversed__ method with Unitful array"""
     energy_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -2})  # Joules
     energies = Unitful(val=jnp.array([10.0, 20.0, 30.0]), unit=energy_unit)
-    
+
     result_list = list(reversed(energies))
-    
+
     assert len(result_list) == 3
     expected_values = [30.0, 20.0, 10.0]
     for i, item in enumerate(result_list):
@@ -549,9 +553,9 @@ def test_reversed_preserves_units():
     # Create a complex unit: m^(3/2) * kg^(-1/3)
     complex_unit = Unit(scale=2, dim={SI.m: Fraction(3, 2), SI.kg: Fraction(-1, 3)})
     values = Unitful(val=jnp.array([1.0, 4.0, 9.0, 16.0]), unit=complex_unit)
-    
+
     reversed_values = list(reversed(values))
-    
+
     assert len(reversed_values) == 4
     expected_order = [16.0, 9.0, 4.0, 1.0]
     for i, item in enumerate(reversed_values):
@@ -564,9 +568,9 @@ def test_neg_scalar_unitful():
     """Test __neg__ method with scalar Unitful object"""
     force_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2})  # Newtons
     force = Unitful(val=jnp.array(15.0), unit=force_unit)
-    
+
     result = -force
-    
+
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), -15.0)
     assert result.unit.dim == {SI.kg: 1, SI.m: 1, SI.s: -2}
@@ -577,11 +581,11 @@ def test_neg_array_unitful():
     """Test __neg__ method with array Unitful object"""
     voltage_unit = Unit(scale=-3, dim={SI.kg: 1, SI.m: 2, SI.s: -3, SI.A: -1})  # millivolts
     voltages = Unitful(val=jnp.array([1.0, -2.0, 3.0, -4.0]), unit=voltage_unit)
-    
+
     result = -voltages
-    
+
     assert isinstance(result, Unitful)
-    expected_values = jnp.array([-1.0, 2.0, -3.0, 4.0]) * (10 ** -3)
+    expected_values = jnp.array([-1.0, 2.0, -3.0, 4.0]) * (10**-3)
     assert jnp.allclose(result.value(), expected_values)  # Check the raw values
     assert result.unit.dim == voltages.unit.dim
 
@@ -590,9 +594,9 @@ def test_abs_scalar_unitful_negative():
     """Test __abs__ method with negative scalar Unitful object"""
     charge_unit = Unit(scale=-6, dim={SI.A: 1, SI.s: 1})  # microCoulombs
     charge = Unitful(val=jnp.array(-15.0), unit=charge_unit)
-    
+
     result = abs(charge)
-    
+
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), 15.0e-6)  # 15 microCoulombs
     assert result.unit.dim == {SI.A: 1, SI.s: 1}
@@ -604,11 +608,11 @@ def test_abs_array_unitful_mixed_signs():
     # Create power unit: kg * m^2 * s^(-3) (Watts)
     power_unit = Unit(scale=3, dim={SI.kg: 1, SI.m: 2, SI.s: -3})  # kiloWatts
     powers = Unitful(val=jnp.array([-2.5, 0.0, 3.7, -1.2, 4.8]), unit=power_unit)
-    
+
     result = abs(powers)
-    
+
     assert isinstance(result, Unitful)
-    expected_values = jnp.array([2.5, 0.0, 3.7, 1.2, 4.8]) * (10 ** 3)
+    expected_values = jnp.array([2.5, 0.0, 3.7, 1.2, 4.8]) * (10**3)
     assert jnp.allclose(result.value(), expected_values)
     assert result.unit.dim == {SI.kg: 1, SI.m: 2, SI.s: -3}
 
@@ -619,9 +623,9 @@ def test_matmul_magic_method_same_units():
     force_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2})
     matrix1 = Unitful(val=jnp.array([[2.0, 3.0], [4.0, 1.0]]), unit=force_unit)
     matrix2 = Unitful(val=jnp.array([[1.0, 2.0], [3.0, 4.0]]), unit=force_unit)
-    
+
     result = matrix1 @ matrix2
-    
+
     # Expected calculation: [[2*1+3*3, 2*2+3*4], [4*1+1*3, 4*2+1*4]] = [[11, 16], [7, 12]]
     expected_vals = jnp.array([[11.0, 16.0], [7.0, 12.0]])
     assert isinstance(result, Unitful)
@@ -633,14 +637,14 @@ def test_matmul_magic_method_same_units():
 def test_matmul_overload_different_scales():
     """Test matmul function with Unitful objects having different scales but same dimensions"""
     # Create matrices with time units at different scales
-    time_unit_s = Unit(scale=0, dim={SI.s: 1})    # seconds
+    time_unit_s = Unit(scale=0, dim={SI.s: 1})  # seconds
     time_unit_ms = Unit(scale=-3, dim={SI.s: 1})  # milliseconds
-    
+
     matrix1 = Unitful(val=jnp.array([[1.0, 2.0], [3.0, 4.0]]), unit=time_unit_s)
     matrix2 = Unitful(val=jnp.array([[500.0, 1000.0], [1500.0, 2000.0]]), unit=time_unit_ms)
-    
+
     result = jnp.matmul(matrix1, matrix2)  # type: ignore
-    
+
     # The scales should be aligned before multiplication
     # matrix2 values become [0.5, 1.0], [1.5, 2.0] after scale alignment
     # Expected: [[1*0.5+2*1.5, 1*1+2*2], [3*0.5+4*1.5, 3*1+4*2]] = [[3.5, 5], [7.5, 11]]
@@ -656,25 +660,26 @@ def test_matmul_overload_jax_arrays():
     # Test that the overloaded matmul still works with regular JAX arrays
     array1 = jnp.array([[1.0, 2.0], [3.0, 4.0]])
     array2 = jnp.array([[5.0, 6.0], [7.0, 8.0]])
-    
+
     result = matmul(array1, array2)
-    
+
     # Expected: [[1*5+2*7, 1*6+2*8], [3*5+4*7, 3*6+4*8]] = [[19, 22], [43, 50]]
     expected = jnp.array([[19.0, 22.0], [43.0, 50.0]])
     assert jnp.allclose(result, expected)
     # Should return a regular JAX array, not a Unitful object
     assert isinstance(result, jax.Array)
     assert not isinstance(result, Unitful)
-    
+
+
 def test_pow_magic_method():
     """Test power operation using magic method (**) with integer exponent"""
     # Create a length unit (meters)
     length_unit = Unit(scale=0, dim={SI.m: 1})
     length = Unitful(val=jnp.array(3.0), unit=length_unit)
-    
+
     # Test cubing: m^3 (volume)
-    result = length ** 3
-    
+    result = length**3
+
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), 27.0)  # 3^3 = 27
     assert result.unit.dim == {SI.m: 3}
@@ -685,10 +690,10 @@ def test_pow_overload_unitful_positive_exponent():
     # Create a velocity unit: m/s
     velocity_unit = Unit(scale=0, dim={SI.m: 1, SI.s: -1})
     velocity = Unitful(val=jnp.array(5.0), unit=velocity_unit)
-    
+
     # Square it to get m^2/s^2 (like kinetic energy per unit mass)
     result = pow(velocity, 2)
-    
+
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), 25.0)  # 5^2 = 25
     assert result.unit.dim == {SI.m: 2, SI.s: -2}
@@ -699,10 +704,10 @@ def test_pow_overload_unitful_with_fractional_dimensions():
     # Create a unit with fractional dimension: m^(2/3)
     fractional_unit = Unit(scale=0, dim={SI.m: Fraction(2, 3)})
     value = Unitful(val=jnp.array(8.0), unit=fractional_unit)
-    
+
     # Raise to power 3: (m^(2/3))^3 = m^2
     result = pow(value, 3)
-    
+
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), 512.0)  # 8^3 = 512
     assert result.unit.dim == {SI.m: 2}  # (2/3) * 3 = 2
@@ -713,9 +718,9 @@ def test_pow_overload_jax_arrays():
     # Test that the overloaded pow still works with regular JAX arrays
     base = jnp.array([2.0, 3.0, 4.0])
     exponent = jnp.array([2.0, 3.0, 2.0])
-    
+
     result = jax.lax.pow(base, exponent)
-    
+
     # Expected: [2^2, 3^3, 4^2] = [4, 27, 16]
     expected = jnp.array([4.0, 27.0, 16.0])
     assert jnp.allclose(result, expected)
@@ -728,9 +733,9 @@ def test_at_get_single_index():
     """Test getting a single value using .at[].get()"""
     distance_unit = Unit(scale=0, dim={SI.m: 1})
     distances = Unitful(val=jnp.array([10.0, 20.0, 30.0, 40.0]), unit=distance_unit)
-    
+
     result = distances.at[2].get()
-    
+
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), 30.0)
     assert result.unit.dim == {SI.m: 1}
@@ -740,9 +745,9 @@ def test_at_get_slice():
     """Test getting a slice using .at[].get()"""
     time_unit = Unit(scale=-3, dim={SI.s: 1})  # milliseconds
     times = Unitful(val=jnp.array([1.0, 2.0, 3.0, 4.0, 5.0]), unit=time_unit)
-    
+
     result = times.at[1:4].get()
-    
+
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), jnp.array([2.0e-3, 3.0e-3, 4.0e-3]))
     assert result.unit.dim == {SI.s: 1}
@@ -753,9 +758,9 @@ def test_at_set_single_index_same_units():
     mass_unit = Unit(scale=0, dim={SI.kg: 1})
     masses = Unitful(val=jnp.array([1.0, 2.0, 3.0, 4.0]), unit=mass_unit)
     new_mass = Unitful(val=jnp.array(99.0), unit=mass_unit)
-    
+
     result = masses.at[2].set(new_mass)
-    
+
     assert isinstance(result, Unitful)
     expected = jnp.array([1.0, 2.0, 99.0, 4.0])
     assert jnp.allclose(result.value(), expected)
@@ -764,14 +769,14 @@ def test_at_set_single_index_same_units():
 
 def test_at_set_different_scales_same_dimensions():
     """Test setting values with different scales but same dimensions"""
-    time_unit_s = Unit(scale=0, dim={SI.s: 1})    # seconds
+    time_unit_s = Unit(scale=0, dim={SI.s: 1})  # seconds
     time_unit_ms = Unit(scale=-3, dim={SI.s: 1})  # milliseconds
-    
+
     times = Unitful(val=jnp.array([1.0, 2.0, 3.0]), unit=time_unit_s)
     new_time = Unitful(val=jnp.array(5000.0), unit=time_unit_ms)  # 5000 ms = 5 s
-    
+
     result = times.at[1].set(new_time)
-    
+
     assert isinstance(result, Unitful)
     expected = jnp.array([1.0, 5.0, 3.0])  # 5000 ms converted to 5 s
     assert jnp.allclose(result.value(), expected)
@@ -783,9 +788,9 @@ def test_at_add_single_index():
     force_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2})  # Newtons
     forces = Unitful(val=jnp.array([10.0, 20.0, 30.0]), unit=force_unit)
     additional_force = Unitful(val=jnp.array(5.0), unit=force_unit)
-    
+
     result = forces.at[1].add(additional_force)
-    
+
     assert isinstance(result, Unitful)
     expected = jnp.array([10.0, 25.0, 30.0])  # 20 + 5 = 25
     assert jnp.allclose(result.value(), expected)
@@ -794,14 +799,14 @@ def test_at_add_single_index():
 
 def test_at_add_with_scale_alignment():
     """Test adding values that require scale alignment"""
-    energy_unit_j = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -2})    # Joules
-    energy_unit_kj = Unit(scale=3, dim={SI.kg: 1, SI.m: 2, SI.s: -2})   # kiloJoules
-    
+    energy_unit_j = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -2})  # Joules
+    energy_unit_kj = Unit(scale=3, dim={SI.kg: 1, SI.m: 2, SI.s: -2})  # kiloJoules
+
     energies = Unitful(val=jnp.array([100.0, 200.0, 300.0]), unit=energy_unit_j)
     additional_energy = Unitful(val=jnp.array(2.0), unit=energy_unit_kj)  # 2 kJ = 2000 J
-    
+
     result = energies.at[0].add(additional_energy)
-    
+
     assert isinstance(result, Unitful)
     expected = jnp.array([2100.0, 200.0, 300.0])  # 100 + 2000 = 2100
     assert jnp.allclose(result.value(), expected)
@@ -813,9 +818,9 @@ def test_at_subtract_single_index():
     voltage_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -3, SI.A: -1})  # Volts
     voltages = Unitful(val=jnp.array([12.0, 24.0, 36.0]), unit=voltage_unit)
     voltage_drop = Unitful(val=jnp.array(3.0), unit=voltage_unit)
-    
+
     result = voltages.at[2].subtract(voltage_drop)
-    
+
     assert isinstance(result, Unitful)
     expected = jnp.array([12.0, 24.0, 33.0])  # 36 - 3 = 33
     assert jnp.allclose(result.value(), expected)
@@ -828,9 +833,9 @@ def test_at_subtract_slice_with_fractional_dimensions():
     fractional_unit = Unit(scale=0, dim={SI.kg: Fraction(3, 4)})
     values = Unitful(val=jnp.array([10.0, 20.0, 30.0, 40.0]), unit=fractional_unit)
     subtract_value = Unitful(val=jnp.array([1.0, 2.0]), unit=fractional_unit)
-    
+
     result = values.at[1:3].subtract(subtract_value)
-    
+
     assert isinstance(result, Unitful)
     expected = jnp.array([10.0, 19.0, 28.0, 40.0])  # [20-1, 30-2] = [19, 28]
     assert jnp.allclose(result.value(), expected)
@@ -842,9 +847,9 @@ def test_at_multiply_single_index():
     current_unit = Unit(scale=0, dim={SI.A: 1})
     currents = Unitful(val=jnp.array([1.0, 2.0, 3.0, 4.0]), unit=current_unit)
     multiplier = jnp.array(5.0)  # Scalar JAX array
-    
+
     result = currents.at[2].multiply(multiplier)
-    
+
     assert isinstance(result, Unitful)
     expected = jnp.array([1.0, 2.0, 15.0, 4.0])  # 3 * 5 = 15
     assert jnp.allclose(result.value(), expected)
@@ -856,9 +861,9 @@ def test_at_multiply_array_slice():
     pressure_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: -1, SI.s: -2})  # Pascals
     pressures = Unitful(val=jnp.array([100.0, 200.0, 300.0, 400.0]), unit=pressure_unit)
     multipliers = jnp.array([2.0, 3.0])  # Array of multipliers
-    
+
     result = pressures.at[1:3].multiply(multipliers)
-    
+
     assert isinstance(result, Unitful)
     expected = jnp.array([100.0, 400.0, 900.0, 400.0])  # [200*2, 300*3] = [400, 900]
     assert jnp.allclose(result.value(), expected)
@@ -870,9 +875,9 @@ def test_at_divide_single_index():
     frequency_unit = Unit(scale=0, dim={SI.s: -1})  # Hertz
     frequencies = Unitful(val=jnp.array([100.0, 200.0, 300.0]), unit=frequency_unit)
     divisor = jnp.array(4.0)
-    
+
     result = frequencies.at[1].divide(divisor)
-    
+
     assert isinstance(result, Unitful)
     expected = jnp.array([100.0, 50.0, 300.0])  # 200 / 4 = 50
     assert jnp.allclose(result.value(), expected)
@@ -884,9 +889,9 @@ def test_at_divide_multiple_indices():
     temperature_unit = Unit(scale=0, dim={SI.K: 1})
     temperatures = Unitful(val=jnp.array([300.0, 400.0, 500.0, 600.0]), unit=temperature_unit)
     divisors = jnp.array([2.0, 5.0])
-    
+
     result = temperatures.at[0:2].divide(divisors)
-    
+
     assert isinstance(result, Unitful)
     expected = jnp.array([150.0, 80.0, 500.0, 600.0])  # [300/2, 400/5] = [150, 80]
     assert jnp.allclose(result.value(), expected)
@@ -898,10 +903,10 @@ def test_at_set_different_units_raises_error():
     """Test that setting with different units raises an exception"""
     length_unit = Unit(scale=0, dim={SI.m: 1})
     time_unit = Unit(scale=0, dim={SI.s: 1})
-    
+
     lengths = Unitful(val=jnp.array([1.0, 2.0, 3.0]), unit=length_unit)
     time_value = Unitful(val=jnp.array(5.0), unit=time_unit)
-    
+
     with pytest.raises(Exception, match="Cannot update array value with different unit"):
         lengths.at[1].set(time_value)
 
@@ -910,10 +915,10 @@ def test_at_add_different_units_raises_error():
     """Test that adding with different units raises an exception"""
     mass_unit = Unit(scale=0, dim={SI.kg: 1})
     length_unit = Unit(scale=0, dim={SI.m: 1})
-    
+
     masses = Unitful(val=jnp.array([10.0, 20.0]), unit=mass_unit)
     length_value = Unitful(val=jnp.array(3.0), unit=length_unit)
-    
+
     with pytest.raises(Exception, match="Cannot update array value with different unit"):
         masses.at[0].add(length_value)
 
@@ -923,8 +928,10 @@ def test_at_multiply_with_unitful_raises_error():
     power_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -3})  # Watts
     powers = Unitful(val=jnp.array([100.0, 200.0]), unit=power_unit)
     unitful_multiplier = Unitful(val=jnp.array(2.0), unit=power_unit)
-    
-    with pytest.raises(Exception, match="Multiplying part of an array with another Unitful would lead to different units"):
+
+    with pytest.raises(
+        Exception, match="Multiplying part of an array with another Unitful would lead to different units"
+    ):
         powers.at[0].multiply(unitful_multiplier)  # type: ignore
 
 
@@ -933,8 +940,10 @@ def test_at_divide_with_unitful_raises_error():
     energy_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -2})  # Joules
     energies = Unitful(val=jnp.array([1000.0, 2000.0]), unit=energy_unit)
     unitful_divisor = Unitful(val=jnp.array(10.0), unit=energy_unit)
-    
-    with pytest.raises(Exception, match="Multiplying part of an array with another Unitful would lead to different units"):
+
+    with pytest.raises(
+        Exception, match="Multiplying part of an array with another Unitful would lead to different units"
+    ):
         energies.at[0].divide(unitful_divisor)  # type: ignore
 
 
@@ -942,7 +951,7 @@ def test_at_power_raises_error():
     """Test that the power method raises an exception"""
     area_unit = Unit(scale=0, dim={SI.m: 2})
     areas = Unitful(val=jnp.array([4.0, 9.0, 16.0]), unit=area_unit)
-    
+
     with pytest.raises(Exception, match="Raising part of an array to a power is an undefined operation"):
         areas.at[1].power(2)
 
@@ -951,17 +960,17 @@ def test_at_scalar_value_raises_error():
     """Test that using .at operations on scalar values raises exceptions"""
     scalar_unit = Unit(scale=0, dim={SI.kg: 1})
     scalar_value = Unitful(val=42.0, unit=scalar_unit)
-    
+
     # Test various operations on scalar
     with pytest.raises(Exception, match="Cannot index scalar value"):
         scalar_value.at[0].get()
-    
+
     with pytest.raises(Exception, match="Cannot index scalar value"):
         scalar_value.at[0].set(Unitful(val=1.0, unit=scalar_unit))
-    
+
     with pytest.raises(Exception, match="Cannot index scalar value"):
         scalar_value.at[0].add(Unitful(val=1.0, unit=scalar_unit))
-    
+
     with pytest.raises(Exception, match="Cannot index scalar value"):
         scalar_value.at[0].multiply(jnp.array(2.0))
 
@@ -970,14 +979,14 @@ def test_at_no_where_clause_raises_error():
     """Test that operations without a where clause raise exceptions"""
     unit = Unit(scale=0, dim={SI.cd: 1})  # Candela
     values = Unitful(val=jnp.array([1.0, 2.0, 3.0]), unit=unit)
-    
+
     # Test operations without indexing first
     with pytest.raises(Exception, match="Cannot update value if no where clause is given"):
         values.at.set(Unitful(val=jnp.array(5.0), unit=unit))
-    
+
     with pytest.raises(Exception, match="Cannot update value if no where clause is given"):
         values.at.add(Unitful(val=jnp.array(1.0), unit=unit))
-    
+
     with pytest.raises(Exception, match="Cannot update value if no where clause is given"):
         values.at.multiply(jnp.array(2.0))
 
@@ -986,7 +995,7 @@ def test_at_double_indexing_raises_error():
     """Test that double indexing [][] raises an exception"""
     unit = Unit(scale=0, dim={SI.m: 1})
     values = Unitful(val=jnp.array([[1.0, 2.0], [3.0, 4.0]]), unit=unit)
-    
+
     with pytest.raises(Exception, match="Double Indexing .* is currently not supported"):
         values.at[0][1].get()
 
@@ -994,34 +1003,23 @@ def test_at_double_indexing_raises_error():
 def test_at_get_preserves_complex_units():
     """Test that .at[].get() preserves complex units with fractional dimensions"""
     # Create a complex unit: m^(5/3) * kg^(-2/7) * s^(1/2)
-    complex_unit = Unit(
-        scale=-2, 
-        dim={
-            SI.m: Fraction(5, 3), 
-            SI.kg: Fraction(-2, 7), 
-            SI.s: Fraction(1, 2)
-        }
-    )
+    complex_unit = Unit(scale=-2, dim={SI.m: Fraction(5, 3), SI.kg: Fraction(-2, 7), SI.s: Fraction(1, 2)})
     values = Unitful(val=jnp.array([1.0, 4.0, 9.0]), unit=complex_unit)
-    
+
     result = values.at[1].get()
-    
+
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), 4.0e-2)  # scale=-2 means *0.01
-    assert result.unit.dim == {
-        SI.m: Fraction(5, 3), 
-        SI.kg: Fraction(-2, 7), 
-        SI.s: Fraction(1, 2)
-    }
+    assert result.unit.dim == {SI.m: Fraction(5, 3), SI.kg: Fraction(-2, 7), SI.s: Fraction(1, 2)}
 
 
 def test_min_magic_method():
     """Test min magic method on Unitful objects"""
     temperature_unit = Unit(scale=0, dim={SI.K: 1})
     temperatures = Unitful(val=jnp.array([300.0, 250.0, 400.0, 275.0]), unit=temperature_unit)
-    
+
     result = temperatures.min()
-    
+
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), 250.0)
     assert result.unit.dim == {SI.K: 1}
@@ -1032,9 +1030,9 @@ def test_min_overload_unitful():
     # Create pressure values with scale
     pressure_unit = Unit(scale=3, dim={SI.kg: 1, SI.m: -1, SI.s: -2})  # kilopascals
     pressures = Unitful(val=jnp.array([101.0, 95.5, 110.2, 88.7, 105.3]), unit=pressure_unit)
-    
+
     result = jnp.min(pressures)  # type: ignore
-    
+
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), 88.7e3)  # 88.7 kPa = 88700 Pa
     assert result.unit.dim == {SI.kg: 1, SI.m: -1, SI.s: -2}
@@ -1043,9 +1041,9 @@ def test_min_overload_unitful():
 def test_min_overload_jax_arrays():
     """Test min function with regular JAX arrays"""
     array = jnp.array([15.0, 3.2, 42.1, 8.9, 25.6])
-    
+
     result = jnp.min(array)
-    
+
     assert jnp.allclose(result, 3.2)
     assert isinstance(result, jax.Array)
     assert not isinstance(result, Unitful)
@@ -1055,10 +1053,10 @@ def test_min_with_axis_parameter():
     """Test min method with axis parameter on 2D Unitful array"""
     energy_unit = Unit(scale=-3, dim={SI.kg: 1, SI.m: 2, SI.s: -2})  # millijoules
     energies = Unitful(val=jnp.array([[10.0, 20.0, 30.0], [5.0, 15.0, 25.0]]), unit=energy_unit)
-    
+
     # Min along axis 0 (columns)
     result = energies.min(axis=0)
-    
+
     assert isinstance(result, Unitful)
     expected_vals = jnp.array([5.0, 15.0, 25.0])
     assert jnp.allclose(result.value(), expected_vals * 1e-3)  # Convert to joules
@@ -1070,9 +1068,9 @@ def test_min_with_fractional_dimensions():
     # Create a unit with fractional dimension: m^(3/2)
     fractional_unit = Unit(scale=0, dim={SI.m: Fraction(3, 2)})
     values = Unitful(val=jnp.array([8.0, 27.0, 64.0, 125.0]), unit=fractional_unit)
-    
+
     result = values.min()
-    
+
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), 8.0)
     assert result.unit.dim == {SI.m: Fraction(3, 2)}
@@ -1082,9 +1080,9 @@ def test_max_magic_method():
     """Test max magic method on Unitful objects"""
     current_unit = Unit(scale=-3, dim={SI.A: 1})  # milliamps
     currents = Unitful(val=jnp.array([150.0, 200.0, 180.0, 250.0, 120.0]), unit=current_unit)
-    
+
     result = currents.max()
-    
+
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), 250.0e-3)  # 250 mA = 0.25 A
     assert result.unit.dim == {SI.A: 1}
@@ -1095,9 +1093,9 @@ def test_max_overload_unitful():
     # Create force values
     force_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2})  # Newtons
     forces = Unitful(val=jnp.array([12.5, 8.3, 19.7, 15.2]), unit=force_unit)
-    
+
     result = jnp.max(forces)  # type: ignore
-    
+
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), 19.7)
     assert result.unit.dim == {SI.kg: 1, SI.m: 1, SI.s: -2}
@@ -1106,9 +1104,9 @@ def test_max_overload_unitful():
 def test_max_overload_jax_arrays():
     """Test max function with regular JAX arrays"""
     array = jnp.array([7.1, 23.4, 11.8, 45.2, 19.6])
-    
+
     result = jnp.max(array)
-    
+
     assert jnp.allclose(result, 45.2)
     assert isinstance(result, jax.Array)
     assert not isinstance(result, Unitful)
@@ -1118,10 +1116,10 @@ def test_max_with_keepdims_parameter():
     """Test max method with keepdims parameter on 2D Unitful array"""
     voltage_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -3, SI.A: -1})  # Volts
     voltages = Unitful(val=jnp.array([[12.0, 24.0], [36.0, 48.0], [6.0, 18.0]]), unit=voltage_unit)
-    
+
     # Max along axis 1 with keepdims=True
     result = voltages.max(axis=1, keepdims=True)
-    
+
     assert isinstance(result, Unitful)
     expected_vals = jnp.array([[24.0], [48.0], [18.0]])
     assert jnp.allclose(result.value(), expected_vals)
@@ -1134,9 +1132,9 @@ def test_max_with_complex_units():
     # Create power density unit: kg * s^(-3) (Watts per square meter)
     power_density_unit = Unit(scale=2, dim={SI.kg: 1, SI.s: -3})
     values = Unitful(val=jnp.array([0.5, 1.2, 0.8, 2.1, 1.5]), unit=power_density_unit)
-    
+
     result = values.max()
-    
+
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), 2.1e2)  # scale=2 means *100
     assert result.unit.dim == {SI.kg: 1, SI.s: -3}
@@ -1146,9 +1144,9 @@ def test_mean_magic_method():
     """Test mean magic method on Unitful objects"""
     mass_unit = Unit(scale=0, dim={SI.kg: 1})
     masses = Unitful(val=jnp.array([10.0, 20.0, 30.0, 40.0]), unit=mass_unit)
-    
+
     result = masses.mean()
-    
+
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), 25.0)  # (10+20+30+40)/4 = 25
     assert result.unit.dim == {SI.kg: 1}
@@ -1159,9 +1157,9 @@ def test_mean_overload_unitful():
     # Create time values with millisecond scale
     time_unit = Unit(scale=-3, dim={SI.s: 1})  # milliseconds
     times = Unitful(val=jnp.array([100.0, 200.0, 300.0, 400.0, 500.0]), unit=time_unit)
-    
+
     result = jnp.mean(times)  # type: ignore
-    
+
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), 300.0e-3)  # 300 ms = 0.3 s
     assert result.unit.dim == {SI.s: 1}
@@ -1170,9 +1168,9 @@ def test_mean_overload_unitful():
 def test_mean_overload_jax_arrays():
     """Test mean function with regular JAX arrays"""
     array = jnp.array([2.5, 7.1, 4.8, 9.3, 6.2])
-    
+
     result = jnp.mean(array)
-    
+
     expected = (2.5 + 7.1 + 4.8 + 9.3 + 6.2) / 5
     assert jnp.allclose(result, expected)
     assert isinstance(result, jax.Array)
@@ -1183,15 +1181,13 @@ def test_mean_with_axis_parameter():
     """Test mean method with axis parameter on 2D Unitful array"""
     # Create a 3x4 array of distances
     distance_unit = Unit(scale=3, dim={SI.m: 1})  # kilometers
-    distances = Unitful(val=jnp.array([
-        [1.0, 2.0, 3.0, 4.0],
-        [5.0, 6.0, 7.0, 8.0],
-        [9.0, 10.0, 11.0, 12.0]
-    ]), unit=distance_unit)
-    
+    distances = Unitful(
+        val=jnp.array([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0], [9.0, 10.0, 11.0, 12.0]]), unit=distance_unit
+    )
+
     # Mean along axis 0 (rows)
     result = distances.mean(axis=0)
-    
+
     assert isinstance(result, Unitful)
     expected_vals = jnp.array([5.0, 6.0, 7.0, 8.0])  # Column means
     assert jnp.allclose(result.value(), expected_vals * 1e3)  # Convert to meters
@@ -1202,22 +1198,14 @@ def test_mean_with_axis_parameter():
 def test_mean_with_fractional_and_negative_dimensions():
     """Test mean with complex fractional and negative dimensions"""
     # Create a unit: kg^(-2/3) * m^(4/5) * s^(-1)
-    complex_unit = Unit(scale=-1, dim={
-        SI.kg: Fraction(-2, 3), 
-        SI.m: Fraction(4, 5), 
-        SI.s: -1
-    })
+    complex_unit = Unit(scale=-1, dim={SI.kg: Fraction(-2, 3), SI.m: Fraction(4, 5), SI.s: -1})
     values = Unitful(val=jnp.array([2.0, 4.0, 6.0, 8.0, 10.0]), unit=complex_unit)
-    
+
     result = values.mean()
-    
+
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), 6.0e-1)  # mean=6.0, scale=-1 means *0.1
-    assert result.unit.dim == {
-        SI.kg: Fraction(-2, 3), 
-        SI.m: Fraction(4, 5), 
-        SI.s: -1
-    }
+    assert result.unit.dim == {SI.kg: Fraction(-2, 3), SI.m: Fraction(4, 5), SI.s: -1}
 
 
 def test_mean_preserves_all_unit_properties():
@@ -1225,9 +1213,9 @@ def test_mean_preserves_all_unit_properties():
     # Test with charge unit: A * s (Coulombs) at micro scale
     charge_unit = Unit(scale=-6, dim={SI.A: 1, SI.s: 1})
     charges = Unitful(val=jnp.array([10.0, 20.0, 30.0]), unit=charge_unit)
-    
+
     result = charges.mean()  # type: ignore
-    
+
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), 20.0e-6)  # 20 microCoulombs
     assert result.unit.dim == {SI.A: 1, SI.s: 1}
@@ -1237,9 +1225,9 @@ def test_sum_magic_method():
     """Test sum magic method on Unitful objects"""
     energy_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -2})  # Joules
     energies = Unitful(val=jnp.array([10.0, 20.0, 30.0, 40.0]), unit=energy_unit)
-    
+
     result = energies.sum()
-    
+
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), 100.0)  # 10+20+30+40 = 100
     assert result.unit.dim == {SI.kg: 1, SI.m: 2, SI.s: -2}
@@ -1249,15 +1237,11 @@ def test_sum_overload_with_axis_and_scale():
     """Test sum function with axis parameter and unit scale conversion"""
     # Create power values with kilowatt scale
     power_unit = Unit(scale=3, dim={SI.kg: 1, SI.m: 2, SI.s: -3})  # kilowatts
-    powers = Unitful(val=jnp.array([
-        [1.0, 2.0, 3.0],
-        [4.0, 5.0, 6.0],
-        [7.0, 8.0, 9.0]
-    ]), unit=power_unit)
-    
+    powers = Unitful(val=jnp.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]), unit=power_unit)
+
     # Sum along axis 1 (rows)
     result = jnp.sum(powers, axis=1)  # type: ignore
-    
+
     assert isinstance(result, Unitful)
     expected_vals = jnp.array([6.0, 15.0, 24.0])  # Row sums
     assert jnp.allclose(result.value(), expected_vals * 1e3)  # Convert to watts
@@ -1268,28 +1252,16 @@ def test_sum_overload_with_axis_and_scale():
 def test_sum_with_fractional_dimensions_and_keepdims():
     """Test sum with complex fractional dimensions and keepdims parameter"""
     # Create a unit with mixed fractional dimensions: m^(5/4) * kg^(-1/2) * s^(3/7)
-    complex_unit = Unit(scale=-2, dim={
-        SI.m: Fraction(5, 4), 
-        SI.kg: Fraction(-1, 2), 
-        SI.s: Fraction(3, 7)
-    })
-    values = Unitful(val=jnp.array([
-        [2.0, 4.0], 
-        [6.0, 8.0], 
-        [10.0, 12.0]
-    ]), unit=complex_unit)
-    
+    complex_unit = Unit(scale=-2, dim={SI.m: Fraction(5, 4), SI.kg: Fraction(-1, 2), SI.s: Fraction(3, 7)})
+    values = Unitful(val=jnp.array([[2.0, 4.0], [6.0, 8.0], [10.0, 12.0]]), unit=complex_unit)
+
     # Sum along axis 0 with keepdims=True
     result = values.sum(axis=0, keepdims=True)
-    
+
     assert isinstance(result, Unitful)
     expected_vals = jnp.array([[18.0, 24.0]])  # Column sums: [2+6+10, 4+8+12]
     assert jnp.allclose(result.value(), expected_vals * 1e-2)  # scale=-2 means *0.01
-    assert result.unit.dim == {
-        SI.m: Fraction(5, 4), 
-        SI.kg: Fraction(-1, 2), 
-        SI.s: Fraction(3, 7)
-    }
+    assert result.unit.dim == {SI.m: Fraction(5, 4), SI.kg: Fraction(-1, 2), SI.s: Fraction(3, 7)}
     assert result.val.shape == (1, 2)  # type: ignore
 
 
@@ -1297,7 +1269,7 @@ def test_shape_scalar_python_int():
     """Test shape property with Python scalar integer"""
     time_unit = Unit(scale=0, dim={SI.s: 1})
     scalar_time = Unitful(val=5.0, unit=time_unit)
-    
+
     assert scalar_time.shape == ()
 
 
@@ -1305,15 +1277,15 @@ def test_shape_scalar_python_float():
     """Test shape property with Python scalar float"""
     mass_unit = Unit(scale=0, dim={SI.kg: 1})
     scalar_mass = Unitful(val=2.5, unit=mass_unit)
-    
+
     assert scalar_mass.shape == ()
 
 
 def test_shape_scalar_python_complex():
     """Test shape property with Python scalar complex"""
     impedance_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -3, SI.A: -2})
-    scalar_impedance = Unitful(val=3+4j, unit=impedance_unit)
-    
+    scalar_impedance = Unitful(val=3 + 4j, unit=impedance_unit)
+
     assert scalar_impedance.shape == ()
 
 
@@ -1321,7 +1293,7 @@ def test_shape_1d_array():
     """Test shape property with 1D JAX array"""
     distance_unit = Unit(scale=0, dim={SI.m: 1})
     distances = Unitful(val=jnp.array([1.0, 2.0, 3.0, 4.0, 5.0]), unit=distance_unit)
-    
+
     assert distances.shape == (5,)
 
 
@@ -1329,7 +1301,7 @@ def test_shape_2d_array():
     """Test shape property with 2D JAX array"""
     force_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2})
     forces = Unitful(val=jnp.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]), unit=force_unit)
-    
+
     assert forces.shape == (2, 3)
 
 
@@ -1337,7 +1309,7 @@ def test_shape_3d_array():
     """Test shape property with 3D JAX array"""
     voltage_unit = Unit(scale=-3, dim={SI.kg: 1, SI.m: 2, SI.s: -3, SI.A: -1})  # millivolts
     voltages = Unitful(val=jnp.array([[[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]]]), unit=voltage_unit)
-    
+
     assert voltages.shape == (2, 2, 2)
 
 
@@ -1345,7 +1317,7 @@ def test_shape_empty_array():
     """Test shape property with empty JAX array"""
     current_unit = Unit(scale=0, dim={SI.A: 1})
     empty_currents = Unitful(val=jnp.array([]), unit=current_unit)
-    
+
     assert empty_currents.shape == (0,)
 
 
@@ -1353,7 +1325,7 @@ def test_shape_with_fractional_dimensions():
     """Test shape property with fractional unit dimensions"""
     fractional_unit = Unit(scale=2, dim={SI.m: Fraction(3, 2), SI.kg: Fraction(-1, 4)})
     values = Unitful(val=jnp.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]), unit=fractional_unit)
-    
+
     assert values.shape == (3, 3)
 
 
@@ -1361,15 +1333,15 @@ def test_dtype_float32_array():
     """Test dtype property with float32 JAX array"""
     temp_unit = Unit(scale=0, dim={SI.K: 1})
     temperatures = Unitful(val=jnp.array([300.0, 310.0, 320.0], dtype=jnp.float32), unit=temp_unit)
-    
+
     assert temperatures.dtype == jnp.float32
 
 
 def test_dtype_complex64_array():
     """Test dtype property with complex64 JAX array"""
     impedance_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -3, SI.A: -2})
-    impedances = Unitful(val=jnp.array([1+2j, 3+4j], dtype=jnp.complex64), unit=impedance_unit)
-    
+    impedances = Unitful(val=jnp.array([1 + 2j, 3 + 4j], dtype=jnp.complex64), unit=impedance_unit)
+
     assert impedances.dtype == jnp.complex64
 
 
@@ -1377,7 +1349,7 @@ def test_dtype_scalar_raises_exception():
     """Test that accessing dtype on scalar values raises an exception"""
     energy_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -2})
     scalar_energy = Unitful(val=42.0, unit=energy_unit)
-    
+
     with pytest.raises(Exception, match="Python scalar does not have dtype attribute"):
         _ = scalar_energy.dtype
 
@@ -1386,7 +1358,7 @@ def test_dtype_python_int_scalar_raises_exception():
     """Test that accessing dtype on Python int scalar raises an exception"""
     dimensionless_unit = Unit(scale=0, dim={})
     scalar_int = Unitful(val=5, unit=dimensionless_unit)
-    
+
     with pytest.raises(Exception, match="Python scalar does not have dtype attribute"):
         _ = scalar_int.dtype
 
@@ -1394,8 +1366,8 @@ def test_dtype_python_int_scalar_raises_exception():
 def test_dtype_python_complex_scalar_raises_exception():
     """Test that accessing dtype on Python complex scalar raises an exception"""
     impedance_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -3, SI.A: -2})
-    scalar_complex = Unitful(val=3+4j, unit=impedance_unit)
-    
+    scalar_complex = Unitful(val=3 + 4j, unit=impedance_unit)
+
     with pytest.raises(Exception, match="Python scalar does not have dtype attribute"):
         _ = scalar_complex.dtype
 
@@ -1406,15 +1378,15 @@ def test_ndim_scalar_python_types():
     int_unit = Unit(scale=0, dim={SI.kg: 1})
     scalar_int = Unitful(val=42.0, unit=int_unit)
     assert scalar_int.ndim == 0
-    
+
     # Test with Python float
     float_unit = Unit(scale=0, dim={SI.cd: 1})
     scalar_float = Unitful(val=3.14, unit=float_unit)
     assert scalar_float.ndim == 0
-    
+
     # Test with Python complex
     complex_unit = Unit(scale=0, dim={SI.A: 1, SI.s: 1})
-    scalar_complex = Unitful(val=2+3j, unit=complex_unit)
+    scalar_complex = Unitful(val=2 + 3j, unit=complex_unit)
     assert scalar_complex.ndim == 0
 
 
@@ -1422,7 +1394,7 @@ def test_ndim_1d_array():
     """Test ndim property with 1D JAX array"""
     length_unit = Unit(scale=-2, dim={SI.m: 1})  # centimeters
     lengths = Unitful(val=jnp.array([10.0, 20.0, 30.0]), unit=length_unit)
-    
+
     assert lengths.ndim == 1
 
 
@@ -1430,7 +1402,7 @@ def test_ndim_2d_array():
     """Test ndim property with 2D JAX array"""
     area_unit = Unit(scale=0, dim={SI.m: 2})
     areas = Unitful(val=jnp.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]), unit=area_unit)
-    
+
     assert areas.ndim == 2
 
 
@@ -1438,7 +1410,7 @@ def test_ndim_3d_array():
     """Test ndim property with 3D JAX array"""
     volume_unit = Unit(scale=3, dim={SI.m: 3})  # cubic kilometers
     volumes = Unitful(val=jnp.array([[[1.0]]]), unit=volume_unit)
-    
+
     assert volumes.ndim == 3
 
 
@@ -1446,19 +1418,15 @@ def test_ndim_4d_array():
     """Test ndim property with 4D JAX array"""
     hypervolume_unit = Unit(scale=0, dim={SI.m: 4})
     hypervolumes = Unitful(val=jnp.ones((2, 3, 4, 5)), unit=hypervolume_unit)
-    
+
     assert hypervolumes.ndim == 4
 
 
 def test_ndim_with_complex_fractional_units():
     """Test ndim property with complex fractional unit dimensions"""
-    complex_unit = Unit(scale=-1, dim={
-        SI.kg: Fraction(2, 3), 
-        SI.m: Fraction(-5, 7), 
-        SI.s: Fraction(4, 9)
-    })
+    complex_unit = Unit(scale=-1, dim={SI.kg: Fraction(2, 3), SI.m: Fraction(-5, 7), SI.s: Fraction(4, 9)})
     values = Unitful(val=jnp.array([[[1.0, 2.0]], [[3.0, 4.0]]]), unit=complex_unit)
-    
+
     assert values.ndim == 3
 
 
@@ -1466,7 +1434,7 @@ def test_ndim_empty_1d_array():
     """Test ndim property with empty 1D array"""
     power_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -3})
     empty_powers = Unitful(val=jnp.array([]), unit=power_unit)
-    
+
     assert empty_powers.ndim == 1
 
 
@@ -1476,15 +1444,15 @@ def test_size_scalar_python_types():
     frequency_unit = Unit(scale=6, dim={SI.s: -1})  # megahertz
     scalar_freq = Unitful(val=100.0, unit=frequency_unit)
     assert scalar_freq.size == 1
-    
+
     # Test with Python float
     resistance_unit = Unit(scale=3, dim={SI.kg: 1, SI.m: 2, SI.s: -3, SI.A: -2})  # kiloohms
     scalar_resistance = Unitful(val=4.7, unit=resistance_unit)
     assert scalar_resistance.size == 1
-    
+
     # Test with Python complex
     admittance_unit = Unit(scale=-3, dim={SI.kg: -1, SI.m: -2, SI.s: 3, SI.A: 2})  # millisiemens
-    scalar_admittance = Unitful(val=1+2j, unit=admittance_unit)
+    scalar_admittance = Unitful(val=1 + 2j, unit=admittance_unit)
     assert scalar_admittance.size == 1
 
 
@@ -1494,12 +1462,12 @@ def test_size_1d_arrays():
     wavelength_unit = Unit(scale=-9, dim={SI.m: 1})  # nanometers
     small_wavelengths = Unitful(val=jnp.array([400.0, 500.0, 600.0]), unit=wavelength_unit)
     assert small_wavelengths.size == 3
-    
+
     # Larger array
     time_unit = Unit(scale=-6, dim={SI.s: 1})  # microseconds
     times = Unitful(val=jnp.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]), unit=time_unit)
     assert times.size == 10
-    
+
     # Single element array
     charge_unit = Unit(scale=-19, dim={SI.A: 1, SI.s: 1})  # elementary charge scale
     single_charge = Unitful(val=jnp.array([1.602]), unit=charge_unit)
@@ -1512,7 +1480,7 @@ def test_size_2d_arrays():
     flux_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -2, SI.A: -1})  # webers
     flux_2x3 = Unitful(val=jnp.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]), unit=flux_unit)
     assert flux_2x3.size == 6
-    
+
     # Square array
     conductance_unit = Unit(scale=-3, dim={SI.kg: -1, SI.m: -2, SI.s: 3, SI.A: 2})  # millisiemens
     square_array = Unitful(val=jnp.ones((4, 4)), unit=conductance_unit)
@@ -1525,7 +1493,7 @@ def test_size_3d_arrays():
     magnetic_field_unit = Unit(scale=-3, dim={SI.kg: 1, SI.s: -2, SI.A: -1})  # millitesla
     field_3d = Unitful(val=jnp.zeros((2, 3, 4)), unit=magnetic_field_unit)
     assert field_3d.size == 24
-    
+
     # Cubic array
     density_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: -3})
     cubic_density = Unitful(val=jnp.ones((5, 5, 5)), unit=density_unit)
@@ -1538,7 +1506,7 @@ def test_size_higher_dimensional_arrays():
     hyperfield_unit = Unit(scale=0, dim={SI.kg: 2, SI.m: -1, SI.s: -4})
     hyperfield_4d = Unitful(val=jnp.ones((2, 3, 4, 5)), unit=hyperfield_unit)
     assert hyperfield_4d.size == 120
-    
+
     # 5D array
     exotic_unit = Unit(scale=-12, dim={SI.kg: Fraction(1, 3), SI.cd: Fraction(-2, 5)})
     exotic_5d = Unitful(val=jnp.ones((2, 2, 2, 2, 2)), unit=exotic_unit)
@@ -1551,7 +1519,7 @@ def test_size_empty_arrays():
     luminosity_unit = Unit(scale=0, dim={SI.cd: 1})
     empty_1d = Unitful(val=jnp.array([]), unit=luminosity_unit)
     assert empty_1d.size == 0
-    
+
     # Empty 2D array
     acceleration_unit = Unit(scale=0, dim={SI.m: 1, SI.s: -2})
     empty_2d = Unitful(val=jnp.zeros((0, 5)), unit=acceleration_unit)
@@ -1561,13 +1529,10 @@ def test_size_empty_arrays():
 def test_size_with_fractional_and_negative_dimensions():
     """Test size property with complex unit dimensions"""
     # Complex fractional and negative dimensions
-    complex_unit = Unit(scale=7, dim={
-        SI.kg: Fraction(-3, 4),
-        SI.m: Fraction(5, 6),
-        SI.s: -2,
-        SI.A: Fraction(1, 7),
-        SI.K: Fraction(-2, 9)
-    })
+    complex_unit = Unit(
+        scale=7,
+        dim={SI.kg: Fraction(-3, 4), SI.m: Fraction(5, 6), SI.s: -2, SI.A: Fraction(1, 7), SI.K: Fraction(-2, 9)},
+    )
     complex_values = Unitful(val=jnp.ones((3, 7, 2)), unit=complex_unit)
     assert complex_values.size == 42
 
@@ -1576,7 +1541,7 @@ def test_properties_consistency_scalar():
     """Test that all properties are consistent for scalar values"""
     capacitance_unit = Unit(scale=-12, dim={SI.kg: -1, SI.m: -2, SI.s: 4, SI.A: 2})  # picofarads
     scalar_cap = Unitful(val=100.0, unit=capacitance_unit)
-    
+
     assert scalar_cap.shape == ()
     assert scalar_cap.ndim == 0
     assert scalar_cap.size == 1
@@ -1589,7 +1554,7 @@ def test_properties_consistency_1d_array():
     """Test that all properties are consistent for 1D arrays"""
     inductance_unit = Unit(scale=-3, dim={SI.kg: 1, SI.m: 2, SI.s: -2, SI.A: -2})  # millihenries
     array_1d = Unitful(val=jnp.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=jnp.float32), unit=inductance_unit)
-    
+
     assert array_1d.shape == (5,)
     assert array_1d.ndim == 1
     assert array_1d.size == 5
@@ -1601,9 +1566,9 @@ def test_abs_overload_unitful_with_mixed_signs():
     # Create electric field unit: kg * m * s^(-3) * A^(-1) (Volts per meter)
     electric_field_unit = Unit(scale=3, dim={SI.kg: 1, SI.m: 1, SI.s: -3, SI.A: -1})  # kV/m
     fields = Unitful(val=jnp.array([-15.0, 0.0, 25.0, -8.5, 12.3]), unit=electric_field_unit)
-    
+
     result = abs(fields)
-    
+
     assert isinstance(result, Unitful)
     expected_values = jnp.array([15.0, 0.0, 25.0, 8.5, 12.3]) * 10**3
     assert jnp.allclose(result.value(), expected_values)
@@ -1613,31 +1578,23 @@ def test_abs_overload_unitful_with_mixed_signs():
 def test_abs_overload_unitful_with_fractional_dimensions():
     """Test abs function with Unitful objects containing fractional dimensions and negative values"""
     # Create a complex unit with fractional dimensions: kg^(2/3) * m^(-1/2) * s^(3/4)
-    fractional_unit = Unit(scale=-2, dim={
-        SI.kg: Fraction(2, 3), 
-        SI.m: Fraction(-1, 2), 
-        SI.s: Fraction(3, 4)
-    })
+    fractional_unit = Unit(scale=-2, dim={SI.kg: Fraction(2, 3), SI.m: Fraction(-1, 2), SI.s: Fraction(3, 4)})
     values = Unitful(val=jnp.array([[-3.7, 2.1], [0.0, -8.9], [5.2, -1.4]]), unit=fractional_unit)
-    
+
     result = abs(values)
-    
+
     assert isinstance(result, Unitful)
-    expected_values = jnp.array([[3.7, 2.1], [0.0, 8.9], [5.2, 1.4]]) * 10**(-2)
+    expected_values = jnp.array([[3.7, 2.1], [0.0, 8.9], [5.2, 1.4]]) * 10 ** (-2)
     assert jnp.allclose(result.value(), expected_values)
-    assert result.unit.dim == {
-        SI.kg: Fraction(2, 3), 
-        SI.m: Fraction(-1, 2), 
-        SI.s: Fraction(3, 4)
-    }
-    
+    assert result.unit.dim == {SI.kg: Fraction(2, 3), SI.m: Fraction(-1, 2), SI.s: Fraction(3, 4)}
+
 
 def test_aset_unitful_should_raise():
     """Test that aset method on Unitful raises an exception (intentionally disabled)"""
     # Create a Unitful object with force units
     force_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2})
     force = Unitful(val=jnp.array([10.0, 20.0, 30.0]), unit=force_unit)
-    
+
     # Attempting to use aset should raise an exception
     with pytest.raises(Exception, match="the aset-method is unsafe for Unitful internals"):
         force.aset("val", jnp.array([40.0, 50.0, 60.0]))
@@ -1645,24 +1602,23 @@ def test_aset_unitful_should_raise():
 
 def test_aset_structure_containing_unitful():
     """Test that aset works on structures containing Unitful objects"""
-    from dataclasses import dataclass
-    
+
     # Create a structure containing Unitful objects
     @autoinit
     class PhysicsData(TreeClass):
         force: Unitful
         mass: Unitful
         name: str
-    
+
     force_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2})
     mass_unit = Unit(scale=0, dim={SI.kg: 1})
-    
+
     physics_data = PhysicsData(
         force=Unitful(val=jnp.array([100.0, 200.0]), unit=force_unit),
         mass=Unitful(val=jnp.array([5.0, 10.0]), unit=mass_unit),
-        name="test_data"
+        name="test_data",
     )
-    
+
     # Using aset on the structure should work (this tests that aset works on containers)
     new_force = Unitful(val=jnp.array([300.0, 400.0]), unit=force_unit)
     new_data = physics_data.aset("force", new_force)
@@ -1676,13 +1632,13 @@ def test_astype_unitful_float_to_complex():
     # Create a Unitful object with float values
     voltage_unit = Unit(scale=-3, dim={SI.kg: 1, SI.m: 2, SI.A: -1, SI.s: -3})  # millivolts
     voltage = Unitful(val=jnp.array([1.5, 2.7, 3.9]), unit=voltage_unit)
-    
+
     # Convert to complex dtype
     result: Unitful = jnp.astype(voltage, jnp.complex64)  # type: ignore
-    
+
     assert isinstance(result, Unitful)
     # Values should be converted to complex with zero imaginary part
-    expected_vals = jnp.array([1.5+0j, 2.7+0j, 3.9+0j], dtype=jnp.complex64) * (10 ** -3)
+    expected_vals = jnp.array([1.5 + 0j, 2.7 + 0j, 3.9 + 0j], dtype=jnp.complex64) * (10**-3)
     assert jnp.allclose(result.value(), expected_vals)
     # Units should be preserved
     assert result.unit.dim == {SI.kg: 1, SI.m: 2, SI.A: -1, SI.s: -3}
@@ -1694,10 +1650,10 @@ def test_astype_jax_array():
     """Test astype with regular JAX array"""
     # Create a float array
     array = jnp.array([1.2, 3.7, 5.8, 9.1])
-    
+
     # Convert to int32
     result = jnp.astype(array, jnp.int32)
-    
+
     # Should return a regular JAX array with truncated values
     expected = jnp.array([1, 3, 5, 9], dtype=jnp.int32)
     assert jnp.array_equal(result, expected)
@@ -1711,10 +1667,10 @@ def test_unitful_astype_method():
     # Create a Unitful object with integer values
     energy_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 2, SI.s: -2})  # kilojoules
     energy = Unitful(val=jnp.array([10, 25, 40], dtype=jnp.float32), unit=energy_unit)
-    
+
     # Use the instance method to convert to float64
     result = energy.astype(jnp.bfloat16)
-    
+
     assert isinstance(result, Unitful)
     # Values should be converted to float
     expected_vals = jnp.array([10.0, 25.0, 40.0], dtype=jnp.bfloat16)
@@ -1725,4 +1681,199 @@ def test_unitful_astype_method():
     assert result.val.dtype == jnp.bfloat16  # type: ignore
     # Original should be unchanged
     assert energy.val.dtype == jnp.float32  # type: ignore
-    
+
+
+def test_argmax_magic_method():
+    """Test argmax magic method on Unitful objects"""
+    temperature_unit = Unit(scale=0, dim={SI.K: 1})
+    temperatures = Unitful(val=jnp.array([3.0, 250.0, 400.0, 275.0, 325.0], dtype=jnp.float32), unit=temperature_unit)
+
+    result = temperatures.argmax()
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+    assert result.val == jnp.array(2)
+
+
+def test_argmax_overload_unitful():
+    """Test argmax function with Unitful objects"""
+    pressure_unit = Unit(scale=3, dim={SI.kg: 1, SI.m: -1, SI.s: -2})
+    pressures = Unitful(val=jnp.array([101.0, 95.5, 110.2, 88.7, 105.3]), unit=pressure_unit)
+
+    result = jnp.argmax(pressures)  # type: ignore
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+    assert result == jnp.array(2)
+
+
+def test_argmax_with_axis_parameter():
+    """Test argmax method with axis parameter on 2D Unitful array"""
+    force_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2})  # Newtons
+    forces = Unitful(val=jnp.array([[2.0, 8.0, 5.0], [7.0, 3.0, 9.0]]), unit=force_unit)
+
+    # Argmax along axis 1 (rows)
+    result = forces.argmax(axis=1)
+
+    assert isinstance(result, Unitful)
+    expected_indices = jnp.array([1, 2])
+    assert jnp.all(result == expected_indices)
+
+
+def test_argmax_unitfil_with_numpy_arrays():
+    """Test argmax function with Unitful objects containing NumPy arrays"""
+    pressure_unit = Unit(scale=3, dim={SI.kg: 1, SI.m: -1, SI.s: -2})
+    pressures = Unitful(val=np.array([101.0, 95.5, 110.2, 88.7, 105.3]), unit=pressure_unit)
+
+    result = pressures.argmax()
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, np.integer)
+    assert result == 2
+
+
+def test_argmax_unitful_with_StaticScalar():
+    """Test argmax function with Unitful objects containing StaticScalar"""
+
+    speed_unit = Unit(scale=0, dim={SI.m: 1, SI.s: -1})
+    speeds_float = Unitful(val=100.0, unit=speed_unit)
+    speeds_np0darray = Unitful(val=np.array(100.0), unit=speed_unit)
+    speeds_jax0darray = Unitful(val=jnp.array(100.0), unit=speed_unit)
+
+    result_float = speeds_float.argmax()
+    result_np0darray = speeds_np0darray.argmax()
+    result_jax0darray = speeds_jax0darray.argmax()
+
+    assert isinstance(result_float, Unitful)
+    assert isinstance(result_np0darray, Unitful)
+    assert isinstance(result_jax0darray, Unitful)
+
+    assert isinstance(result_float.val, jax.Array)
+    assert isinstance(result_np0darray.val, np.integer)
+    assert isinstance(result_jax0darray.val, jax.Array)
+
+    assert result_float == 0
+    assert result_np0darray == 0
+    assert result_jax0darray == 0
+
+
+def test_argmax_with_negative_nan_inf():
+    """Test argmax behavior with negative, NaN, and Inf values"""
+    u = Unit(scale=0, dim={SI.K: 1})
+    array1 = Unitful(val=jnp.array([-1.0, jnp.nan, 5.0, jnp.inf]), unit=u)
+    array2 = Unitful(val=np.array([-1.0, 3.4, 5.0, np.inf]), unit=u)
+    result1 = array1.argmax()
+    result2 = array2.argmax()
+
+    # jnp.argmax([-1, nan, 5, inf]) → 3
+    assert result1.val == jnp.array(1)
+    assert result2.val == jnp.array(3)
+
+
+def test_argmax_overload_jax_arrays():
+    """Test argmax function with regular JAX arrays"""
+    array = jnp.array([3.4, 7.1, 2.8, 9.3, 6.2])
+
+    result = jnp.argmax(array)
+
+    assert result == jnp.array(3)
+    assert isinstance(result, jax.Array)
+
+
+def test_argmax_overload_numpy_arrays():
+    """Test argmax function with regular NumPy arrays"""
+    array = np.array([3.4, 7.1, 2.8, 9.3, 6.2])
+
+    result = array.argmax()
+
+    expected_index = 3
+    assert result == np.array(expected_index)
+    assert isinstance(result, np.integer)
+
+
+def test_argmax_untiful_jitted():
+    """Test argmax function within a JIT-compiled function when input as unitful"""
+    length_unit = Unit(scale=-2, dim={SI.m: 1})
+    lengths = Unitful(val=jnp.array([12.0, 25.5, 18.3, 30.1, 22.7]), unit=length_unit)
+
+    def fn(x: Unitful) -> Unitful:
+        return x.argmax()
+
+    jitted_fn = jax.jit(fn)
+    result = jitted_fn(lengths)
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+    assert result == jnp.array(3)
+
+
+def test_argmax_jax_arrays_jitted():
+    """Test argmax function within a JIT-compiled function when input as jax array"""
+    array = jnp.array([3.4, 7.1, 2.8, 9.3, 6.2])
+
+    def fn(x: Unitful) -> Unitful:
+        return x.argmax()
+
+    jitted_fn = jax.jit(fn)
+    result = jitted_fn(array)
+
+    assert isinstance(result, jax.Array)
+    assert result == jnp.array(3)
+
+
+def test_argmax_jitted_static():
+    speed_unit = Unit(scale=0, dim={SI.m: 1, SI.s: -1})
+    x = Unitful(val=jnp.asarray([1.0, 100.0, 213.0]), unit=speed_unit, static_arr=np.array([1.0, 99.0, 212.0]))
+
+    def fn(x: Unitful) -> Unitful:
+        if is_currently_compiling() and not unitful.STATIC_OPTIM_STOP_FLAG:
+            assert x.static_arr is not None
+        result = x.argmax()
+        if is_currently_compiling() and not unitful.STATIC_OPTIM_STOP_FLAG:
+            assert result.static_arr is not None
+        return result
+
+    jitted_fn = jax.jit(fn)
+    result = jitted_fn(x)
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+    assert isinstance(result.static_arr, np.integer)
+    assert result == jnp.array(2)
+
+
+def test_argmin_magic_method():
+    """Test argmin magic method on Unitful objects"""
+    temperature_unit = Unit(scale=0, dim={SI.K: 1})
+    temperatures = Unitful(val=jnp.array([3.0, 250.0, 400.0, 275.0, 325.0], dtype=jnp.float32), unit=temperature_unit)
+
+    result = temperatures.argmin()
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+    assert result.val == jnp.array(0)
+
+
+def test_argmin_overload_unitful():
+    """Test argmin function with Unitful objects"""
+    pressure_unit = Unit(scale=3, dim={SI.kg: 1, SI.m: -1, SI.s: -2})
+    pressures = Unitful(val=jnp.array([101.0, 95.5, 110.2, 88.7, 105.3]), unit=pressure_unit)
+
+    result = jnp.argmin(pressures)  # type: ignore
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+    assert result == jnp.array(3)
+
+
+def test_argmin_with_negative_nan_inf():
+    """Test argmin behavior with negative, NaN, and Inf values"""
+    u = Unit(scale=0, dim={SI.K: 1})
+    array1 = Unitful(val=jnp.array([-1.0, jnp.nan, 5.0, jnp.inf]), unit=u)
+    array2 = Unitful(val=np.array([-1.0, 3.4, 5.0, -np.inf]), unit=u)
+    result1 = array1.argmin()
+    result2 = array2.argmin()
+
+    # jnp.argmax([-1, nan, 5, inf]) → 3
+    assert result1.val == jnp.array(1)
+    assert result2.val == jnp.array(3)

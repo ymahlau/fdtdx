@@ -4,6 +4,7 @@ from typing import Literal, Self
 import jax
 import jax.numpy as jnp
 
+import fdtdx.functional as ff
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.misc import linear_interpolated_indexing, normalize_polarization_for_source
@@ -15,7 +16,6 @@ from fdtdx.objects.sources.profile import SingleFrequencyProfile, TemporalProfil
 from fdtdx.typing import SliceTuple3D
 from fdtdx.units import J
 from fdtdx.units.unitful import Unitful
-import fdtdx.functional as ff
 
 
 @autoinit
@@ -140,7 +140,7 @@ class DirectionalPlaneSourceBase(Source, ABC):
 
 @autoinit
 class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
-    amplitude: Unitful = frozen_field(default=1.0*J)
+    amplitude: Unitful = frozen_field(default=1.0 * J)
     fixed_E_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
     fixed_H_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
 
@@ -191,7 +191,7 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
             fixed_E_polarization_vector=self.fixed_E_polarization_vector,
             fixed_H_polarization_vector=self.fixed_E_polarization_vector,
         )
-        H_update =  magnitude * h_pol[:, None, None, None]
+        H_update = magnitude * h_pol[:, None, None, None]
 
         H = H.at[:, *self.grid_slice].set(H_update.astype(H.dtype))
         return H

@@ -2,13 +2,11 @@ from abc import ABC, abstractmethod
 from typing import Self
 
 import jax
-import jax.numpy as jnp
 import numpy as np
 
-from fdtdx.core.jax.pytrees import autoinit, frozen_field, frozen_private_field, private_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.objects.sources.source import DirectionalPlaneSourceBase
 from fdtdx.units.unitful import Unitful
-from fdtdx.units import m
 
 
 @autoinit
@@ -44,7 +42,6 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
             float: Elevation angle in radians.
         """
         return np.deg2rad(self.elevation_angle).item()
-
 
     def _get_center(self) -> tuple[float, float]:
         # Calculate center position with random offset

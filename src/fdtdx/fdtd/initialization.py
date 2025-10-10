@@ -25,7 +25,7 @@ from fdtdx.objects.object import (
 )
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject, UniformMaterialObject
 from fdtdx.typing import SliceTuple3D
-from fdtdx.units import V, A, m
+from fdtdx.units import A, V, m
 
 
 def place_objects(
@@ -66,7 +66,7 @@ def place_objects(
             - Dictionary with additional initialization info
     """
     assert not is_currently_compiling(), "Cannot call fdtdx.place_objects within JIT context!"
-    
+
     slice_tuple_dict = _resolve_object_constraints(
         volume=volume,
         constraints=constraints,
@@ -339,8 +339,8 @@ def _init_arrays(
         config = config.aset("gradient_config", grad_cfg)
 
     arrays = ArrayContainer(
-        E=(V/ m) * arr_E,
-        H=(A/m) * arr_H,
+        E=(V / m) * arr_E,
+        H=(A / m) * arr_H,
         inv_permittivities=inv_permittivities,
         inv_permeabilities=inv_permeabilities,
         boundary_states=boundary_states,
@@ -444,9 +444,7 @@ def _resolve_object_constraints(
                 shape_dict[o][axis] = o.partial_grid_shape[axis]
             cur_real_shape = o.partial_real_shape[axis]
             if cur_real_shape is not None:
-                cur_grid_shape = round(
-                    (cur_real_shape / resolution).float_materialise()
-                )
+                cur_grid_shape = round((cur_real_shape / resolution).float_materialise())
                 shape_dict[o][axis] = cur_grid_shape
 
     for axis in range(3):

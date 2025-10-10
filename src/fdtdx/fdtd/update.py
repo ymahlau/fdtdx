@@ -59,11 +59,7 @@ def update_E(
 
     # Get periodic axes for curl operation
     periodic_axes = get_periodic_axes(objects)
-    curl = curl_H(
-        H=arrays.H,
-        resolution=config.resolution,
-        periodic_axes=periodic_axes
-    )
+    curl = curl_H(H=arrays.H, resolution=config.resolution, periodic_axes=periodic_axes)
     inv_eps = arrays.inv_permittivities
     c = config.courant_number
     sigma_E = arrays.electric_conductivity
@@ -160,7 +156,7 @@ def update_E_reverse(
     # Get periodic axes for curl operation
     periodic_axes = get_periodic_axes(objects)
     curl = curl_H(
-        H=arrays.H, 
+        H=arrays.H,
         resolution=config.resolution,
         periodic_axes=periodic_axes,
     )
@@ -218,11 +214,7 @@ def update_H(
 
     # Get periodic axes for curl operation
     periodic_axes = get_periodic_axes(objects)
-    curl = curl_E(
-        E=arrays.E,
-        resolution=config.resolution,
-        periodic_axes=periodic_axes
-    )
+    curl = curl_E(E=arrays.E, resolution=config.resolution, periodic_axes=periodic_axes)
     inv_mu = arrays.inv_permeabilities
     c = config.courant_number
     sigma_H = arrays.magnetic_conductivity

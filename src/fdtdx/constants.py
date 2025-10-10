@@ -8,7 +8,7 @@ The module also defines standard permittivity configurations for different mater
 used in simulations.
 """
 
-from fdtdx.units.unitful import Unitful, Unit, SI
+from fdtdx.units.unitful import SI, Unit, Unitful
 
 c: Unitful = Unitful(val=2.99792458, unit=Unit(scale=8, dim={SI.m: 1, SI.s: -1}))
 """Speed of light in vacuum (m/s)."""

@@ -80,7 +80,7 @@ class PoyntingFluxDetector(Detector):
         cur_H = H[:, *self.grid_slice]
 
         pf = compute_poynting_vector(
-            E=cur_E, 
+            E=cur_E,
             B=constants.mu0 * cur_H / inv_permeability,
         )
         if not self.keep_all_components:

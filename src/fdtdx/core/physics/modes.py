@@ -7,10 +7,10 @@ import jax.numpy as jnp
 import numpy as np
 from tidy3d.components.mode.solver import compute_modes as _compute_modes
 
-from fdtdx.core.physics.metrics import normalize_by_averaged_flux, normalize_by_poynting_flux
+from fdtdx.core.physics.metrics import normalize_by_averaged_flux
 from fdtdx.core.wavelength import WaveCharacter
+from fdtdx.units import A, Hz, V, m, um
 from fdtdx.units.unitful import Unitful
-from fdtdx.units import A, V, Hz, um, m
 
 ModeTupleType = namedtuple("Mode", ["neff", "Ex", "Ey", "Ez", "Hx", "Hy", "Hz"])
 """A named tuple containing the mode fields and effective index.
@@ -135,7 +135,7 @@ def compute_mode(
     # convert unitful to float with implicit Hz frequency
     frequency = (wave_character.get_frequency() / Hz).materialise()
     assert isinstance(frequency, float)
-    
+
     def mode_helper(permittivity, permeability):
         modes = tidy3d_mode_computation_wrapper(
             frequency=frequency,
@@ -210,10 +210,10 @@ def compute_mode(
 
     # Tidy3D uses different scaling internally, so convert back
     # mode_H = mode_H * tidy3d.constants.ETA_0
-    
+
     mode_E_unit = (V / m) * mode_E
     mode_H_unit = (A / m) * mode_H
-    
+
     # pv = compute_time_averaged_poynting_vector(
     #     E=mode_E_unit,
     #     H=mode_H_unit,
@@ -221,7 +221,7 @@ def compute_mode(
     # mode_E_norm, mode_H_norm = normalize_by_poynting_flux(mode_E, mode_H, axis=propagation_axis)
     normal_vector = [0, 0, 0]
     normal_vector[propagation_axis] = 1 if direction == "+" else -1
-    
+
     result_E, result_H = normalize_by_averaged_flux(
         E=mode_E_unit,
         H=mode_H_unit,

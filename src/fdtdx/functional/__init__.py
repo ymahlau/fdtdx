@@ -1,58 +1,55 @@
+from fdtdx.functional.jax import jit
+from fdtdx.functional.linalg import norm
 from fdtdx.functional.numpy import (
-    roll, 
-    sqrt,
-    square,
-    cross,
-    conj,
-    dot,
-    transpose,
-    pad,
-    stack,
-    isfinite,
-    roll,
-    real,
-    imag,
-    sin,
-    cos,
-    tan,
-    asarray,
+    arange,
     array,
+    asarray,
+    ceil,
+    conj,
+    cos,
+    cross,
+    dot,
     exp,
     expand_dims,
-    where,
-    arange,
-    meshgrid,
     floor,
-    ceil,
+    imag,
+    isfinite,
+    meshgrid,
+    pad,
+    real,
+    roll,
+    sin,
+    sqrt,
+    square,
+    stack,
+    tan,
+    transpose,
+    where,
 )
 from fdtdx.units.unitful import (
-    multiply,
-    divide,
+    abs_impl as abs,
+)
+from fdtdx.units.unitful import (
     add,
-    subtract,
-    lt,
-    le,
+    astype,
+    divide,
     eq,
-    ne,
     ge,
     gt,
+    le,
+    lt,
     matmul,
-    pow,
-    min,
     max,
     mean,
-    sum,
-    abs_impl as abs,
-    astype,
-    squeeze,
-    reshape,
+    min,
+    multiply,
+    ne,
+    pow,
     prod,
-)
-from fdtdx.functional.linalg import (
-    norm
-)
-from fdtdx.functional.jax import (
-    jit
+    reshape,
+    squeeze,
+    subtract,
+    sum,
 )
 
 __all__ = [
@@ -107,5 +104,5 @@ __all__ = [
     # linalg
     "norm",
     # jax
-    "jit"
+    "jit",
 ]

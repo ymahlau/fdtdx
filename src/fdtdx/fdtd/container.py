@@ -20,7 +20,6 @@ from fdtdx.objects.device.device import Device
 from fdtdx.objects.object import SimulationObject
 from fdtdx.objects.sources.source import Source
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject, UniformMaterialObject
-from fdtdx.units.unitful import Unitful
 
 # Type alias for parameter dictionaries containing JAX arrays
 ParameterContainer = dict[str, dict[str, jax.Array] | jax.Array]

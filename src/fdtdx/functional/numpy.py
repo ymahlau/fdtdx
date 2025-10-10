@@ -1,22 +1,34 @@
-from functools import partial
+# ruff: noqa: F811
+
 import math
 from typing import Sequence
+
 import jax
 import jax.numpy as jnp
-from jaxtyping import ArrayLike
 import numpy as np
+from jaxtyping import ArrayLike
 from plum import dispatch, overload
 
 from fdtdx.core.fraction import Fraction
 from fdtdx.core.jax.utils import is_traced
-from fdtdx.units.typing import SI, PhysicalArrayLike
-from fdtdx.units.unitful import EMPTY_UNIT, MAX_STATIC_OPTIMIZED_SIZE, Unit, Unitful, align_scales, can_perform_scatic_ops, get_static_operand, output_unitful_for_array
+from fdtdx.units.typing import SI
+from fdtdx.units.unitful import (
+    EMPTY_UNIT,
+    MAX_STATIC_OPTIMIZED_SIZE,
+    Unit,
+    Unitful,
+    align_scales,
+    can_perform_scatic_ops,
+    get_static_operand,
+    output_unitful_for_array,
+)
 from fdtdx.units.utils import dim_after_multiplication, handle_n_scales, is_struct_optimizable
+
 
 ## Square Root ###########################
 @overload
 def sqrt(
-    x: Unitful, 
+    x: Unitful,
 ) -> Unitful:
     new_dim: dict[SI, int | Fraction] = {}
     for k, v in x.unit.dim.items():
@@ -45,11 +57,16 @@ def sqrt(
                 new_static_arr = new_static_arr * math.sqrt(10)
     return Unitful(val=new_val, unit=Unit(scale=new_scale, dim=new_dim), static_arr=new_static_arr)
 
-@overload
-def sqrt(x: int | float) -> float: return math.sqrt(x)
 
 @overload
-def sqrt(x: jax.Array) -> jax.Array: return jnp._orig_sqrt(x)  # type: ignore
+def sqrt(x: int | float) -> float:
+    return math.sqrt(x)
+
+
+@overload
+def sqrt(x: jax.Array) -> jax.Array:
+    return jnp._orig_sqrt(x)  # type: ignore
+
 
 @dispatch
 def sqrt(x):  # type: ignore
@@ -62,7 +79,7 @@ def sqrt(x):  # type: ignore
 def roll(
     x: Unitful,
     *args,
-    **kwargs, 
+    **kwargs,
 ) -> Unitful:
     new_val = jnp._orig_roll(x.val, *args, **kwargs)  # type: ignore
     # static arr computation
@@ -73,13 +90,15 @@ def roll(
             new_static_arr = np.roll(x_arr, *args, **kwargs)
     return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
 
+
 @overload
 def roll(
     x: jax.Array,
     *args,
-    **kwargs, 
-) -> jax.Array: 
+    **kwargs,
+) -> jax.Array:
     return jnp._orig_roll(x, *args, **kwargs)  # type: ignore
+
 
 @dispatch
 def roll(  # type: ignore
@@ -90,6 +109,7 @@ def roll(  # type: ignore
     del x, args, kwargs
     raise NotImplementedError()
 
+
 ## Square #####################################
 @overload
 def square(
@@ -97,23 +117,21 @@ def square(
 ) -> Unitful:
     return x * x
 
-@overload
-def square(
-    x: int | float
-) -> float: 
-    return x * x
 
 @overload
-def square(
-    x: complex
-) -> complex: 
+def square(x: int | float) -> float:
     return x * x
 
+
 @overload
-def square(
-    x: jax.Array
-) -> jax.Array: 
+def square(x: complex) -> complex:
     return x * x
+
+
+@overload
+def square(x: jax.Array) -> jax.Array:
+    return x * x
+
 
 @dispatch
 def square(  # type: ignore
@@ -121,6 +139,7 @@ def square(  # type: ignore
 ):
     del x
     raise NotImplementedError()
+
 
 ## Cross #####################################
 @overload
@@ -142,14 +161,16 @@ def cross(
             new_static_arr = np.cross(x_arr, y_arr, *args, **kwargs)
     return Unitful(val=new_val, unit=Unit(scale=new_scale, dim=unit_dict), static_arr=new_static_arr)
 
+
 @overload
 def cross(
     a: jax.Array,
     b: jax.Array,
     *args,
     **kwargs,
-) -> jax.Array: 
+) -> jax.Array:
     return jnp._orig_cross(a, b, *args, **kwargs)  # type: ignore
+
 
 @overload
 def cross(  # type: ignore
@@ -160,6 +181,7 @@ def cross(  # type: ignore
 ):
     raise NotImplementedError(f"Currently not implemented for {a}, {b}, {args}, {kwargs}")
 
+
 @dispatch
 def cross(  # type: ignore
     a,
@@ -169,6 +191,7 @@ def cross(  # type: ignore
 ):
     del a, b, args, kwargs
     raise NotImplementedError()
+
 
 ## Conjugate #####################################
 @overload
@@ -184,29 +207,34 @@ def conj(
             new_static_arr = np.conj(x_arr)
     return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
 
+
 @overload
 def conj(
     x: int,
 ) -> int:
     return x
 
+
 @overload
 def conj(
     x: float,
-) -> float: 
+) -> float:
     return x
+
 
 @overload
 def conj(
     x: complex,
-) -> complex: 
+) -> complex:
     return x.conjugate()
+
 
 @overload
 def conj(
     x: jax.Array,
-) -> jax.Array: 
+) -> jax.Array:
     return jnp._orig_conj(x)  # type: ignore
+
 
 @dispatch
 def conj(  # type: ignore
@@ -236,6 +264,7 @@ def dot(
             new_static_arr = np.dot(x_arr, y_arr, *args, **kwargs)
     return Unitful(val=new_val, unit=Unit(scale=new_scale, dim=unit_dict), static_arr=new_static_arr)
 
+
 @overload
 def dot(
     a: Unitful,
@@ -252,6 +281,7 @@ def dot(
         if x_arr is not None and y_arr is not None:
             new_static_arr = np.dot(x_arr, y_arr, *args, **kwargs)
     return Unitful(val=new_val, unit=a.unit, static_arr=new_static_arr)
+
 
 @overload
 def dot(
@@ -270,6 +300,7 @@ def dot(
             new_static_arr = np.dot(x_arr, y_arr, *args, **kwargs)
     return Unitful(val=new_val, unit=b.unit, static_arr=new_static_arr)
 
+
 @overload
 def dot(
     a: jax.Array,
@@ -278,6 +309,7 @@ def dot(
     **kwargs,
 ) -> jax.Array:
     return jnp._orig_dot(a, b, *args, **kwargs)  # type: ignore
+
 
 @dispatch
 def dot(  # type: ignore
@@ -306,13 +338,15 @@ def transpose(
             new_static_arr = np.transpose(x_arr, *args, **kwargs)
     return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
 
+
 @overload
 def transpose(
     x: jax.Array,
     *args,
     **kwargs,
-) -> jax.Array: 
+) -> jax.Array:
     return jnp._orig_transpose(x, *args, **kwargs)  # type: ignore
+
 
 @dispatch
 def transpose(  # type: ignore
@@ -340,13 +374,15 @@ def pad(
             new_static_arr = np.pad(x_arr, *args, **kwargs)
     return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
 
+
 @overload
 def pad(
     x: jax.Array,
     *args,
     **kwargs,
-) -> jax.Array: 
+) -> jax.Array:
     return jnp._orig_pad(x, *args, **kwargs)  # type: ignore
+
 
 @dispatch
 def pad(  # type: ignore
@@ -368,9 +404,7 @@ def stack(
     if isinstance(arrays, Sequence):
         for a in arrays:
             if a.unit.dim != arrays[0].unit.dim:
-                raise Exception(
-                    f"jnp.stack requires all Unitful to have the same dimension, but got: {arrays}"
-                )
+                raise Exception(f"jnp.stack requires all Unitful to have the same dimension, but got: {arrays}")
         # bring all values to same scale
         new_scale, factors = handle_n_scales([a.unit.scale for a in arrays])
         scaled = [a.val * f for a, f in zip(arrays, factors)]
@@ -383,7 +417,7 @@ def stack(
             arrs = [get_static_operand(v) for v in arrays]
             if all([v is not None for v in arrs]):
                 scaled_arrs = [a * f for a, f in zip(arrs, factors)]  # type: ignore
-                new_static_arr = np.stack(scaled_arrs, *args, **kwargs) # type: ignore
+                new_static_arr = np.stack(scaled_arrs, *args, **kwargs)  # type: ignore
     else:
         new_val = jnp._orig_stack(arrays, *args, **kwargs)  # type: ignore
         new_unit = arrays.unit
@@ -394,6 +428,7 @@ def stack(
             if x_arr is not None:
                 new_static_arr = np.stack(x_arr, *args, **kwargs)  # type: ignore
     return Unitful(val=new_val, unit=new_unit, static_arr=new_static_arr)
+
 
 @overload
 def stack(
@@ -410,15 +445,15 @@ def stack(
     result_shape_dtype = jax.eval_shape(partial_orig_fn)
     # if we cannot convert to unitful just call original function
     if not output_unitful_for_array(result_shape_dtype) or not all_physical:
-        return jnp._orig_stack(x, *args, **kwargs)  # type: ignore        
+        return jnp._orig_stack(x, *args, **kwargs)  # type: ignore
     # convert inputs to unitful without dimension
     if isinstance(x, Sequence):
-        unit_input = [Unitful(val=x_i, unit=EMPTY_UNIT) for x_i in x] # type: ignore
+        unit_input = [Unitful(val=x_i, unit=EMPTY_UNIT) for x_i in x]  # type: ignore
     else:
         unit_input = Unitful(val=x, unit=EMPTY_UNIT)
     unit_result = stack(unit_input, *args, **kwargs)
     return unit_result  # type: ignore
-    
+
 
 @dispatch
 def stack(  # type: ignore
@@ -440,13 +475,15 @@ def isfinite(
     new_val = jnp._orig_isfinite(x.val, *args, **kwargs)  # type: ignore
     return new_val
 
+
 @overload
 def isfinite(
     x: jax.Array,
     *args,
     **kwargs,
-) -> jax.Array: 
+) -> jax.Array:
     return jnp._orig_isfinite(x, *args, **kwargs)  # type: ignore
+
 
 @dispatch
 def isfinite(  # type: ignore
@@ -460,7 +497,11 @@ def isfinite(  # type: ignore
 
 ## real #####################################
 @overload
-def real(val: Unitful, *args, **kwargs,) -> Unitful:
+def real(
+    val: Unitful,
+    *args,
+    **kwargs,
+) -> Unitful:
     new_val = jnp._orig_real(val.val, *args, **kwargs)  # type: ignore
     # static computation
     new_static_arr = None
@@ -470,22 +511,26 @@ def real(val: Unitful, *args, **kwargs,) -> Unitful:
             new_static_arr = np.real(x_arr, *args, **kwargs)
     return Unitful(val=new_val, unit=val.unit, static_arr=new_static_arr)
 
+
 @overload
 def real(val: int, *args, **kwargs) -> int:
     return val
+
 
 @overload
 def real(val: float, *args, **kwargs) -> float:
     return val
 
-@overload
-def real(
-    val: complex, *args, **kwargs) -> complex:
-    return val.real
 
 @overload
-def real(val: jax.Array, *args, **kwargs) -> jax.Array: 
+def real(val: complex, *args, **kwargs) -> complex:
+    return val.real
+
+
+@overload
+def real(val: jax.Array, *args, **kwargs) -> jax.Array:
     return jnp._orig_real(val, *args, **kwargs)  # type: ignore
+
 
 @dispatch
 def real(  # type: ignore
@@ -509,22 +554,26 @@ def imag(val: Unitful, *args, **kwargs) -> Unitful:
             new_static_arr = np.imag(x_arr, *args, **kwargs)
     return Unitful(val=new_val, unit=val.unit, static_arr=new_static_arr)
 
+
 @overload
 def imag(val: int, *args, **kwargs) -> int:
     return val
+
 
 @overload
 def imag(val: float, *args, **kwargs) -> float:
     return val
 
-@overload
-def imag(
-    val: complex, *args, **kwargs) -> complex:
-    return val.imag
 
 @overload
-def imag(val: jax.Array, *args, **kwargs) -> jax.Array: 
+def imag(val: complex, *args, **kwargs) -> complex:
+    return val.imag
+
+
+@overload
+def imag(val: jax.Array, *args, **kwargs) -> jax.Array:
     return jnp._orig_imag(val, *args, **kwargs)  # type: ignore
+
 
 @dispatch
 def imag(  # type: ignore
@@ -548,17 +597,21 @@ def sin(x: Unitful) -> Unitful:
             new_static_arr = np.sin(x_arr)
     return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
 
+
 @overload
 def sin(x: int | float) -> float:
     return math.sin(x)
+
 
 @overload
 def sin(x: np.ndarray | np.number) -> np.ndarray:
     return np.sin(x)
 
+
 @overload
 def sin(x: jax.Array) -> jax.Array:
     return jnp._orig_sin(x)  # type: ignore
+
 
 @dispatch
 def sin(  # type: ignore
@@ -580,17 +633,21 @@ def cos(x: Unitful) -> Unitful:
             new_static_arr = np.cos(x_arr)
     return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
 
+
 @overload
 def cos(x: jax.Array) -> jax.Array:
     return jnp._orig_cos(x)  # type: ignore
+
 
 @overload
 def cos(x: int | float) -> float:
     return math.cos(x)
 
+
 @overload
 def cos(x: np.ndarray | np.number) -> np.ndarray:
     return np.cos(x)
+
 
 @dispatch
 def cos(  # type: ignore
@@ -612,17 +669,21 @@ def tan(x: Unitful) -> Unitful:
             new_static_arr = np.tan(x_arr)
     return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
 
+
 @overload
 def tan(x: jax.Array) -> jax.Array:
     return jnp._orig_tan(x)  # type: ignore
+
 
 @overload
 def tan(x: int | float) -> float:
     return math.tan(x)
 
+
 @overload
 def tan(x: np.ndarray | np.number) -> np.ndarray:
     return np.tan(x)
+
 
 @dispatch
 def tan(  # type: ignore
@@ -630,7 +691,6 @@ def tan(  # type: ignore
 ):
     del x
     raise NotImplementedError()
-
 
 
 ## asarray #####################################
@@ -650,16 +710,16 @@ def asarray(
     if not output_unitful_for_array(result_shape_dtype):
         # cannot use this as Unitful, wrong dtype
         return result
-    
+
     # try to get a static version of the array and save to trace metadata
     static_arr = None
     result_size = math.prod(result.shape)
     if is_struct_optimizable(a) and result_size <= MAX_STATIC_OPTIMIZED_SIZE:
         static_arr = np.asarray(a, copy=True)
-    
+
     # return Unitful without unit. We lie to typechecker here
     return Unitful(val=result, unit=Unit(scale=0, dim={}), static_arr=static_arr)  # type: ignore
-    
+
 
 def array(
     a,
@@ -676,14 +736,15 @@ def exp(
 ) -> Unitful:
     assert x.unit.dim == {}, f"Cannot use unitful with dim {x.unit.dim} as exponent"
     # TODO: improve numerical accuracy
-    new_val = jnp._orig_exp((10 ** x.unit.scale) * x.val)  # type: ignore
+    new_val = jnp._orig_exp((10**x.unit.scale) * x.val)  # type: ignore
     # static arr
     new_static_arr = None
     if is_traced(new_val):
         x_arr = get_static_operand(x)
         if x_arr is not None:
-            new_static_arr = np.exp((10 ** x.unit.scale) * x_arr)
+            new_static_arr = np.exp((10**x.unit.scale) * x_arr)
     return Unitful(val=new_val, unit=Unit(scale=0, dim={}), static_arr=new_static_arr)
+
 
 @overload
 def exp(
@@ -691,9 +752,11 @@ def exp(
 ) -> jax.Array:
     return jnp._orig_exp(x)  # type: ignore
 
+
 @overload
 def exp(x: int | float) -> float:
     return math.exp(x)
+
 
 @dispatch
 def exp(  # type: ignore
@@ -717,7 +780,8 @@ def expand_dims(
         x_arr = get_static_operand(x)
         if x_arr is not None:
             new_static_arr = np.expand_dims(x_arr, *args, **kwargs)
-    return Unitful(val=new_val, unit=x.unit, static_arr = new_static_arr)
+    return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
+
 
 @overload
 def expand_dims(
@@ -727,11 +791,10 @@ def expand_dims(
 ) -> jax.Array:
     return jnp._orig_expand_dims(x, *args, **kwargs)  # type: ignore
 
+
 @dispatch
 def expand_dims(  # type: ignore
-    x,
-    *args,
-    **kwargs
+    x, *args, **kwargs
 ):
     del x, args, kwargs
     raise NotImplementedError()
@@ -759,7 +822,8 @@ def where(
         c_arr = get_static_operand(condition)
         if x_arr is not None and y_arr is not None and c_arr is not None:
             new_static_arr = np.where(c_arr, x_arr, y_arr, *args, **kwargs)
-    return Unitful(val=new_val, unit=x.unit, static_arr = new_static_arr)
+    return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
+
 
 @overload
 def where(
@@ -772,6 +836,7 @@ def where(
     c = condition if isinstance(condition, Unitful) else Unitful(val=condition, unit=EMPTY_UNIT)
     return where(c, Unitful(val=x, unit=EMPTY_UNIT), y, *args, **kwargs)
 
+
 @overload
 def where(
     condition: jax.Array | Unitful,
@@ -782,6 +847,7 @@ def where(
 ) -> Unitful:
     c = condition if isinstance(condition, Unitful) else Unitful(val=condition, unit=EMPTY_UNIT)
     return where(c, x, Unitful(val=y, unit=EMPTY_UNIT), *args, **kwargs)
+
 
 @overload
 def where(
@@ -796,11 +862,7 @@ def where(
 
 @dispatch
 def where(  # type: ignore
-    condition,
-    x,
-    y,
-    *args,
-    **kwargs
+    condition, x, y, *args, **kwargs
 ):
     del condition, x, y, args, kwargs
     raise NotImplementedError()
@@ -846,23 +908,21 @@ def meshgrid(
         ]
         static_arrs = np.meshgrid(*scaled_ops, **kwargs)
         new_unitfuls = [
-            Unitful(val=v, unit=Unit(scale=new_scale, dim=dim), static_arr=s) 
-            for v, s in zip(new_vals, static_arrs)
+            Unitful(val=v, unit=Unit(scale=new_scale, dim=dim), static_arr=s) for v, s in zip(new_vals, static_arrs)
         ]
     else:
-        new_unitfuls = [
-            Unitful(val=v, unit=Unit(scale=new_scale, dim=dim)) 
-            for v in new_vals
-        ]
+        new_unitfuls = [Unitful(val=v, unit=Unit(scale=new_scale, dim=dim)) for v in new_vals]
     return new_unitfuls
-    
+
+
 @overload
 def meshgrid(
     *args: ArrayLike,
     **kwargs,
 ) -> list[ArrayLike]:
     # TODO: return Unitfuls instead of arrays if situation allows it
-    return jnp._orig_meshgrid(*args, **kwargs) # type: ignore
+    return jnp._orig_meshgrid(*args, **kwargs)  # type: ignore
+
 
 @dispatch
 def meshgrid(  # type: ignore
@@ -887,8 +947,9 @@ def floor(
     if is_traced(new_val):
         x_arr = get_static_operand(x)
         if x_arr is not None:
-            new_static_arr = np.floor(x_arr * (10 ** x.unit.scale), *args, **kwargs)
-    return Unitful(val=new_val, unit=x.unit, static_arr = new_static_arr)
+            new_static_arr = np.floor(x_arr * (10**x.unit.scale), *args, **kwargs)
+    return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
+
 
 @overload
 def floor(
@@ -898,11 +959,10 @@ def floor(
 ) -> jax.Array:
     return jnp._orig_floor(x, *args, **kwargs)  # type: ignore
 
+
 @dispatch
 def floor(  # type: ignore
-    x,
-    *args,
-    **kwargs
+    x, *args, **kwargs
 ):
     del x, args, kwargs
     raise NotImplementedError()
@@ -922,8 +982,9 @@ def ceil(
     if is_traced(new_val):
         x_arr = get_static_operand(x)
         if x_arr is not None:
-            new_static_arr = np.ceil(x_arr  * (10 ** x.unit.scale), *args, **kwargs)
-    return Unitful(val=new_val, unit=x.unit, static_arr = new_static_arr)
+            new_static_arr = np.ceil(x_arr * (10**x.unit.scale), *args, **kwargs)
+    return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
+
 
 @overload
 def ceil(
@@ -933,11 +994,10 @@ def ceil(
 ) -> jax.Array:
     return jnp._orig_ceil(x, *args, **kwargs)  # type: ignore
 
+
 @dispatch
 def ceil(  # type: ignore
-    x,
-    *args,
-    **kwargs
+    x, *args, **kwargs
 ):
     del x, args, kwargs
     raise NotImplementedError()

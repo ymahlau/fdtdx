@@ -1,7 +1,8 @@
 import jax.numpy as jnp
+
 import fdtdx.functional as ff
 from fdtdx.core.physics.curl import curl_E, curl_H, interpolate_fields
-from fdtdx.units import V, m, A
+from fdtdx.units import A, V, m
 
 
 def test_interpolate_fields_basic():
@@ -128,7 +129,7 @@ def test_curl_H_uniform_field():
     """Test curl_H with uniform magnetic field (should give zero curl)."""
     H = (A / m) * jnp.ones((3, 5, 5, 5)) * 2.0
 
-    curl_result = curl_H(H, 1*m, periodic_axes=(True, True, True))
+    curl_result = curl_H(H, 1 * m, periodic_axes=(True, True, True))
 
     assert curl_result.shape == (3, 5, 5, 5)
     assert jnp.allclose(curl_result.value(), 0.0, atol=1e-10)
@@ -153,7 +154,7 @@ def test_curl_H_linear_field():
         axis=0,
     )
 
-    curl_result = curl_H(H, 1*m)
+    curl_result = curl_H(H, 1 * m)
 
     assert curl_result.shape == (3, 6, 6, 6)
     # The y-component should be approximately 2 (discrete approximation)
@@ -170,7 +171,7 @@ def test_curl_H_periodic_boundaries():
 
     H = (A / m) * jnp.stack([jnp.cos(Y), jnp.sin(X), jnp.cos(Z)], axis=0)
 
-    curl_result = curl_H(H, 1*m, periodic_axes=(True, True, True))
+    curl_result = curl_H(H, 1 * m, periodic_axes=(True, True, True))
 
     assert curl_result.shape == (3, 8, 8, 8)
     assert jnp.all(ff.isfinite(curl_result))

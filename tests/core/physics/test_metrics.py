@@ -1,9 +1,9 @@
 """Test cases for electromagnetic field metrics and normalization utilities."""
 
-import jax
 import jax.numpy as jnp
 
-from fdtdx.config import SimulationConfig
+import fdtdx.functional as ff
+from fdtdx.constants import eps0, mu0
 from fdtdx.core.physics.metrics import (
     compute_energy,
     compute_poynting_flux,
@@ -11,11 +11,8 @@ from fdtdx.core.physics.metrics import (
     normalize_by_energy,
     normalize_by_poynting_flux,
 )
-from fdtdx.units import V, W_unit, m, A
+from fdtdx.units import A, V, W_unit, m
 from fdtdx.units.typing import SI
-from fdtdx.units.unitful import Unitful
-from fdtdx.constants import eps0, mu0
-import fdtdx.functional as ff
 
 
 def test_compute_energy_basic():
@@ -28,10 +25,12 @@ def test_compute_energy_basic():
 
     energy = compute_energy(E, H, inv_permittivity, inv_permeability)
 
-    expected_energy = 0.5 * eps0.value() * (1 / inv_permittivity) * 3 * 1e16 + 0.5 * mu0.value() * (1 / inv_permeability) * 3
+    expected_energy = (
+        0.5 * eps0.value() * (1 / inv_permittivity) * 3 * 1e16 + 0.5 * mu0.value() * (1 / inv_permeability) * 3
+    )
 
     assert energy.shape == (4, 4, 4)
-    assert energy.unit.dim == {SI.kg: 1, SI.m: -1, SI.s: -2} # J / m^3
+    assert energy.unit.dim == {SI.kg: 1, SI.m: -1, SI.s: -2}  # J / m^3
     assert jnp.allclose(energy.value(), expected_energy)
 
 
@@ -64,7 +63,7 @@ def test_normalize_by_energy_basic():
 
     # Check that normalized fields have unit total energy
     total_energy = compute_energy(E_norm, H_norm, inv_permittivity, inv_permeability)
-    assert jnp.allclose(ff.sum(total_energy*m**3).value(), 1.0)
+    assert jnp.allclose(ff.sum(total_energy * m**3).value(), 1.0)
 
 
 def test_normalize_by_energy_preservation():
@@ -114,10 +113,10 @@ def test_compute_poynting_flux_basic():
     B = mu0 * (A / m) * jnp.array([[[0.0]], [[1.0]], [[0.0]]])  # H in y-direction
 
     flux = compute_poynting_flux(
-        E=E, 
+        E=E,
         B=B,
-        resolution=1*m,
-        normal_vector = (0, 0, 1),
+        resolution=1 * m,
+        normal_vector=(0, 0, 1),
         axis=0,
     )
 
@@ -136,17 +135,17 @@ def test_normalize_by_poynting_flux_basic():
     E_norm, B_norm = normalize_by_poynting_flux(
         E=E,
         B=B,
-        resolution=1*m,
-        normal_vector = (0, 0, 1),
+        resolution=1 * m,
+        normal_vector=(0, 0, 1),
         axis=0,
     )
 
     # Check that normalized fields have unit power flow
     flux = compute_poynting_flux(
-        E=E_norm, 
+        E=E_norm,
         B=B_norm,
-        resolution=1*m,
-        normal_vector = (0, 0, 1),
+        resolution=1 * m,
+        normal_vector=(0, 0, 1),
         axis=0,
     )
 
@@ -161,8 +160,8 @@ def test_normalize_by_poynting_flux_preservation():
     E_norm, B_norm = normalize_by_poynting_flux(
         E=E,
         B=B,
-        resolution=1*m,
-        normal_vector = (0, 0, 1),
+        resolution=1 * m,
+        normal_vector=(0, 0, 1),
         axis=0,
     )
 

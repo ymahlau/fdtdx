@@ -5,6 +5,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+
 # Enum of SI units. Intentionally omits mol as this is a "count" rather than an actual unit.
 class SI(Enum):
     s = "second"
@@ -13,6 +14,7 @@ class SI(Enum):
     A = "ampere"
     K = "kelvin"
     cd = "candela"
+
 
 # Types whose scale can be optimized
 PhysicalArrayLike = Union[
@@ -77,4 +79,4 @@ PHYSICAL_DTYPES = [
     np.complex64,
     np.complex128,
     np.complex256,
-]    
+]
