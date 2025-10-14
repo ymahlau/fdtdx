@@ -8,6 +8,7 @@ from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.backward import backward
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, SimulationState, reset_array_container
 from fdtdx.fdtd.forward import forward, forward_single_args_wrapper
+from fdtdx.fdtd.stop_conditions import StoppingCondition, TimeStepCondition
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.objects.boundaries.boundary import BaseBoundaryState
 from fdtdx.objects.detectors.detector import DetectorState
@@ -286,6 +287,7 @@ def checkpointed_fdtd(
     objects: ObjectContainer,
     config: SimulationConfig,
     key: jax.Array,
+    stopping_condition: StoppingCondition | None = None,
 ) -> SimulationState:
     """Run an FDTD simulation with gradient checkpointing for memory efficiency.
 
@@ -298,6 +300,8 @@ def checkpointed_fdtd(
         objects (ObjectContainer): Collection of physical objects in the simulation
         config (SimulationConfig): Simulation parameters including checkpointing settings
         key (jax.Array): JAX PRNGKey for any stochastic operations
+        stopping_condition (StoppingCondition, optional): Custom stopping condition on which simulation is halted.
+            If none is provided, we default to TimeStepCondition (simulation progresses until max time is reached)
 
     Returns:
         SimulationState: Tuple containing final time step and ArrayContainer with final state
@@ -308,9 +312,17 @@ def checkpointed_fdtd(
     """
     arrays = reset_array_container(arrays, objects)
     state = (jnp.asarray(0, dtype=jnp.int32), arrays)
+    if stopping_condition is not None:
+        stopping_condition = stopping_condition.setup(state, config, objects)
+    else:
+        stopping_condition = TimeStepCondition().setup(state, config, objects)
     state = eqxi.while_loop(
         max_steps=config.time_steps_total,
-        cond_fun=lambda s: config.time_steps_total > s[0],
+        cond_fun=partial(
+            stopping_condition,
+            config=config,
+            objects=objects,
+        ),
         body_fun=partial(
             forward,
             config=config,
