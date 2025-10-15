@@ -44,9 +44,10 @@ However, most previous packages implement the algorithm only for CPU, which miss
 Additionally, the implementation of the FDTD algorithm in JAX allows for automatic differentiation using a specialized algorithm based on the time reversibility of Maxwell's equations [@schubertmahlau2025quantized].
 In contrast to the adjoint method, our custom gradient algorithm can calculate a gradient in the time-domain without the need to save electric and magnetic field after every time step.
 This enables memory efficient inverse design, i.e. topological optimization of optical components using gradient descent.
+The simulation capabilities of FDTDX are useful for physicists from all kinds of backgrounds, while the inverse design capabilities are targeted more towards computational scientists in particular.
 
 A non-exhaustive list of FDTD implementations includes the popular Meep [@meep], which was developed almost 20 years ago for execution on CPU and is still widely used today.
-Other frameworks for CPU only execution include OpenEMS [@openEMS], fdtd [@fdtd_laporte] and Ceviche [@ceviche].
+Other frameworks for execution on only CPU include OpenEMS [@openEMS], fdtd [@fdtd_laporte] and Ceviche [@ceviche].
 Existing open-source packages that support execution on GPU are Khronos [@khronos] and FDTD-Z [@fdtdz], but both packages are not maintained.
 Additionally, various commercial implementations of FDTD exist.
 Notably, Tidy3D [@tidy3d] is an extremely fast commercial software due to its GPU acceleration.
@@ -91,10 +92,13 @@ To inject light into the simulation, the Total-Field Scattered-Field (TFSF) [@ta
 This formulation allows injecting light in a single direction into the simulation.
 In contrast, a naive additive source implementation would emit light in both directions perpendicular to the injection plane.
 
-To prevent unwanted reflections at the boundary of the simulation volume, there exist two different boundary conditions in FDTDX.
-Firstly, a periodic boundary can be used to wrap fields around the simulation volume and automatically inject them on the other side of the volume.
+<!-- To prevent unwanted reflections at the boundary of the simulation volume, there exist two different boundary conditions in FDTDX. -->
+Two different boundary objects can be used to prevent unwanted reflections within the simulation.
+A periodic boundary wraps the fields around the simulation volume and automatically injects them on the other side.
 This is useful for simulating large repeating areas through a single unit cell, for example in metamaterials [@metamaterial].
-Secondly, reflections can also be prevented by using an absorbing boundary condition, implemented in the form of convolutional perfectly matched layers [@cpml].
+The other boundary object is a perfectly matched layer (PML), which absorbs incoming light.
+Specifically, the PML in fdtdx is implemented in form of a convolutional PML [@cpml].
+<!-- Secondly, reflections can also be prevented by using an absorbing boundary condition, implemented in the form of convolutional perfectly matched layers [@cpml]. -->
 
 ![Visualization of a simulation scene using the ```fdtdx.plot_setup``` function. \label{fig_setup} ](img/setup.png)
 
@@ -120,10 +124,11 @@ The $E_z$ for the same simulation scene is visualized in \autoref{fig_sim}.
 
 # Limitations and Future Work
 
-At the time of publication, FDTDX only supports simulation of linear, non-dispersive materials. 
-In the future, an implementation of dispersive material models [@taflove] is planned.
-Simulating non-linear materials is a difficult task, which we would like to tackle, but will require significant effort.
+At the time of publication, FDTDX only supports simulation of linear, non-dispersive materials.
 Additionally, lossy materials are currently only partially supported.
+In the future, an implementation of dispersive material models [@taflove] is planned.
+Simulating non-linear materials is a difficult task due to the necessary theoretical physical knowledge as well as the capabilitiy to experimentally verify the simulation results in the lab.
+We are determined to tackle this, but acknowledge that this will require significant effort and time.
 
 # Further Information
 

@@ -17,6 +17,8 @@ scripts/configs/run_config.yaml
 .cursorignore
 site
 docs/notebooks
+docs/jupyter_execute
+docs/source
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
