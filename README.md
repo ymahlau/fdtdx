@@ -43,13 +43,7 @@ pip install fdtdx[cuda12]  # GPU-Acceleration (Highly Recommended!)
 pip install fdtdx[rocm]   # AMD-GPU (only python<=3.12)
 ```
 
-For development installation, clone the repository and install in editable mode:
-
-```bash
-git clone https://github.com/ymahlau/fdtdx
-cd fdtdx
-pip install -e .
-```
+For development installation, see the contributing guidelines!
 
 ## Multi-GPU
 
