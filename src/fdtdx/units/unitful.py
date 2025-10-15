@@ -1608,3 +1608,71 @@ def argmin(x: np.ndarray, *args, **kwargs) -> np.ndarray:
 def argmin(x, *args, **kwargs):  # type: ignore
     del x, args, kwargs
     raise NotImplementedError()
+
+
+## sign #######################################
+from typing import overload as _typing_overload  # ensure name not shadowed
+
+@overload
+def sign(x: Unitful) -> Unitful:
+    # Drop units and return integer {-1,0,1}
+    # Handle NumPy-backed vs JAX-backed values separately, just like other ops.
+    if isinstance(x.val, np.ndarray | np.number):
+        # NumPy path
+        y = np.sign(x.val)
+        # Ensure integer dtype (ndarray or scalar)
+        if isinstance(y, np.ndarray):
+            y_int: np.ndarray | np.number = y.astype(np.int_)
+        else:
+            # numpy scalar -> numpy integer scalar
+            y_int = np.int_(y)
+        return Unitful(val=y_int, unit=EMPTY_UNIT, static_arr=None)
+    else:
+        # JAX path (includes tracers)
+        y = jax.lax.sign(x.val)  # avoids recursion and works under jit
+        y_int = jax.lax.convert_element_type(y, jnp.int_)  # type: ignore
+        if not isinstance(y_int, jax.Array):
+            raise Exception(f"This is an internal error: sign produced {type(y_int)}")
+        new_static_arr = None
+        if is_traced(y_int):
+            x_arr = get_static_operand(x)
+            if x_arr is not None:
+                y_s = np.sign(x_arr)
+                if isinstance(y_s, np.ndarray):
+                    y_s = y_s.astype(np.int_)
+                else:
+                    y_s = np.int_(y_s)
+                new_static_arr = y_s
+        return Unitful(val=y_int, unit=EMPTY_UNIT, static_arr=new_static_arr)  # type: ignore
+
+
+@overload
+def sign(x: jax.Array) -> jax.Array:
+    # JAX original op via lax, then cast to integer dtype
+    y = jax.lax.sign(x)
+    return jax.lax.convert_element_type(y, jnp.int_)  # type: ignore
+
+
+@overload
+def sign(x: np.ndarray) -> np.ndarray:
+    # NumPy sign then cast to numpy integer
+    y = np.sign(x)
+    return y.astype(np.int_)
+
+
+@overload
+def sign(x: int) -> int:
+    # python integer → python integer in {-1, 0, 1}
+    return -1 if x < 0 else (1 if x > 0 else 0)
+
+
+@dispatch
+def sign(x):  # type: ignore
+    del x
+    raise NotImplementedError()
+
+
+# --- make jnp.sign(...) use these overloads, preserving original ---
+if not hasattr(jnp, "_orig_sign"):
+    jnp._orig_sign = jnp.sign  # type: ignore
+jnp.sign = sign  # type: ignore
