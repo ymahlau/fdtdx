@@ -76,3 +76,8 @@ rocm = [
 [tool.pyright]
 include = ["src", "examples", "checks", "test"]
 exclude = ["**/.venv"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+]

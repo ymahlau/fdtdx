@@ -75,8 +75,16 @@ PHYSICAL_DTYPES = [
     np.float16,
     np.float32,
     np.float64,
-    np.float128,
     np.complex64,
     np.complex128,
-    np.complex256,
 ]
+if hasattr(np, "float128"):
+    PHYSICAL_DTYPES.append(np.float128)
+
+PHYSICAL_DTYPES = tuple(PHYSICAL_DTYPES)
+
+# Only add complex256 if available
+if hasattr(np, "complex256"):
+    PHYSICAL_DTYPES.append(np.complex256)
+
+PHYSICAL_DTYPES = tuple(PHYSICAL_DTYPES)
