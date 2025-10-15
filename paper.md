@@ -47,7 +47,7 @@ This enables memory efficient inverse design, i.e. topological optimization of o
 The simulation capabilities of FDTDX are useful for physicists from all kinds of backgrounds, while the inverse design capabilities are targeted more towards computational scientists in particular.
 
 A non-exhaustive list of FDTD implementations includes the popular Meep [@meep], which was developed almost 20 years ago for execution on CPU and is still widely used today.
-Other frameworks for execution on only CPU include OpenEMS [@openEMS], fdtd [@fdtd_laporte] and Ceviche [@ceviche].
+Other frameworks for only CPU include OpenEMS [@openEMS], fdtd [@fdtd_laporte] and Ceviche [@ceviche].
 Existing open-source packages that support execution on GPU are Khronos [@khronos] and FDTD-Z [@fdtdz], but both packages are not maintained.
 Additionally, various commercial implementations of FDTD exist.
 Notably, Tidy3D [@tidy3d] is an extremely fast commercial software due to its GPU acceleration.
