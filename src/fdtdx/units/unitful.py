@@ -32,6 +32,22 @@ like jnp.ones will return a Unitful instead of Array for scale optimization.
 """
 STATIC_OPTIM_STOP_FLAG = False
 
+"""
+Relative tolerance for floating point comparisons
+TODO: 
+    adjust RTOL_COMPARISON and ATOL_COMPARISON dynamically
+    based on the numeric precision (e.g., float16, float32, float64).
+    For now, these fixed values are sufficient for most use cases.
+
+| Precision Type | RTOL (Relative Tolerance) | ATOL (Absolute Tolerance) |
+| -------------- | ------------------------- | ------------------------- |
+| `float16`      | 1e-2 - 1e-3               | 1e-3 - 1e-4               |
+| `float32`      | 1e-4 - 1e-5               | 1e-6 - 1e-7               |
+| `float64`      | 1e-6 - 1e-8               | 1e-9 - 1e-12              | 
+"""
+RTOL_COMPARSION = 1e-5
+ATOL_COMPARSION = 1e-7
+
 
 @autoinit
 class Unit(TreeClass):
@@ -338,6 +354,15 @@ class Unitful(TreeClass):
         except Exception:
             return f"Unitful [{self.unit}]: {self.shape}"
 
+    def __bool__(self) -> bool:
+        if isinstance(self.val, (bool, np.bool_, jnp.bool_)):
+            return bool(self.val)
+        if isinstance(self.val, (np.ndarray, jnp.ndarray)):
+            if self.val.size != 1:
+                raise ValueError("Truth value of an array with multiple elements is ambiguous")
+            return bool(self.val.item())
+        return bool(self.val)
+
     def __repr__(self) -> str:
         return str(self)
 
@@ -365,22 +390,22 @@ class Unitful(TreeClass):
     def __rsub__(self, other: "Unitful | PhysicalArrayLike") -> "Unitful":
         return subtract(other, self)
 
-    def __lt__(self, other: "Unitful | RealPhysicalArrayLike") -> np.bool | np.ndarray | jax.Array | bool:
+    def __lt__(self, other: "Unitful | RealPhysicalArrayLike") -> "Unitful":
         return lt(self, other)
 
-    def __le__(self, other: "Unitful | RealPhysicalArrayLike") -> np.bool | np.ndarray | jax.Array | bool:
+    def __le__(self, other: "Unitful | RealPhysicalArrayLike") -> "Unitful":
         return le(self, other)
 
-    def __eq__(self, other: "Unitful | RealPhysicalArrayLike") -> np.bool | np.ndarray | jax.Array | bool:
+    def __eq__(self, other: "Unitful | RealPhysicalArrayLike") -> "Unitful":
         return eq(self, other)
 
-    def __ne__(self, other: "Unitful | RealPhysicalArrayLike") -> np.bool | np.ndarray | jax.Array | bool:  # type: ignore
+    def __ne__(self, other: "Unitful | RealPhysicalArrayLike") -> "Unitful":  # type: ignore[override]  # allow non-bool return for array-style comparison
         return ne(self, other)
 
-    def __ge__(self, other: "Unitful | RealPhysicalArrayLike") -> np.bool | np.ndarray | jax.Array | bool:
+    def __ge__(self, other: "Unitful | RealPhysicalArrayLike") -> "Unitful":
         return ge(self, other)
 
-    def __gt__(self, other: "Unitful | RealPhysicalArrayLike") -> np.bool | np.ndarray | jax.Array | bool:
+    def __gt__(self, other: "Unitful | RealPhysicalArrayLike") -> "Unitful":
         return gt(self, other)
 
     def __len__(self):
@@ -548,9 +573,8 @@ def can_optimize_scale(obj: Unitful | ArrayLike) -> bool:
     v = obj.val if isinstance(obj, Unitful) else obj
     if isinstance(v, NonPhysicalArrayLike):
         return False
-    if isinstance(v, jax.Array | np.ndarray):
-        if v.dtype not in PHYSICAL_DTYPES:
-            return False
+    if isinstance(v, jax.Array | np.ndarray) and v.dtype not in PHYSICAL_DTYPES:
+        return False
     if is_traced(v) and not isinstance(obj, Unitful):
         return False
     if is_traced(v):
@@ -922,7 +946,7 @@ def subtract(x, y):  # type: ignore
 def lt(
     x: Unitful,
     y: Unitful,
-) -> np.bool | np.ndarray | jax.Array | bool:
+) -> Unitful:
     x_align, y_align = align_scales(x, y)
     if isinstance(x_align.val, complex) or isinstance(y_align.val, complex):
         raise Exception(f"Cannot compare complex values: {x}, {y}")
@@ -935,15 +959,15 @@ def lt(
             assert not isinstance(x_arr, complex) and not isinstance(y_arr, complex)
             new_static_arr = x_arr < y_arr
     if output_unitful_for_array(new_static_arr):
-        return Unitful(val=new_val, unit=EMPTY_UNIT, static_arr=new_static_arr)  # type: ignore
-    return new_val
+        return Unitful(val=new_val, unit=EMPTY_UNIT, static_arr=new_static_arr)
+    return Unitful(val=new_val, unit=EMPTY_UNIT)
 
 
 @overload
 def lt(
     x: Unitful,
     y: ArrayLike,
-) -> np.bool | np.ndarray | jax.Array | bool:
+) -> Unitful:
     assert x.unit.dim == {}, f"Cannot compare unitful with dim {x.unit.dim} to unitless quantity"
     result = lt(x, Unitful(val=y, unit=EMPTY_UNIT))
     return result
@@ -953,7 +977,7 @@ def lt(
 def lt(
     x: ArrayLike,
     y: Unitful,
-) -> np.bool | np.ndarray | jax.Array | bool:
+) -> Unitful:
     return ge(y, x)
 
 
@@ -988,28 +1012,41 @@ def lt(x, y):  # type: ignore
 def le(
     x: Unitful,
     y: Unitful,
-) -> np.bool | np.ndarray | jax.Array | bool:
+) -> Unitful:
     x_align, y_align = align_scales(x, y)
     if isinstance(x_align.val, complex) or isinstance(y_align.val, complex):
         raise Exception(f"Cannot compare complex values: {x}, {y}")
-    new_val = x_align.val <= y_align.val
+
+    if isinstance(x_align.val, jax.Array) or isinstance(y_align.val, jax.Array):
+        new_val = jnp.logical_or(
+            jnp.isclose(x_align.val, y_align.val, rtol=RTOL_COMPARSION, atol=ATOL_COMPARSION), x_align.val < y_align.val
+        )
+    elif isinstance(x_align.val, np.ndarray | np.number) or isinstance(y_align.val, np.ndarray | np.number):
+        new_val = np.logical_or(
+            np.isclose(x_align.val, y_align.val, rtol=RTOL_COMPARSION, atol=ATOL_COMPARSION), x_align.val < y_align.val
+        )
+    else:
+        new_val = x_align.val <= y_align.val
+
     new_static_arr = None
     if is_traced(new_val):
         x_arr = get_static_operand(x_align)
         y_arr = get_static_operand(y_align)
         if x_arr is not None and y_arr is not None:
             assert not isinstance(x_arr, complex) and not isinstance(y_arr, complex)
-            new_static_arr = x_arr <= y_arr
+            new_static_arr = np.logical_or(
+                np.isclose(x_arr, y_arr, rtol=RTOL_COMPARSION, atol=ATOL_COMPARSION), x_arr < y_arr
+            )
     if output_unitful_for_array(new_static_arr):
-        return Unitful(val=new_val, unit=EMPTY_UNIT, static_arr=new_static_arr)  # type: ignore
-    return new_val
+        return Unitful(val=new_val, unit=EMPTY_UNIT, static_arr=new_static_arr)
+    return Unitful(val=new_val, unit=EMPTY_UNIT)
 
 
 @overload
 def le(
     x: Unitful,
     y: ArrayLike,
-) -> np.bool | np.ndarray | jax.Array | bool:
+) -> Unitful:
     assert x.unit.dim == {}, f"Cannot compare unitful with dim {x.unit.dim} to unitless quantity"
     result = le(x, Unitful(val=y, unit=EMPTY_UNIT))
     return result
@@ -1019,7 +1056,7 @@ def le(
 def le(
     x: ArrayLike,
     y: Unitful,
-) -> np.bool | np.ndarray | jax.Array | bool:
+) -> Unitful:
     return gt(y, x)
 
 
@@ -1054,25 +1091,32 @@ def le(x, y):  # type: ignore
 def eq(
     x: Unitful,
     y: Unitful,
-) -> np.bool | np.ndarray | jax.Array | bool:
+) -> Unitful:
     x_align, y_align = align_scales(x, y)
-    new_val = x_align.val == y_align.val
+
+    if isinstance(x_align.val, jax.Array) or isinstance(y_align.val, jax.Array):
+        new_val = jnp.isclose(x_align.val, y_align.val, rtol=RTOL_COMPARSION, atol=ATOL_COMPARSION)
+    elif isinstance(x_align.val, np.ndarray | np.number) or isinstance(y_align.val, np.ndarray | np.number):
+        new_val = np.isclose(x_align.val, y_align.val, rtol=RTOL_COMPARSION, atol=ATOL_COMPARSION)
+    else:
+        new_val = x_align.val == y_align.val
+
     new_static_arr = None
     if is_traced(new_val):
         x_arr = get_static_operand(x_align)
         y_arr = get_static_operand(y_align)
         if x_arr is not None and y_arr is not None:
-            new_static_arr = x_arr == y_arr
+            new_static_arr = np.isclose(x_arr, y_arr, rtol=RTOL_COMPARSION, atol=ATOL_COMPARSION)
     if output_unitful_for_array(new_static_arr):
-        return Unitful(val=new_val, unit=EMPTY_UNIT, static_arr=new_static_arr)  # type: ignore
-    return new_val
+        return Unitful(val=new_val, unit=EMPTY_UNIT, static_arr=new_static_arr)
+    return Unitful(val=new_val, unit=EMPTY_UNIT)
 
 
 @overload
 def eq(
     x: Unitful,
     y: ArrayLike,
-) -> np.bool | np.ndarray | jax.Array | bool:
+) -> Unitful:
     assert x.unit.dim == {}, f"Cannot compare unitful with dim {x.unit.dim} to unitless quantity"
     result = eq(x, Unitful(val=y, unit=EMPTY_UNIT))
     return result
@@ -1082,7 +1126,7 @@ def eq(
 def eq(
     x: ArrayLike,
     y: Unitful,
-) -> np.bool | np.ndarray | jax.Array | bool:
+) -> Unitful:
     return eq(y, x)
 
 
@@ -1117,7 +1161,7 @@ def eq(x, y):  # type: ignore
 def ne(
     x: Unitful,
     y: Unitful,
-) -> np.bool | np.ndarray | jax.Array | bool:
+) -> Unitful:
     x_align, y_align = align_scales(x, y)
     new_val = x_align.val != y_align.val
     new_static_arr = None
@@ -1128,14 +1172,14 @@ def ne(
             new_static_arr = x_arr != y_arr
     if output_unitful_for_array(new_static_arr):
         return Unitful(val=new_val, unit=EMPTY_UNIT, static_arr=new_static_arr)  # type: ignore
-    return new_val
+    return Unitful(val=new_val, unit=EMPTY_UNIT)
 
 
 @overload
 def ne(
     x: Unitful,
     y: ArrayLike,
-) -> np.bool | np.ndarray | jax.Array | bool:
+) -> Unitful:
     assert x.unit.dim == {}, f"Cannot compare unitful with dim {x.unit.dim} to unitless quantity"
     result = ne(x, Unitful(val=y, unit=EMPTY_UNIT))
     return result
@@ -1145,7 +1189,7 @@ def ne(
 def ne(
     x: ArrayLike,
     y: Unitful,
-) -> np.bool | np.ndarray | jax.Array | bool:
+) -> Unitful:
     return ne(y, x)
 
 
@@ -1180,28 +1224,41 @@ def ne(x, y):  # type: ignore
 def ge(
     x: Unitful,
     y: Unitful,
-) -> np.bool | np.ndarray | jax.Array | bool:
+) -> Unitful:
     x_align, y_align = align_scales(x, y)
     if isinstance(x_align.val, complex) or isinstance(y_align.val, complex):
         raise Exception(f"Cannot compare complex values: {x}, {y}")
-    new_val = x_align.val >= y_align.val
+
+    if isinstance(x_align.val, jax.Array) or isinstance(y_align.val, jax.Array):
+        new_val = jnp.logical_or(
+            jnp.isclose(x_align.val, y_align.val, rtol=RTOL_COMPARSION, atol=ATOL_COMPARSION), x_align.val > y_align.val
+        )
+    elif isinstance(x_align.val, np.ndarray | np.number) or isinstance(y_align.val, np.ndarray | np.number):
+        new_val = np.logical_or(
+            np.isclose(x_align.val, y_align.val, rtol=RTOL_COMPARSION, atol=ATOL_COMPARSION), x_align.val > y_align.val
+        )
+    else:
+        new_val = x_align.val >= y_align.val
+
     new_static_arr = None
     if is_traced(new_val):
         x_arr = get_static_operand(x_align)
         y_arr = get_static_operand(y_align)
         if x_arr is not None and y_arr is not None:
             assert not isinstance(x_arr, complex) and not isinstance(y_arr, complex)
-            new_static_arr = x_arr >= y_arr
+            new_static_arr = np.logical_or(
+                np.isclose(x_arr, y_arr, rtol=RTOL_COMPARSION, atol=ATOL_COMPARSION), x_arr > y_arr
+            )
     if output_unitful_for_array(new_static_arr):
-        return Unitful(val=new_val, unit=EMPTY_UNIT, static_arr=new_static_arr)  # type: ignore
-    return new_val
+        return Unitful(val=new_val, unit=EMPTY_UNIT, static_arr=new_static_arr)
+    return Unitful(val=new_val, unit=EMPTY_UNIT)
 
 
 @overload
 def ge(
     x: Unitful,
     y: ArrayLike,
-) -> np.bool | np.ndarray | jax.Array | bool:
+) -> Unitful:
     assert x.unit.dim == {}, f"Cannot compare unitful with dim {x.unit.dim} to unitless quantity"
     result = ge(x, Unitful(val=y, unit=EMPTY_UNIT))
     return result
@@ -1211,7 +1268,7 @@ def ge(
 def ge(
     x: ArrayLike,
     y: Unitful,
-) -> np.bool | np.ndarray | jax.Array | bool:
+) -> Unitful:
     return lt(y, x)
 
 
@@ -1246,7 +1303,7 @@ def ge(x, y):  # type: ignore
 def gt(
     x: Unitful,
     y: Unitful,
-) -> np.bool | np.ndarray | jax.Array | bool:
+) -> Unitful:
     x_align, y_align = align_scales(x, y)
     if isinstance(x_align.val, complex) or isinstance(y_align.val, complex):
         raise Exception(f"Cannot compare complex values: {x}, {y}")
@@ -1260,14 +1317,14 @@ def gt(
             new_static_arr = x_arr > y_arr
     if output_unitful_for_array(new_static_arr):
         return Unitful(val=new_val, unit=EMPTY_UNIT, static_arr=new_static_arr)  # type: ignore
-    return new_val
+    return Unitful(val=new_val, unit=EMPTY_UNIT)
 
 
 @overload
 def gt(
     x: Unitful,
     y: ArrayLike,
-) -> np.bool | np.ndarray | jax.Array | bool:
+) -> Unitful:
     assert x.unit.dim == {}, f"Cannot compare unitful with dim {x.unit.dim} to unitless quantity"
     result = gt(x, Unitful(val=y, unit=EMPTY_UNIT))
     return result
@@ -1277,7 +1334,7 @@ def gt(
 def gt(
     x: ArrayLike,
     y: Unitful,
-) -> np.bool | np.ndarray | jax.Array | bool:
+) -> Unitful:
     return le(y, x)
 
 
