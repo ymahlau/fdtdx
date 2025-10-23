@@ -200,7 +200,7 @@ class BoundaryConfig(TreeClass):
         self,
         prop: Literal["alpha_start", "alpha_end"],
     ) -> dict[str, float]:
-        """Gets a dictionary mapping boundary names to their kappa values.
+        """Gets a dictionary mapping boundary names to their alpha values.
 
         Args:
             prop (Literal["alpha_start", "alpha_end"]): Which alpha property to get,
