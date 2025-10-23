@@ -90,6 +90,42 @@ class BoundaryConfig(TreeClass):
     #: Final kappa value at max z boundary. Default 1.5.
     kappa_end_maxz: float = frozen_field(default=1.5)
 
+    #: Initial alpha value at min x boundary. Default 1e-8.
+    alpha_start_minx: float = frozen_field(default=1e-8)
+
+    #: Final alpha value at min x boundary. Default 1e-8.
+    alpha_end_minx: float = frozen_field(default=1e-8)
+
+    #: Initial alpha value at max x boundary. Default 1e-8.
+    alpha_start_maxx: float = frozen_field(default=1e-8)
+
+    #: Final alpha value at max x boundary. Default 1e-8.
+    alpha_end_maxx: float = frozen_field(default=1e-8)
+
+    #: Initial alpha value at min y boundary. Default 1e-8.
+    alpha_start_miny: float = frozen_field(default=1e-8)
+
+    #: Final alpha value at min y boundary. Default 1e-8.
+    alpha_end_miny: float = frozen_field(default=1e-8)
+
+    #: Initial alpha value at max y boundary. Default 1e-8.
+    alpha_start_maxy: float = frozen_field(default=1e-8)
+
+    #: Final alpha value at max y boundary. Default 1e-8.
+    alpha_end_maxy: float = frozen_field(default=1e-8)
+
+    #: Initial alpha value at min z boundary. Default 1e-8.
+    alpha_start_minz: float = frozen_field(default=1e-8)
+
+    #: Final alpha value at min z boundary. Default 1e-8.
+    alpha_end_minz: float = frozen_field(default=1e-8)
+
+    #: Initial alpha value at max z boundary. Default 1e-8.
+    alpha_start_maxz: float = frozen_field(default=1e-8)
+
+    #: Final alpha value at max z boundary. Default 1e-8.
+    alpha_end_maxz: float = frozen_field(default=1e-8)
+
     def get_dict(self) -> dict[str, int]:
         """Gets a dictionary mapping boundary names to their grid thicknesses.
 
@@ -160,6 +196,44 @@ class BoundaryConfig(TreeClass):
         else:
             raise Exception(f"Unknown: {prop=}")
 
+    def get_alpha_dict(
+        self,
+        prop: Literal["alpha_start", "alpha_end"],
+    ) -> dict[str, float]:
+        """Gets a dictionary mapping boundary names to their kappa values.
+
+        Args:
+            prop (Literal["alpha_start", "alpha_end"]): Which alpha property to get,
+                either "alpha_start" or "alpha_end".
+
+        Returns:
+            dict[str, float]: Dictionary with keys 'min_x', 'max_x', 'min_y', 'max_y', 'min_z', 'max_z'
+                mapping to their respective alpha values.
+
+        Raises:
+            Exception: If prop is not "alpha_start" or "alpha_end"
+        """
+        if prop == "alpha_start":
+            return {
+                "min_x": self.alpha_start_minx,
+                "max_x": self.alpha_start_maxx,
+                "min_y": self.alpha_start_miny,
+                "max_y": self.alpha_start_maxy,
+                "min_z": self.alpha_start_minz,
+                "max_z": self.alpha_start_maxz,
+            }
+        elif prop == "alpha_end":
+            return {
+                "min_x": self.alpha_end_minx,
+                "max_x": self.alpha_end_maxx,
+                "min_y": self.alpha_end_miny,
+                "max_y": self.alpha_end_maxy,
+                "min_z": self.alpha_end_minz,
+                "max_z": self.alpha_end_maxz,
+            }
+        else:
+            raise Exception(f"Unknown: {prop=}")
+
     def get_inside_boundary_slice(self) -> tuple[slice, slice, slice]:
         """Gets slice objects for the non-PML interior region of the simulation volume.
 
@@ -189,6 +263,8 @@ class BoundaryConfig(TreeClass):
         boundary_type: str = "pml",
         kappa_start: float = 1,
         kappa_end: float = 1.5,
+        alpha_start: float = 1e-8,
+        alpha_end: float = 1e-8,
     ) -> "BoundaryConfig":
         """Creates a BoundaryConfig with uniform parameters for all boundaries.
 
@@ -226,6 +302,18 @@ class BoundaryConfig(TreeClass):
             kappa_end_minz=kappa_end,
             kappa_start_maxz=kappa_start,
             kappa_end_maxz=kappa_end,
+            alpha_start_minx=alpha_start,
+            alpha_end_minx=alpha_end,
+            alpha_start_maxx=alpha_start,
+            alpha_end_maxx=alpha_end,
+            alpha_start_miny=alpha_start,
+            alpha_end_miny=alpha_end,
+            alpha_start_maxy=alpha_start,
+            alpha_end_maxy=alpha_end,
+            alpha_start_minz=alpha_start,
+            alpha_end_minz=alpha_end,
+            alpha_start_maxz=alpha_start,
+            alpha_end_maxz=alpha_end,
         )
 
 
@@ -253,11 +341,14 @@ def boundary_objects_from_config(
     type_dict = config.get_type_dict()
     kappa_start_dict = config.get_kappa_dict("kappa_start")
     kappa_end_dict = config.get_kappa_dict("kappa_end")
+    alpha_start_dict = config.get_alpha_dict("alpha_start")
+    alpha_end_dict = config.get_alpha_dict("alpha_end")
 
     for kind, thickness in thickness_dict.items():
         axis, direction = axis_direction_from_kind(kind)
         boundary_type = type_dict[kind]
         kappa_start, kappa_end = kappa_start_dict[kind], kappa_end_dict[kind]
+        alpha_start, alpha_end = alpha_start_dict[kind], alpha_end_dict[kind]
 
         grid_shape_list: list[int | None] = [None, None, None]
         grid_shape_list[axis] = thickness if boundary_type == "pml" else 1
@@ -272,6 +363,8 @@ def boundary_objects_from_config(
                 partial_grid_shape=grid_shape,
                 kappa_start=kappa_start,
                 kappa_end=kappa_end,
+                alpha_start=alpha_start,
+                alpha_end=alpha_end,
                 direction=direction,
             )
         else:  # periodic

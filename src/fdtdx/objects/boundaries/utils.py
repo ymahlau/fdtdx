@@ -269,6 +269,50 @@ def kappa_from_direction_axis(
     return kappa
 
 
+def alpha_from_direction_axis(
+    alpha_start: float,
+    alpha_end: float,
+    thickness: int,
+    direction: Literal["+", "-"],
+    axis: int,
+    dtype: jnp.dtype,
+) -> jax.Array:
+    """Computes a linear grading profile for the complex
+    frequency shift alpha, used in PML boundaries, based on direction and axis.
+
+    Args:
+        alpha_start (float): Initial alpha value at boundary interface
+        alpha_end (float): Final alpha value at outer boundary
+        thickness (int): Number of grid cells for PML thickness
+        direction (Literal["+", "-"]): Direction of PML boundary ("+" for max, "-" for min)
+        axis (int): Principal axis for PML (0=x, 1=y, 2=z)
+        dtype (jnp.dtype): Data type for the returned array
+
+    Returns:
+        jax.Array: Alpha values linearly varying from start to end value
+
+    Raises:
+        Exception: If direction is not "+" or "-"
+        Exception: If axis is not 0, 1, or 2
+    """
+    if direction == "-":
+        alpha_vals = jnp.linspace(alpha_end, alpha_start, thickness, dtype=dtype)
+    elif direction == "+":
+        alpha_vals = jnp.linspace(alpha_start, alpha_end, thickness, dtype=dtype)
+    else:
+        raise Exception(f"Invalid direction: {direction}")
+
+    if axis == 0:
+        alpha = alpha_vals[None, :, None, None]
+    elif axis == 1:
+        alpha = alpha_vals[None, None, :, None]
+    elif axis == 2:
+        alpha = alpha_vals[None, None, None, :]
+    else:
+        raise Exception(f"Invalid axis: {axis}")
+    return alpha
+
+
 def axis_direction_from_kind(kind: str) -> tuple[int, Literal["+", "-"]]:
     """Extracts axis index and direction from boundary kind string.
 
