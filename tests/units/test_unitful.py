@@ -173,7 +173,61 @@ def test_le_magic_method():
     time1 = 2 * s
     time2 = 3 * s
     result = time1 <= time2
-    assert jnp.allclose(result, True)
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, bool)
+    assert jnp.allclose(result.val, True)
+
+
+def test_le_method_with_numpy_arrays():
+    """Test less than or equal with Unitful objects containing NumPy arrays"""
+    pressure_unit = Unit(scale=3, dim={SI.kg: 1, SI.m: -1, SI.s: -2})
+    pressures1 = Unitful(val=np.array([101.0, 95.5, 110.2, 88.7, 105.3]), unit=pressure_unit)
+    pressures2 = Unitful(val=np.array([100.0, 95.5, 118.2, 12.7, 45.3]), unit=pressure_unit)
+
+    result = pressures1 <= pressures2
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, np.ndarray)
+    assert result.val.dtype == bool
+    assert np.allclose(result.val, np.array([False, True, True, False, False]))
+
+
+def test_le_method_with_jax_arrays():
+    """Test less than or equal with Unitful objects containing Jax arrays"""
+    length_unit = Unit(scale=-2, dim={SI.m: 1})
+    lengths1 = Unitful(val=jnp.array([12.0, 25.5, 18.3, 30.1, 22.7]), unit=length_unit)
+    lengths2 = Unitful(val=jnp.array([12.0, 14.5, 100.3, 302.1, 2.7]), unit=length_unit)
+    result = lengths1 <= lengths2
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+    assert result.val.dtype == bool
+    assert jnp.allclose(result.val, np.array([True, False, True, True, False]))
+
+
+def test_le_method_overload_numpy_array():
+    """Test less than or equal with regular NumPy arrays"""
+    array1 = np.array([3.4, 7.1, 2.8, 9.3, 6.2])
+    array2 = np.array([7.9, 3.1, 2.8, 23.4, 23.4])
+
+    result = array1 <= array2
+
+    assert isinstance(result, np.ndarray)
+    assert result.dtype == bool
+    assert np.allclose(result, np.array([True, False, True, True, True]))
+
+
+def test_le_method_overload_jax_array():
+    """Test less than or equal with regular Jax arrays"""
+    array1 = jnp.array([3.4, 7.1, 2.8, 9.3, 6.2])
+    array2 = jnp.array([7.9, 3.1, 2.8, 23.4, 23.4])
+
+    result = array1 <= array2
+
+    assert isinstance(result, jax.Array)
+    assert result.dtype == bool
+    assert np.allclose(result, jnp.array([True, False, True, True, True]))
 
 
 def test_le_same_units_success():
@@ -182,7 +236,67 @@ def test_le_same_units_success():
     u1 = Unitful(val=jnp.array(5.0), unit=unit_m)
     u2 = Unitful(val=jnp.array(5.0), unit=unit_m)
     result = jnp.less_equal(u1, u2)  # type: ignore
-    assert jnp.allclose(result, True)
+
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.val, True)
+
+
+def test_le_untiful_jitted():
+    """Test less than or equal within a JIT-compiled function when input as unitful"""
+
+    length_unit = Unit(scale=-2, dim={SI.m: 1})
+    lengths1 = Unitful(
+        val=jnp.array([12.0, 25.5, 18.3, 30.1, 22.7]),
+        unit=length_unit,
+        static_arr=np.array([12.0, 25.5, 18.3, 30.1, 22.7]),
+    )
+    lengths2 = Unitful(
+        val=jnp.array([12.0, 14.5, 100.3, 302.1, 2.7]),
+        unit=length_unit,
+        static_arr=np.array([12.0, 14.5, 100.3, 302.1, 2.7]),
+    )
+
+    def fn(x: Unitful, y: Unitful) -> Unitful:
+        return x <= y
+
+    jitted_fn = jax.jit(fn)
+    result = jitted_fn(lengths1, lengths2)
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+    assert isinstance(result.static_arr, np.ndarray)
+    assert jnp.allclose(result.val, jnp.array([True, False, True, True, False]))
+
+
+def test_le_jitted_static():
+    length_unit = Unit(scale=-2, dim={SI.m: 1})
+    lengths1 = Unitful(
+        val=jnp.array([12.0, 5.5, 18.3, 30.1, 22.7]),
+        unit=length_unit,
+        static_arr=np.array([12.0, 5.5, 18.3, 30.1, 22.7]),
+    )
+    lengths2 = Unitful(
+        val=jnp.array([12.0, 14.5, 1.3, 3012.1, 22.7]),
+        unit=length_unit,
+        static_arr=np.array([12.0, 14.5, 100.3, 3012.1, 22.7]),
+    )
+
+    def fn(x: Unitful, y: Unitful) -> Unitful:
+        if is_currently_compiling() and not unitful.STATIC_OPTIM_STOP_FLAG:
+            assert x.static_arr is not None
+            assert y.static_arr is not None
+        result = x <= y
+        if is_currently_compiling() and not unitful.STATIC_OPTIM_STOP_FLAG:
+            assert result.static_arr is not None
+        return result
+
+    jitted_fn = jax.jit(fn)
+    result = jitted_fn(lengths1, lengths2)
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+    assert isinstance(result.static_arr, np.ndarray)
+    assert jnp.allclose(result.val, jnp.array([True, True, False, True, True]))
 
 
 def test_le_different_units_raises_error():
@@ -200,7 +314,8 @@ def test_lt_magic_method():
     time1 = 2 * s
     time2 = 3 * s
     result = jax.jit(lambda: time1 < time2)()
-    assert jnp.allclose(result, True)
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.val, True)
 
 
 def test_lt_same_units_success():
@@ -209,7 +324,9 @@ def test_lt_same_units_success():
     u1 = Unitful(val=jnp.array(4.0), unit=unit_kg)
     u2 = Unitful(val=jnp.array(10.0), unit=unit_kg)
     result = jnp.less(u1, u2)  # type: ignore
-    assert jnp.allclose(result, True)
+
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.val, True)
 
 
 def test_lt_different_units_raises_error():
@@ -227,7 +344,21 @@ def test_eq_magic_method():
     time1 = 5 * s
     time2 = 5 * s
     result = time1 == time2
-    assert jnp.allclose(result, True)
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.val, True)
+
+
+def test_eq_method_with_jax_arrays():
+    """Test less than or equal with Unitful objects containing Jax arrays"""
+    length_unit = Unit(scale=-2, dim={SI.m: 1})
+    lengths1 = Unitful(val=jnp.array([12.0, 25.5, 18.3, 30.1, 22.7]), unit=length_unit)
+    lengths2 = Unitful(val=jnp.array([12.0, 14.5, 100.3, 302.1, 22.7]), unit=length_unit)
+    result = lengths1 == lengths2
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+    assert result.val.dtype == bool
+    assert jnp.allclose(result.val, np.array([True, False, False, False, True]))
 
 
 def test_eq_same_units_success():
@@ -236,7 +367,8 @@ def test_eq_same_units_success():
     u1 = Unitful(val=jnp.array(7.0), unit=unit_kg)
     u2 = Unitful(val=jnp.array(7.0), unit=unit_kg)
     result = jnp.equal(u1, u2)  # type: ignore
-    assert jnp.allclose(result, True)
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.val, True)
 
 
 def test_eq_different_units_raises_error():
@@ -254,7 +386,8 @@ def test_neq_magic_method():
     time1 = 5 * s
     time2 = 3 * s
     result = time1 != time2
-    assert jnp.allclose(result, True)
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.val, True)
 
 
 def test_neq_same_units_success():
@@ -263,7 +396,8 @@ def test_neq_same_units_success():
     u1 = Unitful(val=jnp.array(5.0), unit=unit_cd)
     u2 = Unitful(val=jnp.array(3.0), unit=unit_cd)
     result = jnp.not_equal(u1, u2)  # type: ignore
-    assert jnp.allclose(result, True)
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.val, True)
 
 
 def test_neq_different_units_raises_error():
@@ -281,7 +415,21 @@ def test_ge_magic_method():
     time1 = 3 * s
     time2 = 2 * s
     result = time1 >= time2
-    assert jnp.allclose(result, True)
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.val, True)
+
+
+def test_ge_method_with_jax_arrays():
+    """Test less than or equal with Unitful objects containing Jax arrays"""
+    length_unit = Unit(scale=-2, dim={SI.m: 1})
+    lengths1 = Unitful(val=jnp.array([12.0, 25.5, 18.3, 30.1, 22.7]), unit=length_unit)
+    lengths2 = Unitful(val=jnp.array([12.0, 14.5, 100.3, 302.1, 22.7]), unit=length_unit)
+    result = lengths1 >= lengths2
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+    assert result.val.dtype == bool
+    assert jnp.allclose(result.val, np.array([True, True, False, False, True]))
 
 
 def test_ge_same_units_success():
@@ -290,7 +438,8 @@ def test_ge_same_units_success():
     u1 = Unitful(val=jnp.array(8.0), unit=unit_A)
     u2 = Unitful(val=jnp.array(8.0), unit=unit_A)
     result = jnp.greater_equal(u1, u2)  # type: ignore
-    assert jnp.allclose(result, True)
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.val, True)
 
 
 def test_ge_different_units_raises_error():
@@ -308,7 +457,8 @@ def test_gt_magic_method():
     time1 = 5 * s
     time2 = 3 * s
     result = time1 > time2
-    assert jnp.allclose(result, True)
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.val, True)
 
 
 def test_gt_same_units_success():
@@ -317,7 +467,8 @@ def test_gt_same_units_success():
     u1 = Unitful(val=jnp.array(400.0), unit=unit_K)
     u2 = Unitful(val=jnp.array(300.0), unit=unit_K)
     result = jnp.greater(u1, u2)  # type: ignore
-    assert jnp.allclose(result, True)
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.val, True)
 
 
 def test_gt_different_units_raises_error():
@@ -401,8 +552,10 @@ def test_equality_fractional_dimensions():
     result_equal = eq(u1, u2)
     result_not_equal = eq(u1, u3)
 
-    assert jnp.allclose(result_equal, True)
-    assert jnp.allclose(result_not_equal, False)
+    assert isinstance(result_equal, Unitful)
+    assert isinstance(result_not_equal, Unitful)
+    assert jnp.allclose(result_equal.val, True)
+    assert jnp.allclose(result_not_equal.val, False)
 
     # Also test that the units are properly preserved
     assert u1.unit.dim == {SI.A: Fraction(7, 11)}
@@ -1717,7 +1870,7 @@ def test_argmax_with_axis_parameter():
 
     assert isinstance(result, Unitful)
     expected_indices = jnp.array([1, 2])
-    assert jnp.all(result == expected_indices)
+    assert jnp.all(result.val == expected_indices)
 
 
 def test_argmax_unitfil_with_numpy_arrays():
@@ -1804,7 +1957,7 @@ def test_argmax_untiful_jitted():
 
     assert isinstance(result, Unitful)
     assert isinstance(result.val, jax.Array)
-    assert result == jnp.array(3)
+    assert result.val == jnp.array(3)
 
 
 def test_argmax_jax_arrays_jitted():
@@ -1839,7 +1992,7 @@ def test_argmax_jitted_static():
     assert isinstance(result, Unitful)
     assert isinstance(result.val, jax.Array)
     assert isinstance(result.static_arr, np.integer)
-    assert result == jnp.array(2)
+    assert result.val == jnp.array(2)
 
 
 def test_argmin_magic_method():
@@ -1863,7 +2016,7 @@ def test_argmin_overload_unitful():
 
     assert isinstance(result, Unitful)
     assert isinstance(result.val, jax.Array)
-    assert result == jnp.array(3)
+    assert result.val == jnp.array(3)
 
 
 def test_argmin_with_negative_nan_inf():

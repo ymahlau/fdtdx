@@ -1,13 +1,9 @@
 from unittest.mock import patch
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-import jax
-
-from fdtdx.core.physics.modes import compute_mode
-from fdtdx.core.wavelength import WaveCharacter
-from fdtdx.units import A, V, m
 
 from fdtdx.core.physics.modes import (
     ModeTupleType,
@@ -16,6 +12,8 @@ from fdtdx.core.physics.modes import (
     sort_modes,
     tidy3d_mode_computation_wrapper,
 )
+from fdtdx.core.wavelength import WaveCharacter
+from fdtdx.units import A, V, m
 
 
 class TestModeTupleType:
