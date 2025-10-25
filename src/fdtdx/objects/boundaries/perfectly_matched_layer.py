@@ -6,6 +6,7 @@ from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.plotting.colors import DARK_GREY
 from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState
 from fdtdx.objects.boundaries.utils import (
+    alpha_from_direction_axis,
     kappa_from_direction_axis,
     standard_sigma_from_direction_axis,
 )
@@ -62,8 +63,11 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
     axis orientation and both positive/negative directions.
     """
 
-    #: Loss parameter for complex frequency shifting. Defaults to 1e-8.
-    alpha: float = frozen_field(default=1.0e-8)
+    #: Initial loss parameter for complex frequency shifting. Defaults to 1e-8.
+    alpha_start: float = frozen_field(default=1.0e-8)
+
+    #: Final loss parameter for complex frequency shifting. Defaults to 1e-8.
+    alpha_end: float = frozen_field(default=1.0e-8)
 
     #: Initial kappa stretching coefficient. Defaults to 1.0.
     kappa_start: float = frozen_field(default=1.0)
@@ -114,11 +118,20 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
             dtype=dtype,
         )
 
-        bE = jnp.exp(-self._config.courant_number * (sigma_E / kappa + self.alpha))
-        bH = jnp.exp(-self._config.courant_number * (sigma_H / kappa + self.alpha))
+        alpha = alpha_from_direction_axis(
+            alpha_start=self.alpha_start,
+            alpha_end=self.alpha_end,
+            thickness=self.thickness,
+            direction=self.direction,
+            axis=self.axis,
+            dtype=dtype,
+        )
 
-        cE = (bE - 1) * sigma_E / (sigma_E * kappa + kappa**2 * self.alpha)
-        cH = (bH - 1) * sigma_H / (sigma_H * kappa + kappa**2 * self.alpha)
+        bE = jnp.exp(-self._config.courant_number * (sigma_E / kappa + alpha))
+        bH = jnp.exp(-self._config.courant_number * (sigma_H / kappa + alpha))
+
+        cE = (bE - 1) * sigma_E / (sigma_E * kappa + kappa**2 * alpha)
+        cH = (bH - 1) * sigma_H / (sigma_H * kappa + kappa**2 * alpha)
 
         return dtype, bE, bH, cE, cH, kappa
 
