@@ -64,10 +64,10 @@ class PositionConstraint:
     """
 
     #: The "child" object whose position is being adjusted
-    object: "SimulationObject"
+    object: str
 
     #: The "parent" object that serves as reference
-    other_object: "SimulationObject"  # "parent" object
+    other_object: str  # "parent" object
 
     #: Which axes (x,y,z) this constraint applies to
     axes: tuple[int, ...]
@@ -171,28 +171,6 @@ class GridCoordinateConstraint:
     coordinates: tuple[int, ...]
 
 
-@dataclass(kw_only=True, frozen=True)
-class RealCoordinateConstraint:
-    """Constrains an object's position to specific real-space coordinates.
-
-    Forces specific sides of an object to align with given real-space coordinates.
-    Used for precise positioning in physical units.
-
-    """
-
-    #: The object to position
-    object: "SimulationObject"
-
-    #: Which axes to constrain
-    axes: tuple[int, ...]
-
-    #: Which side of each axis ('+' or '-')
-    sides: tuple[Literal["+", "-"], ...]
-
-    #: Real-space coordinates to align with
-    coordinates: tuple[float, ...]
-
-
 @autoinit
 class SimulationObject(TreeClass, ABC):
     """Abstract base class for objects in a 3D simulation environment.
@@ -207,6 +185,10 @@ class SimulationObject(TreeClass, ABC):
     #: The object's shape in real-world coordinates.
     #: Defaults to UNDEFINED_SHAPE_3D if not specified.
     partial_real_shape: PartialRealShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
+
+    #: The object's position in real-world coordinates.
+    #: Defaults to UNDEFINED_SHAPE_3D if not specified.
+    partial_real_position: PartialRealShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
 
     #: The object's shape in grid coordinates.
     #: Defaults to UNDEFINED_SHAPE_3D if not specified.
@@ -706,40 +688,6 @@ class SimulationObject(TreeClass, ABC):
         if len(axes) != len(sides) or len(axes) != len(coordinates):
             raise Exception("All inputs need to have the same lengths!")
         return GridCoordinateConstraint(
-            object=self,
-            axes=axes,
-            sides=sides,
-            coordinates=coordinates,
-        )
-
-    def set_real_coordinates(
-        self,
-        axes: tuple[int, ...] | int,
-        sides: tuple[Literal["+", "-"], ...] | Literal["+", "-"],
-        coordinates: tuple[float, ...] | float,
-    ) -> RealCoordinateConstraint:
-        """Creates a RealCoordinateConstraint that forces specific sides of this object to align with
-        given real-space coordinates. Used for precise positioning in physical units.
-
-        Args:
-            axes (tuple[int, ...] | int): Either a single integer or a tuple describing which axes to constrain
-            sides (tuple[Literal["+", "-"], ...] | Literal["+", "-"]): Either a single string or a tuple of
-                strings ('+' or '-') indicating which side of each axis to constrain. Must have same length as axes.
-            coordinates (tuple[float, ...] | float): Either a single float or a tuple of floats specifying the
-                real-space coordinates in meters to align with. Must have same length as axes.
-
-        Returns:
-            RealCoordinateConstraint: Constraint forcing alignment with specific real-space coordinates
-        """
-        if isinstance(axes, int):
-            axes = (axes,)
-        if isinstance(sides, str):
-            sides = (sides,)
-        if isinstance(coordinates, int | float):
-            coordinates = (float(coordinates),)
-        if len(axes) != len(sides) or len(axes) != len(coordinates):
-            raise Exception("All inputs need to have the same lengths!")
-        return RealCoordinateConstraint(
             object=self,
             axes=axes,
             sides=sides,

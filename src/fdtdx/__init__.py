@@ -64,7 +64,6 @@ from fdtdx.objects.device.parameters.transform import ParameterTransformation
 from fdtdx.objects.object import (
     GridCoordinateConstraint,
     PositionConstraint,
-    RealCoordinateConstraint,
     SimulationObject,
     SizeConstraint,
     SizeExtensionConstraint,
@@ -121,7 +120,6 @@ __all__ = [
     "SizeConstraint",
     "SizeExtensionConstraint",
     "GridCoordinateConstraint",
-    "RealCoordinateConstraint",
     # boundaries
     "PerfectlyMatchedLayer",
     "PeriodicBoundary",

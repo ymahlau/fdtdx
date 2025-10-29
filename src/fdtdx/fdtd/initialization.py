@@ -17,7 +17,6 @@ from fdtdx.objects.device.parameters.transform import ParameterType
 from fdtdx.objects.object import (
     GridCoordinateConstraint,
     PositionConstraint,
-    RealCoordinateConstraint,
     SimulationObject,
     SizeConstraint,
     SizeExtensionConstraint,
@@ -27,7 +26,7 @@ from fdtdx.typing import SliceTuple3D
 
 
 def place_objects(
-    volume: SimulationObject,
+    volume: list[SimulationObject],
     config: SimulationConfig,
     constraints: Sequence[
         (
@@ -35,7 +34,6 @@ def place_objects(
             | SizeConstraint
             | SizeExtensionConstraint
             | GridCoordinateConstraint
-            | RealCoordinateConstraint
         )
     ],
     key: jax.Array,
@@ -51,7 +49,7 @@ def place_objects(
     Args:
         volume (SimulationObject): The volume object defining the simulation boundaries
         config (SimulationConfig): The simulation configuration
-        constraints (Sequence[PositionConstraint| SizeConstraint| SizeExtensionConstraint| GridCoordinateConstraint| RealCoordinateConstraint]):
+        constraints (Sequence[PositionConstraint| SizeConstraint| SizeExtensionConstraint| GridCoordinateConstraint]):
             Sequence of positioning and sizing constraints for objects
         key (jax.Array): JAX random key for initialization
 
@@ -377,7 +375,6 @@ def _resolve_object_constraints(
             | SizeConstraint
             | SizeExtensionConstraint
             | GridCoordinateConstraint
-            | RealCoordinateConstraint
         )
     ],
     config: SimulationConfig,
@@ -390,7 +387,7 @@ def _resolve_object_constraints(
 
     Args:
         volume (SimulationObject): The volume object defining simulation boundaries
-        constraints (Sequence[PositionConstraint| SizeConstraint| SizeExtensionConstraint | GridCoordinateConstraint | RealCoordinateConstraint]):
+        constraints (Sequence[PositionConstraint| SizeConstraint| SizeExtensionConstraint | GridCoordinateConstraint ]):
             Sequence of positioning and sizing constraints
         config (SimulationConfig): The simulation configuration
 
@@ -398,7 +395,7 @@ def _resolve_object_constraints(
         dict[SimulationObject, SliceTuple3D]: Dictionary mapping objects to their resolved grid slice tuples
     """
     resolution = config.resolution
-    # split constraints into seperate lists
+    # split constraints into separate lists
     obj_list: list[SimulationObject] = [volume]
 
     # collect objects
@@ -418,8 +415,7 @@ def _resolve_object_constraints(
         elif isinstance(
             c,
             (
-                GridCoordinateConstraint,
-                RealCoordinateConstraint,
+                GridCoordinateConstraint
             ),
         ):
             if c.object not in obj_list:
@@ -498,20 +494,6 @@ def _resolve_object_constraints(
             if isinstance(c, GridCoordinateConstraint):
                 for axis_idx, axis in enumerate(c.axes):
                     cur_size = c.coordinates[axis_idx]
-                    o = c.object
-                    b_idx = 0 if c.sides[axis_idx] == "-" else 1
-                    if slice_dict[o][axis][b_idx] is None:
-                        slice_dict[o][axis][b_idx] = cur_size
-                        resolved_something = True
-                    elif slice_dict[o][axis][b_idx] != cur_size:
-                        raise Exception(
-                            f"Inconsistent grid coordinates for object: "
-                            f"{slice_dict[o][axis][b_idx]} != {cur_size} for {axis=} {o.name} ({o.__class__}). "
-                        )
-            # absolute real coordinate constraints
-            if isinstance(c, RealCoordinateConstraint):
-                for axis_idx, axis in enumerate(c.axes):
-                    cur_size = round(c.coordinates[axis_idx] / resolution)
                     o = c.object
                     b_idx = 0 if c.sides[axis_idx] == "-" else 1
                     if slice_dict[o][axis][b_idx] is None:

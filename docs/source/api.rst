@@ -60,7 +60,6 @@ API
     fdtdx.PositionConstraint
     fdtdx.PoyntingFluxDetector
     fdtdx.private_field
-    fdtdx.RealCoordinateConstraint
     fdtdx.Recorder
     fdtdx.RecordingState
     fdtdx.RemoveFloatingMaterial

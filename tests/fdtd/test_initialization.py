@@ -19,7 +19,6 @@ from fdtdx.objects.device.parameters.transform import ParameterType
 from fdtdx.objects.object import (
     GridCoordinateConstraint,
     PositionConstraint,
-    RealCoordinateConstraint,
     SimulationObject,
 )
 from fdtdx.objects.static_material.static import UniformMaterialObject
@@ -255,28 +254,3 @@ class TestInitialization:
         assert isinstance(result, dict)
         assert mock_volume in result
         assert result[mock_volume] == ((0, 10), (0, 10), (0, 10))
-
-    def test_resolve_object_constraints_with_real_coordinate(self, mock_volume, mock_config):
-        """Test the _resolve_object_constraints function with RealCoordinateConstraint."""
-        # Create a second object for the constraint
-        mock_object = Mock(spec=SimulationObject)
-        mock_object.name = "test_object"
-        mock_object.partial_grid_shape = (None, None, None)
-        mock_object.partial_real_shape = (None, None, None)
-
-        # Create a real coordinate constraint for the second object
-        constraint = Mock(spec=RealCoordinateConstraint)
-        constraint.object = mock_object
-        constraint.axes = [0]
-        constraint.coordinates = [5.0]  # 5.0 units
-        constraint.sides = ["-"]
-
-        # Call the function
-        result = _resolve_object_constraints(volume=mock_volume, constraints=[constraint], config=mock_config)
-
-        # Verify the return values
-        assert isinstance(result, dict)
-        assert mock_volume in result
-        assert mock_object in result
-        # Should convert 5.0 units to 5 grid cells (with resolution=1.0)
-        assert result[mock_object][0][0] == 5
