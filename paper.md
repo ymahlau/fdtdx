@@ -127,7 +127,7 @@ The $E_z$ for the same simulation scene is visualized in \autoref{fig_sim}.
 At the time of publication, FDTDX only supports simulation of linear, non-dispersive materials.
 Additionally, lossy materials are currently only partially supported.
 In the future, an implementation of dispersive material models [@taflove] is planned.
-Simulating non-linear materials is a difficult task due to the necessary theoretical physical knowledge as well as the capabilitiy to experimentally verify the simulation results in the lab.
+Simulating non-linear materials is a difficult task due to the necessary theoretical physical knowledge as well as the capability to experimentally verify the simulation results in the lab.
 We are determined to tackle this, but acknowledge that this will require significant effort and time.
 
 # Further Information
