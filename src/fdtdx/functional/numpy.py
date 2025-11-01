@@ -589,9 +589,9 @@ def imag(  # type: ignore
 ## sin #####################################
 @overload
 def sin(x: Unitful, *args, **kwargs) -> Unitful:
-    # check unit
-    if x.unit.dim != {}:
-        raise ValueError("Input to sin function must be dimensionless")
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
 
     if (
         isinstance(x.val, (bool, np.bool_))
@@ -649,9 +649,9 @@ def sin(x, *args, **kwargs):  # type: ignore
 ## cos #####################################
 @overload
 def cos(x: Unitful, *args, **kwargs) -> Unitful:
-    # check unit
-    if x.unit.dim != {}:
-        raise ValueError("Input to sin function must be dimensionless")
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
 
     if (
         isinstance(x.val, (bool, np.bool_))
@@ -709,9 +709,9 @@ def cos(x, *args, **kwargs):  # type: ignore
 ## tan #####################################
 @overload
 def tan(x: Unitful, *args, **kwargs) -> Unitful:
-    # check unit
-    if x.unit.dim != {}:
-        raise ValueError("Input to sin function must be dimensionless")
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
 
     if (
         isinstance(x.val, (bool, np.bool_))
@@ -768,9 +768,9 @@ def tan(x, *args, **kwargs):  # type: ignore
 ## arcsin #######################################
 @overload
 def arcsin(x: Unitful, *args, **kwargs) -> Unitful:
-    # check unit
-    if x.unit.dim != {}:
-        raise ValueError("Input to sin function must be dimensionless")
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
 
     if (
         isinstance(x.val, (bool, np.bool_))
@@ -827,9 +827,9 @@ def arcsin(x, *args, **kwargs):  # type: ignore
 ## arccos #######################################
 @overload
 def arccos(x: Unitful, *args, **kwargs) -> Unitful:
-    # check unit
-    if x.unit.dim != {}:
-        raise ValueError("Input to sin function must be dimensionless")
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
 
     if (
         isinstance(x.val, (bool, np.bool_))
@@ -886,9 +886,9 @@ def arccos(x, *args, **kwargs):  # type: ignore
 ## arctan #######################################
 @overload
 def arctan(x: Unitful, *args, **kwargs) -> Unitful:
-    # check unit
-    if x.unit.dim != {}:
-        raise ValueError("Input to sin function must be dimensionless")
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
 
     if (
         isinstance(x.val, (bool, np.bool_))
@@ -945,9 +945,9 @@ def arctan(x, *args, **kwargs):  # type: ignore
 ## sinh #######################################
 @overload
 def sinh(x: Unitful, *args, **kwargs) -> Unitful:
-    # check unit
-    if x.unit.dim != {}:
-        raise ValueError("Input to sin function must be dimensionless")
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
 
     if (
         isinstance(x.val, (bool, np.bool_))
@@ -1004,9 +1004,9 @@ def sinh(x, *args, **kwargs):  # type: ignore
 ## cosh #######################################
 @overload
 def cosh(x: Unitful, *args, **kwargs) -> Unitful:
-    # check unit
-    if x.unit.dim != {}:
-        raise ValueError("Input to sin function must be dimensionless")
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
 
     if (
         isinstance(x.val, (bool, np.bool_))
@@ -1063,9 +1063,9 @@ def cosh(x, *args, **kwargs):  # type: ignore
 ## tanh #######################################
 @overload
 def tanh(x: Unitful, *args, **kwargs) -> Unitful:
-    # check unit
-    if x.unit.dim != {}:
-        raise ValueError("Input to sin function must be dimensionless")
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
 
     if (
         isinstance(x.val, (bool, np.bool_))
@@ -1122,9 +1122,9 @@ def tanh(x, *args, **kwargs):  # type: ignore
 ## arcsinh #######################################
 @overload
 def arcsinh(x: Unitful, *args, **kwargs) -> Unitful:
-    # check unit
-    if x.unit.dim != {}:
-        raise ValueError("Input to sin function must be dimensionless")
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
 
     if (
         isinstance(x.val, (bool, np.bool_))
@@ -1181,9 +1181,9 @@ def arcsinh(x, *args, **kwargs):  # type: ignore
 ## arccosh #######################################
 @overload
 def arccosh(x: Unitful, *args, **kwargs) -> Unitful:
-    # check unit
-    if x.unit.dim != {}:
-        raise ValueError("Input to sin function must be dimensionless")
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
 
     if (
         isinstance(x.val, (bool, np.bool_))
@@ -1240,8 +1240,9 @@ def arccosh(x, *args, **kwargs):  # type: ignore
 ## arctanh #######################################
 @overload
 def arctanh(x: Unitful, *args, **kwargs) -> Unitful:
-    if x.unit.dim != {}:
-        raise ValueError("Input to sin function must be dimensionless")
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
 
     if (
         isinstance(x.val, (bool, np.bool_))
