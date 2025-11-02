@@ -38,6 +38,12 @@ class PMLBoundaryState(BaseBoundaryState):
     #: Auxiliary field for Hz component
     psi_Hz: jax.Array
 
+    #: Derivatives of magnetic field H at last time step
+    dH_for_E: jax.Array
+
+    #: Derivatives of electric field E at last time step
+    dE_for_H: jax.Array
+
     #: Electric field scaling coefficient
     bE: jax.Array
 
@@ -127,11 +133,19 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
             dtype=dtype,
         )
 
-        bE = jnp.exp(-self._config.courant_number * (sigma_E / kappa + alpha))
-        bH = jnp.exp(-self._config.courant_number * (sigma_H / kappa + alpha))
+        theta_E = self._config.courant_number * (sigma_E / kappa + alpha)
+        theta_H = self._config.courant_number * (sigma_H / kappa + alpha)
 
-        cE = (bE - 1) * sigma_E / (sigma_E * kappa + kappa**2 * alpha)
-        cH = (bH - 1) * sigma_H / (sigma_H * kappa + kappa**2 * alpha)
+        bE = jnp.exp(-theta_E)
+        bH = jnp.exp(-theta_H)
+
+        den_E = sigma_E + (kappa * alpha)
+        den_H = sigma_H + (kappa * alpha)
+        frac_E = sigma_E / den_E
+        frac_H = sigma_H / den_H
+
+        cE = (frac_E / kappa) * jnp.expm1(-theta_E)
+        cH = (frac_H / kappa) * jnp.expm1(-theta_H)
 
         return dtype, bE, bH, cE, cH, kappa
 
@@ -141,6 +155,7 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
     ) -> PMLBoundaryState:
         dtype, bE, bH, cE, cH, kappa = self._get_dtype_update_coefficients()
         ext_shape = (3,) + self.grid_shape
+        d2_shape = (3, 2) + self.grid_shape
 
         boundary_state = PMLBoundaryState(
             psi_Ex=jnp.zeros(shape=ext_shape, dtype=dtype),
@@ -149,6 +164,8 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
             psi_Hx=jnp.zeros(shape=ext_shape, dtype=dtype),
             psi_Hy=jnp.zeros(shape=ext_shape, dtype=dtype),
             psi_Hz=jnp.zeros(shape=ext_shape, dtype=dtype),
+            dH_for_E=jnp.zeros(shape=d2_shape, dtype=dtype),
+            dE_for_H=jnp.zeros(shape=d2_shape, dtype=dtype),
             bE=bE.astype(dtype),
             bH=bH.astype(dtype),
             cE=cE.astype(dtype),
@@ -168,6 +185,8 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
             psi_Hx=state.psi_Hx * 0,
             psi_Hy=state.psi_Hy * 0,
             psi_Hz=state.psi_Hz * 0,
+            dH_for_E=state.dH_for_E * 0,
+            dE_for_H=state.dE_for_H * 0,
             bE=bE.astype(dtype),
             bH=bH.astype(dtype),
             cE=cE.astype(dtype),
@@ -217,9 +236,28 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
             * (boundary_state.cE[1, :, 1:, :] if self.axis == 1 else boundary_state.cE[1])
         )
 
+        # Directional partial derivatives for Ex: (+) d_y Hz, (-) d_z Hy
+        dY_Hz = jnp.zeros_like(Hx).at[:, 1:, :].set(Hz[:, 1:, :] - Hz[:, :-1, :])
+        dZ_Hy = jnp.zeros_like(Hx).at[:, :, 1:].set(Hy[:, :, 1:] - Hy[:, :, :-1])
+        
+        # For Ey: (+) d_z Hx, (-) d_x Hz
+        dZ_Hx = jnp.zeros_like(Hy).at[:, :, 1:].set(Hx[:, :, 1:] - Hx[:, :, :-1])
+        dX_Hz = jnp.zeros_like(Hy).at[1:, :, :].set(Hz[1:, :, :] - Hz[:-1, :, :])
+        
+        # For Ez: (+) d_x Hy, (-) d_y Hx
+        dX_Hy = jnp.zeros_like(Hz).at[1:, :, :].set(Hy[1:, :, :] - Hy[:-1, :, :])
+        dY_Hx = jnp.zeros_like(Hz).at[:, 1:, :].set(Hx[:, 1:, :] - Hx[:, :-1, :])
+        
+        dH_for_E = jnp.stack([
+            jnp.stack([dY_Hz, dZ_Hy], axis=0),
+            jnp.stack([dZ_Hx, dX_Hz], axis=0),
+            jnp.stack([dX_Hy, dY_Hx], axis=0),
+        ], axis=0)
+
         boundary_state = boundary_state.at["psi_Ex"].set(psi_Ex)
         boundary_state = boundary_state.at["psi_Ey"].set(psi_Ey)
         boundary_state = boundary_state.at["psi_Ez"].set(psi_Ez)
+        boundary_state = boundary_state.at["dH_for_E"].set(dH_for_E)
 
         return boundary_state
 
@@ -264,9 +302,28 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
             * (boundary_state.cH[1, :, :-1, :] if self.axis == 1 else boundary_state.cH[1])
         )
 
+        # Hx needs (+) d_y Ez, (-) d_z Ey
+        dY_Ez = jnp.zeros_like(Ex).at[:, 1:, :].set(Ez[:, 1:, :] - Ez[:, :-1, :])
+        dZ_Ey = jnp.zeros_like(Ex).at[:, :, 1:].set(Ey[:, :, 1:] - Ey[:, :, :-1])
+        
+        # Hy needs (+) d_z Ex, (-) d_x Ez
+        dZ_Ex = jnp.zeros_like(Ey).at[:, :, 1:].set(Ex[:, :, 1:] - Ex[:, :, :-1])
+        dX_Ez = jnp.zeros_like(Ey).at[1:, :, :].set(Ez[1:, :, :] - Ez[:-1, :, :])
+        
+        # Hz needs (+) d_x Ey, (-) d_y Ex
+        dX_Ey = jnp.zeros_like(Ez).at[1:, :, :].set(Ey[1:, :, :] - Ey[:-1, :, :])
+        dY_Ex = jnp.zeros_like(Ez).at[:, 1:, :].set(Ex[:, 1:, :] - Ex[:, :-1, :])
+        
+        dE_for_H = jnp.stack([
+            jnp.stack([dY_Ez, dZ_Ey], axis=0),
+            jnp.stack([dZ_Ex, dX_Ez], axis=0),
+            jnp.stack([dX_Ey, dY_Ex], axis=0),
+        ], axis=0)
+
         boundary_state = boundary_state.at["psi_Hx"].set(psi_Hx)
         boundary_state = boundary_state.at["psi_Hy"].set(psi_Hy)
         boundary_state = boundary_state.at["psi_Hz"].set(psi_Hz)
+        boundary_state = boundary_state.at["dE_for_H"].set(dE_for_H)
 
         return boundary_state
 
@@ -280,11 +337,23 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
         phi_Ex = boundary_state.psi_Ex[1] - boundary_state.psi_Ex[2]
         phi_Ey = boundary_state.psi_Ey[2] - boundary_state.psi_Ey[0]
         phi_Ez = boundary_state.psi_Ez[0] - boundary_state.psi_Ez[1]
-        phi_E = jnp.stack((phi_Ex, phi_Ey, phi_Ez), axis=0)
 
-        E = E.at[:, *self.grid_slice].divide(boundary_state.kappa)
+        kx, ky, kz = boundary_state.kappa[0], boundary_state.kappa[1], boundary_state.kappa[2]
+        dH = boundary_state.dH_for_E  # shape (3,2, ...)
+        overlap = (kx != 1).astype(kx.dtype) + (ky != 1).astype(kx.dtype) + (kz != 1).astype(kx.dtype)
+        overlap = jnp.maximum(overlap, 1)
+
+        # Ex delta:  (+) term uses κ_y, (-) term uses κ_z
+        delta_Ex = (1.0/ky - 1.0) * dH[0,0] - (1.0/kz - 1.0) * dH[0,1] + phi_Ex
+        # Ey delta:  (+) κ_z, (-) κ_x
+        delta_Ey = (1.0/kz - 1.0) * dH[1,0] - (1.0/kx - 1.0) * dH[1,1] + phi_Ey
+        # Ez delta:  (+) κ_x, (-) κ_y
+        delta_Ez = (1.0/kx - 1.0) * dH[2,0] - (1.0/ky - 1.0) * dH[2,1] + phi_Ez
+
+        delta_E = jnp.stack((delta_Ex, delta_Ey, delta_Ez), axis=0)
+
         inv_perm_slice = inverse_permittivity[self.grid_slice]
-        update = self._config.courant_number * inv_perm_slice * phi_E
+        update = self._config.courant_number * inv_perm_slice * delta_E
         E = E.at[:, *self.grid_slice].add(update)
         return E
 
@@ -298,11 +367,23 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
         phi_Hx = boundary_state.psi_Hx[1] - boundary_state.psi_Hx[2]
         phi_Hy = boundary_state.psi_Hy[2] - boundary_state.psi_Hy[0]
         phi_Hz = boundary_state.psi_Hz[0] - boundary_state.psi_Hz[1]
-        phi_H = jnp.stack((phi_Hx, phi_Hy, phi_Hz), axis=0)
 
-        H = H.at[:, *self.grid_slice].divide(boundary_state.kappa)
+        kx, ky, kz = boundary_state.kappa[0], boundary_state.kappa[1], boundary_state.kappa[2]
+        dE = boundary_state.dE_for_H  # shape (3,2, ...)
+        overlap = (kx != 1).astype(kx.dtype) + (ky != 1).astype(kx.dtype) + (kz != 1).astype(kx.dtype)
+        overlap = jnp.maximum(overlap, 1)
+
+        # Hx delta: (+) κ_y, (-) κ_z
+        delta_Hx = (1.0/ky - 1.0) * dE[0,0] - (1.0/kz - 1.0) * dE[0,1] + phi_Hx
+        # Hy delta: (+) κ_z, (-) κ_x
+        delta_Hy = (1.0/kz - 1.0) * dE[1,0] - (1.0/kx - 1.0) * dE[1,1] + phi_Hy
+        # Hz delta: (+) κ_x, (-) κ_y
+        delta_Hz = (1.0/kx - 1.0) * dE[2,0] - (1.0/ky - 1.0) * dE[2,1] + phi_Hz
+
+        delta_H = jnp.stack((delta_Hx, delta_Hy, delta_Hz), axis=0)
+
         if isinstance(inverse_permeability, jax.Array) and inverse_permeability.ndim > 0:
             inverse_permeability = inverse_permeability[self.grid_slice]
-        update = -self._config.courant_number * inverse_permeability * phi_H
+        update = -self._config.courant_number * inverse_permeability * delta_H
         H = H.at[:, *self.grid_slice].add(update)
         return H
