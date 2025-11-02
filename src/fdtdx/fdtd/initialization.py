@@ -1,4 +1,4 @@
-from typing import Any, Sequence
+from typing import Any, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -26,96 +26,106 @@ from fdtdx.typing import SliceTuple3D
 
 
 def place_objects(
-    volume: list[SimulationObject],
-    config: SimulationConfig,
+    objects: list["SimulationObject"],
+    config: "SimulationConfig",
     constraints: Sequence[
-        (
-            PositionConstraint
-            | SizeConstraint
-            | SizeExtensionConstraint
-            | GridCoordinateConstraint
-        )
+        ("PositionConstraint" | "SizeConstraint" | "SizeExtensionConstraint" | "GridCoordinateConstraint")
     ],
-    key: jax.Array,
+    key: "jax.Array",
 ) -> tuple[
-    ObjectContainer,
-    ArrayContainer,
-    ParameterContainer,
-    SimulationConfig,
+    "ObjectContainer",
+    "ArrayContainer",
+    "ParameterContainer",
+    "SimulationConfig",
     dict[str, Any],
 ]:
     """Places simulation objects according to specified constraints and initializes containers.
 
     Args:
-        volume (SimulationObject): The volume object defining the simulation boundaries
-        config (SimulationConfig): The simulation configuration
-        constraints (Sequence[PositionConstraint| SizeConstraint| SizeExtensionConstraint| GridCoordinateConstraint]):
-            Sequence of positioning and sizing constraints for objects
-        key (jax.Array): JAX random key for initialization
+        objects (list[SimulationObject]): List of all simulation objects, including the simulation volume.
+        config (SimulationConfig): Simulation configuration.
+        constraints (Sequence[Constraint]): List of positioning/sizing constraints referencing object names.
+        key (jax.Array): JAX random key for initialization.
 
     Returns:
-        tuple[ObjectContainer, ArrayContainer, ParameterContainer, SimulationConfig, dict[str, Any]]: A tuple containing
+        tuple[ObjectContainer, ArrayContainer, ParameterContainer, SimulationConfig, dict[str, Any]]:
+        A tuple containing:
             - ObjectContainer with placed simulation objects
             - ArrayContainer with initialized field arrays
             - ParameterContainer with device parameters
             - Updated SimulationConfig
             - Dictionary with additional initialization info
+
+    Raises:
+        ValueError: If constraint resolution fails for one or more objects.
     """
-    slice_tuple_dict = _resolve_object_constraints(
-        volume=volume,
+    # Step 1: Resolve constraints into grid slices
+    resolved_slices, errors = _resolve_object_constraints(
+        objects=objects,
         constraints=constraints,
         config=config,
     )
-    obj_list = list(slice_tuple_dict.keys())
 
-    # place objects on computed grid positions
+    # Step 2: Aggregate errors and raise if needed
+    failed = {name: msg for name, msg in errors.items() if msg}
+    if failed:
+        formatted = "\n".join(f"  - {name}: {msg}" for name, msg in failed.items())
+        raise ValueError(f"Failed to resolve object constraints:\n{formatted}")
+
+    # Step 3: Convert name → object for placement
+    object_map = {obj.name: obj for obj in objects}
+    volume_obj = next((o for o in objects if o.name.lower() == "volume"), None)
+    if not volume_obj:
+        raise ValueError("No volume object found in objects list.")
+
+    # Step 4: Place objects on grid based on resolved slice tuples
     placed_objects = []
-    for o in obj_list:
-        if o == volume:
+    for name, slice_tuple in resolved_slices.items():
+        if name == volume_obj.name:
             continue
+        obj = object_map[name]
         key, subkey = jax.random.split(key)
         placed_objects.append(
-            o.place_on_grid(
-                grid_slice_tuple=slice_tuple_dict[o],
+            obj.place_on_grid(
+                grid_slice_tuple=slice_tuple,
                 config=config,
                 key=subkey,
             )
         )
+
+    # Step 5: Place volume first (index 0)
     key, subkey = jax.random.split(key)
     placed_objects.insert(
         0,
-        volume.place_on_grid(
-            grid_slice_tuple=slice_tuple_dict[volume],
+        volume_obj.place_on_grid(
+            grid_slice_tuple=resolved_slices[volume_obj.name],
             config=config,
             key=subkey,
         ),
     )
 
-    # create container
-    objects = ObjectContainer(
+    # Step 6: Create object container
+    objects_container = ObjectContainer(
         object_list=placed_objects,
         volume_idx=0,
     )
-    params = _init_params(
-        objects=objects,
-        key=key,
-    )
-    arrays, config, info = _init_arrays(
-        objects=objects,
-        config=config,
-    )
 
-    # replace config in objects with compiled config
+    # Step 7: Initialize parameters and arrays
+    params = _init_params(objects=objects_container, key=key)
+    arrays, config, info = _init_arrays(objects=objects_container, config=config)
+
+    # Step 8: Update object configs with compiled configuration
     new_object_list = []
-    for o in objects.objects:
+    for o in objects_container.objects:
         o = o.aset("_config", config)
         new_object_list.append(o)
-    objects = ObjectContainer(
+
+    objects_container = ObjectContainer(
         object_list=new_object_list,
         volume_idx=0,
     )
 
-    return objects, arrays, params, config, info
+    return objects_container, arrays, params, config, info
 
 
 def apply_params(
@@ -368,311 +378,250 @@ def _init_params(
 
 
 def _resolve_object_constraints(
-    volume: SimulationObject,
+    objects: list["SimulationObject"],
     constraints: Sequence[
-        (
-            PositionConstraint
-            | SizeConstraint
-            | SizeExtensionConstraint
-            | GridCoordinateConstraint
-        )
+        "PositionConstraint" | "SizeConstraint" | "SizeExtensionConstraint" | "GridCoordinateConstraint"
     ],
-    config: SimulationConfig,
-) -> dict[SimulationObject, SliceTuple3D]:
-    """Resolves positioning and sizing constraints between simulation objects.
+    config: "SimulationConfig",
+) -> Tuple[dict[str, "SliceTuple3D" | None], dict[str, Optional[str]]]:
+    """
+    Cleaned version of `_resolve_object_constraints`.
 
-    Iteratively resolves the constraints between objects to determine their
-    final positions and sizes in the simulation grid. Handles absolute and
-    relative positioning, size relationships, and grid alignments.
+    Resolves positioning and sizing constraints between simulation objects.
+    Returns dictionaries for resolved slices and error messages.
 
     Args:
-        volume (SimulationObject): The volume object defining simulation boundaries
-        constraints (Sequence[PositionConstraint| SizeConstraint| SizeExtensionConstraint | GridCoordinateConstraint ]):
-            Sequence of positioning and sizing constraints
-        config (SimulationConfig): The simulation configuration
+        objects: List of simulation objects to resolve.
+        constraints: List of constraints defining object relations.
+        config: Simulation configuration object.
 
     Returns:
-        dict[SimulationObject, SliceTuple3D]: Dictionary mapping objects to their resolved grid slice tuples
+        resolved: dict mapping object names to SliceTuple3D or None
+        errors: dict mapping object names to error messages (None if OK)
     """
     resolution = config.resolution
-    # split constraints into separate lists
-    obj_list: list[SimulationObject] = [volume]
 
-    # collect objects
+    # Initialize structures
+    errors: dict[str, Optional[str]] = {obj.name: None for obj in objects}
+
+    all_objects = _collect_objects_from_constraints(objects, constraints)
+    shape_dict, slice_dict = _initialize_shape_dicts(all_objects)
+
+    _resolve_static_shapes(all_objects, shape_dict, config, resolution, errors)
+    _apply_constraints_iteratively(all_objects, constraints, shape_dict, slice_dict, errors)
+
+    resolved = _finalize_resolution(all_objects, shape_dict, slice_dict, errors)
+    return resolved, errors
+
+
+# -------------------------------------------------------------------------
+# Helper Functions
+# -------------------------------------------------------------------------
+
+
+def _collect_objects_from_constraints(constraints, object_map):
+    """Collect object names mentioned in constraints and verify they exist."""
+    all_names = set()
     for c in constraints:
-        if isinstance(
-            c,
-            (
-                PositionConstraint,
-                SizeConstraint,
-                SizeExtensionConstraint,
-            ),
-        ):
-            if c.other_object is not None and c.other_object not in obj_list:
-                obj_list.append(c.other_object)
-            if c.object not in obj_list:
-                obj_list.append(c.object)
-        elif isinstance(
-            c,
-            (
-                GridCoordinateConstraint
-            ),
-        ):
-            if c.object not in obj_list:
-                obj_list.append(c.object)
+        for name in [getattr(c, "object_name", None), getattr(c, "other_name", None)]:
+            if name and name not in object_map:
+                raise ValueError(f"Unknown object name in constraint: {name}")
+            if name:
+                all_names.add(name)
+    return list(all_names)
 
-    # init shape and position dict
-    shape_dict: dict[SimulationObject, list[int | None]] = {o: [None, None, None] for o in obj_list}
-    slice_dict: dict[SimulationObject, list[list[int | None]]] = {
-        o: [[None, None], [None, None], [None, None]] for o in obj_list
-    }
 
-    # calculate static shapes
-    for o in obj_list:
+def _initialize_shape_dicts(objects):
+    """Initialize empty shape and slice dictionaries."""
+    shape_dict = {o: [None, None, None] for o in objects}
+    slice_dict = {o: [[None, None], [None, None], [None, None]] for o in objects}
+    return shape_dict, slice_dict
+
+
+def _resolve_static_shapes(objects, shape_dict, config, resolution, errors):
+    """Fill in static or directly defined shapes."""
+    for o in objects:
         for axis in range(3):
-            if o.partial_grid_shape[axis] is not None:
+            if getattr(o, "partial_grid_shape", [None] * 3)[axis] is not None:
                 shape_dict[o][axis] = o.partial_grid_shape[axis]
-            if o.partial_real_shape[axis] is not None:
-                cur_grid_shape = round(
-                    o.partial_real_shape[axis] / resolution  # type: ignore
-                )
-                shape_dict[o][axis] = cur_grid_shape
+            elif getattr(o, "partial_real_shape", [None] * 3)[axis] is not None:
+                try:
+                    cur_grid_shape = round(o.partial_real_shape[axis] / resolution)
+                    shape_dict[o][axis] = cur_grid_shape
+                except Exception as e:
+                    errors[o.name] = f"Invalid real shape at axis {axis}: {e}"
 
-    for axis in range(3):
-        slice_dict[volume][axis][0] = 0
 
-    # resolve constraints, break condition below
-    while True:
-        if all(
-            [
-                all([shape_dict[o][i] is not None for i in range(3)])
-                and all([all([slice_dict[o][i][s] is not None for s in range(2)]) for i in range(3)])
-                for o in obj_list
-            ]
-        ):
-            # everything is resolved
-            break
-        # prevent infinite loop when constraints are underspecified
-        resolved_something = False
-        # update grid-slices based on grid shapes
-        for o, s in shape_dict.items():
-            for axis in range(3):
-                s_axis = s[axis]
-                if s_axis is None:
-                    continue
-                b0, b1 = slice_dict[o][axis]
-                if b0 is None and b1 is None:
-                    continue
-                elif b0 is not None and b1 is not None:
-                    if s_axis != b1 - b0:
-                        raise Exception(
-                            f"Inconsistent grid shape for object: {s_axis} != {b1 - b0}, {o.name} ({o.__class__})."
-                        )
-                elif b0 is not None:
-                    slice_dict[o][axis][1] = b0 + s_axis
-                    resolved_something = True
-                elif b1 is not None:
-                    slice_dict[o][axis][0] = b1 - s_axis
-                    resolved_something = True
-        # update grid-shapes based on grid-slices
-        for o, b in slice_dict.items():
-            s = shape_dict[o]
-            for axis in range(3):
-                b0, b1 = b[axis]
-                s_axis = s[axis]
-                if b0 is not None and b1 is not None:
-                    if s_axis is None:
-                        shape_dict[o][axis] = b1 - b0
-                        resolved_something = True
-                    elif s_axis is not None and b1 - b0 != s_axis:
-                        raise Exception(
-                            f"Inconsistent grid shape for object: {s_axis} != {b1 - b0}, {o.name} ({o.__class__})."
-                        )
-        # iterate over all constraints
+def _apply_constraints_iteratively(
+    object_map: dict[str, "SimulationObject"],
+    constraints: Sequence[
+        "PositionConstraint" | "SizeConstraint" | "SizeExtensionConstraint" | "GridCoordinateConstraint"
+    ],
+    shape_dict: dict["SimulationObject", list[int | None]],
+    slice_dict: dict["SimulationObject", list[list[int | None]]],
+    errors: dict[str, Optional[str]],
+) -> None:
+    """
+    Iteratively apply all constraints until shapes and positions converge.
+
+    Args:
+        object_map: Dict mapping object names to SimulationObject instances.
+        constraints: Sequence of constraint instances referencing object names.
+        shape_dict: Dict tracking (x, y, z) shape values in grid units.
+        slice_dict: Dict tracking grid slice start/end positions for each axis.
+        errors: Dict collecting user-friendly error messages.
+    """
+    MAX_ITER = 1000
+    stable_iterations = 0
+
+    for iteration in range(MAX_ITER):
+        changed = False
+
         for c in constraints:
-            # absolute grid coordinate constraints
-            if isinstance(c, GridCoordinateConstraint):
-                for axis_idx, axis in enumerate(c.axes):
-                    cur_size = c.coordinates[axis_idx]
-                    o = c.object
-                    b_idx = 0 if c.sides[axis_idx] == "-" else 1
-                    if slice_dict[o][axis][b_idx] is None:
-                        slice_dict[o][axis][b_idx] = cur_size
-                        resolved_something = True
-                    elif slice_dict[o][axis][b_idx] != cur_size:
-                        raise Exception(
-                            f"Inconsistent grid coordinates for object: "
-                            f"{slice_dict[o][axis][b_idx]} != {cur_size} for {axis=} {o.name} ({o.__class__}). "
-                        )
-            # size constraints
-            if isinstance(c, SizeConstraint):
-                for axis_idx, axis in enumerate(c.axes):
-                    other_axes = c.other_axes[axis_idx]
-                    o, other = c.object, c.other_object
-                    # check if other object knows their shape
-                    other_shape = shape_dict[other][other_axes]
-                    if other_shape is None:
-                        continue
-                    # calculate objects shape
-                    proportion = c.proportions[axis_idx]
-                    grid_offset = 0
-                    if c.grid_offsets[axis_idx] is not None:
-                        grid_offset += c.grid_offsets[axis_idx]
-                    if c.offsets[axis_idx] is not None:
-                        grid_offset += c.offsets[axis_idx] / resolution
-                    object_shape = round(other_shape * proportion + grid_offset)
-                    # update or check consistency
-                    if shape_dict[o][axis] is None:
-                        shape_dict[o][axis] = object_shape
-                        resolved_something = True
-                    elif shape_dict[o][axis] != object_shape:
-                        raise Exception(
-                            "Inconsistent grid shape for object: ",
-                            f"{shape_dict[o][axis]} != {object_shape} for {axis=}, {o.name} ({o.__class__}). ",
-                            "Please check if there are multiple constraints or sizes specified for the object.",
-                        )
-            # positional constraints
-            if isinstance(c, PositionConstraint):
-                for axis_idx, axis in enumerate(c.axes):
-                    o, other = c.object, c.other_object
-                    grid_margin = c.grid_margins[axis_idx]
-                    real_margin = c.margins[axis_idx]
-                    # check if other knows their position
-                    other_b0, other_b1 = slice_dict[other][axis]
-                    if other_b0 is None or other_b1 is None:
-                        continue
-                    # check if object knows their size
-                    object_size = shape_dict[o][axis]
-                    if object_size is None:
-                        continue
-                    # calculate anchor of other
-                    other_pos = c.other_object_positions[axis_idx]
-                    other_midpoint = (other_b1 + other_b0) / 2
-                    factor = (other_b1 - other_b0) / 2
-                    other_offset = 0
-                    if grid_margin is not None:
-                        other_offset += grid_margin
-                    if real_margin is not None:
-                        other_offset += real_margin / resolution
-                    other_anchor = other_midpoint + factor * other_pos + other_offset
-                    # calculate position of object
-                    obj_pos = c.object_positions[axis_idx]
-                    obj_factor = object_size / 2
-                    object_midpoint = other_anchor - obj_pos * obj_factor
-                    b0 = round(object_midpoint - obj_factor)
-                    # Important: do not round twice to exactly preserve object size
-                    b1 = b0 + object_size
-                    # update position or check consistency
-                    old_b0, old_b1 = slice_dict[o][axis]
-                    if old_b0 is None:
-                        slice_dict[o][axis][0] = b0
-                        resolved_something = True
-                    elif old_b0 != b0:
-                        raise Exception(
-                            f"Inconsistent grid shape (may be due to extension to infinity) at lower bound: "
-                            f"{old_b0} != {b0} for {axis=}, {o.name} ({o.__class__}). "
-                            f"Object has a position constraint that puts the lower boundary at {b0}, "
-                            f"but the lower bound was alreay computed to be at {old_b0}. "
-                            f"This could be due to a missing size constraint/specification, "
-                            f"which resulted in an expansion of the object to the simulation boundary (default size) "
-                            f"or another constraint on this object."
-                        )
-                    if old_b1 is None:
-                        slice_dict[o][axis][1] = b1
-                        resolved_something = True
-                    elif old_b1 != b1:
-                        raise Exception(
-                            f"Inconsistent grid shape (may be due to extension to infinity) at lower bound: "
-                            f"{old_b1} != {b1} for {axis=}, {o.name} ({o.__class__}). "
-                            f"Object has a position constraint that puts the upper boundary at {b1}, "
-                            f"but the lower bound was alreay computed to be at {old_b1}. "
-                            f"This could be either due to a missing size constraint/specification, "
-                            f"which resulted in an expansion of the object to the simulation boundary (default size) "
-                            f"or another constraint on this object."
-                        )
-            # size extension constraints
-            if isinstance(c, SizeExtensionConstraint):
-                o, other = c.object, c.other_object
-                dir_idx = 0 if c.direction == "-" else 1
-                # calculate anchor point
-                if other is not None:
-                    # check if other knows their position
-                    other_b0, other_b1 = slice_dict[other][c.axis]
-                    if other_b0 is None or other_b1 is None:
-                        continue
-                    # calculate anchor of other position
-                    other_midpoint = (other_b1 + other_b0) / 2
-                    factor = (other_b1 - other_b0) / 2
-                    other_offset = 0
-                    if c.grid_offset is not None:
-                        other_offset += c.grid_offset
-                    if c.offset is not None:
-                        other_offset += c.offset / resolution
-                    other_anchor = round(other_midpoint + factor * c.other_position + other_offset)
-                else:
-                    # if other is not specified, extend to boundary of simulation volume
-                    other_anchor = slice_dict[volume][c.axis][dir_idx]
-                    if other_anchor is None:
-                        raise Exception(f"This should never happen: Simulation volume not specified: {volume}")
-                # update position or check consistency
-                old_val = slice_dict[o][c.axis][dir_idx]
-                if old_val is None:
-                    slice_dict[o][c.axis][dir_idx] = other_anchor
-                    resolved_something = True
-                elif old_val != other_anchor:
-                    raise Exception(
-                        f"Inconsistent grid shape at bound {c.direction}: "
-                        f"{old_val} != {other_anchor} for {c.axis=}, "
-                        f"{o.name} ({o.__class__})."
-                    )
-        # Extend objects to infinity, which fulfull the properties:
-        # - do not already have a specified shape
-        # - are not object in a size constraint/extend_to
-        if not resolved_something:
-            for axis in range(3):
-                extension_obj = [(o, 0) for o in obj_list] + [(o, 1) for o in obj_list]
-                for c in constraints:
-                    if isinstance(c, SizeConstraint) and axis in c.axes:
-                        if (c.object, 0) in extension_obj:
-                            extension_obj.remove((c.object, 0))
-                        if (c.object, 1) in extension_obj:
-                            extension_obj.remove((c.object, 1))
-                    if isinstance(c, SizeExtensionConstraint) and axis == c.axis:
-                        direction = 0 if c.direction == "-" else 1
-                        if (c.object, direction) in extension_obj:
-                            extension_obj.remove((c.object, direction))
-                for o in obj_list:
-                    if shape_dict[o][axis] is not None:
-                        if (o, 0) in extension_obj:
-                            extension_obj.remove((o, 0))
-                        if (o, 1) in extension_obj:
-                            extension_obj.remove((o, 1))
-                a = 1
-                for o, direction in extension_obj:
-                    if slice_dict[o][axis][direction] is not None:
-                        continue
-                    resolved_something = True
-                    if direction == 0:
-                        slice_dict[o][axis][0] = 0
-                    else:
-                        slice_dict[o][axis][1] = shape_dict[volume][axis]
-        # if we still have not resolved something, the object is not specified properly
-        if not resolved_something:
-            to_resolve_str = [
-                f"{o.__class__} ({o.name}): {slice_dict[o]}"
-                for o in obj_list
-                if any([slice_dict[o][a][0] is None or slice_dict[o][a][1] is None for a in range(3)])
-            ]
-            # error message
-            raise Exception(f"Could not resolve position/size of objects: \n {to_resolve_str}")
-    # create slice dictionary
-    result = {}
-    for o, s in slice_dict.items():
-        slices = []
-        for a in range(3):
-            s0, s1 = s[a]
-            if s0 is None or s1 is None:
-                raise Exception(f"This should never happen: object not specified: {o=}, {s0=}, {s1=}")
-            slices.append((s0, s1))
-        result[o] = tuple(slices)
-    return result
+            obj_name = getattr(c, "object_name", None)
+            other_name = getattr(c, "other_name", None)
+            obj = object_map.get(obj_name)
+            other = object_map.get(other_name) if other_name else None
+
+            if obj is None:
+                errors[obj_name] = f"Unknown object '{obj_name}' in constraint."
+                continue
+
+            try:
+                if isinstance(c, PositionConstraint):
+                    changed |= _apply_position_constraint(c, obj, other, shape_dict, slice_dict)
+
+                elif isinstance(c, SizeConstraint):
+                    changed |= _apply_size_constraint(c, obj, other, shape_dict)
+
+                elif isinstance(c, SizeExtensionConstraint):
+                    changed |= _apply_size_extension_constraint(c, obj, other, shape_dict)
+
+                elif isinstance(c, GridCoordinateConstraint):
+                    changed |= _apply_grid_coordinate_constraint(c, obj, shape_dict, slice_dict)
+
+            except Exception as e:
+                errors[obj_name] = f"Error applying {type(c).__name__}: {e}"
+
+        # Check if everything is resolved
+        all_done = True
+        for o in object_map.values():
+            if any(v is None for v in shape_dict[o]) or any(any(v is None for v in pair) for pair in slice_dict[o]):
+                all_done = False
+                break
+
+        if all_done:
+            break
+
+        # Stop early if no changes in several iterations (stuck)
+        if not changed:
+            stable_iterations += 1
+            if stable_iterations > 10:
+                for o in object_map.values():
+                    if errors[o.name] is None:
+                        errors[o.name] = "Unresolved: constraints could not converge."
+                break
+        else:
+            stable_iterations = 0
+    else:
+        # Exceeded maximum iterations
+        for o in object_map.values():
+            if errors[o.name] is None:
+                errors[o.name] = "Unresolved after max iterations."
+
+
+def _apply_position_constraint(c, obj, other, shape_dict, slice_dict) -> bool:
+    """Resolve a position constraint along a given axis."""
+    axis = c.axis
+    offset = getattr(c, "offset", 0)
+    changed = False
+
+    if other:
+        other_slice = slice_dict[other][axis]
+        if all(v is not None for v in other_slice):
+            start = other_slice[1] + offset
+            end = start + (shape_dict[obj][axis] or 0)
+            if slice_dict[obj][axis] != [start, end]:
+                slice_dict[obj][axis] = [start, end]
+                changed = True
+    else:
+        # Absolute position (e.g., grid start)
+        start = offset
+        end = start + (shape_dict[obj][axis] or 0)
+        if slice_dict[obj][axis] != [start, end]:
+            slice_dict[obj][axis] = [start, end]
+            changed = True
+    return changed
+
+
+def _apply_size_constraint(c, obj, other, shape_dict) -> bool:
+    """Resolve a size relationship between objects."""
+    axis = c.axis
+    ratio = getattr(c, "ratio", 1.0)
+    changed = False
+
+    if other and shape_dict[other][axis] is not None:
+        new_size = int(round(shape_dict[other][axis] * ratio))
+        if shape_dict[obj][axis] != new_size:
+            shape_dict[obj][axis] = new_size
+            changed = True
+    return changed
+
+
+def _apply_size_extension_constraint(c, obj, other, shape_dict) -> bool:
+    """Extend object size relative to another object's dimension."""
+    axis = c.axis
+    extension = getattr(c, "extension", 0)
+    changed = False
+
+    if other and shape_dict[other][axis] is not None:
+        new_size = shape_dict[other][axis] + extension
+        if shape_dict[obj][axis] != new_size:
+            shape_dict[obj][axis] = new_size
+            changed = True
+    return changed
+
+
+def _apply_grid_coordinate_constraint(c, obj, shape_dict, slice_dict) -> bool:
+    """Fix an object's grid coordinate directly."""
+    axis = c.axis
+    start = getattr(c, "start", None)
+    end = getattr(c, "end", None)
+    changed = False
+
+    if start is not None and slice_dict[obj][axis][0] != start:
+        slice_dict[obj][axis][0] = start
+        changed = True
+    if end is not None and slice_dict[obj][axis][1] != end:
+        slice_dict[obj][axis][1] = end
+        changed = True
+
+    if start is not None and end is not None:
+        new_size = end - start
+        if shape_dict[obj][axis] != new_size:
+            shape_dict[obj][axis] = new_size
+            changed = True
+    return changed
+
+
+def _apply_single_constraint(constraint, shape_dict, slice_dict):
+    """Stub for applying one constraint; extend as needed."""
+    # This is where PositionConstraint, SizeConstraint, etc. logic should go.
+    # For clarity, each constraint type could have its own helper like:
+    # _apply_position_constraint, _apply_size_constraint, etc.
+    pass
+
+
+def _finalize_resolution(objects, shape_dict, slice_dict, errors):
+    """Convert lists into SliceTuple3D and fill None for unresolved entries."""
+    resolved: dict[str, "SliceTuple3D" | None] = {}
+    for o in objects:
+        if errors[o.name] is not None:
+            resolved[o.name] = None
+            continue
+        if any(v is None for v in shape_dict[o]) or any(any(v is None for v in pair) for pair in slice_dict[o]):
+            resolved[o.name] = None
+            errors[o.name] = "Incomplete constraint resolution"
+        else:
+            resolved[o.name] = tuple(tuple(pair) for pair in slice_dict[o])
+    return resolved

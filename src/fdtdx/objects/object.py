@@ -96,10 +96,10 @@ class SizeConstraint:
     """
 
     #: The "child" object whose size is being adjusted
-    object: "SimulationObject"
+    object: str
 
     #: The "parent" object that serves as reference
-    other_object: "SimulationObject"
+    other_object: str
 
     #: Which axes of the child to constrain
     axes: tuple[int, ...]
@@ -128,10 +128,10 @@ class SizeExtensionConstraint:
     """
 
     #: The object being extended
-    object: "SimulationObject"
+    object: str
 
     #: Optional target object to extend to
-    other_object: Optional["SimulationObject"]
+    other_object: Optional[str]
 
     #: Which axis to extend along
     axis: int
@@ -159,7 +159,7 @@ class GridCoordinateConstraint:
     """
 
     #: The object to position
-    object: "SimulationObject"
+    object: str
 
     #: Which axes to constrain
     axes: tuple[int, ...]
@@ -279,7 +279,7 @@ class SimulationObject(TreeClass, ABC):
 
     def place_relative_to(
         self,
-        other: "SimulationObject",
+        other: str,
         axes: tuple[int, ...] | int,
         own_positions: tuple[float, ...] | float,
         other_positions: tuple[float, ...] | float,
@@ -337,7 +337,7 @@ class SimulationObject(TreeClass, ABC):
 
     def size_relative_to(
         self,
-        other: "SimulationObject",
+        other: str,
         axes: tuple[int, ...] | int,
         other_axes: tuple[int, ...] | int | None = None,
         proportions: tuple[float, ...] | float | None = None,
@@ -397,7 +397,7 @@ class SimulationObject(TreeClass, ABC):
 
     def same_size(
         self,
-        other: "SimulationObject",
+        other: str,
         axes: tuple[int, ...] | int = (0, 1, 2),
         offsets: tuple[float, ...] | float | None = None,
         grid_offsets: tuple[int, ...] | int | None = None,
@@ -431,7 +431,7 @@ class SimulationObject(TreeClass, ABC):
 
     def place_at_center(
         self,
-        other: "SimulationObject",
+        other: str,
         axes: tuple[int, ...] | int = (0, 1, 2),
         own_positions: tuple[float, ...] | float | None = None,
         other_positions: tuple[float, ...] | float | None = None,
@@ -475,7 +475,7 @@ class SimulationObject(TreeClass, ABC):
 
     def same_position(
         self,
-        other: "SimulationObject",
+        other: str,
         axes: tuple[int, ...] | int = (0, 1, 2),
         own_positions: tuple[float, ...] | float | None = None,
         other_positions: tuple[float, ...] | float | None = None,
@@ -512,7 +512,7 @@ class SimulationObject(TreeClass, ABC):
 
     def same_position_and_size(
         self,
-        other: "SimulationObject",
+        other: str,
         axes: tuple[int, ...] | int = (0, 1, 2),
     ) -> tuple[PositionConstraint, SizeConstraint]:
         """Creates both position and size constraints to make this object match another object's position and size.
@@ -538,7 +538,7 @@ class SimulationObject(TreeClass, ABC):
 
     def face_to_face_positive_direction(
         self,
-        other: "SimulationObject",
+        other: str,
         axes: tuple[int, ...] | int,
         margins: tuple[float, ...] | float | None = None,
         grid_margins: tuple[int, ...] | int | None = None,
@@ -573,7 +573,7 @@ class SimulationObject(TreeClass, ABC):
 
     def face_to_face_negative_direction(
         self,
-        other: "SimulationObject",
+        other: str,
         axes: tuple[int, ...] | int,
         margins: tuple[float, ...] | float | None = None,
         grid_margins: tuple[int, ...] | int | None = None,
@@ -608,7 +608,7 @@ class SimulationObject(TreeClass, ABC):
 
     def place_above(
         self,
-        other: "SimulationObject",
+        other: str,
         margins: tuple[float, ...] | float | None = None,
         grid_margins: tuple[int, ...] | int | None = None,
     ) -> PositionConstraint:
@@ -635,7 +635,7 @@ class SimulationObject(TreeClass, ABC):
 
     def place_below(
         self,
-        other: "SimulationObject",
+        other: str,
         margins: tuple[float, ...] | float | None = None,
         grid_margins: tuple[int, ...] | int | None = None,
     ) -> PositionConstraint:
@@ -740,7 +740,7 @@ class SimulationObject(TreeClass, ABC):
 
     def check_overlap(
         self,
-        other: "SimulationObject",
+        other: str,
     ) -> bool:
         for axis in range(3):
             s_start, s_end = self._grid_slice_tuple[axis]
