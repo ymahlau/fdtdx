@@ -258,12 +258,14 @@ def kappa_from_direction_axis(
     else:
         raise Exception(f"Invalid direction: {direction}")
 
+    ones = jnp.ones_like(kappa_vals)
+
     if axis == 0:
-        kappa = kappa_vals[None, :, None, None]
+        kappa = jnp.stack([kappa_vals, ones, ones], axis=0)[:, :, None, None]
     elif axis == 1:
-        kappa = kappa_vals[None, None, :, None]
+        kappa = jnp.stack([ones, kappa_vals, ones], axis=0)[:, None, :, None]
     elif axis == 2:
-        kappa = kappa_vals[None, None, None, :]
+        kappa = jnp.stack([ones, ones, kappa_vals], axis=0)[:, None, None, :]
     else:
         raise Exception(f"Invalid axis: {axis}")
     return kappa
@@ -301,13 +303,15 @@ def alpha_from_direction_axis(
         alpha_vals = jnp.linspace(alpha_start, alpha_end, thickness, dtype=dtype)
     else:
         raise Exception(f"Invalid direction: {direction}")
+    
+    zeros = jnp.zeros_like(alpha_vals)
 
     if axis == 0:
-        alpha = alpha_vals[None, :, None, None]
+        alpha = jnp.stack([alpha_vals, zeros, zeros], axis=0)[:, :, None, None]
     elif axis == 1:
-        alpha = alpha_vals[None, None, :, None]
+        alpha = jnp.stack([zeros, alpha_vals, zeros], axis=0)[:, None, :, None]
     elif axis == 2:
-        alpha = alpha_vals[None, None, None, :]
+        alpha = jnp.stack([zeros, zeros, alpha_vals], axis=0)[:, None, None, :]
     else:
         raise Exception(f"Invalid axis: {axis}")
     return alpha

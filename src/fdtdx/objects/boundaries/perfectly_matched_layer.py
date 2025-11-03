@@ -139,13 +139,18 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
         bE = jnp.exp(-theta_E)
         bH = jnp.exp(-theta_H)
 
-        den_E = sigma_E + (kappa * alpha)
-        den_H = sigma_H + (kappa * alpha)
-        frac_E = sigma_E / den_E
-        frac_H = sigma_H / den_H
+        denom_E = sigma_E * kappa + (kappa**2) * alpha
+        denom_H = sigma_H * kappa + (kappa**2) * alpha
 
-        cE = (frac_E / kappa) * jnp.expm1(-theta_E)
-        cH = (frac_H / kappa) * jnp.expm1(-theta_H)
+        # mask where both sigma and alpha are zero → c should be exactly 0
+        mask_E = jnp.isclose(denom_E, 0.0)
+        mask_H = jnp.isclose(denom_H, 0.0)
+
+        cE_raw = jnp.expm1(-theta_E) * sigma_E / jnp.where(mask_E, 1.0, denom_E)
+        cH_raw = jnp.expm1(-theta_H) * sigma_H / jnp.where(mask_H, 1.0, denom_H)
+
+        cE = jnp.where(mask_E, 0.0, cE_raw)
+        cH = jnp.where(mask_H, 0.0, cH_raw)
 
         return dtype, bE, bH, cE, cH, kappa
 
@@ -344,12 +349,12 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
             kz = 1.0
         elif self.axis == 1:
             kx = 1.0
-            ky = boundary_state.kappa[0]
+            ky = boundary_state.kappa[1]
             kz = 1.0
         elif self.axis == 2:
             kx = 1.0
             ky = 1.0
-            kz = boundary_state.kappa[0]
+            kz = boundary_state.kappa[2]
         else:
             raise ValueError(f"Invalid axis {self.axis} for PML boundary.")
 
@@ -386,12 +391,12 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
             kz = 1.0
         elif self.axis == 1:
             kx = 1.0
-            ky = boundary_state.kappa[0]
+            ky = boundary_state.kappa[1]
             kz = 1.0
         elif self.axis == 2:
             kx = 1.0
             ky = 1.0
-            kz = boundary_state.kappa[0]
+            kz = boundary_state.kappa[2]
         else:
             raise ValueError(f"Invalid axis {self.axis} for PML boundary.")
 
