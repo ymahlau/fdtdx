@@ -236,23 +236,23 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
             * (boundary_state.cE[1, :, 1:, :] if self.axis == 1 else boundary_state.cE[1])
         )
 
-        # Directional partial derivatives for Ex: (+) d_y Hz, (-) d_z Hy
         dY_Hz = jnp.zeros_like(Hx).at[:, 1:, :].set(Hz[:, 1:, :] - Hz[:, :-1, :])
         dZ_Hy = jnp.zeros_like(Hx).at[:, :, 1:].set(Hy[:, :, 1:] - Hy[:, :, :-1])
-        
-        # For Ey: (+) d_z Hx, (-) d_x Hz
+
         dZ_Hx = jnp.zeros_like(Hy).at[:, :, 1:].set(Hx[:, :, 1:] - Hx[:, :, :-1])
         dX_Hz = jnp.zeros_like(Hy).at[1:, :, :].set(Hz[1:, :, :] - Hz[:-1, :, :])
-        
-        # For Ez: (+) d_x Hy, (-) d_y Hx
+
         dX_Hy = jnp.zeros_like(Hz).at[1:, :, :].set(Hy[1:, :, :] - Hy[:-1, :, :])
         dY_Hx = jnp.zeros_like(Hz).at[:, 1:, :].set(Hx[:, 1:, :] - Hx[:, :-1, :])
-        
-        dH_for_E = jnp.stack([
-            jnp.stack([dY_Hz, dZ_Hy], axis=0),
-            jnp.stack([dZ_Hx, dX_Hz], axis=0),
-            jnp.stack([dX_Hy, dY_Hx], axis=0),
-        ], axis=0)
+
+        dH_for_E = jnp.stack(
+            [
+                jnp.stack([dY_Hz, dZ_Hy], axis=0),
+                jnp.stack([dZ_Hx, dX_Hz], axis=0),
+                jnp.stack([dX_Hy, dY_Hx], axis=0),
+            ],
+            axis=0,
+        )
 
         boundary_state = boundary_state.at["psi_Ex"].set(psi_Ex)
         boundary_state = boundary_state.at["psi_Ey"].set(psi_Ey)
@@ -302,23 +302,23 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
             * (boundary_state.cH[1, :, :-1, :] if self.axis == 1 else boundary_state.cH[1])
         )
 
-        # Hx needs (+) d_y Ez, (-) d_z Ey
         dY_Ez = jnp.zeros_like(Ex).at[:, 1:, :].set(Ez[:, 1:, :] - Ez[:, :-1, :])
         dZ_Ey = jnp.zeros_like(Ex).at[:, :, 1:].set(Ey[:, :, 1:] - Ey[:, :, :-1])
-        
-        # Hy needs (+) d_z Ex, (-) d_x Ez
+
         dZ_Ex = jnp.zeros_like(Ey).at[:, :, 1:].set(Ex[:, :, 1:] - Ex[:, :, :-1])
         dX_Ez = jnp.zeros_like(Ey).at[1:, :, :].set(Ez[1:, :, :] - Ez[:-1, :, :])
-        
-        # Hz needs (+) d_x Ey, (-) d_y Ex
+
         dX_Ey = jnp.zeros_like(Ez).at[1:, :, :].set(Ey[1:, :, :] - Ey[:-1, :, :])
         dY_Ex = jnp.zeros_like(Ez).at[:, 1:, :].set(Ex[:, 1:, :] - Ex[:, :-1, :])
-        
-        dE_for_H = jnp.stack([
-            jnp.stack([dY_Ez, dZ_Ey], axis=0),
-            jnp.stack([dZ_Ex, dX_Ez], axis=0),
-            jnp.stack([dX_Ey, dY_Ex], axis=0),
-        ], axis=0)
+
+        dE_for_H = jnp.stack(
+            [
+                jnp.stack([dY_Ez, dZ_Ey], axis=0),
+                jnp.stack([dZ_Ex, dX_Ez], axis=0),
+                jnp.stack([dX_Ey, dY_Ex], axis=0),
+            ],
+            axis=0,
+        )
 
         boundary_state = boundary_state.at["psi_Hx"].set(psi_Hx)
         boundary_state = boundary_state.at["psi_Hy"].set(psi_Hy)
@@ -338,17 +338,29 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
         phi_Ey = boundary_state.psi_Ey[2] - boundary_state.psi_Ey[0]
         phi_Ez = boundary_state.psi_Ez[0] - boundary_state.psi_Ez[1]
 
-        kx, ky, kz = boundary_state.kappa[0], boundary_state.kappa[1], boundary_state.kappa[2]
-        dH = boundary_state.dH_for_E  # shape (3,2, ...)
-        overlap = (kx != 1).astype(kx.dtype) + (ky != 1).astype(kx.dtype) + (kz != 1).astype(kx.dtype)
-        overlap = jnp.maximum(overlap, 1)
+        if self.axis == 0:
+            kx = boundary_state.kappa[0]
+            ky = 1.0
+            kz = 1.0
+        elif self.axis == 1:
+            kx = 1.0
+            ky = boundary_state.kappa[0]
+            kz = 1.0
+        elif self.axis == 2:
+            kx = 1.0
+            ky = 1.0
+            kz = boundary_state.kappa[0]
+        else:
+            raise ValueError(f"Invalid axis {self.axis} for PML boundary.")
 
-        # Ex delta:  (+) term uses κ_y, (-) term uses κ_z
-        delta_Ex = (1.0/ky - 1.0) * dH[0,0] - (1.0/kz - 1.0) * dH[0,1] + phi_Ex
-        # Ey delta:  (+) κ_z, (-) κ_x
-        delta_Ey = (1.0/kz - 1.0) * dH[1,0] - (1.0/kx - 1.0) * dH[1,1] + phi_Ey
-        # Ez delta:  (+) κ_x, (-) κ_y
-        delta_Ez = (1.0/kx - 1.0) * dH[2,0] - (1.0/ky - 1.0) * dH[2,1] + phi_Ez
+        # So far this code assumes that the region in this PML is only updated once,
+        # i.e., there is no overlapping PML in multiple directions.
+        # Overlapping PMLs would subtract the derivatives of the fields multiple times,
+        # something undesired
+        dH = boundary_state.dH_for_E
+        delta_Ex = (1.0 / ky - 1.0) * dH[0, 0] - (1.0 / kz - 1.0) * dH[0, 1] + phi_Ex
+        delta_Ey = (1.0 / kz - 1.0) * dH[1, 0] - (1.0 / kx - 1.0) * dH[1, 1] + phi_Ey
+        delta_Ez = (1.0 / kx - 1.0) * dH[2, 0] - (1.0 / ky - 1.0) * dH[2, 1] + phi_Ez
 
         delta_E = jnp.stack((delta_Ex, delta_Ey, delta_Ez), axis=0)
 
@@ -368,17 +380,29 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
         phi_Hy = boundary_state.psi_Hy[2] - boundary_state.psi_Hy[0]
         phi_Hz = boundary_state.psi_Hz[0] - boundary_state.psi_Hz[1]
 
-        kx, ky, kz = boundary_state.kappa[0], boundary_state.kappa[1], boundary_state.kappa[2]
-        dE = boundary_state.dE_for_H  # shape (3,2, ...)
-        overlap = (kx != 1).astype(kx.dtype) + (ky != 1).astype(kx.dtype) + (kz != 1).astype(kx.dtype)
-        overlap = jnp.maximum(overlap, 1)
+        if self.axis == 0:
+            kx = boundary_state.kappa[0]
+            ky = 1.0
+            kz = 1.0
+        elif self.axis == 1:
+            kx = 1.0
+            ky = boundary_state.kappa[0]
+            kz = 1.0
+        elif self.axis == 2:
+            kx = 1.0
+            ky = 1.0
+            kz = boundary_state.kappa[0]
+        else:
+            raise ValueError(f"Invalid axis {self.axis} for PML boundary.")
 
-        # Hx delta: (+) κ_y, (-) κ_z
-        delta_Hx = (1.0/ky - 1.0) * dE[0,0] - (1.0/kz - 1.0) * dE[0,1] + phi_Hx
-        # Hy delta: (+) κ_z, (-) κ_x
-        delta_Hy = (1.0/kz - 1.0) * dE[1,0] - (1.0/kx - 1.0) * dE[1,1] + phi_Hy
-        # Hz delta: (+) κ_x, (-) κ_y
-        delta_Hz = (1.0/kx - 1.0) * dE[2,0] - (1.0/ky - 1.0) * dE[2,1] + phi_Hz
+        # So far this code assumes that the region in this PML is only updated once,
+        # i.e., there is no overlapping PML in multiple directions.
+        # Overlapping PMLs would subtract the derivatives of the fields multiple times,
+        # something undesired
+        dE = boundary_state.dE_for_H
+        delta_Hx = (1.0 / ky - 1.0) * dE[0, 0] - (1.0 / kz - 1.0) * dE[0, 1] + phi_Hx
+        delta_Hy = (1.0 / kz - 1.0) * dE[1, 0] - (1.0 / kx - 1.0) * dE[1, 1] + phi_Hy
+        delta_Hz = (1.0 / kx - 1.0) * dE[2, 0] - (1.0 / ky - 1.0) * dE[2, 1] + phi_Hz
 
         delta_H = jnp.stack((delta_Hx, delta_Hy, delta_Hz), axis=0)
 
