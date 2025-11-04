@@ -287,8 +287,8 @@ class SimulationObject(TreeClass, ABC):
         grid_margins: tuple[int, ...] | int | None = None,
     ) -> PositionConstraint:
         """Creates a PositionalConstraint between two objects. The constraint is defined by anchor points on
-        both objects, which are constrainted to be at the same position. Anchors are defined in relative coordinates,
-        i.e. a position of -1 is the left object boundary in the repective axis and a position of +1 the right boundary.
+        both objects, which are constrained to be at the same position. Anchors are defined in relative coordinates,
+        i.e. a position of -1 is the left object boundary in the respective axis and a position of +1 the right boundary.
 
         Args:
             other (SimulationObject): Another object in the simulation scene

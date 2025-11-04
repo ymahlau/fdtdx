@@ -21,22 +21,20 @@ from fdtdx.objects.object import (
     SizeConstraint,
     SizeExtensionConstraint,
 )
-from fdtdx.objects.static_material.static import StaticMultiMaterialObject, UniformMaterialObject
+from fdtdx.objects.static_material.static import SimulationVolume, StaticMultiMaterialObject, UniformMaterialObject
 from fdtdx.typing import SliceTuple3D
 
 
 def place_objects(
-    objects: list["SimulationObject"],
-    config: "SimulationConfig",
-    constraints: Sequence[
-        ("PositionConstraint" | "SizeConstraint" | "SizeExtensionConstraint" | "GridCoordinateConstraint")
-    ],
-    key: "jax.Array",
+    objects: list[SimulationObject],
+    config: SimulationConfig,
+    constraints: Sequence[(PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint)],
+    key: jax.Array,
 ) -> tuple[
-    "ObjectContainer",
-    "ArrayContainer",
-    "ParameterContainer",
-    "SimulationConfig",
+    ObjectContainer,
+    ArrayContainer,
+    ParameterContainer,
+    SimulationConfig,
     dict[str, Any],
 ]:
     """Places simulation objects according to specified constraints and initializes containers.
@@ -74,9 +72,16 @@ def place_objects(
 
     # Step 3: Convert name → object for placement
     object_map = {obj.name: obj for obj in objects}
-    volume_obj = next((o for o in objects if o.name.lower() == "volume"), None)
-    if not volume_obj:
-        raise ValueError("No volume object found in objects list.")
+    volume_objects = [o for o in objects if isinstance(o, SimulationVolume)]
+    if not volume_objects:
+        raise ValueError("No SimulationVolume object found in the provided objects list.")
+    elif len(volume_objects) > 1:
+        raise ValueError(
+            f"Multiple SimulationVolume objects found ({[o.name for o in volume_objects]}). "
+            "There must be exactly one simulation volume."
+        )
+
+    volume_obj = volume_objects[0]
 
     # Step 4: Place objects on grid based on resolved slice tuples
     placed_objects = []
@@ -326,7 +331,7 @@ def _init_arrays(
     if config.gradient_config is not None and config.gradient_config.recorder is not None:
         input_shape_dtypes = {}
         for boundary in objects.pml_objects:
-            cur_shape = boundary.interface_grid_shape()
+            cur_shape = boundary.boundary_interface_grid_shape()
             extended_shape = (3, *cur_shape)
             input_shape_dtypes[f"{boundary.name}_E"] = jax.ShapeDtypeStruct(shape=extended_shape, dtype=config.dtype)
             input_shape_dtypes[f"{boundary.name}_H"] = jax.ShapeDtypeStruct(shape=extended_shape, dtype=config.dtype)
@@ -378,12 +383,10 @@ def _init_params(
 
 
 def _resolve_object_constraints(
-    objects: list["SimulationObject"],
-    constraints: Sequence[
-        "PositionConstraint" | "SizeConstraint" | "SizeExtensionConstraint" | "GridCoordinateConstraint"
-    ],
-    config: "SimulationConfig",
-) -> Tuple[dict[str, "SliceTuple3D" | None], dict[str, Optional[str]]]:
+    objects: list[SimulationObject],
+    constraints: Sequence[PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint],
+    config: SimulationConfig,
+) -> Tuple[dict[str, SliceTuple3D | None], dict[str, Optional[str]]]:
     """
     Cleaned version of `_resolve_object_constraints`.
 
@@ -453,10 +456,8 @@ def _resolve_static_shapes(objects, shape_dict, config, resolution, errors):
 
 
 def _apply_constraints_iteratively(
-    object_map: dict[str, "SimulationObject"],
-    constraints: Sequence[
-        "PositionConstraint" | "SizeConstraint" | "SizeExtensionConstraint" | "GridCoordinateConstraint"
-    ],
+    object_map: dict[str, SimulationObject],
+    constraints: Sequence[PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint],
     shape_dict: dict["SimulationObject", list[int | None]],
     slice_dict: dict["SimulationObject", list[list[int | None]]],
     errors: dict[str, Optional[str]],
@@ -519,7 +520,9 @@ def _apply_constraints_iteratively(
             if stable_iterations > 10:
                 for o in object_map.values():
                     if errors[o.name] is None:
-                        errors[o.name] = "Unresolved: constraints could not converge."
+                        errors[o.name] = (
+                            "Unresolved: constraints could not converge despite several iterations. Please check object map values"
+                        )
                 break
         else:
             stable_iterations = 0
@@ -582,25 +585,58 @@ def _apply_size_extension_constraint(c, obj, other, shape_dict) -> bool:
     return changed
 
 
-def _apply_grid_coordinate_constraint(c, obj, shape_dict, slice_dict) -> bool:
-    """Fix an object's grid coordinate directly."""
+def _apply_grid_coordinate_constraint(
+    c,
+    obj,
+    shape_dict,
+    slice_dict,
+    config=None,
+) -> bool:
+    """Fix an object's grid coordinate directly using its center position.
+
+    The coordinate system origin is at the center of the simulation volume.
+
+    Args:
+        c: GridCoordinateConstraint with attribute `center` (float)
+        obj: SimulationObject to modify
+        shape_dict: Dict mapping object → [sx, sy, sz] (grid sizes)
+        slice_dict: Dict mapping object → [[x0, x1], [y0, y1], [z0, z1]]
+        config: SimulationConfig (optional, used to determine grid size)
+
+    Returns:
+        bool: True if object position or shape changed
+    """
     axis = c.axis
-    start = getattr(c, "start", None)
-    end = getattr(c, "end", None)
+    center = getattr(c, "center", None)
     changed = False
 
-    if start is not None and slice_dict[obj][axis][0] != start:
-        slice_dict[obj][axis][0] = start
-        changed = True
-    if end is not None and slice_dict[obj][axis][1] != end:
-        slice_dict[obj][axis][1] = end
-        changed = True
+    # Determine total grid size (so we can translate coordinates)
+    total_size = None
+    if config is not None and hasattr(config, "grid_shape"):
+        total_size = config.grid_shape[axis]
 
-    if start is not None and end is not None:
-        new_size = end - start
-        if shape_dict[obj][axis] != new_size:
-            shape_dict[obj][axis] = new_size
+    # --- Convert center coordinate to grid indices ---
+    # User provides center relative to simulation origin (0 at volume center)
+    # So we map [-Nx/2, +Nx/2] → [0, Nx] by shifting by total_size / 2
+    if total_size is not None and center is not None:
+        center_idx = int(round(center + total_size / 2))
+    else:
+        center_idx = None
+
+    # --- Compute start / end indices from center and object size ---
+    cur_size = shape_dict[obj][axis]
+    if cur_size is None:
+        # Can't compute slice without size yet
+        return False
+
+    if center_idx is not None:
+        start_idx = int(round(center_idx - cur_size / 2))
+        end_idx = start_idx + cur_size
+
+        if slice_dict[obj][axis] != [start_idx, end_idx]:
+            slice_dict[obj][axis] = [start_idx, end_idx]
             changed = True
+
     return changed
 
 
@@ -614,14 +650,14 @@ def _apply_single_constraint(constraint, shape_dict, slice_dict):
 
 def _finalize_resolution(objects, shape_dict, slice_dict, errors):
     """Convert lists into SliceTuple3D and fill None for unresolved entries."""
-    resolved: dict[str, "SliceTuple3D" | None] = {}
+    resolved: dict[str, SliceTuple3D | None] = {}
     for o in objects:
         if errors[o.name] is not None:
             resolved[o.name] = None
             continue
         if any(v is None for v in shape_dict[o]) or any(any(v is None for v in pair) for pair in slice_dict[o]):
             resolved[o.name] = None
-            errors[o.name] = "Incomplete constraint resolution"
+            errors[o.name] = "Incomplete constraint resolution while converting lists into SliceTuple3D"
         else:
             resolved[o.name] = tuple(tuple(pair) for pair in slice_dict[o])
     return resolved
