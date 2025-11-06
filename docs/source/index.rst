@@ -9,14 +9,19 @@
 
 FDTDX Documentation
 ===================
-**FDTDX** is a high-performance framework for electromagnetic simulations and inverse design of photonic devices. Built on JAX, it provides GPU-accelerated FDTD (Finite-Difference Time-Domain) simulations with automatic differentiation capabilities.
+**FDTDX** is an efficient open-source Python package for the simulation and design of three-dimensional photonic nanostructures using the Finite-Difference Time-Domain (FDTD) method. Built on JAX, it provides native GPU support and automatic differentiation capabilities, making it ideal for large-scale design tasks.
 
 Key Features
 ---------------
-- Native GPU acceleration through JAX
-- Multi-GPU scaling for large simulations 
-- Memory-efficient time-reversal implementation
-- Optimized for large-scale inverse design
+
+The key features differentiating FDTDX from other simulation software packages like Meep (which is also great!) are the following:
+
+- **High Performance**: GPU-accelerated FDTD simulations with multi-GPU scaling capabilities
+- **Memory Efficient**: Leverages time-reversibility in Maxwell's equations for efficient gradient computation
+- **Automatic Differentiation**: Built-in gradient-based optimization for complex 3D structures
+- **User-Friendly API**: Intuitive positioning and sizing of objects in absolute or relative coordinates
+- **Large-Scale Design**: Capable of handling simulations with billions of grid cells
+- **Open Source**: Freely available for research, development and commercial use.
 
 Check out the Quickstart Guides for an introduction into FDTDX and the examples in the github repository!
 
@@ -68,4 +73,6 @@ If you find this repository helpful for your work, please consider citing:
    quickstart
    advanced
    api
+   contributing
+   faq
 
