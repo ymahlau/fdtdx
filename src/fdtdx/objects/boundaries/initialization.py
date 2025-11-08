@@ -1,6 +1,7 @@
 from typing import Literal, Union
 
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
+from fdtdx.config import SimulationConfig
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.boundaries.utils import axis_direction_from_kind
@@ -320,6 +321,7 @@ class BoundaryConfig(TreeClass):
 def boundary_objects_from_config(
     config: BoundaryConfig,
     volume: SimulationVolume,
+    sim_config: SimulationConfig,
 ) -> tuple[dict[str, Union[PerfectlyMatchedLayer, PeriodicBoundary]], list[PositionConstraint]]:
     """Creates boundary objects from a boundary configuration.
 
@@ -336,7 +338,10 @@ def boundary_objects_from_config(
             - dict mapping boundary names ('min_x', 'max_x', etc) to boundary objects
             - list of PositionConstraint objects for placing the boundaries
     """
-    boundaries, constraints = {}, []
+    boundaries: dict[str, Union[PerfectlyMatchedLayer, PeriodicBoundary]] = {}
+    constraints: list[PositionConstraint] = []
+
+    # Face settings
     thickness_dict = config.get_dict()
     type_dict = config.get_type_dict()
     kappa_start_dict = config.get_kappa_dict("kappa_start")
@@ -344,45 +349,178 @@ def boundary_objects_from_config(
     alpha_start_dict = config.get_alpha_dict("alpha_start")
     alpha_end_dict = config.get_alpha_dict("alpha_end")
 
-    for kind, thickness in thickness_dict.items():
-        axis, direction = axis_direction_from_kind(kind)
-        boundary_type = type_dict[kind]
-        kappa_start, kappa_end = kappa_start_dict[kind], kappa_end_dict[kind]
-        alpha_start, alpha_end = alpha_start_dict[kind], alpha_end_dict[kind]
+    # Helper: per-axis index and face keys
+    axes = ("x", "y", "z")
+    face_min_keys = ("min_x", "min_y", "min_z")
+    face_max_keys = ("max_x", "max_y", "max_z")
 
-        grid_shape_list: list[int | None] = [None, None, None]
-        grid_shape_list[axis] = thickness if boundary_type == "pml" else 1
-        grid_shape: PartialGridShape3D = tuple(grid_shape_list)  # type: ignore
+    # Periodic faces are still added as-is (they don't overlap).
+    for key in (*face_min_keys, *face_max_keys):
+        if type_dict[key] == "periodic":
+            ax, direction = axis_direction_from_kind(key)
+            direction_int = -1 if direction == "-" else 1
+            grid_shape_list: list[int | None] = [None, None, None]
+            grid_shape_list[ax] = 1  # zero-thickness placeholder for periodic
+            grid_shape: PartialGridShape3D = tuple(grid_shape_list)  # type: ignore
+            other_axes = [0, 1, 2]
+            del other_axes[ax]
 
-        other_axes = [0, 1, 2]
-        del other_axes[axis]
-
-        if boundary_type == "pml":
-            cur_boundary = PerfectlyMatchedLayer(
-                axis=axis,
-                partial_grid_shape=grid_shape,
-                kappa_start=kappa_start,
-                kappa_end=kappa_end,
-                alpha_start=alpha_start,
-                alpha_end=alpha_end,
-                direction=direction,
-            )
-        else:  # periodic
-            cur_boundary = PeriodicBoundary(
-                axis=axis,
+            pb = PeriodicBoundary(
+                axis=ax,
                 partial_grid_shape=grid_shape,
                 direction=direction,
             )
+            pos = pb.place_relative_to(
+                volume,
+                axes=(ax, other_axes[0], other_axes[1]),
+                own_positions=(direction_int, 0, 0),
+                other_positions=(direction_int, 0, 0),
+            )
+            boundaries[key] = pb
+            constraints.append(pos)
 
-        direction_int = -1 if direction == "-" else 1
-        pos_constraint = cur_boundary.place_relative_to(
-            volume,
-            axes=(axis, other_axes[0], other_axes[1]),
-            own_positions=(direction_int, 0, 0),
-            other_positions=(direction_int, 0, 0),
+    # If no PMLs configured, we are done
+    if all(type_dict[k] != "pml" for k in (*face_min_keys, *face_max_keys)):
+        return boundaries, constraints
+
+    vol_shape: PartialGridShape3D = volume.partial_grid_shape
+    if any(s is None for s in volume.partial_grid_shape):
+        if any(s is None for s in volume.partial_real_shape):
+            raise Exception("Either SimulationVolume.partial_grid_shape or SimulationVolume.partial_real_shape must be fully specified before boundary creation")
+        vol_shape = (
+            int(round(volume.partial_real_shape[0] / sim_config.resolution)),
+            int(round(volume.partial_real_shape[1] / sim_config.resolution)),
+            int(round(volume.partial_real_shape[2] / sim_config.resolution)),
+        )
+    print(vol_shape)
+    full_x, full_y, full_z = int(vol_shape[0]), int(vol_shape[1]), int(vol_shape[2])
+
+    # Thicknesses per face (0 if not PML)
+    tmin = [
+        thickness_dict["min_x"] if type_dict["min_x"] == "pml" else 0,
+        thickness_dict["min_y"] if type_dict["min_y"] == "pml" else 0,
+        thickness_dict["min_z"] if type_dict["min_z"] == "pml" else 0,
+    ]
+    tmax = [
+        thickness_dict["max_x"] if type_dict["max_x"] == "pml" else 0,
+        thickness_dict["max_y"] if type_dict["max_y"] == "pml" else 0,
+        thickness_dict["max_z"] if type_dict["max_z"] == "pml" else 0,
+    ]
+
+    # Compute interior lengths (disjoint middle segments)
+    Lx = full_x - tmin[0] - tmax[0]
+    Ly = full_y - tmin[1] - tmax[1]
+    Lz = full_z - tmin[2] - tmax[2]
+    if Lx < 0 or Ly < 0 or Lz < 0:
+        raise ValueError(
+            f"PML thickness exceeds volume size: "
+            f"L=({full_x},{full_y},{full_z}), tmin={tuple(tmin)}, tmax={tuple(tmax)}"
         )
 
-        boundaries[kind] = cur_boundary
-        constraints.append(pos_constraint)
+    # Alpha/kappa per-face helpers (fallbacks even if one side is not PML won't be used)
+    def get_alpha_kappa_for_sign(ax: int, s: int) -> tuple[float, float, float, float]:
+        if s < 0:
+            face = f"min_{axes[ax]}"
+        elif s > 0:
+            face = f"max_{axes[ax]}"
+        else:
+            face = f"min_{axes[ax]}"  # unused for s==0
+        return (
+            alpha_start_dict[face],
+            alpha_end_dict[face],
+            kappa_start_dict[face],
+            kappa_end_dict[face],
+        )
+
+    # Build segments per axis: (label, sign, length)
+    segs = []
+    for ax, L in enumerate((Lx, Ly, Lz)):
+        seg_ax: list[tuple[str, int, int]] = []
+        if tmin[ax] > 0:
+            seg_ax.append(("min", -1, tmin[ax]))
+        seg_ax.append(("mid", 0, L))
+        if tmax[ax] > 0:
+            seg_ax.append(("max", 1, tmax[ax]))
+        segs.append(seg_ax)
+
+    # Helper to pick primary axis for a block
+    def pick_primary_axis(signs: tuple[int, int, int]) -> int:
+        for i in range(3):
+            if signs[i] != 0:
+                return i
+        return 0  # shouldn't happen because we skip all-zero blocks
+
+    def block_key(sx: tuple[str, int], sy: tuple[str, int], sz: tuple[str, int]) -> str:
+        lx, sxv = sx
+        ly, syv = sy
+        lz, szv = sz
+        parts = []
+        if sxv != 0:
+            parts.append(f"{'min' if sxv < 0 else 'max'}_x")
+        if syv != 0:
+            parts.append(f"{'min' if syv < 0 else 'max'}_y")
+        if szv != 0:
+            parts.append(f"{'min' if szv < 0 else 'max'}_z")
+
+        # Face-center convenience aliases for non-overlap stripes
+        if sxv != 0 and syv == 0 and szv == 0:
+            return "min_x" if sxv < 0 else "max_x"
+        if syv != 0 and sxv == 0 and szv == 0:
+            return "min_y" if syv < 0 else "max_y"
+        if szv != 0 and sxv == 0 and syv == 0:
+            return "min_z" if szv < 0 else "max_z"
+
+        return "pml_" + ("_".join(parts) if parts else "interior")
+
+    for lx, sx, nx in segs[0]:
+        for ly, sy, ny in segs[1]:
+            for lz, sz, nz in segs[2]:
+                if sx == 0 and sy == 0 and sz == 0:
+                    continue
+
+                if nx == 0 or ny == 0 or nz == 0:
+                    continue
+
+                direction_params = (sx, sy, sz)
+                primary = pick_primary_axis(direction_params)
+                direction = "-" if direction_params[primary] < 0 else "+"
+                sizes = (nx, ny, nz)
+
+                a_s, a_e, k_s, k_e = get_alpha_kappa_for_sign(primary, direction_params[primary])
+
+                grid_shape: PartialGridShape3D = (sizes[0], sizes[1], sizes[2])  # type: ignore
+
+                pml = PerfectlyMatchedLayer(
+                    axis=primary,
+                    partial_grid_shape=grid_shape,
+                    kappa_start=k_s,
+                    kappa_end=k_e,
+                    alpha_start=a_s,
+                    alpha_end=a_e,
+                    direction=direction,
+                    direction_params=direction_params,
+                )
+
+                order = (primary, (primary + 1) % 3, (primary + 2) % 3)
+                pos_map = {0: sx, 1: sy, 2: sz}
+                own_positions = (pos_map[order[0]], pos_map[order[1]], pos_map[order[2]])
+                other_positions = own_positions
+
+                constraint = pml.place_relative_to(
+                    volume,
+                    axes=order,
+                    own_positions=own_positions,
+                    other_positions=other_positions,
+                )
+
+                key = block_key((lx, sx), (ly, sy), (lz, sz))
+                base_key = key
+                suffix = 1
+                while key in boundaries:
+                    suffix += 1
+                    key = f"{base_key}__{suffix}"
+
+                boundaries[key] = pml
+                constraints.append(constraint)
 
     return boundaries, constraints
