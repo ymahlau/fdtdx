@@ -24,7 +24,7 @@ from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.backward import full_backward
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, ParameterContainer, SimulationState
-from fdtdx.fdtd.initialization import apply_params, place_objects
+from fdtdx.fdtd.initialization import apply_params, place_objects, resolve_object_constraints
 from fdtdx.fdtd.wrapper import run_fdtd
 from fdtdx.interfaces.modules import DtypeConversion
 from fdtdx.interfaces.recorder import Recorder, RecordingState
@@ -109,6 +109,7 @@ __all__ = [
     "ParameterContainer",
     "ObjectContainer",
     "SimulationState",
+    "resolve_object_constraints",
     # interfaces
     "Recorder",
     "RecordingState",

@@ -24,6 +24,7 @@ from fdtdx.objects.object import (
 from fdtdx.objects.static_material.static import SimulationVolume, StaticMultiMaterialObject, UniformMaterialObject
 from fdtdx.typing import SliceTuple3D
 
+DEFAULT_MAX_ITER = 1000
 
 def place_objects(
     objects: list[SimulationObject],
@@ -57,8 +58,16 @@ def place_objects(
     Raises:
         ValueError: If constraint resolution fails for one or more objects.
     """
+    # Sanity check: Ensure all objects have unique names
+    object_names = [obj.name for obj in objects]
+    duplicates = {name for name in object_names if object_names.count(name) > 1}
+    if duplicates:
+        raise Exception(
+            f"Duplicate object names detected: {', '.join(sorted(duplicates))}. "
+            "Each object must have a unique name before resolving constraints into grid slices."
+        )
     # Step 1: Resolve constraints into grid slices
-    resolved_slices, errors = _resolve_object_constraints(
+    resolved_slices, errors = resolve_object_constraints(
         objects=objects,
         constraints=constraints,
         config=config,
@@ -382,13 +391,13 @@ def _init_params(
     return params
 
 
-def _resolve_object_constraints(
+def resolve_object_constraints(
     objects: list[SimulationObject],
     constraints: Sequence[PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint],
     config: SimulationConfig,
 ) -> Tuple[dict[str, SliceTuple3D | None], dict[str, Optional[str]]]:
     """
-    Cleaned version of `_resolve_object_constraints`.
+    Cleaned version of `resolve_object_constraints`.
 
     Resolves positioning and sizing constraints between simulation objects.
     Returns dictionaries for resolved slices and error messages.
@@ -457,10 +466,13 @@ def _resolve_static_shapes(objects, shape_dict, config, resolution, errors):
 
 def _apply_constraints_iteratively(
     object_map: dict[str, SimulationObject],
-    constraints: Sequence[PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint],
+    constraints: Sequence[
+        PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint
+    ],
     shape_dict: dict["SimulationObject", list[int | None]],
     slice_dict: dict["SimulationObject", list[list[int | None]]],
     errors: dict[str, Optional[str]],
+    max_iter: int = DEFAULT_MAX_ITER,
 ) -> None:
     """
     Iteratively apply all constraints until shapes and positions converge.
@@ -471,11 +483,10 @@ def _apply_constraints_iteratively(
         shape_dict: Dict tracking (x, y, z) shape values in grid units.
         slice_dict: Dict tracking grid slice start/end positions for each axis.
         errors: Dict collecting user-friendly error messages.
+        max_iter: Maximum number of iterations before aborting (default: DEFAULT_MAX_ITER).
     """
-    MAX_ITER = 1000
-    stable_iterations = 0
 
-    for iteration in range(MAX_ITER):
+    for iteration in range(max_iter):
         changed = False
 
         for c in constraints:
@@ -488,20 +499,30 @@ def _apply_constraints_iteratively(
                 errors[obj_name] = f"Unknown object '{obj_name}' in constraint."
                 continue
 
+            handled = False
             try:
                 if isinstance(c, PositionConstraint):
                     changed |= _apply_position_constraint(c, obj, other, shape_dict, slice_dict)
+                    handled = True
 
                 elif isinstance(c, SizeConstraint):
                     changed |= _apply_size_constraint(c, obj, other, shape_dict)
+                    handled = True
 
                 elif isinstance(c, SizeExtensionConstraint):
                     changed |= _apply_size_extension_constraint(c, obj, other, shape_dict)
+                    handled = True
 
                 elif isinstance(c, GridCoordinateConstraint):
                     changed |= _apply_grid_coordinate_constraint(c, obj, shape_dict, slice_dict)
+                    handled = True
+
+                # If none of the above branches matched, handled remains False.
+                if not handled:
+                    raise ValueError(f"Unknown constraint type: {type(c).__name__}")
 
             except Exception as e:
+                # Record error for this object (keeps semantics of previous implementation)
                 errors[obj_name] = f"Error applying {type(c).__name__}: {e}"
 
         # Check if everything is resolved
@@ -514,18 +535,15 @@ def _apply_constraints_iteratively(
         if all_done:
             break
 
-        # Stop early if no changes in several iterations (stuck)
+        # Stop immediately if nothing changed in this iteration
         if not changed:
-            stable_iterations += 1
-            if stable_iterations > 10:
-                for o in object_map.values():
-                    if errors[o.name] is None:
-                        errors[o.name] = (
-                            "Unresolved: constraints could not converge despite several iterations. Please check object map values"
-                        )
-                break
-        else:
-            stable_iterations = 0
+            for o in object_map.values():
+                if errors[o.name] is None:
+                    errors[o.name] = (
+                        "Unresolved: constraints could not converge (no changes detected). "
+                        "Please check object map values and constraint definitions."
+                    )
+            break
     else:
         # Exceeded maximum iterations
         for o in object_map.values():
@@ -657,7 +675,11 @@ def _finalize_resolution(objects, shape_dict, slice_dict, errors):
             continue
         if any(v is None for v in shape_dict[o]) or any(any(v is None for v in pair) for pair in slice_dict[o]):
             resolved[o.name] = None
-            errors[o.name] = "Incomplete constraint resolution while converting lists into SliceTuple3D"
+            errors[o.name] = "Incomplete constraint resolution"
         else:
-            resolved[o.name] = tuple(tuple(pair) for pair in slice_dict[o])
+            # Explicitly create the 3D slice tuple structure
+            x_slice = (slice_dict[o][0][0], slice_dict[o][0][1])
+            y_slice = (slice_dict[o][1][0], slice_dict[o][1][1])
+            z_slice = (slice_dict[o][2][0], slice_dict[o][2][1])
+            resolved[o.name] = (x_slice, y_slice, z_slice)
     return resolved
