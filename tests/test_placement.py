@@ -124,7 +124,7 @@ def test_placement():
     # place the objects
     key = jax.random.PRNGKey(42)
     objects, arrays, params, config, _ = fdtdx.place_objects(
-        objects=[volume, bound_cfg, d_energy, d_poynting, d_field, d_mode, d_phasor, materials, device, plane_source, gauss_source, mode_source, box, polygon, sphere, cylinder],
+        objects=[volume, d_energy, d_poynting, d_field, d_mode, d_phasor, device, plane_source,mode_source, gauss_source, box, sphere, cylinder, polygon],
         config=config,
         constraints=constraints,
         key=key,
