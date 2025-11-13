@@ -1,6 +1,7 @@
 import jax
 
 from fdtdx.config import SimulationConfig
+from fdtdx.constants import eta0
 from fdtdx.core.physics.curl import curl_E, curl_H, interpolate_fields
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.misc import add_boundary_interfaces, collect_boundary_interfaces
@@ -67,7 +68,7 @@ def update_E(
     if sigma_E is not None:
         # update formula for lossy material. Simplifies to Noop for conductivity = 0
         # for details see Schneider, chapter 3.12
-        factor = 1 - c * sigma_E * inv_eps / 2
+        factor = 1 - c * sigma_E*eta0 * inv_eps / 2
 
     # standard update formula using lossless material
     E = factor * arrays.E + c * curl * inv_eps
@@ -75,7 +76,7 @@ def update_E(
     if sigma_E is not None:
         # update formula for lossy material. Simplifies to Noop for conductivity = 0
         # for details see Schneider, chapter 3.12
-        E = E / (1 + c * sigma_E * inv_eps / 2)
+        E = E / (1 + c * sigma_E*eta0 * inv_eps / 2)
 
     for source in objects.sources:
 
@@ -159,8 +160,8 @@ def update_E_reverse(
     factor = 1
 
     if sigma_E is not None:
-        E = E * (1 + c * sigma_E * inv_eps / 2)
-        factor = 1 - c * sigma_E * inv_eps / 2
+        E = E * (1 + c * sigma_E*eta0 * inv_eps / 2)
+        factor = 1 - c * sigma_E*eta0 * inv_eps / 2
 
     E = E / factor - c * curl * inv_eps
 
@@ -214,7 +215,7 @@ def update_H(
     if sigma_H is not None:
         # update formula for lossy material. Simplifies to Noop for conductivity = 0
         # for details see Schneider, chapter 3.12
-        factor = 1 - c * sigma_H * inv_mu / 2
+        factor = 1 - c * sigma_H/eta0 * inv_mu / 2
 
     # standard update formula for lossless material
     H = factor * arrays.H - c * curl * inv_mu
@@ -222,7 +223,7 @@ def update_H(
     if sigma_H is not None:
         # update formula for lossy material. Simplifies to NoOp for conductivity = 0
         # for details see Schneider, chapter 3.12
-        H = H / (1 + c * sigma_H * inv_mu / 2)
+        H = H / (1 + c * sigma_H/eta0 * inv_mu / 2)
 
     for source in objects.sources:
 
@@ -307,8 +308,8 @@ def update_H_reverse(
 
     if sigma_H is not None:
         # lossy materials get gain when simulating backwards
-        H = H * (1 + c * sigma_H * inv_mu / 2)
-        factor = 1 - c * sigma_H * inv_mu / 2
+        H = H * (1 + c * sigma_H/eta0 * inv_mu / 2)
+        factor = 1 - c * sigma_H/eta0 * inv_mu / 2
 
     H = H / factor + c * curl * inv_mu
 
