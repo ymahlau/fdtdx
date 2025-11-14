@@ -142,9 +142,13 @@ class TestInitialization:
         arrays = ArrayContainer(
             E=jnp.zeros((3, 10, 10, 10), dtype=jnp.float32),
             H=jnp.zeros((3, 10, 10, 10), dtype=jnp.float32),
+            psi_E=jnp.zeros((6, 10, 10, 10), dtype=jnp.float32),
+            psi_H=jnp.zeros((6, 10, 10, 10), dtype=jnp.float32),
+            alpha=jnp.zeros((3, 10, 10, 10), dtype=jnp.float32),
+            kappa=jnp.ones((3, 10, 10, 10), dtype=jnp.float32),
+            sigma=jnp.zeros((3, 10, 10, 10), dtype=jnp.float32),
             inv_permittivities=inv_permittivities,
             inv_permeabilities=1.0,  # scalar since all objects are non-magnetic
-            boundary_states={},
             detector_states={},
             recording_state=None,
             electric_conductivity=None,

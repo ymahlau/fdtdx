@@ -10,7 +10,6 @@ from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 # Import the module to test
 from fdtdx.fdtd.forward import forward, forward_single_args_wrapper
 from fdtdx.interfaces.state import RecordingState
-from fdtdx.objects.boundaries.boundary import BaseBoundaryState
 from fdtdx.objects.detectors.detector import DetectorState
 
 
@@ -21,11 +20,15 @@ class TestForward:
         # Create mock arrays with appropriate shapes
         E = jnp.ones((10, 10, 10, 3))  # 3D electric field
         H = jnp.ones((10, 10, 10, 3))  # 3D magnetic field
+        psi_E = jnp.zeros((6, 10, 10, 10))  # 3D auxiliary electric field
+        psi_H = jnp.zeros((6, 10, 10, 10))  # 3D auxiliary magnetic field
+        alpha = jnp.zeros((3, 10, 10, 10))  # 3D alpha array
+        kappa = jnp.ones((3, 10, 10, 10))  # 3D kappa array
+        sigma = jnp.zeros((3, 10, 10, 10))  # 3D sigma array
         inv_permittivities = jnp.ones((10, 10, 10))
         inv_permeabilities = jnp.ones((10, 10, 10))
 
-        # Create mock boundary and detector states
-        boundary_states = {"pml": Mock(spec=BaseBoundaryState)}
+        # Create mock detector states
         detector_states = {"detector1": Mock(spec=DetectorState)}
         recording_state = Mock(spec=RecordingState)
 
@@ -33,9 +36,13 @@ class TestForward:
         arrays = ArrayContainer(
             E=E,
             H=H,
+            psi_E=psi_E,
+            psi_H=psi_H,
+            alpha=alpha,
+            kappa=kappa,
+            sigma=sigma,
             inv_permittivities=inv_permittivities,
             inv_permeabilities=inv_permeabilities,
-            boundary_states=boundary_states,
             detector_states=detector_states,
             recording_state=recording_state,
         )
@@ -156,9 +163,13 @@ class TestForward:
                 time_step=jnp.array(0),
                 E=arrays.E,
                 H=arrays.H,
+                psi_E=arrays.psi_E,
+                psi_H=arrays.psi_H,
+                alpha=arrays.alpha,
+                kappa=arrays.kappa,
+                sigma=arrays.sigma,
                 inv_permittivities=arrays.inv_permittivities,
                 inv_permeabilities=arrays.inv_permeabilities,
-                boundary_states=arrays.boundary_states,
                 detector_states=arrays.detector_states,
                 recording_state=arrays.recording_state,
                 config=config,
@@ -173,7 +184,7 @@ class TestForward:
             mock_forward.assert_called_once()
 
             # Check return values
-            assert len(result) == 8
+            assert len(result) == 12
             assert result[0] == 1  # time_step
             assert jnp.array_equal(result[1], arrays.E)  # E field
             assert jnp.array_equal(result[2], arrays.H)  # H field

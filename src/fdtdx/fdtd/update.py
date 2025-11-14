@@ -1,6 +1,9 @@
 import jax
+import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
+from fdtdx.constants import c as c0
+from fdtdx.constants import eps0, eta0
 from fdtdx.core.physics.curl import curl_E, curl_H, interpolate_fields
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.misc import add_boundary_interfaces, collect_boundary_interfaces
@@ -48,26 +51,126 @@ def update_E(
     Returns:
         ArrayContainer: Updated ArrayContainer with new E field values
     """
-    boundary_states = {}
-    if simulate_boundaries:
-        for boundary in objects.boundary_objects:
-            boundary_states[boundary.name] = boundary.update_E_boundary_state(
-                boundary_state=arrays.boundary_states[boundary.name],
-                H=arrays.H,
-            )
 
-    # Get periodic axes for curl operation
-    periodic_axes = get_periodic_axes(objects)
-    curl = curl_H(arrays.H, periodic_axes)
+    # Handle periodic boundaries by copying values from opposite sides
+    if simulate_boundaries:
+        E = arrays.E
+        for boundary in objects.boundary_objects:
+            if isinstance(boundary, PeriodicBoundary):
+                E = E.at[..., boundary.boundary_slice].set(E[..., boundary.opposite_slice])
+        arrays = arrays.at["E"].set(E)
+
     inv_eps = arrays.inv_permittivities
     c = config.courant_number
     sigma_E = arrays.electric_conductivity
+
+    # Get periodic axes for curl operation
+    periodic_axes = get_periodic_axes(objects)
+    H_pad = arrays.H
+    for i, periodic in enumerate(periodic_axes):
+        pad_mode = "wrap" if periodic else "constant"
+        # Create padding tuple for current axis
+        if i == 0:
+            pad_width = ((0, 0), (1, 1), (0, 0), (0, 0))
+        elif i == 1:
+            pad_width = ((0, 0), (0, 0), (1, 1), (0, 0))
+        else:  # i == 2
+            pad_width = ((0, 0), (0, 0), (0, 0), (1, 1))
+        H_pad = jnp.pad(H_pad, pad_width, mode=pad_mode)
+
+    DyHz = (H_pad[2] - jnp.roll(H_pad[2], 1, axis=1))[1:-1, 1:-1, 1:-1]
+    DzHy = (H_pad[1] - jnp.roll(H_pad[1], 1, axis=2))[1:-1, 1:-1, 1:-1]
+    DzHx = (H_pad[0] - jnp.roll(H_pad[0], 1, axis=2))[1:-1, 1:-1, 1:-1]
+    DxHz = (H_pad[2] - jnp.roll(H_pad[2], 1, axis=0))[1:-1, 1:-1, 1:-1]
+    DxHy = (H_pad[1] - jnp.roll(H_pad[1], 1, axis=0))[1:-1, 1:-1, 1:-1]
+    DyHx = (H_pad[0] - jnp.roll(H_pad[0], 1, axis=1))[1:-1, 1:-1, 1:-1]
+
+    # Auxiliary fields
+    psi_Exy = arrays.psi_E[0, :, :, :]
+    psi_Exz = arrays.psi_E[1, :, :, :]
+    psi_Eyz = arrays.psi_E[2, :, :, :]
+    psi_Eyx = arrays.psi_E[3, :, :, :]
+    psi_Ezx = arrays.psi_E[4, :, :, :]
+    psi_Ezy = arrays.psi_E[5, :, :, :]
+
+    if simulate_boundaries:
+        # Get E-field PML coefficients
+        b_x = (
+            jnp.expm1(
+                -c
+                * config.resolution
+                / c0
+                / eps0
+                * (arrays.sigma[0, :, :, :] / arrays.kappa[0, :, :, :] + arrays.alpha[0, :, :, :])
+            )
+            + 1
+        )
+        b_y = (
+            jnp.expm1(
+                -c
+                * config.resolution
+                / c0
+                / eps0
+                * (arrays.sigma[1, :, :, :] / arrays.kappa[1, :, :, :] + arrays.alpha[1, :, :, :])
+            )
+            + 1
+        )
+        b_z = (
+            jnp.expm1(
+                -c
+                * config.resolution
+                / c0
+                / eps0
+                * (arrays.sigma[2, :, :, :] / arrays.kappa[2, :, :, :] + arrays.alpha[2, :, :, :])
+            )
+            + 1
+        )
+
+        a_x = (
+            (b_x - 1.0)
+            * arrays.sigma[0, :, :, :]
+            / (arrays.sigma[0, :, :, :] + arrays.alpha[0, :, :, :] * arrays.kappa[0, :, :, :])
+            / arrays.kappa[0, :, :, :]
+        )
+        a_y = (
+            (b_y - 1.0)
+            * arrays.sigma[1, :, :, :]
+            / (arrays.sigma[1, :, :, :] + arrays.alpha[1, :, :, :] * arrays.kappa[1, :, :, :])
+            / arrays.kappa[1, :, :, :]
+        )
+        a_z = (
+            (b_z - 1.0)
+            * arrays.sigma[2, :, :, :]
+            / (arrays.sigma[2, :, :, :] + arrays.alpha[2, :, :, :] * arrays.kappa[2, :, :, :])
+            / arrays.kappa[2, :, :, :]
+        )
+
+        a_x = jnp.nan_to_num(a_x, nan=0.0, posinf=0.0, neginf=0.0)
+        a_y = jnp.nan_to_num(a_y, nan=0.0, posinf=0.0, neginf=0.0)
+        a_z = jnp.nan_to_num(a_z, nan=0.0, posinf=0.0, neginf=0.0)
+
+        # Update auxiliary fields
+        psi_Exy = b_y * psi_Exy + a_y * DyHz
+        psi_Exz = b_z * psi_Exz + a_z * DzHy
+        psi_Eyz = b_z * psi_Eyz + a_z * DzHx
+        psi_Eyx = b_x * psi_Eyx + a_x * DxHz
+        psi_Ezx = b_x * psi_Ezx + a_x * DxHy
+        psi_Ezy = b_y * psi_Ezy + a_y * DyHx
+
+        psi_E = jnp.stack((psi_Exy, psi_Exz, psi_Eyz, psi_Eyx, psi_Ezx, psi_Ezy), axis=0)
+        arrays = arrays.aset("psi_E", psi_E)
+
+    # Curl equations
+    curl_x = (1.0 / arrays.kappa[1, :, :, :] * DyHz + psi_Exy) - (1.0 / arrays.kappa[2, :, :, :] * DzHy + psi_Exz)
+    curl_y = (1.0 / arrays.kappa[2, :, :, :] * DzHx + psi_Eyz) - (1.0 / arrays.kappa[0, :, :, :] * DxHz + psi_Eyx)
+    curl_z = (1.0 / arrays.kappa[0, :, :, :] * DxHy + psi_Ezx) - (1.0 / arrays.kappa[1, :, :, :] * DyHx + psi_Ezy)
+    curl = jnp.stack((curl_x, curl_y, curl_z), axis=0)
 
     factor = 1
     if sigma_E is not None:
         # update formula for lossy material. Simplifies to Noop for conductivity = 0
         # for details see Schneider, chapter 3.12
-        factor = 1 - c * sigma_E * inv_eps / 2
+        factor = 1 - c * sigma_E * eta0 * inv_eps / 2
 
     # standard update formula using lossless material
     E = factor * arrays.E + c * curl * inv_eps
@@ -75,7 +178,7 @@ def update_E(
     if sigma_E is not None:
         # update formula for lossy material. Simplifies to Noop for conductivity = 0
         # for details see Schneider, chapter 3.12
-        E = E / (1 + c * sigma_E * inv_eps / 2)
+        E = E / (1 + c * sigma_E * eta0 * inv_eps / 2)
 
     for source in objects.sources:
 
@@ -95,18 +198,7 @@ def update_E(
             lambda: E,
         )
 
-    if simulate_boundaries:
-        for boundary in objects.boundary_objects:
-            E = boundary.update_E(
-                E=E,
-                boundary_state=boundary_states[boundary.name],
-                inverse_permittivity=arrays.inv_permittivities,
-            )
-
     arrays = arrays.at["E"].set(E)
-    if simulate_boundaries:
-        arrays = arrays.aset("boundary_states", boundary_states)
-
     return arrays
 
 
@@ -159,8 +251,8 @@ def update_E_reverse(
     factor = 1
 
     if sigma_E is not None:
-        E = E * (1 + c * sigma_E * inv_eps / 2)
-        factor = 1 - c * sigma_E * inv_eps / 2
+        E = E * (1 + c * sigma_E * eta0 * inv_eps / 2)
+        factor = 1 - c * sigma_E * eta0 * inv_eps / 2
 
     E = E / factor - c * curl * inv_eps
 
@@ -196,25 +288,126 @@ def update_H(
     Returns:
         ArrayContainer: Updated ArrayContainer with new H field values
     """
-    boundary_states = {}
-    if simulate_boundaries:
-        for boundary in objects.boundary_objects:
-            boundary_states[boundary.name] = boundary.update_H_boundary_state(
-                boundary_state=arrays.boundary_states[boundary.name],
-                E=arrays.E,
-            )
 
-    # Get periodic axes for curl operation
-    periodic_axes = get_periodic_axes(objects)
-    curl = curl_E(arrays.E, periodic_axes)
+    # Handle periodic boundaries by copying values from opposite sides
+    if simulate_boundaries:
+        H = arrays.H
+        for boundary in objects.boundary_objects:
+            if isinstance(boundary, PeriodicBoundary):
+                H = H.at[..., boundary.boundary_slice].set(H[..., boundary.opposite_slice])
+        arrays = arrays.at["H"].set(H)
+
     inv_mu = arrays.inv_permeabilities
     c = config.courant_number
     sigma_H = arrays.magnetic_conductivity
+
+    # Get periodic axes for curl operation
+    periodic_axes = get_periodic_axes(objects)
+    E_pad = arrays.E
+    for i, periodic in enumerate(periodic_axes):
+        pad_mode = "wrap" if periodic else "constant"
+        # Create padding tuple for current axis
+        if i == 0:
+            pad_width = ((0, 0), (1, 1), (0, 0), (0, 0))
+        elif i == 1:
+            pad_width = ((0, 0), (0, 0), (1, 1), (0, 0))
+        else:  # i == 2
+            pad_width = ((0, 0), (0, 0), (0, 0), (1, 1))
+        E_pad = jnp.pad(E_pad, pad_width, mode=pad_mode)
+
+    DyEz = (jnp.roll(E_pad[2], -1, axis=1) - E_pad[2])[1:-1, 1:-1, 1:-1]
+    DzEy = (jnp.roll(E_pad[1], -1, axis=2) - E_pad[1])[1:-1, 1:-1, 1:-1]
+    DzEx = (jnp.roll(E_pad[0], -1, axis=2) - E_pad[0])[1:-1, 1:-1, 1:-1]
+    DxEz = (jnp.roll(E_pad[2], -1, axis=0) - E_pad[2])[1:-1, 1:-1, 1:-1]
+    DxEy = (jnp.roll(E_pad[1], -1, axis=0) - E_pad[1])[1:-1, 1:-1, 1:-1]
+    DyEx = (jnp.roll(E_pad[0], -1, axis=1) - E_pad[0])[1:-1, 1:-1, 1:-1]
+
+    # Auxiliary fields
+    psi_Hxy = arrays.psi_H[0, :, :, :]
+    psi_Hxz = arrays.psi_H[1, :, :, :]
+    psi_Hyz = arrays.psi_H[2, :, :, :]
+    psi_Hyx = arrays.psi_H[3, :, :, :]
+    psi_Hzx = arrays.psi_H[4, :, :, :]
+    psi_Hzy = arrays.psi_H[5, :, :, :]
+
+    if simulate_boundaries:
+        # Get H-field PML coefficients
+        b_x = (
+            jnp.expm1(
+                -c
+                * config.resolution
+                / c0
+                / eps0
+                * (arrays.sigma[0, :, :, :] / arrays.kappa[0, :, :, :] + arrays.alpha[0, :, :, :])
+            )
+            + 1
+        )
+        b_y = (
+            jnp.expm1(
+                -c
+                * config.resolution
+                / c0
+                / eps0
+                * (arrays.sigma[1, :, :, :] / arrays.kappa[1, :, :, :] + arrays.alpha[1, :, :, :])
+            )
+            + 1
+        )
+        b_z = (
+            jnp.expm1(
+                -c
+                * config.resolution
+                / c0
+                / eps0
+                * (arrays.sigma[2, :, :, :] / arrays.kappa[2, :, :, :] + arrays.alpha[2, :, :, :])
+            )
+            + 1
+        )
+
+        a_x = (
+            (b_x - 1.0)
+            * arrays.sigma[0, :, :, :]
+            / (arrays.sigma[0, :, :, :] + arrays.alpha[0, :, :, :] * arrays.kappa[0, :, :, :])
+            / arrays.kappa[0, :, :, :]
+        )
+        a_y = (
+            (b_y - 1.0)
+            * arrays.sigma[1, :, :, :]
+            / (arrays.sigma[1, :, :, :] + arrays.alpha[1, :, :, :] * arrays.kappa[1, :, :, :])
+            / arrays.kappa[1, :, :, :]
+        )
+        a_z = (
+            (b_z - 1.0)
+            * arrays.sigma[2, :, :, :]
+            / (arrays.sigma[2, :, :, :] + arrays.alpha[2, :, :, :] * arrays.kappa[2, :, :, :])
+            / arrays.kappa[2, :, :, :]
+        )
+
+        a_x = jnp.nan_to_num(a_x, nan=0.0, posinf=0.0, neginf=0.0)
+        a_y = jnp.nan_to_num(a_y, nan=0.0, posinf=0.0, neginf=0.0)
+        a_z = jnp.nan_to_num(a_z, nan=0.0, posinf=0.0, neginf=0.0)
+
+        # Update auxiliary fields
+        psi_Hxy = b_y * psi_Hxy + a_y * DyEz
+        psi_Hxz = b_z * psi_Hxz + a_z * DzEy
+        psi_Hyz = b_z * psi_Hyz + a_z * DzEx
+        psi_Hyx = b_x * psi_Hyx + a_x * DxEz
+        psi_Hzx = b_x * psi_Hzx + a_x * DxEy
+        psi_Hzy = b_y * psi_Hzy + a_y * DyEx
+
+        psi_H = jnp.stack((psi_Hxy, psi_Hxz, psi_Hyz, psi_Hyx, psi_Hzx, psi_Hzy), axis=0)
+        arrays = arrays.aset("psi_H", psi_H)
+
+    # Curl equations
+    curl_x = (1.0 / arrays.kappa[1, :, :, :] * DyEz + psi_Hxy) - (1.0 / arrays.kappa[2, :, :, :] * DzEy + psi_Hxz)
+    curl_y = (1.0 / arrays.kappa[2, :, :, :] * DzEx + psi_Hyz) - (1.0 / arrays.kappa[0, :, :, :] * DxEz + psi_Hyx)
+    curl_z = (1.0 / arrays.kappa[0, :, :, :] * DxEy + psi_Hzx) - (1.0 / arrays.kappa[1, :, :, :] * DyEx + psi_Hzy)
+    curl = jnp.stack((curl_x, curl_y, curl_z), axis=0)
+
     factor = 1
     if sigma_H is not None:
         # update formula for lossy material. Simplifies to Noop for conductivity = 0
         # for details see Schneider, chapter 3.12
-        factor = 1 - c * sigma_H * inv_mu / 2
+        factor = 1 - c * sigma_H / eta0 * inv_mu / 2
 
     # standard update formula for lossless material
     H = factor * arrays.H - c * curl * inv_mu
@@ -222,7 +415,7 @@ def update_H(
     if sigma_H is not None:
         # update formula for lossy material. Simplifies to NoOp for conductivity = 0
         # for details see Schneider, chapter 3.12
-        H = H / (1 + c * sigma_H * inv_mu / 2)
+        H = H / (1 + c * sigma_H / eta0 * inv_mu / 2)
 
     for source in objects.sources:
 
@@ -242,18 +435,7 @@ def update_H(
             lambda: H,
         )
 
-    if simulate_boundaries:
-        for boundary in objects.boundary_objects:
-            H = boundary.update_H(
-                H=H,
-                boundary_state=boundary_states[boundary.name],
-                inverse_permeability=arrays.inv_permeabilities,
-            )
-
     arrays = arrays.at["H"].set(H)
-    if simulate_boundaries:
-        arrays = arrays.aset("boundary_states", boundary_states)
-
     return arrays
 
 
@@ -307,8 +489,8 @@ def update_H_reverse(
 
     if sigma_H is not None:
         # lossy materials get gain when simulating backwards
-        H = H * (1 + c * sigma_H * inv_mu / 2)
-        factor = 1 - c * sigma_H * inv_mu / 2
+        H = H * (1 + c * sigma_H / eta0 * inv_mu / 2)
+        factor = 1 - c * sigma_H / eta0 * inv_mu / 2
 
     H = H / factor + c * curl * inv_mu
 
