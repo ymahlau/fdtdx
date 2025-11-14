@@ -58,17 +58,19 @@ def main(
         config = config.aset("gradient_config", gradient_config)
 
     # List to hold placement constraints for simulation objects
-    placement_constraints = []
+    placement_constraints, object_list = [], []
 
     # Define the simulation volume (physical size)
     volume = fdtdx.SimulationVolume(
         partial_real_shape=(2.7e-6, 2.7e-6, 1.5e-6),
     )
+    object_list.append(volume)
 
     # Add boundary objects and constraints to the simulation
     bound_cfg = fdtdx.BoundaryConfig.from_uniform_bound(thickness=10)
-    _, c_list = fdtdx.boundary_objects_from_config(bound_cfg, volume)
+    bound_dict, c_list = fdtdx.boundary_objects_from_config(bound_cfg, volume)
     placement_constraints.extend(c_list)
+    object_list.extend(list(bound_dict.values()))
 
     # Add substrate object (base layer) and its placement constraint
     substrate = fdtdx.UniformMaterialObject(
@@ -84,6 +86,7 @@ def main(
             other_positions=-1,
         )
     )
+    object_list.append(substrate)
 
     # Define device geometry and material configuration
     height = 400e-9
@@ -117,6 +120,7 @@ def main(
             margins=(-0.2e-6, 0.2e-6, 0),
         )
     )
+    object_list.append(device)
 
     # Add input waveguide and its placement constraints
     waveguide_in = fdtdx.UniformMaterialObject(
@@ -138,6 +142,7 @@ def main(
             waveguide_in.place_above(substrate),
         ]
     )
+    object_list.append(waveguide_in)
 
     # Add source object and its placement constraint
     source = fdtdx.ModePlaneSource(
@@ -156,6 +161,7 @@ def main(
             )
         ]
     )
+    object_list.append(source)
 
     # Add output waveguide and its placement constraints
     waveguide_out = fdtdx.UniformMaterialObject(
@@ -177,6 +183,7 @@ def main(
             waveguide_out.place_above(substrate),
         ]
     )
+    object_list.append(waveguide_out)
     
     # Add input flux detector and its placement constraint
     flux_in_detector = fdtdx.PoyntingFluxDetector(
@@ -194,6 +201,7 @@ def main(
             grid_margins=2,
         )
     )
+    object_list.append(flux_in_detector)
     
     # Add output flux detector and its placement constraint
     flux_out_detector = fdtdx.PoyntingFluxDetector(
@@ -211,6 +219,7 @@ def main(
             grid_margins=-bound_cfg.thickness_grid_maxy - 5,
         )
     )
+    object_list.append(flux_out_detector)
     
     # Add energy detector for the last simulation step
     energy_last_step = fdtdx.EnergyDetector(
@@ -219,6 +228,7 @@ def main(
         switch=fdtdx.OnOffSwitch(fixed_on_time_steps=[-1]),
     )
     placement_constraints.extend([*energy_last_step.same_position_and_size(volume)])
+    object_list.append(energy_last_step)
 
     # List of objects to exclude from some outputs (e.g., video)
     exclude_object_list: list[fdtdx.SimulationObject] = [energy_last_step]
@@ -233,6 +243,7 @@ def main(
         )
         placement_constraints.extend([*video_detector.same_position_and_size(volume)])
         exclude_object_list.append(video_detector)
+        object_list.append(video_detector)
         if backward:
             # Add backward video detector if backward simulation is enabled
             backward_video_detector = fdtdx.EnergyDetector(
@@ -245,11 +256,12 @@ def main(
             )
             placement_constraints.extend([*backward_video_detector.same_position_and_size(volume)])
             exclude_object_list.append(backward_video_detector)
+            object_list.append(backward_video_detector)
 
     # Place all objects in the simulation volume according to constraints
     key, subkey = jax.random.split(key)
     objects, arrays, params, config, _ = fdtdx.place_objects(
-        volume=volume,
+        object_list=object_list,
         config=config,
         constraints=placement_constraints,
         key=subkey,

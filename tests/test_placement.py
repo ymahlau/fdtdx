@@ -10,19 +10,22 @@ def test_placement():
         time=10e-15,
     )
 
-    constraints = []
+    constraints, objects = [], []
     volume = fdtdx.SimulationVolume(
         partial_real_shape=(2e-6, 2e-6, 2e-6),
     )
+    objects.append(volume)
 
     # boundaries
     bound_cfg = fdtdx.BoundaryConfig.from_uniform_bound(thickness=4)
-    _, c_list = fdtdx.boundary_objects_from_config(bound_cfg, volume)
+    bound_dict, c_list = fdtdx.boundary_objects_from_config(bound_cfg, volume)
     constraints.extend(c_list)
+    objects.extend(bound_dict.values())
 
     # detectors
     d_energy = fdtdx.EnergyDetector(partial_real_shape=(1e-6, 1e-6, 1e-6))
     constraints.append(d_energy.same_position(volume))
+    objects.append(d_energy)
 
     d_poynting = fdtdx.PoyntingFluxDetector(
         direction="-",
@@ -30,9 +33,11 @@ def test_placement():
         partial_grid_shape=(None, None, 1),
     )
     constraints.append(d_poynting.same_position(volume))
+    objects.append(d_poynting)
 
     d_field = fdtdx.FieldDetector(partial_real_shape=(1e-6, 1e-6, 1e-6))
     constraints.append(d_field.same_position(volume))
+    objects.append(d_field)
 
     d_mode = fdtdx.ModeOverlapDetector(
         direction="-",
@@ -41,12 +46,14 @@ def test_placement():
         partial_grid_shape=(None, None, 1),
     )
     constraints.append(d_mode.same_position(volume))
+    objects.append(d_mode)
 
     d_phasor = fdtdx.PhasorDetector(
         wave_characters=(fdtdx.WaveCharacter(wavelength=1e-6),),
         partial_real_shape=(1e-6, 1e-6, 1e-6),
     )
     constraints.append(d_phasor.same_position(volume))
+    objects.append(d_phasor)
 
     # device
     materials = {
@@ -60,6 +67,7 @@ def test_placement():
         param_transforms=[],
     )
     constraints.append(device.same_position(volume))
+    objects.append(device)
 
     # sources
     plane_source = fdtdx.UniformPlaneSource(
@@ -69,6 +77,7 @@ def test_placement():
         direction="-",
     )
     constraints.append(plane_source.same_position(volume))
+    objects.append(plane_source)
 
     gauss_source = fdtdx.GaussianPlaneSource(
         radius=1e-6,
@@ -78,6 +87,7 @@ def test_placement():
         direction="-",
     )
     constraints.append(gauss_source.same_position(volume))
+    objects.append(gauss_source)
 
     mode_source = fdtdx.ModePlaneSource(
         partial_real_shape=(1e-6, 1e-6, None),
@@ -86,6 +96,7 @@ def test_placement():
         direction="-",
     )
     constraints.append(mode_source.same_position(volume))
+    objects.append(mode_source)
 
     # uniform material box
     box = fdtdx.UniformMaterialObject(
@@ -93,6 +104,7 @@ def test_placement():
         material=materials["polymer"],
     )
     constraints.append(box.same_position(volume))
+    objects.append(box)
 
     # multi material objects
     polygon = fdtdx.ExtrudedPolygon(
@@ -103,6 +115,7 @@ def test_placement():
         material_name="polymer",
     )
     constraints.append(polygon.same_position(volume))
+    objects.append(polygon)
 
     sphere = fdtdx.Sphere(
         partial_real_shape=(1e-6, 1e-6, 1e-6),
@@ -111,6 +124,7 @@ def test_placement():
         material_name="polymer",
     )
     constraints.append(sphere.same_position(volume))
+    objects.append(sphere)
 
     cylinder = fdtdx.Cylinder(
         axis=2,
@@ -120,16 +134,13 @@ def test_placement():
         material_name="polymer",
     )
     constraints.append(cylinder.same_position(volume))
+    objects.append(cylinder)
 
     # place the objects
     key = jax.random.PRNGKey(42)
-    objects, arrays, params, config, _ = fdtdx.place_objects(
-        volume=volume,
+    object_container, arrays, params, config, _ = fdtdx.place_objects(
+        object_list=objects,
         config=config,
         constraints=constraints,
         key=key,
     )
-
-
-if __name__ == "__main__":
-    test_placement()
