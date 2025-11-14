@@ -44,8 +44,8 @@ def main():
     )
     config = config.aset("gradient_config", gradient_config)
 
-    # List to hold placement constraints for simulation objects
-    constraints = []
+    # List to hold placement constraints and simulation objects
+    constraints, object_list = [], []
 
     # Define the simulation volume and background material
     volume = fdtdx.SimulationVolume(
@@ -54,6 +54,7 @@ def main():
             permittivity=2.0,
         )
     )
+    object_list.append(volume)
 
     # Choose boundary type: periodic or PML (absorbing)
     periodic = True
@@ -64,6 +65,7 @@ def main():
     # Add boundary objects and constraints to the simulation
     bound_dict, c_list = fdtdx.boundary_objects_from_config(bound_cfg, volume)
     constraints.extend(c_list)
+    object_list.extend(list(bound_dict.values()))
 
     # Define and place the Gaussian source in the simulation volume
     source = fdtdx.GaussianPlaneSource(
@@ -86,6 +88,7 @@ def main():
             ),
         ]
     )
+    object_list.append(source)
 
     # Add energy detector for video output (forward simulation)
     video_energy_detector = fdtdx.EnergyDetector(
@@ -96,6 +99,7 @@ def main():
         num_video_workers=8,
     )
     constraints.extend(video_energy_detector.same_position_and_size(volume))
+    object_list.append(video_energy_detector)
 
     # Add energy detector for video output (backward simulation)
     backwards_video_energy_detector = fdtdx.EnergyDetector(
@@ -107,11 +111,12 @@ def main():
         num_video_workers=8, 
     )
     constraints.extend(backwards_video_energy_detector.same_position_and_size(volume))
+    object_list.append(backwards_video_energy_detector)
 
     # Place all objects in the simulation volume according to constraints
     key, subkey = jax.random.split(key)
     objects, arrays, params, config, _ = fdtdx.place_objects(
-        volume=volume,
+        object_list=object_list,
         config=config,
         constraints=constraints,
         key=subkey,
