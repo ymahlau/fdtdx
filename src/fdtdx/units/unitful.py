@@ -1,6 +1,8 @@
 # ruff: noqa: F811
 
 from dataclasses import dataclass
+
+# from numbers import Number
 from typing import Any, Self
 
 import jax
@@ -550,7 +552,7 @@ def get_static_operand(
     return x_arr
 
 
-def can_perform_scatic_ops(x: StaticArrayLike | None):
+def can_perform_static_ops(x: StaticArrayLike | None):
     if x is None:
         return False
     if isinstance(x, NonPhysicalArrayLike):
@@ -642,6 +644,7 @@ def multiply(x: ArrayLike, y: Unitful) -> Unitful:
         unit_x = Unitful(val=x, unit=Unit(scale=0, dim={}))
         x = unit_x.val
         scale_offset = unit_x.unit.scale
+
     new_val = y.val * x
     new_scale = y.unit.scale + scale_offset
     new_static_arr = None
@@ -667,7 +670,27 @@ def multiply(x: int, y: int) -> int:
 
 
 @overload
+def multiply(x: int, y: float) -> float:
+    return x * y
+
+
+@overload
+def multiply(x: float, y: int) -> float:
+    return x * y
+
+
+@overload
 def multiply(x: float, y: float) -> float:
+    return x * y
+
+
+@overload
+def multiply(x: complex, y: float) -> complex:
+    return x * y
+
+
+@overload
+def multiply(x: float, y: complex) -> complex:
     return x * y
 
 
@@ -849,9 +872,17 @@ def add(x, y):  # type: ignore
 ## Matrix Multiplication ###################################
 @overload
 def matmul(x: Unitful, y: Unitful, **kwargs) -> Unitful:
-    # TODO: numpy values should stay numpy if possible
     x_align, y_align = align_scales(x, y)
-    new_val = jnp._orig_matmul(x_align.val, y_align.val)  # type: ignore
+
+    invalid_types = (bool, int, float, complex, np.bool_, np.number)
+    if isinstance(x.val, invalid_types) or isinstance(y.val, invalid_types):
+        raise TypeError(f"matmul received invalid types: {type(x).__name__}, {type(y).__name__}")
+    # handling of numpy arrays
+    elif isinstance(x.val, np.ndarray) and isinstance(y.val, np.ndarray):
+        new_val = np.matmul(x_align.val, y_align.val, **kwargs)
+    else:
+        new_val = jnp._orig_matmul(x_align.val, y_align.val, **kwargs)  # type: ignore
+
     unit_dict = dim_after_multiplication(x.unit.dim, y.unit.dim)
     new_scale = 2 * x_align.unit.scale
     # if static arrays exist, perform subtract with static arrs
@@ -859,13 +890,28 @@ def matmul(x: Unitful, y: Unitful, **kwargs) -> Unitful:
     if is_traced(new_val):
         x_arr = get_static_operand(x_align)
         y_arr = get_static_operand(y_align)
-        if can_perform_scatic_ops(x_arr) and can_perform_scatic_ops(y_arr):
-            new_static_arr = x_arr @ y_arr  # type: ignore
+        if can_perform_static_ops(x_arr) and can_perform_static_ops(y_arr):
+            new_static_arr = np.matmul(x_arr, y_arr, **kwargs)  # type: ignore
     return Unitful(val=new_val, unit=Unit(scale=new_scale, dim=unit_dict), static_arr=new_static_arr)
 
 
 @overload
 def matmul(x: jax.Array, y: jax.Array, **kwargs) -> jax.Array:
+    return jnp._orig_matmul(x, y, **kwargs)  # type: ignore
+
+
+@overload
+def matmul(x: np.ndarray, y: np.ndarray, **kwargs) -> np.ndarray:
+    return np.matmul(x, y, **kwargs)
+
+
+@overload
+def matmul(x: jax.Array, y: np.ndarray, **kwargs) -> np.ndarray:
+    return jnp._orig_matmul(x, y, **kwargs)  # type: ignore
+
+
+@overload
+def matmul(x: np.ndarray, y: jax.Array, **kwargs) -> np.ndarray:
     return jnp._orig_matmul(x, y, **kwargs)  # type: ignore
 
 
@@ -889,7 +935,7 @@ def subtract(x: Unitful, y: Unitful) -> Unitful:
     if is_traced(new_val):
         x_arr = get_static_operand(x_align)
         y_arr = get_static_operand(y_align)
-        if can_perform_scatic_ops(x_arr) and can_perform_scatic_ops(y_arr):
+        if can_perform_static_ops(x_arr) and can_perform_static_ops(y_arr):
             new_static_arr = x_arr - y_arr  # type: ignore
     return Unitful(val=new_val, unit=x_align.unit, static_arr=new_static_arr)
 
@@ -1366,12 +1412,40 @@ def gt(x, y):  # type: ignore
 
 ## power #######################################
 @overload
-def pow(x: Unitful, y: int) -> Unitful:
-    new_dim = {}
-    for k, v in x.unit.dim.items():
-        new_dim[k] = v * y
-    new_val = x.val**y
-    new_scale = x.unit.scale * y
+def pow(x: Unitful, y: int | float | complex) -> Unitful:
+    if isinstance(y, bool):
+        raise TypeError("bool exponent is not allowed for Unitful values")
+    if isinstance(y, complex):
+        raise TypeError("complex exponent is not allowed for Unitful values")
+
+    if isinstance(y, float):
+        if x.unit.dim != {}:
+            raise TypeError(f"float exponent is only allowed for dimensionless Unitful values, got dim={x.unit.dim}")
+
+        x_val_nonscale = x.val * (10**x.unit.scale)
+        if isinstance(x.val, jax.Array):
+            new_val = jnp.power(x_val_nonscale, y)
+        elif isinstance(x.val, np.ndarray | np.number | np.bool_):
+            new_val = np.power(x_val_nonscale, y)
+        else:  # int, float, complex, bool
+            new_val = x_val_nonscale**y
+
+        new_scale = x.unit.scale
+        new_dim = x.unit.dim
+    else:  # y: int
+        new_dim = {}
+        for k, v in x.unit.dim.items():
+            new_dim[k] = v * y
+
+        if isinstance(x.val, jax.Array):
+            new_val = jnp.power(x.val, y)
+        elif isinstance(x.val, np.ndarray | np.number | np.bool_):
+            new_val = np.power(x.val, y)
+        else:  # int, float, complex, bool
+            new_val = x.val**y
+
+        new_scale = x.unit.scale * y
+
     new_static_arr = None
     if is_traced(new_val):
         x_arr = get_static_operand(x)
@@ -1381,13 +1455,84 @@ def pow(x: Unitful, y: int) -> Unitful:
 
 
 @overload
+def pow(x: Unitful, y: jax.Array | np.ndarray | np.bool_ | np.number) -> Unitful:
+    if isinstance(y, np.bool_):
+        raise TypeError("bool exponent is not allowed for Unitful values")
+
+    if isinstance(y, jax.Array):
+        raise TypeError("jax.Array exponent is not allowed for Unitful values")
+
+    if isinstance(y, np.ndarray):
+        raise TypeError("numpy.ndarray exponent is not allowed for Unitful values")
+
+    y_np = np.array(y)
+
+    if np.issubdtype(y_np.dtype, np.complexfloating):
+        raise TypeError(f"complex exponent is not allowed for Unitful values, got y.dtype={y_np.dtype}")
+
+    if np.issubdtype(y_np.dtype, np.floating) and x.unit.dim != {}:
+        raise TypeError("float exponent is only allowed for dimensionless Unitful values")
+
+    if isinstance(x.val, (np.ndarray, np.number)):
+        new_val = np.power(x.val, y)
+    else:
+        new_val = jnp.power(jnp.asarray(x.val), jnp.asarray(y))
+
+    new_dim = x.unit.dim
+    new_scale = x.unit.scale
+
+    new_static_arr = None
+    if is_traced(new_val):
+        x_arr = get_static_operand(x)
+        if x_arr is not None:
+            new_static_arr = x_arr**y_np
+
+    return Unitful(val=new_val, unit=Unit(scale=new_scale, dim=new_dim), static_arr=new_static_arr)
+
+
+@overload
 def pow(x: jax.Array, y: jax.Array) -> jax.Array:
     return x**y
 
 
-# TODO: more fine-grained overloads
 @overload
-def pow(x: StaticPhysicalArrayLike, y: StaticPhysicalArrayLike) -> StaticPhysicalArrayLike:
+def pow(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    return x**y
+
+
+@overload
+def pow(x: jax.Array, y: np.ndarray) -> jax.Array:
+    return x**y
+
+
+@overload
+def pow(x: np.ndarray, y: jax.Array) -> jax.Array:
+    x_jax = jnp.array(x)
+    return x_jax**y
+
+
+@overload
+def pow(x: int, y: int) -> int:
+    return x**y
+
+
+@overload
+def pow(x: int, y: float) -> float:
+    return x**y
+
+
+@overload
+def pow(x: float, y: int) -> float:
+    return x**y
+
+
+@overload
+def pow(x: float, y: float) -> float:
+    return x**y
+
+
+@overload
+def pow(x: complex, y: float | int) -> complex:
     return x**y
 
 
