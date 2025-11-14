@@ -65,6 +65,7 @@ API
     fdtdx.RecordingState
     fdtdx.RemoveFloatingMaterial
     fdtdx.run_fdtd
+    fdtdx.resolve_object_constraints
     fdtdx.SimulationConfig
     fdtdx.SimulationObject
     fdtdx.SimulationState

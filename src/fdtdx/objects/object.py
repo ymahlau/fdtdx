@@ -1,6 +1,6 @@
 from abc import ABC
 from dataclasses import dataclass
-from typing import Literal, Optional, Self
+from typing import Literal, Self
 
 import jax
 
@@ -64,10 +64,10 @@ class PositionConstraint:
     """
 
     #: The "child" object whose position is being adjusted
-    object: "SimulationObject"
+    object: str
 
     #: The "parent" object that serves as reference
-    other_object: "SimulationObject"  # "parent" object
+    other_object: str  # "parent" object
 
     #: Which axes (x,y,z) this constraint applies to
     axes: tuple[int, ...]
@@ -96,10 +96,10 @@ class SizeConstraint:
     """
 
     #: The "child" object whose size is being adjusted
-    object: "SimulationObject"
+    object: str
 
     #: The "parent" object that serves as reference
-    other_object: "SimulationObject"
+    other_object: str
 
     #: Which axes of the child to constrain
     axes: tuple[int, ...]
@@ -128,10 +128,10 @@ class SizeExtensionConstraint:
     """
 
     #: The object being extended
-    object: "SimulationObject"
+    object: str
 
     #: Optional target object to extend to
-    other_object: Optional["SimulationObject"]
+    other_object: str | None
 
     #: Which axis to extend along
     axis: int
@@ -159,7 +159,7 @@ class GridCoordinateConstraint:
     """
 
     #: The object to position
-    object: "SimulationObject"
+    object: str
 
     #: Which axes to constrain
     axes: tuple[int, ...]
@@ -181,7 +181,7 @@ class RealCoordinateConstraint:
     """
 
     #: The object to position
-    object: "SimulationObject"
+    object: str
 
     #: Which axes to constrain
     axes: tuple[int, ...]
@@ -207,6 +207,10 @@ class SimulationObject(TreeClass, ABC):
     #: The object's shape in real-world coordinates.
     #: Defaults to UNDEFINED_SHAPE_3D if not specified.
     partial_real_shape: PartialRealShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
+
+    #: The object's position in real-world coordinates.
+    #: Defaults to UNDEFINED_SHAPE_3D if not specified.
+    partial_real_position: PartialRealShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
 
     #: The object's shape in grid coordinates.
     #: Defaults to UNDEFINED_SHAPE_3D if not specified.
@@ -305,8 +309,8 @@ class SimulationObject(TreeClass, ABC):
         grid_margins: tuple[int, ...] | int | None = None,
     ) -> PositionConstraint:
         """Creates a PositionalConstraint between two objects. The constraint is defined by anchor points on
-        both objects, which are constrainted to be at the same position. Anchors are defined in relative coordinates,
-        i.e. a position of -1 is the left object boundary in the repective axis and a position of +1 the right boundary.
+        both objects, which are constrained to be at the same position. Anchors are defined in relative coordinates,
+        i.e. a position of -1 is the left object boundary in the respective axis and a position of +1 the right boundary.
 
         Args:
             other (SimulationObject): Another object in the simulation scene
@@ -344,8 +348,8 @@ class SimulationObject(TreeClass, ABC):
             raise Exception("All inputs should have same lengths")
         constraint = PositionConstraint(
             axes=axes,
-            other_object=other,
-            object=self,
+            other_object=other.name,
+            object=self.name,
             other_object_positions=other_positions,
             object_positions=own_positions,
             margins=margins,
@@ -403,8 +407,8 @@ class SimulationObject(TreeClass, ABC):
         if len(axes) != len(proportions) or len(axes) != len(offsets) or len(axes) != len(grid_offsets):
             raise Exception("All inputs should have same lengths")
         constraint = SizeConstraint(
-            other_object=other,
-            object=self,
+            other_object=other.name,
+            object=self.name,
             axes=axes,
             other_axes=other_axes,
             proportions=proportions,
@@ -706,41 +710,7 @@ class SimulationObject(TreeClass, ABC):
         if len(axes) != len(sides) or len(axes) != len(coordinates):
             raise Exception("All inputs need to have the same lengths!")
         return GridCoordinateConstraint(
-            object=self,
-            axes=axes,
-            sides=sides,
-            coordinates=coordinates,
-        )
-
-    def set_real_coordinates(
-        self,
-        axes: tuple[int, ...] | int,
-        sides: tuple[Literal["+", "-"], ...] | Literal["+", "-"],
-        coordinates: tuple[float, ...] | float,
-    ) -> RealCoordinateConstraint:
-        """Creates a RealCoordinateConstraint that forces specific sides of this object to align with
-        given real-space coordinates. Used for precise positioning in physical units.
-
-        Args:
-            axes (tuple[int, ...] | int): Either a single integer or a tuple describing which axes to constrain
-            sides (tuple[Literal["+", "-"], ...] | Literal["+", "-"]): Either a single string or a tuple of
-                strings ('+' or '-') indicating which side of each axis to constrain. Must have same length as axes.
-            coordinates (tuple[float, ...] | float): Either a single float or a tuple of floats specifying the
-                real-space coordinates in meters to align with. Must have same length as axes.
-
-        Returns:
-            RealCoordinateConstraint: Constraint forcing alignment with specific real-space coordinates
-        """
-        if isinstance(axes, int):
-            axes = (axes,)
-        if isinstance(sides, str):
-            sides = (sides,)
-        if isinstance(coordinates, int | float):
-            coordinates = (float(coordinates),)
-        if len(axes) != len(sides) or len(axes) != len(coordinates):
-            raise Exception("All inputs need to have the same lengths!")
-        return RealCoordinateConstraint(
-            object=self,
+            object=self.name,
             axes=axes,
             sides=sides,
             coordinates=coordinates,
@@ -760,7 +730,7 @@ class SimulationObject(TreeClass, ABC):
         negative direction.
 
         Args:
-            other (SimulationObject | None): Target object to extend to, or None to extend to simulation boundary
+            other (str | None): Target object to extend to, or None to extend to simulation boundary
             axis (int): Which axis to extend along (0, 1, or 2)
             direction (Literal["+", "-"]): Direction to extend in ('+' or '-')
             other_position (float | None, optional): Relative position on target object (-1 to 1) to extend to.
@@ -781,8 +751,8 @@ class SimulationObject(TreeClass, ABC):
             if offset != 0 or grid_offset != 0:
                 raise Exception("Cannot use offset when extending object to infinity")
         return SizeExtensionConstraint(
-            object=self,
-            other_object=other,
+            object=self.name,
+            other_object=None if other is None else other.name,
             axis=axis,
             direction=direction,
             other_position=other_position,
