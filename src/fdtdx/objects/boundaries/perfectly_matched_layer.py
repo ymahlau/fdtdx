@@ -5,11 +5,6 @@ from typing_extensions import override
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.plotting.colors import DARK_GREY
 from fdtdx.objects.boundaries.boundary import BaseBoundary
-from fdtdx.objects.boundaries.utils import (
-    alpha_from_direction_axis,
-    kappa_from_direction_axis,
-    standard_sigma_from_direction_axis,
-)
 
 
 @autoinit
@@ -73,41 +68,6 @@ class PerfectlyMatchedLayer(BaseBoundary):
         """
         return self.grid_shape[self.axis]
 
-    def _get_dtype_update_coefficients(self):
-        dtype = self._config.dtype
-        sigma_E, sigma_H = standard_sigma_from_direction_axis(
-            thickness=self.thickness,
-            direction=self.direction,
-            axis=self.axis,
-            dtype=dtype,
-        )
-
-        kappa = kappa_from_direction_axis(
-            kappa_start=self.kappa_start,
-            kappa_end=self.kappa_end,
-            thickness=self.thickness,
-            direction=self.direction,
-            axis=self.axis,
-            dtype=dtype,
-        )
-
-        alpha = alpha_from_direction_axis(
-            alpha_start=self.alpha_start,
-            alpha_end=self.alpha_end,
-            thickness=self.thickness,
-            direction=self.direction,
-            axis=self.axis,
-            dtype=dtype,
-        )
-
-        bE = jnp.exp(-self._config.courant_number * (sigma_E / kappa + alpha))
-        bH = jnp.exp(-self._config.courant_number * (sigma_H / kappa + alpha))
-
-        cE = (bE - 1) * sigma_E / (sigma_E * kappa + kappa**2 * alpha)
-        cH = (bH - 1) * sigma_H / (sigma_H * kappa + kappa**2 * alpha)
-
-        return dtype, bE, bH, cE, cH, kappa
-
     def _compute_pml_profile(
         self,
         value_start: float,
@@ -132,22 +92,27 @@ class PerfectlyMatchedLayer(BaseBoundary):
         # d varies from 0 (at interface) to L (at outer edge)
         if self.direction == "-":
             # For min boundary, distance increases as we go towards lower indices
-            d = jnp.arange(L - 1, -1, -1, dtype=dtype)
+            d1 = jnp.arange(L - 1, -1, -1, dtype=dtype)
+            d2 = jnp.append(jnp.arange(L - 1.5, -0.5, -1, dtype=dtype), 0)
         else:
             # For max boundary, distance increases as we go towards higher indices
-            d = jnp.arange(0, L, dtype=dtype)
+            d1 = jnp.insert(jnp.arange(0.5, L - 0.5, 1, dtype=dtype), 0, 0)
+            d2 = jnp.arange(0, L, 1, dtype=dtype)
 
         # Compute polynomial grading: value_start + (value_end - value_start) * (d/L)^order
-        profile_1d = value_start + (value_end - value_start) * jnp.power(d / L, order)
+        profile1_1d = value_start + (value_end - value_start) * jnp.power(d1 / L, order)
+        profile2_1d = value_start + (value_end - value_start) * jnp.power(d2 / L, order)
 
         # Create shape matching PML region with grading only along self.axis
         shape = [1, 1, 1]
         shape[self.axis] = L
-        profile_reshaped = profile_1d.reshape(shape)
+        profile1_reshaped = profile1_1d.reshape(shape)
+        profile2_reshaped = profile2_1d.reshape(shape)
         # Broadcast to full grid_shape
-        profile = jnp.broadcast_to(profile_reshaped, self.grid_shape)
+        profile1 = jnp.broadcast_to(profile1_reshaped, self.grid_shape)
+        profile2 = jnp.broadcast_to(profile2_reshaped, self.grid_shape)
 
-        return profile
+        return profile1, profile2
 
     def modify_arrays(
         self,
@@ -172,21 +137,21 @@ class PerfectlyMatchedLayer(BaseBoundary):
         dtype = self._config.dtype
 
         # Compute PML parameters using polynomial grading
-        sigma_E = self._compute_pml_profile(
+        sigma_E1, sigma_E2 = self._compute_pml_profile(
             value_start=self.sigma_start,
             value_end=self.sigma_end,
             order=self.sigma_order,
             dtype=dtype,
         )
 
-        kappa_pml = self._compute_pml_profile(
+        kappa_pml1, kappa_pml2 = self._compute_pml_profile(
             value_start=self.kappa_start,
             value_end=self.kappa_end,
             order=self.kappa_order,
             dtype=dtype,
         )
 
-        alpha_pml = self._compute_pml_profile(
+        alpha_pml1, alpha_pml2 = self._compute_pml_profile(
             value_start=self.alpha_start,
             value_end=self.alpha_end,
             order=self.alpha_order,
@@ -195,9 +160,12 @@ class PerfectlyMatchedLayer(BaseBoundary):
 
         # Update arrays in the PML region
         # The PML parameters vary along self.axis, so we need to broadcast them correctly
-        alpha = alpha.at[self.axis, *self.grid_slice].set(alpha_pml)
-        kappa = kappa.at[self.axis, *self.grid_slice].set(kappa_pml)
-        sigma = sigma.at[self.axis, *self.grid_slice].set(sigma_E)
+        alpha = alpha.at[self.axis, *self.grid_slice].set(alpha_pml1)
+        kappa = kappa.at[self.axis, *self.grid_slice].set(kappa_pml1)
+        sigma = sigma.at[self.axis, *self.grid_slice].set(sigma_E1)
+        alpha = alpha.at[self.axis + 3, *self.grid_slice].set(alpha_pml2)
+        kappa = kappa.at[self.axis + 3, *self.grid_slice].set(kappa_pml2)
+        sigma = sigma.at[self.axis + 3, *self.grid_slice].set(sigma_E2)
 
         return {
             "alpha": alpha,

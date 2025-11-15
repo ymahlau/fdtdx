@@ -231,21 +231,21 @@ def _init_arrays(
 
     # create alpha, kappa, and sigma arrays
     alpha = create_named_sharded_matrix(
-        ext_shape,
+        (6, *volume_shape),
         sharding_axis=1,
         value=0.0,
         dtype=config.dtype,
         backend=config.backend,
     )
     kappa = create_named_sharded_matrix(
-        ext_shape,
+        (6, *volume_shape),
         sharding_axis=1,
         value=1.0,
         dtype=config.dtype,
         backend=config.backend,
     )
     sigma = create_named_sharded_matrix(
-        ext_shape,
+        (6, *volume_shape),
         sharding_axis=1,
         value=0.0,
         dtype=config.dtype,

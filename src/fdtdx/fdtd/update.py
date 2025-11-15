@@ -338,7 +338,7 @@ def update_H(
                 * config.resolution
                 / c0
                 / eps0
-                * (arrays.sigma[0, :, :, :] / arrays.kappa[0, :, :, :] + arrays.alpha[0, :, :, :])
+                * (arrays.sigma[3, :, :, :] / arrays.kappa[3, :, :, :] + arrays.alpha[3, :, :, :])
             )
             + 1
         )
@@ -348,7 +348,7 @@ def update_H(
                 * config.resolution
                 / c0
                 / eps0
-                * (arrays.sigma[1, :, :, :] / arrays.kappa[1, :, :, :] + arrays.alpha[1, :, :, :])
+                * (arrays.sigma[4, :, :, :] / arrays.kappa[4, :, :, :] + arrays.alpha[4, :, :, :])
             )
             + 1
         )
@@ -358,28 +358,28 @@ def update_H(
                 * config.resolution
                 / c0
                 / eps0
-                * (arrays.sigma[2, :, :, :] / arrays.kappa[2, :, :, :] + arrays.alpha[2, :, :, :])
+                * (arrays.sigma[5, :, :, :] / arrays.kappa[5, :, :, :] + arrays.alpha[5, :, :, :])
             )
             + 1
         )
 
         a_x = (
             (b_x - 1.0)
-            * arrays.sigma[0, :, :, :]
-            / (arrays.sigma[0, :, :, :] + arrays.alpha[0, :, :, :] * arrays.kappa[0, :, :, :])
-            / arrays.kappa[0, :, :, :]
+            * arrays.sigma[3, :, :, :]
+            / (arrays.sigma[3, :, :, :] + arrays.alpha[3, :, :, :] * arrays.kappa[3, :, :, :])
+            / arrays.kappa[3, :, :, :]
         )
         a_y = (
             (b_y - 1.0)
-            * arrays.sigma[1, :, :, :]
-            / (arrays.sigma[1, :, :, :] + arrays.alpha[1, :, :, :] * arrays.kappa[1, :, :, :])
-            / arrays.kappa[1, :, :, :]
+            * arrays.sigma[4, :, :, :]
+            / (arrays.sigma[4, :, :, :] + arrays.alpha[4, :, :, :] * arrays.kappa[4, :, :, :])
+            / arrays.kappa[4, :, :, :]
         )
         a_z = (
             (b_z - 1.0)
-            * arrays.sigma[2, :, :, :]
-            / (arrays.sigma[2, :, :, :] + arrays.alpha[2, :, :, :] * arrays.kappa[2, :, :, :])
-            / arrays.kappa[2, :, :, :]
+            * arrays.sigma[5, :, :, :]
+            / (arrays.sigma[5, :, :, :] + arrays.alpha[5, :, :, :] * arrays.kappa[5, :, :, :])
+            / arrays.kappa[5, :, :, :]
         )
 
         a_x = jnp.nan_to_num(a_x, nan=0.0, posinf=0.0, neginf=0.0)
