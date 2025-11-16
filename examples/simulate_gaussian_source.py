@@ -1,3 +1,14 @@
+"""
+This script exemplifies a very simple simulation in fdtdx. In this simulation, a simulation volume with periodic
+boundaries is set up. In the middle of the simulation, a source is placed, which outputs a continous light wave of
+1550nm wavelength.
+
+Additionally, the script showcases the capability of fdtdx to run simulations backwards in time, which can be exploited
+to calculate gradients very efficiently through the simulation (see Schubert et al. https://pubs.acs.org/doi/10.1021/acsomega.4c10958).
+Using an EnergyDetector, a video of the simulation both in forward and backward time are generated. One can see that 
+the backwards propagation of light works nicely and looks just like the forward video played in reverse.
+"""
+
 # Import required libraries and modules
 import time
 

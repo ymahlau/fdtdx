@@ -1,3 +1,14 @@
+"""
+This scripts exemplifies how fdtdx can be used for inverse design. The component that is supposed to be optimized here
+is a corner component, connecting two silicon waveguides with as low loss as possible. This is one of the examples from
+the ceviche challenges, which can be found here: https://github.com/google/ceviche-challenges
+
+The scripts first sets up the simulation scene with sources, detectors, waveguides etc. Then a loss function is defined,
+which takes the component parameters as input, runs a simulation and computes the figure of merit. Since it is standard
+in machine learning to minimize, the figure of merit is negated and returned as a loss value.
+Using gradient descend, the design parameters are continously updated in a loop.
+"""
+
 # Imports: standard libraries and required packages
 import sys
 import time
@@ -190,7 +201,7 @@ def main(
         name="in flux",
         partial_grid_shape=(1, None, None),
         direction="+",
-        switch=fdtdx.OnOffSwitch(fixed_on_time_steps=all_time_steps[period_steps:2*period_steps]),
+        switch=fdtdx.OnOffSwitch(fixed_on_time_steps=all_time_steps[7*period_steps:8*period_steps]),
     )
     placement_constraints.append(
         flux_in_detector.place_relative_to(
@@ -382,6 +393,7 @@ def main(
 
     # Compile loss function with JAX JIT for fast execution
     compile_start_time = time.time()
+    print("Started Compilation...")
     jit_task_id = exp_logger.progress.add_task("JIT", total=None)
     idx_dummy_arr = jnp.asarray(start_idx, dtype=jnp.float32)
     if evaluation:
@@ -396,6 +408,7 @@ def main(
         )
     compile_delta_time = time.time() - compile_start_time
     exp_logger.progress.update(jit_task_id, total=1, completed=1, refresh=True)
+    print(f"Finished Compilation in {compile_delta_time} seconds")
 
     # Add progress bar for optimization/evaluation loop
     optim_task_id = exp_logger.progress.add_task("Optimization", total=1 if evaluation else epochs)
