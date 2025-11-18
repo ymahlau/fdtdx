@@ -74,7 +74,7 @@ class PerfectlyMatchedLayer(BaseBoundary):
         value_end: float,
         order: float,
         dtype,
-    ) -> jax.Array:
+    ) -> tuple[jax.Array, jax.Array]:
         """Computes a graded PML profile using polynomial scaling.
 
         Args:
@@ -92,27 +92,27 @@ class PerfectlyMatchedLayer(BaseBoundary):
         # d varies from 0 (at interface) to L (at outer edge)
         if self.direction == "-":
             # For min boundary, distance increases as we go towards lower indices
-            d1 = jnp.arange(L - 1, -1, -1, dtype=dtype)
-            d2 = jnp.append(jnp.arange(L - 1.5, -0.5, -1, dtype=dtype), 0)
+            dE = jnp.arange(L - 1, -1, -1, dtype=dtype)
+            dH = jnp.append(jnp.arange(L - 1.5, -0.5, -1, dtype=dtype), 0)
         else:
             # For max boundary, distance increases as we go towards higher indices
-            d1 = jnp.insert(jnp.arange(0.5, L - 0.5, 1, dtype=dtype), 0, 0)
-            d2 = jnp.arange(0, L, 1, dtype=dtype)
+            dE = jnp.insert(jnp.arange(0.5, L - 0.5, 1, dtype=dtype), 0, 0)
+            dH = jnp.arange(0, L, 1, dtype=dtype)
 
         # Compute polynomial grading: value_start + (value_end - value_start) * (d/L)^order
-        profile1_1d = value_start + (value_end - value_start) * jnp.power(d1 / L, order)
-        profile2_1d = value_start + (value_end - value_start) * jnp.power(d2 / L, order)
+        profileE_1d = value_start + (value_end - value_start) * jnp.power(dE / L, order)
+        profileH_1d = value_start + (value_end - value_start) * jnp.power(dH / L, order)
 
         # Create shape matching PML region with grading only along self.axis
         shape = [1, 1, 1]
         shape[self.axis] = L
-        profile1_reshaped = profile1_1d.reshape(shape)
-        profile2_reshaped = profile2_1d.reshape(shape)
+        profileE_reshaped = profileE_1d.reshape(shape)
+        profileH_reshaped = profileH_1d.reshape(shape)
         # Broadcast to full grid_shape
-        profile1 = jnp.broadcast_to(profile1_reshaped, self.grid_shape)
-        profile2 = jnp.broadcast_to(profile2_reshaped, self.grid_shape)
+        profileE = jnp.broadcast_to(profileE_reshaped, self.grid_shape)
+        profileH = jnp.broadcast_to(profileH_reshaped, self.grid_shape)
 
-        return profile1, profile2
+        return profileE, profileH
 
     def modify_arrays(
         self,
@@ -137,21 +137,21 @@ class PerfectlyMatchedLayer(BaseBoundary):
         dtype = self._config.dtype
 
         # Compute PML parameters using polynomial grading
-        sigma_E1, sigma_E2 = self._compute_pml_profile(
+        sigma_E, sigma_H = self._compute_pml_profile(
             value_start=self.sigma_start,
             value_end=self.sigma_end,
             order=self.sigma_order,
             dtype=dtype,
         )
 
-        kappa_pml1, kappa_pml2 = self._compute_pml_profile(
+        kappa_E, kappa_H = self._compute_pml_profile(
             value_start=self.kappa_start,
             value_end=self.kappa_end,
             order=self.kappa_order,
             dtype=dtype,
         )
 
-        alpha_pml1, alpha_pml2 = self._compute_pml_profile(
+        alpha_E, alpha_H = self._compute_pml_profile(
             value_start=self.alpha_start,
             value_end=self.alpha_end,
             order=self.alpha_order,
@@ -160,12 +160,12 @@ class PerfectlyMatchedLayer(BaseBoundary):
 
         # Update arrays in the PML region
         # The PML parameters vary along self.axis, so we need to broadcast them correctly
-        alpha = alpha.at[self.axis, *self.grid_slice].set(alpha_pml1)
-        kappa = kappa.at[self.axis, *self.grid_slice].set(kappa_pml1)
-        sigma = sigma.at[self.axis, *self.grid_slice].set(sigma_E1)
-        alpha = alpha.at[self.axis + 3, *self.grid_slice].set(alpha_pml2)
-        kappa = kappa.at[self.axis + 3, *self.grid_slice].set(kappa_pml2)
-        sigma = sigma.at[self.axis + 3, *self.grid_slice].set(sigma_E2)
+        alpha = alpha.at[self.axis, *self.grid_slice].set(alpha_E)
+        kappa = kappa.at[self.axis, *self.grid_slice].set(kappa_E)
+        sigma = sigma.at[self.axis, *self.grid_slice].set(sigma_E)
+        alpha = alpha.at[self.axis + 3, *self.grid_slice].set(alpha_H)
+        kappa = kappa.at[self.axis + 3, *self.grid_slice].set(kappa_H)
+        sigma = sigma.at[self.axis + 3, *self.grid_slice].set(sigma_H)
 
         return {
             "alpha": alpha,

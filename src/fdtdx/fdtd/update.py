@@ -1,9 +1,7 @@
 import jax
-import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
-from fdtdx.constants import c as c0
-from fdtdx.constants import eps0, eta0
+from fdtdx.constants import eta0
 from fdtdx.core.physics.curl import curl_E, curl_H, interpolate_fields
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.misc import add_boundary_interfaces, collect_boundary_interfaces
@@ -52,119 +50,20 @@ def update_E(
         ArrayContainer: Updated ArrayContainer with new E field values
     """
 
-    # Handle periodic boundaries by copying values from opposite sides
-    if simulate_boundaries:
-        E = arrays.E
-        for boundary in objects.boundary_objects:
-            if isinstance(boundary, PeriodicBoundary):
-                E = E.at[..., boundary.boundary_slice].set(E[..., boundary.opposite_slice])
-        arrays = arrays.at["E"].set(E)
-
     inv_eps = arrays.inv_permittivities
     c = config.courant_number
     sigma_E = arrays.electric_conductivity
-
-    # Get periodic axes for curl operation
-    periodic_axes = get_periodic_axes(objects)
-    H_pad = arrays.H
-    for i, periodic in enumerate(periodic_axes):
-        pad_mode = "wrap" if periodic else "constant"
-        # Create padding tuple for current axis
-        if i == 0:
-            pad_width = ((0, 0), (1, 1), (0, 0), (0, 0))
-        elif i == 1:
-            pad_width = ((0, 0), (0, 0), (1, 1), (0, 0))
-        else:  # i == 2
-            pad_width = ((0, 0), (0, 0), (0, 0), (1, 1))
-        H_pad = jnp.pad(H_pad, pad_width, mode=pad_mode)
-
-    DyHz = (H_pad[2] - jnp.roll(H_pad[2], 1, axis=1))[1:-1, 1:-1, 1:-1]
-    DzHy = (H_pad[1] - jnp.roll(H_pad[1], 1, axis=2))[1:-1, 1:-1, 1:-1]
-    DzHx = (H_pad[0] - jnp.roll(H_pad[0], 1, axis=2))[1:-1, 1:-1, 1:-1]
-    DxHz = (H_pad[2] - jnp.roll(H_pad[2], 1, axis=0))[1:-1, 1:-1, 1:-1]
-    DxHy = (H_pad[1] - jnp.roll(H_pad[1], 1, axis=0))[1:-1, 1:-1, 1:-1]
-    DyHx = (H_pad[0] - jnp.roll(H_pad[0], 1, axis=1))[1:-1, 1:-1, 1:-1]
-
-    # Auxiliary fields
-    psi_Exy = arrays.psi_E[0, :, :, :]
-    psi_Exz = arrays.psi_E[1, :, :, :]
-    psi_Eyz = arrays.psi_E[2, :, :, :]
-    psi_Eyx = arrays.psi_E[3, :, :, :]
-    psi_Ezx = arrays.psi_E[4, :, :, :]
-    psi_Ezy = arrays.psi_E[5, :, :, :]
-
-    if simulate_boundaries:
-        # Get E-field PML coefficients
-        b_x = (
-            jnp.expm1(
-                -c
-                * config.resolution
-                / c0
-                / eps0
-                * (arrays.sigma[0, :, :, :] / arrays.kappa[0, :, :, :] + arrays.alpha[0, :, :, :])
-            )
-            + 1
-        )
-        b_y = (
-            jnp.expm1(
-                -c
-                * config.resolution
-                / c0
-                / eps0
-                * (arrays.sigma[1, :, :, :] / arrays.kappa[1, :, :, :] + arrays.alpha[1, :, :, :])
-            )
-            + 1
-        )
-        b_z = (
-            jnp.expm1(
-                -c
-                * config.resolution
-                / c0
-                / eps0
-                * (arrays.sigma[2, :, :, :] / arrays.kappa[2, :, :, :] + arrays.alpha[2, :, :, :])
-            )
-            + 1
-        )
-
-        a_x = (
-            (b_x - 1.0)
-            * arrays.sigma[0, :, :, :]
-            / (arrays.sigma[0, :, :, :] + arrays.alpha[0, :, :, :] * arrays.kappa[0, :, :, :])
-            / arrays.kappa[0, :, :, :]
-        )
-        a_y = (
-            (b_y - 1.0)
-            * arrays.sigma[1, :, :, :]
-            / (arrays.sigma[1, :, :, :] + arrays.alpha[1, :, :, :] * arrays.kappa[1, :, :, :])
-            / arrays.kappa[1, :, :, :]
-        )
-        a_z = (
-            (b_z - 1.0)
-            * arrays.sigma[2, :, :, :]
-            / (arrays.sigma[2, :, :, :] + arrays.alpha[2, :, :, :] * arrays.kappa[2, :, :, :])
-            / arrays.kappa[2, :, :, :]
-        )
-
-        a_x = jnp.nan_to_num(a_x, nan=0.0, posinf=0.0, neginf=0.0)
-        a_y = jnp.nan_to_num(a_y, nan=0.0, posinf=0.0, neginf=0.0)
-        a_z = jnp.nan_to_num(a_z, nan=0.0, posinf=0.0, neginf=0.0)
-
-        # Update auxiliary fields
-        psi_Exy = b_y * psi_Exy + a_y * DyHz
-        psi_Exz = b_z * psi_Exz + a_z * DzHy
-        psi_Eyz = b_z * psi_Eyz + a_z * DzHx
-        psi_Eyx = b_x * psi_Eyx + a_x * DxHz
-        psi_Ezx = b_x * psi_Ezx + a_x * DxHy
-        psi_Ezy = b_y * psi_Ezy + a_y * DyHx
-
-        psi_E = jnp.stack((psi_Exy, psi_Exz, psi_Eyz, psi_Eyx, psi_Ezx, psi_Ezy), axis=0)
-        arrays = arrays.aset("psi_E", psi_E)
-
-    # Curl equations
-    curl_x = (1.0 / arrays.kappa[1, :, :, :] * DyHz + psi_Exy) - (1.0 / arrays.kappa[2, :, :, :] * DzHy + psi_Exz)
-    curl_y = (1.0 / arrays.kappa[2, :, :, :] * DzHx + psi_Eyz) - (1.0 / arrays.kappa[0, :, :, :] * DxHz + psi_Eyx)
-    curl_z = (1.0 / arrays.kappa[0, :, :, :] * DxHy + psi_Ezx) - (1.0 / arrays.kappa[1, :, :, :] * DyHx + psi_Ezy)
-    curl = jnp.stack((curl_x, curl_y, curl_z), axis=0)
+    curl, psi_E = curl_H(
+        config,
+        arrays.H,
+        arrays.psi_E,
+        arrays.alpha,
+        arrays.kappa,
+        arrays.sigma,
+        simulate_boundaries,
+        get_periodic_axes(objects),
+    )
+    arrays = arrays.aset("psi_E", psi_E)
 
     factor = 1
     if sigma_E is not None:
@@ -244,7 +143,7 @@ def update_E_reverse(
 
     # Get periodic axes for curl operation
     periodic_axes = get_periodic_axes(objects)
-    curl = curl_H(arrays.H, periodic_axes)
+    curl, _ = curl_H(config, arrays.H, arrays.psi_E, arrays.alpha, arrays.kappa, arrays.sigma, False, periodic_axes)
     inv_eps = arrays.inv_permittivities
     c = config.courant_number
     sigma_E = arrays.electric_conductivity
@@ -289,119 +188,20 @@ def update_H(
         ArrayContainer: Updated ArrayContainer with new H field values
     """
 
-    # Handle periodic boundaries by copying values from opposite sides
-    if simulate_boundaries:
-        H = arrays.H
-        for boundary in objects.boundary_objects:
-            if isinstance(boundary, PeriodicBoundary):
-                H = H.at[..., boundary.boundary_slice].set(H[..., boundary.opposite_slice])
-        arrays = arrays.at["H"].set(H)
-
     inv_mu = arrays.inv_permeabilities
     c = config.courant_number
     sigma_H = arrays.magnetic_conductivity
-
-    # Get periodic axes for curl operation
-    periodic_axes = get_periodic_axes(objects)
-    E_pad = arrays.E
-    for i, periodic in enumerate(periodic_axes):
-        pad_mode = "wrap" if periodic else "constant"
-        # Create padding tuple for current axis
-        if i == 0:
-            pad_width = ((0, 0), (1, 1), (0, 0), (0, 0))
-        elif i == 1:
-            pad_width = ((0, 0), (0, 0), (1, 1), (0, 0))
-        else:  # i == 2
-            pad_width = ((0, 0), (0, 0), (0, 0), (1, 1))
-        E_pad = jnp.pad(E_pad, pad_width, mode=pad_mode)
-
-    DyEz = (jnp.roll(E_pad[2], -1, axis=1) - E_pad[2])[1:-1, 1:-1, 1:-1]
-    DzEy = (jnp.roll(E_pad[1], -1, axis=2) - E_pad[1])[1:-1, 1:-1, 1:-1]
-    DzEx = (jnp.roll(E_pad[0], -1, axis=2) - E_pad[0])[1:-1, 1:-1, 1:-1]
-    DxEz = (jnp.roll(E_pad[2], -1, axis=0) - E_pad[2])[1:-1, 1:-1, 1:-1]
-    DxEy = (jnp.roll(E_pad[1], -1, axis=0) - E_pad[1])[1:-1, 1:-1, 1:-1]
-    DyEx = (jnp.roll(E_pad[0], -1, axis=1) - E_pad[0])[1:-1, 1:-1, 1:-1]
-
-    # Auxiliary fields
-    psi_Hxy = arrays.psi_H[0, :, :, :]
-    psi_Hxz = arrays.psi_H[1, :, :, :]
-    psi_Hyz = arrays.psi_H[2, :, :, :]
-    psi_Hyx = arrays.psi_H[3, :, :, :]
-    psi_Hzx = arrays.psi_H[4, :, :, :]
-    psi_Hzy = arrays.psi_H[5, :, :, :]
-
-    if simulate_boundaries:
-        # Get H-field PML coefficients
-        b_x = (
-            jnp.expm1(
-                -c
-                * config.resolution
-                / c0
-                / eps0
-                * (arrays.sigma[3, :, :, :] / arrays.kappa[3, :, :, :] + arrays.alpha[3, :, :, :])
-            )
-            + 1
-        )
-        b_y = (
-            jnp.expm1(
-                -c
-                * config.resolution
-                / c0
-                / eps0
-                * (arrays.sigma[4, :, :, :] / arrays.kappa[4, :, :, :] + arrays.alpha[4, :, :, :])
-            )
-            + 1
-        )
-        b_z = (
-            jnp.expm1(
-                -c
-                * config.resolution
-                / c0
-                / eps0
-                * (arrays.sigma[5, :, :, :] / arrays.kappa[5, :, :, :] + arrays.alpha[5, :, :, :])
-            )
-            + 1
-        )
-
-        a_x = (
-            (b_x - 1.0)
-            * arrays.sigma[3, :, :, :]
-            / (arrays.sigma[3, :, :, :] + arrays.alpha[3, :, :, :] * arrays.kappa[3, :, :, :])
-            / arrays.kappa[3, :, :, :]
-        )
-        a_y = (
-            (b_y - 1.0)
-            * arrays.sigma[4, :, :, :]
-            / (arrays.sigma[4, :, :, :] + arrays.alpha[4, :, :, :] * arrays.kappa[4, :, :, :])
-            / arrays.kappa[4, :, :, :]
-        )
-        a_z = (
-            (b_z - 1.0)
-            * arrays.sigma[5, :, :, :]
-            / (arrays.sigma[5, :, :, :] + arrays.alpha[5, :, :, :] * arrays.kappa[5, :, :, :])
-            / arrays.kappa[5, :, :, :]
-        )
-
-        a_x = jnp.nan_to_num(a_x, nan=0.0, posinf=0.0, neginf=0.0)
-        a_y = jnp.nan_to_num(a_y, nan=0.0, posinf=0.0, neginf=0.0)
-        a_z = jnp.nan_to_num(a_z, nan=0.0, posinf=0.0, neginf=0.0)
-
-        # Update auxiliary fields
-        psi_Hxy = b_y * psi_Hxy + a_y * DyEz
-        psi_Hxz = b_z * psi_Hxz + a_z * DzEy
-        psi_Hyz = b_z * psi_Hyz + a_z * DzEx
-        psi_Hyx = b_x * psi_Hyx + a_x * DxEz
-        psi_Hzx = b_x * psi_Hzx + a_x * DxEy
-        psi_Hzy = b_y * psi_Hzy + a_y * DyEx
-
-        psi_H = jnp.stack((psi_Hxy, psi_Hxz, psi_Hyz, psi_Hyx, psi_Hzx, psi_Hzy), axis=0)
-        arrays = arrays.aset("psi_H", psi_H)
-
-    # Curl equations
-    curl_x = (1.0 / arrays.kappa[1, :, :, :] * DyEz + psi_Hxy) - (1.0 / arrays.kappa[2, :, :, :] * DzEy + psi_Hxz)
-    curl_y = (1.0 / arrays.kappa[2, :, :, :] * DzEx + psi_Hyz) - (1.0 / arrays.kappa[0, :, :, :] * DxEz + psi_Hyx)
-    curl_z = (1.0 / arrays.kappa[0, :, :, :] * DxEy + psi_Hzx) - (1.0 / arrays.kappa[1, :, :, :] * DyEx + psi_Hzy)
-    curl = jnp.stack((curl_x, curl_y, curl_z), axis=0)
+    curl, psi_H = curl_E(
+        config,
+        arrays.E,
+        arrays.psi_H,
+        arrays.alpha,
+        arrays.kappa,
+        arrays.sigma,
+        simulate_boundaries,
+        get_periodic_axes(objects),
+    )
+    arrays = arrays.aset("psi_H", psi_H)
 
     factor = 1
     if sigma_H is not None:
@@ -481,7 +281,7 @@ def update_H_reverse(
 
     # Get periodic axes for curl operation
     periodic_axes = get_periodic_axes(objects)
-    curl = curl_E(arrays.E, periodic_axes)
+    curl, _ = curl_E(config, arrays.E, arrays.psi_H, arrays.alpha, arrays.kappa, arrays.sigma, False, periodic_axes)
     inv_mu = arrays.inv_permeabilities
     c = config.courant_number
     sigma_H = arrays.magnetic_conductivity

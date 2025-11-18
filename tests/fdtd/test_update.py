@@ -116,7 +116,7 @@ class TestUpdateE:
 
         # Mock the curl_H function to return compatible shape
         with patch("fdtdx.fdtd.update.curl_H") as mock_curl:
-            mock_curl.return_value = jnp.zeros((3, 10, 10, 10))
+            mock_curl.return_value = (jnp.zeros((3, 10, 10, 10)), jnp.zeros((6, 10, 10, 10)))
 
             # Create mock objects
             mock_objects = Mock()
@@ -218,7 +218,7 @@ class TestUpdateEReverse:
 
         # Mock the curl_H function to return compatible shape
         with patch("fdtdx.fdtd.update.curl_H") as mock_curl:
-            mock_curl.return_value = jnp.zeros((3, 10, 10, 10))
+            mock_curl.return_value = (jnp.zeros((3, 10, 10, 10)), jnp.zeros((6, 10, 10, 10)))
 
             # Create mock objects
             mock_objects = Mock()
@@ -293,7 +293,7 @@ class TestUpdateH:
 
         # Mock the curl_E function to return compatible shape
         with patch("fdtdx.fdtd.update.curl_E") as mock_curl:
-            mock_curl.return_value = jnp.zeros((3, 10, 10, 10))
+            mock_curl.return_value = (jnp.zeros((3, 10, 10, 10)), jnp.zeros((6, 10, 10, 10)))
 
             # Create mock objects
             mock_objects = Mock()
@@ -395,7 +395,7 @@ class TestUpdateHReverse:
 
         # Mock the curl_E function to return compatible shape
         with patch("fdtdx.fdtd.update.curl_E") as mock_curl:
-            mock_curl.return_value = jnp.zeros((3, 10, 10, 10))
+            mock_curl.return_value = (jnp.zeros((3, 10, 10, 10)), jnp.zeros((6, 10, 10, 10)))
 
             # Create mock objects
             mock_objects = Mock()

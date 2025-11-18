@@ -109,6 +109,9 @@ def make_waveguide_simulation(wavelength, mesh, width, height, absorber_thicknes
     resolution = float(wavelength/mesh)
     courant_factor = float(0.99)
 
+    # List all objects
+    object_list = []
+
     # PML boundary layer configuration
     num_layers_x = 2*mesh
     num_layers_y = mesh
@@ -222,6 +225,7 @@ def make_waveguide_simulation(wavelength, mesh, width, height, absorber_thicknes
         ),
         material=materials["background"],
     )
+    object_list.append(background)
 
     # Define waveguide object
     waveguide = fdtdx.UniformMaterialObject(
@@ -230,6 +234,7 @@ def make_waveguide_simulation(wavelength, mesh, width, height, absorber_thicknes
         material=materials["waveguide"],
         color=fdtdx.colors.PINK,
     )
+    object_list.append(waveguide)
 
     # Define absorber objects on left and right sides of waveguide
     absorber_l = fdtdx.UniformMaterialObject(
@@ -238,6 +243,7 @@ def make_waveguide_simulation(wavelength, mesh, width, height, absorber_thicknes
         material=materials["absorber"],
         color=fdtdx.colors.ORANGE,
     )
+    object_list.append(absorber_l)
 
     absorber_r = fdtdx.UniformMaterialObject(
         name="Absorber_R",
@@ -245,6 +251,7 @@ def make_waveguide_simulation(wavelength, mesh, width, height, absorber_thicknes
         material=materials["absorber"],
         color=fdtdx.colors.ORANGE,
     )
+    object_list.append(absorber_r)
 
     # Define mode plane source
     source = fdtdx.ModePlaneSource(
@@ -260,10 +267,11 @@ def make_waveguide_simulation(wavelength, mesh, width, height, absorber_thicknes
         name="Source",
         color=fdtdx.colors.GREEN,
     )
+    object_list.append(source)
 
     # Create mode overlap detectors at multiple positions
     mode_overlap_detectors = []
-    mode_overlap_detectors_boundary_conditions = []
+    mode_overlap_detectors_placements = []
     num_detectors = 28
     for i in range(num_detectors):
         mode_overlap_detectors.append(
@@ -276,12 +284,13 @@ def make_waveguide_simulation(wavelength, mesh, width, height, absorber_thicknes
                 name=f"Mode Detector {i+1}",
             )
         )
-
+        object_list.append(mode_overlap_detectors[i])
+        
         # Place detectors at center in y and z, spaced along x
-        mode_overlap_detectors_boundary_conditions.append(
+        mode_overlap_detectors_placements.append(
             mode_overlap_detectors[i].place_at_center(background, axes=(1,2)),
         )
-        mode_overlap_detectors_boundary_conditions.append(
+        mode_overlap_detectors_placements.append(
             mode_overlap_detectors[i].place_relative_to(
                 source, 
                 axes=0, 
@@ -292,7 +301,8 @@ def make_waveguide_simulation(wavelength, mesh, width, height, absorber_thicknes
         )
 
     # Create boundary objects from configuration
-    _, boundary_constraint_list = fdtdx.boundary_objects_from_config(bound_cfg, background)
+    boundary_dict, boundary_constraint_list = fdtdx.boundary_objects_from_config(bound_cfg, background)
+    object_list.extend(list(boundary_dict.values()))
 
     # List all placement constraints
     placement_constraints = [
@@ -327,12 +337,15 @@ def make_waveguide_simulation(wavelength, mesh, width, height, absorber_thicknes
             own_positions=0, 
             margins=-14e-6
         ),
-    ] + mode_overlap_detectors_boundary_conditions
+
+        # Place mode overlap detectors
+        *mode_overlap_detectors_placements,
+    ] 
 
     # Place all objects in the simulation volume
     key, subkey = jax.random.split(key)
     objects, arrays, params, config, _ = fdtdx.place_objects(
-        volume=background,
+        object_list=object_list,
         config=config,
         constraints=placement_constraints,
         key=subkey,

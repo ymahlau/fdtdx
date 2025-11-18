@@ -317,6 +317,7 @@ class TestCondition:
         arrays.detector_states[detector_name]["energy"] = converged_energy_readings
         state_converged = (jnp.array(min_steps + 2), arrays)
         cond_fun = cond_fun.setup(state_converged, config, objects)
+        # TODO(ymahlau): this test case did not work anymore for some reason
         assert cond_fun(state_converged, config, objects)
 
         # Test at end_step -> should stop regardless of convergence
