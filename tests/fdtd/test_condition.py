@@ -65,7 +65,7 @@ class TestCondition:
         position_constraints.extend(detector.same_position_and_size(volume))
         key = jax.random.PRNGKey(0)
         objects, arrays, _, config, _ = place_objects(
-            volume=volume,
+            object_list=[volume, detector],
             config=config,
             constraints=position_constraints,
             key=key,
