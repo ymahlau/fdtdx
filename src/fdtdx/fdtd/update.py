@@ -49,20 +49,21 @@ def update_E(
     Returns:
         ArrayContainer: Updated ArrayContainer with new E field values
     """
-    boundary_states = {}
-    if simulate_boundaries:
-        for boundary in objects.boundary_objects:
-            boundary_states[boundary.name] = boundary.update_E_boundary_state(
-                boundary_state=arrays.boundary_states[boundary.name],
-                H=arrays.H,
-            )
 
-    # Get periodic axes for curl operation
-    periodic_axes = get_periodic_axes(objects)
-    curl = curl_H(arrays.H, periodic_axes)
     inv_eps = arrays.inv_permittivities
     c = config.courant_number
     sigma_E = arrays.electric_conductivity
+    curl, psi_E = curl_H(
+        config,
+        arrays.H,
+        arrays.psi_E,
+        arrays.alpha,
+        arrays.kappa,
+        arrays.sigma,
+        simulate_boundaries,
+        get_periodic_axes(objects),
+    )
+    arrays = arrays.aset("psi_E", psi_E)
 
     factor = 1
     if sigma_E is not None:
@@ -96,18 +97,7 @@ def update_E(
             lambda: E,
         )
 
-    if simulate_boundaries:
-        for boundary in objects.boundary_objects:
-            E = boundary.update_E(
-                E=E,
-                boundary_state=boundary_states[boundary.name],
-                inverse_permittivity=arrays.inv_permittivities,
-            )
-
     arrays = arrays.at["E"].set(E)
-    if simulate_boundaries:
-        arrays = arrays.aset("boundary_states", boundary_states)
-
     return arrays
 
 
@@ -153,7 +143,7 @@ def update_E_reverse(
 
     # Get periodic axes for curl operation
     periodic_axes = get_periodic_axes(objects)
-    curl = curl_H(arrays.H, periodic_axes)
+    curl, _ = curl_H(config, arrays.H, arrays.psi_E, arrays.alpha, arrays.kappa, arrays.sigma, False, periodic_axes)
     inv_eps = arrays.inv_permittivities
     c = config.courant_number
     sigma_E = arrays.electric_conductivity
@@ -197,20 +187,22 @@ def update_H(
     Returns:
         ArrayContainer: Updated ArrayContainer with new H field values
     """
-    boundary_states = {}
-    if simulate_boundaries:
-        for boundary in objects.boundary_objects:
-            boundary_states[boundary.name] = boundary.update_H_boundary_state(
-                boundary_state=arrays.boundary_states[boundary.name],
-                E=arrays.E,
-            )
 
-    # Get periodic axes for curl operation
-    periodic_axes = get_periodic_axes(objects)
-    curl = curl_E(arrays.E, periodic_axes)
     inv_mu = arrays.inv_permeabilities
     c = config.courant_number
     sigma_H = arrays.magnetic_conductivity
+    curl, psi_H = curl_E(
+        config,
+        arrays.E,
+        arrays.psi_H,
+        arrays.alpha,
+        arrays.kappa,
+        arrays.sigma,
+        simulate_boundaries,
+        get_periodic_axes(objects),
+    )
+    arrays = arrays.aset("psi_H", psi_H)
+
     factor = 1
     if sigma_H is not None:
         # update formula for lossy material. Simplifies to Noop for conductivity = 0
@@ -243,18 +235,7 @@ def update_H(
             lambda: H,
         )
 
-    if simulate_boundaries:
-        for boundary in objects.boundary_objects:
-            H = boundary.update_H(
-                H=H,
-                boundary_state=boundary_states[boundary.name],
-                inverse_permeability=arrays.inv_permeabilities,
-            )
-
     arrays = arrays.at["H"].set(H)
-    if simulate_boundaries:
-        arrays = arrays.aset("boundary_states", boundary_states)
-
     return arrays
 
 
@@ -300,7 +281,7 @@ def update_H_reverse(
 
     # Get periodic axes for curl operation
     periodic_axes = get_periodic_axes(objects)
-    curl = curl_E(arrays.E, periodic_axes)
+    curl, _ = curl_E(config, arrays.E, arrays.psi_H, arrays.alpha, arrays.kappa, arrays.sigma, False, periodic_axes)
     inv_mu = arrays.inv_permeabilities
     c = config.courant_number
     sigma_H = arrays.magnetic_conductivity

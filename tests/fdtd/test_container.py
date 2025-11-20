@@ -5,7 +5,6 @@ import jax.numpy as jnp
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, SimulationState, reset_array_container
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.materials import Material
-from fdtdx.objects.boundaries.boundary import BaseBoundaryState
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.detectors.detector import Detector, DetectorState
@@ -218,20 +217,28 @@ class TestArrayContainer:
         # Create mock arrays
         self.E = jnp.ones((3, 10, 10, 10))
         self.H = jnp.ones((3, 10, 10, 10))
+        self.psi_E = jnp.zeros((6, 10, 10, 10))
+        self.psi_H = jnp.zeros((6, 10, 10, 10))
+        self.alpha = jnp.zeros((3, 10, 10, 10))
+        self.kappa = jnp.ones((3, 10, 10, 10))
+        self.sigma = jnp.zeros((3, 10, 10, 10))
         self.inv_permittivities = jnp.ones((3, 10, 10, 10))
         self.inv_permeabilities = jnp.ones((3, 10, 10, 10))
 
         # Create mock states
-        self.boundary_states = {"boundary1": Mock(spec=BaseBoundaryState)}
         self.detector_states = {"detector1": Mock(spec=DetectorState)}
         self.recording_state = Mock(spec=RecordingState)
 
         self.array_container = ArrayContainer(
             E=self.E,
             H=self.H,
+            psi_E=self.psi_E,
+            psi_H=self.psi_H,
+            alpha=self.alpha,
+            kappa=self.kappa,
+            sigma=self.sigma,
             inv_permittivities=self.inv_permittivities,
             inv_permeabilities=self.inv_permeabilities,
-            boundary_states=self.boundary_states,
             detector_states=self.detector_states,
             recording_state=self.recording_state,
         )
@@ -242,7 +249,6 @@ class TestArrayContainer:
         assert jnp.array_equal(self.array_container.H, self.H)
         assert jnp.array_equal(self.array_container.inv_permittivities, self.inv_permittivities)
         assert jnp.array_equal(self.array_container.inv_permeabilities, self.inv_permeabilities)
-        assert self.array_container.boundary_states == self.boundary_states
         assert self.array_container.detector_states == self.detector_states
         assert self.array_container.recording_state == self.recording_state
 
@@ -254,9 +260,13 @@ class TestArrayContainer:
         container = ArrayContainer(
             E=self.E,
             H=self.H,
+            psi_E=self.psi_E,
+            psi_H=self.psi_H,
+            alpha=self.alpha,
+            kappa=self.kappa,
+            sigma=self.sigma,
             inv_permittivities=self.inv_permittivities,
             inv_permeabilities=self.inv_permeabilities,
-            boundary_states=self.boundary_states,
             detector_states=self.detector_states,
             recording_state=self.recording_state,
             electric_conductivity=self.electric_conductivity,
@@ -281,20 +291,28 @@ class TestResetArrayContainer:
         # Create mock arrays with non-zero values
         self.E = jnp.ones((3, 5, 5, 5))
         self.H = jnp.ones((3, 5, 5, 5))
+        self.psi_E = jnp.zeros((6, 5, 5, 5))
+        self.psi_H = jnp.zeros((6, 5, 5, 5))
+        self.alpha = jnp.zeros((3, 5, 5, 5))
+        self.kappa = jnp.ones((3, 5, 5, 5))
+        self.sigma = jnp.zeros((3, 5, 5, 5))
         self.inv_permittivities = jnp.ones((3, 5, 5, 5))
         self.inv_permeabilities = jnp.ones((3, 5, 5, 5))
 
         # Create mock states
-        self.boundary_states = {"boundary1": Mock(spec=BaseBoundaryState)}
         self.detector_states = {"detector1": {"data": jnp.ones(10)}}
         self.recording_state = RecordingState(data={"recording": jnp.ones(10)}, state={"state": jnp.ones(5)})
 
         self.array_container = ArrayContainer(
             E=self.E,
             H=self.H,
+            psi_E=self.psi_E,
+            psi_H=self.psi_H,
+            alpha=self.alpha,
+            kappa=self.kappa,
+            sigma=self.sigma,
             inv_permittivities=self.inv_permittivities,
             inv_permeabilities=self.inv_permeabilities,
-            boundary_states=self.boundary_states,
             detector_states=self.detector_states,
             recording_state=self.recording_state,
         )
@@ -302,7 +320,6 @@ class TestResetArrayContainer:
         # Create mock objects
         self.mock_boundary = Mock(spec=PerfectlyMatchedLayer)
         self.mock_boundary.name = "boundary1"
-        self.mock_boundary.reset_state.return_value = Mock(spec=BaseBoundaryState)
 
         self.objects = ObjectContainer(object_list=[self.mock_boundary], volume_idx=0)
 
@@ -320,10 +337,6 @@ class TestResetArrayContainer:
 
     def test_reset_array_container_with_recording_reset(self):
         """Test reset_array_container with recording state reset."""
-        # Mock the boundary state
-        mock_reset_state = Mock(spec=BaseBoundaryState)
-        self.mock_boundary.reset_state.return_value = mock_reset_state
-
         result = reset_array_container(
             arrays=self.array_container, objects=self.objects, reset_detector_states=False, reset_recording_state=True
         )
