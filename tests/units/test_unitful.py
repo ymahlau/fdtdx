@@ -26,6 +26,8 @@ from fdtdx.units.unitful import (
     multiply,
     ne,
     pow,
+    reshape,
+    squeeze,
     subtract,
 )
 
@@ -48,7 +50,7 @@ def test_multiply_unitful_unitful_different_dimensions():
 
     result = multiply(time_val, freq_val)
 
-    assert jnp.allclose(result.value(), 50.0)
+    assert math.isclose(result.value(), 50.0)  # type: ignore
     assert result.unit.dim == {}  # s^1 * s^-1 = dimensionless
 
 
@@ -59,34 +61,32 @@ def test_multiply_unitful_unitful_different_scales():
 
     result = multiply(time1, time2)
 
-    assert jnp.allclose(result.value(), 6.0e-3)
+    assert math.isclose(result.value(), 6.0e-3)  # type: ignore
     assert result.unit.dim == {SI.s: 2}
 
 
-# unitful-unitful with val python-python
 def test_multiply_unitful_unitful_python_python_type_and_dim():
     """Test multiplication of Unitful objects with value Python scalar and Python scalar"""
     a = 2 * s
     b = 3.5 * s
     res = multiply(a, b)
 
-    assert res.value() == 7.0
+    assert math.isclose(res.value(), 7.0)  # type: ignore
     assert res.unit.dim == {SI.s: 2}
     assert isinstance(res.val, float)
 
 
-# unitful-unitful with val numpy-numpy
 def test_multiply_unitful_unitful_numpy_numpy_type_and_dim():
     """Test multiplication of Unitful objects with value numpy Array and numpy Array"""
     a = s * np.array([1.0, 2.0, 3.0])
     b = s * np.array([4.0, 5.0, 6.0])
     res = multiply(a, b)
+
     assert isinstance(res.val, np.ndarray)
     assert jnp.allclose(res.value(), jnp.array([4.0, 10.0, 18.0]))
     assert res.unit.dim == {SI.s: 2}
 
 
-# unitful-unitful with val jax-jax
 def test_multiply_unitful_unitful_jax_jax_type_and_dim():
     """Test multiplication of Unitful objects with value Jax Array and Jax Array"""
     a = s * jnp.array([1.0, 2.0, 3.0])
@@ -111,8 +111,8 @@ def test_multiply_with_arrays():
     assert result.unit.dim == {}  # dimensionless
 
 
-def test_multiply_arraylike_arraylike():
-    """Test multiplication of two ArrayLike objects"""
+def test_multiply_overload_jax_jax():
+    """Test multiplication of two jax Arrays"""
     arr1 = jnp.array([1.0, 2.0, 3.0])
     arr2 = jnp.array([4.0, 5.0, 6.0])
 
@@ -120,6 +120,29 @@ def test_multiply_arraylike_arraylike():
 
     expected = jnp.array([4.0, 10.0, 18.0])
     assert jnp.allclose(result, expected)
+    assert isinstance(result, jax.Array)
+
+
+def test_multiply_overload_numpy_numpy():
+    """Test multiplication of two numpy arrays"""
+    arr1 = np.array([1.0, 2.0, 3.0])
+    arr2 = np.array([4.0, 5.0, 6.0])
+
+    result = multiply(arr1, arr2)
+
+    expected = np.array([4.0, 10.0, 18.0])
+    assert np.allclose(result, expected)
+    assert isinstance(result, np.ndarray)
+
+
+def test_multiply_python_scalars_promotion():
+    """Test multiplication with Python Scalar int, float and complex"""
+    assert multiply(2, 3.5) == 7.0
+    assert multiply(2, 1 + 2j) == 2 + 4j
+    assert multiply(2.0, 1 - 1j) == 2 - 2j
+    assert multiply(2, 3) == 6
+    assert multiply(2.0, 3.0) == 6.0
+    assert multiply(1 + 2j, 3 - 1j) == (5 + 5j)
 
 
 # mixed type:
@@ -251,16 +274,6 @@ def test_multiply_numpy_scalar_with_jax_both_orders():
     assert isinstance(r2, jax.Array)
     assert jnp.allclose(r1, jnp.array([15.0, 18.0]))
     assert jnp.allclose(r2, jnp.array([15.0, 18.0]))
-
-
-def test_multiply_python_mixed_scalars_promotion():
-    """Test multiplication with Python Scalar int, float and complex"""
-    assert multiply(2, 3.5) == 7.0
-    assert multiply(2, 1 + 2j) == 2 + 4j
-    assert multiply(2.0, 1 - 1j) == 2 - 2j
-    assert multiply(2, 3) == 6
-    assert multiply(2.0, 3.0) == 6.0
-    assert multiply(1 + 2j, 3 - 1j) == (5 + 5j)
 
 
 def test_multiply_not_implemented():
@@ -925,6 +938,20 @@ def test_abs_scalar_unitful_negative():
     assert result.unit.scale == charge.unit.scale
 
 
+def test_abs_scalar_unitful_numpy_negative():
+    """Test __abs__ method with negative numpy Unitful object"""
+    charge_unit = Unit(scale=-6, dim={SI.A: 1, SI.s: 1})  # microCoulombs
+    charge = Unitful(val=np.array([-15.0, -34.9]), unit=charge_unit)
+
+    result = abs(charge)
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, np.ndarray)
+    assert np.allclose(result.value(), np.array([15.0e-6, 34.9e-6]))  # 15 microCoulombs
+    assert result.unit.dim == {SI.A: 1, SI.s: 1}
+    assert result.unit.scale == charge.unit.scale
+
+
 def test_abs_array_unitful_mixed_signs():
     """Test __abs__ method with array Unitful object containing mixed positive/negative values"""
     # Create power unit: kg * m^2 * s^(-3) (Watts)
@@ -939,7 +966,7 @@ def test_abs_array_unitful_mixed_signs():
     assert result.unit.dim == {SI.kg: 1, SI.m: 2, SI.s: -3}
 
 
-def test_matmul_magic_method_same_units():
+def test_matmul_magic_method_same_units_with_jax_array():
     """Test matrix multiplication using @ operator with same units"""
     # Create two 2x2 matrices with force units (kg*m*s^-2)
     force_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2})
@@ -952,6 +979,43 @@ def test_matmul_magic_method_same_units():
     expected_vals = jnp.array([[11.0, 16.0], [7.0, 12.0]])
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.value(), expected_vals)
+    assert isinstance(result.val, jax.Array)
+    # Force^2 units: (kg*m*s^-2)^2 = kg^2*m^2*s^-4
+    assert result.unit.dim == {SI.kg: 2, SI.m: 2, SI.s: -4}
+
+
+def test_matmul_magic_method_same_units_with_numpy_array():
+    """Test matrix multiplication using @ operator with same units"""
+    # Create two 2x2 matrices with force units (kg*m*s^-2)
+    force_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2})
+    matrix1 = Unitful(val=np.array([[2.0, 3.0], [4.0, 1.0]]), unit=force_unit)
+    matrix2 = Unitful(val=np.array([[1.0, 2.0], [3.0, 4.0]]), unit=force_unit)
+
+    result = matrix1 @ matrix2
+
+    # Expected calculation: [[2*1+3*3, 2*2+3*4], [4*1+1*3, 4*2+1*4]] = [[11, 16], [7, 12]]
+    expected_vals = np.array([[11.0, 16.0], [7.0, 12.0]])
+    assert isinstance(result, Unitful)
+    assert np.allclose(result.value(), expected_vals)
+    assert isinstance(result.val, np.ndarray)
+    # Force^2 units: (kg*m*s^-2)^2 = kg^2*m^2*s^-4
+    assert result.unit.dim == {SI.kg: 2, SI.m: 2, SI.s: -4}
+
+
+def test_matmul_magic_method_same_units_with_mixed_array():
+    """Test matrix multiplication using @ operator with same units"""
+    # Create two 2x2 matrices with force units (kg*m*s^-2)
+    force_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2})
+    matrix1 = Unitful(val=np.array([[2.0, 3.0], [4.0, 1.0]]), unit=force_unit)
+    matrix2 = Unitful(val=jnp.array([[1.0, 2.0], [3.0, 4.0]]), unit=force_unit)
+
+    result = matrix1 @ matrix2
+
+    # Expected calculation: [[2*1+3*3, 2*2+3*4], [4*1+1*3, 4*2+1*4]] = [[11, 16], [7, 12]]
+    expected_vals = jnp.array([[11.0, 16.0], [7.0, 12.0]])
+    assert isinstance(result, Unitful)
+    assert jnp.allclose(result.value(), expected_vals)
+    assert isinstance(result.val, jax.Array)
     # Force^2 units: (kg*m*s^-2)^2 = kg^2*m^2*s^-4
     assert result.unit.dim == {SI.kg: 2, SI.m: 2, SI.s: -4}
 
@@ -1110,55 +1174,6 @@ def test_pow_unitful_int_exponent_numpy_value_dimful():
     assert result.unit.scale == 4  # scale is optimized by unitful
 
 
-def test_pow_unitful_float_exponent_dimensionless_jax_value():
-    """Unitful + float exponent, allowed only for dimensionless units"""
-    dimless = Unit(scale=0, dim={})
-    x = Unitful(val=jnp.array(4.0), unit=dimless)
-
-    result = pow(x, 0.5)
-
-    assert isinstance(result, Unitful)
-    assert jnp.allclose(result.val, jnp.array([2.0]))
-    assert result.unit.dim == {}
-    assert result.unit.scale == 1  # scale is optimized by unitful
-
-
-def test_pow_unitful_float_exponent_dimensionful_raises():
-    """Unitful + float exponent on dimensionful unit must raise TypeError"""
-    length_unit = Unit(scale=0, dim={SI.m: 1})
-    x = Unitful(val=jnp.array(4.0), unit=length_unit)
-
-    with pytest.raises(TypeError, match="float exponent is only allowed for dimensionless"):
-        _ = pow(x, 0.5)
-
-
-def test_pow_unitful_complex_exponent_dimensionless_numpy_value():
-    """Unitful + complex exponent must raise error even when unit is dimensionless"""
-    dimless = Unit(scale=0, dim={})
-    x = Unitful(val=np.array([1.0, 2.0]), unit=dimless)
-
-    with pytest.raises(TypeError, match="bool exponent is not allowed for Unitful values"):
-        _ = pow(x, 1 + 2j)
-
-
-def test_pow_unitful_complex_exponent_jax_value_raises():
-    """Unitful + complex exponent with JAX value must raise according to implementation"""
-    dimless = Unit(scale=0, dim={})
-    x = Unitful(val=jnp.array(2.0), unit=dimless)
-
-    with pytest.raises(TypeError, match="complex exponent is not allowed for Unitful values"):
-        _ = pow(x, 1 + 2j)
-
-
-def test_pow_unitful_bool_exponent_raises():
-    """Unitful + bool exponent must raise"""
-    length_unit = Unit(scale=0, dim={SI.m: 1})
-    x = Unitful(val=jnp.array(3.0), unit=length_unit)
-
-    with pytest.raises(TypeError, match="bool exponent is not allowed for Unitful values"):
-        _ = pow(x, True)
-
-
 def test_pow_unitful_fractional_dimension_int_exponent():
     """Fractional dimensions should be multiplied correctly by integer exponent"""
     frac_unit = Unit(scale=0, dim={SI.m: Fraction(1, 2)})
@@ -1167,7 +1182,7 @@ def test_pow_unitful_fractional_dimension_int_exponent():
     result = pow(x, 4)
 
     assert isinstance(result, Unitful)
-    assert jnp.allclose(result.val, 9.0**4)
+    assert jnp.allclose(result.value(), 9.0**4)
     # (1/2) * 4 = 2
     assert result.unit.dim == {SI.m: 2}
 
@@ -1203,23 +1218,6 @@ def test_pow_unitful_int_exponent_jit():
     assert isinstance(result, Unitful)
     assert jnp.allclose(result.val, 27.0)
     assert result.unit.dim == {SI.m: 3}
-
-
-def test_pow_unitful_dimensionless_float_exponent_jit():
-    """JIT-compiled pow with Unitful dimensionless + float exponent should work"""
-
-    dimless = Unit(scale=0, dim={})
-    x = Unitful(val=jnp.array(16.0), unit=dimless)
-
-    @jax.jit
-    def sqrt_unitful(u: Unitful) -> Unitful:
-        return pow(u, 0.5)
-
-    result = sqrt_unitful(x)
-
-    assert isinstance(result, Unitful)
-    assert jnp.allclose(result.val, 4.0)
-    assert result.unit.dim == {}
 
 
 def test_at_get_single_index():
@@ -2174,6 +2172,131 @@ def test_unitful_astype_method():
     assert result.val.dtype == jnp.bfloat16  # type: ignore
     # Original should be unchanged
     assert energy.val.dtype == jnp.float32  # type: ignore
+
+
+def test_squeeze_unitful_with_numpy_array_val():
+    """Test squeeze on Unitful with numpy array value"""
+    # shape (1, 3, 1) -> squeeze -> (3,)
+    time = s * np.array([[[1.0], [2.0], [3.0]]])
+    assert isinstance(time, Unitful)
+    assert isinstance(time.val, np.ndarray)
+    assert time.val.shape == (1, 3, 1)
+
+    result = squeeze(time)
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, np.ndarray)
+    assert result.val.shape == (3,)
+    assert np.allclose(result.value(), np.array([1.0, 2.0, 3.0]))
+    assert result.unit.dim == time.unit.dim
+
+
+def test_squeeze_unitful_with_jax_array_val():
+    """Test squeeze on Unitful with jax Array value"""
+    arr = jnp.array([[[1.0, 2.0, 3.0]]])
+    time = s * arr
+    assert isinstance(time.val, jax.Array)
+    assert time.val.shape == (1, 1, 3)
+
+    result = squeeze(time)
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+    assert result.val.shape == (3,)
+    assert jnp.allclose(result.value(), jnp.array([1.0, 2.0, 3.0]))
+    assert result.unit.dim == time.unit.dim
+
+
+def test_squeeze_unitful_python_scalar_raises():
+    """Python scalar value in Unitful should raise in squeeze"""
+    unit = Unit(scale=0, dim={SI.s: 1})
+    x = Unitful(val=2.0, unit=unit)  # python float as val
+
+    with pytest.raises(TypeError, match="python scalar"):
+        squeeze(x)
+
+
+def test_squeeze_jax_array():
+    """Test squeeze on plain jax Array"""
+    x = jnp.ones((1, 2, 1))
+    result = squeeze(x)
+
+    assert isinstance(result, jax.Array)
+    assert result.shape == (2,)
+    assert jnp.allclose(result, jnp.ones((2,)))
+
+
+def test_squeeze_numpy_number_and_array():
+    """Test squeeze on numpy scalar and numpy array"""
+    # numpy scalar: squeeze no-op, still scalar (np.generic)
+    s_np = np.float64(3.0)
+    r_scalar = squeeze(s_np)
+    assert isinstance(r_scalar, np.generic)
+    assert r_scalar == np.float64(3.0)
+
+    # numpy array
+    arr = np.array([[1.0, 2.0, 3.0]])
+    r_arr = squeeze(arr)
+    assert isinstance(r_arr, np.ndarray)
+    assert r_arr.shape == (3,)
+    assert np.allclose(r_arr, np.array([1.0, 2.0, 3.0]))
+
+
+def test_reshape_unitful_with_numpy_array_val():
+    """Test reshape on Unitful with numpy array value"""
+    # shape (2, 3) -> reshape (3, 2)
+    a = s * np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+
+    assert isinstance(a, Unitful)
+    assert isinstance(a.val, np.ndarray)
+    assert a.val.shape == (2, 3)
+
+    result = reshape(a, (3, 2))
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, np.ndarray)
+    assert result.val.shape == (3, 2)
+    assert np.allclose(
+        result.value(),
+        np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]),
+    )
+    assert result.unit.dim == a.unit.dim
+
+
+def test_reshape_unitful_python_scalar_raises():
+    """Python scalar value in Unitful should raise in reshape"""
+    unit = Unit(scale=0, dim={SI.m: 1})
+    x = Unitful(val=3.0, unit=unit)
+
+    with pytest.raises(TypeError, match="python scalar"):
+        reshape(x, (1,))
+
+
+def test_reshape_jax_array():
+    """Test reshape on plain jax Array"""
+    x = jnp.array([[1.0, 2.0, 3.0]])
+    result = reshape(x, (3, 1))
+
+    assert isinstance(result, jax.Array)
+    assert result.shape == (3, 1)
+    assert jnp.allclose(result, jnp.array([[1.0], [2.0], [3.0]]))
+
+
+def test_reshape_numpy_number_and_array():
+    """Test reshape on numpy scalar and numpy array"""
+    # numpy scalar -> asarray + reshape -> ndarray
+    s_np = np.float64(5.0)
+    r_scalar = reshape(s_np, (1,))
+    assert isinstance(r_scalar, np.ndarray)
+    assert r_scalar.shape == (1,)
+    assert np.allclose(r_scalar, np.array([5.0]))
+
+    # numpy array
+    arr = np.array([[1.0, 2.0], [3.0, 4.0]])
+    r_arr = reshape(arr, (4,))
+    assert isinstance(r_arr, np.ndarray)
+    assert r_arr.shape == (4,)
+    assert np.allclose(r_arr, np.array([1.0, 2.0, 3.0, 4.0]))
 
 
 def test_argmax_magic_method():

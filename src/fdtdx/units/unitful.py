@@ -685,12 +685,12 @@ def multiply(x: float, y: float) -> float:
 
 
 @overload
-def multiply(x: complex, y: float) -> complex:
+def multiply(x: complex, y: int | float) -> complex:
     return x * y
 
 
 @overload
-def multiply(x: float, y: complex) -> complex:
+def multiply(x: int | float, y: complex) -> complex:
     return x * y
 
 
@@ -700,12 +700,43 @@ def multiply(x: complex, y: complex) -> complex:
 
 
 @overload
+def multiply(x: int | float | complex | np.number, y: np.ndarray) -> np.ndarray:
+    return x * y
+
+
+@overload
+def multiply(x: np.ndarray, y: int | float | complex | np.number) -> np.ndarray:
+    return x * y
+
+
+@overload
+def multiply(x: int | float | complex | np.number, y: jax.Array) -> jax.Array:
+    return jnp.asarray(x) * y
+
+
+@overload
+def multiply(x: jax.Array, y: int | float | complex | np.number) -> jax.Array:
+    return x * jnp.asarray(y)
+
+
+@overload
 def multiply(x: jax.Array, y: jax.Array) -> jax.Array:
     return x * y
 
 
 @overload
-def multiply(x: ArrayLike, y: ArrayLike) -> ArrayLike:
+def multiply(x: jax.Array, y: np.ndarray) -> jax.Array:
+    return x * y
+
+
+@overload
+def multiply(x: np.ndarray, y: jax.Array) -> jax.Array:
+    x_jax = jnp.asarray(x)
+    return x_jax * y
+
+
+@overload
+def multiply(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     return x * y
 
 
@@ -783,7 +814,27 @@ def divide(x1: int, x2: int) -> float:
 
 
 @overload
+def divide(x1: int, x2: float) -> float:
+    return x1 / x2
+
+
+@overload
+def divide(x1: float, x2: int) -> float:
+    return x1 / x2
+
+
+@overload
 def divide(x1: float, x2: float) -> float:
+    return x1 / x2
+
+
+@overload
+def divide(x1: int | float, x2: complex) -> complex:
+    return x1 / x2
+
+
+@overload
+def divide(x1: complex, x2: int | float) -> complex:
     return x1 / x2
 
 
@@ -793,12 +844,43 @@ def divide(x1: complex, x2: complex) -> complex:
 
 
 @overload
+def divide(x: int | float | complex | np.number, y: np.ndarray) -> np.ndarray:
+    return x / y
+
+
+@overload
+def divide(x: np.ndarray, y: int | float | complex | np.number) -> np.ndarray:
+    return x / y
+
+
+@overload
+def divide(x: int | float | complex | np.number, y: jax.Array) -> jax.Array:
+    return jnp.asarray(x) / y
+
+
+@overload
+def divide(x: jax.Array, y: int | float | complex | np.number) -> jax.Array:
+    return x / jnp.asarray(y)
+
+
+@overload
 def divide(x1: jax.Array, x2: jax.Array) -> jax.Array:
     return x1 / x2
 
 
 @overload
-def divide(x1: ArrayLike, x2: ArrayLike) -> ArrayLike:
+def divide(x1: jax.Array, x2: np.ndarray) -> jax.Array:
+    return x1 / x2
+
+
+@overload
+def divide(x1: np.ndarray, x2: jax.Array) -> jax.Array:
+    x1_jax = jnp.asarray(x1)
+    return x1_jax / x2
+
+
+@overload
+def divide(x1: np.ndarray, x2: np.ndarray) -> np.ndarray:
     return x1 / x2
 
 
@@ -844,7 +926,27 @@ def add(x: int, y: int) -> int:
 
 
 @overload
+def add(x: int, y: float) -> float:
+    return x + y
+
+
+@overload
+def add(x: float, y: int) -> float:
+    return x + y
+
+
+@overload
 def add(x: float, y: float) -> float:
+    return x + y
+
+
+@overload
+def add(x: int | float, y: complex) -> complex:
+    return x + y
+
+
+@overload
+def add(x: complex, y: int | float) -> complex:
     return x + y
 
 
@@ -854,12 +956,43 @@ def add(x: complex, y: complex) -> complex:
 
 
 @overload
+def add(x: int | float | complex | np.number, y: np.ndarray) -> np.ndarray:
+    return x + y
+
+
+@overload
+def add(x: np.ndarray, y: int | float | complex | np.number) -> np.ndarray:
+    return x + y
+
+
+@overload
+def add(x: int | float | complex | np.number, y: jax.Array) -> jax.Array:
+    return jnp.asarray(x) + y
+
+
+@overload
+def add(x: jax.Array, y: int | float | complex | np.number) -> jax.Array:
+    return x + jnp.asarray(y)
+
+
+@overload
 def add(x: jax.Array, y: jax.Array) -> jax.Array:
     return x + y
 
 
 @overload
-def add(x: ArrayLike, y: ArrayLike) -> ArrayLike:
+def add(x: jax.Array, y: np.ndarray) -> jax.Array:
+    return x + y
+
+
+@overload
+def add(x: np.ndarray, y: jax.Array) -> jax.Array:
+    x_jax = jnp.asarray(x)
+    return x_jax + y
+
+
+@overload
+def add(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     return x + y
 
 
@@ -962,7 +1095,27 @@ def subtract(x: int, y: int) -> int:
 
 
 @overload
+def subtract(x: int, y: float) -> float:
+    return x - y
+
+
+@overload
+def subtract(x: float, y: int) -> float:
+    return x - y
+
+
+@overload
 def subtract(x: float, y: float) -> float:
+    return x - y
+
+
+@overload
+def subtract(x: int | float, y: complex) -> complex:
+    return x - y
+
+
+@overload
+def subtract(x: complex, y: int | float) -> complex:
     return x - y
 
 
@@ -972,12 +1125,43 @@ def subtract(x: complex, y: complex) -> complex:
 
 
 @overload
+def subtract(x: int | float | complex | np.number, y: np.ndarray) -> np.ndarray:
+    return x - y
+
+
+@overload
+def subtract(x: np.ndarray, y: int | float | complex | np.number) -> np.ndarray:
+    return x - y
+
+
+@overload
+def subtract(x: int | float | complex | np.number, y: jax.Array) -> jax.Array:
+    return jnp.asarray(x) - y
+
+
+@overload
+def subtract(x: jax.Array, y: int | float | complex | np.number) -> jax.Array:
+    return x - jnp.asarray(y)
+
+
+@overload
 def subtract(x: jax.Array, y: jax.Array) -> jax.Array:
     return x - y
 
 
 @overload
-def subtract(x: PhysicalArrayLike, y: PhysicalArrayLike) -> PhysicalArrayLike:
+def subtract(x: jax.Array, y: np.ndarray) -> jax.Array:
+    return x - y
+
+
+@overload
+def subtract(x: np.ndarray, y: jax.Array) -> jax.Array:
+    x_jax = jnp.asarray(x)
+    return x_jax - y
+
+
+@overload
+def subtract(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     return x - y
 
 
@@ -1412,103 +1596,25 @@ def gt(x, y):  # type: ignore
 
 ## power #######################################
 @overload
-def pow(x: Unitful, y: int | float | complex) -> Unitful:
-    if isinstance(y, bool):
-        raise TypeError("bool exponent is not allowed for Unitful values")
-    if isinstance(y, complex):
-        raise TypeError("complex exponent is not allowed for Unitful values")
+def pow(x: Unitful, y: int) -> Unitful:
+    new_dim = {}
+    for k, v in x.unit.dim.items():
+        new_dim[k] = v * y
 
-    if isinstance(y, float):
-        if x.unit.dim != {}:
-            raise TypeError(f"float exponent is only allowed for dimensionless Unitful values, got dim={x.unit.dim}")
+    if isinstance(x.val, jax.Array):
+        new_val = jnp.power(x.val, y)
+    elif isinstance(x.val, np.ndarray | np.number | np.bool_):
+        new_val = np.power(x.val, y)
+    else:  # int, float, complex, bool
+        new_val = x.val**y
 
-        x_val_nonscale = x.val * (10**x.unit.scale)
-        if isinstance(x.val, jax.Array):
-            new_val = jnp.power(x_val_nonscale, y)
-        elif isinstance(x.val, np.ndarray | np.number | np.bool_):
-            new_val = np.power(x_val_nonscale, y)
-        else:  # int, float, complex, bool
-            new_val = x_val_nonscale**y
-
-        new_scale = x.unit.scale
-        new_dim = x.unit.dim
-    else:  # y: int
-        new_dim = {}
-        for k, v in x.unit.dim.items():
-            new_dim[k] = v * y
-
-        if isinstance(x.val, jax.Array):
-            new_val = jnp.power(x.val, y)
-        elif isinstance(x.val, np.ndarray | np.number | np.bool_):
-            new_val = np.power(x.val, y)
-        else:  # int, float, complex, bool
-            new_val = x.val**y
-
-        new_scale = x.unit.scale * y
-
+    new_scale = x.unit.scale * y
     new_static_arr = None
     if is_traced(new_val):
         x_arr = get_static_operand(x)
         if x_arr is not None:
             new_static_arr = x_arr**y
     return Unitful(val=new_val, unit=Unit(scale=new_scale, dim=new_dim), static_arr=new_static_arr)
-
-
-@overload
-def pow(x: Unitful, y: jax.Array | np.ndarray | np.bool_ | np.number) -> Unitful:
-    if isinstance(y, np.bool_):
-        raise TypeError("bool exponent is not allowed for Unitful values")
-
-    if isinstance(y, jax.Array):
-        raise TypeError("jax.Array exponent is not allowed for Unitful values")
-
-    if isinstance(y, np.ndarray):
-        raise TypeError("numpy.ndarray exponent is not allowed for Unitful values")
-
-    y_np = np.array(y)
-
-    if np.issubdtype(y_np.dtype, np.complexfloating):
-        raise TypeError(f"complex exponent is not allowed for Unitful values, got y.dtype={y_np.dtype}")
-
-    if np.issubdtype(y_np.dtype, np.floating) and x.unit.dim != {}:
-        raise TypeError("float exponent is only allowed for dimensionless Unitful values")
-
-    if isinstance(x.val, (np.ndarray, np.number)):
-        new_val = np.power(x.val, y)
-    else:
-        new_val = jnp.power(jnp.asarray(x.val), jnp.asarray(y))
-
-    new_dim = x.unit.dim
-    new_scale = x.unit.scale
-
-    new_static_arr = None
-    if is_traced(new_val):
-        x_arr = get_static_operand(x)
-        if x_arr is not None:
-            new_static_arr = x_arr**y_np
-
-    return Unitful(val=new_val, unit=Unit(scale=new_scale, dim=new_dim), static_arr=new_static_arr)
-
-
-@overload
-def pow(x: jax.Array, y: jax.Array) -> jax.Array:
-    return x**y
-
-
-@overload
-def pow(x: np.ndarray, y: np.ndarray) -> np.ndarray:
-    return x**y
-
-
-@overload
-def pow(x: jax.Array, y: np.ndarray) -> jax.Array:
-    return x**y
-
-
-@overload
-def pow(x: np.ndarray, y: jax.Array) -> jax.Array:
-    x_jax = jnp.array(x)
-    return x_jax**y
 
 
 @overload
@@ -1536,6 +1642,58 @@ def pow(x: complex, y: float | int) -> complex:
     return x**y
 
 
+@overload
+def pow(x: float | int, y: complex) -> complex:
+    return x**y
+
+
+@overload
+def pow(x: complex, y: complex) -> complex:
+    return x**y
+
+
+@overload
+def pow(x: int | float | complex | np.number, y: np.ndarray) -> np.ndarray:
+    return x**y
+
+
+@overload
+def pow(x: np.ndarray, y: int | float | complex | np.number) -> np.ndarray:
+    return x**y
+
+
+@overload
+def pow(x: int | float | complex | np.number, y: jax.Array) -> jax.Array:
+    x_jax = jnp.asarray(x)
+    return x_jax**y
+
+
+@overload
+def pow(x: jax.Array, y: int | float | complex | np.number) -> jax.Array:
+    return x**y
+
+
+@overload
+def pow(x: jax.Array, y: jax.Array) -> jax.Array:
+    return x**y
+
+
+@overload
+def pow(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    return x**y
+
+
+@overload
+def pow(x: jax.Array, y: np.ndarray) -> jax.Array:
+    return x**y
+
+
+@overload
+def pow(x: np.ndarray, y: jax.Array) -> jax.Array:
+    x_jax = jnp.array(x)
+    return x_jax**y
+
+
 @dispatch
 def pow(x, y):  # type: ignore
     del x, y
@@ -1544,20 +1702,21 @@ def pow(x, y):  # type: ignore
 
 ## min #######################################
 def unary_fn(x: Unitful, op_str: str, *args, **kwargs) -> Unitful:
-    # handling of numpy arrays
-    if isinstance(x.val, np.ndarray | np.number):
-        np_fn = getattr(np, f"{op_str}")
-        new_val = np_fn(x.val, *args, **kwargs)
-        if not isinstance(new_val, np.ndarray) and not isinstance(new_val, np.number):
+    # handling of jax Array
+    if isinstance(x.val, jax.Array):
+        orig_fn = getattr(jax.numpy, f"_orig_{op_str}")
+        new_val = orig_fn(x.val, *args, **kwargs)
+        if not isinstance(new_val, jax.Array):
             raise Exception(f"This is an internal error: {op_str} produced {type(new_val)}")
         if new_val.dtype not in PHYSICAL_DTYPES:
             return Unitful(val=new_val, unit=EMPTY_UNIT, static_arr=None)
         return Unitful(val=new_val, unit=x.unit, static_arr=None)
 
-    # handling of other jax array or other types
-    orig_fn = getattr(jax.numpy, f"_orig_{op_str}")
-    new_val = orig_fn(x.val, *args, **kwargs)
-    if not isinstance(new_val, jax.Array):
+    # for numpy type or other types should all converted to numpy
+    np_fn = getattr(np, f"{op_str}")
+    new_val = np_fn(x.val, *args, **kwargs)
+
+    if not isinstance(new_val, np.ndarray) and not isinstance(new_val, np.number):
         raise Exception(f"This is an internal error: {op_str} produced {type(new_val)}")
     new_static_arr = None
     if is_traced(new_val):
@@ -1575,13 +1734,33 @@ def min(x: Unitful, *args, **kwargs) -> Unitful:
     return unary_fn(x, "min", *args, **kwargs)
 
 
+"""
+PhysicalArrayLike = Union[
+    float,
+    complex,
+    jax.Array,
+    np.number,
+    np.ndarray,
+"""
+
+
 @overload
-def min(x: PhysicalArrayLike, *args, **kwargs) -> jax.Array:
+def min(x: jax.Array, *args, **kwargs) -> jax.Array:
     result_shape_dtype = jax.eval_shape(jnp._orig_min, x, *args, **kwargs)  # type: ignore
     if output_unitful_for_array(result_shape_dtype):
         unit_result = unary_fn(Unitful(val=x, unit=EMPTY_UNIT), "min", *args, **kwargs)
         return unit_result  # type: ignore
     return jnp._orig_min(x, *args, **kwargs)  # type: ignore
+
+
+@overload
+def min(x: np.number, *args, **kwargs) -> np.number:
+    return np.min(x, *args, **kwargs)
+
+
+@overload
+def min(x: float | complex | np.ndarray, *args, **kwargs) -> np.ndarray:
+    return np.min(x, *args, **kwargs)
 
 
 @dispatch
@@ -1597,12 +1776,22 @@ def max(x: Unitful, *args, **kwargs) -> Unitful:
 
 
 @overload
-def max(x: PhysicalArrayLike, *args, **kwargs) -> jax.Array:
+def max(x: jax.Array, *args, **kwargs) -> jax.Array:
     result_shape_dtype = jax.eval_shape(jnp._orig_max, x, *args, **kwargs)  # type: ignore
     if output_unitful_for_array(result_shape_dtype):
         unit_result = unary_fn(Unitful(val=x, unit=EMPTY_UNIT), "max", *args, **kwargs)
         return unit_result  # type: ignore
     return jnp._orig_max(x, *args, **kwargs)  # type: ignore
+
+
+@overload
+def max(x: np.number, *args, **kwargs) -> np.number:
+    return np.max(x, *args, **kwargs)
+
+
+@overload
+def max(x: float | complex | np.ndarray, *args, **kwargs) -> np.ndarray:
+    return np.max(x, *args, **kwargs)
 
 
 @dispatch
@@ -1618,12 +1807,22 @@ def mean(x: Unitful, *args, **kwargs) -> Unitful:
 
 
 @overload
-def mean(x: PhysicalArrayLike, *args, **kwargs) -> jax.Array:
+def mean(x: jax.Array, *args, **kwargs) -> jax.Array:
     result_shape_dtype = jax.eval_shape(jnp._orig_mean, x, *args, **kwargs)  # type: ignore
     if output_unitful_for_array(result_shape_dtype):
         unit_result = unary_fn(Unitful(val=x, unit=EMPTY_UNIT), "mean", *args, **kwargs)
         return unit_result  # type: ignore
     return jnp._orig_mean(x, *args, **kwargs)  # type: ignore
+
+
+@overload
+def mean(x: np.number, *args, **kwargs) -> np.number:
+    return np.mean(x, *args, **kwargs)
+
+
+@overload
+def mean(x: float | complex | np.ndarray, *args, **kwargs) -> np.ndarray:
+    return np.mean(x, *args, **kwargs)
 
 
 @dispatch
@@ -1639,12 +1838,22 @@ def sum(x: Unitful, *args, **kwargs) -> Unitful:
 
 
 @overload
-def sum(x: PhysicalArrayLike, *args, **kwargs) -> jax.Array:
+def sum(x: jax.Array, *args, **kwargs) -> jax.Array:
     result_shape_dtype = jax.eval_shape(jnp._orig_sum, x, *args, **kwargs)  # type: ignore
     if output_unitful_for_array(result_shape_dtype):
         unit_result = unary_fn(Unitful(val=x, unit=EMPTY_UNIT), "sum", *args, **kwargs)
         return unit_result  # type: ignore
     return jnp._orig_sum(x, *args, **kwargs)  # type: ignore
+
+
+@overload
+def sum(x: np.number, *args, **kwargs) -> np.number:
+    return np.sum(x, *args, **kwargs)
+
+
+@overload
+def sum(x: float | complex | np.ndarray, *args, **kwargs) -> np.ndarray:
+    return np.sum(x, *args, **kwargs)
 
 
 @dispatch
@@ -1666,12 +1875,22 @@ def prod(x: Unitful, *args, **kwargs) -> Unitful:
 
 
 @overload
-def prod(x: PhysicalArrayLike, *args, **kwargs) -> jax.Array:
+def prod(x: jax.Array, *args, **kwargs) -> jax.Array:
     result_shape_dtype = jax.eval_shape(jnp._orig_prod, x, *args, **kwargs)  # type: ignore
     if output_unitful_for_array(result_shape_dtype):
         unit_result = unary_fn(Unitful(val=x, unit=EMPTY_UNIT), "sum", *args, **kwargs)
         return unit_result  # type: ignore
     return jnp._orig_prod(x, *args, **kwargs)  # type: ignore
+
+
+@overload
+def prod(x: np.number, *args, **kwargs) -> np.number:
+    return np.prod(x, *args, **kwargs)
+
+
+@overload
+def prod(x: float | complex | np.ndarray, *args, **kwargs) -> np.ndarray:
+    return np.prod(x, *args, **kwargs)
 
 
 @dispatch
@@ -1689,6 +1908,16 @@ def abs_impl(x: Unitful) -> Unitful:
 @overload
 def abs_impl(x: jax.Array) -> jax.Array:
     return jnp._orig_abs(x)  # type: ignore
+
+
+@overload
+def abs_impl(x: np.number) -> np.number:
+    return np.abs(x)
+
+
+@overload
+def abs_impl(x: np.ndarray) -> np.ndarray:
+    return np.abs(x)
 
 
 @overload
@@ -1714,18 +1943,31 @@ def abs_impl(x):  # type: ignore
 
 ## astype #######################################
 @overload
-def astype(x: Unitful, *args, **kwargs) -> Unitful:
-    return unary_fn(x, "astype", *args, **kwargs)
+def astype(x: Unitful, dtype, *args, **kwargs) -> Unitful:
+    if isinstance(x.val, int | float | complex):
+        raise TypeError(f"python scalar of type {type(x.val)} is not a valid input for astype")
+    return unary_fn(x, "astype", dtype, *args, **kwargs)
 
 
 @overload
-def astype(x: PhysicalArrayLike, *args, **kwargs) -> jax.Array:
+def astype(x: jax.Array, *args, **kwargs) -> jax.Array:
     partial_fn = jax.tree_util.Partial(jnp._orig_astype, x, *args, **kwargs)  # type: ignore
     result_shape_dtype = jax.eval_shape(partial_fn)
     if output_unitful_for_array(result_shape_dtype):
         unit_result = unary_fn(Unitful(val=x, unit=EMPTY_UNIT), "astype", *args, **kwargs)
         return unit_result  # type: ignore
     return jnp._orig_astype(x, *args, **kwargs)  # type: ignore
+
+
+@overload
+def astype(x: np.number, dtype, *args, **kwargs) -> np.ndarray:
+    x_array = np.asarray(x)
+    return x_array.astype(dtype, *args, **kwargs)
+
+
+@overload
+def astype(x: np.ndarray, dtype, *args, **kwargs) -> np.ndarray:
+    return x.astype(dtype, *args, **kwargs)
 
 
 @dispatch
@@ -1737,12 +1979,24 @@ def astype(x, *args, **kwargs):  # type: ignore
 ## squeeze #######################################
 @overload
 def squeeze(x: Unitful, *args, **kwargs) -> Unitful:
+    if isinstance(x.val, int | float | complex):
+        raise TypeError(f"python scalar of type {type(x.val)} is not a valid input for squeeze")
     return unary_fn(x, "squeeze", *args, **kwargs)
 
 
 @overload
 def squeeze(x: jax.Array, *args, **kwargs) -> jax.Array:
     return jnp._orig_squeeze(x, *args, **kwargs)  # type: ignore
+
+
+@overload
+def squeeze(x: np.number, *args, **kwargs) -> np.number:
+    return np.squeeze(x, *args, **kwargs)
+
+
+@overload
+def squeeze(x: np.ndarray, *args, **kwargs) -> np.ndarray:
+    return np.squeeze(x, *args, **kwargs)
 
 
 @dispatch
@@ -1753,13 +2007,22 @@ def squeeze(x, *args, **kwargs):  # type: ignore
 
 ## reshape #######################################
 @overload
-def reshape(x: Unitful, *args, **kwargs) -> Unitful:
-    return unary_fn(x, "reshape", *args, **kwargs)
+def reshape(x: Unitful, shape, *args, **kwargs) -> Unitful:
+    if isinstance(x.val, int | float | complex):
+        raise TypeError(f"python scalar of type {type(x.val)} is not a valid input for reshape")
+    return unary_fn(x, "reshape", shape, *args, **kwargs)
 
 
 @overload
-def reshape(x: jax.Array, *args, **kwargs) -> jax.Array:
-    return jnp._orig_reshape(x, *args, **kwargs)  # type: ignore
+def reshape(x: jax.Array, shape, *args, **kwargs) -> jax.Array:
+    return jnp._orig_reshape(x, shape, *args, **kwargs)  # type: ignore
+
+
+@overload
+def reshape(x: np.number | np.ndarray, shape, *args, **kwargs) -> np.ndarray:
+    if isinstance(x, np.number):
+        x = np.asarray(x)
+    return x.reshape(shape, *args, **kwargs)
 
 
 @dispatch
