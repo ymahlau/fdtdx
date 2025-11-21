@@ -1,9 +1,3 @@
-"""
-Additional test cases for initialization.py to improve code coverage.
-These tests should be ADDED to the existing test_initialization.py file.
-DO NOT replace existing tests - these are supplementary tests.
-"""
-
 from unittest.mock import MagicMock, Mock, patch
 
 import jax
@@ -12,10 +6,7 @@ import pytest
 
 from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
-from fdtdx.fdtd.initialization import (
-    apply_params,
-    resolve_object_constraints,
-)
+from fdtdx.fdtd.initialization import apply_params, resolve_object_constraints
 from fdtdx.materials import Material
 from fdtdx.objects.device.parameters.transform import ParameterType
 from fdtdx.objects.object import (
@@ -663,3 +654,121 @@ def test_apply_params_discrete_type(mock_ste, mock_compute_perm):
     # Verify the discrete path was taken (straight through estimator called)
     assert mock_ste.called
     assert mock_compute_perm.called
+
+
+# Test cases for place_objects function
+
+
+def test_place_objects_creates_object_container(simple_config, simple_volume, simple_material):
+    """Test that place_objects creates an ObjectContainer."""
+    from fdtdx.fdtd.initialization import place_objects
+
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(20, 20, 20),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    # Position the object
+    constraint = GridCoordinateConstraint(
+        object="obj1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+
+    constraints = [constraint]
+    key = jax.random.PRNGKey(0)
+
+    obj_container, arrays, params, config, info = place_objects(objects, simple_config, constraints, key)
+
+    # Check return types
+    assert isinstance(obj_container, ObjectContainer)
+    assert isinstance(arrays, ArrayContainer)
+    assert isinstance(params, dict)
+    assert obj_container.volume_idx == 0
+
+
+def test_place_objects_with_multiple_objects(simple_config, simple_volume, simple_material):
+    """Test place_objects with multiple material objects."""
+    from fdtdx.fdtd.initialization import place_objects
+
+    obj1 = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(20, 20, 20),
+        material=simple_material,
+    )
+
+    obj2 = UniformMaterialObject(
+        name="obj2",
+        partial_grid_shape=(20, 20, 20),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj1, obj2]
+
+    # Position both objects
+    constraints = [
+        GridCoordinateConstraint(object="obj1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]),
+        GridCoordinateConstraint(object="obj2", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[40, 40, 40]),
+    ]
+
+    key = jax.random.PRNGKey(0)
+
+    obj_container, arrays, params, config, info = place_objects(objects, simple_config, constraints, key)
+
+    # Should have all objects
+    assert len(obj_container.objects) == 3  # volume + 2 objects
+    assert obj_container.volume_idx == 0
+
+
+def test_place_objects_updates_config(simple_config, simple_volume, simple_material):
+    """Test that place_objects returns an updated config."""
+    from fdtdx.fdtd.initialization import place_objects
+
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(20, 20, 20),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    constraint = GridCoordinateConstraint(
+        object="obj1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+
+    constraints = [constraint]
+    key = jax.random.PRNGKey(0)
+
+    obj_container, arrays, params, config, info = place_objects(objects, simple_config, constraints, key)
+
+    # Config should be updated
+    assert config is not None
+    assert config.resolution == simple_config.resolution
+
+
+def test_place_objects_initializes_arrays(simple_config, simple_volume, simple_material):
+    """Test that place_objects initializes field arrays."""
+    from fdtdx.fdtd.initialization import place_objects
+
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(20, 20, 20),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    constraint = GridCoordinateConstraint(
+        object="obj1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+
+    constraints = [constraint]
+    key = jax.random.PRNGKey(0)
+
+    obj_container, arrays, params, config, info = place_objects(objects, simple_config, constraints, key)
+
+    # Check arrays are initialized
+    assert arrays.E is not None
+    assert arrays.H is not None
+    assert arrays.inv_permittivities is not None
