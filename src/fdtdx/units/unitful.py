@@ -690,12 +690,7 @@ def multiply(x: complex, y: int | float) -> complex:
 
 
 @overload
-def multiply(x: int | float, y: complex) -> complex:
-    return x * y
-
-
-@overload
-def multiply(x: complex, y: complex) -> complex:
+def multiply(x: int | float | complex, y: complex) -> complex:
     return x * y
 
 
@@ -834,12 +829,7 @@ def divide(x1: int | float, x2: complex) -> complex:
 
 
 @overload
-def divide(x1: complex, x2: int | float) -> complex:
-    return x1 / x2
-
-
-@overload
-def divide(x1: complex, x2: complex) -> complex:
+def divide(x1: complex, x2: int | float | complex) -> complex:
     return x1 / x2
 
 
@@ -946,12 +936,7 @@ def add(x: int | float, y: complex) -> complex:
 
 
 @overload
-def add(x: complex, y: int | float) -> complex:
-    return x + y
-
-
-@overload
-def add(x: complex, y: complex) -> complex:
+def add(x: complex, y: int | float | complex) -> complex:
     return x + y
 
 
@@ -1115,12 +1100,7 @@ def subtract(x: int | float, y: complex) -> complex:
 
 
 @overload
-def subtract(x: complex, y: int | float) -> complex:
-    return x - y
-
-
-@overload
-def subtract(x: complex, y: complex) -> complex:
+def subtract(x: complex, y: int | float | complex) -> complex:
     return x - y
 
 
@@ -1643,12 +1623,7 @@ def pow(x: complex, y: float | int) -> complex:
 
 
 @overload
-def pow(x: float | int, y: complex) -> complex:
-    return x**y
-
-
-@overload
-def pow(x: complex, y: complex) -> complex:
+def pow(x: float | int | complex, y: complex) -> complex:
     return x**y
 
 
@@ -1700,48 +1675,40 @@ def pow(x, y):  # type: ignore
     raise NotImplementedError()
 
 
-## min #######################################
+## unary operation #######################################
 def unary_fn(x: Unitful, op_str: str, *args, **kwargs) -> Unitful:
-    # handling of jax Array
     if isinstance(x.val, jax.Array):
         orig_fn = getattr(jax.numpy, f"_orig_{op_str}")
         new_val = orig_fn(x.val, *args, **kwargs)
+
         if not isinstance(new_val, jax.Array):
             raise Exception(f"This is an internal error: {op_str} produced {type(new_val)}")
-        if new_val.dtype not in PHYSICAL_DTYPES:
-            return Unitful(val=new_val, unit=EMPTY_UNIT, static_arr=None)
-        return Unitful(val=new_val, unit=x.unit, static_arr=None)
+    else:  # For NumPy types and other non-JAX types, convert them to NumPy first.
+        np_fn = getattr(np, op_str)
+        new_val = np_fn(x.val, *args, **kwargs)
 
-    # for numpy type or other types should all converted to numpy
-    np_fn = getattr(np, f"{op_str}")
-    new_val = np_fn(x.val, *args, **kwargs)
+        if not isinstance(new_val, (np.ndarray, np.number)):
+            raise Exception(f"This is an internal error: {op_str} produced {type(new_val)}")
 
-    if not isinstance(new_val, np.ndarray) and not isinstance(new_val, np.number):
-        raise Exception(f"This is an internal error: {op_str} produced {type(new_val)}")
     new_static_arr = None
     if is_traced(new_val):
         x_arr = get_static_operand(x)
         if x_arr is not None:
-            np_fn = getattr(np, f"{op_str}")
+            np_fn = getattr(np, op_str)
             new_static_arr = np_fn(x_arr, *args, **kwargs)
+
     if new_val.dtype not in PHYSICAL_DTYPES:
-        return Unitful(val=new_val, unit=EMPTY_UNIT, static_arr=new_static_arr)
-    return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
+        unit = EMPTY_UNIT
+    else:
+        unit = x.unit
+
+    return Unitful(val=new_val, unit=unit, static_arr=new_static_arr)
 
 
+## min #######################################
 @overload
 def min(x: Unitful, *args, **kwargs) -> Unitful:
     return unary_fn(x, "min", *args, **kwargs)
-
-
-"""
-PhysicalArrayLike = Union[
-    float,
-    complex,
-    jax.Array,
-    np.number,
-    np.ndarray,
-"""
 
 
 @overload
