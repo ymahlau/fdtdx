@@ -19,7 +19,7 @@ from fdtdx.units.unitful import (
     Unit,
     Unitful,
     align_scales,
-    can_perform_scatic_ops,
+    can_perform_static_ops,
     get_static_operand,
     output_unitful_for_array,
 )
@@ -1504,7 +1504,7 @@ def meshgrid(
     new_vals = jnp._orig_meshgrid(*aligned_arrs, **kwargs)  # type: ignore
     # test if we should create static arr as well
     static_ops = [get_static_operand(a) for a in args]
-    if all([can_perform_scatic_ops(o) for o in static_ops]):
+    if all([can_perform_static_ops(o) for o in static_ops]):
         scaled_ops = [
             s * f  # type: ignore
             for s, f in zip(static_ops, factors)
