@@ -6,7 +6,7 @@ import pytest
 
 from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
-from fdtdx.fdtd.initialization import apply_params, resolve_object_constraints
+from fdtdx.fdtd.initialization import apply_params, place_objects, resolve_object_constraints
 from fdtdx.materials import Material
 from fdtdx.objects.device.parameters.transform import ParameterType
 from fdtdx.objects.object import (
@@ -661,7 +661,6 @@ def test_apply_params_discrete_type(mock_ste, mock_compute_perm):
 
 def test_place_objects_creates_object_container(simple_config, simple_volume, simple_material):
     """Test that place_objects creates an ObjectContainer."""
-    from fdtdx.fdtd.initialization import place_objects
 
     obj = UniformMaterialObject(
         name="obj1",
@@ -690,7 +689,6 @@ def test_place_objects_creates_object_container(simple_config, simple_volume, si
 
 def test_place_objects_with_multiple_objects(simple_config, simple_volume, simple_material):
     """Test place_objects with multiple material objects."""
-    from fdtdx.fdtd.initialization import place_objects
 
     obj1 = UniformMaterialObject(
         name="obj1",
