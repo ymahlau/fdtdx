@@ -282,7 +282,6 @@ def _init_arrays(
             for i in range(3):
                 inv_perm_value = 1.0 / o.material.permittivity[i]
                 inv_permittivities = inv_permittivities.at[i, *o.grid_slice].set(inv_perm_value)
-
             if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
                 # inv_permeabilities is a jax.Array with shape (3, Nx, Ny, Nz)
                 inv_perm_array: jax.Array = inv_permeabilities

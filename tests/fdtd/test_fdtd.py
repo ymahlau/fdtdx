@@ -51,7 +51,7 @@ def dummy_config():
     return SimulationConfig(
         time=0.1,
         resolution=1.0,
-        backend="cpu",
+        backend="gpu",
         dtype=jnp.float32,
         courant_factor=0.99,
         gradient_config=None,

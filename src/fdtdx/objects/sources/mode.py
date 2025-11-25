@@ -111,7 +111,6 @@ class ModePlaneSource(TFSFPlaneSource):
     def plot(self, save_path: str | Path):
         if self._H is None or self._E is None:
             raise Exception("Cannot plot mode without init to grid and apply params first")
-
         energy = compute_energy(
             E=self._E,
             H=self._H,
