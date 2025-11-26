@@ -1,8 +1,7 @@
 from fdtdx import constants
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.constants import wavelength_to_period
-from fdtdx.conversion.json import export_json, export_json_str, import_from_json
-from fdtdx.conversion.stl import export_stl
+from fdtdx.conversion.export import export_stl
 from fdtdx.core.jax.pytrees import (
     TreeClass,
     autoinit,
@@ -18,13 +17,12 @@ from fdtdx.core.physics.metrics import (
     normalize_by_energy,
     normalize_by_poynting_flux,
 )
-from fdtdx.core.physics.modes import compute_mode
 from fdtdx.core.plotting import colors
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.backward import full_backward
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, ParameterContainer, SimulationState
-from fdtdx.fdtd.initialization import apply_params, place_objects, resolve_object_constraints
+from fdtdx.fdtd.initialization import apply_params, place_objects
 from fdtdx.fdtd.wrapper import run_fdtd
 from fdtdx.interfaces.modules import DtypeConversion
 from fdtdx.interfaces.recorder import Recorder, RecordingState
@@ -33,7 +31,6 @@ from fdtdx.materials import Material
 from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
-from fdtdx.objects.detectors.detector import Detector
 from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.detectors.field import FieldDetector
 from fdtdx.objects.detectors.mode import ModeOverlapDetector
@@ -78,14 +75,11 @@ from fdtdx.objects.static_material.sphere import Sphere
 from fdtdx.objects.static_material.static import SimulationVolume, UniformMaterialObject
 from fdtdx.utils.logger import Logger
 from fdtdx.utils.plot_setup import plot_setup
-
+from fdtdx.objects.sources.dipole import DipoleSource
+from fdtdx.objects.sources.point import PointCurrentSource
 __all__ = [
-    "Detector",
     # conversion
     "export_stl",
-    "export_json",
-    "export_json_str",
-    "import_from_json",
     # core
     "TreeClass",
     "autoinit",
@@ -100,7 +94,6 @@ __all__ = [
     "normalize_by_poynting_flux",
     "OnOffSwitch",
     "WaveCharacter",
-    "compute_mode",
     # fdtd
     "run_fdtd",
     "place_objects",
@@ -110,7 +103,6 @@ __all__ = [
     "ParameterContainer",
     "ObjectContainer",
     "SimulationState",
-    "resolve_object_constraints",
     # interfaces
     "Recorder",
     "RecordingState",
@@ -119,10 +111,10 @@ __all__ = [
     # objects:
     "SimulationObject",
     "PositionConstraint",
-    "RealCoordinateConstraint",
     "SizeConstraint",
     "SizeExtensionConstraint",
     "GridCoordinateConstraint",
+    "RealCoordinateConstraint",
     # boundaries
     "PerfectlyMatchedLayer",
     "PeriodicBoundary",
@@ -158,6 +150,8 @@ __all__ = [
     "ModePlaneSource",
     "SingleFrequencyProfile",
     "GaussianPulseProfile",
+    "DipoleSource",
+    "PointCurrentSource",
     # static material
     "Cylinder",
     "Sphere",
