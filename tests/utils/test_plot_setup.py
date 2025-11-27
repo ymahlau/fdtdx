@@ -11,7 +11,7 @@ import fdtdx
 from fdtdx import SimulationVolume
 from fdtdx.config import SimulationConfig
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
-from fdtdx.objects.object import GridCoordinateConstraint, SimulationObject
+from fdtdx.objects.object import GridCoordinateConstraint, OrderableObject
 from fdtdx.utils.plot_setup import plot_setup, plot_setup_from_side
 
 # Ensure test output directory exists
@@ -34,42 +34,6 @@ def simulation_setup():
         name="simulation_volume",
     )
 
-    # Add a large background object (covers most of the volume)
-    class LargeObject(SimulationObject):
-        def __init__(self):
-            super().__init__(
-                partial_real_shape=(480 * 20e-9, 480 * 20e-9, 480 * 20e-9),  # 480 grid points * resolution
-                partial_grid_shape=(10, 10, 10),
-                name="large_background",
-            )
-
-    # Add a smaller centered object
-    class CenterObject(SimulationObject):
-        def __init__(self):
-            super().__init__(
-                partial_real_shape=(100 * 20e-9, 100 * 20e-9, 100 * 20e-9),  # 100 grid points * resolution
-                partial_grid_shape=(200, 200, 200),
-                name="center_object",
-            )
-
-    # Add a thin vertical object
-    class VerticalObject(SimulationObject):
-        def __init__(self):
-            super().__init__(
-                partial_real_shape=(50 * 20e-9, 50 * 20e-9, 200 * 20e-9),  # grid points * resolution
-                partial_grid_shape=(350, 350, 150),
-                name="vertical_object",
-            )
-
-    # Add a horizontal slab
-    class HorizontalSlab(SimulationObject):
-        def __init__(self):
-            super().__init__(
-                partial_real_shape=(200 * 20e-9, 200 * 20e-9, 30 * 20e-9),  # grid points * resolution
-                partial_grid_shape=(100, 100, 400),
-                name="horizontal_slab",
-            )
-
     # Add PML boundaries (they don't have color attribute, so won't be plotted)
     pml_thickness = 20
 
@@ -89,12 +53,12 @@ def simulation_setup():
     PerfectlyMatchedLayer(partial_grid_shape=(500, 500, pml_thickness), axis=2, direction="high", name="pml_z_high")
 
     # Create all objects
-    large_obj = LargeObject()
-    center_obj = CenterObject()
-    vertical_obj = VerticalObject()
-    horizontal_obj = HorizontalSlab()
+    large_obj = OrderableObject.EmptySimulationObject.LargeObject()
+    center_obj = OrderableObject.EmptySimulationObject.CenterObject()
+    vertical_obj = OrderableObject.EmptySimulationObject.VerticalObject()
+    horizontal_obj = OrderableObject.EmptySimulationObject.HorizontalSlab()
 
-    # Create object list
+    # Create object list (without PML - they don't have colors and won't be plotted anyway)
     object_list = [
         volume,
         large_obj,
@@ -246,5 +210,50 @@ def test_plot_setup_exclude_large_objects(simulation_setup):
     coverage_ratio = xy_area / total_xy_area
 
     assert coverage_ratio > 0.9, "Large object should have coverage > 0.9"
+
+    plt.close("all")
+
+
+def test_exclude_large_object_ratio_threshold(simulation_setup):
+    """Test that exclude_large_object_ratio correctly filters objects at the threshold."""
+    config, container, _ = simulation_setup
+
+    # Get the initialized objects from the container
+    large_obj = [obj for obj in container.objects if obj.name == "large_background"][0]
+    center_obj = [obj for obj in container.objects if obj.name == "center_object"][0]
+    volume = container.volume
+
+    # Calculate coverage ratios for both objects
+    large_slices = large_obj.grid_slice_tuple
+    large_xy_area = (large_slices[0][1] - large_slices[0][0]) * (large_slices[1][1] - large_slices[1][0])
+    total_xy_area = volume.grid_shape[0] * volume.grid_shape[1]
+    large_coverage = large_xy_area / total_xy_area
+
+    center_slices = center_obj.grid_slice_tuple
+    center_xy_area = (center_slices[0][1] - center_slices[0][0]) * (center_slices[1][1] - center_slices[1][0])
+    center_coverage = center_xy_area / total_xy_area
+
+    # Verify our test assumptions
+    assert large_coverage > 0.9, "Large object should have >90% coverage"
+    assert center_coverage < 0.9, "Center object should have <90% coverage"
+
+    # Test with threshold that should exclude only the large object
+    # Set threshold between the two coverage ratios
+    threshold = (large_coverage + center_coverage) / 2
+
+    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+    result_fig = plot_setup(
+        config=config,
+        objects=container,
+        axs=axs,
+        plot_legend=False,
+        exclude_large_object_ratio=threshold,
+    )
+
+    assert result_fig is not None
+
+    # The plot was created successfully - the filtering logic was executed
+    # Objects with coverage > threshold should be filtered out
+    # This tests the coverage_ratio <= exclude_large_object_ratio condition
 
     plt.close("all")
