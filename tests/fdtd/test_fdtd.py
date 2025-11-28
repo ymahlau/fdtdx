@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from fdtdx.config import SimulationConfig
+from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.fdtd import checkpointed_fdtd, custom_fdtd_forward, reversible_fdtd
 from fdtdx.objects.object import SimulationObject
@@ -21,14 +21,19 @@ class DummySimulationObject(SimulationObject):
 @pytest.fixture
 def dummy_arrays():
     field_shape = (3, 2, 2, 2)  # (components, nx, ny, nz)
+    auxiliary_field_shape = (6, 2, 2, 2)  # (components, nx, ny, nz)
     mat_shape = (2, 2, 2)  # scalar per voxel
 
     return ArrayContainer(
         E=jnp.zeros(field_shape),
         H=jnp.zeros(field_shape),
+        psi_E=jnp.zeros(auxiliary_field_shape),
+        psi_H=jnp.zeros(auxiliary_field_shape),
+        alpha=jnp.zeros(field_shape),
+        kappa=jnp.ones(field_shape),
+        sigma=jnp.zeros(field_shape),
         inv_permittivities=jnp.ones(mat_shape),
         inv_permeabilities=jnp.ones(mat_shape),
-        boundary_states={},
         detector_states={},
         recording_state=None,
         electric_conductivity=None,
@@ -50,12 +55,27 @@ def empty_objects():
 @pytest.fixture
 def dummy_config():
     return SimulationConfig(
-        time=0.1,
+        time=400e-15,
         resolution=1.0,
         backend="gpu",
         dtype=jnp.float32,
         courant_factor=0.99,
         gradient_config=None,
+    )
+
+
+@pytest.fixture
+def dummy_config_with_checkpointing():
+    return SimulationConfig(
+        time=400e-15,
+        resolution=1.0,
+        backend="gpu",
+        dtype=jnp.float32,
+        courant_factor=0.99,
+        gradient_config=GradientConfig(
+            method="checkpointed",
+            num_checkpoints=10,
+        ),
     )
 
 
@@ -68,9 +88,9 @@ def test_reversible_fdtd_runs(dummy_arrays, dummy_objects, dummy_config):
     assert arrs.E.shape == dummy_arrays.E.shape
 
 
-def test_checkpointed_fdtd_runs(dummy_arrays, dummy_objects, dummy_config):
+def test_checkpointed_fdtd_runs(dummy_arrays, dummy_objects, dummy_config_with_checkpointing):
     key = jax.random.PRNGKey(0)
-    t, arrs = checkpointed_fdtd(dummy_arrays, dummy_objects, dummy_config, key)
+    t, arrs = checkpointed_fdtd(dummy_arrays, dummy_objects, dummy_config_with_checkpointing, key)
 
     assert isinstance(t, jax.Array)
     assert isinstance(arrs, ArrayContainer)
@@ -111,9 +131,9 @@ def test_zero_time(dummy_arrays, dummy_objects):
     assert isinstance(arrs, ArrayContainer)
 
 
-def test_empty_objects(dummy_arrays, empty_objects, dummy_config):
+def test_empty_objects(dummy_arrays, empty_objects, dummy_config_with_checkpointing):
     key = jax.random.PRNGKey(0)
-    t, arrs = checkpointed_fdtd(dummy_arrays, empty_objects, dummy_config, key)
+    t, arrs = checkpointed_fdtd(dummy_arrays, empty_objects, dummy_config_with_checkpointing, key)
     assert isinstance(t, jax.Array)
     assert isinstance(arrs, ArrayContainer)
 

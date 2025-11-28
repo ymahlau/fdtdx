@@ -1,3 +1,14 @@
+"""
+This scripts exemplifies how fdtdx can be used for inverse design. The component that is supposed to be optimized here
+is a corner component, connecting two silicon waveguides with as low loss as possible. This is one of the examples from
+the ceviche challenges, which can be found here: https://github.com/google/ceviche-challenges
+
+The scripts first sets up the simulation scene with sources, detectors, waveguides etc. Then a loss function is defined,
+which takes the component parameters as input, runs a simulation and computes the figure of merit. Since it is standard
+in machine learning to minimize, the figure of merit is negated and returned as a loss value.
+Using gradient descend, the design parameters are continously updated in a loop.
+"""
+
 # Imports: standard libraries and required packages
 import sys
 import time
@@ -58,17 +69,19 @@ def main(
         config = config.aset("gradient_config", gradient_config)
 
     # List to hold placement constraints for simulation objects
-    placement_constraints = []
+    placement_constraints, object_list = [], []
 
     # Define the simulation volume (physical size)
     volume = fdtdx.SimulationVolume(
         partial_real_shape=(2.7e-6, 2.7e-6, 1.5e-6),
     )
+    object_list.append(volume)
 
     # Add boundary objects and constraints to the simulation
     bound_cfg = fdtdx.BoundaryConfig.from_uniform_bound(thickness=10)
-    _, c_list = fdtdx.boundary_objects_from_config(bound_cfg, volume)
+    bound_dict, c_list = fdtdx.boundary_objects_from_config(bound_cfg, volume)
     placement_constraints.extend(c_list)
+    object_list.extend(list(bound_dict.values()))
 
     # Add substrate object (base layer) and its placement constraint
     substrate = fdtdx.UniformMaterialObject(
@@ -84,6 +97,7 @@ def main(
             other_positions=-1,
         )
     )
+    object_list.append(substrate)
 
     # Define device geometry and material configuration
     height = 400e-9
@@ -117,6 +131,7 @@ def main(
             margins=(-0.2e-6, 0.2e-6, 0),
         )
     )
+    object_list.append(device)
 
     # Add input waveguide and its placement constraints
     waveguide_in = fdtdx.UniformMaterialObject(
@@ -138,6 +153,7 @@ def main(
             waveguide_in.place_above(substrate),
         ]
     )
+    object_list.append(waveguide_in)
 
     # Add source object and its placement constraint
     source = fdtdx.ModePlaneSource(
@@ -156,6 +172,7 @@ def main(
             )
         ]
     )
+    object_list.append(source)
 
     # Add output waveguide and its placement constraints
     waveguide_out = fdtdx.UniformMaterialObject(
@@ -177,13 +194,14 @@ def main(
             waveguide_out.place_above(substrate),
         ]
     )
+    object_list.append(waveguide_out)
     
     # Add input flux detector and its placement constraint
     flux_in_detector = fdtdx.PoyntingFluxDetector(
         name="in flux",
         partial_grid_shape=(1, None, None),
         direction="+",
-        switch=fdtdx.OnOffSwitch(fixed_on_time_steps=all_time_steps[period_steps:2*period_steps]),
+        switch=fdtdx.OnOffSwitch(fixed_on_time_steps=all_time_steps[7*period_steps:8*period_steps]),
     )
     placement_constraints.append(
         flux_in_detector.place_relative_to(
@@ -194,6 +212,7 @@ def main(
             grid_margins=2,
         )
     )
+    object_list.append(flux_in_detector)
     
     # Add output flux detector and its placement constraint
     flux_out_detector = fdtdx.PoyntingFluxDetector(
@@ -211,6 +230,7 @@ def main(
             grid_margins=-bound_cfg.thickness_grid_maxy - 5,
         )
     )
+    object_list.append(flux_out_detector)
     
     # Add energy detector for the last simulation step
     energy_last_step = fdtdx.EnergyDetector(
@@ -219,6 +239,7 @@ def main(
         switch=fdtdx.OnOffSwitch(fixed_on_time_steps=[-1]),
     )
     placement_constraints.extend([*energy_last_step.same_position_and_size(volume)])
+    object_list.append(energy_last_step)
 
     # List of objects to exclude from some outputs (e.g., video)
     exclude_object_list: list[fdtdx.SimulationObject] = [energy_last_step]
@@ -233,6 +254,7 @@ def main(
         )
         placement_constraints.extend([*video_detector.same_position_and_size(volume)])
         exclude_object_list.append(video_detector)
+        object_list.append(video_detector)
         if backward:
             # Add backward video detector if backward simulation is enabled
             backward_video_detector = fdtdx.EnergyDetector(
@@ -245,11 +267,12 @@ def main(
             )
             placement_constraints.extend([*backward_video_detector.same_position_and_size(volume)])
             exclude_object_list.append(backward_video_detector)
+            object_list.append(backward_video_detector)
 
     # Place all objects in the simulation volume according to constraints
     key, subkey = jax.random.split(key)
     objects, arrays, params, config, _ = fdtdx.place_objects(
-        volume=volume,
+        object_list=object_list,
         config=config,
         constraints=placement_constraints,
         key=subkey,
@@ -370,6 +393,7 @@ def main(
 
     # Compile loss function with JAX JIT for fast execution
     compile_start_time = time.time()
+    print("Started Compilation...")
     jit_task_id = exp_logger.progress.add_task("JIT", total=None)
     idx_dummy_arr = jnp.asarray(start_idx, dtype=jnp.float32)
     if evaluation:
@@ -384,6 +408,7 @@ def main(
         )
     compile_delta_time = time.time() - compile_start_time
     exp_logger.progress.update(jit_task_id, total=1, completed=1, refresh=True)
+    print(f"Finished Compilation in {compile_delta_time} seconds")
 
     # Add progress bar for optimization/evaluation loop
     optim_task_id = exp_logger.progress.add_task("Optimization", total=1 if evaluation else epochs)

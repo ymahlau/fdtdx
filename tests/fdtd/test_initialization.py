@@ -6,277 +6,767 @@ import pytest
 
 from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
-
-# Import the functions to test
-from fdtdx.fdtd.initialization import (
-    _init_arrays,
-    _init_params,
-    _resolve_object_constraints,
-    apply_params,
-    place_objects,
-)
+from fdtdx.fdtd.initialization import apply_params, place_objects, resolve_object_constraints
+from fdtdx.materials import Material
 from fdtdx.objects.device.parameters.transform import ParameterType
 from fdtdx.objects.object import (
     GridCoordinateConstraint,
     PositionConstraint,
     RealCoordinateConstraint,
-    SimulationObject,
+    SizeConstraint,
+    SizeExtensionConstraint,
 )
-from fdtdx.objects.static_material.static import UniformMaterialObject
+from fdtdx.objects.static_material.static import (
+    SimulationVolume,
+    UniformMaterialObject,
+)
 
 
-class TestInitialization:
-    @pytest.fixture
-    def mock_config(self):
-        """Create a mock SimulationConfig for testing."""
-        config = Mock(spec=SimulationConfig)
-        config.dtype = jnp.float32
-        config.backend = "cpu"
-        config.resolution = 1.0
-        config.time_steps_total = 100
-        config.gradient_config = None
-        return config
+# Fixtures for reusable test objects
+@pytest.fixture
+def simple_config():
+    """Create a simple simulation configuration."""
+    return SimulationConfig(
+        resolution=1.0,
+        time=100e-15,  # 100 femtoseconds
+    )
 
-    @pytest.fixture
-    def mock_volume(self):
-        """Create a mock volume object for testing."""
-        volume = Mock(spec=SimulationObject)
-        volume.name = "volume"
-        volume.grid_shape = (10, 10, 10)
-        volume.partial_grid_shape = (10, 10, 10)
-        volume.partial_real_shape = (10.0, 10.0, 10.0)
-        volume.placement_order = 0
-        return volume
 
-    @pytest.fixture
-    def mock_object(self):
-        """Create a mock simulation object for testing."""
-        obj = Mock(spec=SimulationObject)
-        obj.name = "test_object"
-        obj.grid_shape = (5, 5, 5)
-        obj.partial_grid_shape = (5, 5, 5)
-        obj.partial_real_shape = (5.0, 5.0, 5.0)
-        obj.placement_order = 1
-        return obj
+@pytest.fixture
+def simple_volume():
+    """Create a simple simulation volume."""
+    return SimulationVolume(
+        name="volume",
+        partial_grid_shape=(100, 100, 100),
+    )
 
-    @pytest.fixture
-    def mock_objects(self):
-        """Create a mock ObjectContainer for testing."""
-        objects = Mock(spec=ObjectContainer)
-        objects.devices = []
-        return objects
 
-    @pytest.fixture
-    def mock_uniform_material_object(self):
-        """Create a mock UniformMaterialObject for testing."""
-        material = Mock()
-        material.permittivity = 2.0
-        material.permeability = 1.0
-        material.electric_conductivity = 0.0
-        material.magnetic_conductivity = 0.0
+@pytest.fixture
+def simple_material():
+    """Create a simple material."""
+    return Material(
+        permittivity=2.0,
+        permeability=1.0,
+        electric_conductivity=0.0,
+        magnetic_conductivity=0.0,
+    )
 
-        obj = Mock(spec=UniformMaterialObject)
-        obj.name = "material_object"
-        obj.grid_shape = (5, 5, 5)
-        obj.grid_slice = (slice(2, 7), slice(2, 7), slice(2, 7))
-        obj.material = material
-        obj.placement_order = 1
-        return obj
 
-    @pytest.fixture
-    def random_key(self):
-        """Create a JAX random key for testing."""
-        return jax.random.PRNGKey(42)
+# Test cases for constraint resolution with real objects
 
-    def test_place_objects(self, mock_volume, mock_config, random_key):
-        """Test the place_objects function."""
-        # Create a simple position constraint
-        constraint = Mock(spec=PositionConstraint)
-        constraint.object = mock_volume
-        constraint.other_object = None
 
-        # Mock the internal functions
-        with (
-            patch("fdtdx.fdtd.initialization._resolve_object_constraints") as mock_resolve,
-            patch("fdtdx.fdtd.initialization._init_params") as mock_init_params,
-            patch("fdtdx.fdtd.initialization._init_arrays") as mock_init_arrays,
-        ):
-            # Set up mock returns
-            mock_resolve.return_value = {mock_volume: ((0, 10), (0, 10), (0, 10))}
-            mock_init_params.return_value = {}
+def test_resolve_constraints_with_duplicate_object_names(simple_config, simple_volume):
+    """Test that duplicate object names raise an exception."""
+    volume2 = SimulationVolume(
+        name="volume",  # Duplicate name
+        partial_grid_shape=(50, 50, 50),
+    )
 
-            mock_volume.place_on_grid.return_value = mock_volume
+    objects = [simple_volume, volume2]
+    constraints = []
 
-            # Mock array container and config
-            mock_arrays = Mock(spec=ArrayContainer)
-            mock_updated_config = Mock(spec=SimulationConfig)
-            mock_info = {}
-            mock_init_arrays.return_value = (mock_arrays, mock_updated_config, mock_info)
+    with pytest.raises(Exception, match="Duplicate object names"):
+        resolve_object_constraints(objects, constraints, simple_config)
 
-            # Call the function
-            objects, arrays, params, config, info = place_objects(
-                volume=mock_volume, config=mock_config, constraints=[constraint], key=random_key
-            )
 
-            # Verify the function was called with correct parameters
-            mock_resolve.assert_called_once_with(volume=mock_volume, constraints=[constraint], config=mock_config)
+def test_resolve_constraints_unknown_object_in_constraint(simple_config, simple_volume):
+    """Test that unknown object names in constraints raise an exception."""
+    objects = [simple_volume]
 
-            mock_volume.place_on_grid.assert_called_once()
-            mock_init_params.assert_called_once()
-            mock_init_arrays.assert_called_once()
+    # Reference an object that doesn't exist
+    constraint = GridCoordinateConstraint(object="nonexistent_object", axes=[0], sides=["-"], coordinates=[10])
 
-            # Verify the return values
-            assert isinstance(objects, ObjectContainer)
-            assert arrays == mock_arrays
-            assert params == {}
-            assert config == mock_updated_config
-            assert info == mock_info
+    constraints = [constraint]
 
-    def test_apply_params(self, mock_config, random_key):
-        """Test the apply_params function."""
-        # Create a proper mock for arrays with JAX array operations
-        # Create real JAX arrays for the ArrayContainer
-        inv_permittivities = jnp.ones((10, 10, 10), dtype=jnp.float32)
+    with pytest.raises(ValueError, match="Unknown object name"):
+        resolve_object_constraints(objects, constraints, simple_config)
 
-        # Create a real ArrayContainer with the JAX arrays
-        arrays = ArrayContainer(
-            E=jnp.zeros((3, 10, 10, 10), dtype=jnp.float32),
-            H=jnp.zeros((3, 10, 10, 10), dtype=jnp.float32),
-            inv_permittivities=inv_permittivities,
-            inv_permeabilities=1.0,  # scalar since all objects are non-magnetic
-            boundary_states={},
-            detector_states={},
-            recording_state=None,
-            electric_conductivity=None,
-            magnetic_conductivity=None,
-        )
 
-        mock_objects = Mock(spec=ObjectContainer)
+def test_resolve_constraints_no_simulation_volume(simple_config, simple_material):
+    """Test that missing SimulationVolume raises an exception."""
+    # Create an object without a volume
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(10, 10, 10),
+        material=simple_material,
+    )
 
-        # Create a mock parameter container that supports __getitem__
-        mock_params = MagicMock()
+    objects = [obj]
+    constraints = []
 
-        # Create mock device
-        mock_device = Mock()
-        mock_device.name = "test_device"
-        mock_device.output_type = ParameterType.CONTINUOUS
-        mock_device.materials = ["material1", "material2"]
-        mock_device.grid_slice = (slice(2, 7), slice(2, 7), slice(2, 7))
+    with pytest.raises(ValueError, match="No SimulationVolume"):
+        resolve_object_constraints(objects, constraints, simple_config)
 
-        # Set up mocks
-        mock_objects.devices = [mock_device]
-        mock_objects.object_list = [Mock(), Mock()]
-        mock_objects.volume_idx = 0
 
-        # Mock the device call to return a proper array
-        # The device is called as: device(params[device.name], expand_to_sim_grid=True, **transform_kwargs)
-        mock_device.return_value = jnp.ones((5, 5, 5), dtype=jnp.float32) * 0.5
-        mock_params.__getitem__.return_value = jnp.array(0.5)
+def test_resolve_constraints_multiple_volumes(simple_config):
+    """Test that multiple SimulationVolume objects raise an exception."""
+    volume1 = SimulationVolume(
+        name="volume1",
+        partial_grid_shape=(100, 100, 100),
+    )
+    volume2 = SimulationVolume(
+        name="volume2",
+        partial_grid_shape=(50, 50, 50),
+    )
 
-        # Mock the compute_allowed_permittivities function
-        with patch("fdtdx.fdtd.initialization.compute_allowed_permittivities") as mock_compute_permittivities:
-            mock_compute_permittivities.return_value = [1.0, 2.0]
+    objects = [volume1, volume2]
+    constraints = []
 
-            # Call the function
-            arrays, objects, info = apply_params(
-                arrays=arrays, objects=mock_objects, params=mock_params, key=random_key
-            )
+    with pytest.raises(ValueError, match="Multiple SimulationVolume"):
+        resolve_object_constraints(objects, constraints, simple_config)
 
-            # Verify the function was called with correct parameters
-            mock_compute_permittivities.assert_called_once_with(["material1", "material2"])
 
-            # Verify the return values
-            assert arrays == arrays
-            assert isinstance(objects, ObjectContainer)
-            assert isinstance(info, dict)
+def test_resolve_constraints_conflicting_grid_coordinates(simple_config, simple_volume, simple_material):
+    """Test that conflicting grid coordinate constraints raise an error."""
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(10, 10, 10),
+        material=simple_material,
+    )
 
-    def test_init_arrays(self, mock_config, mock_uniform_material_object):
-        """Test the _init_arrays function."""
-        # Create mock object container
-        mock_objects = Mock(spec=ObjectContainer)
-        mock_objects.volume.grid_shape = (10, 10, 10)
-        mock_objects.all_objects_non_magnetic = True
-        mock_objects.all_objects_non_electrically_conductive = True
-        mock_objects.all_objects_non_magnetically_conductive = True
-        mock_objects.static_material_objects = [mock_uniform_material_object]
-        mock_objects.detectors = []
-        mock_objects.boundary_objects = []
-        mock_objects.pml_objects = []
+    objects = [simple_volume, obj]
 
-        # Mock the create_named_sharded_matrix function
-        with patch("fdtdx.fdtd.initialization.create_named_sharded_matrix") as mock_create_matrix:
-            mock_create_matrix.return_value = jnp.zeros((10, 10, 10), dtype=mock_config.dtype)
+    # Create two conflicting constraints
+    constraint1 = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[10])
+    constraint2 = GridCoordinateConstraint(
+        object="obj1",
+        axes=[0],
+        sides=["-"],
+        coordinates=[20],  # Different coordinate - conflict!
+    )
 
-            # Call the function
-            arrays, config, info = _init_arrays(objects=mock_objects, config=mock_config)
+    constraints = [constraint1, constraint2]
 
-            # Verify the function was called with correct parameters
-            assert mock_create_matrix.call_count >= 3  # Called for E, H, and inv_permittivities
+    # Should fail to resolve
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+    assert errors["obj1"] is not None
 
-            # Verify the return values
-            assert isinstance(arrays, ArrayContainer)
-            assert config == mock_config
-            assert isinstance(info, dict)
 
-    def test_init_params(self, mock_objects, random_key):
-        """Test the _init_params function."""
-        # Create mock device
-        mock_device = Mock()
-        mock_device.name = "test_device"
-        mock_device.init_params.return_value = {"param1": jnp.array(0.5)}
+def test_resolve_constraints_conflicting_real_coordinates(simple_config, simple_volume, simple_material):
+    """Test that conflicting real coordinate constraints raise an error."""
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(10, 10, 10),
+        material=simple_material,
+    )
 
-        # Set up mock objects
-        mock_objects.devices = [mock_device]
+    objects = [simple_volume, obj]
 
-        # Call the function
-        params = _init_params(objects=mock_objects, key=random_key)
+    # Create two conflicting real coordinate constraints
+    constraint1 = RealCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[10.0])
+    constraint2 = RealCoordinateConstraint(
+        object="obj1",
+        axes=[0],
+        sides=["-"],
+        coordinates=[20.0],  # Different coordinate - conflict!
+    )
 
-        # Verify the function was called with correct parameters
-        mock_device.init_params.assert_called_once()
+    constraints = [constraint1, constraint2]
 
-        # Verify the return values - check if it's a dict instead of ParameterContainer
-        assert isinstance(params, dict)
-        assert "test_device" in params
-        assert "param1" in params["test_device"]
+    # Should fail to resolve
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+    assert errors["obj1"] is not None
 
-    def test_resolve_object_constraints(self, mock_volume, mock_config):
-        """Test the _resolve_object_constraints function."""
-        # Create a grid coordinate constraint
-        constraint = Mock(spec=GridCoordinateConstraint)
-        constraint.object = mock_volume
-        constraint.axes = [0, 1, 2]
-        constraint.coordinates = [0, 0, 0]
-        constraint.sides = ["-", "-", "-"]
 
-        # Call the function
-        result = _resolve_object_constraints(volume=mock_volume, constraints=[constraint], config=mock_config)
+def test_resolve_constraints_inconsistent_size_and_position(simple_config, simple_volume, simple_material):
+    """Test that inconsistent size and position constraints are detected."""
+    obj = UniformMaterialObject(
+        name="obj1",
+        material=simple_material,
+    )
 
-        # Verify the return values
-        assert isinstance(result, dict)
-        assert mock_volume in result
-        assert result[mock_volume] == ((0, 10), (0, 10), (0, 10))
+    objects = [simple_volume, obj]
 
-    def test_resolve_object_constraints_with_real_coordinate(self, mock_volume, mock_config):
-        """Test the _resolve_object_constraints function with RealCoordinateConstraint."""
-        # Create a second object for the constraint
-        mock_object = Mock(spec=SimulationObject)
-        mock_object.name = "test_object"
-        mock_object.partial_grid_shape = (None, None, None)
-        mock_object.partial_real_shape = (None, None, None)
+    # Set explicit size
+    size_constraint = SizeConstraint(
+        object="obj1",
+        other_object="volume",
+        axes=[0],
+        other_axes=[0],
+        proportions=[0.5],
+        grid_offsets=[0],
+        offsets=[None],
+    )
 
-        # Create a real coordinate constraint for the second object
-        constraint = Mock(spec=RealCoordinateConstraint)
-        constraint.object = mock_object
-        constraint.axes = [0]
-        constraint.coordinates = [5.0]  # 5.0 units
-        constraint.sides = ["-"]
+    # Position that would require different size
+    pos_constraint = PositionConstraint(
+        object="obj1",
+        other_object="volume",
+        axes=[0],
+        object_positions=[0.0],
+        other_object_positions=[-1.0],  # At start
+        grid_margins=[5],  # With margin
+        margins=[None],
+    )
 
-        # Call the function
-        result = _resolve_object_constraints(volume=mock_volume, constraints=[constraint], config=mock_config)
+    # Fix position explicitly that conflicts
+    grid_constraint = GridCoordinateConstraint(
+        object="obj1",
+        axes=[0],
+        sides=["-"],
+        coordinates=[0],  # Should start at 0, but position constraint says 5
+    )
 
-        # Verify the return values
-        assert isinstance(result, dict)
-        assert mock_volume in result
-        assert mock_object in result
-        # Should convert 5.0 units to 5 grid cells (with resolution=1.0)
-        assert result[mock_object][0][0] == 5
+    constraints = [size_constraint, pos_constraint, grid_constraint]
+
+    # Should fail to resolve due to inconsistency
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+    assert errors["obj1"] is not None
+
+
+def test_resolve_constraints_with_real_margins(simple_config, simple_volume, simple_material):
+    """Test position constraints with real (non-grid) margins."""
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(10, 10, 10),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    # Position with real margin (will be converted to grid units)
+    # Need to also provide a size constraint so the object can be fully resolved
+    size_constraint = SizeConstraint(
+        object="obj1",
+        other_object="volume",
+        axes=[0, 1, 2],
+        other_axes=[0, 1, 2],
+        proportions=[0.1, 0.1, 0.1],
+        grid_offsets=[0, 0, 0],
+        offsets=[None, None, None],
+    )
+
+    pos_constraint = PositionConstraint(
+        object="obj1",
+        other_object="volume",
+        axes=[0],
+        object_positions=[0.0],
+        other_object_positions=[-1.0],  # At start of volume
+        grid_margins=[None],
+        margins=[5.0],  # Real margin: 5.0 / 1.0 resolution = 5 grid units
+    )
+
+    constraints = [size_constraint, pos_constraint]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should succeed (or have errors - depends on constraint compatibility)
+    # Just verify it doesn't crash and returns results
+    assert isinstance(resolved_slices, dict)
+    assert "obj1" in resolved_slices
+
+
+def test_resolve_constraints_with_both_margins(simple_volume, simple_material):
+    """Test position constraints with both grid and real margins."""
+    config = SimulationConfig(resolution=0.5, time=100e-15)
+
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(10, 10, 10),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    # Position with both grid and real margins
+    constraint = PositionConstraint(
+        object="obj1",
+        other_object="volume",
+        axes=[0],
+        object_positions=[0.0],
+        other_object_positions=[-1.0],
+        grid_margins=[2],  # 2 grid units
+        margins=[1.0],  # 1.0 / 0.5 = 2 grid units, total = 4
+    )
+
+    constraints = [constraint]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, config)
+
+    # Should succeed or at least return results
+    assert isinstance(resolved_slices, dict)
+    assert "obj1" in resolved_slices
+
+
+def test_resolve_constraints_with_real_offset_in_size(simple_volume, simple_material):
+    """Test size constraints with real (non-grid) offset."""
+    config = SimulationConfig(resolution=0.5, time=100e-15)
+
+    obj = UniformMaterialObject(
+        name="obj1",
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    # Size with real offset
+    constraint = SizeConstraint(
+        object="obj1",
+        other_object="volume",
+        axes=[0],
+        other_axes=[0],
+        proportions=[0.5],
+        grid_offsets=[None],
+        offsets=[2.0],  # Real offset: 2.0 / 0.5 = 4 grid units
+    )
+
+    constraints = [constraint]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, config)
+
+    # Should return results (may or may not have errors depending on other dimensions)
+    assert isinstance(resolved_slices, dict)
+    assert "obj1" in resolved_slices
+
+
+def test_resolve_constraints_with_grid_offset_in_size(simple_config, simple_volume, simple_material):
+    """Test size constraints with grid offset."""
+    obj = UniformMaterialObject(
+        name="obj1",
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    # Size with grid offset
+    constraint = SizeConstraint(
+        object="obj1",
+        other_object="volume",
+        axes=[0],
+        other_axes=[0],
+        proportions=[0.5],
+        grid_offsets=[10],  # 10 grid units
+        offsets=[None],
+    )
+
+    constraints = [constraint]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should return results
+    assert isinstance(resolved_slices, dict)
+    assert "obj1" in resolved_slices
+
+
+def test_resolve_constraints_size_extension_with_real_offset(simple_volume, simple_material):
+    """Test size extension constraints with real offset."""
+    config = SimulationConfig(resolution=0.5, time=100e-15)
+
+    obj1 = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(10, 10, 10),
+        material=simple_material,
+    )
+
+    obj2 = UniformMaterialObject(
+        name="obj2",
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj1, obj2]
+
+    # Position obj1 first
+    pos_constraint = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[20])
+
+    # Extend obj2 from obj1 with real offset
+    ext_constraint = SizeExtensionConstraint(
+        object="obj2",
+        other_object="obj1",
+        axis=0,
+        direction="+",  # Extend to the right
+        other_position=1.0,  # From right side of obj1
+        grid_offset=None,
+        offset=2.0,  # Real offset: 2.0 / 0.5 = 4 grid units
+    )
+
+    constraints = [pos_constraint, ext_constraint]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, config)
+
+    # Should succeed
+    assert errors["obj2"] is None
+    # obj1 is at [20, 30], so obj2 should extend from 30 + 4 = 34
+    assert resolved_slices["obj2"][0][1] == 34
+
+
+def test_resolve_constraints_size_extension_with_grid_offset(simple_config, simple_volume, simple_material):
+    """Test size extension constraints with grid offset."""
+    obj1 = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(10, 10, 10),
+        material=simple_material,
+    )
+
+    obj2 = UniformMaterialObject(
+        name="obj2",
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj1, obj2]
+
+    # Position obj1 first
+    pos_constraint = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[20])
+
+    # Extend obj2 from obj1 with grid offset
+    ext_constraint = SizeExtensionConstraint(
+        object="obj2",
+        other_object="obj1",
+        axis=0,
+        direction="-",  # Extend to the left
+        other_position=-1.0,  # From left side of obj1
+        grid_offset=5,  # 5 grid units offset
+        offset=None,
+    )
+
+    constraints = [pos_constraint, ext_constraint]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should succeed
+    assert errors["obj2"] is None
+    # obj1 is at [20, 30], and we're extending from left side with +5 offset
+    # So obj2 left boundary should be at 20 + 5 = 25
+    assert resolved_slices["obj2"][0][0] == 25
+
+
+def test_resolve_constraints_size_extension_to_volume_boundary(simple_config, simple_volume, simple_material):
+    """Test size extension to volume boundary (no other_object specified)."""
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(10, 10, 10),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    # Position obj at a specific location in all axes
+    pos_constraint_x = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[20])
+
+    pos_constraint_y = GridCoordinateConstraint(object="obj1", axes=[1], sides=["-"], coordinates=[20])
+
+    # Extend to volume boundary in the negative direction
+    ext_constraint = SizeExtensionConstraint(
+        object="obj1",
+        other_object=None,  # Extend to volume
+        axis=2,
+        direction="-",
+        other_position=0.0,
+        grid_offset=None,
+        offset=None,
+    )
+
+    constraints = [pos_constraint_x, pos_constraint_y, ext_constraint]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should succeed
+    assert errors["obj1"] is None
+    # Should extend to the volume boundary at 0
+    assert resolved_slices["obj1"][2][0] == 0
+
+
+def test_resolve_constraints_with_partial_real_shape(simple_material):
+    """Test resolving objects with partial real shape specified."""
+    config = SimulationConfig(resolution=0.5, time=100e-15)
+
+    volume = SimulationVolume(
+        name="volume",
+        partial_grid_shape=(100, 100, 100),
+    )
+
+    # Object with real shape instead of grid shape
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_real_shape=(5.0, 5.0, 5.0),  # All axes as real shapes
+        material=simple_material,
+    )
+
+    objects = [volume, obj]
+
+    # Position the object at origin
+    constraints_list = [
+        GridCoordinateConstraint(object="obj1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[0, 0, 0])
+    ]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints_list, config)
+
+    # Should succeed with proper constraints
+    assert isinstance(resolved_slices, dict)
+    assert "obj1" in resolved_slices
+    # Verify resolution worked
+    if resolved_slices["obj1"][0][0] is not None:
+        # Shape in axis 0 should be converted from real: 5.0 / 0.5 = 10
+        shape = resolved_slices["obj1"][0][1] - resolved_slices["obj1"][0][0]
+        assert shape == 10
+
+
+def test_resolve_constraints_extend_to_infinity(simple_config, simple_volume, simple_material):
+    """Test that objects without size constraints extend to volume boundaries."""
+    obj = UniformMaterialObject(
+        name="obj1",
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    # Only specify position in one axis, others should extend to infinity (volume boundaries)
+    constraint = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[20])
+
+    constraints = [constraint]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should succeed
+    assert errors["obj1"] is None
+    # Axis 0 has constraint, but axes 1 and 2 should extend to volume boundaries
+    assert resolved_slices["obj1"][1] == (0, 100)
+    assert resolved_slices["obj1"][2] == (0, 100)
+
+
+# Test cases for apply_params with mocks
+
+
+@patch("fdtdx.fdtd.initialization.compute_allowed_permittivities")
+def test_apply_params_continuous_type(mock_compute_perm):
+    """Test apply_params with continuous parameter type (using mocks)."""
+    mock_compute_perm.return_value = [2.0, 4.0]
+
+    # Create mock device with continuous output
+    device = Mock()
+    device.name = "device1"
+    device.output_type = ParameterType.CONTINUOUS
+    device.grid_slice = (slice(0, 10), slice(0, 10), slice(0, 10))
+    device.materials = [Mock(), Mock()]
+
+    # Mock the device call to return material indices
+    material_indices = jnp.ones((10, 10, 10)) * 0.5
+    device.return_value = material_indices
+
+    # Create mock objects container
+    objects = Mock(spec=ObjectContainer)
+    objects.devices = [device]
+    objects.object_list = [device]
+    objects.volume_idx = 0
+
+    # Create mock arrays with proper structure preservation
+    inv_perm = jnp.ones((10, 10, 10))
+    inv_permeab = jnp.ones((10, 10, 10))
+
+    arrays = Mock(spec=ArrayContainer)
+    arrays.inv_permittivities = inv_perm
+    arrays.inv_permeabilities = inv_permeab
+
+    # Use MagicMock for .at to support subscripting
+    at_accessor = MagicMock()
+
+    def at_getitem(key):
+        at_result = Mock()
+
+        def set_side_effect(value):
+            result = Mock(spec=ArrayContainer)
+            result.inv_permittivities = value if key == "inv_permittivities" else inv_perm
+            result.inv_permeabilities = inv_permeab
+            result.at = at_accessor
+            return result
+
+        at_result.set = set_side_effect
+        return at_result
+
+    at_accessor.__getitem__ = Mock(side_effect=at_getitem)
+    arrays.at = at_accessor
+
+    # Create mock params
+    params = {"device1": {}}
+
+    key = jax.random.PRNGKey(0)
+
+    # Mock the object apply method
+    device.apply = Mock(return_value=device)
+
+    result_arrays, result_objects, info = apply_params(arrays, objects, params, key)
+
+    # Verify the continuous path was taken
+    assert device.call_count > 0
+    assert mock_compute_perm.called
+
+
+@patch("fdtdx.fdtd.initialization.compute_allowed_permittivities")
+@patch("fdtdx.fdtd.initialization.straight_through_estimator")
+def test_apply_params_discrete_type(mock_ste, mock_compute_perm):
+    """Test apply_params with discrete parameter type (using mocks)."""
+    mock_compute_perm.return_value = [2.0, 4.0]
+    mock_ste.return_value = jnp.ones((10, 10, 10))
+
+    # Create mock device with discrete output
+    device = Mock()
+    device.name = "device1"
+    device.output_type = ParameterType.DISCRETE
+    device.grid_slice = (slice(0, 10), slice(0, 10), slice(0, 10))
+    device.materials = [Mock(), Mock()]
+
+    # Mock the device call to return material indices
+    material_indices = jnp.zeros((10, 10, 10), dtype=jnp.int32)
+    device.return_value = material_indices
+
+    # Create mock objects container
+    objects = Mock(spec=ObjectContainer)
+    objects.devices = [device]
+    objects.object_list = [device]
+    objects.volume_idx = 0
+
+    # Create mock arrays with proper structure preservation
+    inv_perm = jnp.ones((10, 10, 10))
+    inv_permeab = jnp.ones((10, 10, 10))
+
+    arrays = Mock(spec=ArrayContainer)
+    arrays.inv_permittivities = inv_perm
+    arrays.inv_permeabilities = inv_permeab
+
+    # Use MagicMock for .at to support subscripting
+    at_accessor = MagicMock()
+
+    def at_getitem(key):
+        at_result = Mock()
+
+        def set_side_effect(value):
+            result = Mock(spec=ArrayContainer)
+            result.inv_permittivities = value if key == "inv_permittivities" else inv_perm
+            result.inv_permeabilities = inv_permeab
+            result.at = at_accessor
+            return result
+
+        at_result.set = set_side_effect
+        return at_result
+
+    at_accessor.__getitem__ = Mock(side_effect=at_getitem)
+    arrays.at = at_accessor
+
+    # Create mock params
+    params = {"device1": {}}
+
+    key = jax.random.PRNGKey(0)
+
+    # Mock the object apply method
+    device.apply = Mock(return_value=device)
+
+    result_arrays, result_objects, info = apply_params(arrays, objects, params, key)
+
+    # Verify the discrete path was taken (straight through estimator called)
+    assert mock_ste.called
+    assert mock_compute_perm.called
+
+
+# Test cases for place_objects function
+
+
+def test_place_objects_creates_object_container(simple_config, simple_volume, simple_material):
+    """Test that place_objects creates an ObjectContainer."""
+
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(20, 20, 20),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    # Position the object
+    constraint = GridCoordinateConstraint(
+        object="obj1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+
+    constraints = [constraint]
+    key = jax.random.PRNGKey(0)
+
+    obj_container, arrays, params, config, info = place_objects(objects, simple_config, constraints, key)
+
+    # Check return types
+    assert isinstance(obj_container, ObjectContainer)
+    assert isinstance(arrays, ArrayContainer)
+    assert isinstance(params, dict)
+    assert obj_container.volume_idx == 0
+
+
+def test_place_objects_with_multiple_objects(simple_config, simple_volume, simple_material):
+    """Test place_objects with multiple material objects."""
+
+    obj1 = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(20, 20, 20),
+        material=simple_material,
+    )
+
+    obj2 = UniformMaterialObject(
+        name="obj2",
+        partial_grid_shape=(20, 20, 20),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj1, obj2]
+
+    # Position both objects
+    constraints = [
+        GridCoordinateConstraint(object="obj1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]),
+        GridCoordinateConstraint(object="obj2", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[40, 40, 40]),
+    ]
+
+    key = jax.random.PRNGKey(0)
+
+    obj_container, arrays, params, config, info = place_objects(objects, simple_config, constraints, key)
+
+    # Should have all objects
+    assert len(obj_container.objects) == 3  # volume + 2 objects
+    assert obj_container.volume_idx == 0
+
+
+def test_place_objects_updates_config(simple_config, simple_volume, simple_material):
+    """Test that place_objects returns an updated config."""
+    from fdtdx.fdtd.initialization import place_objects
+
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(20, 20, 20),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    constraint = GridCoordinateConstraint(
+        object="obj1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+
+    constraints = [constraint]
+    key = jax.random.PRNGKey(0)
+
+    obj_container, arrays, params, config, info = place_objects(objects, simple_config, constraints, key)
+
+    # Config should be updated
+    assert config is not None
+    assert config.resolution == simple_config.resolution
+
+
+def test_place_objects_initializes_arrays(simple_config, simple_volume, simple_material):
+    """Test that place_objects initializes field arrays."""
+    from fdtdx.fdtd.initialization import place_objects
+
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(20, 20, 20),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    constraint = GridCoordinateConstraint(
+        object="obj1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+
+    constraints = [constraint]
+    key = jax.random.PRNGKey(0)
+
+    obj_container, arrays, params, config, info = place_objects(objects, simple_config, constraints, key)
+
+    # Check arrays are initialized
+    assert arrays.E is not None
+    assert arrays.H is not None
+    assert arrays.inv_permittivities is not None

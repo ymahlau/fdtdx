@@ -102,17 +102,21 @@ class TestUpdateE:
         """Setup common test data"""
         # Create mock arrays with compatible shapes
         arrays = MockArrayContainer(
-            E=jnp.ones((10, 10, 10, 3)),
-            H=jnp.zeros((10, 10, 10, 3)),
-            inv_permittivities=jnp.ones((10, 10, 10, 3)),
+            E=jnp.ones((3, 10, 10, 10)),
+            H=jnp.zeros((3, 10, 10, 10)),
+            psi_E=jnp.zeros((6, 10, 10, 10)),
+            psi_H=jnp.zeros((6, 10, 10, 10)),
+            alpha=jnp.zeros((3, 10, 10, 10)),
+            kappa=jnp.ones((3, 10, 10, 10)),
+            sigma=jnp.zeros((3, 10, 10, 10)),
+            inv_permittivities=jnp.ones((3, 10, 10, 10)),
+            inv_permeabilities=jnp.ones((3, 10, 10, 10)),
             electric_conductivity=None,
-            boundary_states={},
-            inv_permeabilities=jnp.ones((10, 10, 10, 3)),
         )
 
         # Mock the curl_H function to return compatible shape
         with patch("fdtdx.fdtd.update.curl_H") as mock_curl:
-            mock_curl.return_value = jnp.zeros((10, 10, 10, 3))
+            mock_curl.return_value = (jnp.zeros((3, 10, 10, 10)), jnp.zeros((6, 10, 10, 10)))
 
             # Create mock objects
             mock_objects = Mock()
@@ -142,31 +146,6 @@ class TestUpdateE:
         # Should return updated arrays
         assert result is not None
 
-    def test_with_boundaries(self, setup):
-        """Test E field update with boundaries"""
-        arrays, objects, config = setup
-
-        # Mock boundary object
-        mock_boundary = Mock()
-        mock_boundary.name = "test_boundary"
-        mock_boundary.update_E_boundary_state.return_value = "test_state"
-        mock_boundary.update_E.return_value = jnp.ones((10, 10, 10, 3))
-
-        objects.boundary_objects = [mock_boundary]
-        arrays.boundary_states = {"test_boundary": "initial_state"}
-
-        # Patch the at method to avoid the subscript issue
-        with patch.object(arrays, "at") as mock_at:
-            mock_setter = Mock()
-            mock_setter.set.return_value = arrays
-            mock_at.return_value = mock_setter
-
-            update_E(time_step=jnp.array(0), arrays=arrays, objects=objects, config=config, simulate_boundaries=True)
-
-        # Verify boundary methods were called
-        mock_boundary.update_E_boundary_state.assert_called_once()
-        mock_boundary.update_E.assert_called_once()
-
     def test_with_sources(self, setup):
         """Test E field update with sources"""
         arrays, objects, config = setup
@@ -175,7 +154,7 @@ class TestUpdateE:
         mock_source = Mock()
         mock_source.is_on_at_time_step.return_value = True
         mock_source.adjust_time_step_by_on_off.return_value = jnp.array(0)
-        mock_source.update_E.return_value = jnp.ones((10, 10, 10, 3))
+        mock_source.update_E.return_value = jnp.ones((3, 10, 10, 10))
 
         objects.sources = [mock_source]
 
@@ -200,16 +179,21 @@ class TestUpdateEReverse:
         """Setup common test data"""
         # Create mock arrays with compatible shapes
         arrays = MockArrayContainer(
-            E=jnp.ones((10, 10, 10, 3)),
-            H=jnp.zeros((10, 10, 10, 3)),
-            inv_permittivities=jnp.ones((10, 10, 10, 3)),
-            inv_permeabilities=jnp.ones((10, 10, 10, 3)),
+            E=jnp.ones((3, 10, 10, 10)),
+            H=jnp.zeros((3, 10, 10, 10)),
+            psi_E=jnp.zeros((6, 10, 10, 10)),
+            psi_H=jnp.zeros((6, 10, 10, 10)),
+            alpha=jnp.zeros((3, 10, 10, 10)),
+            kappa=jnp.ones((3, 10, 10, 10)),
+            sigma=jnp.zeros((3, 10, 10, 10)),
+            inv_permittivities=jnp.ones((3, 10, 10, 10)),
+            inv_permeabilities=jnp.ones((3, 10, 10, 10)),
             electric_conductivity=None,
         )
 
         # Mock the curl_H function to return compatible shape
         with patch("fdtdx.fdtd.update.curl_H") as mock_curl:
-            mock_curl.return_value = jnp.zeros((10, 10, 10, 3))
+            mock_curl.return_value = (jnp.zeros((3, 10, 10, 10)), jnp.zeros((6, 10, 10, 10)))
 
             # Create mock objects
             mock_objects = Mock()
@@ -245,7 +229,7 @@ class TestUpdateEReverse:
         mock_source = Mock()
         mock_source.is_on_at_time_step.return_value = True
         mock_source.adjust_time_step_by_on_off.return_value = jnp.array(0)
-        mock_source.update_E.return_value = jnp.ones((10, 10, 10, 3))
+        mock_source.update_E.return_value = jnp.ones((3, 10, 10, 10))
 
         objects.sources = [mock_source]
 
@@ -270,17 +254,21 @@ class TestUpdateH:
         """Setup common test data"""
         # Create mock arrays with compatible shapes
         arrays = MockArrayContainer(
-            H=jnp.ones((10, 10, 10, 3)),
-            E=jnp.zeros((10, 10, 10, 3)),
-            inv_permeabilities=jnp.ones((10, 10, 10, 3)),
+            H=jnp.ones((3, 10, 10, 10)),
+            E=jnp.zeros((3, 10, 10, 10)),
+            psi_E=jnp.zeros((6, 10, 10, 10)),
+            psi_H=jnp.zeros((6, 10, 10, 10)),
+            alpha=jnp.zeros((3, 10, 10, 10)),
+            kappa=jnp.ones((3, 10, 10, 10)),
+            sigma=jnp.zeros((3, 10, 10, 10)),
+            inv_permeabilities=jnp.ones((3, 10, 10, 10)),
             magnetic_conductivity=None,
-            boundary_states={},
-            inv_permittivities=jnp.ones((10, 10, 10, 3)),
+            inv_permittivities=jnp.ones((3, 10, 10, 10)),
         )
 
         # Mock the curl_E function to return compatible shape
         with patch("fdtdx.fdtd.update.curl_E") as mock_curl:
-            mock_curl.return_value = jnp.zeros((10, 10, 10, 3))
+            mock_curl.return_value = (jnp.zeros((3, 10, 10, 10)), jnp.zeros((6, 10, 10, 10)))
 
             # Create mock objects
             mock_objects = Mock()
@@ -310,31 +298,6 @@ class TestUpdateH:
         # Should return updated arrays
         assert result is not None
 
-    def test_with_boundaries(self, setup):
-        """Test H field update with boundaries"""
-        arrays, objects, config = setup
-
-        # Mock boundary object
-        mock_boundary = Mock()
-        mock_boundary.name = "test_boundary"
-        mock_boundary.update_H_boundary_state.return_value = "test_state"
-        mock_boundary.update_H.return_value = jnp.ones((10, 10, 10, 3))
-
-        objects.boundary_objects = [mock_boundary]
-        arrays.boundary_states = {"test_boundary": "initial_state"}
-
-        # Patch the at method to avoid the subscript issue
-        with patch.object(arrays, "at") as mock_at:
-            mock_setter = Mock()
-            mock_setter.set.return_value = arrays
-            mock_at.return_value = mock_setter
-
-            update_H(time_step=jnp.array(0), arrays=arrays, objects=objects, config=config, simulate_boundaries=True)
-
-        # Verify boundary methods were called
-        mock_boundary.update_H_boundary_state.assert_called_once()
-        mock_boundary.update_H.assert_called_once()
-
     def test_with_sources(self, setup):
         """Test H field update with sources"""
         arrays, objects, config = setup
@@ -343,7 +306,7 @@ class TestUpdateH:
         mock_source = Mock()
         mock_source.is_on_at_time_step.return_value = True
         mock_source.adjust_time_step_by_on_off.return_value = jnp.array(0)
-        mock_source.update_H.return_value = jnp.ones((10, 10, 10, 3))
+        mock_source.update_H.return_value = jnp.ones((3, 10, 10, 10))
 
         objects.sources = [mock_source]
 
@@ -368,16 +331,21 @@ class TestUpdateHReverse:
         """Setup common test data"""
         # Create mock arrays with compatible shapes
         arrays = MockArrayContainer(
-            H=jnp.ones((10, 10, 10, 3)),
-            E=jnp.zeros((10, 10, 10, 3)),
-            inv_permittivities=jnp.ones((10, 10, 10, 3)),
-            inv_permeabilities=jnp.ones((10, 10, 10, 3)),
+            H=jnp.ones((3, 10, 10, 10)),
+            E=jnp.zeros((3, 10, 10, 10)),
+            psi_E=jnp.zeros((6, 10, 10, 10)),
+            psi_H=jnp.zeros((6, 10, 10, 10)),
+            alpha=jnp.zeros((3, 10, 10, 10)),
+            kappa=jnp.ones((3, 10, 10, 10)),
+            sigma=jnp.zeros((3, 10, 10, 10)),
+            inv_permittivities=jnp.ones((3, 10, 10, 10)),
+            inv_permeabilities=jnp.ones((3, 10, 10, 10)),
             magnetic_conductivity=None,
         )
 
         # Mock the curl_E function to return compatible shape
         with patch("fdtdx.fdtd.update.curl_E") as mock_curl:
-            mock_curl.return_value = jnp.zeros((10, 10, 10, 3))
+            mock_curl.return_value = (jnp.zeros((3, 10, 10, 10)), jnp.zeros((6, 10, 10, 10)))
 
             # Create mock objects
             mock_objects = Mock()
@@ -413,7 +381,7 @@ class TestUpdateHReverse:
         mock_source = Mock()
         mock_source.is_on_at_time_step.return_value = True
         mock_source.adjust_time_step_by_on_off.return_value = jnp.array(0)
-        mock_source.update_H.return_value = jnp.ones((10, 10, 10, 3))
+        mock_source.update_H.return_value = jnp.ones((3, 10, 10, 10))
 
         objects.sources = [mock_source]
 
@@ -438,23 +406,28 @@ class TestUpdateDetectorStates:
         """Setup common test data"""
         # Create mock arrays
         arrays = MockArrayContainer(
-            E=jnp.ones((10, 10, 10, 3)),
-            H=jnp.zeros((10, 10, 10, 3)),
-            inv_permittivities=jnp.ones((10, 10, 10, 3)),
-            inv_permeabilities=jnp.ones((10, 10, 10, 3)),
+            E=jnp.ones((3, 10, 10, 10)),
+            H=jnp.zeros((3, 10, 10, 10)),
+            psi_E=jnp.zeros((6, 10, 10, 10)),
+            psi_H=jnp.zeros((6, 10, 10, 10)),
+            alpha=jnp.zeros((3, 10, 10, 10)),
+            kappa=jnp.ones((3, 10, 10, 10)),
+            sigma=jnp.zeros((3, 10, 10, 10)),
+            inv_permittivities=jnp.ones((3, 10, 10, 10)),
+            inv_permeabilities=jnp.ones((3, 10, 10, 10)),
             detector_states={},
         )
 
         # Mock the interpolate_fields function
         with patch("fdtdx.fdtd.update.interpolate_fields") as mock_interpolate:
-            mock_interpolate.return_value = (jnp.ones((10, 10, 10, 3)), jnp.zeros((10, 10, 10, 3)))
+            mock_interpolate.return_value = (jnp.ones((3, 10, 10, 10)), jnp.zeros((3, 10, 10, 10)))
 
             # Create mock objects
             mock_objects = Mock()
             mock_objects.boundary_objects = []
 
             # Create H_prev array
-            H_prev = jnp.zeros((10, 10, 10, 3))
+            H_prev = jnp.zeros((3, 10, 10, 10))
 
             yield arrays, mock_objects, H_prev
 
@@ -524,7 +497,7 @@ class TestInterfaceFunctions:
 
         # Mock the collect_boundary_interfaces function
         with patch("fdtdx.fdtd.update.collect_boundary_interfaces") as mock_collect:
-            mock_collect.return_value = {"test_interface": jnp.zeros((5, 5, 5, 3))}
+            mock_collect.return_value = {"test_interface": jnp.zeros((3, 5, 5, 5))}
 
             # Create mock objects
             mock_objects = Mock()
@@ -534,7 +507,7 @@ class TestInterfaceFunctions:
             mock_gradient_config = Mock()
             mock_recorder = Mock()
             mock_recorder.compress.return_value = "compressed_state"
-            mock_recorder.decompress.return_value = ({"test_interface": jnp.zeros((5, 5, 5, 3))}, "decompressed_state")
+            mock_recorder.decompress.return_value = ({"test_interface": jnp.zeros((3, 5, 5, 5))}, "decompressed_state")
             mock_gradient_config.recorder = mock_recorder
 
             mock_config = Mock()

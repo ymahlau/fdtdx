@@ -55,76 +55,166 @@ class BoundaryConfig(TreeClass):
     thickness_grid_maxz: int = frozen_field(default=10)
 
     #: Initial kappa value at min x boundary. Default 1.0.
-    kappa_start_minx: float = frozen_field(default=1.0)
+    kappa_start_minx: float | None = frozen_field(default=None)
 
-    #: Final kappa value at min x boundary. Default 1.5.
-    kappa_end_minx: float = frozen_field(default=1.5)
+    #: Final kappa value at min x boundary. Default 1.0.
+    kappa_end_minx: float | None = frozen_field(default=None)
 
     #: Initial kappa value at max x boundary. Default 1.0.
-    kappa_start_maxx: float = frozen_field(default=1.0)
+    kappa_start_maxx: float | None = frozen_field(default=None)
 
-    #: Final kappa value at max x boundary. Default 1.5.
-    kappa_end_maxx: float = frozen_field(default=1.5)
+    #: Final kappa value at max x boundary. Default 1.0.
+    kappa_end_maxx: float | None = frozen_field(default=None)
 
     #: Initial kappa value at min y boundary. Default 1.0.
-    kappa_start_miny: float = frozen_field(default=1.0)
+    kappa_start_miny: float | None = frozen_field(default=None)
 
-    #: Final kappa value at min y boundary. Default 1.5.
-    kappa_end_miny: float = frozen_field(default=1.5)
+    #: Final kappa value at min y boundary. Default 1.0.
+    kappa_end_miny: float | None = frozen_field(default=None)
 
     #: Initial kappa value at max y boundary. Default 1.0.
-    kappa_start_maxy: float = frozen_field(default=1.0)
+    kappa_start_maxy: float | None = frozen_field(default=None)
 
-    #: Final kappa value at max y boundary. Default 1.5.
-    kappa_end_maxy: float = frozen_field(default=1.5)
+    #: Final kappa value at max y boundary. Default 1.0.
+    kappa_end_maxy: float | None = frozen_field(default=None)
 
     #: Initial kappa value at min z boundary. Default 1.0.
-    kappa_start_minz: float = frozen_field(default=1.0)
+    kappa_start_minz: float | None = frozen_field(default=None)
 
-    #: Final kappa value at min z boundary. Default 1.5.
-    kappa_end_minz: float = frozen_field(default=1.5)
+    #: Final kappa value at min z boundary. Default 1.0.
+    kappa_end_minz: float | None = frozen_field(default=None)
 
     #: Initial kappa value at max z boundary. Default 1.0.
-    kappa_start_maxz: float = frozen_field(default=1.0)
+    kappa_start_maxz: float | None = frozen_field(default=None)
 
-    #: Final kappa value at max z boundary. Default 1.5.
-    kappa_end_maxz: float = frozen_field(default=1.5)
+    #: Final kappa value at max z boundary. Default 1.0.
+    kappa_end_maxz: float | None = frozen_field(default=None)
 
-    #: Initial alpha value at min x boundary. Default 1e-8.
-    alpha_start_minx: float = frozen_field(default=1e-8)
+    #: Polynomial order for kappa grading at min x boundary. Default 1.0.
+    kappa_order_minx: float | None = frozen_field(default=None)
 
-    #: Final alpha value at min x boundary. Default 1e-8.
-    alpha_end_minx: float = frozen_field(default=1e-8)
+    #: Polynomial order for kappa grading at max x boundary. Default 1.0.
+    kappa_order_maxx: float | None = frozen_field(default=None)
 
-    #: Initial alpha value at max x boundary. Default 1e-8.
-    alpha_start_maxx: float = frozen_field(default=1e-8)
+    #: Polynomial order for kappa grading at min y boundary. Default 1.0.
+    kappa_order_miny: float | None = frozen_field(default=None)
 
-    #: Final alpha value at max x boundary. Default 1e-8.
-    alpha_end_maxx: float = frozen_field(default=1e-8)
+    #: Polynomial order for kappa grading at max y boundary. Default 1.0.
+    kappa_order_maxy: float | None = frozen_field(default=None)
 
-    #: Initial alpha value at min y boundary. Default 1e-8.
-    alpha_start_miny: float = frozen_field(default=1e-8)
+    #: Polynomial order for kappa grading at min z boundary. Default 1.0.
+    kappa_order_minz: float | None = frozen_field(default=None)
 
-    #: Final alpha value at min y boundary. Default 1e-8.
-    alpha_end_miny: float = frozen_field(default=1e-8)
+    #: Polynomial order for kappa grading at max z boundary. Default 1.0.
+    kappa_order_maxz: float | None = frozen_field(default=None)
 
-    #: Initial alpha value at max y boundary. Default 1e-8.
-    alpha_start_maxy: float = frozen_field(default=1e-8)
+    #: Initial alpha value at min x boundary. Default 0.01 * 2 * jnp.pi * c / wavelength * eps0.
+    alpha_start_minx: float | None = frozen_field(default=None)
 
-    #: Final alpha value at max y boundary. Default 1e-8.
-    alpha_end_maxy: float = frozen_field(default=1e-8)
+    #: Final alpha value at min x boundary. Default 0.0.
+    alpha_end_minx: float | None = frozen_field(default=None)
 
-    #: Initial alpha value at min z boundary. Default 1e-8.
-    alpha_start_minz: float = frozen_field(default=1e-8)
+    #: Initial alpha value at max x boundary. Default 0.01 * 2 * jnp.pi * c / wavelength * eps0.
+    alpha_start_maxx: float | None = frozen_field(default=None)
 
-    #: Final alpha value at min z boundary. Default 1e-8.
-    alpha_end_minz: float = frozen_field(default=1e-8)
+    #: Final alpha value at max x boundary. Default 0.0.
+    alpha_end_maxx: float | None = frozen_field(default=None)
 
-    #: Initial alpha value at max z boundary. Default 1e-8.
-    alpha_start_maxz: float = frozen_field(default=1e-8)
+    #: Initial alpha value at min y boundary. Default 0.01 * 2 * jnp.pi * c / wavelength * eps0.
+    alpha_start_miny: float | None = frozen_field(default=None)
 
-    #: Final alpha value at max z boundary. Default 1e-8.
-    alpha_end_maxz: float = frozen_field(default=1e-8)
+    #: Final alpha value at min y boundary. Default 0.0.
+    alpha_end_miny: float | None = frozen_field(default=None)
+
+    #: Initial alpha value at max y boundary. Default 0.01 * 2 * jnp.pi * c / wavelength * eps0.
+    alpha_start_maxy: float | None = frozen_field(default=None)
+
+    #: Final alpha value at max y boundary. Default 0.0.
+    alpha_end_maxy: float | None = frozen_field(default=None)
+
+    #: Initial alpha value at min z boundary. Default 0.01 * 2 * jnp.pi * c / wavelength * eps0.
+    alpha_start_minz: float | None = frozen_field(default=None)
+
+    #: Final alpha value at min z boundary. Default 0.0.
+    alpha_end_minz: float | None = frozen_field(default=None)
+
+    #: Initial alpha value at max z boundary. Default 0.01 * 2 * jnp.pi * c / wavelength * eps0.
+    alpha_start_maxz: float | None = frozen_field(default=None)
+
+    #: Final alpha value at max z boundary. Default 0.0.
+    alpha_end_maxz: float | None = frozen_field(default=None)
+
+    #: Polynomial order for alpha grading at min x boundary. Default 1.0.
+    alpha_order_minx: float | None = frozen_field(default=None)
+
+    #: Polynomial order for alpha grading at max x boundary. Default 1.0.
+    alpha_order_maxx: float | None = frozen_field(default=None)
+
+    #: Polynomial order for alpha grading at min y boundary. Default 1.0.
+    alpha_order_miny: float | None = frozen_field(default=None)
+
+    #: Polynomial order for alpha grading at max y boundary. Default 1.0.
+    alpha_order_maxy: float | None = frozen_field(default=None)
+
+    #: Polynomial order for alpha grading at min z boundary. Default 1.0.
+    alpha_order_minz: float | None = frozen_field(default=None)
+
+    #: Polynomial order for alpha grading at max z boundary. Default 1.0.
+    alpha_order_maxz: float | None = frozen_field(default=None)
+
+    #: Initial sigma value at min x boundary. Default 0.0.
+    sigma_start_minx: float | None = frozen_field(default=None)
+
+    #: Final sigma value at min x boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.resolution)).
+    sigma_end_minx: float | None = frozen_field(default=None)
+
+    #: Initial sigma value at max x boundary. Default 0.0.
+    sigma_start_maxx: float | None = frozen_field(default=None)
+
+    #: Final sigma value at max x boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.resolution)).
+    sigma_end_maxx: float | None = frozen_field(default=None)
+
+    #: Initial sigma value at min y boundary. Default 0.0.
+    sigma_start_miny: float | None = frozen_field(default=None)
+
+    #: Final sigma value at min y boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.resolution)).
+    sigma_end_miny: float | None = frozen_field(default=None)
+
+    #: Initial sigma value at max y boundary. Default 0.0.
+    sigma_start_maxy: float | None = frozen_field(default=None)
+
+    #: Final sigma value at max y boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.resolution)).
+    sigma_end_maxy: float | None = frozen_field(default=None)
+
+    #: Initial sigma value at min z boundary. Default 0.0.
+    sigma_start_minz: float | None = frozen_field(default=None)
+
+    #: Final sigma value at min z boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.resolution)).
+    sigma_end_minz: float | None = frozen_field(default=None)
+
+    #: Initial sigma value at max z boundary. Default 0.0.
+    sigma_start_maxz: float | None = frozen_field(default=None)
+
+    #: Final sigma value at max z boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.resolution)).
+    sigma_end_maxz: float | None = frozen_field(default=None)
+
+    #: Polynomial order for sigma grading at min x boundary. Default 3.0.
+    sigma_order_minx: float | None = frozen_field(default=None)
+
+    #: Polynomial order for sigma grading at max x boundary. Default 3.0.
+    sigma_order_maxx: float | None = frozen_field(default=None)
+
+    #: Polynomial order for sigma grading at min y boundary. Default 3.0.
+    sigma_order_miny: float | None = frozen_field(default=None)
+
+    #: Polynomial order for sigma grading at max y boundary. Default 3.0.
+    sigma_order_maxy: float | None = frozen_field(default=None)
+
+    #: Polynomial order for sigma grading at min z boundary. Default 3.0.
+    sigma_order_minz: float | None = frozen_field(default=None)
+
+    #: Polynomial order for sigma grading at max z boundary. Default 3.0.
+    sigma_order_maxz: float | None = frozen_field(default=None)
 
     def get_dict(self) -> dict[str, int]:
         """Gets a dictionary mapping boundary names to their grid thicknesses.
@@ -161,7 +251,7 @@ class BoundaryConfig(TreeClass):
     def get_kappa_dict(
         self,
         prop: Literal["kappa_start", "kappa_end"],
-    ) -> dict[str, float]:
+    ) -> dict[str, float | None]:
         """Gets a dictionary mapping boundary names to their kappa values.
 
         Args:
@@ -169,7 +259,7 @@ class BoundaryConfig(TreeClass):
                 either "kappa_start" or "kappa_end".
 
         Returns:
-            dict[str, float]: Dictionary with keys 'min_x', 'max_x', 'min_y', 'max_y', 'min_z', 'max_z'
+            dict[str, float | None]: Dictionary with keys 'min_x', 'max_x', 'min_y', 'max_y', 'min_z', 'max_z'
                 mapping to their respective kappa values.
 
         Raises:
@@ -199,7 +289,7 @@ class BoundaryConfig(TreeClass):
     def get_alpha_dict(
         self,
         prop: Literal["alpha_start", "alpha_end"],
-    ) -> dict[str, float]:
+    ) -> dict[str, float | None]:
         """Gets a dictionary mapping boundary names to their alpha values.
 
         Args:
@@ -207,7 +297,7 @@ class BoundaryConfig(TreeClass):
                 either "alpha_start" or "alpha_end".
 
         Returns:
-            dict[str, float]: Dictionary with keys 'min_x', 'max_x', 'min_y', 'max_y', 'min_z', 'max_z'
+            dict[str, float | None]: Dictionary with keys 'min_x', 'max_x', 'min_y', 'max_y', 'min_z', 'max_z'
                 mapping to their respective alpha values.
 
         Raises:
@@ -230,6 +320,90 @@ class BoundaryConfig(TreeClass):
                 "max_y": self.alpha_end_maxy,
                 "min_z": self.alpha_end_minz,
                 "max_z": self.alpha_end_maxz,
+            }
+        else:
+            raise Exception(f"Unknown: {prop=}")
+
+    def get_sigma_dict(
+        self,
+        prop: Literal["sigma_start", "sigma_end"],
+    ) -> dict[str, float | None]:
+        """Gets a dictionary mapping boundary names to their sigma values.
+
+        Args:
+            prop (Literal["sigma_start", "sigma_end"]): Which sigma property to get,
+                either "sigma_start" or "sigma_end".
+
+        Returns:
+            dict[str, float | None]: Dictionary with keys 'min_x', 'max_x', 'min_y', 'max_y', 'min_z', 'max_z'
+                mapping to their respective sigma values.
+
+        Raises:
+            Exception: If prop is not "sigma_start" or "sigma_end"
+        """
+        if prop == "sigma_start":
+            return {
+                "min_x": self.sigma_start_minx,
+                "max_x": self.sigma_start_maxx,
+                "min_y": self.sigma_start_miny,
+                "max_y": self.sigma_start_maxy,
+                "min_z": self.sigma_start_minz,
+                "max_z": self.sigma_start_maxz,
+            }
+        elif prop == "sigma_end":
+            return {
+                "min_x": self.sigma_end_minx,
+                "max_x": self.sigma_end_maxx,
+                "min_y": self.sigma_end_miny,
+                "max_y": self.sigma_end_maxy,
+                "min_z": self.sigma_end_minz,
+                "max_z": self.sigma_end_maxz,
+            }
+        else:
+            raise Exception(f"Unknown: {prop=}")
+
+    def get_order_dict(
+        self,
+        prop: Literal["sigma_order", "alpha_order", "kappa_order"],
+    ) -> dict[str, float | None]:
+        """Gets a dictionary mapping boundary names to their polynomial order values.
+
+        Args:
+            prop (Literal["sigma_order", "alpha_order", "kappa_order"]): Which order property to get.
+
+        Returns:
+            dict[str, float | None]: Dictionary with keys 'min_x', 'max_x', 'min_y', 'max_y', 'min_z', 'max_z'
+                mapping to their respective order values.
+
+        Raises:
+            Exception: If prop is not one of the valid options
+        """
+        if prop == "sigma_order":
+            return {
+                "min_x": self.sigma_order_minx,
+                "max_x": self.sigma_order_maxx,
+                "min_y": self.sigma_order_miny,
+                "max_y": self.sigma_order_maxy,
+                "min_z": self.sigma_order_minz,
+                "max_z": self.sigma_order_maxz,
+            }
+        elif prop == "alpha_order":
+            return {
+                "min_x": self.alpha_order_minx,
+                "max_x": self.alpha_order_maxx,
+                "min_y": self.alpha_order_miny,
+                "max_y": self.alpha_order_maxy,
+                "min_z": self.alpha_order_minz,
+                "max_z": self.alpha_order_maxz,
+            }
+        elif prop == "kappa_order":
+            return {
+                "min_x": self.kappa_order_minx,
+                "max_x": self.kappa_order_maxx,
+                "min_y": self.kappa_order_miny,
+                "max_y": self.kappa_order_maxy,
+                "min_z": self.kappa_order_minz,
+                "max_z": self.kappa_order_maxz,
             }
         else:
             raise Exception(f"Unknown: {prop=}")
@@ -259,12 +433,17 @@ class BoundaryConfig(TreeClass):
     @classmethod
     def from_uniform_bound(
         cls,
-        thickness: int = 10,
-        boundary_type: str = "pml",
-        kappa_start: float = 1,
-        kappa_end: float = 1.5,
-        alpha_start: float = 1e-8,
-        alpha_end: float = 1e-8,
+        thickness=10,
+        boundary_type="pml",
+        kappa_start=None,
+        kappa_end=None,
+        kappa_order=None,
+        alpha_start=None,
+        alpha_end=None,
+        alpha_order=None,
+        sigma_start=None,
+        sigma_end=None,
+        sigma_order=None,
     ) -> "BoundaryConfig":
         """Creates a BoundaryConfig with uniform parameters for all boundaries.
 
@@ -273,7 +452,13 @@ class BoundaryConfig(TreeClass):
             boundary_type (str, optional): Type of boundary to use ("pml" or "periodic"). Defaults to "pml".
             kappa_start (float, optional): Initial kappa value for all boundaries. Defaults to 1.0.
             kappa_end (float, optional): Final kappa value for all boundaries. Defaults to 1.5.
-
+            kappa_order (float, optional): Polynomial order for kappa grading at all boundaries. Defaults to 1.0.
+            alpha_start (float, optional): Initial alpha value for all boundaries. Defaults to 1e-8.
+            alpha_end (float, optional): Final alpha value for all boundaries. Defaults to 1e-8.
+            alpha_order (float, optional): Polynomial order for alpha grading at all boundaries. Defaults to 1.0.
+            sigma_start (float, optional): Initial sigma value for all boundaries. Defaults to 0.0.
+            sigma_end (float, optional): Final sigma value for all boundaries. Defaults to 1.0.
+            sigma_order (float, optional): Polynomial order for sigma grading at all boundaries. Defaults to 3.0.
         Returns:
             BoundaryConfig: New config object with uniform parameters
         """
@@ -302,6 +487,12 @@ class BoundaryConfig(TreeClass):
             kappa_end_minz=kappa_end,
             kappa_start_maxz=kappa_start,
             kappa_end_maxz=kappa_end,
+            kappa_order_minx=kappa_order,
+            kappa_order_maxx=kappa_order,
+            kappa_order_miny=kappa_order,
+            kappa_order_maxy=kappa_order,
+            kappa_order_minz=kappa_order,
+            kappa_order_maxz=kappa_order,
             alpha_start_minx=alpha_start,
             alpha_end_minx=alpha_end,
             alpha_start_maxx=alpha_start,
@@ -314,6 +505,30 @@ class BoundaryConfig(TreeClass):
             alpha_end_minz=alpha_end,
             alpha_start_maxz=alpha_start,
             alpha_end_maxz=alpha_end,
+            alpha_order_minx=alpha_order,
+            alpha_order_maxx=alpha_order,
+            alpha_order_miny=alpha_order,
+            alpha_order_maxy=alpha_order,
+            alpha_order_minz=alpha_order,
+            alpha_order_maxz=alpha_order,
+            sigma_start_minx=sigma_start,
+            sigma_end_minx=sigma_end,
+            sigma_start_maxx=sigma_start,
+            sigma_end_maxx=sigma_end,
+            sigma_start_miny=sigma_start,
+            sigma_end_miny=sigma_end,
+            sigma_start_maxy=sigma_start,
+            sigma_end_maxy=sigma_end,
+            sigma_start_minz=sigma_start,
+            sigma_end_minz=sigma_end,
+            sigma_start_maxz=sigma_start,
+            sigma_end_maxz=sigma_end,
+            sigma_order_minx=sigma_order,
+            sigma_order_maxx=sigma_order,
+            sigma_order_miny=sigma_order,
+            sigma_order_maxy=sigma_order,
+            sigma_order_minz=sigma_order,
+            sigma_order_maxz=sigma_order,
         )
 
 
@@ -341,14 +556,23 @@ def boundary_objects_from_config(
     type_dict = config.get_type_dict()
     kappa_start_dict = config.get_kappa_dict("kappa_start")
     kappa_end_dict = config.get_kappa_dict("kappa_end")
+    kappa_order_dict = config.get_order_dict("kappa_order")
     alpha_start_dict = config.get_alpha_dict("alpha_start")
     alpha_end_dict = config.get_alpha_dict("alpha_end")
+    alpha_order_dict = config.get_order_dict("alpha_order")
+    sigma_start_dict = config.get_sigma_dict("sigma_start")
+    sigma_end_dict = config.get_sigma_dict("sigma_end")
+    sigma_order_dict = config.get_order_dict("sigma_order")
 
     for kind, thickness in thickness_dict.items():
         axis, direction = axis_direction_from_kind(kind)
         boundary_type = type_dict[kind]
         kappa_start, kappa_end = kappa_start_dict[kind], kappa_end_dict[kind]
         alpha_start, alpha_end = alpha_start_dict[kind], alpha_end_dict[kind]
+        sigma_start, sigma_end = sigma_start_dict[kind], sigma_end_dict[kind]
+        sigma_order = sigma_order_dict[kind]
+        alpha_order = alpha_order_dict[kind]
+        kappa_order = kappa_order_dict[kind]
 
         grid_shape_list: list[int | None] = [None, None, None]
         grid_shape_list[axis] = thickness if boundary_type == "pml" else 1
@@ -363,16 +587,23 @@ def boundary_objects_from_config(
                 partial_grid_shape=grid_shape,
                 kappa_start=kappa_start,
                 kappa_end=kappa_end,
+                kappa_order=kappa_order,
                 alpha_start=alpha_start,
                 alpha_end=alpha_end,
+                alpha_order=alpha_order,
+                sigma_start=sigma_start,
+                sigma_end=sigma_end,
+                sigma_order=sigma_order,
                 direction=direction,
             )
-        else:  # periodic
+        elif boundary_type == "periodic":
             cur_boundary = PeriodicBoundary(
                 axis=axis,
                 partial_grid_shape=grid_shape,
                 direction=direction,
             )
+        else:
+            continue
 
         direction_int = -1 if direction == "-" else 1
         pos_constraint = cur_boundary.place_relative_to(
