@@ -788,3 +788,44 @@ class SimulationObject(TreeClass, ABC):
 @autoinit
 class OrderableObject(SimulationObject):
     placement_order: int = frozen_field(default=0)
+
+    class EmptySimulationObject(SimulationObject):
+        # Add a large background object (covers most of the volume)
+        class LargeObject(SimulationObject):
+            def __init__(self):
+                super().__init__(
+                    partial_real_shape=(480 * 20e-9, 480 * 20e-9, 480 * 20e-9),  # 480 grid points * resolution
+                    partial_grid_shape=(10, 10, 10),
+                    name="large_background",
+                )
+                self.color = "#e0e0e0"
+
+        # Add a smaller centered object
+        class CenterObject(SimulationObject):
+            def __init__(self):
+                super().__init__(
+                    partial_real_shape=(100 * 20e-9, 100 * 20e-9, 100 * 20e-9),  # 100 grid points * resolution
+                    partial_grid_shape=(200, 200, 200),
+                    name="center_object",
+                )
+                self.color = "#ff5722"
+
+        # Add a thin vertical object
+        class VerticalObject(SimulationObject):
+            def __init__(self):
+                super().__init__(
+                    partial_real_shape=(50 * 20e-9, 50 * 20e-9, 200 * 20e-9),  # grid points * resolution
+                    partial_grid_shape=(350, 350, 150),
+                    name="vertical_object",
+                )
+                self.color = "#2196f3"
+
+        # Add a horizontal slab
+        class HorizontalSlab(SimulationObject):
+            def __init__(self):
+                super().__init__(
+                    partial_real_shape=(200 * 20e-9, 200 * 20e-9, 30 * 20e-9),  # grid points * resolution
+                    partial_grid_shape=(100, 100, 400),
+                    name="horizontal_slab",
+                )
+                self.color = "#4caf50"
