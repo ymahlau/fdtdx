@@ -1,23 +1,13 @@
 from abc import ABC, abstractmethod
-from typing import Generic, Literal, TypeVar
+from typing import Literal
 
-import jax
-
-from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.objects.object import SimulationObject
 from fdtdx.typing import GridShape3D, Slice3D, SliceTuple3D
 
 
 @autoinit
-class BaseBoundaryState(TreeClass):
-    pass
-
-
-T = TypeVar("T", bound=BaseBoundaryState)
-
-
-@autoinit
-class BaseBoundary(SimulationObject, ABC, Generic[T]):
+class BaseBoundary(SimulationObject, ABC):
     """Base class for all boundary conditions in FDTD simulations.
 
     This class defines the interface for boundary conditions, including methods
@@ -41,50 +31,6 @@ class BaseBoundary(SimulationObject, ABC, Generic[T]):
     @abstractmethod
     def thickness(self) -> int:
         """Gets the thickness of the boundary in grid points."""
-        raise NotImplementedError()
-
-    @abstractmethod
-    def init_state(
-        self,
-    ) -> T:
-        raise NotImplementedError()
-
-    @abstractmethod
-    def reset_state(self, state: T) -> T:
-        raise NotImplementedError()
-
-    @abstractmethod
-    def update_E_boundary_state(
-        self,
-        boundary_state: T,
-        H: jax.Array,
-    ) -> T:
-        raise NotImplementedError()
-
-    @abstractmethod
-    def update_H_boundary_state(
-        self,
-        boundary_state: T,
-        E: jax.Array,
-    ) -> T:
-        raise NotImplementedError()
-
-    @abstractmethod
-    def update_E(
-        self,
-        E: jax.Array,
-        boundary_state: T,
-        inverse_permittivity: jax.Array,
-    ) -> jax.Array:
-        raise NotImplementedError()
-
-    @abstractmethod
-    def update_H(
-        self,
-        H: jax.Array,
-        boundary_state: T,
-        inverse_permeability: jax.Array | float,
-    ) -> jax.Array:
         raise NotImplementedError()
 
     def interface_grid_shape(self) -> GridShape3D:

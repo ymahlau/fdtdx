@@ -12,7 +12,7 @@ import jax
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.materials import Material
-from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState
+from fdtdx.objects.boundaries.boundary import BaseBoundary
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.detectors.detector import Detector, DetectorState
@@ -195,14 +195,26 @@ class ArrayContainer(TreeClass):
     #: Magnetic field array.
     H: jax.Array
 
+    #: Auxiliary electric field array.
+    psi_E: jax.Array
+
+    #: Auxiliary magnetic field array.
+    psi_H: jax.Array
+
+    #: Alpha array for PML calculations.
+    alpha: jax.Array
+
+    #: Kappa array for PML calculations.
+    kappa: jax.Array
+
+    #: Sigma array for PML calculations.
+    sigma: jax.Array
+
     #: Inverse permittivity values array.
     inv_permittivities: jax.Array
 
     #: Inverse permeability values array.
     inv_permeabilities: jax.Array | float
-
-    #: Dictionary mapping boundary names to their states.
-    boundary_states: dict[str, BaseBoundaryState]
 
     #: Dictionary mapping detector names to their states.
     detector_states: dict[str, DetectorState]
@@ -245,11 +257,6 @@ def reset_array_container(
     arrays = arrays.aset("E", E)
     H = arrays.H * 0
     arrays = arrays.aset("H", H)
-
-    boundary_states = {}
-    for boundary in objects.boundary_objects:
-        boundary_states[boundary.name] = boundary.reset_state(state=arrays.boundary_states[boundary.name])
-    arrays = arrays.aset("boundary_states", boundary_states)
 
     detector_states = arrays.detector_states
     if reset_detector_states:

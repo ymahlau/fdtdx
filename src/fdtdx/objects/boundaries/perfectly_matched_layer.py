@@ -2,60 +2,14 @@ import jax
 import jax.numpy as jnp
 from typing_extensions import override
 
+from fdtdx.constants import c, eps0, eta0
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.plotting.colors import DARK_GREY
-from fdtdx.objects.boundaries.boundary import BaseBoundary, BaseBoundaryState
-from fdtdx.objects.boundaries.utils import (
-    alpha_from_direction_axis,
-    kappa_from_direction_axis,
-    standard_sigma_from_direction_axis,
-)
+from fdtdx.objects.boundaries.boundary import BaseBoundary
 
 
 @autoinit
-class PMLBoundaryState(BaseBoundaryState):
-    """State container for PML boundary conditions.
-
-    Stores the auxiliary field variables and coefficients needed to implement
-    the convolutional perfectly matched layer (CPML) boundary conditions.
-    """
-
-    #: Auxiliary field for Ex component
-    psi_Ex: jax.Array
-
-    #: Auxiliary field for Ey component
-    psi_Ey: jax.Array
-
-    #: Auxiliary field for Ez component
-    psi_Ez: jax.Array
-
-    #:  Auxiliary field for Hx component
-    psi_Hx: jax.Array
-
-    #: Auxiliary field for Hy component
-    psi_Hy: jax.Array
-
-    #: Auxiliary field for Hz component
-    psi_Hz: jax.Array
-
-    #: Electric field scaling coefficient
-    bE: jax.Array
-
-    #: Magnetic field scaling coefficient
-    bH: jax.Array
-
-    #: Electric field update coefficient
-    cE: jax.Array
-
-    #: Magnetic field update coefficient
-    cH: jax.Array
-
-    #: PML stretching coefficient
-    kappa: jax.Array
-
-
-@autoinit
-class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
+class PerfectlyMatchedLayer(BaseBoundary):
     """Implements a Convolutional Perfectly Matched Layer (CPML) boundary condition.
 
     The CPML absorbs outgoing electromagnetic waves with minimal reflection by using
@@ -63,20 +17,80 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
     axis orientation and both positive/negative directions.
     """
 
-    #: Initial loss parameter for complex frequency shifting. Defaults to 1e-8.
-    alpha_start: float = frozen_field(default=1.0e-8)
+    #: Initial loss parameter for complex frequency shifting. Defaults to 0.01 * 2 * jnp.pi * c / wavelength * eps0 if not provided.
+    alpha_start: float | None = frozen_field(default=None)
 
-    #: Final loss parameter for complex frequency shifting. Defaults to 1e-8.
-    alpha_end: float = frozen_field(default=1.0e-8)
+    #: Final loss parameter for complex frequency shifting. Defaults to 0.0 if not provided.
+    alpha_end: float | None = frozen_field(default=None)
 
-    #: Initial kappa stretching coefficient. Defaults to 1.0.
-    kappa_start: float = frozen_field(default=1.0)
+    #: Polynomial order for alpha grading. Defaults to 1.0 if not provided.
+    alpha_order: float | None = frozen_field(default=None)
 
-    #: Final kappa stretching coefficient. Defaults to 1.5.
-    kappa_end: float = frozen_field(default=1.5)
+    #: Initial kappa stretching coefficient. Defaults to 0.0 if not provided.
+    kappa_start: float | None = frozen_field(default=None)
+
+    #: Final kappa stretching coefficient. Defaults to 0.0 if not provided.
+    kappa_end: float | None = frozen_field(default=None)
+
+    #: Polynomial order for kappa grading. Defaults to 1.0 if not provided.
+    kappa_order: float | None = frozen_field(default=None)
+
+    #: Initial sigma value. Defaults to 0.0 if not provided.
+    sigma_start: float | None = frozen_field(default=None)
+
+    #: Final sigma value. Defaults to 1.0 if not provided.
+    sigma_end: float | None = frozen_field(default=None)
+
+    #: Polynomial order for sigma grading. Defaults to 3.0 if not provided.
+    sigma_order: float | None = frozen_field(default=None)
 
     #: RGB color tuple for visualization. defaults to dark grey.
     color: tuple[float, float, float] | None = frozen_field(default=DARK_GREY)
+
+    def __post_init__(self):
+        """Sets default PML parameters if not provided."""
+        # Set default values if None is provided
+        # Simple defaults that don't depend on grid properties
+        if self.alpha_start is None:
+            object.__setattr__(self, "alpha_start", 0.01 * 2 * jnp.pi * c / 1.55e-6 * eps0)
+
+        if self.alpha_end is None:
+            object.__setattr__(self, "alpha_end", 0.0)
+
+        if self.alpha_order is None:
+            object.__setattr__(self, "alpha_order", 1.0)
+
+        if self.kappa_start is None:
+            object.__setattr__(self, "kappa_start", 1.0)
+
+        if self.kappa_end is None:
+            object.__setattr__(self, "kappa_end", 1.0)
+
+        if self.kappa_order is None:
+            object.__setattr__(self, "kappa_order", 3.0)
+
+        if self.sigma_start is None:
+            object.__setattr__(self, "sigma_start", 0.0)
+
+        if self.sigma_order is None:
+            object.__setattr__(self, "sigma_order", 3.0)
+
+    def place_on_grid(self, grid_slice_tuple, config, key):
+        """Place the PML on the grid and calculate any remaining defaults.
+
+        This is called after initialization, so grid_shape and config are available.
+        """
+        # First call the parent implementation to set grid_slice_tuple and config
+        self = super().place_on_grid(grid_slice_tuple, config, key)
+
+        # Now calculate sigma_end if it wasn't provided by the user
+        if self.sigma_end is None:
+            assert self.sigma_order is not None, "sigma_order should be set by __post_init__"
+            pml_thickness = self.thickness * self._config.resolution
+            sigma_end_calculated = -(self.sigma_order + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * pml_thickness)
+            self = self.aset("sigma_end", float(sigma_end_calculated))
+
+        return self
 
     @property
     @override
@@ -100,209 +114,120 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
         """
         return self.grid_shape[self.axis]
 
-    def _get_dtype_update_coefficients(self):
+    def _compute_pml_profile(
+        self,
+        value_start: float,
+        value_end: float,
+        order: float,
+        dtype,
+    ) -> tuple[jax.Array, jax.Array]:
+        """Computes a graded PML profile using polynomial scaling.
+
+        Args:
+            value_start: Value at the interface (inner boundary)
+            value_end: Value at the outer boundary
+            order: Polynomial order for grading
+            dtype: Data type for the array
+
+        Returns:
+            jax.Array: Graded profile array with shape self.grid_shape
+        """
+        L = self.thickness  # Total thickness of PML
+
+        # Create distance array along the PML axis
+        # d varies from 0 (at interface) to L (at outer edge)
+        if self.direction == "-":
+            # For min boundary, distance increases as we go towards lower indices
+            dE = jnp.arange(L - 1, -1, -1, dtype=dtype)
+            dH = jnp.append(jnp.arange(L - 1.5, -0.5, -1, dtype=dtype), 0)
+        else:
+            # For max boundary, distance increases as we go towards higher indices
+            dE = jnp.insert(jnp.arange(0.5, L - 0.5, 1, dtype=dtype), 0, 0)
+            dH = jnp.arange(0, L, 1, dtype=dtype)
+
+        # Compute polynomial grading: value_start + (value_end - value_start) * (d/L)^order
+        profileE_1d = value_start + (value_end - value_start) * jnp.power(dE / L, order)
+        profileH_1d = value_start + (value_end - value_start) * jnp.power(dH / L, order)
+
+        # Create shape matching PML region with grading only along self.axis
+        shape = [1, 1, 1]
+        shape[self.axis] = L
+        profileE_reshaped = profileE_1d.reshape(shape)
+        profileH_reshaped = profileH_1d.reshape(shape)
+        # Broadcast to full grid_shape
+        profileE = jnp.broadcast_to(profileE_reshaped, self.grid_shape)
+        profileH = jnp.broadcast_to(profileH_reshaped, self.grid_shape)
+
+        return profileE, profileH
+
+    def modify_arrays(
+        self,
+        alpha: jax.Array,
+        kappa: jax.Array,
+        sigma: jax.Array,
+        electric_conductivity,
+        magnetic_conductivity,
+    ) -> dict[str, jax.Array]:
+        """Modifies simulation arrays to include PML parameters.
+
+        Args:
+            alpha: Alpha array for PML calculations (shape: (3, *volume_shape))
+            kappa: Kappa array for PML calculations (shape: (3, *volume_shape))
+            sigma: Sigma array for PML calculations (shape: (3, *volume_shape))
+            electric_conductivity: Electric conductivity array (shape: volume_shape)
+            magnetic_conductivity: Magnetic conductivity array (shape: volume_shape)
+
+        Returns:
+            dict: Dictionary with modified 'alpha', 'kappa', and 'sigma' arrays
+        """
+
+        assert self.alpha_start is not None, "alpha_start should be set by __post_init__"
+        assert self.alpha_end is not None, "alpha_end   should be set by __post_init__"
+        assert self.alpha_order is not None, "alpha_order should be set by __post_init__"
+        assert self.kappa_start is not None, "kappa_start should be set by __post_init__"
+        assert self.kappa_end is not None, "kappa_end   should be set by __post_init__"
+        assert self.kappa_order is not None, "kappa_order should be set by __post_init__"
+        assert self.sigma_start is not None, "sigma_start should be set by __post_init__"
+        assert self.sigma_end is not None, "sigma_end   should be set by __post_init__"
+        assert self.sigma_order is not None, "sigma_order should be set by __post_init__"
+
         dtype = self._config.dtype
-        sigma_E, sigma_H = standard_sigma_from_direction_axis(
-            thickness=self.thickness,
-            direction=self.direction,
-            axis=self.axis,
+
+        # Compute PML parameters using polynomial grading
+        sigma_E, sigma_H = self._compute_pml_profile(
+            value_start=self.sigma_start,
+            value_end=self.sigma_end,
+            order=self.sigma_order,
             dtype=dtype,
         )
 
-        kappa = kappa_from_direction_axis(
-            kappa_start=self.kappa_start,
-            kappa_end=self.kappa_end,
-            thickness=self.thickness,
-            direction=self.direction,
-            axis=self.axis,
+        kappa_E, kappa_H = self._compute_pml_profile(
+            value_start=self.kappa_start,
+            value_end=self.kappa_end,
+            order=self.kappa_order,
             dtype=dtype,
         )
 
-        alpha = alpha_from_direction_axis(
-            alpha_start=self.alpha_start,
-            alpha_end=self.alpha_end,
-            thickness=self.thickness,
-            direction=self.direction,
-            axis=self.axis,
+        alpha_E, alpha_H = self._compute_pml_profile(
+            value_start=self.alpha_start,
+            value_end=self.alpha_end,
+            order=self.alpha_order,
             dtype=dtype,
         )
 
-        bE = jnp.exp(-self._config.courant_number * (sigma_E / kappa + alpha))
-        bH = jnp.exp(-self._config.courant_number * (sigma_H / kappa + alpha))
+        # Update arrays in the PML region
+        # The PML parameters vary along self.axis, so we need to broadcast them correctly
+        alpha = alpha.at[self.axis, *self.grid_slice].set(alpha_E)
+        kappa = kappa.at[self.axis, *self.grid_slice].set(kappa_E)
+        sigma = sigma.at[self.axis, *self.grid_slice].set(sigma_E)
+        alpha = alpha.at[self.axis + 3, *self.grid_slice].set(alpha_H)
+        kappa = kappa.at[self.axis + 3, *self.grid_slice].set(kappa_H)
+        sigma = sigma.at[self.axis + 3, *self.grid_slice].set(sigma_H)
 
-        cE = (bE - 1) * sigma_E / (sigma_E * kappa + kappa**2 * alpha)
-        cH = (bH - 1) * sigma_H / (sigma_H * kappa + kappa**2 * alpha)
-
-        return dtype, bE, bH, cE, cH, kappa
-
-    @override
-    def init_state(
-        self,
-    ) -> PMLBoundaryState:
-        dtype, bE, bH, cE, cH, kappa = self._get_dtype_update_coefficients()
-        ext_shape = (3,) + self.grid_shape
-
-        boundary_state = PMLBoundaryState(
-            psi_Ex=jnp.zeros(shape=ext_shape, dtype=dtype),
-            psi_Ey=jnp.zeros(shape=ext_shape, dtype=dtype),
-            psi_Ez=jnp.zeros(shape=ext_shape, dtype=dtype),
-            psi_Hx=jnp.zeros(shape=ext_shape, dtype=dtype),
-            psi_Hy=jnp.zeros(shape=ext_shape, dtype=dtype),
-            psi_Hz=jnp.zeros(shape=ext_shape, dtype=dtype),
-            bE=bE.astype(dtype),
-            bH=bH.astype(dtype),
-            cE=cE.astype(dtype),
-            cH=cH.astype(dtype),
-            kappa=kappa.astype(dtype),
-        )
-        return boundary_state
-
-    @override
-    def reset_state(self, state: PMLBoundaryState) -> PMLBoundaryState:
-        dtype, bE, bH, cE, cH, kappa = self._get_dtype_update_coefficients()
-
-        new_state = PMLBoundaryState(
-            psi_Ex=state.psi_Ex * 0,
-            psi_Ey=state.psi_Ey * 0,
-            psi_Ez=state.psi_Ez * 0,
-            psi_Hx=state.psi_Hx * 0,
-            psi_Hy=state.psi_Hy * 0,
-            psi_Hz=state.psi_Hz * 0,
-            bE=bE.astype(dtype),
-            bH=bH.astype(dtype),
-            cE=cE.astype(dtype),
-            cH=cH.astype(dtype),
-            kappa=kappa.astype(dtype),
-        )
-        return new_state
-
-    @override
-    def update_E_boundary_state(
-        self,
-        boundary_state: PMLBoundaryState,
-        H: jax.Array,
-    ) -> PMLBoundaryState:
-        Hx = H[0, *self.grid_slice]
-        Hy = H[1, *self.grid_slice]
-        Hz = H[2, *self.grid_slice]
-
-        psi_Ex = boundary_state.psi_Ex * boundary_state.bE
-        psi_Ey = boundary_state.psi_Ey * boundary_state.bE
-        psi_Ez = boundary_state.psi_Ez * boundary_state.bE
-
-        psi_Ex = psi_Ex.at[1, :, 1:, :].add(
-            (Hz[:, 1:, :] - Hz[:, :-1, :])
-            * (boundary_state.cE[1, :, 1:, :] if self.axis == 1 else boundary_state.cE[1])
-        )
-        psi_Ex = psi_Ex.at[2, :, :, 1:].add(
-            (Hy[:, :, 1:] - Hy[:, :, :-1])
-            * (boundary_state.cE[2, :, :, 1:] if self.axis == 2 else boundary_state.cE[2])
-        )
-
-        psi_Ey = psi_Ey.at[2, :, :, 1:].add(
-            (Hx[:, :, 1:] - Hx[:, :, :-1])
-            * (boundary_state.cE[2, :, :, 1:] if self.axis == 2 else boundary_state.cE[2])
-        )
-        psi_Ey = psi_Ey.at[0, 1:, :, :].add(
-            (Hz[1:, :, :] - Hz[:-1, :, :])
-            * (boundary_state.cE[0, 1:, :, :] if self.axis == 0 else boundary_state.cE[0])
-        )
-
-        psi_Ez = psi_Ez.at[0, 1:, :, :].add(
-            (Hy[1:, :, :] - Hy[:-1, :, :])
-            * (boundary_state.cE[0, 1:, :, :] if self.axis == 0 else boundary_state.cE[0])
-        )
-        psi_Ez = psi_Ez.at[1, :, 1:, :].add(
-            (Hx[:, 1:, :] - Hx[:, :-1, :])
-            * (boundary_state.cE[1, :, 1:, :] if self.axis == 1 else boundary_state.cE[1])
-        )
-
-        boundary_state = boundary_state.at["psi_Ex"].set(psi_Ex)
-        boundary_state = boundary_state.at["psi_Ey"].set(psi_Ey)
-        boundary_state = boundary_state.at["psi_Ez"].set(psi_Ez)
-
-        return boundary_state
-
-    @override
-    def update_H_boundary_state(
-        self,
-        boundary_state: PMLBoundaryState,
-        E: jax.Array,
-    ) -> PMLBoundaryState:
-        Ex = E[0, *self.grid_slice]
-        Ey = E[1, *self.grid_slice]
-        Ez = E[2, *self.grid_slice]
-
-        psi_Hx = boundary_state.psi_Hx * boundary_state.bH
-        psi_Hy = boundary_state.psi_Hy * boundary_state.bH
-        psi_Hz = boundary_state.psi_Hz * boundary_state.bH
-
-        psi_Hx = psi_Hx.at[1, :, :-1, :].add(
-            (Ez[:, 1:, :] - Ez[:, :-1, :])
-            * (boundary_state.cH[1, :, :-1, :] if self.axis == 1 else boundary_state.cH[1])
-        )
-        psi_Hx = psi_Hx.at[2, :, :, :-1].add(
-            (Ey[:, :, 1:] - Ey[:, :, :-1])
-            * (boundary_state.cH[2, :, :, :-1] if self.axis == 2 else boundary_state.cH[2])
-        )
-
-        psi_Hy = psi_Hy.at[2, :, :, :-1].add(
-            (Ex[:, :, 1:] - Ex[:, :, :-1])
-            * (boundary_state.cH[2, :, :, :-1] if self.axis == 2 else boundary_state.cH[2])
-        )
-        psi_Hy = psi_Hy.at[0, :-1, :, :].add(
-            (Ez[1:, :, :] - Ez[:-1, :, :])
-            * (boundary_state.cH[0, :-1, :, :] if self.axis == 0 else boundary_state.cH[0])
-        )
-
-        psi_Hz = psi_Hz.at[0, :-1, :, :].add(
-            (Ey[1:, :, :] - Ey[:-1, :, :])
-            * (boundary_state.cH[0, :-1, :, :] if self.axis == 0 else boundary_state.cH[0])
-        )
-        psi_Hz = psi_Hz.at[1, :, :-1, :].add(
-            (Ex[:, 1:, :] - Ex[:, :-1, :])
-            * (boundary_state.cH[1, :, :-1, :] if self.axis == 1 else boundary_state.cH[1])
-        )
-
-        boundary_state = boundary_state.at["psi_Hx"].set(psi_Hx)
-        boundary_state = boundary_state.at["psi_Hy"].set(psi_Hy)
-        boundary_state = boundary_state.at["psi_Hz"].set(psi_Hz)
-
-        return boundary_state
-
-    @override
-    def update_E(
-        self,
-        E: jax.Array,
-        boundary_state: PMLBoundaryState,
-        inverse_permittivity: jax.Array,
-    ) -> jax.Array:
-        phi_Ex = boundary_state.psi_Ex[1] - boundary_state.psi_Ex[2]
-        phi_Ey = boundary_state.psi_Ey[2] - boundary_state.psi_Ey[0]
-        phi_Ez = boundary_state.psi_Ez[0] - boundary_state.psi_Ez[1]
-        phi_E = jnp.stack((phi_Ex, phi_Ey, phi_Ez), axis=0)
-
-        E = E.at[:, *self.grid_slice].divide(boundary_state.kappa)
-        inv_perm_slice = inverse_permittivity[self.grid_slice]
-        update = self._config.courant_number * inv_perm_slice * phi_E
-        E = E.at[:, *self.grid_slice].add(update)
-        return E
-
-    @override
-    def update_H(
-        self,
-        H: jax.Array,
-        boundary_state: PMLBoundaryState,
-        inverse_permeability: jax.Array | float,
-    ) -> jax.Array:
-        phi_Hx = boundary_state.psi_Hx[1] - boundary_state.psi_Hx[2]
-        phi_Hy = boundary_state.psi_Hy[2] - boundary_state.psi_Hy[0]
-        phi_Hz = boundary_state.psi_Hz[0] - boundary_state.psi_Hz[1]
-        phi_H = jnp.stack((phi_Hx, phi_Hy, phi_Hz), axis=0)
-
-        H = H.at[:, *self.grid_slice].divide(boundary_state.kappa)
-        if isinstance(inverse_permeability, jax.Array) and inverse_permeability.ndim > 0:
-            inverse_permeability = inverse_permeability[self.grid_slice]
-        update = -self._config.courant_number * inverse_permeability * phi_H
-        H = H.at[:, *self.grid_slice].add(update)
-        return H
+        return {
+            "alpha": alpha,
+            "kappa": kappa,
+            "sigma": sigma,
+            "electric_conductivity": electric_conductivity,
+            "magnetic_conductivity": magnetic_conductivity,
+        }

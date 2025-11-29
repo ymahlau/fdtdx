@@ -4,7 +4,6 @@ from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, SimulationState
 from fdtdx.fdtd.update import collect_interfaces, update_detector_states, update_E, update_H
 from fdtdx.interfaces.state import RecordingState
-from fdtdx.objects.boundaries.boundary import BaseBoundaryState
 from fdtdx.objects.detectors.detector import DetectorState
 
 
@@ -12,9 +11,13 @@ def forward_single_args_wrapper(
     time_step: jax.Array,
     E: jax.Array,
     H: jax.Array,
+    psi_E: jax.Array,
+    psi_H: jax.Array,
+    alpha: jax.Array,
+    kappa: jax.Array,
+    sigma: jax.Array,
     inv_permittivities: jax.Array,
     inv_permeabilities: jax.Array,
-    boundary_states: dict[str, BaseBoundaryState],
     detector_states: dict[str, DetectorState],
     recording_state: RecordingState | None,
     config: SimulationConfig,
@@ -28,8 +31,12 @@ def forward_single_args_wrapper(
     jax.Array,
     jax.Array,
     jax.Array,
+    jax.Array,
+    jax.Array,
+    jax.Array,
+    jax.Array,
+    jax.Array,
     jax.Array | float,
-    dict[str, BaseBoundaryState],
     dict[str, DetectorState],
     RecordingState | None,
 ]:
@@ -37,9 +44,13 @@ def forward_single_args_wrapper(
     arr = ArrayContainer(
         E=E,
         H=H,
+        psi_E=psi_E,
+        psi_H=psi_H,
+        alpha=alpha,
+        kappa=kappa,
+        sigma=sigma,
         inv_permittivities=inv_permittivities,
         inv_permeabilities=inv_permeabilities,
-        boundary_states=boundary_states,
         detector_states=detector_states,
         recording_state=recording_state,
     )
@@ -56,9 +67,13 @@ def forward_single_args_wrapper(
         state[0],
         state[1].E,
         state[1].H,
+        state[1].psi_E,
+        state[1].psi_H,
+        state[1].alpha,
+        state[1].kappa,
+        state[1].sigma,
         state[1].inv_permittivities,
         state[1].inv_permeabilities,
-        state[1].boundary_states,
         state[1].detector_states,
         state[1].recording_state,
     )

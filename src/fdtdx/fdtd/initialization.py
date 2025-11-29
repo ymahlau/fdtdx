@@ -221,6 +221,45 @@ def _init_arrays(
         backend=config.backend,
     )
 
+    # create auxiliary fields psi_E and psi_H for PML boundaries
+    psi_E = create_named_sharded_matrix(
+        (6, *volume_shape),
+        sharding_axis=1,
+        value=0.0,
+        dtype=config.dtype,
+        backend=config.backend,
+    )
+    psi_H = create_named_sharded_matrix(
+        (6, *volume_shape),
+        value=0.0,
+        dtype=config.dtype,
+        sharding_axis=1,
+        backend=config.backend,
+    )
+
+    # create alpha, kappa, and sigma arrays
+    alpha = create_named_sharded_matrix(
+        (6, *volume_shape),
+        sharding_axis=1,
+        value=0.0,
+        dtype=config.dtype,
+        backend=config.backend,
+    )
+    kappa = create_named_sharded_matrix(
+        (6, *volume_shape),
+        sharding_axis=1,
+        value=1.0,
+        dtype=config.dtype,
+        backend=config.backend,
+    )
+    sigma = create_named_sharded_matrix(
+        (6, *volume_shape),
+        sharding_axis=1,
+        value=0.0,
+        dtype=config.dtype,
+        backend=config.backend,
+    )
+
     # permittivity
     shape_params = volume_shape
     inv_permittivities = create_named_sharded_matrix(
@@ -316,10 +355,23 @@ def _init_arrays(
     for d in objects.detectors:
         detector_states[d.name] = d.init_state()
 
-    # boundary states
-    boundary_states = {}
+    # modify arrays for boundaries
     for boundary in objects.boundary_objects:
-        boundary_states[boundary.name] = boundary.init_state()
+        if hasattr(boundary, "modify_arrays") and callable(getattr(boundary, "modify_arrays", None)):
+            modify_fn = getattr(boundary, "modify_arrays")
+            result = modify_fn(
+                alpha=alpha,
+                kappa=kappa,
+                sigma=sigma,
+                electric_conductivity=electric_conductivity,
+                magnetic_conductivity=magnetic_conductivity,
+            )
+            if result is not None:
+                alpha = result.get("alpha", alpha)
+                kappa = result.get("kappa", kappa)
+                sigma = result.get("sigma", sigma)
+                electric_conductivity = result.get("electric_conductivity", electric_conductivity)
+                magnetic_conductivity = result.get("magnetic_conductivity", magnetic_conductivity)
 
     # interfaces
     recording_state = None
@@ -345,9 +397,13 @@ def _init_arrays(
     arrays = ArrayContainer(
         E=E,
         H=H,
+        psi_E=psi_E,
+        psi_H=psi_H,
+        alpha=alpha,
+        kappa=kappa,
+        sigma=sigma,
         inv_permittivities=inv_permittivities,
         inv_permeabilities=inv_permeabilities,
-        boundary_states=boundary_states,
         detector_states=detector_states,
         recording_state=recording_state,
         electric_conductivity=electric_conductivity,

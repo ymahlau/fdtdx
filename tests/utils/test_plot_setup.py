@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 import fdtdx
 from fdtdx import SimulationVolume
 from fdtdx.config import SimulationConfig
-from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.object import GridCoordinateConstraint, OrderableObject
 from fdtdx.utils.plot_setup import plot_setup, plot_setup_from_side
 
@@ -28,29 +27,11 @@ def simulation_setup():
         time=100e-15,  # 100 fs total simulation time
     )
 
-    # Create simulation volume (10 x 10 x 10 µm = 10e-6 meters)
+    # Create simulation volume (5 x 5 x 5 µm = 5e-6 meters)
     volume = SimulationVolume(
-        partial_real_shape=(10e-6, 10e-6, 10e-6),  # 10 µm in each direction
+        partial_real_shape=(5e-6, 5e-6, 5e-6),  # 5 µm in each direction
         name="simulation_volume",
     )
-
-    # Add PML boundaries (they don't have color attribute, so won't be plotted)
-    pml_thickness = 20
-
-    # X boundaries
-    PerfectlyMatchedLayer(partial_grid_shape=(pml_thickness, 500, 500), axis=0, direction="low", name="pml_x_low")
-
-    PerfectlyMatchedLayer(partial_grid_shape=(pml_thickness, 500, 500), axis=0, direction="high", name="pml_x_high")
-
-    # Y boundaries
-    PerfectlyMatchedLayer(partial_grid_shape=(500, pml_thickness, 500), axis=1, direction="low", name="pml_y_low")
-
-    PerfectlyMatchedLayer(partial_grid_shape=(500, pml_thickness, 500), axis=1, direction="high", name="pml_y_high")
-
-    # Z boundaries
-    PerfectlyMatchedLayer(partial_grid_shape=(500, 500, pml_thickness), axis=2, direction="low", name="pml_z_low")
-
-    PerfectlyMatchedLayer(partial_grid_shape=(500, 500, pml_thickness), axis=2, direction="high", name="pml_z_high")
 
     # Create all objects
     large_obj = OrderableObject.EmptySimulationObject.LargeObject()
@@ -70,34 +51,34 @@ def simulation_setup():
     # Create constraints for positioning - use GridCoordinateConstraint for absolute positioning
     # Each object needs constraints for all 6 sides (x-, x+, y-, y+, z-, z+)
     constraints = [
-        # large_background: from (10, 10, 10) to (490, 490, 490)
-        GridCoordinateConstraint(object="large_background", axes=(0,), sides=("-",), coordinates=(10,)),
-        GridCoordinateConstraint(object="large_background", axes=(0,), sides=("+",), coordinates=(490,)),
-        GridCoordinateConstraint(object="large_background", axes=(1,), sides=("-",), coordinates=(10,)),
-        GridCoordinateConstraint(object="large_background", axes=(1,), sides=("+",), coordinates=(490,)),
-        GridCoordinateConstraint(object="large_background", axes=(2,), sides=("-",), coordinates=(10,)),
-        GridCoordinateConstraint(object="large_background", axes=(2,), sides=("+",), coordinates=(490,)),
-        # center_object: from (200, 200, 200) to (300, 300, 300)
-        GridCoordinateConstraint(object="center_object", axes=(0,), sides=("-",), coordinates=(200,)),
-        GridCoordinateConstraint(object="center_object", axes=(0,), sides=("+",), coordinates=(300,)),
-        GridCoordinateConstraint(object="center_object", axes=(1,), sides=("-",), coordinates=(200,)),
-        GridCoordinateConstraint(object="center_object", axes=(1,), sides=("+",), coordinates=(300,)),
-        GridCoordinateConstraint(object="center_object", axes=(2,), sides=("-",), coordinates=(200,)),
-        GridCoordinateConstraint(object="center_object", axes=(2,), sides=("+",), coordinates=(300,)),
-        # vertical_object: from (350, 350, 150) to (400, 400, 350)
-        GridCoordinateConstraint(object="vertical_object", axes=(0,), sides=("-",), coordinates=(350,)),
-        GridCoordinateConstraint(object="vertical_object", axes=(0,), sides=("+",), coordinates=(400,)),
-        GridCoordinateConstraint(object="vertical_object", axes=(1,), sides=("-",), coordinates=(350,)),
-        GridCoordinateConstraint(object="vertical_object", axes=(1,), sides=("+",), coordinates=(400,)),
-        GridCoordinateConstraint(object="vertical_object", axes=(2,), sides=("-",), coordinates=(150,)),
-        GridCoordinateConstraint(object="vertical_object", axes=(2,), sides=("+",), coordinates=(350,)),
-        # horizontal_slab: from (100, 100, 400) to (300, 300, 430)
-        GridCoordinateConstraint(object="horizontal_slab", axes=(0,), sides=("-",), coordinates=(100,)),
-        GridCoordinateConstraint(object="horizontal_slab", axes=(0,), sides=("+",), coordinates=(300,)),
-        GridCoordinateConstraint(object="horizontal_slab", axes=(1,), sides=("-",), coordinates=(100,)),
-        GridCoordinateConstraint(object="horizontal_slab", axes=(1,), sides=("+",), coordinates=(300,)),
-        GridCoordinateConstraint(object="horizontal_slab", axes=(2,), sides=("-",), coordinates=(400,)),
-        GridCoordinateConstraint(object="horizontal_slab", axes=(2,), sides=("+",), coordinates=(430,)),
+        # large_background: from (5, 5, 5) to (245, 245, 245)
+        GridCoordinateConstraint(object="large_background", axes=(0,), sides=("-",), coordinates=(5,)),
+        GridCoordinateConstraint(object="large_background", axes=(0,), sides=("+",), coordinates=(245,)),
+        GridCoordinateConstraint(object="large_background", axes=(1,), sides=("-",), coordinates=(5,)),
+        GridCoordinateConstraint(object="large_background", axes=(1,), sides=("+",), coordinates=(245,)),
+        GridCoordinateConstraint(object="large_background", axes=(2,), sides=("-",), coordinates=(5,)),
+        GridCoordinateConstraint(object="large_background", axes=(2,), sides=("+",), coordinates=(245,)),
+        # center_object: from (100, 100, 100) to (100, 150, 150)
+        GridCoordinateConstraint(object="center_object", axes=(0,), sides=("-",), coordinates=(100,)),
+        GridCoordinateConstraint(object="center_object", axes=(0,), sides=("+",), coordinates=(150,)),
+        GridCoordinateConstraint(object="center_object", axes=(1,), sides=("-",), coordinates=(100,)),
+        GridCoordinateConstraint(object="center_object", axes=(1,), sides=("+",), coordinates=(150,)),
+        GridCoordinateConstraint(object="center_object", axes=(2,), sides=("-",), coordinates=(100,)),
+        GridCoordinateConstraint(object="center_object", axes=(2,), sides=("+",), coordinates=(150,)),
+        # vertical_object: from (175, 175, 75) to (200, 200, 175)
+        GridCoordinateConstraint(object="vertical_object", axes=(0,), sides=("-",), coordinates=(175,)),
+        GridCoordinateConstraint(object="vertical_object", axes=(0,), sides=("+",), coordinates=(200,)),
+        GridCoordinateConstraint(object="vertical_object", axes=(1,), sides=("-",), coordinates=(175,)),
+        GridCoordinateConstraint(object="vertical_object", axes=(1,), sides=("+",), coordinates=(200,)),
+        GridCoordinateConstraint(object="vertical_object", axes=(2,), sides=("-",), coordinates=(75,)),
+        GridCoordinateConstraint(object="vertical_object", axes=(2,), sides=("+",), coordinates=(175,)),
+        # horizontal_slab: from (50, 50, 200) to (150, 150, 215)
+        GridCoordinateConstraint(object="horizontal_slab", axes=(0,), sides=("-",), coordinates=(50,)),
+        GridCoordinateConstraint(object="horizontal_slab", axes=(0,), sides=("+",), coordinates=(150,)),
+        GridCoordinateConstraint(object="horizontal_slab", axes=(1,), sides=("-",), coordinates=(50,)),
+        GridCoordinateConstraint(object="horizontal_slab", axes=(1,), sides=("+",), coordinates=(150,)),
+        GridCoordinateConstraint(object="horizontal_slab", axes=(2,), sides=("-",), coordinates=(200,)),
+        GridCoordinateConstraint(object="horizontal_slab", axes=(2,), sides=("+",), coordinates=(215,)),
     ]
 
     # Use place_objects to create the initialized container

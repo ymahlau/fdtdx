@@ -10,7 +10,6 @@ from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, SimulationStat
 from fdtdx.fdtd.forward import forward, forward_single_args_wrapper
 from fdtdx.fdtd.stop_conditions import StoppingCondition, TimeStepCondition
 from fdtdx.interfaces.state import RecordingState
-from fdtdx.objects.boundaries.boundary import BaseBoundaryState
 from fdtdx.objects.detectors.detector import DetectorState
 
 
@@ -34,7 +33,6 @@ def reversible_fdtd(
         arrays (ArrayContainer): Initial state of the simulation containing:
             - E, H: Electric and magnetic field arrays
             - inv_permittivities, inv_permeabilities: Material properties
-            - boundary_states: Dictionary of boundary conditions
             - detector_states: Dictionary of field detectors
             - recording_state: Optional state for recording field evolution
         objects (ObjectContainer): Collection of physical objects in the simulation
@@ -87,18 +85,26 @@ def reversible_fdtd(
     def reversible_fdtd_primal(
         E: jax.Array,
         H: jax.Array,
+        psi_E: jax.Array,
+        psi_H: jax.Array,
+        alpha: jax.Array,
+        kappa: jax.Array,
+        sigma: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array,
-        boundary_states: dict[str, BaseBoundaryState],
         detector_states: dict[str, DetectorState],
         recording_state: RecordingState | None,
     ):
         arr = ArrayContainer(
             E=E,
             H=H,
+            psi_E=psi_E,
+            psi_H=psi_H,
+            alpha=alpha,
+            kappa=kappa,
+            sigma=sigma,
             inv_permittivities=inv_permittivities,
             inv_permeabilities=inv_permeabilities,
-            boundary_states=boundary_states,
             detector_states=detector_states,
             recording_state=recording_state,
             electric_conductivity=arrays.electric_conductivity,
@@ -109,9 +115,13 @@ def reversible_fdtd(
             state[0],
             state[1].E,
             state[1].H,
+            state[1].psi_E,
+            state[1].psi_H,
+            state[1].alpha,
+            state[1].kappa,
+            state[1].sigma,
             state[1].inv_permittivities,
             state[1].inv_permeabilities,
-            state[1].boundary_states,
             state[1].detector_states,
             state[1].recording_state,
         )
@@ -141,9 +151,13 @@ def reversible_fdtd(
             state[0],
             state[1].E,
             state[1].H,
+            state[1].psi_E,
+            state[1].psi_H,
+            state[1].alpha,
+            state[1].kappa,
+            state[1].sigma,
             state[1].inv_permittivities,
             state[1].inv_permeabilities,
-            state[1].boundary_states,
             state[1].detector_states,
             state[1].recording_state,
         )
@@ -168,9 +182,13 @@ def reversible_fdtd(
             res_time_step,
             res_E,
             res_H,
+            res_psi_E,
+            res_psi_H,
+            res_alpha,
+            res_kappa,
+            res_sigma,
             res_inv_permittivities,
             res_inv_permeabilities,
-            res_boundary_states,
             res_detector_states,
             res_recording_state,
         ) = residual
@@ -178,9 +196,13 @@ def reversible_fdtd(
         s_k = ArrayContainer(
             E=res_E,
             H=res_H,
+            psi_E=res_psi_E,
+            psi_H=res_psi_H,
+            alpha=res_alpha,
+            kappa=res_kappa,
+            sigma=res_sigma,
             inv_permittivities=res_inv_permittivities,
             inv_permeabilities=res_inv_permeabilities,
-            boundary_states=res_boundary_states,
             detector_states=res_detector_states,
             recording_state=res_recording_state,
             electric_conductivity=arrays.electric_conductivity,
@@ -196,28 +218,40 @@ def reversible_fdtd(
         return (
             None,  # cot[1],
             None,  # cot[2],
-            cot[3],
-            cot[4],
-            None,  # cot[5]
+            None,  # cot[3],
+            None,  # cot[4],
+            None,  # cot[5],
             None,  # cot[6],
             None,  # cot[7],
+            cot[8],
+            cot[9],
+            None,  # cot[10],
+            None,  # cot[11],
         )
 
     def fdtd_fwd(
         E: jax.Array,
         H: jax.Array,
+        psi_E: jax.Array,
+        psi_H: jax.Array,
+        alpha: jax.Array,
+        kappa: jax.Array,
+        sigma: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array,
-        boundary_states: dict[str, BaseBoundaryState],
         detector_states: dict[str, DetectorState],
         recording_state: RecordingState | None,
     ):
         arr = ArrayContainer(
             E=E,
             H=H,
+            psi_E=psi_E,
+            psi_H=psi_H,
+            alpha=alpha,
+            kappa=kappa,
+            sigma=sigma,
             inv_permittivities=inv_permittivities,
             inv_permeabilities=inv_permeabilities,
-            boundary_states=boundary_states,
             detector_states=detector_states,
             recording_state=recording_state,
             electric_conductivity=arrays.electric_conductivity,
@@ -229,9 +263,13 @@ def reversible_fdtd(
             s_k[0],
             s_k[1].E,
             s_k[1].H,
+            s_k[1].psi_E,
+            s_k[1].psi_H,
+            s_k[1].alpha,
+            s_k[1].kappa,
+            s_k[1].sigma,
             s_k[1].inv_permittivities,
             s_k[1].inv_permeabilities,
-            s_k[1].boundary_states,
             s_k[1].detector_states,
             s_k[1].recording_state,  # None
         )
@@ -239,9 +277,13 @@ def reversible_fdtd(
             s_k[0],
             s_k[1].E,
             s_k[1].H,
+            s_k[1].psi_E,
+            s_k[1].psi_H,
+            s_k[1].alpha,
+            s_k[1].kappa,
+            s_k[1].sigma,
             s_k[1].inv_permittivities,
             s_k[1].inv_permeabilities,
-            s_k[1].boundary_states,
             s_k[1].detector_states,
             s_k[1].recording_state,
         )
@@ -253,26 +295,38 @@ def reversible_fdtd(
         time_step,
         E,
         H,
+        psi_E,
+        psi_H,
+        alpha,
+        kappa,
+        sigma,
         inv_permittivities,
         inv_permeabilities,
-        boundary_states,
         detector_states,
         recording_state,
     ) = reversible_fdtd_primal(
         E=arrays.E,
         H=arrays.H,
+        psi_E=arrays.psi_E,
+        psi_H=arrays.psi_H,
+        alpha=arrays.alpha,
+        kappa=arrays.kappa,
+        sigma=arrays.sigma,
         inv_permittivities=arrays.inv_permittivities,
         inv_permeabilities=arrays.inv_permeabilities,
-        boundary_states=arrays.boundary_states,
         detector_states=arrays.detector_states,
         recording_state=arrays.recording_state,
     )
     out_arrs = ArrayContainer(
         E=E,
         H=H,
+        psi_E=psi_E,
+        psi_H=psi_H,
+        alpha=alpha,
+        kappa=kappa,
+        sigma=sigma,
         inv_permittivities=inv_permittivities,
         inv_permeabilities=inv_permeabilities,
-        boundary_states=boundary_states,
         detector_states=detector_states,
         recording_state=recording_state,
         electric_conductivity=arrays.electric_conductivity,
