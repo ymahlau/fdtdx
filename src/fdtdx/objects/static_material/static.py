@@ -54,7 +54,7 @@ class SimulationVolume(UniformMaterialObject):
     placement_order: int = frozen_field(default=-1000)
     material: Material = field(
         default=Material(
-            permittivity=1.0,
-            permeability=1.0,
+            permittivity=(1.0, 1.0, 1.0),
+            permeability=(1.0, 1.0, 1.0),
         ),
     )
