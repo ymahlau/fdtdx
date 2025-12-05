@@ -1,12 +1,10 @@
 """
-This script exemplifies a very simple simulation in fdtdx. In this simulation, a simulation volume with periodic
-boundaries is set up. In the middle of the simulation, a source is placed, which outputs a continous light wave of
-1550nm wavelength.
-
-Additionally, the script showcases the capability of fdtdx to run simulations backwards in time, which can be exploited
-to calculate gradients very efficiently through the simulation (see Schubert et al. https://pubs.acs.org/doi/10.1021/acsomega.4c10958).
-Using an EnergyDetector, a video of the simulation both in forward and backward time are generated. One can see that 
-the backwards propagation of light works nicely and looks just like the forward video played in reverse.
+This script exemplifies a simple simulation in fdtdx with an anisotropic boundary. In this simulation, a simulation volume with PML
+boundaries is set up. At the top of the simulation, a source is placed, which outputs a continous light wave of
+1550nm wavelength. At the bottom of the simulation, a block of material with an anistropic refractive index of (2.0, 1.0, 2.0) for the
+x, y and z axes is placed. On line 22 the polarization of the gaussian source can be adjusted. If the source is X polarized, the resulting
+wavelength shortening is observed as the wave passes through the material. When Y polarized, the wavelength stays the same. Additionally,
+a larger divergence along the Y axis due to the smaller index. Magnetic anisotropy is also simulated as an option, which creates an impedence mismatch.
 """
 
 # Import required libraries and modules
@@ -18,11 +16,13 @@ import pytreeclass as tc
 from loguru import logger
 import fdtdx
 
+polarization = 'X' #'Y'
+anisotropy = 'electric' #'magnetic'
 
 def main():
     # Initialize experiment logger for saving outputs and tracking progress
     exp_logger = fdtdx.Logger(
-        experiment_name="simulate_source",
+        experiment_name="simulate_source_anisotropic",
     )
     # Create a JAX random key for reproducibility and stochastic operations
     key = jax.random.PRNGKey(seed=42)
@@ -55,14 +55,15 @@ def main():
     )
     config = config.aset("gradient_config", gradient_config)
 
-    # List to hold placement constraints and simulation objects
+    # List to hold placement constraints for simulation objects
     constraints, object_list = [], []
 
     # Define the simulation volume and background material
     volume = fdtdx.SimulationVolume(
-        partial_real_shape=(12.0e-6, 12e-6, 12e-6),
+        partial_real_shape=(12e-6, 12e-6, 12e-6),
         material=fdtdx.Material(  # Background material
-            permittivity=2.0,
+            permittivity=1.0,
+            permeability=1.0,
         )
     )
     object_list.append(volume)
@@ -77,17 +78,39 @@ def main():
     bound_dict, c_list = fdtdx.boundary_objects_from_config(bound_cfg, volume)
     constraints.extend(c_list)
     object_list.extend(list(bound_dict.values()))
-
+    
+    boundary_slab = fdtdx.UniformMaterialObject(
+        partial_grid_shape=(None, None, 20),  # Slab thickness ~2 microns (2x grid points due to finer resolution)
+        partial_real_shape=(12e-6, 12e-6, 6e-6),
+        material=fdtdx.Material(
+            permittivity=(2.0, 1.0, 2.0) if anisotropy=='electric' else (1.0, 1.0, 1.0),
+            permeability=(2.0, 1.0, 2.0) if anisotropy=='magnetic' else (1.0, 1.0, 1.0),
+        )
+    )
+    # Place boundary slab at the center of the volume
+    constraints.extend(
+        [
+            boundary_slab.place_relative_to(
+                volume,
+                axes=(0, 1, 2),
+                own_positions=(0, 0, 0),
+                other_positions=(0, 0, 0),
+                margins=(0, 0, -3e-6),
+            ),
+        ]
+    )
+    object_list.append(boundary_slab)
+    
     # Define and place the Gaussian source in the simulation volume
     source = fdtdx.GaussianPlaneSource(
         partial_grid_shape=(None, None, 1),
         partial_real_shape=(10e-6, 10e-6, None),
-        fixed_E_polarization_vector=(1, 0, 0),
+        fixed_E_polarization_vector=(1, 0, 0) if polarization == 'X' else (0, 1, 0),
         wave_character=fdtdx.WaveCharacter(wavelength=1.550e-6),
         radius=4e-6,
         std=1 / 3,
         direction="-",
-        elevation_angle=-20.0,
+        elevation_angle=0.0,
     )
     constraints.extend(
         [
@@ -96,6 +119,7 @@ def main():
                 axes=(0, 1, 2),
                 own_positions=(0, 0, 0),
                 other_positions=(0, 0, 0),
+                margins=(0, 0, 4e-6),
             ),
         ]
     )
@@ -111,18 +135,6 @@ def main():
     )
     constraints.extend(video_energy_detector.same_position_and_size(volume))
     object_list.append(video_energy_detector)
-
-    # Add energy detector for video output (backward simulation)
-    backwards_video_energy_detector = fdtdx.EnergyDetector(
-        name="Backwards Energy Video",
-        as_slices=True,
-        switch=fdtdx.OnOffSwitch(interval=3),
-        inverse=True,
-        exact_interpolation=True,
-        num_video_workers=8, 
-    )
-    constraints.extend(backwards_video_energy_detector.same_position_and_size(volume))
-    object_list.append(backwards_video_energy_detector)
 
     # Place all objects in the simulation volume according to constraints
     key, subkey = jax.random.split(key)
@@ -144,7 +156,6 @@ def main():
             config=config,
             objects=objects,
             exclude_object_list=[
-                backwards_video_energy_detector,
                 video_energy_detector,
             ],
         ),

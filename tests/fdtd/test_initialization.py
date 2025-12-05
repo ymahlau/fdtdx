@@ -45,12 +45,11 @@ def simple_volume():
 def simple_material():
     """Create a simple material."""
     return Material(
-        permittivity=2.0,
-        permeability=1.0,
-        electric_conductivity=0.0,
-        magnetic_conductivity=0.0,
+        permittivity=(2.0, 2.0, 2.0),
+        permeability=(1.0, 1.0, 1.0),
+        electric_conductivity=(0.0, 0.0, 0.0),
+        magnetic_conductivity=(0.0, 0.0, 0.0),
     )
-
 
 # Test cases for constraint resolution with real objects
 
@@ -81,7 +80,6 @@ def test_resolve_constraints_unknown_object_in_constraint(simple_config, simple_
     with pytest.raises(ValueError, match="Unknown object name"):
         resolve_object_constraints(objects, constraints, simple_config)
 
-
 def test_resolve_constraints_no_simulation_volume(simple_config, simple_material):
     """Test that missing SimulationVolume raises an exception."""
     # Create an object without a volume
@@ -109,8 +107,14 @@ def test_resolve_constraints_multiple_volumes(simple_config):
         partial_grid_shape=(50, 50, 50),
     )
 
+
     objects = [volume1, volume2]
     constraints = []
+
+    # Mock the compute_allowed_permittivities function
+    with patch("fdtdx.fdtd.initialization.compute_allowed_permittivities") as mock_compute_permittivities:
+        # Return list of tuples (x, y, z components) instead of scalars
+        mock_compute_permittivities.return_value = [(1.0, 1.0, 1.0), (2.0, 2.0, 2.0)]
 
     with pytest.raises(ValueError, match="Multiple SimulationVolume"):
         resolve_object_constraints(objects, constraints, simple_config)
@@ -529,7 +533,7 @@ def test_resolve_constraints_extend_to_infinity(simple_config, simple_volume, si
 @patch("fdtdx.fdtd.initialization.compute_allowed_permittivities")
 def test_apply_params_continuous_type(mock_compute_perm):
     """Test apply_params with continuous parameter type (using mocks)."""
-    mock_compute_perm.return_value = [2.0, 4.0]
+    mock_compute_perm.return_value = [[2.0, 2.0, 2.0], [4.0, 4.0, 4.0]]
 
     # Create mock device with continuous output
     device = Mock()
@@ -549,8 +553,8 @@ def test_apply_params_continuous_type(mock_compute_perm):
     objects.volume_idx = 0
 
     # Create mock arrays with proper structure preservation
-    inv_perm = jnp.ones((10, 10, 10))
-    inv_permeab = jnp.ones((10, 10, 10))
+    inv_perm = jnp.ones((3, 10, 10, 10))
+    inv_permeab = jnp.ones((3, 10, 10, 10))
 
     arrays = Mock(spec=ArrayContainer)
     arrays.inv_permittivities = inv_perm
@@ -594,7 +598,7 @@ def test_apply_params_continuous_type(mock_compute_perm):
 @patch("fdtdx.fdtd.initialization.straight_through_estimator")
 def test_apply_params_discrete_type(mock_ste, mock_compute_perm):
     """Test apply_params with discrete parameter type (using mocks)."""
-    mock_compute_perm.return_value = [2.0, 4.0]
+    mock_compute_perm.return_value = [[2.0, 2.0, 2.0], [4.0, 4.0, 4.0]]
     mock_ste.return_value = jnp.ones((10, 10, 10))
 
     # Create mock device with discrete output
@@ -615,8 +619,8 @@ def test_apply_params_discrete_type(mock_ste, mock_compute_perm):
     objects.volume_idx = 0
 
     # Create mock arrays with proper structure preservation
-    inv_perm = jnp.ones((10, 10, 10))
-    inv_permeab = jnp.ones((10, 10, 10))
+    inv_perm = jnp.ones((3, 10, 10, 10))
+    inv_permeab = jnp.ones((3, 10, 10, 10))
 
     arrays = Mock(spec=ArrayContainer)
     arrays.inv_permittivities = inv_perm
