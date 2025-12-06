@@ -15,6 +15,12 @@ from fdtdx.objects.sources.tfsf import TFSFPlaneSource
 
 @autoinit
 class ModePlaneSource(TFSFPlaneSource):
+    """ "
+    Args:
+        mode_index (Int): index of the mode
+        filter_pol (Literal): a literal value 'te', 'tm'
+    """
+
     mode_index: int = frozen_field(default=0)
     filter_pol: Literal["te", "tm"] | None = frozen_field(default=None)
 

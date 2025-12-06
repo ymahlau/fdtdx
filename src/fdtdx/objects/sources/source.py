@@ -17,6 +17,14 @@ from fdtdx.typing import SliceTuple3D
 
 @autoinit
 class Source(SimulationObject, ABC):
+    """ "
+    Args:
+        wave_character (WaveCharacter): the wave-character
+        temporal_profile (TemporalProfile): the temporal profile, uses single frequency
+        static_amplitude_factor (float): the static amplitude factor
+        switch (OnOffSwitch): the on-off switch
+    """
+
     wave_character: WaveCharacter = frozen_field()
     temporal_profile: TemporalProfile = SingleFrequencyProfile()
     static_amplitude_factor: float = frozen_field(default=1.0)
