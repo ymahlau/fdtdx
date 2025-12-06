@@ -26,6 +26,9 @@ class ClosestIndex(ParameterTransformation):
     permittivity value. Uses straight-through gradient estimation to maintain
     differentiability. If mapping_from_inverse_permittivities is set to False (default),
     then the transform only quantizes the latent parameters to the closest integer value.
+
+    Args:
+        mapping_from_inverse_permittivities (bool): a boolean value set for inverse_permittivities
     """
 
     mapping_from_inverse_permittivities: bool = frozen_field(default=False)

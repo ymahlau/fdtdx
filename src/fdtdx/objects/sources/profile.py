@@ -36,7 +36,12 @@ class TemporalProfile(TreeClass, ABC):
 
 @autoinit
 class SingleFrequencyProfile(TemporalProfile):
-    """Simple sinusoidal temporal profile at a single frequency."""
+    """Simple sinusoidal temporal profile at a single frequency.
+    Args:
+        phase_shift (float): Phase shift of the carrier wave
+        num_startup_periods (int): number of periods between start
+
+    """
 
     phase_shift: float = frozen_field(default=math.pi)
     num_startup_periods: int = 4
@@ -56,7 +61,12 @@ class SingleFrequencyProfile(TemporalProfile):
 
 @autoinit
 class GaussianPulseProfile(TemporalProfile):
-    """Gaussian pulse temporal profile with carrier wave."""
+    """Gaussian pulse temporal profile with carrier wave.
+
+    Args:
+        spectral_width (float): Width of the carrier wave
+        center-frequency (float): Center frequency of the carrier wave
+    """
 
     spectral_width: float = frozen_field()  # Width of the Gaussian envelope in frequency domain
     center_frequency: float = frozen_field()  # Center frequency of the pulse

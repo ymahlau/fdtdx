@@ -5,6 +5,20 @@ from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 
 @autoinit
 class OnOffSwitch(TreeClass):
+    """ "
+    Args:
+        start_time (float): start time of the switch
+        start_after_periods (float): start after the period
+        end_after_periods (float): end after the period
+        end_time (float): end time of the switch
+        on_for_time (float): time when the switch is active
+        on_for_periods (float): period when the switch is active
+        period (float): period of the switch
+        fixed_on_time_steps (Int): list of fixed time steps
+        is_always_off (Bool): whether switch is always off
+        interval (float): interval of the switch
+    """
+
     start_time: float | None = frozen_field(default=None)
     start_after_periods: float | None = frozen_field(default=None)
     end_time: float | None = frozen_field(default=None)
