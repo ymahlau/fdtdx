@@ -78,9 +78,9 @@ class ModeOverlapDetector(PhasorDetector):
     ) -> Self:
         del key
 
-        inv_permittivity_slice = inv_permittivities[*self.grid_slice]
+        inv_permittivity_slice = inv_permittivities[:, *self.grid_slice]
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
-            inv_permeability_slice = inv_permeabilities[*self.grid_slice]
+            inv_permeability_slice = inv_permeabilities[:, *self.grid_slice]
         else:
             inv_permeability_slice = inv_permeabilities
 

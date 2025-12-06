@@ -69,9 +69,12 @@ def update_E(
     if sigma_E is not None:
         # update formula for lossy material. Simplifies to Noop for conductivity = 0
         # for details see Schneider, chapter 3.12
+        # Component-wise multiplication: sigma_E[i, x, y, z] * inv_eps[i, x, y, z]
         factor = 1 - c * sigma_E * eta0 * inv_eps / 2
 
     # standard update formula using lossless material
+    # Component-wise multiplication for anisotropic materials:
+    # E[i, x, y, z] = factor * E[i, x, y, z] + c * curl[i, x, y, z] * inv_eps[i, x, y, z]
     E = factor * arrays.E + c * curl * inv_eps
 
     if sigma_E is not None:
@@ -146,13 +149,15 @@ def update_E_reverse(
     curl, _ = curl_H(config, arrays.H, arrays.psi_E, arrays.alpha, arrays.kappa, arrays.sigma, False, periodic_axes)
     inv_eps = arrays.inv_permittivities
     c = config.courant_number
-    sigma_E = arrays.electric_conductivity
+    sigma_E = arrays.electric_conductivity  # shape: (3, Nx, Ny, Nz) or None
     factor = 1
 
     if sigma_E is not None:
+        # Component-wise operations for anisotropic materials
         E = E * (1 + c * sigma_E * eta0 * inv_eps / 2)
         factor = 1 - c * sigma_E * eta0 * inv_eps / 2
 
+    # Component-wise operations for anisotropic materials
     E = E / factor - c * curl * inv_eps
 
     arrays = arrays.at["E"].set(E)
@@ -207,9 +212,14 @@ def update_H(
     if sigma_H is not None:
         # update formula for lossy material. Simplifies to Noop for conductivity = 0
         # for details see Schneider, chapter 3.12
+        # Component-wise multiplication: sigma_H[i, x, y, z] * inv_mu[i, x, y, z]
+        # If inv_mu is scalar, broadcasting handles it automatically
         factor = 1 - c * sigma_H / eta0 * inv_mu / 2
 
     # standard update formula for lossless material
+    # Component-wise multiplication for anisotropic materials:
+    # H[i, x, y, z] = factor * H[i, x, y, z] - c * curl[i, x, y, z] * inv_mu[i, x, y, z]
+    # If inv_mu is scalar 1.0 (non-magnetic), it broadcasts automatically
     H = factor * arrays.H - c * curl * inv_mu
 
     if sigma_H is not None:
@@ -281,17 +291,21 @@ def update_H_reverse(
 
     # Get periodic axes for curl operation
     periodic_axes = get_periodic_axes(objects)
+
     curl, _ = curl_E(config, arrays.E, arrays.psi_H, arrays.alpha, arrays.kappa, arrays.sigma, False, periodic_axes)
     inv_mu = arrays.inv_permeabilities
+
     c = config.courant_number
-    sigma_H = arrays.magnetic_conductivity
+    sigma_H = arrays.magnetic_conductivity  # shape: (3, Nx, Ny, Nz) or None
     factor = 1
 
     if sigma_H is not None:
         # lossy materials get gain when simulating backwards
+        # Component-wise operations for anisotropic materials
         H = H * (1 + c * sigma_H / eta0 * inv_mu / 2)
         factor = 1 - c * sigma_H / eta0 * inv_mu / 2
 
+    # Component-wise operations for anisotropic materials
     H = H / factor + c * curl * inv_mu
 
     arrays = arrays.at["H"].set(H)

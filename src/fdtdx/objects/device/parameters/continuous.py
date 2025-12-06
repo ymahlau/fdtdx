@@ -29,10 +29,14 @@ class StandardToInversePermittivityRange(SameShapeTypeParameterTransform):
     ) -> dict[str, jax.Array]:
         del kwargs
         # determine minimum and maximum allowed permittivity
+        # For anisotropic materials, use average of components
         max_inv_perm, min_inv_perm = -math.inf, math.inf
         if isinstance(self._materials, dict):
             for k, v in self._materials.items():
-                p = 1 / v.permittivity
+                # v.permittivity is tuple (εx, εy, εz)
+                # Use average for range calculation
+                avg_perm = sum(v.permittivity) / 3.0
+                p = 1 / avg_perm
                 if p > max_inv_perm:
                     max_inv_perm = p
                 if p < min_inv_perm:

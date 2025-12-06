@@ -182,7 +182,7 @@ class TestComputeMode:
 
         # Test inputs
         frequency = 2e14  # 200 THz
-        inv_permittivities = jnp.ones((1, 5, 5)) * 0.25  # eps = 4.0
+        inv_permittivities = jnp.ones((3, 1, 5, 5)) * 0.25  # eps = 4.0
         inv_permeabilities = 1.0  # mu = 1.0
         resolution = 1e-8  # 10 nm
 
@@ -205,7 +205,7 @@ class TestComputeMode:
         """Test that invalid permittivities shape raises exception."""
         frequency = 2e14
         # 3D array but not squeezable to 2D
-        inv_permittivities = jnp.ones((2, 2, 2))
+        inv_permittivities = jnp.ones((3, 2, 2, 2))
         inv_permeabilities = 1.0
         resolution = 1e-8
 
@@ -233,13 +233,13 @@ class TestComputeMode:
                 jnp.ones((3, 3, 1, 4), dtype=jnp.complex64),
             )
 
-            # Test propagation along axis 0 (shape: 1, 3, 4)
-            inv_permittivities = jnp.ones((1, 3, 4))
+            # Test propagation along axis 0 (shape: 3, 1, 3, 4)
+            inv_permittivities = jnp.ones((3, 1, 3, 4))
             E, H, neff = compute_mode(2e14, inv_permittivities, 1.0, 1e-8, "+")
             assert E.shape == (3, 3, 1, 4)
 
-            # Test propagation along axis 1 (shape: 3, 1, 4)
-            inv_permittivities = jnp.ones((3, 1, 4))
+            # Test propagation along axis 1 (shape: 3, 3, 1, 4)
+            inv_permittivities = jnp.ones((3, 3, 1, 4))
             E, H, neff = compute_mode(2e14, inv_permittivities, 1.0, 1e-8, "+")
             assert E.shape == (3, 3, 1, 4)  # Note: axis handling in the function
 
@@ -298,7 +298,7 @@ class TestTidy3DModeComputationWrapper:
 
         # Test inputs
         frequency = 2e14
-        permittivity = np.ones((5, 5))
+        permittivity = np.ones((3, 5, 5))
         coords = [np.linspace(0, 1, 6), np.linspace(0, 1, 6)]  # x, y coordinates
 
         modes = tidy3d_mode_computation_wrapper(
@@ -319,7 +319,7 @@ class TestTidy3DModeComputationWrapper:
         mock_compute_modes.return_value = (mock_EH, mock_neffs, None)
 
         frequency = 2e14
-        permittivity = np.ones((5, 5))
+        permittivity = np.ones((3, 5, 5))
         coords = [np.linspace(0, 1, 6), np.linspace(0, 1, 6)]
 
         modes = tidy3d_mode_computation_wrapper(
@@ -340,8 +340,8 @@ class TestTidy3DModeComputationWrapper:
         mock_compute_modes.return_value = (mock_EH, mock_neffs, None)
 
         frequency = 2e14
-        permittivity = np.ones((4, 4))
-        permeability = np.ones((4, 4)) * 2.0  # Non-unity permeability
+        permittivity = np.ones((3, 4, 4))
+        permeability = np.ones((3, 4, 4)) * 2.0  # Non-unity permeability
         coords = [np.linspace(0, 1, 5), np.linspace(0, 1, 5)]
 
         modes = tidy3d_mode_computation_wrapper(
