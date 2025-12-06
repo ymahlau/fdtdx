@@ -51,6 +51,7 @@ def simple_material():
         magnetic_conductivity=(0.0, 0.0, 0.0),
     )
 
+
 # Test cases for constraint resolution with real objects
 
 
@@ -80,6 +81,7 @@ def test_resolve_constraints_unknown_object_in_constraint(simple_config, simple_
     with pytest.raises(ValueError, match="Unknown object name"):
         resolve_object_constraints(objects, constraints, simple_config)
 
+
 def test_resolve_constraints_no_simulation_volume(simple_config, simple_material):
     """Test that missing SimulationVolume raises an exception."""
     # Create an object without a volume
@@ -106,7 +108,6 @@ def test_resolve_constraints_multiple_volumes(simple_config):
         name="volume2",
         partial_grid_shape=(50, 50, 50),
     )
-
 
     objects = [volume1, volume2]
     constraints = []

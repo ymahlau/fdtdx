@@ -7,6 +7,7 @@ from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.fdtd import checkpointed_fdtd, custom_fdtd_forward, reversible_fdtd
 from fdtdx.objects.object import SimulationObject
 
+
 class DummySimulationObject(SimulationObject):
     """Minimal mock implementation of a SimulationObject."""
 

@@ -1,7 +1,7 @@
 import math
 from typing import overload
 
-from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
+from fdtdx.core.jax.pytrees import TreeClass, frozen_field
 
 
 def _normalize_material_property(value: float | tuple[float, float, float]) -> tuple[float, float, float]:
@@ -113,6 +113,7 @@ class Material(TreeClass):
         Returns:
             bool: True if material is isotropic, False if anisotropic
         """
+
         def _is_property_isotropic(prop: tuple[float, float, float]) -> bool:
             return math.isclose(prop[0], prop[1]) and math.isclose(prop[1], prop[2])
 
@@ -176,7 +177,12 @@ def compute_ordered_material_name_tuples(
     """
     return sorted(
         materials.items(),
-        key=lambda m: (m[1].permittivity[0], m[1].permeability[0], m[1].electric_conductivity[0], m[1].magnetic_conductivity[0]),
+        key=lambda m: (
+            m[1].permittivity[0],
+            m[1].permeability[0],
+            m[1].electric_conductivity[0],
+            m[1].magnetic_conductivity[0],
+        ),
         reverse=False,
     )
 

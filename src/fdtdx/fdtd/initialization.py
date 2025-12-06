@@ -376,7 +376,9 @@ def _init_arrays(
                 inv_permeabilities = inv_perm_array
 
             if electric_conductivity is not None:
-                allowed_conds = jnp.asarray(compute_allowed_electric_conductivities(o.materials))  # shape: (num_materials, 3)
+                allowed_conds = jnp.asarray(
+                    compute_allowed_electric_conductivities(o.materials)
+                )  # shape: (num_materials, 3)
 
                 for i in range(3):
                     component_values = allowed_conds[:, i][indices] * config.resolution
@@ -384,7 +386,9 @@ def _init_arrays(
                     electric_conductivity = electric_conductivity.at[i, *o.grid_slice].add(mask * diff)
 
             if magnetic_conductivity is not None:
-                allowed_conds = jnp.asarray(compute_allowed_magnetic_conductivities(o.materials))  # shape: (num_materials, 3)
+                allowed_conds = jnp.asarray(
+                    compute_allowed_magnetic_conductivities(o.materials)
+                )  # shape: (num_materials, 3)
 
                 for i in range(3):
                     component_values = allowed_conds[:, i][indices] * config.resolution

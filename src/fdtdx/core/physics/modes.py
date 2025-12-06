@@ -262,17 +262,17 @@ def tidy3d_mode_computation_wrapper(
         track_freq="central",
         group_index_step=False,
     )
-    od = np.zeros_like(permittivity_cross_section[1,:,:])
+    od = np.zeros_like(permittivity_cross_section[1, :, :])
     eps_cross = [
-        jnp.squeeze(permittivity_cross_section[0,:,:]),
+        jnp.squeeze(permittivity_cross_section[0, :, :]),
         od,
         od,
         od,
-        jnp.squeeze(permittivity_cross_section[1,:,:]),
+        jnp.squeeze(permittivity_cross_section[1, :, :]),
         od,
         od,
         od,
-        jnp.squeeze(permittivity_cross_section[2,:,:]),
+        jnp.squeeze(permittivity_cross_section[2, :, :]),
     ]
     mu_cross = None
     if permeability_cross_section is not None:
@@ -290,15 +290,15 @@ def tidy3d_mode_computation_wrapper(
             ]
         elif isinstance(permeability_cross_section, np.ndarray):
             mu_cross = [
-                jnp.squeeze(permeability_cross_section[0,:,:]),
+                jnp.squeeze(permeability_cross_section[0, :, :]),
                 od,
                 od,
                 od,
-                jnp.squeeze(permeability_cross_section[1,:,:]),
+                jnp.squeeze(permeability_cross_section[1, :, :]),
                 od,
                 od,
                 od,
-                jnp.squeeze(permeability_cross_section[2,:,:]),
+                jnp.squeeze(permeability_cross_section[2, :, :]),
             ]
     EH, neffs, _ = _compute_modes(
         eps_cross=eps_cross,
