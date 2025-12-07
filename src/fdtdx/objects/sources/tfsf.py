@@ -15,19 +15,21 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
     Total-Field/Scattered-Field (TFSF) implementation of a source.
     The boundary between the scattered field and total field is at a
     positive offset of 0.25 in the yee grid in the axis of propagation.
-
-    Args:
-        azimuth_angle (float): the azimuth angle
-        elevation_angle (float): the elevation angle
-        max_angle_random_offset (float): the max angle random offset
-        max_vertical_offset (float): the max vertical offset
-        max_horizontal_offset (float): the max horizontal offset
     """
 
+    #: the azimuth angle
     azimuth_angle: float = frozen_field(default=0.0)
+
+    #: the elevation angle
     elevation_angle: float = frozen_field(default=0.0)
+
+    #: the max angle random offset
     max_angle_random_offset: float = frozen_field(default=0.0)
+
+    #: the max vertical offset
     max_vertical_offset: float = frozen_field(default=0.0)
+
+    #: the max horizontal offset
     max_horizontal_offset: float = frozen_field(default=0.0)
 
     _E: jax.Array = private_field()

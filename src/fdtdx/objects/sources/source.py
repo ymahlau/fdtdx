@@ -17,18 +17,19 @@ from fdtdx.typing import SliceTuple3D
 
 @autoinit
 class Source(SimulationObject, ABC):
-    """ "
-    Args:
-        wave_character (WaveCharacter): the wave-character
-        temporal_profile (TemporalProfile): the temporal profile, uses single frequency
-        static_amplitude_factor (float): the static amplitude factor
-        switch (OnOffSwitch): the on-off switch
-    """
-
+    #: the wave-character
     wave_character: WaveCharacter = frozen_field()
+
+    #: the temporal profile, uses single frequency
     temporal_profile: TemporalProfile = SingleFrequencyProfile()
+
+    #: the static amplitude factor
     static_amplitude_factor: float = frozen_field(default=1.0)
+
+    #: the on-off switch
     switch: OnOffSwitch = frozen_field(default=OnOffSwitch())
+
+    #: color of the object
     color: tuple[float, float, float] | None = frozen_field(default=ORANGE)
 
     _is_on_at_time_step_arr: jax.Array = private_field()
