@@ -7,10 +7,10 @@ from matplotlib.figure import Figure
 
 
 def plot_field_slice_component(
-        field: jnp.ndarray,
-        component_name: str,
-        ax: Any,
-        plot_legend: bool = True,
+    field: jnp.ndarray,
+    component_name: str,
+    ax: Any,
+    plot_legend: bool = True,
 ) -> None:
     """Plots a single component of the electromagnetic field.
 
@@ -55,11 +55,11 @@ def plot_field_slice_component(
 
 
 def plot_field_slice(
-        E: jnp.ndarray,
-        H: jnp.ndarray,
-        filename: str | Path | None = None,
-        axs: Any | None = None,
-        plot_legend: bool = True,
+    E: jnp.ndarray,
+    H: jnp.ndarray,
+    filename: str | Path | None = None,
+    axs: Any | None = None,
+    plot_legend: bool = True,
 ) -> Figure:
     """Creates a visualization of electromagnetic field components.
 
@@ -140,8 +140,8 @@ def plot_field_slice(
         fig = None
 
     # Component names
-    E_components = ['Ex', 'Ey', 'Ez']
-    H_components = ['Hx', 'Hy', 'Hz']
+    E_components = ["Ex", "Ey", "Ez"]
+    H_components = ["Hx", "Hy", "Hz"]
 
     # Plot E field components (top row)
     for i, comp_name in enumerate(E_components):
