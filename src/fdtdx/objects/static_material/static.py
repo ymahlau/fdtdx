@@ -10,13 +10,19 @@ from fdtdx.objects.object import OrderableObject
 
 @autoinit
 class UniformMaterialObject(OrderableObject):
+    #: the material object
     material: Material = field()
+
+    #: the color object
     color: tuple[float, float, float] | None = frozen_field(default=LIGHT_GREY)
 
 
 @autoinit
 class StaticMultiMaterialObject(OrderableObject, ABC):
+    #: the static material
     materials: dict[str, Material] = field()
+
+    #: the color of the material
     color: tuple[float, float, float] | None = frozen_field(default=LIGHT_GREY)
 
     @abstractmethod
@@ -51,7 +57,10 @@ class SimulationVolume(UniformMaterialObject):
     Usually represents air/vacuum with εᵣ=1.0 and μᵣ=1.0.
     """
 
+    #: an integer values of the placement order
     placement_order: int = frozen_field(default=-1000)
+
+    #: the static material
     material: Material = field(
         default=Material(
             permittivity=1.0,

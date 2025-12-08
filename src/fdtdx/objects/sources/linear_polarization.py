@@ -13,8 +13,13 @@ from fdtdx.objects.sources.tfsf import TFSFPlaneSource
 
 @autoinit
 class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
+    #: the electric polarization vector
     fixed_E_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
+
+    #: the magnetic polarization vector
     fixed_H_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
+
+    #: whether to normalize the polarization vector
     normalize_by_energy: bool = frozen_field(default=True)
 
     def get_EH_variation(
@@ -130,7 +135,10 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
 
 @autoinit
 class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
+    #: the radius of the gaussian source
     radius: float = frozen_field()
+
+    #:  the standard deviation of the gaussian source
     std: float = frozen_field(default=1 / 3)  # relative to radius
 
     @staticmethod
@@ -176,6 +184,7 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
 
 @autoinit
 class UniformPlaneSource(LinearlyPolarizedPlaneSource):
+    #: the amplitude of the uniform source
     amplitude: float = frozen_field(default=1.0)
 
     def _get_amplitude_raw(
