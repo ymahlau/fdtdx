@@ -6,8 +6,10 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
+import fdtdx.units.unitful as unitful
 from fdtdx.core.fraction import Fraction
-from fdtdx.functional.numpy import roll, sqrt, transpose
+from fdtdx.core.jax.utils import is_currently_compiling
+from fdtdx.functional.numpy import roll, sqrt, transpose, where
 from fdtdx.units.typing import SI
 from fdtdx.units.unitful import EMPTY_UNIT, Unit, Unitful
 
@@ -1113,3 +1115,137 @@ def test_arctanh_unitful_with_jax_array():
     assert isinstance(result.val, jax.Array)
     expected_vals = jnp.array([math.atanh(0.0), math.atanh(0.5)])
     assert jnp.allclose(result.val, expected_vals, atol=1e-7)
+
+
+def test_where_unitful_numpy_backend():
+    """Test where with three Unitfuls using NumPy arrays"""
+    m = Unit(scale=0, dim={SI.m: 1})
+
+    c = Unitful(val=np.array([True, False, True]), unit=EMPTY_UNIT)
+    x = Unitful(val=np.array([1.0, 2.0, 3.0]), unit=m)
+    y = Unitful(val=np.array([10.0, 20.0, 30.0]), unit=m)
+
+    result = where(c, x, y)
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, np.ndarray)
+
+    expected = np.where(c.value(), x.value(), y.value())
+    assert np.allclose(result.value(), expected)
+
+
+def test_where_unitful_jax_backend():
+    """Test where with three Unitfuls using JAX arrays"""
+    m = Unit(scale=0, dim={SI.m: 1})
+    mm = Unit(scale=-3, dim={SI.m: 1})
+
+    c = Unitful(val=jnp.array([True, False, True]), unit=EMPTY_UNIT)
+    x = Unitful(val=jnp.array([1.0, 2.0, 3.0]), unit=m)
+    y = Unitful(val=jnp.array([10.0, 20.0, 30.0]), unit=mm)
+
+    result = jnp.where(c, x, y)  # type: ignore
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+
+    expected = np.where(np.array(c.value()), np.array(x.value()), np.array(y.value()))
+
+    assert np.allclose(np.asarray(result.value()), expected)
+
+
+def test_where_numpy_and_unitful():
+    """Test where with NumPy condition/x and Unitful y"""
+    m = Unit(scale=0, dim={SI.m: 1})
+
+    condition = np.array([True, False, True])
+    x = np.array([1.0, 2.0, 3.0])
+    y = Unitful(val=np.array([10.0, 20.0, 30.0]), unit=m)
+
+    result = where(condition, x, y)
+
+    expected = np.where(condition, x, y.value())
+
+    assert isinstance(result, Unitful)
+    assert np.allclose(np.asarray(result.value()), expected)
+
+
+def test_where_jax_and_unitful():
+    """Test where with JAX condition/x and Unitful y"""
+    m = Unit(scale=0, dim={SI.m: 1})
+
+    condition = jnp.array([True, False, True])
+    x = jnp.array([1.0, 2.0, 3.0])
+    y = Unitful(val=np.array([10.0, 20.0, 30.0]), unit=m)
+
+    result = where(condition, x, y)
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+
+    expected = np.where(np.array(condition), np.array(x), y.value())
+    assert np.allclose(np.asarray(result.value()), expected)
+
+
+def test_where_pure_numpy():
+    """Test where with pure numpy arrays"""
+    c = np.array([True, False, True])
+    x = np.array([1, 2, 3])
+    y = np.array([10, 20, 30])
+
+    result = where(c, x, y)
+
+    expected = np.where(c, x, y)
+    assert isinstance(result, np.ndarray)
+    assert (result == expected).all()
+
+
+def test_where_pure_jax():
+    """Test where with pure JAX arrays"""
+    c = jnp.array([True, False, True])
+    x = jnp.array([1, 2, 3])
+    y = jnp.array([10, 20, 30])
+
+    result = where(c, x, y)
+
+    expected = jnp.where(c, x, y)
+    assert isinstance(result, jax.Array)
+    assert np.allclose(np.asarray(result), np.asarray(expected))
+
+
+def test_where_mixed_numpy_jax():
+    """Test where mixing NumPy + JAX (should choose JAX backend)"""
+    c = np.array([True, False, True])
+    x = jnp.array([1, 2, 3])
+    y = np.array([10, 20, 30])
+
+    result = where(c, x, y)
+    assert isinstance(result, jax.Array)
+
+    expected = np.where(np.array(c), np.array(x), np.array(y))
+    assert np.allclose(np.asarray(result), expected)
+
+
+def test_where_unitful_jitted_static_arr():
+    """Test JIT-traced where with Unitful inputs; static_arr must be produced"""
+    m = Unit(scale=0, dim={SI.m: 1})
+
+    c = Unitful(val=jnp.array([True, False, True]), unit=EMPTY_UNIT, static_arr=np.array([True, False, True]))
+    x = Unitful(val=jnp.array([1.0, 2.0, 3.0]), unit=m, static_arr=np.array([1.0, 2.0, 3.0]))
+    y = Unitful(val=jnp.array([10.0, 20.0, 30.0]), unit=m, static_arr=np.array([10.0, 20.0, 30.0]))
+
+    def fn(condition: Unitful, x: Unitful, y: Unitful) -> Unitful:
+        if is_currently_compiling() and not unitful.STATIC_OPTIM_STOP_FLAG:
+            assert c.static_arr is not None
+            assert x.static_arr is not None
+            assert y.static_arr is not None
+        out = where(condition, x, y)
+        if is_currently_compiling() and not unitful.STATIC_OPTIM_STOP_FLAG:
+            assert out.static_arr is not None
+        return out
+
+    jitted_fn = jax.jit(fn)
+    result = jitted_fn(c, x, y)
+
+    expected = np.where(np.array([True, False, True]), np.array([1.0, 2.0, 3.0]), np.array([10.0, 20.0, 30.0]))
+
+    assert jnp.allclose(result.value(), jnp.array(expected))

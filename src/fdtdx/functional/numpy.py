@@ -1416,7 +1416,14 @@ def where(
     assert condition.unit.dim == {} and condition.unit.scale == 0, f"Invalid condition input: {condition}"
     x_align, y_align = align_scales(x, y)
     c_val = condition.val
-    new_val = jnp._orig_where(c_val, x_align.val, y_align.val, *args, **kwargs)  # type: ignore
+
+    if any(isinstance(v, jax.Array) for v in [x_align.val, y_align.val, c_val]):
+        new_val = jnp._orig_where(c_val, x_align.val, y_align.val, *args, **kwargs)  # type: ignore
+    elif all(isinstance(v, np.ndarray) for v in (x_align.val, y_align.val, c_val)):
+        new_val = np.where(c_val, x_align.val, y_align.val, *args, **kwargs)
+    else:
+        raise TypeError(f"Invalid input types for where(): {type(c_val)}, {type(x_align.val)}, {type(y_align.val)}")
+
     # static arr
     new_static_arr = None
     if is_traced(new_val):
@@ -1425,42 +1432,53 @@ def where(
         c_arr = get_static_operand(condition)
         if x_arr is not None and y_arr is not None and c_arr is not None:
             new_static_arr = np.where(c_arr, x_arr, y_arr, *args, **kwargs)
-    return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
+    return Unitful(val=new_val, unit=x_align.unit, static_arr=new_static_arr)
 
 
 @overload
 def where(
-    condition: jax.Array | Unitful,
+    condition: ArrayLike | Unitful,
     x: ArrayLike,
     y: Unitful,
     *args,
     **kwargs,
 ) -> Unitful:
+    new_unit = Unit(scale=y.unit.scale, dim={})
+    y_non_dim = Unitful(val=y.val, unit=new_unit)
     c = condition if isinstance(condition, Unitful) else Unitful(val=condition, unit=EMPTY_UNIT)
-    return where(c, Unitful(val=x, unit=EMPTY_UNIT), y, *args, **kwargs)
+    return where(c, Unitful(val=x, unit=EMPTY_UNIT), y_non_dim, *args, **kwargs)
 
 
 @overload
 def where(
-    condition: jax.Array | Unitful,
+    condition: ArrayLike | Unitful,
     x: Unitful,
     y: ArrayLike,
     *args,
     **kwargs,
 ) -> Unitful:
+    new_unit = Unit(scale=x.unit.scale, dim={})
+    x_non_dim = Unitful(val=x.val, unit=new_unit)
     c = condition if isinstance(condition, Unitful) else Unitful(val=condition, unit=EMPTY_UNIT)
-    return where(c, x, Unitful(val=y, unit=EMPTY_UNIT), *args, **kwargs)
+    return where(c, x_non_dim, Unitful(val=y, unit=EMPTY_UNIT), *args, **kwargs)
 
 
 @overload
 def where(
-    condition: jax.Array,
+    condition: ArrayLike,
     x: ArrayLike,
     y: ArrayLike,
     *args,
     **kwargs,
-) -> jax.Array:
-    return jnp._orig_where(condition, x, y, *args, **kwargs)  # type: ignore
+) -> jax.Array | np.ndarray:
+    if any(isinstance(v, jax.Array) for v in [x, y, condition]):
+        new_val = jnp._orig_where(condition, x, y, *args, **kwargs)  # type: ignore
+    elif all(isinstance(v, np.ndarray) for v in (x, y, condition)):
+        new_val = np.where(condition, x, y, *args, **kwargs)
+    else:
+        raise TypeError(f"Invalid input types for where(): {type(condition)}, {type(x)}, {type(y)}")
+
+    return new_val
 
 
 @dispatch
