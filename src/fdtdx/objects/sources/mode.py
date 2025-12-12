@@ -44,9 +44,11 @@ class ModePlaneSource(TFSFPlaneSource):
         ):
             raise NotImplementedError()
 
-        inv_permittivity_slice = inv_permittivities[*self.grid_slice]
+        # inv_permittivities shape: (3, Nx, Ny, Nz) - slice with component dimension
+        inv_permittivity_slice = inv_permittivities[:, *self.grid_slice]
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
-            inv_permeability_slice = inv_permeabilities[*self.grid_slice]
+            # inv_permeabilities shape: (3, Nx, Ny, Nz) - slice with component dimension
+            inv_permeability_slice = inv_permeabilities[:, *self.grid_slice]
         else:
             inv_permeability_slice = inv_permeabilities
 
@@ -72,9 +74,11 @@ class ModePlaneSource(TFSFPlaneSource):
             [round(self.grid_shape[self.horizontal_axis]), round(self.grid_shape[self.vertical_axis])], dtype=jnp.int32
         )
 
-        inv_permittivity_slice = inv_permittivities[*self.grid_slice]
+        # inv_permittivities shape: (3, Nx, Ny, Nz) - slice with component dimension
+        inv_permittivity_slice = inv_permittivities[:, *self.grid_slice]
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
-            inv_permeability_slice = inv_permeabilities[*self.grid_slice]
+            # inv_permeabilities shape: (3, Nx, Ny, Nz) - slice with component dimension
+            inv_permeability_slice = inv_permeabilities[:, *self.grid_slice]
         else:
             inv_permeability_slice = inv_permeabilities
 
@@ -110,7 +114,6 @@ class ModePlaneSource(TFSFPlaneSource):
     def plot(self, save_path: str | Path):
         if self._H is None or self._E is None:
             raise Exception("Cannot plot mode without init to grid and apply params first")
-
         energy = compute_energy(
             E=self._E,
             H=self._H,

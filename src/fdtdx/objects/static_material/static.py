@@ -63,7 +63,7 @@ class SimulationVolume(UniformMaterialObject):
     #: the static material
     material: Material = field(
         default=Material(
-            permittivity=1.0,
-            permeability=1.0,
+            permittivity=(1.0, 1.0, 1.0),
+            permeability=(1.0, 1.0, 1.0),
         ),
     )

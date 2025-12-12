@@ -193,7 +193,8 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
             raise Exception("Need to apply random key before calling update")
 
         delta_t = self._config.time_step_duration
-        inv_permittivity_slice = inv_permittivities[*self.grid_slice]
+        # inv_permittivities shape: (3, Nx, Ny, Nz) - slice with component dimension
+        inv_permittivity_slice = inv_permittivities[:, *self.grid_slice]
 
         # Calculate time points for E and H fields
         time_H_h = (time_step + self._time_offset_H[self.horizontal_axis]) * delta_t
@@ -215,12 +216,14 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
 
         # vertical incident wave part
         H_v_inc = self._H[self.vertical_axis] * amplitude_H_v
-        H_v_inc = H_v_inc * self._config.courant_number * inv_permittivity_slice
+        # Use horizontal component of inv_permittivity for H_v calculation
+        H_v_inc = H_v_inc * self._config.courant_number * inv_permittivity_slice[self.horizontal_axis]
         H_v_inc = jax.lax.stop_gradient(H_v_inc)
 
         # horizontal incident wave part
         H_h_inc = self._H[self.horizontal_axis] * amplitude_H_h
-        H_h_inc = H_h_inc * self._config.courant_number * inv_permittivity_slice
+        # Use vertical component of inv_permittivity for H_h calculation
+        H_h_inc = H_h_inc * self._config.courant_number * inv_permittivity_slice[self.vertical_axis]
         H_h_inc = jax.lax.stop_gradient(H_h_inc)
 
         # if direction is negative, updates are reversed
@@ -251,7 +254,8 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
 
         delta_t = self._config.time_step_duration
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
-            inv_permeability_slice = inv_permeabilities[*self.grid_slice]
+            # inv_permeabilities shape: (3, Nx, Ny, Nz) - slice with component dimension
+            inv_permeability_slice = inv_permeabilities[:, *self.grid_slice]
         else:
             inv_permeability_slice = inv_permeabilities
 
@@ -275,12 +279,20 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
 
         # horizontal incident wave part
         E_h_inc = self._E[self.horizontal_axis] * amplitude_E_h
-        E_h_inc = E_h_inc * self._config.courant_number * inv_permeability_slice
+        # Use vertical component of inv_permeability for E_h calculation
+        if isinstance(inv_permeability_slice, jax.Array) and inv_permeability_slice.ndim > 1:
+            E_h_inc = E_h_inc * self._config.courant_number * inv_permeability_slice[self.vertical_axis]
+        else:
+            E_h_inc = E_h_inc * self._config.courant_number * inv_permeability_slice
         E_h_inc = jax.lax.stop_gradient(E_h_inc)
 
         # vertical incident wave part
         E_v_inc = self._E[self.vertical_axis] * amplitude_E_v
-        E_v_inc = E_v_inc * self._config.courant_number * inv_permeability_slice
+        # Use horizontal component of inv_permeability for E_v calculation
+        if isinstance(inv_permeability_slice, jax.Array) and inv_permeability_slice.ndim > 1:
+            E_v_inc = E_v_inc * self._config.courant_number * inv_permeability_slice[self.horizontal_axis]
+        else:
+            E_v_inc = E_v_inc * self._config.courant_number * inv_permeability_slice
         E_v_inc = jax.lax.stop_gradient(E_v_inc)
 
         # if direction is negative, updates are reversed

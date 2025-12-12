@@ -21,8 +21,9 @@ class DummySimulationObject(SimulationObject):
 @pytest.fixture
 def dummy_arrays():
     field_shape = (3, 2, 2, 2)  # (components, nx, ny, nz)
+
     auxiliary_field_shape = (6, 2, 2, 2)  # (components, nx, ny, nz)
-    mat_shape = (2, 2, 2)  # scalar per voxel
+    mat_shape = (3, 2, 2, 2)  # scalar per voxel
 
     return ArrayContainer(
         E=jnp.zeros(field_shape),
@@ -57,7 +58,7 @@ def dummy_config():
     return SimulationConfig(
         time=400e-15,
         resolution=1.0,
-        backend="gpu",
+        backend="cpu",
         dtype=jnp.float32,
         courant_factor=0.99,
         gradient_config=None,
@@ -120,7 +121,7 @@ def test_zero_time(dummy_arrays, dummy_objects):
     config = SimulationConfig(
         time=0.0,
         resolution=1.0,
-        backend="gpu",
+        backend="cpu",
         dtype=jnp.float32,
         courant_factor=0.99,
         gradient_config=None,

@@ -35,9 +35,9 @@ def compute_modes_and_neff_complex(arrays, object):
     else:
         inv_permittivities = jax.lax.stop_gradient(arrays.inv_permittivities)
     inv_permeabilities = jax.lax.stop_gradient(arrays.inv_permeabilities)
-    inv_permittivity_slice = inv_permittivities[grid_slice]
+    inv_permittivity_slice = inv_permittivities[:, *grid_slice]
     if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
-        inv_permeability_slice = inv_permeabilities[grid_slice]
+        inv_permeability_slice = inv_permeabilities[:, *grid_slice]
     else:
         inv_permeability_slice = inv_permeabilities
     

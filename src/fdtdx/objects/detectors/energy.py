@@ -65,9 +65,9 @@ class EnergyDetector(Detector):
     ) -> DetectorState:
         cur_E = E[:, *self.grid_slice]
         cur_H = H[:, *self.grid_slice]
-        cur_inv_permittivity = inv_permittivity[self.grid_slice]
+        cur_inv_permittivity = inv_permittivity[:, *self.grid_slice]
         if isinstance(inv_permeability, jax.Array) and inv_permeability.ndim > 0:
-            cur_inv_permeability = inv_permeability[self.grid_slice]
+            cur_inv_permeability = inv_permeability[3, *self.grid_slice]
         else:
             cur_inv_permeability = inv_permeability
 
