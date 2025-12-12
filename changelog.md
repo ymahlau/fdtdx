@@ -1,6 +1,8 @@
 
 # Unpublished
 ## Added
+- added new description for the placeholder attributes (@renaissancenerd)
+- added plot_field_slice function which creates 2x3 images (with colorbar) for given E and H fields (@renaissancenerd)
 
 ## Changed
 
@@ -14,9 +16,6 @@
 - A lot of test cases (@renaissancenerd)
 - Json import / export of simulation objects. This will be necessary and helpful for the ongoing GUI development.
 - added plot_material function. This function plots the material distribution at a specific slice in the simulation. (@renaissancenerd)
-- added new description for the placeholder attributes (@renaissancenerd)
-- added plot_field_slice function which creates 2x3 images (with colorbar) for given E and H fields (@renaissancenerd)
-
 
 ## Changed
 - moved docs to readthedocs using sphinx instead of mkdocs. This looks much nicer now.
