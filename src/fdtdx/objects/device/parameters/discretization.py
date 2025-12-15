@@ -28,6 +28,7 @@ class ClosestIndex(ParameterTransformation):
     then the transform only quantizes the latent parameters to the closest integer value.
     """
 
+    #: a boolean value set for inverse_permittivities
     mapping_from_inverse_permittivities: bool = frozen_field(default=False)
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
         default=ParameterType.CONTINUOUS

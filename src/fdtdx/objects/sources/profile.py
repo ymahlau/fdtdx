@@ -38,7 +38,10 @@ class TemporalProfile(TreeClass, ABC):
 class SingleFrequencyProfile(TemporalProfile):
     """Simple sinusoidal temporal profile at a single frequency."""
 
+    #: Phase shift of the carrier wave
     phase_shift: float = frozen_field(default=math.pi)
+
+    #: number of periods between start
     num_startup_periods: int = 4
 
     def get_amplitude(
@@ -58,7 +61,10 @@ class SingleFrequencyProfile(TemporalProfile):
 class GaussianPulseProfile(TemporalProfile):
     """Gaussian pulse temporal profile with carrier wave."""
 
+    #: Width of the carrier wave
     spectral_width: float = frozen_field()  # Width of the Gaussian envelope in frequency domain
+
+    #: Center frequency of the carrier wave
     center_frequency: float = frozen_field()  # Center frequency of the pulse
 
     def get_amplitude(
