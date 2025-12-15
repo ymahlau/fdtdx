@@ -68,7 +68,7 @@ def main():
     object_list.append(volume)
 
     # Choose boundary type: periodic or PML (absorbing)
-    periodic = False
+    periodic = True
     if periodic:
         bound_cfg = fdtdx.BoundaryConfig.from_uniform_bound(boundary_type="periodic")
     else:

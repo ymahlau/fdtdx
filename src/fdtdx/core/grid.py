@@ -23,7 +23,6 @@ def calculate_spatial_offsets_yee() -> tuple[jax.Array, jax.Array]:
     )
     return offset_E, offset_H
 
-
 def calculate_time_offset_yee(
     center: jax.Array,
     wave_vector: jax.Array,
@@ -32,10 +31,11 @@ def calculate_time_offset_yee(
     resolution: float,
     time_step_duration: float,
     effective_index: jax.Array | float | None = None,
+    e_polarization: jax.Array | None = None,
+    h_polarization: jax.Array | None = None,
 ) -> tuple[jax.Array, jax.Array]:
-    # Handle new shape (3, Nx, Ny, Nz) for component-wise materials
-    if inv_permittivities.ndim == 4 and inv_permittivities.shape[0] == 3:
-        # Extract spatial shape from (3, Nx, Ny, Nz)
+    if inv_permittivities.ndim == 4:
+        # Extract spatial shape from (1, Nx, Ny, Nz) or (3, Nx, Ny, Nz)
         spatial_shape = inv_permittivities.shape[1:]
     elif inv_permittivities.ndim == 3:
         # Legacy shape (Nx, Ny, Nz)
@@ -79,21 +79,53 @@ def calculate_time_offset_yee(
     travel_offset_E = -jnp.dot(xyz_E, wave_vector)
     travel_offset_H = -jnp.dot(xyz_H, wave_vector)
 
-    # adjust speed for material and calculate time offset
-    # For component-wise materials, use average of components for refractive index
-    if inv_permittivities.ndim == 4:
-        inv_perm_avg = jnp.mean(inv_permittivities, axis=0)
-    else:
-        inv_perm_avg = inv_permittivities
-
-    if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim == 4:
-        inv_perm_avg_perm = jnp.mean(inv_permeabilities, axis=0)
-    else:
-        inv_perm_avg_perm = inv_permeabilities
-
-    refractive_idx = 1 / jnp.sqrt(inv_perm_avg * inv_perm_avg_perm)
     if effective_index is not None:
-        refractive_idx = effective_index * jnp.ones_like(refractive_idx)
+        refractive_idx = effective_index * jnp.ones(spatial_shape)
+    else:
+        # adjust speed for material and calculate time offset
+        # inv_eps_eff = |p_x|^2 * inv_eps_x + |p_y|^2 * inv_eps_y + |p_z|^2 * inv_eps_z
+        if inv_permittivities.ndim == 4:
+            #Remove when anisotropic case is verified
+            if inv_permittivities.shape[0] == 3:
+                is_isotropic = jnp.allclose(inv_permittivities[0], inv_permittivities[1]) & jnp.allclose(inv_permittivities[1], inv_permittivities[2])
+                def _raise_if_anisotropic(is_iso):
+                    if not is_iso:
+                        raise NotImplementedError("Gaussian or planewave sources within anisotropic materials are not supported yet.")
+                jax.debug.callback(_raise_if_anisotropic, is_isotropic)
+
+            if e_polarization is None:
+                raise ValueError(
+                    "e_polarization is required for anisotropic materials (4D permittivity array)"
+                )
+            e_pol_squared = e_polarization**2
+            inv_perm_eff = jnp.sum(
+                e_pol_squared[:, None, None, None] * inv_permittivities, axis=0
+            )
+        else:
+            inv_perm_eff = inv_permittivities
+
+        if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim == 4:
+            #Remove when anisotropic case is verified
+            if inv_permeabilities.shape[0] == 3:
+                is_isotropic = jnp.allclose(inv_permeabilities[0], inv_permeabilities[1]) & jnp.allclose(inv_permeabilities[1], inv_permeabilities[2])
+                def _raise_if_anisotropic(is_iso):
+                    if not is_iso:
+                        raise NotImplementedError("Gaussian or planewave sources within anisotropic materials are not supported yet.")
+                jax.debug.callback(_raise_if_anisotropic, is_isotropic)
+
+            if h_polarization is None:
+                raise ValueError(
+                    "h_polarization is required for anisotropic materials (4D permeability array)"
+                )
+            h_pol_squared = h_polarization**2
+            inv_perm_eff_perm = jnp.sum(
+                h_pol_squared[:, None, None, None] * inv_permeabilities, axis=0
+            )
+        else:
+            inv_perm_eff_perm = inv_permeabilities
+
+        refractive_idx = 1 / jnp.sqrt(inv_perm_eff * inv_perm_eff_perm)
+
     velocity = (constants.c / refractive_idx)[None, ...]
     time_offset_E = travel_offset_E * resolution / (velocity * time_step_duration)
     time_offset_H = travel_offset_H * resolution / (velocity * time_step_duration)

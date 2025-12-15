@@ -2,9 +2,9 @@
 This script exemplifies a simple simulation in fdtdx with an anisotropic boundary. In this simulation, a simulation volume with PML
 boundaries is set up. At the top of the simulation, a source is placed, which outputs a continous light wave of
 1550nm wavelength. At the bottom of the simulation, a block of material with an anistropic refractive index of (2.0, 1.0, 2.0) for the
-x, y and z axes is placed. On line 22 the polarization of the gaussian source can be adjusted. If the source is X polarized, the resulting
+x, y and z axes is placed. On line 19 the polarization of the gaussian source can be adjusted. If the source is X polarized, the resulting
 wavelength shortening is observed as the wave passes through the material. When Y polarized, the wavelength stays the same. Additionally,
-a larger divergence along the Y axis due to the smaller index. Magnetic anisotropy is also simulated as an option, which creates an impedence mismatch.
+a larger divergence along the Y axis due to the smaller index. Magnetic anisotropy is also simulated as an option (line 20), which creates an impedence mismatch.
 """
 
 # Import required libraries and modules

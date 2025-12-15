@@ -107,15 +107,12 @@ class Material(TreeClass):
         object.__setattr__(self, "magnetic_conductivity", _normalize_material_property(magnetic_conductivity))
 
     @property
-    def is_isotropic(self) -> bool:
+    def is_all_isotropic(self) -> bool:
         """Check if all material properties are isotropic (all components equal).
 
         Returns:
             bool: True if material is isotropic, False if anisotropic
         """
-
-        def _is_property_isotropic(prop: tuple[float, float, float]) -> bool:
-            return math.isclose(prop[0], prop[1]) and math.isclose(prop[1], prop[2])
 
         return (
             _is_property_isotropic(self.permittivity)
@@ -123,6 +120,42 @@ class Material(TreeClass):
             and _is_property_isotropic(self.electric_conductivity)
             and _is_property_isotropic(self.magnetic_conductivity)
         )
+    
+    @property
+    def is_isotropic_permittivity(self) -> bool:
+        """Check if material has isotropic permittivity (all components equal).
+
+        Returns:
+            bool: True if material has isotropic permittivity
+        """
+        return _is_property_isotropic(self.permittivity)
+
+    @property
+    def is_isotropic_permeability(self) -> bool:
+        """Check if material has isotropic permeability (all components equal).
+
+        Returns:
+            bool: True if material has isotropic permeability
+        """
+        return _is_property_isotropic(self.permeability)
+
+    @property
+    def is_isotropic_electric_conductivity(self) -> bool:
+        """Check if material has isotropic electric conductivity (all components equal).
+
+        Returns:
+            bool: True if material has isotropic electric conductivity
+        """
+        return _is_property_isotropic(self.electric_conductivity)
+
+    @property
+    def is_isotropic_magnetic_conductivity(self) -> bool:
+        """Check if material has isotropic magnetic conductivity (all components equal).
+
+        Returns:
+            bool: True if material has isotropic magnetic conductivity
+        """
+        return _is_property_isotropic(self.magnetic_conductivity)
 
     @property
     def is_magnetic(self) -> bool:
@@ -156,6 +189,8 @@ class Material(TreeClass):
         cond = self.magnetic_conductivity
         return not (math.isclose(cond[0], 0.0) and math.isclose(cond[1], 0.0) and math.isclose(cond[2], 0.0))
 
+def _is_property_isotropic(prop: tuple[float, float, float]) -> bool:
+    return math.isclose(prop[0], prop[1]) and math.isclose(prop[1], prop[2])
 
 def compute_ordered_material_name_tuples(
     materials: dict[str, Material],
@@ -189,61 +224,77 @@ def compute_ordered_material_name_tuples(
 
 def compute_allowed_permittivities(
     materials: dict[str, Material],
-) -> list[tuple[float, float, float]]:
+    isotropic: bool = False,
+) -> list[tuple[float, ...]] :
     """Get list of permittivity tuples for all materials in sorted order.
 
     Args:
         materials: Dictionary mapping material names to Material objects
+        isotropic: If True, return single-element tuples (εx,); if False, return 3-tuples (εx, εy, εz)
 
     Returns:
-        list[tuple[float, float, float]]: List of permittivity 3-tuples (εx, εy, εz)
+        list[tuple[float, ...]]: List of permittivity tuples
     """
     ordered_materials = compute_ordered_material_name_tuples(materials)
+    if isotropic:
+        return [(o[1].permittivity[0],) for o in ordered_materials]
     return [o[1].permittivity for o in ordered_materials]
 
 
 def compute_allowed_permeabilities(
     materials: dict[str, Material],
-) -> list[tuple[float, float, float]]:
+    isotropic: bool = False,
+) -> list[tuple[float, ...]]:
     """Get list of permeability tuples for all materials in sorted order.
 
     Args:
         materials: Dictionary mapping material names to Material objects
+        isotropic: If True, return single-element tuples (μx,); if False, return 3-tuples (μx, μy, μz)
 
     Returns:
-        list[tuple[float, float, float]]: List of permeability 3-tuples (μx, μy, μz)
+        list[tuple[float, ...]]: List of permeability tuples
     """
     ordered_materials = compute_ordered_material_name_tuples(materials)
+    if isotropic:
+        return [(o[1].permeability[0],) for o in ordered_materials]
     return [o[1].permeability for o in ordered_materials]
 
 
 def compute_allowed_electric_conductivities(
     materials: dict[str, Material],
-) -> list[tuple[float, float, float]]:
+    isotropic: bool = False,
+) -> list[tuple[float, ...]]:
     """Get list of electric conductivity tuples for all materials in sorted order.
 
     Args:
         materials: Dictionary mapping material names to Material objects
+        isotropic: If True, return single-element tuples (σx,); if False, return 3-tuples (σx, σy, σz)
 
     Returns:
-        list[tuple[float, float, float]]: List of electric conductivity 3-tuples (σx, σy, σz)
+        list[tuple[float, ...]]: List of electric conductivity tuples
     """
     ordered_materials = compute_ordered_material_name_tuples(materials)
+    if isotropic:
+        return [(o[1].electric_conductivity[0],) for o in ordered_materials]
     return [o[1].electric_conductivity for o in ordered_materials]
 
 
 def compute_allowed_magnetic_conductivities(
     materials: dict[str, Material],
-) -> list[tuple[float, float, float]]:
+    isotropic: bool = False,
+) -> list[tuple[float, ...]]:
     """Get list of magnetic conductivity tuples for all materials in sorted order.
 
     Args:
         materials: Dictionary mapping material names to Material objects
+        isotropic: If True, return single-element tuples; if False, return 3-tuples
 
     Returns:
-        list[tuple[float, float, float]]: List of magnetic conductivity 3-tuples
+        list[tuple[float, ...]]: List of magnetic conductivity tuples
     """
     ordered_materials = compute_ordered_material_name_tuples(materials)
+    if isotropic:
+        return [(o[1].magnetic_conductivity[0],) for o in ordered_materials]
     return [o[1].magnetic_conductivity for o in ordered_materials]
 
 

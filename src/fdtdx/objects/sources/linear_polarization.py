@@ -116,6 +116,8 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
             inv_permeabilities=inv_permeabilities,
             resolution=self._config.resolution,
             time_step_duration=self._config.time_step_duration,
+            e_polarization=e_pol,
+            h_polarization=h_pol,
         )
 
         return E, H, time_offset_E, time_offset_H

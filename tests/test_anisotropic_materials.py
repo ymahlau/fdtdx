@@ -61,17 +61,25 @@ class TestMaterialClass:
         with pytest.raises(ValueError, match="must have exactly 3 elements"):
             Material(permeability=(1.0, 1.2, 1.5, 2.0))
 
-    def test_is_isotropic_property(self):
-        """Test the is_isotropic property."""
+    def test_is_all_isotropic_property(self):
+        """Test the is_all_isotropic property."""
         iso = Material(permittivity=2.0, permeability=1.5)
-        assert iso.is_isotropic is True
+        assert iso.is_all_isotropic is True
 
         aniso = Material(permittivity=(2.0, 2.5, 3.0))
-        assert aniso.is_isotropic is False
+        assert aniso.is_all_isotropic is False
 
         # Material with all same values should be isotropic
         mat = Material(permittivity=(2.0, 2.0, 2.0), permeability=(1.0, 1.0, 1.0))
-        assert mat.is_isotropic is True
+        assert mat.is_all_isotropic is True
+
+    def test_is_isotropic_property(self):
+        """Test the is_magnetic property."""
+        iso = Material(permittivity=1.0)
+        assert iso.is_isotropic_permittivity is True
+
+        aniso = Material(permittivity=(1.0, 1.5, 1.0))
+        assert aniso.is_isotropic_permittivity is False
 
     def test_is_magnetic_property(self):
         """Test the is_magnetic property."""
@@ -247,7 +255,7 @@ class TestBackwardCompatibility:
 
         # All components should be equal
         assert mat.permittivity == (2.0, 2.0, 2.0)
-        assert mat.is_isotropic is True
+        assert mat.is_all_isotropic is True
 
     def test_material_helper_functions_with_isotropic(self):
         """Test that helper functions work with purely isotropic materials."""
