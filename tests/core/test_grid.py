@@ -119,9 +119,8 @@ def test_calculate_time_offset_yee_anisotropic_with_polarization():
     polarization direction: inv_eps_eff = |p_x|^2 * inv_eps_x + |p_y|^2 * inv_eps_y + |p_z|^2 * inv_eps_z
     """
 
-    #Fail for now, until NotImplemented exception removed (grid.py line 85)
+    # Fail for now, until NotImplemented exception removed (grid.py line 85)
     with pytest.raises(Exception):
-
         center = jnp.array([1.0, 1.0])
         wave_vector = jnp.array([1.0, 0.0, 0.0])  # propagating along x
         resolution = 0.1
@@ -192,9 +191,8 @@ def test_calculate_time_offset_yee_anisotropic_with_polarization():
 def test_calculate_time_offset_yee_anisotropic_requires_polarization():
     """Test that anisotropic materials raise an error when polarization is not provided."""
 
-    #Fail for now, until NotImplemented exception removed (grid.py line 85)
+    # Fail for now, until NotImplemented exception removed (grid.py line 85)
     with pytest.raises(Exception):
-
         center = jnp.array([1.0, 1.0])
         wave_vector = jnp.array([1.0, 0.0, 0.0])
         resolution = 0.1

@@ -349,13 +349,17 @@ def _init_arrays(
             if electric_conductivity is not None:
                 # scale by grid size
                 cond_tuple = o.material.electric_conductivity[:num_electric_cond_components]
-                obj_electric_conductivity = (jnp.array(cond_tuple, dtype=config.dtype) * config.resolution)[:, None, None, None]
+                obj_electric_conductivity = (jnp.array(cond_tuple, dtype=config.dtype) * config.resolution)[
+                    :, None, None, None
+                ]
                 electric_conductivity = electric_conductivity.at[:, *o.grid_slice].set(obj_electric_conductivity)
 
             if magnetic_conductivity is not None:
                 # scale by grid size
                 cond_tuple = o.material.magnetic_conductivity[:num_magnetic_cond_components]
-                obj_magnetic_conductivity = (jnp.array(cond_tuple, dtype=config.dtype) * config.resolution)[:, None, None, None]
+                obj_magnetic_conductivity = (jnp.array(cond_tuple, dtype=config.dtype) * config.resolution)[
+                    :, None, None, None
+                ]
                 magnetic_conductivity = magnetic_conductivity.at[:, *o.grid_slice].set(obj_magnetic_conductivity)
 
         elif isinstance(o, (StaticMultiMaterialObject)):
@@ -373,7 +377,9 @@ def _init_arrays(
             inv_permittivities = inv_permittivities.at[:, *o.grid_slice].add(mask * diff)
 
             if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
-                allowed_perms = jnp.asarray(compute_allowed_permeabilities(o.materials, isotropic=isotropic_permeability))
+                allowed_perms = jnp.asarray(
+                    compute_allowed_permeabilities(o.materials, isotropic=isotropic_permeability)
+                )
                 allowed_inv_perms = 1 / allowed_perms
 
                 component_values = jnp.moveaxis(allowed_inv_perms[indices], -1, 0)

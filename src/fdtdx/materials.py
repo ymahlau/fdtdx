@@ -120,7 +120,7 @@ class Material(TreeClass):
             and _is_property_isotropic(self.electric_conductivity)
             and _is_property_isotropic(self.magnetic_conductivity)
         )
-    
+
     @property
     def is_isotropic_permittivity(self) -> bool:
         """Check if material has isotropic permittivity (all components equal).
@@ -189,8 +189,10 @@ class Material(TreeClass):
         cond = self.magnetic_conductivity
         return not (math.isclose(cond[0], 0.0) and math.isclose(cond[1], 0.0) and math.isclose(cond[2], 0.0))
 
+
 def _is_property_isotropic(prop: tuple[float, float, float]) -> bool:
     return math.isclose(prop[0], prop[1]) and math.isclose(prop[1], prop[2])
+
 
 def compute_ordered_material_name_tuples(
     materials: dict[str, Material],
@@ -225,7 +227,7 @@ def compute_ordered_material_name_tuples(
 def compute_allowed_permittivities(
     materials: dict[str, Material],
     isotropic: bool = False,
-) -> list[tuple[float, ...]] :
+) -> list[tuple[float, ...]]:
     """Get list of permittivity tuples for all materials in sorted order.
 
     Args:

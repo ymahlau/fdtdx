@@ -63,7 +63,6 @@ def reversible_fdtd(
     def reversible_fdtd_base(
         arr: ArrayContainer,
     ) -> SimulationState:
-
         state = (jnp.asarray(0, dtype=jnp.int32), arr)
         state = eqxi.while_loop(
             max_steps=config.time_steps_total,
