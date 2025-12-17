@@ -53,7 +53,7 @@ class PhasorDetector(Detector):
     def _shape_dtype_single_time_step(
         self,
     ) -> dict[str, jax.ShapeDtypeStruct]:
-        field_dtype = jnp.complex128 if self.dtype == jnp.float64 else jnp.complex64
+        field_dtype = jnp.complex128 if self.dtype == jnp.complex128 else jnp.complex64
         num_components = len(self.components)
         num_frequencies = len(self._angular_frequencies)
         grid_shape = self.grid_shape if not self.reduce_volume else tuple([])
@@ -91,9 +91,11 @@ class PhasorDetector(Detector):
         EH = jnp.stack(fields, axis=0)
 
         # Vectorized phasor calculation for all frequencies
-        phase_angles = self._angular_frequencies[:, None] * time_passed  # Shape: (num_freqs, 1)
-        phasors = jnp.exp(1j * phase_angles)  # Shape: (num_freqs, 1)
-        new_phasors = EH[None, ...] * phasors[..., None] * static_scale  # Broadcasting handles the multiplication
+        phase_angles = self._angular_frequencies * time_passed  # Shape: (num_freqs,)
+        phasors = jnp.exp(1j * phase_angles)  # Shape: (num_freqs,)
+        # Reshape phasors to (num_freqs, 1, 1, 1, 1) for proper broadcasting with EH (num_components, x, y, z)
+        phasors = phasors.reshape((len(self._angular_frequencies),) + (1,) * EH.ndim)
+        new_phasors = EH * phasors * static_scale  # Shape: (num_freqs, num_components, *grid_shape)
 
         if self.reduce_volume:
             # Average over all spatial dimensions
