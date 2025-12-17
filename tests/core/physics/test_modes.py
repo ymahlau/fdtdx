@@ -244,6 +244,246 @@ class TestComputeMode:
             assert E.shape == (3, 3, 1, 4)  # Note: axis handling in the function
 
 
+class TestAnisotropicModeComputation:
+    """Test anisotropic material handling in compute_mode."""
+
+    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
+    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
+    def test_anisotropic_permittivity_rotation_propagation_axis_0(self, mock_normalize, mock_tidy3d_wrapper):
+        """Test that anisotropic permittivity is rotated correctly for propagation along axis 0.
+
+        When propagation is along x (axis 0), tidy3d (x,y,z) maps to physical (y,z,x).
+        So physical permittivity (eps_x, eps_y, eps_z) should become tidy3d (eps_y, eps_z, eps_x).
+        """
+        mock_mode = ModeTupleType(
+            neff=1.5 + 0.1j,
+            Ex=np.ones((5, 6), dtype=np.complex64),
+            Ey=np.ones((5, 6), dtype=np.complex64),
+            Ez=np.ones((5, 6), dtype=np.complex64),
+            Hx=np.ones((5, 6), dtype=np.complex64),
+            Hy=np.ones((5, 6), dtype=np.complex64),
+            Hz=np.ones((5, 6), dtype=np.complex64),
+        )
+        mock_tidy3d_wrapper.return_value = [mock_mode]
+        mock_normalize.return_value = (
+            jnp.ones((3, 1, 5, 6), dtype=jnp.complex64),
+            jnp.ones((3, 1, 5, 6), dtype=jnp.complex64),
+        )
+
+        # Anisotropic permittivity with distinct values: eps_x=2, eps_y=3, eps_z=4
+        # Shape: (3, 1, 5, 6) - propagation along axis 0
+        inv_permittivities = jnp.zeros((3, 1, 5, 6))
+        inv_permittivities = inv_permittivities.at[0].set(1 / 2.0)  # eps_x = 2
+        inv_permittivities = inv_permittivities.at[1].set(1 / 3.0)  # eps_y = 3
+        inv_permittivities = inv_permittivities.at[2].set(1 / 4.0)  # eps_z = 4
+
+        compute_mode(
+            frequency=2e14,
+            inv_permittivities=inv_permittivities,
+            inv_permeabilities=1.0,
+            resolution=1e-8,
+            direction="+",
+        )
+
+        # Check what was passed to tidy3d_wrapper
+        call_args = mock_tidy3d_wrapper.call_args
+        perm_passed = call_args.kwargs["permittivity_cross_section"]
+
+        # For propagation along axis 0: perm_idx = [1, 2, 0]
+        # So tidy3d should receive (eps_y, eps_z, eps_x) = (3, 4, 2)
+        assert perm_passed.shape[0] == 3
+        assert np.allclose(perm_passed[0], 3.0)  # tidy3d x component = physical y
+        assert np.allclose(perm_passed[1], 4.0)  # tidy3d y component = physical z
+        assert np.allclose(perm_passed[2], 2.0)  # tidy3d z component = physical x
+
+    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
+    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
+    def test_anisotropic_permittivity_rotation_propagation_axis_1(self, mock_normalize, mock_tidy3d_wrapper):
+        """Test that anisotropic permittivity is rotated correctly for propagation along axis 1.
+
+        When propagation is along y (axis 1), tidy3d (x,y,z) maps to physical (x,z,y).
+        So physical permittivity (eps_x, eps_y, eps_z) should become tidy3d (eps_x, eps_z, eps_y).
+        """
+        mock_mode = ModeTupleType(
+            neff=1.5 + 0.1j,
+            Ex=np.ones((5, 6), dtype=np.complex64),
+            Ey=np.ones((5, 6), dtype=np.complex64),
+            Ez=np.ones((5, 6), dtype=np.complex64),
+            Hx=np.ones((5, 6), dtype=np.complex64),
+            Hy=np.ones((5, 6), dtype=np.complex64),
+            Hz=np.ones((5, 6), dtype=np.complex64),
+        )
+        mock_tidy3d_wrapper.return_value = [mock_mode]
+        mock_normalize.return_value = (
+            jnp.ones((3, 5, 1, 6), dtype=jnp.complex64),
+            jnp.ones((3, 5, 1, 6), dtype=jnp.complex64),
+        )
+
+        # Anisotropic permittivity with distinct values: eps_x=2, eps_y=3, eps_z=4
+        # Shape: (3, 5, 1, 6) - propagation along axis 1
+        inv_permittivities = jnp.zeros((3, 5, 1, 6))
+        inv_permittivities = inv_permittivities.at[0].set(1 / 2.0)  # eps_x = 2
+        inv_permittivities = inv_permittivities.at[1].set(1 / 3.0)  # eps_y = 3
+        inv_permittivities = inv_permittivities.at[2].set(1 / 4.0)  # eps_z = 4
+
+        compute_mode(
+            frequency=2e14,
+            inv_permittivities=inv_permittivities,
+            inv_permeabilities=1.0,
+            resolution=1e-8,
+            direction="+",
+        )
+
+        # Check what was passed to tidy3d_wrapper
+        call_args = mock_tidy3d_wrapper.call_args
+        perm_passed = call_args.kwargs["permittivity_cross_section"]
+
+        # For propagation along axis 1: perm_idx = [0, 2, 1]
+        # So tidy3d should receive (eps_x, eps_z, eps_y) = (2, 4, 3)
+        assert perm_passed.shape[0] == 3
+        assert np.allclose(perm_passed[0], 2.0)  # tidy3d x component = physical x
+        assert np.allclose(perm_passed[1], 4.0)  # tidy3d y component = physical z
+        assert np.allclose(perm_passed[2], 3.0)  # tidy3d z component = physical y
+
+    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
+    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
+    def test_anisotropic_permittivity_rotation_propagation_axis_2(self, mock_normalize, mock_tidy3d_wrapper):
+        """Test that anisotropic permittivity is unchanged for propagation along axis 2.
+
+        When propagation is along z (axis 2), tidy3d (x,y,z) maps directly to physical (x,y,z).
+        So physical permittivity (eps_x, eps_y, eps_z) stays as (eps_x, eps_y, eps_z).
+        """
+        mock_mode = ModeTupleType(
+            neff=1.5 + 0.1j,
+            Ex=np.ones((5, 6), dtype=np.complex64),
+            Ey=np.ones((5, 6), dtype=np.complex64),
+            Ez=np.ones((5, 6), dtype=np.complex64),
+            Hx=np.ones((5, 6), dtype=np.complex64),
+            Hy=np.ones((5, 6), dtype=np.complex64),
+            Hz=np.ones((5, 6), dtype=np.complex64),
+        )
+        mock_tidy3d_wrapper.return_value = [mock_mode]
+        mock_normalize.return_value = (
+            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
+            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
+        )
+
+        # Anisotropic permittivity with distinct values: eps_x=2, eps_y=3, eps_z=4
+        # Shape: (3, 5, 6, 1) - propagation along axis 2
+        inv_permittivities = jnp.zeros((3, 5, 6, 1))
+        inv_permittivities = inv_permittivities.at[0].set(1 / 2.0)  # eps_x = 2
+        inv_permittivities = inv_permittivities.at[1].set(1 / 3.0)  # eps_y = 3
+        inv_permittivities = inv_permittivities.at[2].set(1 / 4.0)  # eps_z = 4
+
+        compute_mode(
+            frequency=2e14,
+            inv_permittivities=inv_permittivities,
+            inv_permeabilities=1.0,
+            resolution=1e-8,
+            direction="+",
+        )
+
+        # Check what was passed to tidy3d_wrapper
+        call_args = mock_tidy3d_wrapper.call_args
+        perm_passed = call_args.kwargs["permittivity_cross_section"]
+
+        # For propagation along axis 2: perm_idx = [0, 1, 2]
+        # So tidy3d should receive (eps_x, eps_y, eps_z) = (2, 3, 4) - unchanged
+        assert perm_passed.shape[0] == 3
+        assert np.allclose(perm_passed[0], 2.0)  # tidy3d x component = physical x
+        assert np.allclose(perm_passed[1], 3.0)  # tidy3d y component = physical y
+        assert np.allclose(perm_passed[2], 4.0)  # tidy3d z component = physical z
+
+    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
+    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
+    def test_anisotropic_permeability_rotation(self, mock_normalize, mock_tidy3d_wrapper):
+        """Test that anisotropic permeability is rotated correctly."""
+        mock_mode = ModeTupleType(
+            neff=1.5 + 0.1j,
+            Ex=np.ones((5, 6), dtype=np.complex64),
+            Ey=np.ones((5, 6), dtype=np.complex64),
+            Ez=np.ones((5, 6), dtype=np.complex64),
+            Hx=np.ones((5, 6), dtype=np.complex64),
+            Hy=np.ones((5, 6), dtype=np.complex64),
+            Hz=np.ones((5, 6), dtype=np.complex64),
+        )
+        mock_tidy3d_wrapper.return_value = [mock_mode]
+        mock_normalize.return_value = (
+            jnp.ones((3, 1, 5, 6), dtype=jnp.complex64),
+            jnp.ones((3, 1, 5, 6), dtype=jnp.complex64),
+        )
+
+        # Anisotropic permittivity and permeability
+        # Shape: (3, 1, 5, 6) - propagation along axis 0
+        inv_permittivities = jnp.zeros((3, 1, 5, 6))
+        inv_permittivities = inv_permittivities.at[0].set(1 / 2.0)  # eps_x = 2
+        inv_permittivities = inv_permittivities.at[1].set(1 / 3.0)  # eps_y = 3
+        inv_permittivities = inv_permittivities.at[2].set(1 / 4.0)  # eps_z = 4
+        # Anisotropic permeability: mu_x=1.1, mu_y=1.2, mu_z=1.3
+        inv_permeabilities = jnp.zeros((3, 1, 5, 6))
+        inv_permeabilities = inv_permeabilities.at[0].set(1 / 1.1)  # mu_x = 1.1
+        inv_permeabilities = inv_permeabilities.at[1].set(1 / 1.2)  # mu_y = 1.2
+        inv_permeabilities = inv_permeabilities.at[2].set(1 / 1.3)  # mu_z = 1.3
+
+        compute_mode(
+            frequency=2e14,
+            inv_permittivities=inv_permittivities,
+            inv_permeabilities=inv_permeabilities,
+            resolution=1e-8,
+            direction="+",
+        )
+
+        # Check what was passed to tidy3d_wrapper
+        call_args = mock_tidy3d_wrapper.call_args
+        perm_passed = call_args.kwargs["permeability_cross_section"]
+
+        # For propagation along axis 0: perm_idx = [1, 2, 0]
+        # So tidy3d should receive (mu_y, mu_z, mu_x) = (1.2, 1.3, 1.1)
+        assert perm_passed.shape[0] == 3
+        assert np.allclose(perm_passed[0], 1.2, rtol=1e-5)  # tidy3d x = physical y
+        assert np.allclose(perm_passed[1], 1.3, rtol=1e-5)  # tidy3d y = physical z
+        assert np.allclose(perm_passed[2], 1.1, rtol=1e-5)  # tidy3d z = physical x
+
+    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
+    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
+    def test_isotropic_permittivity_no_rotation_needed(self, mock_normalize, mock_tidy3d_wrapper):
+        """Test that isotropic permittivity (1 component) is not affected by rotation logic."""
+        mock_mode = ModeTupleType(
+            neff=1.5 + 0.1j,
+            Ex=np.ones((5, 6), dtype=np.complex64),
+            Ey=np.ones((5, 6), dtype=np.complex64),
+            Ez=np.ones((5, 6), dtype=np.complex64),
+            Hx=np.ones((5, 6), dtype=np.complex64),
+            Hy=np.ones((5, 6), dtype=np.complex64),
+            Hz=np.ones((5, 6), dtype=np.complex64),
+        )
+        mock_tidy3d_wrapper.return_value = [mock_mode]
+        mock_normalize.return_value = (
+            jnp.ones((3, 1, 5, 6), dtype=jnp.complex64),
+            jnp.ones((3, 1, 5, 6), dtype=jnp.complex64),
+        )
+
+        # Isotropic permittivity (1 component): eps=4.0
+        # Shape: (1, 1, 5, 6) - propagation along axis 0
+        inv_permittivities = jnp.ones((1, 1, 5, 6)) * 0.25  # eps = 4.0
+
+        compute_mode(
+            frequency=2e14,
+            inv_permittivities=inv_permittivities,
+            inv_permeabilities=1.0,
+            resolution=1e-8,
+            direction="+",
+        )
+
+        # Check what was passed to tidy3d_wrapper
+        call_args = mock_tidy3d_wrapper.call_args
+        perm_passed = call_args.kwargs["permittivity_cross_section"]
+
+        # Isotropic case: should have 1 component and value should be preserved
+        assert perm_passed.shape[0] == 1
+        assert np.allclose(perm_passed[0], 4.0)
+
+
 class TestTidy3DModeComputationWrapper:
     """Test the tidy3d_mode_computation_wrapper function."""
 

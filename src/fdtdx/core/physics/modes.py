@@ -185,6 +185,26 @@ def compute_mode(
         indices=0,
         axis=propagation_axis + 1,
     )
+
+    # Rotate permittivity components to match tidy3d coordinate system
+    # tidy3d assumes propagation along z, so we need to map physical axes to tidy3d axes:
+    # - tidy3d x → first transverse axis
+    # - tidy3d y → second transverse axis
+    # - tidy3d z → propagation axis
+    if propagation_axis == 0:
+        # propagation along x: tidy3d (x,y,z) → physical (y,z,x)
+        perm_idx = [1, 2, 0]
+    elif propagation_axis == 1:
+        # propagation along y: tidy3d (x,y,z) → physical (x,z,y)
+        perm_idx = [0, 2, 1]
+    else:  # propagation_axis == 2
+        # propagation along z: tidy3d (x,y,z) → physical (x,y,z)
+        perm_idx = [0, 1, 2]
+
+    # Only apply rotation if anisotropic (3 components)
+    if permittivity_squeezed.shape[0] == 3:
+        permittivity_squeezed = permittivity_squeezed[jnp.array(perm_idx), :, :]
+
     result_shape_dtype = (
         jnp.zeros((3, *permittivity_squeezed.shape[1:]), dtype=jnp.complex64),
         jnp.zeros((3, *permittivity_squeezed.shape[1:]), dtype=jnp.complex64),
@@ -198,6 +218,9 @@ def compute_mode(
             indices=0,
             axis=propagation_axis + 1,
         )
+        # Apply same rotation to permeability if anisotropic
+        if permeability_squeezed.shape[0] == 3:
+            permeability_squeezed = permeability_squeezed[jnp.array(perm_idx), :, :]
     else:  # float
         permeability_squeezed = permeabilities
 
