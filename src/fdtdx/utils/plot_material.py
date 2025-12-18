@@ -15,6 +15,7 @@ def plot_material_from_side(
     config: SimulationConfig,
     arrays: ArrayContainer,
     viewing_side: Literal["x", "y", "z"],
+    material_axis: int = 0,
     filename: str | Path | None = None,
     ax: Any | None = None,
     plot_legend: bool = True,
@@ -30,6 +31,7 @@ def plot_material_from_side(
         config (SimulationConfig): Configuration object containing simulation parameters like resolution
         arrays (ArrayContainer): Container holding the material arrays (permittivity, permeability)
         viewing_side (Literal['x', 'y', 'z']): Which plane to view ('x' for YZ, 'y' for XZ, 'z' for XY)
+        materialaxis (int): Which material axis to plot (for anisotropic materials). Can be 0, 1, 2 for x, y or z.
         filename (str | Path | None, optional): If provided, saves the plot to this file instead of displaying
         ax (Any | None, optional): Optional matplotlib axis to plot on. If None, creates new figure
         plot_legend (bool, optional): Whether to add a colorbar legend
@@ -74,7 +76,7 @@ def plot_material_from_side(
         center_idx = array_shape[2] // 2
         slice_idx = center_idx + slice_offset
         slice_idx = max(0, min(slice_idx, array_shape[2] - 1))
-        material_slice = material_array[:, :, slice_idx]
+        material_slice = material_array[material_axis, :, :, slice_idx]
         axis_labels = ("x (µm)", "y (µm)")
         title = f"XY plane - {type} at z={position * 1e6:.2f} µm"
         extent = [0, array_shape[0] * resolution, 0, array_shape[1] * resolution]
@@ -84,7 +86,7 @@ def plot_material_from_side(
         center_idx = array_shape[1] // 2
         slice_idx = center_idx + slice_offset
         slice_idx = max(0, min(slice_idx, array_shape[1] - 1))
-        material_slice = material_array[:, slice_idx, :]
+        material_slice = material_array[material_axis, :, slice_idx, :]
         axis_labels = ("x (µm)", "z (µm)")
         title = f"XZ plane - {type} at y={position * 1e6:.2f} µm"
         extent = [0, array_shape[0] * resolution, 0, array_shape[2] * resolution]
@@ -94,7 +96,7 @@ def plot_material_from_side(
         center_idx = array_shape[0] // 2
         slice_idx = center_idx + slice_offset
         slice_idx = max(0, min(slice_idx, array_shape[0] - 1))
-        material_slice = material_array[slice_idx, :, :]
+        material_slice = material_array[material_axis, slice_idx, :, :]
         axis_labels = ("y (µm)", "z (µm)")
         title = f"YZ plane - {type} at x={position * 1e6:.2f} µm"
         extent = [0, array_shape[1] * resolution, 0, array_shape[2] * resolution]

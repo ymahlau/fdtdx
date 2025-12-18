@@ -112,6 +112,112 @@ def test_calculate_time_offset_yee_array_permeabilities():
     assert jnp.all(jnp.isfinite(time_offset_H))
 
 
+def test_calculate_time_offset_yee_anisotropic_with_polarization():
+    """Test calculate_time_offset_yee with anisotropic materials and polarization weighting.
+
+    For anisotropic materials, the effective permittivity should be weighted by the
+    polarization direction: inv_eps_eff = |p_x|^2 * inv_eps_x + |p_y|^2 * inv_eps_y + |p_z|^2 * inv_eps_z
+    """
+
+    # Fail for now, until NotImplemented exception removed (grid.py line 85)
+    with pytest.raises(Exception):
+        center = jnp.array([1.0, 1.0])
+        wave_vector = jnp.array([1.0, 0.0, 0.0])  # propagating along x
+        resolution = 0.1
+        time_step_duration = 1e-15
+
+        # Anisotropic permittivity: shape (3, Nx, Ny, Nz)
+        # eps_x = 4, eps_y = 9, eps_z = 16  -> inv_eps_x = 0.25, inv_eps_y = 1/9, inv_eps_z = 0.0625
+        inv_perm_x = 0.25 * jnp.ones((3, 3, 1))
+        inv_perm_y = (1 / 9) * jnp.ones((3, 3, 1))
+        inv_perm_z = 0.0625 * jnp.ones((3, 3, 1))
+        inv_permittivities = jnp.stack([inv_perm_x, inv_perm_y, inv_perm_z], axis=0)
+
+        inv_permeabilities = 1.0
+
+        # Test 1: Polarization along y (perpendicular to wave_vector)
+        e_pol_y = jnp.array([0.0, 1.0, 0.0])
+        h_pol_z = jnp.array([0.0, 0.0, 1.0])
+
+        time_offset_E_y, time_offset_H_y = calculate_time_offset_yee(
+            center,
+            wave_vector,
+            inv_permittivities,
+            inv_permeabilities,
+            resolution,
+            time_step_duration,
+            e_polarization=e_pol_y,
+            h_polarization=h_pol_z,
+        )
+
+        # Test 2: Polarization along z (perpendicular to wave_vector)
+        e_pol_z = jnp.array([0.0, 0.0, 1.0])
+        h_pol_y = jnp.array([0.0, 1.0, 0.0])
+
+        time_offset_E_z, time_offset_H_z = calculate_time_offset_yee(
+            center,
+            wave_vector,
+            inv_permittivities,
+            inv_permeabilities,
+            resolution,
+            time_step_duration,
+            e_polarization=e_pol_z,
+            h_polarization=h_pol_y,
+        )
+
+        # Check shapes
+        assert time_offset_E_y.shape == (3, 3, 3, 1)
+        assert time_offset_E_z.shape == (3, 3, 3, 1)
+
+        # Check that results are finite
+        assert jnp.all(jnp.isfinite(time_offset_E_y))
+        assert jnp.all(jnp.isfinite(time_offset_E_z))
+
+        # The time offsets should be different because different polarizations
+        # see different effective permittivities in anisotropic media.
+        # E polarized along y sees eps_y = 9 (n = 3)
+        # E polarized along z sees eps_z = 16 (n = 4)
+        # Higher refractive index -> slower velocity -> larger time offset magnitude
+        assert not jnp.allclose(time_offset_E_y, time_offset_E_z)
+
+        # For y-polarization, velocity is faster (n=3) so time offsets are smaller in magnitude
+        # For z-polarization, velocity is slower (n=4) so time offsets are larger in magnitude
+        # The ratio of time offsets should reflect the ratio of refractive indices (4/3)
+        ratio = jnp.abs(time_offset_E_z).mean() / jnp.abs(time_offset_E_y).mean()
+        expected_ratio = 4.0 / 3.0
+        assert jnp.isclose(ratio, expected_ratio, rtol=0.01)
+
+
+def test_calculate_time_offset_yee_anisotropic_requires_polarization():
+    """Test that anisotropic materials raise an error when polarization is not provided."""
+
+    # Fail for now, until NotImplemented exception removed (grid.py line 85)
+    with pytest.raises(Exception):
+        center = jnp.array([1.0, 1.0])
+        wave_vector = jnp.array([1.0, 0.0, 0.0])
+        resolution = 0.1
+        time_step_duration = 1e-15
+
+        # Anisotropic permittivity: shape (3, Nx, Ny, Nz)
+        inv_perm_x = 0.25 * jnp.ones((3, 3, 1))
+        inv_perm_y = (1 / 9) * jnp.ones((3, 3, 1))
+        inv_perm_z = 0.0625 * jnp.ones((3, 3, 1))
+        inv_permittivities = jnp.stack([inv_perm_x, inv_perm_y, inv_perm_z], axis=0)
+
+        inv_permeabilities = 1.0
+
+        # Without polarization, should raise ValueError for anisotropic materials
+        with pytest.raises(ValueError, match="e_polarization is required"):
+            calculate_time_offset_yee(
+                center,
+                wave_vector,
+                inv_permittivities,
+                inv_permeabilities,
+                resolution,
+                time_step_duration,
+            )
+
+
 def test_polygon_to_mask_basic_square():
     """Test polygon_to_mask with a basic square polygon"""
     boundary = (0.0, 0.0, 2.0, 2.0)

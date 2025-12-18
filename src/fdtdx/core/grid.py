@@ -32,21 +32,31 @@ def calculate_time_offset_yee(
     resolution: float,
     time_step_duration: float,
     effective_index: jax.Array | float | None = None,
+    e_polarization: jax.Array | None = None,
+    h_polarization: jax.Array | None = None,
 ) -> tuple[jax.Array, jax.Array]:
-    if inv_permittivities.squeeze().ndim != 2 or inv_permittivities.ndim != 3:
+    if inv_permittivities.ndim == 4:
+        # Extract spatial shape from (1, Nx, Ny, Nz) or (3, Nx, Ny, Nz)
+        spatial_shape = inv_permittivities.shape[1:]
+    elif inv_permittivities.ndim == 3:
+        # Legacy shape (Nx, Ny, Nz)
+        spatial_shape = inv_permittivities.shape
+    else:
         raise Exception(f"Invalid permittivity shape: {inv_permittivities.shape=}")
-    if 1 not in inv_permittivities.shape:
-        raise Exception(f"Expected one axis to be one, but got {inv_permittivities.shape}")
+
+    if 1 not in spatial_shape:
+        raise Exception(f"Expected one spatial axis to be one, but got {spatial_shape}")
+
     # phase variation
     x, y, z = jnp.meshgrid(
-        jnp.arange(inv_permittivities.shape[0]),
-        jnp.arange(inv_permittivities.shape[1]),
-        jnp.arange(inv_permittivities.shape[2]),
+        jnp.arange(spatial_shape[0]),
+        jnp.arange(spatial_shape[1]),
+        jnp.arange(spatial_shape[2]),
         indexing="ij",
     )
     xyz = jnp.stack([x, y, z], axis=-1)
     center_list = [center[0], center[1]]
-    propagation_axis = inv_permittivities.shape.index(1)
+    propagation_axis = spatial_shape.index(1)
     center_list.insert(propagation_axis, 0)  # type: ignore
     center_3d = jnp.asarray(center_list, dtype=jnp.float32)[None, None, None, :]
     xyz = xyz - center_3d
@@ -70,10 +80,57 @@ def calculate_time_offset_yee(
     travel_offset_E = -jnp.dot(xyz_E, wave_vector)
     travel_offset_H = -jnp.dot(xyz_H, wave_vector)
 
-    # adjust speed for material and calculate time offset
-    refractive_idx = 1 / jnp.sqrt(inv_permittivities * inv_permeabilities)
     if effective_index is not None:
-        refractive_idx = effective_index * jnp.ones_like(refractive_idx)
+        refractive_idx = effective_index * jnp.ones(spatial_shape)
+    else:
+        # adjust speed for material and calculate time offset
+        # inv_eps_eff = |p_x|^2 * inv_eps_x + |p_y|^2 * inv_eps_y + |p_z|^2 * inv_eps_z
+        if inv_permittivities.ndim == 4:
+            # Remove when anisotropic case is verified
+            if inv_permittivities.shape[0] == 3:
+                is_isotropic = jnp.allclose(inv_permittivities[0], inv_permittivities[1]) & jnp.allclose(
+                    inv_permittivities[1], inv_permittivities[2]
+                )
+
+                def _raise_if_anisotropic(is_iso):
+                    if not is_iso:
+                        raise NotImplementedError(
+                            "Gaussian or planewave sources within anisotropic materials are not supported yet."
+                        )
+
+                jax.debug.callback(_raise_if_anisotropic, is_isotropic)
+
+            if e_polarization is None:
+                raise ValueError("e_polarization is required for anisotropic materials (4D permittivity array)")
+            e_pol_squared = e_polarization**2
+            inv_perm_eff = jnp.sum(e_pol_squared[:, None, None, None] * inv_permittivities, axis=0)
+        else:
+            inv_perm_eff = inv_permittivities
+
+        if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim == 4:
+            # Remove when anisotropic case is verified
+            if inv_permeabilities.shape[0] == 3:
+                is_isotropic = jnp.allclose(inv_permeabilities[0], inv_permeabilities[1]) & jnp.allclose(
+                    inv_permeabilities[1], inv_permeabilities[2]
+                )
+
+                def _raise_if_anisotropic(is_iso):
+                    if not is_iso:
+                        raise NotImplementedError(
+                            "Gaussian or planewave sources within anisotropic materials are not supported yet."
+                        )
+
+                jax.debug.callback(_raise_if_anisotropic, is_isotropic)
+
+            if h_polarization is None:
+                raise ValueError("h_polarization is required for anisotropic materials (4D permeability array)")
+            h_pol_squared = h_polarization**2
+            inv_perm_eff_perm = jnp.sum(h_pol_squared[:, None, None, None] * inv_permeabilities, axis=0)
+        else:
+            inv_perm_eff_perm = inv_permeabilities
+
+        refractive_idx = 1 / jnp.sqrt(inv_perm_eff * inv_perm_eff_perm)
+
     velocity = (constants.c / refractive_idx)[None, ...]
     time_offset_E = travel_offset_E * resolution / (velocity * time_step_duration)
     time_offset_H = travel_offset_H * resolution / (velocity * time_step_duration)

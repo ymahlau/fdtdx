@@ -33,9 +33,11 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         jax.Array,  # time_offset_E: (3, *grid_shape)
         jax.Array,  # time_offset_H: (3, *grid_shape)
     ]:
-        inv_permittivities = inv_permittivities[*self.grid_slice]
+        # inv_permittivities shape: (3, Nx, Ny, Nz) - slice with component dimension
+        inv_permittivities = inv_permittivities[:, *self.grid_slice]
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
-            inv_permeabilities = inv_permeabilities[*self.grid_slice]
+            # inv_permeabilities shape: (3, Nx, Ny, Nz) - slice with component dimension
+            inv_permeabilities = inv_permeabilities[:, *self.grid_slice]
 
         # determine E/H polarization
         e_pol_raw, h_pol_raw = normalize_polarization_for_source(
@@ -119,6 +121,8 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
             inv_permeabilities=inv_permeabilities,
             resolution=self._config.resolution,
             time_step_duration=self._config.time_step_duration,
+            e_polarization=e_pol,
+            h_polarization=h_pol,
         )
 
         return E, H, time_offset_E, time_offset_H

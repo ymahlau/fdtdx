@@ -29,6 +29,37 @@ def test_compute_energy_basic():
     assert jnp.allclose(energy, expected_energy)
 
 
+def test_compute_energy_basic_anisotropic():
+    """Test basic energy computation with simple field configuration."""
+    # Create simple uniform fields
+    E = jnp.ones((3, 4, 4, 4))
+    H = jnp.ones((3, 4, 4, 4))
+    inv_permittivity = jnp.stack(
+        [
+            jnp.full((4, 4, 4), 1.0),
+            jnp.full((4, 4, 4), 0.5),
+            jnp.full((4, 4, 4), 1.0),
+        ]
+    )
+    inv_permeability = jnp.stack(
+        [
+            jnp.full((4, 4, 4), 1.0),
+            jnp.full((4, 4, 4), 1.0),
+            jnp.full((4, 4, 4), 1.0),
+        ]
+    )
+
+    energy = compute_energy(E, H, inv_permittivity, inv_permeability)
+
+    # Energy should be 0.5 * (1/inv_eps) * |E|^2 + 0.5 * (1/inv_mu) * |H|^2
+    # For uniform fields: |E|^2 = 3, |H|^2 = 3
+    expected_energy = 0.5 * (1.0 * 1.0 + 2.0 * 1.0 + 1.0 * 1.0) + 0.5 * (1.0 * 1.0 + 1.0 * 1.0 + 1.0 * 1.0)
+    expected_energy = 3.5
+
+    assert energy.shape == (4, 4, 4)
+    assert jnp.allclose(energy, expected_energy)
+
+
 def test_compute_energy_complex_fields():
     """Test energy computation with complex fields."""
     # Create complex fields
@@ -47,6 +78,32 @@ def test_compute_energy_complex_fields():
     assert jnp.allclose(energy, expected_energy)
 
 
+def test_compute_energy_complex_fields_anisotropic():
+    """Test energy computation with complex fields and anisotropic permittivity."""
+    # Create complex fields
+    E = jnp.array([[[1 + 1j]], [[2 + 0j]], [[0 + 2j]]])
+    H = jnp.array([[[1 - 1j]], [[1 + 1j]], [[2 + 0j]]])
+    # Anisotropic permittivity
+    inv_permittivity = jnp.stack(
+        [
+            jnp.full((1, 1), 1 / 2.0),
+            jnp.full((1, 1), 1 / 1.5),
+            jnp.full((1, 1), 1 / 2.0),
+        ]
+    )
+    inv_permeability = 1 / 2.0
+
+    energy = compute_energy(E, H, inv_permittivity, inv_permeability)
+
+    # |E|^2 = |1+1j|^2 + |2+0j|^2 + |0+2j|^2 = 2 + 4 + 4 = 10
+    # |H|^2 = |1-1j|^2 + |1+1j|^2 + |2+0j|^2 = 2 + 2 + 4 = 8
+    # Energy = 0.5 * (1/0.5 * 2 + 1/0.75 * 4 + 1/0.5 * 4) + 0.5 * (1/0.5) * 8
+    expected_energy = 0.5 * (2.0 * 2.0 + 1.5 * 4 + 2.0 * 4.0) + 0.5 * 2.0 * 8
+    expected_energy = 0.5 * (4.0 + 6.0 + 8.0) + 8.0
+
+    assert jnp.allclose(energy, expected_energy)
+
+
 def test_compute_energy_spatially_varying_materials():
     """Test energy computation with spatially varying material properties."""
     E = jnp.ones((3, 2, 2, 2))
@@ -60,6 +117,35 @@ def test_compute_energy_spatially_varying_materials():
 
     # For uniform fields with |E|^2 = |H|^2 = 3
     expected_energy = 0.5 * (1 / inv_permittivity) * 3 + 0.5 * (1 / inv_permeability) * 3
+
+    assert energy.shape == (2, 2, 2)
+    assert jnp.allclose(energy, expected_energy)
+
+
+def test_compute_energy_spatially_varying_anisotropic_materials():
+    """Test energy computation with spatially varying anisotropic material properties."""
+    E = jnp.ones((3, 2, 2, 2))
+    H = jnp.ones((3, 2, 2, 2))
+
+    # Create spatially varying anisotropic permittivity and isotropic permeability
+    inv_permittivity = jnp.stack(
+        [
+            jnp.array([[[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]]]),
+            jnp.array([[[1.5, 2.5], [3.5, 4.5]], [[5.5, 6.5], [7.5, 8.5]]]),
+            jnp.array([[[2.0, 3.0], [4.0, 5.0]], [[6.0, 7.0], [8.0, 9.0]]]),
+        ]
+    )
+    inv_permeability = jnp.array([[[0.5, 1.0], [1.5, 2.0]], [[2.5, 3.0], [3.5, 4.0]]])
+
+    energy = compute_energy(E, H, inv_permittivity, inv_permeability)
+
+    # For uniform fields with |E|^2 per component = 1, total |E|^2 = 3
+    # |H|^2 per component = 1, total |H|^2 = 3
+    # Compute expected energy component by component
+    expected_energy = (
+        0.5 * (1 / inv_permittivity[0] + 1 / inv_permittivity[1] + 1 / inv_permittivity[2]) * 1
+        + 0.5 * (1 / inv_permeability) * 3
+    )
 
     assert energy.shape == (2, 2, 2)
     assert jnp.allclose(energy, expected_energy)
