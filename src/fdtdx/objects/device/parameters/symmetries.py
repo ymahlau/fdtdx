@@ -285,9 +285,7 @@ class DiagonalSymmetry3D(SameShapeTypeParameterTransform):
             transpose_axes = (0, 2, 1)
             flip_axes = (1, 2)  # Flip y and z for anti-diagonal
         else:
-            raise ValueError(
-                f"diagonal_plane must be 'xy', 'xz', or 'yz', got '{self.diagonal_plane}'"
-            )
+            raise ValueError(f"diagonal_plane must be 'xy', 'xz', or 'yz', got '{self.diagonal_plane}'")
 
         result = {}
         for k, v in params.items():

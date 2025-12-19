@@ -68,7 +68,7 @@ def _log_formatter(record: Any) -> str:
     )
 
 
-def snapshot_python_files(snapshot_dir: Path, save_source: bool=False, save_script: bool=True):
+def snapshot_python_files(snapshot_dir: Path, save_source: bool = False, save_script: bool = True):
     snapshot_dir.mkdir(parents=True, exist_ok=True)
     # fdtdx
     root_dir = Path(__file__).parent.parent
@@ -85,8 +85,8 @@ def snapshot_python_files(snapshot_dir: Path, save_source: bool=False, save_scri
 
     # Copy active script
     if save_script and sys.argv[0]:
-        shutil.copy(sys.argv[0],snapshot_dir / Path(sys.argv[0]).name )
-    
+        shutil.copy(sys.argv[0], snapshot_dir / Path(sys.argv[0]).name)
+
     # make zip and delete directory
     shutil.make_archive(str(snapshot_dir.parent / "code"), "zip", snapshot_dir)
     shutil.rmtree(snapshot_dir)
@@ -105,7 +105,9 @@ class Logger:
         name (str | None, optional): Optional specific name for the working directory. If None, uses timestamp.
     """
 
-    def __init__(self, experiment_name: str, name: str | None = None, save_source: bool=False, save_script: bool=True):
+    def __init__(
+        self, experiment_name: str, name: str | None = None, save_source: bool = False, save_script: bool = True
+    ):
         sns.set_theme(context="paper", style="white", palette="colorblind")
         self.cwd = init_working_directory(experiment_name, wd_name=name)
         self.console = Console()

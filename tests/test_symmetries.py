@@ -14,7 +14,6 @@ from fdtdx import (
     VerticalSymmetry3D,
 )
 
-
 # =============================================================================
 # 2D Symmetry Tests
 # =============================================================================
@@ -26,12 +25,15 @@ class TestHorizontalSymmetry2D:
     def test_symmetry_property(self):
         """Test that output satisfies horizontal symmetry."""
         # Create 2D array with singleton middle dimension (required by 2D transforms)
-        test_arr = jnp.array([
-            [[1, 2, 3, 4]],
-            [[5, 6, 7, 8]],
-            [[9, 10, 11, 12]],
-            [[13, 14, 15, 16]],
-        ], dtype=jnp.float32)
+        test_arr = jnp.array(
+            [
+                [[1, 2, 3, 4]],
+                [[5, 6, 7, 8]],
+                [[9, 10, 11, 12]],
+                [[13, 14, 15, 16]],
+            ],
+            dtype=jnp.float32,
+        )
 
         sym = HorizontalSymmetry2D()
         result = sym({"test": test_arr})["test"]
@@ -77,12 +79,15 @@ class TestVerticalSymmetry2D:
 
     def test_symmetry_property(self):
         """Test that output satisfies vertical symmetry."""
-        test_arr = jnp.array([
-            [[1, 2, 3, 4]],
-            [[5, 6, 7, 8]],
-            [[9, 10, 11, 12]],
-            [[13, 14, 15, 16]],
-        ], dtype=jnp.float32)
+        test_arr = jnp.array(
+            [
+                [[1, 2, 3, 4]],
+                [[5, 6, 7, 8]],
+                [[9, 10, 11, 12]],
+                [[13, 14, 15, 16]],
+            ],
+            dtype=jnp.float32,
+        )
 
         sym = VerticalSymmetry2D()
         result = sym({"test": test_arr})["test"]
@@ -116,12 +121,15 @@ class TestPointSymmetry2D:
 
     def test_symmetry_property(self):
         """Test that output satisfies 180-degree rotational symmetry."""
-        test_arr = jnp.array([
-            [[1, 2, 3, 4]],
-            [[5, 6, 7, 8]],
-            [[9, 10, 11, 12]],
-            [[13, 14, 15, 16]],
-        ], dtype=jnp.float32)
+        test_arr = jnp.array(
+            [
+                [[1, 2, 3, 4]],
+                [[5, 6, 7, 8]],
+                [[9, 10, 11, 12]],
+                [[13, 14, 15, 16]],
+            ],
+            dtype=jnp.float32,
+        )
 
         sym = PointSymmetry2D()
         result = sym({"test": test_arr})["test"]
@@ -440,12 +448,15 @@ class TestSymmetryComposition:
 
     def test_idempotence(self):
         """Test that applying symmetry twice gives same result."""
-        test_arr = jnp.array([
-            [[1, 2, 3, 4]],
-            [[5, 6, 7, 8]],
-            [[9, 10, 11, 12]],
-            [[13, 14, 15, 16]],
-        ], dtype=jnp.float32)
+        test_arr = jnp.array(
+            [
+                [[1, 2, 3, 4]],
+                [[5, 6, 7, 8]],
+                [[9, 10, 11, 12]],
+                [[13, 14, 15, 16]],
+            ],
+            dtype=jnp.float32,
+        )
 
         sym = HorizontalSymmetry2D()
         result1 = sym({"test": test_arr})["test"]

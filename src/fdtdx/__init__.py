@@ -157,6 +157,7 @@ __all__ = [
     "PillarDiscretization",
     "TanhProjection",
     "SubpixelSmoothedProjection",
+    "DiagonalSymmetry2D",
     "DiagonalSymmetry3D",
     "HorizontalSymmetry2D",
     "HorizontalSymmetry3D",
