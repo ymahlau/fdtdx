@@ -1453,13 +1453,8 @@ def where(
 
     c = condition if isinstance(condition, Unitful) else Unitful(val=condition, unit=EMPTY_UNIT)
     new_x = x if isinstance(x, Unitful) else Unitful(val=x, unit=EMPTY_UNIT)
-    new_y = (
-        y
-        if isinstance(x, Unitful)
-        else Unitful(val=y.val, unit=Unit(scale=y.unit.scale, dim={}), static_arr=y.static_arr)
-    )
 
-    return where(c, new_x, new_y, *args, **kwargs)
+    return where(c, new_x, y, *args, **kwargs)
 
 
 @overload
@@ -1475,13 +1470,8 @@ def where(
 
     c = condition if isinstance(condition, Unitful) else Unitful(val=condition, unit=EMPTY_UNIT)
     new_y = y if isinstance(y, Unitful) else Unitful(val=y, unit=EMPTY_UNIT)
-    new_x = (
-        x
-        if isinstance(y, Unitful)
-        else Unitful(val=x.val, unit=Unit(scale=x.unit.scale, dim={}), static_arr=x.static_arr)
-    )
 
-    return where(c, new_x, new_y, *args, **kwargs)
+    return where(c, x, new_y, *args, **kwargs)
 
 
 @overload

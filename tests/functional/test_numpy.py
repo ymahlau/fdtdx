@@ -1155,11 +1155,9 @@ def test_where_unitful_jax_backend():
 
 def test_where_numpy_and_unitful():
     """Test where with NumPy condition/x and Unitful y"""
-    m = Unit(scale=0, dim={SI.m: 1})
-
     condition = np.array([True, False, True])
     x = np.array([1.0, 2.0, 3.0])
-    y = Unitful(val=np.array([10.0, 20.0, 30.0]), unit=m)
+    y = Unitful(val=np.array([10.0, 20.0, 30.0]), unit=EMPTY_UNIT)
 
     result = where(condition, x, y)
 
@@ -1171,11 +1169,9 @@ def test_where_numpy_and_unitful():
 
 def test_where_jax_and_unitful():
     """Test where with JAX condition/x and Unitful y"""
-    m = Unit(scale=0, dim={SI.m: 1})
-
     condition = jnp.array([True, False, True])
     x = jnp.array([1.0, 2.0, 3.0])
-    y = Unitful(val=np.array([10.0, 20.0, 30.0]), unit=m)
+    y = Unitful(val=np.array([10.0, 20.0, 30.0]), unit=EMPTY_UNIT)
 
     result = where(condition, x, y)
 
@@ -1249,3 +1245,54 @@ def test_where_unitful_jitted_static_arr():
     expected = np.where(np.array([True, False, True]), np.array([1.0, 2.0, 3.0]), np.array([10.0, 20.0, 30.0]))
 
     assert jnp.allclose(result.value(), jnp.array(expected))
+
+
+def test_where_raises_on_dim_mismatch():
+    """where(Unitful, Unitful, Unitful) should raise if x.unit.dim != y.unit.dim"""
+    m = Unit(scale=0, dim={SI.m: 1})
+    s = Unit(scale=0, dim={SI.s: 1})
+
+    c = Unitful(
+        val=jnp.array([True, False, True]),
+        unit=EMPTY_UNIT,
+        static_arr=np.array([True, False, True]),
+    )
+    x = Unitful(
+        val=jnp.array([1.0, 2.0, 3.0]),
+        unit=m,
+        static_arr=np.array([1.0, 2.0, 3.0]),
+    )
+    y = Unitful(
+        val=jnp.array([10.0, 20.0, 30.0]),
+        unit=s,  # dim mismatch with x
+        static_arr=np.array([10.0, 20.0, 30.0]),
+    )
+
+    with pytest.raises(
+        AssertionError,
+        match=r"need the same units for jnp\.where",
+    ):
+        where(c, x, y)
+
+
+def test_where_x_unitful_y_arraylike_dim_mismatch_assert():
+    """where(Unitful, ArrayLike, Unitful) promoted to EMPTY_UNIT, dim mismatch must assert"""
+    m = Unit(scale=0, dim={SI.m: 1})
+
+    # condition: ArrayLike (matches overload signature)
+    c = jnp.array([True, False, True])
+
+    x = Unitful(
+        val=jnp.array([1.0, 2.0, 3.0]),
+        unit=m,
+        static_arr=np.array([1.0, 2.0, 3.0]),
+    )
+
+    # y is ArrayLike -> promoted to Unitful with EMPTY_UNIT (dim={})
+    y = jnp.array([10.0, 20.0, 30.0])
+
+    with pytest.raises(
+        AssertionError,
+        match=r"need the same units for jnp\.where",
+    ):
+        where(c, x, y)
