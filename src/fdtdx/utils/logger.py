@@ -1,6 +1,7 @@
 import atexit
 import csv
 import shutil
+import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -67,20 +68,25 @@ def _log_formatter(record: Any) -> str:
     )
 
 
-def snapshot_python_files(snapshot_dir: Path):
+def snapshot_python_files(snapshot_dir: Path, save_source: bool = False, save_script: bool = True):
     snapshot_dir.mkdir(parents=True, exist_ok=True)
     # fdtdx
     root_dir = Path(__file__).parent.parent
-    files = list(root_dir.rglob("*.py"))
-    # scripts
-    scripts_dir = Path(__file__).parent.parent.parent / "scripts"
-    files = files + list(scripts_dir.rglob("*.py"))
+    files = []
+
+    if save_source:
+        files = files + list(root_dir.rglob("*.py"))
 
     for python_file in files:
         relative_path = python_file.relative_to(root_dir.parent)
         destination = snapshot_dir / relative_path
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(python_file, destination)
+
+    # Copy active script
+    if save_script and sys.argv[0]:
+        shutil.copy(sys.argv[0], snapshot_dir / Path(sys.argv[0]).name)
+
     # make zip and delete directory
     shutil.make_archive(str(snapshot_dir.parent / "code"), "zip", snapshot_dir)
     shutil.rmtree(snapshot_dir)
@@ -99,7 +105,9 @@ class Logger:
         name (str | None, optional): Optional specific name for the working directory. If None, uses timestamp.
     """
 
-    def __init__(self, experiment_name: str, name: str | None = None):
+    def __init__(
+        self, experiment_name: str, name: str | None = None, save_source: bool = False, save_script: bool = True
+    ):
         sns.set_theme(context="paper", style="white", palette="colorblind")
         self.cwd = init_working_directory(experiment_name, wd_name=name)
         self.console = Console()
@@ -123,7 +131,7 @@ class Logger:
             format="{time:DD.MM.YYYY HH:mm:ss:ssss} | {level} - {message}",
         )
         logger.info(f"Starting experiment {experiment_name} in {self.cwd}")
-        snapshot_python_files(self.cwd / "code")
+        snapshot_python_files(self.cwd / "code", save_source=save_source, save_script=save_script)
         self.fieldnames = None
         self.writer = None
         self.csvfile = open(self.cwd / "metrics.csv", "w", newline="")
