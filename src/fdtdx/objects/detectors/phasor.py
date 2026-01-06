@@ -88,18 +88,24 @@ class PhasorDetector(Detector):
         if "Hz" in self.components:
             fields.append(H[2])
 
-        EH = jnp.stack(fields, axis=0)
+        EH = jnp.stack(fields, axis=0)  # Shape: (num_components, *grid_shape)
 
         # Vectorized phasor calculation for all frequencies
-        phase_angles = self._angular_frequencies * time_passed  # Shape: (num_freqs,)
-        phasors = jnp.exp(1j * phase_angles)  # Shape: (num_freqs,)
-        # Reshape phasors to (num_freqs, 1, 1, 1, 1) for proper broadcasting with EH (num_components, x, y, z)
-        phasors = phasors.reshape((len(self._angular_frequencies),) + (1,) * EH.ndim)
-        new_phasors = EH * phasors * static_scale  # Shape: (num_freqs, num_components, *grid_shape)
+        phase_angles = self._angular_frequencies[:, None] * time_passed  # Shape: (num_freqs, 1)
+        phasors = jnp.exp(1j * phase_angles)  # Shape: (num_freqs, 1)
+
+        # Reshape for broadcasting: (num_freqs, 1, 1, 1, 1) to broadcast with EH (num_components, x, y, z)
+        phasors = phasors.reshape((len(self._angular_frequencies), 1) + (1,) * (EH.ndim - 1))
+
+        # Broadcast EH to have frequency dimension: (1, num_components, *grid_shape)
+        EH_expanded = EH[None, ...]
+
+        # Compute phasors for all frequencies: (num_freqs, num_components, *grid_shape)
+        new_phasors = EH_expanded * phasors * static_scale
 
         if self.reduce_volume:
-            # Average over all spatial dimensions
-            spatial_axes = tuple(range(2, new_phasors.ndim))  # Skip freq and component axes
+            # Average over all spatial dimensions (keep freq and component axes)
+            spatial_axes = tuple(range(2, new_phasors.ndim))
             new_phasors = new_phasors.mean(axis=spatial_axes) if spatial_axes else new_phasors
 
         if self.inverse:
