@@ -36,7 +36,7 @@ def calculate_time_offset_yee(
     h_polarization: jax.Array | None = None,
 ) -> tuple[jax.Array, jax.Array]:
     if inv_permittivities.ndim == 4:
-        # Extract spatial shape from (1, Nx, Ny, Nz) or (3, Nx, Ny, Nz)
+        # Extract spatial shape from (1, Nx, Ny, Nz) or (3, Nx, Ny, Nz) or (9, Nx, Ny, Nz)
         spatial_shape = inv_permittivities.shape[1:]
     elif inv_permittivities.ndim == 3:
         # Legacy shape (Nx, Ny, Nz)
@@ -87,9 +87,24 @@ def calculate_time_offset_yee(
         # inv_eps_eff = |p_x|^2 * inv_eps_x + |p_y|^2 * inv_eps_y + |p_z|^2 * inv_eps_z
         if inv_permittivities.ndim == 4:
             # Remove when anisotropic case is verified
-            if inv_permittivities.shape[0] == 3:
-                is_isotropic = jnp.allclose(inv_permittivities[0], inv_permittivities[1]) & jnp.allclose(
-                    inv_permittivities[1], inv_permittivities[2]
+            if inv_permittivities.shape[0] == 3 or inv_permittivities.shape[0] == 9:
+                is_isotropic = (
+                    (
+                        inv_permittivities.shape[0] == 3 and 
+                        jnp.allclose(inv_permittivities[0], inv_permittivities[1]) and 
+                        jnp.allclose(inv_permittivities[1], inv_permittivities[2])
+                    ) or
+                    (
+                        inv_permittivities.shape[0] == 9 and 
+                        jnp.allclose(inv_permittivities[0], inv_permittivities[4]) and 
+                        jnp.allclose(inv_permittivities[4], inv_permittivities[8]) and
+                        inv_permittivities[1] == 0.0 and
+                        inv_permittivities[2] == 0.0 and
+                        inv_permittivities[3] == 0.0 and
+                        inv_permittivities[5] == 0.0 and
+                        inv_permittivities[6] == 0.0 and
+                        inv_permittivities[7] == 0.0
+                    )
                 )
 
                 def _raise_if_anisotropic(is_iso):
@@ -109,9 +124,24 @@ def calculate_time_offset_yee(
 
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim == 4:
             # Remove when anisotropic case is verified
-            if inv_permeabilities.shape[0] == 3:
-                is_isotropic = jnp.allclose(inv_permeabilities[0], inv_permeabilities[1]) & jnp.allclose(
-                    inv_permeabilities[1], inv_permeabilities[2]
+            if inv_permittivities.shape[0] == 3 or inv_permittivities.shape[0] == 9:
+                is_isotropic = (
+                    (
+                        inv_permittivities.shape[0] == 3 and 
+                        jnp.allclose(inv_permittivities[0], inv_permittivities[1]) and 
+                        jnp.allclose(inv_permittivities[1], inv_permittivities[2])
+                    ) or
+                    (
+                        inv_permittivities.shape[0] == 9 and 
+                        jnp.allclose(inv_permittivities[0], inv_permittivities[4]) and 
+                        jnp.allclose(inv_permittivities[4], inv_permittivities[8]) and
+                        inv_permittivities[1] == 0.0 and
+                        inv_permittivities[2] == 0.0 and
+                        inv_permittivities[3] == 0.0 and
+                        inv_permittivities[5] == 0.0 and
+                        inv_permittivities[6] == 0.0 and
+                        inv_permittivities[7] == 0.0
+                    )
                 )
 
                 def _raise_if_anisotropic(is_iso):

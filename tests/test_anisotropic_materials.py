@@ -18,18 +18,18 @@ class TestMaterialClass:
     def test_isotropic_material_scalar_input(self):
         """Test that scalar inputs are converted to tuples."""
         mat = Material(permittivity=2.5, permeability=1.2)
-        assert mat.permittivity == (2.5, 2.5, 2.5)
-        assert mat.permeability == (1.2, 1.2, 1.2)
-        assert mat.electric_conductivity == (0.0, 0.0, 0.0)
-        assert mat.magnetic_conductivity == (0.0, 0.0, 0.0)
+        assert mat.permittivity == (2.5, 0.0, 0.0, 0.0, 2.5, 0.0, 0.0, 0.0, 2.5)
+        assert mat.permeability == (1.2, 0.0, 0.0, 0.0, 1.2, 0.0, 0.0, 0.0, 1.2)
+        assert mat.electric_conductivity == (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        assert mat.magnetic_conductivity == (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
     def test_isotropic_material_default_values(self):
         """Test default material values."""
         mat = Material()
-        assert mat.permittivity == (1.0, 1.0, 1.0)
-        assert mat.permeability == (1.0, 1.0, 1.0)
-        assert mat.electric_conductivity == (0.0, 0.0, 0.0)
-        assert mat.magnetic_conductivity == (0.0, 0.0, 0.0)
+        assert mat.permittivity == (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+        assert mat.permeability == (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+        assert mat.electric_conductivity == (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        assert mat.magnetic_conductivity == (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
     def test_non_isotropic_material_tuple_input(self):
         """Test that tuple inputs are stored correctly."""
@@ -39,10 +39,10 @@ class TestMaterialClass:
             electric_conductivity=(0.1, 0.2, 0.3),
             magnetic_conductivity=(0.01, 0.02, 0.03),
         )
-        assert mat.permittivity == (2.0, 2.5, 3.0)
-        assert mat.permeability == (1.0, 1.2, 1.5)
-        assert mat.electric_conductivity == (0.1, 0.2, 0.3)
-        assert mat.magnetic_conductivity == (0.01, 0.02, 0.03)
+        assert mat.permittivity == (2.0, 0.0, 0.0, 0.0, 2.5, 0.0, 0.0, 0.0, 3.0)
+        assert mat.permeability == (1.0, 0.0, 0.0, 0.0, 1.2, 0.0, 0.0, 0.0, 1.5)
+        assert mat.electric_conductivity == (0.1, 0.0, 0.0, 0.0, 0.2, 0.0, 0.0, 0.0, 0.3)
+        assert mat.magnetic_conductivity == (0.01, 0.0, 0.0, 0.0, 0.02, 0.0, 0.0, 0.0, 0.03)
 
     def test_mixed_isotropic_and_non_isotropic(self):
         """Test material with some isotropic and some anisotropic properties."""
@@ -50,15 +50,15 @@ class TestMaterialClass:
             permittivity=(2.0, 2.5, 3.0),  # anisotropic
             permeability=1.0,  # isotropic
         )
-        assert mat.permittivity == (2.0, 2.5, 3.0)
-        assert mat.permeability == (1.0, 1.0, 1.0)
+        assert mat.permittivity == (2.0, 0.0, 0.0, 0.0, 2.5, 0.0, 0.0, 0.0, 3.0)
+        assert mat.permeability == (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
 
     def test_invalid_tuple_length(self):
         """Test that tuples with wrong length raise an error."""
-        with pytest.raises(ValueError, match="must have exactly 3 elements"):
+        with pytest.raises(ValueError, match="must have exactly 3 or 9 elements"):
             Material(permittivity=(2.0, 2.5))
 
-        with pytest.raises(ValueError, match="must have exactly 3 elements"):
+        with pytest.raises(ValueError, match="must have exactly 3 or 9 elements"):
             Material(permeability=(1.0, 1.2, 1.5, 2.0))
 
     def test_is_all_isotropic_property(self):
@@ -128,7 +128,7 @@ class TestMaterialHelperFunctions:
             "air": Material(permittivity=1.0),
             "aniso": Material(permittivity=(2.0, 2.5, 3.0)),
         }
-        result = compute_allowed_permittivities(materials)
+        result = compute_allowed_permittivities(materials, isotropic=False, diagonally_anisotropic=True)
 
         assert len(result) == 2
         assert all(isinstance(p, tuple) for p in result)
@@ -144,7 +144,7 @@ class TestMaterialHelperFunctions:
             "non_mag": Material(permeability=1.0),
             "magnetic": Material(permeability=(1.0, 1.5, 2.0)),
         }
-        result = compute_allowed_permeabilities(materials)
+        result = compute_allowed_permeabilities(materials, isotropic=False, diagonally_anisotropic=True)
 
         assert len(result) == 2
         assert result[0] == (1.0, 1.0, 1.0)
@@ -156,7 +156,7 @@ class TestMaterialHelperFunctions:
             "insulator": Material(electric_conductivity=0.0),
             "conductor": Material(electric_conductivity=(0.5, 1.0, 1.5)),
         }
-        result = compute_allowed_electric_conductivities(materials)
+        result = compute_allowed_electric_conductivities(materials, isotropic=False, diagonally_anisotropic=True)
 
         assert len(result) == 2
         assert result[0] == (0.0, 0.0, 0.0)
@@ -168,7 +168,7 @@ class TestMaterialHelperFunctions:
             "low_loss": Material(magnetic_conductivity=0.0),
             "lossy": Material(magnetic_conductivity=(0.1, 0.2, 0.3)),
         }
-        result = compute_allowed_magnetic_conductivities(materials)
+        result = compute_allowed_magnetic_conductivities(materials, isotropic=False, diagonally_anisotropic=True)
 
         assert len(result) == 2
         assert result[0] == (0.0, 0.0, 0.0)
@@ -198,7 +198,7 @@ class TestArrayShapes:
             "air": Material(permittivity=1.0),
             "aniso": Material(permittivity=(2.0, 2.5, 3.0)),
         }
-        perms = compute_allowed_permittivities(materials_dict)
+        perms = compute_allowed_permittivities(materials_dict, isotropic=False, diagonally_anisotropic=True)
         perm_array = jnp.asarray(perms)
 
         # Should have shape (num_materials, 3)
@@ -211,7 +211,7 @@ class TestArrayShapes:
         materials_dict = {
             "mat": Material(permittivity=(2.0, 4.0, 5.0)),
         }
-        perms = compute_allowed_permittivities(materials_dict)
+        perms = compute_allowed_permittivities(materials_dict, isotropic=False, diagonally_anisotropic=True)
         perm_array = jnp.asarray(perms)
         inv_perms = 1 / perm_array
 
@@ -224,7 +224,7 @@ class TestArrayShapes:
             "mat1": Material(permittivity=(1.0, 2.0, 3.0)),
             "mat2": Material(permittivity=(4.0, 5.0, 6.0)),
         }
-        perms = compute_allowed_permittivities(materials_dict)
+        perms = compute_allowed_permittivities(materials_dict, isotropic=False, diagonally_anisotropic=True)
         perm_array = jnp.asarray(perms)  # shape: (2, 3)
 
         # Access x-component (index 0) of all materials
@@ -254,7 +254,7 @@ class TestBackwardCompatibility:
         assert isinstance(mat.electric_conductivity, tuple)
 
         # All components should be equal
-        assert mat.permittivity == (2.0, 2.0, 2.0)
+        assert mat.permittivity == (2.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 2.0)
         assert mat.is_all_isotropic is True
 
     def test_material_helper_functions_with_isotropic(self):
@@ -268,4 +268,4 @@ class TestBackwardCompatibility:
         perms = compute_allowed_permittivities(materials)
         assert len(perms) == 3
         # All should be tuples even though input was scalar
-        assert all(isinstance(p, tuple) and len(p) == 3 for p in perms)
+        assert all(isinstance(p, tuple) and len(p) == 9 for p in perms)

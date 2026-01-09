@@ -1,6 +1,6 @@
 from collections import namedtuple
 from types import SimpleNamespace
-from typing import List, Literal
+from typing import List, Literal, cast
 
 import jax
 import jax.numpy as jnp
@@ -8,6 +8,7 @@ import numpy as np
 import tidy3d
 from tidy3d.components.mode.solver import compute_modes as _compute_modes
 
+from fdtdx.core.misc import expand_to_3x3
 from fdtdx.core.physics.metrics import normalize_by_poynting_flux
 
 ModeTupleType = namedtuple("Mode", ["neff", "Ex", "Ey", "Ez", "Hx", "Hy", "Hz"])
@@ -125,14 +126,14 @@ def compute_mode(
     """
     # Input validation
     if (
-        not (inv_permittivities.ndim == 4 and (inv_permittivities.shape[0] == 1 or inv_permittivities.shape[0] == 3))
+        not (inv_permittivities.ndim == 4 and (inv_permittivities.shape[0] == 1 or inv_permittivities.shape[0] == 3 or inv_permittivities.shape[0] == 9))
         or sum(dim == 1 for dim in inv_permittivities.shape[1:]) != 1
     ):
         raise Exception(f"Invalid shape of inv_permittivities: {inv_permittivities.shape}")
     if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
         if (
             not (
-                inv_permeabilities.ndim == 4 and (inv_permeabilities.shape[0] == 1 or inv_permeabilities.shape[0] == 3)
+                inv_permeabilities.ndim == 4 and (inv_permeabilities.shape[0] == 1 or inv_permeabilities.shape[0] == 3 or inv_permeabilities.shape[0] == 9)
             )
             or sum(dim == 1 for dim in inv_permeabilities.shape[1:]) != 1
         ):
@@ -176,10 +177,17 @@ def compute_mode(
         return mode_E, mode_H, neff
 
     # compute input to tidy3d Mode solver
-    permittivities = 1 / inv_permittivities
+    if isinstance(inv_permittivities, jax.Array) and inv_permittivities.ndim > 0 and inv_permittivities.shape[0] == 9:
+        eps = cast(jax.Array, expand_to_3x3(inv_permittivities))
+        # Invert the 3x3 matrix
+        perm = (2, 3, 4, 0, 1)      # (3, 3, nx, ny, nz) -> (nx, ny, nz, 3, 3)
+        inv_perm = (3, 4, 0, 1, 2)  # (nx, ny, nz, 3, 3) -> (3, 3, nx, ny, nz)
+        permittivities = jnp.linalg.inv(eps.transpose(perm)).transpose(inv_perm).reshape(9, *inv_permittivities.shape[1:])
+    else:
+        permittivities = 1 / inv_permittivities
     other_axes = [a for a in range(1, 4) if permittivities.shape[a] != 1]
     propagation_axis = permittivities.shape[1:].index(1)
-    coords = [np.arange(permittivities.shape[dim] + 1) * resolution / 1e-6 for dim in other_axes]
+    coords = [jnp.arange(permittivities.shape[dim] + 1) * resolution / 1e-6 for dim in other_axes]
     permittivity_squeezed = jnp.take(
         permittivities,
         indices=0,
@@ -201,8 +209,8 @@ def compute_mode(
         # propagation along z: tidy3d (x,y,z) → physical (x,y,z)
         perm_idx = [0, 1, 2]
 
-    # Only apply rotation if anisotropic (3 components)
-    if permittivity_squeezed.shape[0] == 3:
+    # Only apply rotation if anisotropic (3 or 9 components)
+    if permittivity_squeezed.shape[0] == 3 or permittivity_squeezed.shape[0] == 9:
         permittivity_squeezed = permittivity_squeezed[jnp.array(perm_idx), :, :]
 
     result_shape_dtype = (
@@ -211,7 +219,14 @@ def compute_mode(
         jnp.zeros(shape=(), dtype=jnp.complex64),
     )
 
-    permeabilities = 1 / inv_permeabilities
+    if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0 and inv_permeabilities.shape[0] == 9:
+        mu = cast(jax.Array, expand_to_3x3(inv_permeabilities))
+        # Invert the 3x3 matrix
+        perm = (2, 3, 4, 0, 1)      # (3, 3, nx, ny, nz) -> (nx, ny, nz, 3, 3)
+        inv_perm = (3, 4, 0, 1, 2)  # (nx, ny, nz, 3, 3) -> (3, 3, nx, ny, nz)
+        permeabilities = jnp.linalg.inv(mu.transpose(perm)).transpose(inv_perm).reshape(9, *inv_permeabilities.shape[1:])
+    else:
+        permeabilities = 1 / inv_permeabilities
     if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
         permeability_squeezed = jnp.take(
             permeabilities,
@@ -219,7 +234,7 @@ def compute_mode(
             axis=propagation_axis + 1,
         )
         # Apply same rotation to permeability if anisotropic
-        if permeability_squeezed.shape[0] == 3:
+        if permeability_squeezed.shape[0] == 3 or permeability_squeezed.shape[0] == 9:
             permeability_squeezed = permeability_squeezed[jnp.array(perm_idx), :, :]
     else:  # float
         permeability_squeezed = permeabilities
@@ -244,10 +259,10 @@ def compute_mode(
 
 def tidy3d_mode_computation_wrapper(
     frequency: float,
-    permittivity_cross_section: np.ndarray,
-    coords: List[np.ndarray],
+    permittivity_cross_section: jax.Array,
+    coords: List[jax.Array],
     direction: Literal["+", "-"],
-    permeability_cross_section: np.ndarray | float | None = None,
+    permeability_cross_section: jax.Array | float | None = None,
     target_neff: float | None = None,
     angle_theta: float = 0.0,
     angle_phi: float = 0.0,
@@ -261,10 +276,10 @@ def tidy3d_mode_computation_wrapper(
 
     Args:
         frequency (float): Operating frequency in Hz
-        permittivity_cross_section (np.ndarray): 2D array of relative permittivity values
-        coords (List[np.ndarray]): List of coordinate arrays [x, y] defining the grid
+        permittivity_cross_section (jax.Array): 2D array of relative permittivity values
+        coords (List[jax.Array]): List of coordinate arrays [x, y] defining the grid
         direction (Literal["+", "-"], optional): Propagation direction, either "+" or "-"
-        permeability_cross_section (np.ndarray | None, optional): 2D array of relative permeability values.
+        permeability_cross_section (jax.Array | None, optional): 2D array of relative permeability values.
             Defauts to None.
         target_neff (float | None, optional): Target effective index to search around. Defaults to None.
         angle_theta (float, optional): Polar angle in radians. Defaults to 0.0.
@@ -293,46 +308,39 @@ def tidy3d_mode_computation_wrapper(
         track_freq="central",
         group_index_step=False,
     )
-    idx = [0, 1, 2] if permittivity_cross_section.shape[0] == 3 else [0, 0, 0]
-    od = np.zeros_like(permittivity_cross_section[1, :, :])
+    permittivity_cross_section = cast(
+        jax.Array, expand_to_3x3(permittivity_cross_section)
+    ).reshape(9, *permittivity_cross_section.shape[1:])
+
     eps_cross = [
-        permittivity_cross_section[idx[0], :, :],
-        od,
-        od,
-        od,
-        permittivity_cross_section[idx[1], :, :],
-        od,
-        od,
-        od,
-        permittivity_cross_section[idx[2], :, :],
+        permittivity_cross_section[0, :, :],
+        permittivity_cross_section[1, :, :],
+        permittivity_cross_section[2, :, :],
+        permittivity_cross_section[3, :, :],
+        permittivity_cross_section[4, :, :],
+        permittivity_cross_section[5, :, :],
+        permittivity_cross_section[6, :, :],
+        permittivity_cross_section[7, :, :],
+        permittivity_cross_section[8, :, :],
     ]
     mu_cross = None
     if permeability_cross_section is not None:
-        if isinstance(permeability_cross_section, float):
-            mu_cross = [
-                permeability_cross_section,
-                od,
-                od,
-                od,
-                permeability_cross_section,
-                od,
-                od,
-                od,
-                permeability_cross_section,
-            ]
-        elif isinstance(permeability_cross_section, np.ndarray):
-            idx = [0, 1, 2] if permeability_cross_section.shape[0] == 3 else [0, 0, 0]
-            mu_cross = [
-                permeability_cross_section[idx[0], :, :],
-                od,
-                od,
-                od,
-                permeability_cross_section[idx[1], :, :],
-                od,
-                od,
-                od,
-                permeability_cross_section[idx[2], :, :],
-            ]
+        permeability_cross_section = cast(
+            jax.Array, expand_to_3x3(permeability_cross_section)
+        ).reshape(9, *permittivity_cross_section.shape[1:])
+
+        mu_cross = [
+            permeability_cross_section[0, :, :],
+            permeability_cross_section[1, :, :],
+            permeability_cross_section[2, :, :],
+            permeability_cross_section[3, :, :],
+            permeability_cross_section[4, :, :],
+            permeability_cross_section[5, :, :],
+            permeability_cross_section[6, :, :],
+            permeability_cross_section[7, :, :],
+            permeability_cross_section[8, :, :],
+        ]
+
     EH, neffs, _ = _compute_modes(
         eps_cross=eps_cross,
         coords=coords,

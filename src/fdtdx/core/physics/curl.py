@@ -133,76 +133,20 @@ def curl_E(
     dyEx = (jnp.roll(E_pad[0], -1, axis=1) - E_pad[0])[1:-1, 1:-1, 1:-1]
 
     # Auxiliary fields
-    psi_Hxy = psi_H[0, :, :, :]
-    psi_Hxz = psi_H[1, :, :, :]
-    psi_Hyz = psi_H[2, :, :, :]
-    psi_Hyx = psi_H[3, :, :, :]
-    psi_Hzx = psi_H[4, :, :, :]
-    psi_Hzy = psi_H[5, :, :, :]
+    psi_Hxy, psi_Hxz, psi_Hyz, psi_Hyx, psi_Hzx, psi_Hzy = psi_H
 
     if simulate_boundaries:
         # Get H-field PML coefficients
-        b_x = (
-            jnp.expm1(
-                -config.courant_number
-                * config.resolution
-                / c0
-                / eps0
-                * (sigma[3, :, :, :] / kappa[3, :, :, :] + alpha[3, :, :, :])
-            )
-            + 1
-        )
-        b_y = (
-            jnp.expm1(
-                -config.courant_number
-                * config.resolution
-                / c0
-                / eps0
-                * (sigma[4, :, :, :] / kappa[4, :, :, :] + alpha[4, :, :, :])
-            )
-            + 1
-        )
-        b_z = (
-            jnp.expm1(
-                -config.courant_number
-                * config.resolution
-                / c0
-                / eps0
-                * (sigma[5, :, :, :] / kappa[5, :, :, :] + alpha[5, :, :, :])
-            )
-            + 1
-        )
-
-        a_x = (
-            (b_x - 1.0)
-            * sigma[3, :, :, :]
-            / (sigma[3, :, :, :] + alpha[3, :, :, :] * kappa[3, :, :, :])
-            / kappa[3, :, :, :]
-        )
-        a_y = (
-            (b_y - 1.0)
-            * sigma[4, :, :, :]
-            / (sigma[4, :, :, :] + alpha[4, :, :, :] * kappa[4, :, :, :])
-            / kappa[4, :, :, :]
-        )
-        a_z = (
-            (b_z - 1.0)
-            * sigma[5, :, :, :]
-            / (sigma[5, :, :, :] + alpha[5, :, :, :] * kappa[5, :, :, :])
-            / kappa[5, :, :, :]
-        )
-
-        a_x = jnp.nan_to_num(a_x, nan=0.0, posinf=0.0, neginf=0.0)
-        a_y = jnp.nan_to_num(a_y, nan=0.0, posinf=0.0, neginf=0.0)
-        a_z = jnp.nan_to_num(a_z, nan=0.0, posinf=0.0, neginf=0.0)
+        b = jnp.expm1(-config.courant_number * config.resolution / c0 / eps0 * (sigma / kappa + alpha)) + 1
+        a = jnp.nan_to_num((b - 1.0) * sigma / (sigma + alpha * kappa) / kappa, nan=0.0, posinf=0.0, neginf=0.0)
 
         # Update auxiliary fields
-        psi_Hxy = b_y * psi_Hxy + a_y * dyEz
-        psi_Hxz = b_z * psi_Hxz + a_z * dzEy
-        psi_Hyz = b_z * psi_Hyz + a_z * dzEx
-        psi_Hyx = b_x * psi_Hyx + a_x * dxEz
-        psi_Hzx = b_x * psi_Hzx + a_x * dxEy
-        psi_Hzy = b_y * psi_Hzy + a_y * dyEx
+        psi_Hxy = b[4, :, :, :] * psi_Hxy + a[4, :, :, :] * dyEz
+        psi_Hxz = b[5, :, :, :] * psi_Hxz + a[5, :, :, :] * dzEy
+        psi_Hyz = b[5, :, :, :] * psi_Hyz + a[5, :, :, :] * dzEx
+        psi_Hyx = b[3, :, :, :] * psi_Hyx + a[3, :, :, :] * dxEz
+        psi_Hzx = b[3, :, :, :] * psi_Hzx + a[3, :, :, :] * dxEy
+        psi_Hzy = b[4, :, :, :] * psi_Hzy + a[4, :, :, :] * dyEx
 
     psi_H_updated = jnp.stack((psi_Hxy, psi_Hxz, psi_Hyz, psi_Hyx, psi_Hzx, psi_Hzy), axis=0)
 
@@ -273,76 +217,20 @@ def curl_H(
     dyHx = (H_pad[0] - jnp.roll(H_pad[0], 1, axis=1))[1:-1, 1:-1, 1:-1]
 
     # Auxiliary fields
-    psi_Exy = psi_E[0, :, :, :]
-    psi_Exz = psi_E[1, :, :, :]
-    psi_Eyz = psi_E[2, :, :, :]
-    psi_Eyx = psi_E[3, :, :, :]
-    psi_Ezx = psi_E[4, :, :, :]
-    psi_Ezy = psi_E[5, :, :, :]
+    psi_Exy, psi_Exz, psi_Eyz, psi_Eyx, psi_Ezx, psi_Ezy = psi_E
 
     if simulate_boundaries:
         # Get E-field PML coefficients
-        b_x = (
-            jnp.expm1(
-                -config.courant_number
-                * config.resolution
-                / c0
-                / eps0
-                * (sigma[0, :, :, :] / kappa[0, :, :, :] + alpha[0, :, :, :])
-            )
-            + 1
-        )
-        b_y = (
-            jnp.expm1(
-                -config.courant_number
-                * config.resolution
-                / c0
-                / eps0
-                * (sigma[1, :, :, :] / kappa[1, :, :, :] + alpha[1, :, :, :])
-            )
-            + 1
-        )
-        b_z = (
-            jnp.expm1(
-                -config.courant_number
-                * config.resolution
-                / c0
-                / eps0
-                * (sigma[2, :, :, :] / kappa[2, :, :, :] + alpha[2, :, :, :])
-            )
-            + 1
-        )
-
-        a_x = (
-            (b_x - 1.0)
-            * sigma[0, :, :, :]
-            / (sigma[0, :, :, :] + alpha[0, :, :, :] * kappa[0, :, :, :])
-            / kappa[0, :, :, :]
-        )
-        a_y = (
-            (b_y - 1.0)
-            * sigma[1, :, :, :]
-            / (sigma[1, :, :, :] + alpha[1, :, :, :] * kappa[1, :, :, :])
-            / kappa[1, :, :, :]
-        )
-        a_z = (
-            (b_z - 1.0)
-            * sigma[2, :, :, :]
-            / (sigma[2, :, :, :] + alpha[2, :, :, :] * kappa[2, :, :, :])
-            / kappa[2, :, :, :]
-        )
-
-        a_x = jnp.nan_to_num(a_x, nan=0.0, posinf=0.0, neginf=0.0)
-        a_y = jnp.nan_to_num(a_y, nan=0.0, posinf=0.0, neginf=0.0)
-        a_z = jnp.nan_to_num(a_z, nan=0.0, posinf=0.0, neginf=0.0)
+        b = jnp.expm1(-config.courant_number * config.resolution / c0 / eps0 * (sigma / kappa + alpha)) + 1
+        a = jnp.nan_to_num((b - 1.0) * sigma / (sigma + alpha * kappa) / kappa, nan=0.0, posinf=0.0, neginf=0.0)
 
         # Update auxiliary fields
-        psi_Exy = b_y * psi_Exy + a_y * dyHz
-        psi_Exz = b_z * psi_Exz + a_z * dzHy
-        psi_Eyz = b_z * psi_Eyz + a_z * dzHx
-        psi_Eyx = b_x * psi_Eyx + a_x * dxHz
-        psi_Ezx = b_x * psi_Ezx + a_x * dxHy
-        psi_Ezy = b_y * psi_Ezy + a_y * dyHx
+        psi_Exy = b[1, :, :, :] * psi_Exy + a[1, :, :, :] * dyHz
+        psi_Exz = b[2, :, :, :] * psi_Exz + a[2, :, :, :] * dzHy
+        psi_Eyz = b[2, :, :, :] * psi_Eyz + a[2, :, :, :] * dzHx
+        psi_Eyx = b[0, :, :, :] * psi_Eyx + a[0, :, :, :] * dxHz
+        psi_Ezx = b[0, :, :, :] * psi_Ezx + a[0, :, :, :] * dxHy
+        psi_Ezy = b[1, :, :, :] * psi_Ezy + a[1, :, :, :] * dyHx
 
     psi_E_updated = jnp.stack((psi_Exy, psi_Exz, psi_Eyz, psi_Eyx, psi_Ezx, psi_Ezy), axis=0)
 

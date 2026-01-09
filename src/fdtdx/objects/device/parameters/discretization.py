@@ -62,7 +62,20 @@ class ClosestIndex(ParameterTransformation):
 
         def transform_arr(arr: jax.Array) -> jax.Array:
             if self.mapping_from_inverse_permittivities:
-                allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(self._materials))
+                is_isotropic = all(mat.is_isotropic_permittivity for mat in self._materials.values())
+                is_diagonally_anisotropic = all(mat.is_diagonally_anisotropic_permittivity for mat in self._materials.values())
+                allowed_perm_array = jnp.asarray(
+                    compute_allowed_permittivities(
+                        self._materials, 
+                        isotropic=is_isotropic, 
+                        diagonally_anisotropic=is_diagonally_anisotropic
+                    )
+                )
+                if is_isotropic or is_diagonally_anisotropic:
+                    allowed_inv_perms = 1 / allowed_perm_array
+                else:
+                    # Fully anisotropic: reshape to 3x3 matrix, invert, and flatten back to 9 elements
+                    allowed_inv_perms = jnp.array([jnp.linalg.inv(perm.reshape(3, 3)).flatten() for perm in allowed_perm_array])
                 dist = jnp.abs(arr[..., None] - allowed_inv_perms)
                 discrete = jnp.argmin(dist, axis=-1)
             else:
@@ -386,7 +399,21 @@ class PillarDiscretization(ParameterTransformation):
         single_key = list(params.keys())[0]
         params_arr = params[single_key]
 
-        allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(self._materials))
+        is_isotropic = all(mat.is_isotropic_permittivity for mat in self._materials.values())
+        is_diagonally_anisotropic = all(mat.is_diagonally_anisotropic_permittivity for mat in self._materials.values())
+        allowed_perm_array = jnp.asarray(
+            compute_allowed_permittivities(
+                self._materials, 
+                isotropic=is_isotropic, 
+                diagonally_anisotropic=is_diagonally_anisotropic
+            )
+        )
+        if is_isotropic or is_diagonally_anisotropic:
+            allowed_inv_perms = 1 / allowed_perm_array
+        else:
+            # Fully anisotropic: reshape to 3x3 matrix, invert, and flatten back to 9 elements
+            allowed_inv_perms = jnp.array([jnp.linalg.inv(perm.reshape(3, 3)).flatten() for perm in allowed_perm_array])
+
         nearest_allowed_index = nearest_index(
             values=params_arr,
             allowed_values=allowed_inv_perms,

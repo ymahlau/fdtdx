@@ -150,10 +150,10 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
     ) -> tuple[
-        jax.Array,  # E: (3, *grid_shape)
-        jax.Array,  # H: (3, *grid_shape)
-        jax.Array,  # time_offset_E: (3, *grid_shape)
-        jax.Array,  # time_offset_H: (3, *grid_shape)
+        jax.Array,  # E: (num_components, *grid_shape)
+        jax.Array,  # H: (num_components, *grid_shape)
+        jax.Array,  # time_offset_E: (num_components, *grid_shape)
+        jax.Array,  # time_offset_H: (num_components, *grid_shape)
     ]:
         # normal coordinates
         raise NotImplementedError()
@@ -193,52 +193,75 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
             raise Exception("Need to apply random key before calling update")
 
         delta_t = self._config.time_step_duration
-        # inv_permittivities shape: (3, Nx, Ny, Nz) - slice with component dimension
+        c = self._config.courant_number
+
+        # Determine if fully anisotropic
+        is_fully_anisotropic = (
+            inv_permittivities.ndim > 0 and 
+            inv_permittivities.shape[0] == 9
+        )
+
+        # Slice the permittivity tensor at the TFSF boundary, shape: (num_components, Nx, Ny, Nz)
         inv_permittivity_slice = inv_permittivities[:, *self.grid_slice]
 
-        # Calculate time points for E and H fields
-        time_H_h = (time_step + self._time_offset_H[self.horizontal_axis]) * delta_t
-        time_H_v = (time_step + self._time_offset_H[self.vertical_axis]) * delta_t
-
-        # Get temporal amplitudes from profile
-        amplitude_H_h = self.temporal_profile.get_amplitude(
-            time=time_H_h,
-            period=self.wave_character.get_period(),
-            phase_shift=self.wave_character.phase_shift,
-        )
-        amplitude_H_h = amplitude_H_h * self.static_amplitude_factor
-        amplitude_H_v = self.temporal_profile.get_amplitude(
-            time=time_H_v,
-            period=self.wave_character.get_period(),
-            phase_shift=self.wave_character.phase_shift,
-        )
-        amplitude_H_v = amplitude_H_v * self.static_amplitude_factor
-
-        # vertical incident wave part
-        H_v_inc = self._H[self.vertical_axis] * amplitude_H_v
-        # Use horizontal component of inv_permittivity for H_v calculation
-        H_v_inc = H_v_inc * self._config.courant_number * inv_permittivity_slice[self.horizontal_axis]
-        H_v_inc = jax.lax.stop_gradient(H_v_inc)
-
-        # horizontal incident wave part
-        H_h_inc = self._H[self.horizontal_axis] * amplitude_H_h
-        # Use vertical component of inv_permittivity for H_h calculation
-        H_h_inc = H_h_inc * self._config.courant_number * inv_permittivity_slice[self.vertical_axis]
-        H_h_inc = jax.lax.stop_gradient(H_h_inc)
+        # Calculate time points for H fields
+        h_axis, v_axis, p_axis = self.horizontal_axis, self.vertical_axis, self.propagation_axis
+        time_H = {}
+        amplitude_H = {}
+        for axis in [h_axis, v_axis, p_axis]:
+            time_H[axis] = (time_step + self._time_offset_H[axis]) * delta_t
+            amplitude_H[axis] = self.temporal_profile.get_amplitude(
+                time=time_H[axis],
+                period=self.wave_character.get_period(),
+                phase_shift=self.wave_character.phase_shift,
+            ) * self.static_amplitude_factor
 
         # if direction is negative, updates are reversed
         sign = 1 if self.direction == "+" else -1
-
         # inverse update is inverted
-        if inverse:
-            sign = -sign
+        if inverse: sign = -sign
 
-        # update uses -H_v, we have to subtract update, resulting in +H_v
-        E = E.at[self.horizontal_axis, *self.grid_slice].add(sign * H_v_inc)
-        # update uses +H_h, we have to subtract update, resulting in -H_h
-        E = E.at[self.vertical_axis, *self.grid_slice].add(-sign * H_h_inc)
+        if is_fully_anisotropic:
+            # vertical incident wave part
+            H_v_inc = jax.lax.stop_gradient(self._H[v_axis] * amplitude_H[v_axis])
+            # horizontal incident wave part
+            H_h_inc = jax.lax.stop_gradient(self._H[h_axis] * amplitude_H[h_axis])
 
-        return E
+            def get_inv_eps(row, col):
+                # get inverse permittivity tensor element at (row, col)
+                idx = row * 3 + col
+                return inv_permittivity_slice[idx]
+
+            # update uses -H_v, we have to subtract update, resulting in +H_v
+            # update uses +H_h, we have to subtract update, resulting in -H_h
+            E_p_correction = c * (get_inv_eps(p_axis, h_axis) * (+H_v_inc) + get_inv_eps(p_axis, v_axis) * (-H_h_inc))
+            E = E.at[p_axis, *self.grid_slice].add(sign * E_p_correction)
+            E_h_correction = c * (get_inv_eps(h_axis, h_axis) * (+H_v_inc) + get_inv_eps(h_axis, v_axis) * (-H_h_inc))
+            E = E.at[h_axis, *self.grid_slice].add(sign * E_h_correction)
+            E_v_correction = c * (get_inv_eps(v_axis, h_axis) * (+H_v_inc) + get_inv_eps(v_axis, v_axis) * (-H_h_inc))
+            E = E.at[v_axis, *self.grid_slice].add(sign * E_v_correction)
+
+            return E
+
+        else:
+            # vertical incident wave part
+            H_v_inc = self._H[v_axis] * amplitude_H[v_axis]
+            # Use horizontal component of inv_permittivity for H_v calculation
+            H_v_inc = H_v_inc * c * inv_permittivity_slice[h_axis]
+            H_v_inc = jax.lax.stop_gradient(H_v_inc)
+
+            # horizontal incident wave part
+            H_h_inc = self._H[h_axis] * amplitude_H[h_axis]
+            # Use vertical component of inv_permittivity for H_h calculation
+            H_h_inc = H_h_inc * c * inv_permittivity_slice[v_axis]
+            H_h_inc = jax.lax.stop_gradient(H_h_inc)
+
+            # update uses -H_v, we have to subtract update, resulting in +H_v
+            E = E.at[h_axis, *self.grid_slice].add(sign * H_v_inc)
+            # update uses +H_h, we have to subtract update, resulting in -H_h
+            E = E.at[v_axis, *self.grid_slice].add(-sign * H_h_inc)
+
+            return E
 
     def update_H(
         self,
@@ -253,58 +276,82 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
             raise Exception("Need to apply random key before calling update")
 
         delta_t = self._config.time_step_duration
+        c = self._config.courant_number
+
+        # Determine if fully anisotropic
+        is_fully_anisotropic = (
+            isinstance(inv_permeabilities, jax.Array) and
+            inv_permeabilities.ndim > 0 and 
+            inv_permeabilities.shape[0] == 9
+        )
+
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
-            # inv_permeabilities shape: (3, Nx, Ny, Nz) - slice with component dimension
+            # Slice the permeability tensor at the TFSF boundary, shape: (num_components, Nx, Ny, Nz)
             inv_permeability_slice = inv_permeabilities[:, *self.grid_slice]
         else:
             inv_permeability_slice = inv_permeabilities
 
-        # Calculate time points for E and H fields
-        time_E_h = (time_step + self._time_offset_E[self.horizontal_axis]) * delta_t
-        time_E_v = (time_step + self._time_offset_E[self.vertical_axis]) * delta_t
-
-        # Get temporal amplitudes from profile
-        amplitude_E_h = self.temporal_profile.get_amplitude(
-            time=time_E_h,
-            period=self.wave_character.get_period(),
-            phase_shift=self.wave_character.phase_shift,
-        )
-        amplitude_E_h = amplitude_E_h * self.static_amplitude_factor
-        amplitude_E_v = self.temporal_profile.get_amplitude(
-            time=time_E_v,
-            period=self.wave_character.get_period(),
-            phase_shift=self.wave_character.phase_shift,
-        )
-        amplitude_E_v = amplitude_E_v * self.static_amplitude_factor
-
-        # horizontal incident wave part
-        E_h_inc = self._E[self.horizontal_axis] * amplitude_E_h
-        # Use vertical component of inv_permeability for E_h calculation
-        if isinstance(inv_permeability_slice, jax.Array) and inv_permeability_slice.ndim > 1:
-            E_h_inc = E_h_inc * self._config.courant_number * inv_permeability_slice[self.vertical_axis]
-        else:
-            E_h_inc = E_h_inc * self._config.courant_number * inv_permeability_slice
-        E_h_inc = jax.lax.stop_gradient(E_h_inc)
-
-        # vertical incident wave part
-        E_v_inc = self._E[self.vertical_axis] * amplitude_E_v
-        # Use horizontal component of inv_permeability for E_v calculation
-        if isinstance(inv_permeability_slice, jax.Array) and inv_permeability_slice.ndim > 1:
-            E_v_inc = E_v_inc * self._config.courant_number * inv_permeability_slice[self.horizontal_axis]
-        else:
-            E_v_inc = E_v_inc * self._config.courant_number * inv_permeability_slice
-        E_v_inc = jax.lax.stop_gradient(E_v_inc)
+        # Calculate time points for E fields
+        h_axis, v_axis, p_axis = self.horizontal_axis, self.vertical_axis, self.propagation_axis
+        time_E = {}
+        amplitude_E = {}
+        for axis in [h_axis, v_axis, p_axis]:
+            time_E[axis] = (time_step + self._time_offset_E[axis]) * delta_t
+            amplitude_E[axis] = self.temporal_profile.get_amplitude(
+                time=time_E[axis],
+                period=self.wave_character.get_period(),
+                phase_shift=self.wave_character.phase_shift,
+            ) * self.static_amplitude_factor
 
         # if direction is negative, updates are reversed
         sign = 1 if self.direction == "+" else -1
-
         # inverse update is inverted
-        if inverse:
-            sign = -sign
+        if inverse: sign = -sign
 
-        # update used +E_h, we have to add update, resulting in +E_h
-        H = H.at[self.vertical_axis, *self.grid_slice].add(sign * E_h_inc)
-        # update used -E_v, we have to add update, resulting in -E_v
-        H = H.at[self.horizontal_axis, *self.grid_slice].add(-sign * E_v_inc)
+        if is_fully_anisotropic:
+            # horizontal incident wave part
+            E_h_inc = jax.lax.stop_gradient(self._E[h_axis] * amplitude_E[h_axis])
+            # vertical incident wave part
+            E_v_inc = jax.lax.stop_gradient(self._E[v_axis] * amplitude_E[v_axis])
 
-        return H
+            def get_inv_mu(row, col):
+                # get inverse permeability tensor element at (row, col)
+                idx = row * 3 + col
+                return inv_permeability_slice[idx] # type: ignore
+
+            # update uses +E_h, we have to add update, resulting in +E_h
+            # update uses -E_v, we have to add update, resulting in -E_v
+            H_p_correction = c * (get_inv_mu(p_axis, h_axis) * (-E_v_inc) + get_inv_mu(p_axis, v_axis) * (+E_h_inc))
+            H = H.at[p_axis, *self.grid_slice].add(sign * H_p_correction)
+            H_h_correction = c * (get_inv_mu(h_axis, h_axis) * (-E_v_inc) + get_inv_mu(h_axis, v_axis) * (+E_h_inc))
+            H = H.at[h_axis, *self.grid_slice].add(sign * H_h_correction)
+            H_v_correction = c * (get_inv_mu(v_axis, h_axis) * (-E_v_inc) + get_inv_mu(v_axis, v_axis) * (+E_h_inc))
+            H = H.at[v_axis, *self.grid_slice].add(sign * H_v_correction)
+
+            return H
+
+        else:
+            # horizontal incident wave part
+            E_h_inc = self._E[h_axis] * amplitude_E[h_axis]
+            # Use vertical component of inv_permeability for E_h calculation
+            if isinstance(inv_permeability_slice, jax.Array) and inv_permeability_slice.ndim > 1:
+                E_h_inc = E_h_inc * c * inv_permeability_slice[v_axis]
+            else:
+                E_h_inc = E_h_inc * c * inv_permeability_slice
+            E_h_inc = jax.lax.stop_gradient(E_h_inc)
+
+            # vertical incident wave part
+            E_v_inc = self._E[v_axis] * amplitude_E[v_axis]
+            # Use horizontal component of inv_permeability for E_v calculation
+            if isinstance(inv_permeability_slice, jax.Array) and inv_permeability_slice.ndim > 1:
+                E_v_inc = E_v_inc * c * inv_permeability_slice[h_axis]
+            else:
+                E_v_inc = E_v_inc * c * inv_permeability_slice
+            E_v_inc = jax.lax.stop_gradient(E_v_inc)
+
+            # update used +E_h, we have to add update, resulting in +E_h
+            H = H.at[v_axis, *self.grid_slice].add(sign * E_h_inc)
+            # update used -E_v, we have to add update, resulting in -E_v
+            H = H.at[h_axis, *self.grid_slice].add(-sign * E_v_inc)
+
+            return H

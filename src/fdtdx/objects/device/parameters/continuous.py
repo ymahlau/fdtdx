@@ -49,6 +49,7 @@ class StandardToInversePermittivityRange(ParameterTransformation):
         del kwargs
 
         is_isotropic = all(mat.is_isotropic_permittivity for mat in self._materials.values())
+        is_diagonally_anisotropic = all(mat.is_diagonally_anisotropic_permittivity for mat in self._materials.values())
 
         if is_isotropic:
             # Isotropic case: all materials have same permittivity on all axes
@@ -66,7 +67,7 @@ class StandardToInversePermittivityRange(ParameterTransformation):
                 mapped = v * (max_inv_perm - min_inv_perm) + min_inv_perm
                 result[k] = mapped
             return result
-        else:
+        elif is_diagonally_anisotropic:
             # Compute min/max for each axis separately
             max_inv_perm = [-math.inf, -math.inf, -math.inf]
             min_inv_perm = [math.inf, math.inf, math.inf]
@@ -86,6 +87,30 @@ class StandardToInversePermittivityRange(ParameterTransformation):
             result = {}
             for k, v in params.items():
                 # v has shape (Nx, Ny, Nz), expand to (3, Nx, Ny, Nz)
+                v_expanded = v[None, ...]  # (1, Nx, Ny, Nz)
+                mapped = v_expanded * (max_inv_perm_arr - min_inv_perm_arr) + min_inv_perm_arr
+                result[k] = mapped
+            return result
+        else: # fully anisotropic
+            # Compute min/max for each tensor element separately
+            max_inv_perm = [-math.inf, -math.inf, -math.inf, -math.inf, -math.inf, -math.inf, -math.inf, -math.inf, -math.inf]
+            min_inv_perm = [math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf]
+            for v in self._materials.values():
+                # v.permittivity is tuple (εxx, εxy, εxz, εyx, εyy, εyz, εzx, εzy, εzz)
+                inv_perm = jnp.linalg.inv(jnp.array(v.permittivity).reshape(3, 3)).flatten()
+                for i in range(9):
+                    if inv_perm[i] > max_inv_perm[i]:
+                        max_inv_perm[i] = inv_perm[i]
+                    if inv_perm[i] < min_inv_perm[i]:
+                        min_inv_perm[i] = inv_perm[i]
+
+            max_inv_perm_arr = jnp.asarray(max_inv_perm)[:, None, None, None]
+            min_inv_perm_arr = jnp.asarray(min_inv_perm)[:, None, None, None]
+
+            # Transform: broadcast input to (9, ...) and interpolate each element
+            result = {}
+            for k, v in params.items():
+                # v has shape (Nx, Ny, Nz), expand to (9, Nx, Ny, Nz)
                 v_expanded = v[None, ...]  # (1, Nx, Ny, Nz)
                 mapped = v_expanded * (max_inv_perm_arr - min_inv_perm_arr) + min_inv_perm_arr
                 result[k] = mapped
