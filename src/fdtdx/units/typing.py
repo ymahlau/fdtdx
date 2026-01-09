@@ -82,9 +82,3 @@ if hasattr(np, "float128"):
     PHYSICAL_DTYPES.append(np.float128)
 
 PHYSICAL_DTYPES = tuple(PHYSICAL_DTYPES)
-
-# Only add complex256 if available
-if hasattr(np, "complex256"):
-    PHYSICAL_DTYPES.append(np.complex256)
-
-PHYSICAL_DTYPES = tuple(PHYSICAL_DTYPES)
