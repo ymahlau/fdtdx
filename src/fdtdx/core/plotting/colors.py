@@ -16,7 +16,7 @@ Example:
     >>> # Create colors from different formats
     >>> c1 = colors.Color.from_rgb(255, 0, 0)  # 8-bit RGB
     >>> c2 = colors.Color.from_hex("#00FF00")
-    >>> c3 = colors.XKCD_MINT_GREEN
+    >>> c3 = colors.XKCD_VIBRANT_GREEN
     >>>
     >>> # Convert to different formats
     >>> c1.to_hex()  # "#FF0000"
@@ -100,7 +100,7 @@ class Color(TreeClass):
         Returns:
             Tuple of (r, g, b) with values in [0, 1]
         """
-        return self.r, self.g, self.b
+        return (self.r, self.g, self.b)
 
     def to_rgb_255(self) -> tuple[int, int, int]:
         """Return color as 8-bit RGB tuple (0-255).
@@ -108,7 +108,7 @@ class Color(TreeClass):
         Returns:
             Tuple of (r, g, b) with integer values in [0, 255]
         """
-        return int(round(self.r * 255)), int(round(self.g * 255)), int(round(self.b * 255))
+        return (int(round(self.r * 255)), int(round(self.g * 255)), int(round(self.b * 255)))
 
     def to_hex(self) -> str:
         """Return color as hexadecimal string.
@@ -133,6 +133,18 @@ class Color(TreeClass):
     def __str__(self) -> str:
         """Return hex string representation of the Color."""
         return self.to_hex()
+
+    def __iter__(self):
+        """Make Color iterable for matplotlib compatibility.
+
+        This allows Color objects to be used directly with matplotlib
+        by yielding the normalized RGB values as a tuple.
+        """
+        return iter((self.r, self.g, self.b))
+
+    def __len__(self) -> int:
+        """Return length of 3 for matplotlib compatibility."""
+        return 3
 
 
 # ============================================================================
@@ -186,7 +198,7 @@ XKCD_PIG_PINK = Color.from_rgb(231, 142, 165)
 XKCD_DEEP_LILAC = Color.from_rgb(150, 110, 189)
 XKCD_DESERT = Color.from_rgb(204, 173, 96)
 XKCD_DUSTY_LAVENDER = Color.from_rgb(172, 134, 168)
-XKCD_PURPLY_GREY = Color.from_rgb(148, 126, 148)
+XKCD_PURPLEY_GREY = Color.from_rgb(148, 126, 148)
 XKCD_PURPLY = Color.from_rgb(152, 63, 178)
 XKCD_CANDY_PINK = Color.from_rgb(255, 99, 233)
 XKCD_LIGHT_PASTEL_GREEN = Color.from_rgb(178, 251, 165)
@@ -353,6 +365,32 @@ XKCD_MAROON = Color.from_rgb(101, 0, 33)
 XKCD_AVOCADO = Color.from_rgb(144, 177, 52)
 XKCD_PERIWINKLE = Color.from_rgb(142, 130, 254)
 XKCD_LILAC = Color.from_rgb(206, 162, 253)
+
+# ============================================================================
+# Legacy Color Compatibility
+# ============================================================================
+# For backward compatibility with existing code, maintain the original
+# constant names with their original values
+
+# Bright and primary colors
+GREEN = XKCD_GREEN
+PINK = XKCD_PINK
+MAGENTA = XKCD_MAGENTA
+CYAN = XKCD_CYAN
+LIGHT_BLUE = XKCD_LIGHT_BLUE
+ORANGE = XKCD_ORANGE
+LIGHT_GREEN = XKCD_LIGHT_GREEN
+
+# Grayscale colors
+GREY = XKCD_GREY
+DARK_GREY = XKCD_DARK_GREY
+LIGHT_GREY = XKCD_LIGHT_GREY
+
+# Earth tones
+BROWN = XKCD_BROWN
+LIGHT_BROWN = XKCD_LIGHT_BROWN
+TAN = XKCD_TAN
+BEIGE = XKCD_BEIGE
 
 # ============================================================================
 # Convenience Lists
