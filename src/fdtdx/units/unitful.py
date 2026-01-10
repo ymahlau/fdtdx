@@ -2040,3 +2040,51 @@ def argmin(x: np.ndarray, *args, **kwargs) -> np.ndarray:
 def argmin(x, *args, **kwargs):  # type: ignore
     del x, args, kwargs
     raise NotImplementedError()
+
+
+## sign #######################################
+
+@overload
+def sign(x: Unitful) -> Unitful:
+    # Drop units and return sign by calling sign on the value
+    y = sign(x.val)  # type: ignore
+    new_static_arr = None
+    if isinstance(y, jax.Array) and is_traced(y):
+        x_arr = get_static_operand(x)
+        if x_arr is not None:
+            new_static_arr = sign(x_arr)  # type: ignore
+    return Unitful(val=y, unit=EMPTY_UNIT, static_arr=new_static_arr)
+
+
+@overload
+def sign(x: jax.Array) -> jax.Array:
+    # JAX original op via lax, preserve output type
+    return jax.lax.sign(x)
+
+
+@overload
+def sign(x: np.ndarray) -> np.ndarray:
+    # NumPy sign, preserve output type
+    return np.sign(x)
+
+
+@overload
+def sign(x: np.number) -> np.number:
+    # NumPy scalar, preserve output type
+    return np.sign(x)  # type: ignore
+
+
+@overload
+def sign(x: int) -> int:
+    return -1 if x < 0 else (1 if x > 0 else 0)
+
+
+@overload
+def sign(x: float) -> float:
+    return -1.0 if x < 0 else (1.0 if x > 0 else 0.0)
+
+
+@dispatch
+def sign(x):  # type: ignore
+    del x
+    raise NotImplementedError()
