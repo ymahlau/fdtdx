@@ -17,6 +17,7 @@ from fdtdx.units.unitful import (
     Unit,
     Unitful,
     add,
+    cond,
     eq,
     ge,
     gt,
@@ -2494,3 +2495,315 @@ def test_argmin_with_negative_nan_inf():
     # jnp.argmax([-1, nan, 5, inf]) → 3
     assert result1.val == jnp.array(1)
     assert result2.val == jnp.array(3)
+
+
+def test_cond_unitful_numpy_operand_python_branch_true():
+    """All operand.val are numpy -> should use Python cond and only execute true branch."""
+    time = s * np.array([1.0, 2.0, 3.0])
+    operand = [time]
+
+    called = {"t": 0, "f": 0}
+
+    def true_fun(ops):
+        called["t"] += 1
+        x = ops[0]
+        return Unitful(val=np.squeeze(x.value()) + 100.0, unit=x.unit)
+
+    def false_fun(ops):
+        called["f"] += 1
+        x = ops[0]
+        return squeeze(x)
+
+    out = cond(True, true_fun, false_fun, operand)
+
+    assert called["t"] == 1
+    assert called["f"] == 0
+
+    assert isinstance(out, Unitful)
+    assert isinstance(out.val, np.ndarray)
+    assert out.val.shape == (3,)
+    assert np.allclose(out.value(), np.array([101.0, 102.0, 103.0]))
+    assert out.unit.dim == time.unit.dim
+
+
+def test_cond_unitful_numpy_operand_python_branch_false():
+    """All operand.val are numpy -> should use Python cond and only execute false branch."""
+    time = s * np.array([[1.0], [2.0], [3.0]])
+    operand = [time]
+
+    called = {"t": 0, "f": 0}
+
+    def true_fun(ops):
+        called["t"] += 1
+        x = ops[0]
+        return Unitful(val=np.squeeze(x.value()) + 999.0, unit=x.unit)
+
+    def false_fun(ops):
+        called["f"] += 1
+        x = ops[0]
+        return squeeze(x)
+
+    out = cond(np.bool_(False), true_fun, false_fun, operand)
+
+    assert called["t"] == 0
+    assert called["f"] == 1
+
+    assert isinstance(out, Unitful)
+    assert isinstance(out.val, np.ndarray)
+    assert out.val.shape == (3,)
+    assert np.allclose(out.value(), np.array([1.0, 2.0, 3.0]))
+    assert out.unit.dim == time.unit.dim
+
+
+def test_cond_unitful_jax_operand_uses_lax_cond():
+    """Operand contains jax.Array -> should use JAX cond and return jax.Array."""
+    time = s * jnp.array([[1.0], [2.0], [3.0]])
+    operand = [time]
+
+    def true_fun(ops):
+        x = ops[0]
+        return squeeze(x)
+
+    def false_fun(ops):
+        x = ops[0]
+        return Unitful(val=squeeze(x.value()) + 100.0, unit=x.unit)
+
+    out = cond(jnp.array(True), true_fun, false_fun, operand)
+
+    assert isinstance(out, Unitful)
+    assert isinstance(out.val, jax.Array)
+    assert out.val.shape == (3,)
+    assert jnp.allclose(out.value(), jnp.array([1.0, 2.0, 3.0]))
+    assert out.unit.dim == time.unit.dim
+
+
+def test_cond_unitful_jit_with_jax_operand_runs():
+    """cond should work under jax.jit when operand is JAX (pred is tracer)."""
+    time = s * jnp.array([[1.0], [2.0], [3.0]])
+    operand = [time]
+
+    def true_fun(ops):
+        x = ops[0]
+        return squeeze(x)
+
+    def false_fun(ops):
+        x = ops[0]
+        return Unitful(val=squeeze(x.value()) + 5.0, unit=x.unit)
+
+    @jax.jit
+    def f(pred, ops):
+        return cond(pred, true_fun, false_fun, ops)
+
+    out = f(jnp.array(False), operand)
+
+    assert isinstance(out, Unitful)
+    assert isinstance(out.val, jax.Array)
+    assert out.val.shape == (3,)
+    assert jnp.allclose(out.value(), jnp.array([6.0, 7.0, 8.0]))
+    assert out.unit.dim == time.unit.dim
+
+
+def test_cond_promote_unitful_scale_to_empty_unit():
+    """Mixed Unitful / non-Unitful branches with scaled units are promoted to Unitful with EMPTY_UNIT."""
+    unit_km = Unit(scale=3, dim={SI.m: 1})
+    distance = Unitful(val=jnp.array([[1.0], [23.0], [3.0]]), unit=unit_km)
+    operand = [distance]
+
+    def true_fun(ops):
+        x = ops[0]
+        return squeeze(x)
+
+    def false_fun(ops):
+        x = ops[0]
+        return squeeze(x.value()) + 10.0  # non-Unitful
+
+    out = cond(jnp.array(False), true_fun, false_fun, operand)
+
+    assert isinstance(out, Unitful)
+    assert isinstance(out.val, jax.Array)
+    assert out.val.shape == (3,)
+    assert jnp.allclose(out.value(), jnp.array([1010.0, 23010.0, 3010.0]))
+    assert out.unit.dim == {}
+
+
+def test_cond_promote_false_nonunitful_to_unitful_leafwise():
+    """false branch returns non-Unitful, true returns Unitful -> false should be promoted."""
+    time = s * jnp.array([[1.0], [2.0], [3.0]])
+    operand = [time]
+
+    def true_fun(ops):
+        x = ops[0]
+        return squeeze(x)
+
+    def false_fun(ops):
+        x = ops[0]
+        return squeeze(x.value()) + 10.0  # non-Unitful
+
+    out = cond(jnp.array(False), true_fun, false_fun, operand)
+
+    assert isinstance(out, Unitful)
+    assert isinstance(out.val, jax.Array)
+    assert out.val.shape == (3,)
+    assert jnp.allclose(out.value(), jnp.array([11.0, 12.0, 13.0]))
+    assert out.unit.dim == {}
+
+
+def test_cond_promote_true_nonunitful_to_unitful_leafwise():
+    """true returns non-Unitful, false returns Unitful -> true should be promoted."""
+    time = s * jnp.array([[1.0], [2.0], [3.0]])
+    operand = [time]
+
+    def true_fun(ops):
+        x = ops[0]
+        return squeeze(x.value()) + 100.0  # non-Unitful
+
+    def false_fun(ops):
+        x = ops[0]
+        return squeeze(x)
+
+    out = cond(jnp.array(True), true_fun, false_fun, operand)
+
+    assert isinstance(out, Unitful)
+    assert isinstance(out.val, jax.Array)
+    assert out.val.shape == (3,)
+    assert jnp.allclose(out.value(), jnp.array([101.0, 102.0, 103.0]))
+    assert out.unit.dim == {}
+
+
+def test_cond_promote_partial_pytree_leafwise():
+    """pytree outputs, only some leaves differ -> promote only those leaves."""
+    time = s * jnp.array([[1.0], [2.0], [3.0]])
+    operand = [time]
+
+    def true_fun(ops):
+        x = ops[0]
+        # (Unitful, non-Unitful scalar)
+        return (squeeze(x), jnp.array(7.0))
+
+    def false_fun(ops):
+        x = ops[0]
+        # (non-Unitful array, non-Unitful scalar)
+        return (squeeze(x.value()) + 1.0, jnp.array(7.0))
+
+    out = cond(jnp.array(False), true_fun, false_fun, operand)
+
+    assert isinstance(out, tuple) and len(out) == 2
+    assert isinstance(out[0], Unitful)
+    assert isinstance(out[0].val, jax.Array)
+    assert out[0].val.shape == (3,)
+    assert jnp.allclose(out[0].value(), jnp.array([2.0, 3.0, 4.0]))
+    assert out[0].unit.dim == {}
+    assert isinstance(out[1], Unitful)
+    assert jnp.allclose(out[1].value(), 7.0)
+
+
+def test_cond_both_unitful_keeps_unit_dim():
+    """Both branches return Unitful -> output should keep the unit dim (not empty)."""
+    time = s * jnp.array([[1.0], [2.0], [3.0]])
+    operand = [time]
+
+    def true_fun(ops):
+        x = ops[0]
+        return squeeze(x)
+
+    def false_fun(ops):
+        x = ops[0]
+        return Unitful(val=squeeze(x.value()) + 5.0, unit=x.unit)
+
+    out = cond(jnp.array(True), true_fun, false_fun, operand)
+
+    assert isinstance(out, Unitful)
+    assert isinstance(out.val, jax.Array)
+    assert out.val.shape == (3,)
+    assert jnp.allclose(out.value(), jnp.array([1.0, 2.0, 3.0]))
+    assert out.unit.dim == time.unit.dim
+
+
+def test_cond_eager_only_executes_selected_branch_numpy_operand():
+    """If pred/operand are non-jax, should use python branch and not execute the other."""
+    time = s * np.array([[1.0], [2.0], [3.0]])
+    operand = [time]
+
+    def true_fun(_):
+        raise RuntimeError("true branch should NOT run")
+
+    def false_fun(ops):
+        x = ops[0]
+        return Unitful(val=np.squeeze(x.value()) + 2.0, unit=x.unit)
+
+    out = cond(False, true_fun, false_fun, operand)
+
+    assert isinstance(out, Unitful)
+    assert isinstance(out.val, (np.ndarray, np.number))
+    assert np.allclose(out.value(), np.array([3.0, 4.0, 5.0]))
+    assert out.unit.dim == time.unit.dim
+
+
+def test_cond_jit_promote_false_nonunitful_runs():
+    """Under jax.jit, mixed Unitful/non-Unitful outputs should still work via promote."""
+    time = s * jnp.array([[1.0], [2.0], [3.0]])
+    operand = [time]
+
+    def true_fun(ops):
+        x = ops[0]
+        return squeeze(x)
+
+    def false_fun(ops):
+        x = ops[0]
+        return squeeze(x.value()) + 10.0
+
+    @jax.jit
+    def f(pred, ops):
+        return cond(pred, true_fun, false_fun, ops)
+
+    out = f(jnp.array(False), operand)
+
+    assert isinstance(out, Unitful)
+    assert isinstance(out.val, jax.Array)
+    assert out.val.shape == (3,)
+    assert jnp.allclose(out.value(), jnp.array([11.0, 12.0, 13.0]))
+    assert out.unit.dim == {}
+
+
+def test_cond_incompatible_pytrees_raise_typeerror():
+    """If branches return incompatible pytrees (e.g. scalar vs tuple), should raise TypeError."""
+    time = s * jnp.array([[1.0], [2.0], [3.0]])
+    operand = [time]
+
+    def true_fun(ops):
+        x = ops[0]
+        return squeeze(x)
+
+    def false_fun(ops):
+        x = ops[0]
+        return (squeeze(x.val),)  # tuple, incompatible with Unitful leaf
+
+    with pytest.raises(TypeError):
+        _ = cond(jnp.array(True), true_fun, false_fun, operand)
+
+
+# todo: raised error
+
+# def test_cond_with_add_and_large_scale_units():
+#     """cond + add with large scale difference should keep correct unit behavior."""
+#     unit_m = Unit(scale=0, dim={SI.m: 1})
+#     distance = Unitful(val=jnp.array([[1.0], [2.0], [3.0]]), unit=unit_m)
+#     operand = [distance]
+
+#     def true_fun(ops):
+#         x = ops[0]
+#         # very large add
+#         return add(x, Unitful(val=jnp.array([[400.0], [22.0], [3.0]]), unit=unit_m))  # type: ignore
+
+#     def false_fun(ops):
+#         x = ops[0]
+#         # very small add
+#         return add(x, Unitful(val=jnp.array([[1.0], [2.0], [3.0]]), unit=unit_m))  # type: ignore
+
+#     out = cond(jnp.array(True), true_fun, false_fun, operand)
+
+#     assert isinstance(out, Unitful)
+#     assert isinstance(out.val, jax.Array)
+#     assert out.val.shape == (3,)
+#     assert jnp.allclose(out.value(), jnp.array([401.0, 24.0, 6.0]) + 1e12, rtol=1e-6)
+#     assert out.unit.dim == {SI.m: 1}

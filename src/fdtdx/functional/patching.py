@@ -46,6 +46,7 @@ from fdtdx.units.unitful import (
     argmax,
     argmin,
     astype,
+    cond,
     divide,
     eq,
     ge,
@@ -191,6 +192,7 @@ def patch_all_functions():
         (arccosh, None),
         (arctanh, None),
         (arctanh, None),
+        (cond, None),
     ]
     for fn, orig in _full_patch_list_lax:
         patch_fn_to_module(
