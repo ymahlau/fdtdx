@@ -1,5 +1,6 @@
 # ruff: noqa: F811
 
+import cmath
 import math
 from typing import Sequence
 
@@ -18,7 +19,7 @@ from fdtdx.units.unitful import (
     Unit,
     Unitful,
     align_scales,
-    can_perform_scatic_ops,
+    can_perform_static_ops,
     get_static_operand,
     output_unitful_for_array,
 )
@@ -587,15 +588,36 @@ def imag(  # type: ignore
 
 ## sin #####################################
 @overload
-def sin(x: Unitful) -> Unitful:
-    new_val = jnp._orig_sin(x.val)  # type: ignore
+def sin(x: Unitful, *args, **kwargs) -> Unitful:
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
+
+    if (
+        isinstance(x.val, (bool, np.bool_))
+        or (isinstance(x.val, np.ndarray) and x.val.dtype == np.bool_)
+        or (isinstance(x.val, jax.Array) and x.val.dtype == jnp.bool_)
+    ):
+        raise ValueError("Function sin does not support boolean inputs.")
+
+    x_val_nonscale = x.val * (10**x.unit.scale)
+    if isinstance(x.val, jax.Array):
+        new_val = jnp._orig_sin(x_val_nonscale)  # type: ignore
+    elif isinstance(x.val, np.ndarray | np.number):
+        new_val = np.sin(x_val_nonscale, *args, **kwargs)
+    elif isinstance(x.val, complex):
+        new_val = cmath.sin(x_val_nonscale)
+    else:  # only int, float
+        new_val = math.sin(x_val_nonscale)
+
     # static computation
     new_static_arr = None
     if is_traced(new_val):
         x_arr = get_static_operand(x)
         if x_arr is not None:
-            new_static_arr = np.sin(x_arr)
-    return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
+            x_arr_nonscale = x_arr * (10**x.unit.scale)
+            new_static_arr = np.sin(x_arr_nonscale)
+    return Unitful(val=new_val, unit=EMPTY_UNIT, static_arr=new_static_arr)
 
 
 @overload
@@ -604,8 +626,13 @@ def sin(x: int | float) -> float:
 
 
 @overload
-def sin(x: np.ndarray | np.number) -> np.ndarray:
-    return np.sin(x)
+def sin(x: complex) -> complex:
+    return cmath.sin(x)
+
+
+@overload
+def sin(x: np.ndarray | np.number, *args, **kwargs) -> np.ndarray:
+    return np.sin(x, *args, **kwargs)
 
 
 @overload
@@ -614,23 +641,42 @@ def sin(x: jax.Array) -> jax.Array:
 
 
 @dispatch
-def sin(  # type: ignore
-    x,
-):
-    del x
+def sin(x, *args, **kwargs):  # type: ignore
+    del x, args, kwargs
     raise NotImplementedError()
 
 
 ## cos #####################################
 @overload
-def cos(x: Unitful) -> Unitful:
-    new_val = jnp._orig_cos(x.val)  # type: ignore
+def cos(x: Unitful, *args, **kwargs) -> Unitful:
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
+
+    if (
+        isinstance(x.val, (bool, np.bool_))
+        or (isinstance(x.val, np.ndarray) and x.val.dtype == np.bool_)
+        or (isinstance(x.val, jax.Array) and x.val.dtype == jnp.bool_)
+    ):
+        raise ValueError("Function cos does not support boolean inputs.")
+
+    x_val_nonscale = x.val * (10**x.unit.scale)
+
+    if isinstance(x.val, jax.Array):
+        new_val = jnp._orig_cos(x_val_nonscale)  # type: ignore
+    elif isinstance(x.val, np.ndarray | np.number):
+        new_val = np.cos(x_val_nonscale, *args, **kwargs)
+    elif isinstance(x.val, complex):
+        new_val = cmath.cos(x_val_nonscale)
+    else:  # only int, float
+        new_val = math.cos(x_val_nonscale)
     # static computation
     new_static_arr = None
     if is_traced(new_val):
         x_arr = get_static_operand(x)
         if x_arr is not None:
-            new_static_arr = np.cos(x_arr)
+            x_arr_nonscale = x_arr * (10**x.unit.scale)
+            new_static_arr = np.cos(x_arr_nonscale)
     return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
 
 
@@ -645,28 +691,51 @@ def cos(x: int | float) -> float:
 
 
 @overload
-def cos(x: np.ndarray | np.number) -> np.ndarray:
-    return np.cos(x)
+def cos(x: complex) -> complex:
+    return cmath.cos(x)
+
+
+@overload
+def cos(x: np.ndarray | np.number, *args, **kwargs) -> np.ndarray:
+    return np.cos(x, *args, **kwargs)
 
 
 @dispatch
-def cos(  # type: ignore
-    x,
-):
-    del x
+def cos(x, *args, **kwargs):  # type: ignore
+    del x, args, kwargs
     raise NotImplementedError()
 
 
 ## tan #####################################
 @overload
-def tan(x: Unitful) -> Unitful:
-    new_val = jnp._orig_tan(x.val)  # type: ignore
+def tan(x: Unitful, *args, **kwargs) -> Unitful:
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
+
+    if (
+        isinstance(x.val, (bool, np.bool_))
+        or (isinstance(x.val, np.ndarray) and x.val.dtype == np.bool_)
+        or (isinstance(x.val, jax.Array) and x.val.dtype == jnp.bool_)
+    ):
+        raise ValueError("Function tan does not support boolean inputs.")
+
+    x_val_nonscale = x.val * (10**x.unit.scale)
+    if isinstance(x.val, jax.Array):
+        new_val = jnp._orig_tan(x_val_nonscale)  # type: ignore
+    elif isinstance(x.val, np.ndarray | np.number):
+        new_val = np.tan(x_val_nonscale, *args, **kwargs)
+    elif isinstance(x.val, complex):
+        new_val = cmath.tan(x_val_nonscale)
+    else:  # only int, float
+        new_val = math.tan(x_val_nonscale)
     # static computation
     new_static_arr = None
     if is_traced(new_val):
         x_arr = get_static_operand(x)
         if x_arr is not None:
-            new_static_arr = np.tan(x_arr)
+            x_arr_nonscale = x_arr * (10**x.unit.scale)
+            new_static_arr = np.tan(x_arr_nonscale)
     return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
 
 
@@ -681,15 +750,549 @@ def tan(x: int | float) -> float:
 
 
 @overload
-def tan(x: np.ndarray | np.number) -> np.ndarray:
-    return np.tan(x)
+def tan(x: complex) -> complex:
+    return cmath.tan(x)
+
+
+@overload
+def tan(x: np.ndarray | np.number, *args, **kwargs) -> np.ndarray:
+    return np.tan(x, *args, **kwargs)
 
 
 @dispatch
-def tan(  # type: ignore
-    x,
-):
-    del x
+def tan(x, *args, **kwargs):  # type: ignore
+    del x, args, kwargs
+    raise NotImplementedError()
+
+
+## arcsin #######################################
+@overload
+def arcsin(x: Unitful, *args, **kwargs) -> Unitful:
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
+
+    if (
+        isinstance(x.val, (bool, np.bool_))
+        or (isinstance(x.val, np.ndarray) and x.val.dtype == np.bool_)
+        or (isinstance(x.val, jax.Array) and x.val.dtype == jnp.bool_)
+    ):
+        raise ValueError("Function arcsin does not support boolean inputs.")
+
+    x_val_nonscale = x.val * (10**x.unit.scale)
+    if isinstance(x.val, jax.Array):
+        new_val = jnp._orig_arcsin(x_val_nonscale)  # type: ignore
+    elif isinstance(x.val, np.ndarray | np.number):
+        new_val = np.arcsin(x_val_nonscale, *args, **kwargs)
+    elif isinstance(x.val, complex):
+        new_val = cmath.asin(x_val_nonscale)
+    else:  # only int, float
+        new_val = math.asin(x_val_nonscale)
+    # static computation
+    new_static_arr = None
+    if is_traced(new_val):
+        x_arr = get_static_operand(x)
+        if x_arr is not None:
+            x_arr_nonscale = x_arr * (10**x.unit.scale)
+            new_static_arr = np.arcsin(x_arr_nonscale)
+    return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
+
+
+@overload
+def arcsin(x: int | float) -> float:
+    return math.asin(x)
+
+
+@overload
+def arcsin(x: complex) -> complex:
+    return cmath.asin(x)
+
+
+@overload
+def arcsin(x: jax.Array) -> jax.Array:
+    return jnp._orig_arcsin(x)  # type: ignore
+
+
+@overload
+def arcsin(x: np.ndarray, *args, **kwargs) -> np.ndarray:
+    return np.arcsin(x, *args, **kwargs)
+
+
+@dispatch
+def arcsin(x, *args, **kwargs):  # type: ignore
+    del x, args, kwargs
+    raise NotImplementedError()
+
+
+## arccos #######################################
+@overload
+def arccos(x: Unitful, *args, **kwargs) -> Unitful:
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
+
+    if (
+        isinstance(x.val, (bool, np.bool_))
+        or (isinstance(x.val, np.ndarray) and x.val.dtype == np.bool_)
+        or (isinstance(x.val, jax.Array) and x.val.dtype == jnp.bool_)
+    ):
+        raise ValueError("Function arccos does not support boolean inputs.")
+
+    x_val_nonscale = x.val * (10**x.unit.scale)
+    if isinstance(x.val, jax.Array):
+        new_val = jnp._orig_arccos(x_val_nonscale)  # type: ignore
+    elif isinstance(x.val, np.ndarray | np.number):
+        new_val = np.arccos(x_val_nonscale, *args, **kwargs)
+    elif isinstance(x.val, complex):
+        new_val = cmath.acos(x_val_nonscale)
+    else:  # only int, float
+        new_val = math.acos(x_val_nonscale)
+    # static computation
+    new_static_arr = None
+    if is_traced(new_val):
+        x_arr = get_static_operand(x)
+        if x_arr is not None:
+            x_arr_nonscale = x_arr * (10**x.unit.scale)
+            new_static_arr = np.arccos(x_arr_nonscale)
+    return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
+
+
+@overload
+def arccos(x: int | float) -> float:
+    return math.acos(x)
+
+
+@overload
+def arccos(x: complex) -> complex:
+    return cmath.acos(x)
+
+
+@overload
+def arccos(x: jax.Array) -> jax.Array:
+    return jnp._orig_arccos(x)  # type: ignore
+
+
+@overload
+def arccos(x: np.ndarray, *args, **kwargs) -> np.ndarray:
+    return np.arccos(x, *args, **kwargs)
+
+
+@dispatch
+def arccos(x, *args, **kwargs):  # type: ignore
+    del x, args, kwargs
+    raise NotImplementedError()
+
+
+## arctan #######################################
+@overload
+def arctan(x: Unitful, *args, **kwargs) -> Unitful:
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
+
+    if (
+        isinstance(x.val, (bool, np.bool_))
+        or (isinstance(x.val, np.ndarray) and x.val.dtype == np.bool_)
+        or (isinstance(x.val, jax.Array) and x.val.dtype == jnp.bool_)
+    ):
+        raise ValueError("Function arctan does not support boolean inputs.")
+
+    x_val_nonscale = x.val * (10**x.unit.scale)
+    if isinstance(x.val, jax.Array):
+        new_val = jnp._orig_arctan(x_val_nonscale)  # type: ignore
+    elif isinstance(x.val, np.ndarray | np.number):
+        new_val = np.arctan(x_val_nonscale, *args, **kwargs)
+    elif isinstance(x.val, complex):
+        new_val = cmath.atan(x_val_nonscale)
+    else:  # only int, float
+        new_val = math.atan(x_val_nonscale)
+    # static computation
+    new_static_arr = None
+    if is_traced(new_val):
+        x_arr = get_static_operand(x)
+        if x_arr is not None:
+            x_arr_nonscale = x_arr * (10**x.unit.scale)
+            new_static_arr = np.arctan(x_arr_nonscale)
+    return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
+
+
+@overload
+def arctan(x: int | float) -> float:
+    return math.atan(x)
+
+
+@overload
+def arctan(x: complex) -> complex:
+    return cmath.atan(x)
+
+
+@overload
+def arctan(x: jax.Array) -> jax.Array:
+    return jnp._orig_arctan(x)  # type: ignore
+
+
+@overload
+def arctan(x: np.ndarray, *args, **kwargs) -> np.ndarray:
+    return np.arctan(x, *args, **kwargs)
+
+
+@dispatch
+def arctan(x, *args, **kwargs):  # type: ignore
+    del x, args, kwargs
+    raise NotImplementedError()
+
+
+## sinh #######################################
+@overload
+def sinh(x: Unitful, *args, **kwargs) -> Unitful:
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
+
+    if (
+        isinstance(x.val, (bool, np.bool_))
+        or (isinstance(x.val, np.ndarray) and x.val.dtype == np.bool_)
+        or (isinstance(x.val, jax.Array) and x.val.dtype == jnp.bool_)
+    ):
+        raise ValueError("Function sinh does not support boolean inputs.")
+
+    x_val_nonscale = x.val * (10**x.unit.scale)
+    if isinstance(x.val, jax.Array):
+        new_val = jnp._orig_sinh(x_val_nonscale)  # type: ignore
+    elif isinstance(x.val, np.ndarray | np.number):
+        new_val = np.sinh(x_val_nonscale, *args, **kwargs)
+    elif isinstance(x.val, complex):
+        new_val = cmath.sinh(x_val_nonscale)
+    else:  # only int, float
+        new_val = math.sinh(x_val_nonscale)
+    # static computation
+    new_static_arr = None
+    if is_traced(new_val):
+        x_arr = get_static_operand(x)
+        if x_arr is not None:
+            x_arr_nonscale = x_arr * (10**x.unit.scale)
+            new_static_arr = np.sinh(x_arr_nonscale)
+    return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
+
+
+@overload
+def sinh(x: int | float) -> float:
+    return math.sinh(x)
+
+
+@overload
+def sinh(x: complex) -> complex:
+    return cmath.sinh(x)
+
+
+@overload
+def sinh(x: jax.Array) -> jax.Array:
+    return jnp._orig_sinh(x)  # type: ignore
+
+
+@overload
+def sinh(x: np.ndarray, *args, **kwargs) -> np.ndarray:
+    return np.sinh(x, *args, **kwargs)
+
+
+@dispatch
+def sinh(x, *args, **kwargs):  # type: ignore
+    del x, args, kwargs
+    raise NotImplementedError()
+
+
+## cosh #######################################
+@overload
+def cosh(x: Unitful, *args, **kwargs) -> Unitful:
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
+
+    if (
+        isinstance(x.val, (bool, np.bool_))
+        or (isinstance(x.val, np.ndarray) and x.val.dtype == np.bool_)
+        or (isinstance(x.val, jax.Array) and x.val.dtype == jnp.bool_)
+    ):
+        raise ValueError("Function cosh does not support boolean inputs.")
+
+    x_val_nonscale = x.val * (10**x.unit.scale)
+    if isinstance(x.val, jax.Array):
+        new_val = jnp._orig_cosh(x_val_nonscale)  # type: ignore
+    elif isinstance(x.val, np.ndarray | np.number):
+        new_val = np.cosh(x_val_nonscale, *args, **kwargs)
+    elif isinstance(x.val, complex):
+        new_val = cmath.cosh(x_val_nonscale)
+    else:  # only int, float
+        new_val = math.cosh(x_val_nonscale)
+    # static computation
+    new_static_arr = None
+    if is_traced(new_val):
+        x_arr = get_static_operand(x)
+        if x_arr is not None:
+            x_arr_nonscale = x_arr * (10**x.unit.scale)
+            new_static_arr = np.cosh(x_arr_nonscale)
+    return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
+
+
+@overload
+def cosh(x: int | float) -> float:
+    return math.cosh(x)
+
+
+@overload
+def cosh(x: complex) -> complex:
+    return cmath.cosh(x)
+
+
+@overload
+def cosh(x: jax.Array) -> jax.Array:
+    return jnp._orig_cosh(x)  # type: ignore
+
+
+@overload
+def cosh(x: np.ndarray, *args, **kwargs) -> np.ndarray:
+    return np.cosh(x, *args, **kwargs)
+
+
+@dispatch
+def cosh(x, *args, **kwargs):  # type: ignore
+    del x, args, kwargs
+    raise NotImplementedError()
+
+
+## tanh #######################################
+@overload
+def tanh(x: Unitful, *args, **kwargs) -> Unitful:
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
+
+    if (
+        isinstance(x.val, (bool, np.bool_))
+        or (isinstance(x.val, np.ndarray) and x.val.dtype == np.bool_)
+        or (isinstance(x.val, jax.Array) and x.val.dtype == jnp.bool_)
+    ):
+        raise ValueError("Function tanh does not support boolean inputs.")
+
+    x_val_nonscale = x.val * (10**x.unit.scale)
+    if isinstance(x.val, jax.Array):
+        new_val = jnp._orig_tanh(x_val_nonscale)  # type: ignore
+    elif isinstance(x.val, np.ndarray | np.number):
+        new_val = np.tanh(x_val_nonscale, *args, **kwargs)
+    elif isinstance(x.val, complex):
+        new_val = cmath.tanh(x_val_nonscale)
+    else:  # only int, float
+        new_val = math.tanh(x_val_nonscale)
+    # static computation
+    new_static_arr = None
+    if is_traced(new_val):
+        x_arr = get_static_operand(x)
+        if x_arr is not None:
+            x_arr_nonscale = x_arr * (10**x.unit.scale)
+            new_static_arr = np.tanh(x_arr_nonscale)
+    return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
+
+
+@overload
+def tanh(x: int | float) -> float:
+    return math.tanh(x)
+
+
+@overload
+def tanh(x: complex) -> complex:
+    return cmath.tanh(x)
+
+
+@overload
+def tanh(x: jax.Array) -> jax.Array:
+    return jnp._orig_tanh(x)  # type: ignore
+
+
+@overload
+def tanh(x: np.ndarray, *args, **kwargs) -> np.ndarray:
+    return np.tanh(x, *args, **kwargs)
+
+
+@dispatch
+def tanh(x, *args, **kwargs):  # type: ignore
+    del x, args, kwargs
+    raise NotImplementedError()
+
+
+## arcsinh #######################################
+@overload
+def arcsinh(x: Unitful, *args, **kwargs) -> Unitful:
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
+
+    if (
+        isinstance(x.val, (bool, np.bool_))
+        or (isinstance(x.val, np.ndarray) and x.val.dtype == np.bool_)
+        or (isinstance(x.val, jax.Array) and x.val.dtype == jnp.bool_)
+    ):
+        raise ValueError("Function arcsinh does not support boolean inputs.")
+
+    x_val_nonscale = x.val * (10**x.unit.scale)
+    if isinstance(x.val, jax.Array):
+        new_val = jnp._orig_arcsinh(x_val_nonscale)  # type: ignore
+    elif isinstance(x.val, np.ndarray | np.number):
+        new_val = np.arcsinh(x_val_nonscale, *args, **kwargs)
+    elif isinstance(x.val, complex):
+        new_val = cmath.asinh(x_val_nonscale)
+    else:  # only int, float
+        new_val = math.asinh(x_val_nonscale)
+    # static computation
+    new_static_arr = None
+    if is_traced(new_val):
+        x_arr = get_static_operand(x)
+        if x_arr is not None:
+            x_arr_nonscale = x_arr * (10**x.unit.scale)
+            new_static_arr = np.arcsinh(x_arr_nonscale)
+    return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
+
+
+@overload
+def arcsinh(x: int | float) -> float:
+    return math.asinh(x)
+
+
+@overload
+def arcsinh(x: complex) -> complex:
+    return cmath.asinh(x)
+
+
+@overload
+def arcsinh(x: jax.Array) -> jax.Array:
+    return jnp._orig_arcsinh(x)  # type: ignore
+
+
+@overload
+def arcsinh(x: np.ndarray, *args, **kwargs) -> np.ndarray:
+    return np.arcsinh(x, *args, **kwargs)
+
+
+@dispatch
+def arcsinh(x, *args, **kwargs):  # type: ignore
+    del x, args, kwargs
+    raise NotImplementedError()
+
+
+## arccosh #######################################
+@overload
+def arccosh(x: Unitful, *args, **kwargs) -> Unitful:
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
+
+    if (
+        isinstance(x.val, (bool, np.bool_))
+        or (isinstance(x.val, np.ndarray) and x.val.dtype == np.bool_)
+        or (isinstance(x.val, jax.Array) and x.val.dtype == jnp.bool_)
+    ):
+        raise ValueError("Function arccosh does not support boolean inputs.")
+
+    x_val_nonscale = x.val * (10**x.unit.scale)
+    if isinstance(x.val, jax.Array):
+        new_val = jnp._orig_arccosh(x_val_nonscale)  # type: ignore
+    elif isinstance(x.val, np.ndarray | np.number):
+        new_val = np.arccosh(x_val_nonscale, *args, **kwargs)
+    elif isinstance(x.val, complex):
+        new_val = cmath.acosh(x_val_nonscale)
+    else:  # only int, float
+        new_val = math.acosh(x_val_nonscale)
+    # static computation
+    new_static_arr = None
+    if is_traced(new_val):
+        x_arr = get_static_operand(x)
+        if x_arr is not None:
+            x_arr_nonscale = x_arr * (10**x.unit.scale)
+            new_static_arr = np.arccosh(x_arr_nonscale)
+    return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
+
+
+@overload
+def arccosh(x: int | float) -> float:
+    return math.acosh(x)
+
+
+@overload
+def arccosh(x: complex) -> complex:
+    return cmath.acosh(x)
+
+
+@overload
+def arccosh(x: jax.Array) -> jax.Array:
+    return jnp._orig_arccosh(x)  # type: ignore
+
+
+@overload
+def arccosh(x: np.ndarray, *args, **kwargs) -> np.ndarray:
+    return np.arccosh(x, *args, **kwargs)
+
+
+@dispatch
+def arccosh(x, *args, **kwargs):  # type: ignore
+    del x, args, kwargs
+    raise NotImplementedError()
+
+
+## arctanh #######################################
+@overload
+def arctanh(x: Unitful, *args, **kwargs) -> Unitful:
+    assert x.unit.dim == {}, (
+        f"Cannot apply trigonometric function to a unitful value with dimension {x.unit.dim}. Input must be dimensionless (radians)."
+    )
+
+    if (
+        isinstance(x.val, (bool, np.bool_))
+        or (isinstance(x.val, np.ndarray) and x.val.dtype == np.bool_)
+        or (isinstance(x.val, jax.Array) and x.val.dtype == jnp.bool_)
+    ):
+        raise ValueError("Function arctanh does not support boolean inputs.")
+
+    x_val_nonscale = x.val * (10**x.unit.scale)
+    if isinstance(x.val, jax.Array):
+        new_val = jnp._orig_arctanh(x_val_nonscale)  # type: ignore
+    elif isinstance(x.val, np.ndarray | np.number):
+        new_val = np.arctanh(x_val_nonscale, *args, **kwargs)
+    elif isinstance(x.val, complex):
+        new_val = cmath.atanh(x_val_nonscale)
+    else:  # only int, float
+        new_val = math.atanh(x_val_nonscale)
+    # static computation
+    new_static_arr = None
+    if is_traced(new_val):
+        x_arr = get_static_operand(x)
+        if x_arr is not None:
+            x_arr_nonscale = x_arr * (10**x.unit.scale)
+            new_static_arr = np.arctanh(x_arr_nonscale)
+    return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
+
+
+@overload
+def arctanh(x: int | float) -> float:
+    return math.atanh(x)
+
+
+@overload
+def arctanh(x: complex) -> complex:
+    return cmath.atanh(x)
+
+
+@overload
+def arctanh(x: jax.Array) -> jax.Array:
+    return jnp._orig_arctanh(x)  # type: ignore
+
+
+@overload
+def arctanh(x: np.ndarray, *args, **kwargs) -> np.ndarray:
+    return np.arctanh(x, *args, **kwargs)
+
+
+@dispatch
+def arctanh(x, *args, **kwargs):  # type: ignore
+    del x, args, kwargs
     raise NotImplementedError()
 
 
@@ -813,7 +1416,19 @@ def where(
     assert condition.unit.dim == {} and condition.unit.scale == 0, f"Invalid condition input: {condition}"
     x_align, y_align = align_scales(x, y)
     c_val = condition.val
-    new_val = jnp._orig_where(c_val, x_align.val, y_align.val, *args, **kwargs)  # type: ignore
+
+    if any(isinstance(v, jax.Array) for v in [x_align.val, y_align.val, c_val]):
+        new_val = jnp._orig_where(c_val, x_align.val, y_align.val, *args, **kwargs)  # type: ignore
+    elif any(isinstance(v, np.ndarray) for v in (x_align.val, y_align.val, c_val)):
+        new_val = np.where(c_val, x_align.val, y_align.val, *args, **kwargs)
+    else:
+        try:  # python scalar
+            new_val = np.where(c_val, x_align.val, y_align.val, *args, **kwargs)
+        except Exception as e:
+            raise TypeError(
+                f"Invalid input types for where(): {type(c_val)}, {type(x_align.val)}, {type(y_align.val)}"
+            ) from e
+
     # static arr
     new_static_arr = None
     if is_traced(new_val):
@@ -822,31 +1437,52 @@ def where(
         c_arr = get_static_operand(condition)
         if x_arr is not None and y_arr is not None and c_arr is not None:
             new_static_arr = np.where(c_arr, x_arr, y_arr, *args, **kwargs)
-    return Unitful(val=new_val, unit=x.unit, static_arr=new_static_arr)
+    return Unitful(val=new_val, unit=x_align.unit, static_arr=new_static_arr)
 
 
 @overload
 def where(
-    condition: jax.Array | Unitful,
-    x: ArrayLike,
+    condition: ArrayLike | Unitful,
+    x: ArrayLike | Unitful,
     y: Unitful,
     *args,
     **kwargs,
 ) -> Unitful:
+    if isinstance(condition, Unitful) and isinstance(x, Unitful):
+        return where(condition, x, y, *args, **kwargs)
+
     c = condition if isinstance(condition, Unitful) else Unitful(val=condition, unit=EMPTY_UNIT)
-    return where(c, Unitful(val=x, unit=EMPTY_UNIT), y, *args, **kwargs)
+    new_x = x if isinstance(x, Unitful) else Unitful(val=x, unit=EMPTY_UNIT)
+
+    return where(c, new_x, y, *args, **kwargs)
 
 
 @overload
 def where(
-    condition: jax.Array | Unitful,
+    condition: ArrayLike | Unitful,
     x: Unitful,
-    y: ArrayLike,
+    y: ArrayLike | Unitful,
     *args,
     **kwargs,
 ) -> Unitful:
+    if isinstance(y, Unitful) and isinstance(condition, Unitful):
+        return where(condition, x, y, *args, **kwargs)
+
     c = condition if isinstance(condition, Unitful) else Unitful(val=condition, unit=EMPTY_UNIT)
-    return where(c, x, Unitful(val=y, unit=EMPTY_UNIT), *args, **kwargs)
+    new_y = y if isinstance(y, Unitful) else Unitful(val=y, unit=EMPTY_UNIT)
+
+    return where(c, x, new_y, *args, **kwargs)
+
+
+@overload
+def where(
+    condition: jax.Array,
+    x: jax.Array,
+    y: jax.Array,
+    *args,
+    **kwargs,
+) -> jax.Array:
+    return jnp._orig_where(condition, x, y, *args, **kwargs)  # type: ignore
 
 
 @overload
@@ -857,7 +1493,52 @@ def where(
     *args,
     **kwargs,
 ) -> jax.Array:
+    x = x if isinstance(x, jax.Array) else jnp.asarray(x)
+    y = y if isinstance(y, jax.Array) else jnp.asarray(y)
     return jnp._orig_where(condition, x, y, *args, **kwargs)  # type: ignore
+
+
+@overload
+def where(
+    condition: ArrayLike,
+    x: jax.Array,
+    y: ArrayLike,
+    *args,
+    **kwargs,
+) -> jax.Array:
+    c = condition if isinstance(condition, jax.Array) else jnp.asarray(condition)
+    y = y if isinstance(y, jax.Array) else jnp.asarray(y)
+    return jnp._orig_where(c, x, y, *args, **kwargs)  # type: ignore
+
+
+@overload
+def where(
+    condition: ArrayLike,
+    x: ArrayLike,
+    y: jax.Array,
+    *args,
+    **kwargs,
+) -> jax.Array:
+    c = condition if isinstance(condition, jax.Array) else jnp.asarray(condition)
+    x = x if isinstance(x, jax.Array) else jnp.asarray(x)
+    return jnp._orig_where(c, x, y, *args, **kwargs)  # type: ignore
+
+
+@overload
+def where(
+    condition: np.ndarray | np.bool_ | np.number | bool | int | float | complex,
+    x: np.ndarray | np.bool_ | np.number | bool | int | float | complex,
+    y: np.ndarray | np.bool_ | np.number | bool | int | float | complex,
+    *args,
+    **kwargs,
+) -> np.ndarray:
+    # typing excludes JAX, runtime converts any JAX inputs to NumPy.
+
+    c = condition if isinstance(condition, np.ndarray | np.number) else np.asarray(condition)
+    x = x if isinstance(x, np.ndarray | np.number) else np.asarray(x)
+    y = y if isinstance(y, np.ndarray | np.number) else np.asarray(y)
+
+    return np.where(c, x, y, *args, **kwargs)
 
 
 @dispatch
@@ -901,7 +1582,7 @@ def meshgrid(
     new_vals = jnp._orig_meshgrid(*aligned_arrs, **kwargs)  # type: ignore
     # test if we should create static arr as well
     static_ops = [get_static_operand(a) for a in args]
-    if all([can_perform_scatic_ops(o) for o in static_ops]):
+    if all([can_perform_static_ops(o) for o in static_ops]):
         scaled_ops = [
             s * f  # type: ignore
             for s, f in zip(static_ops, factors)

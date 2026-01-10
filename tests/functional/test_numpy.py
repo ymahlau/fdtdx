@@ -1,13 +1,17 @@
+import cmath
 import math
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
+import fdtdx.units.unitful as unitful
 from fdtdx.core.fraction import Fraction
-from fdtdx.functional.numpy import roll, sqrt, transpose
+from fdtdx.core.jax.utils import is_currently_compiling
+from fdtdx.functional.numpy import roll, sqrt, transpose, where
 from fdtdx.units.typing import SI
-from fdtdx.units.unitful import Unit, Unitful
+from fdtdx.units.unitful import EMPTY_UNIT, Unit, Unitful
 
 
 def test_sqrt_unitful_even_integer_dimensions():
@@ -810,3 +814,485 @@ def test_imag_jax_array():
     assert not jnp.iscomplexobj(result)
     # Shape should be preserved: (3, 3)
     assert result.shape == (3, 3)
+
+
+def test_sin_unitful_with_Jax_array():
+    """Test sin with a Unitful whose val is a Jax array"""
+    rad_unit = EMPTY_UNIT
+    angles = Unitful(val=jnp.array([0.0, jnp.pi / 4]), unit=rad_unit)
+    result = jnp.sin(angles, dtype=jnp.float64)  # type: ignore
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jnp.ndarray)
+    assert jnp.issubdtype(result.val.dtype, jnp.float32)
+
+    expected_vals = jnp.array([0.0, math.sin(math.pi / 4)])
+    assert jnp.allclose(result.val, expected_vals)
+
+
+def test_sin_unitful_with_numpy_array():
+    """Test sin with a Unitful whose val is a Numpy array (angle in radians)"""
+    rad_unit = EMPTY_UNIT
+    angles = Unitful(val=np.array([0.0, np.pi / 2]), unit=rad_unit)
+    result = jnp.sin(angles, dtype=np.float32)  # type: ignore
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, np.ndarray)
+    assert np.issubdtype(result.val.dtype, np.number)
+
+    expected_vals = np.array([0.0, math.sin(math.pi / 2)])
+    assert np.allclose(result.val, expected_vals)
+
+
+def test_sin_unitful_with_Python_Scalar():
+    """Test sin with a Unitful whose val is a float (angle in radians)"""
+    rad_unit = EMPTY_UNIT
+    angles = Unitful(val=math.pi / 2, unit=rad_unit)
+    result = jnp.sin(angles)  # type: ignore
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, float)
+
+    expected_vals = math.sin(math.pi / 2)
+    assert math.isclose(result.val, expected_vals)
+
+
+def test_sin_unitful_with_jax_array_physical_phase():
+    """Test sin with a Unitful whose val is a JAX array (angle in radians with physical units)"""
+    # --- Define units ---
+    m_unit = Unit(scale=0, dim={SI.m: 1})
+    s_unit = Unit(scale=0, dim={SI.s: 1})
+    GHz_unit = Unit(scale=9, dim={SI.s: -1})
+    ns_unit = Unit(scale=-9, dim={SI.s: 1})
+
+    m = Unitful(val=jnp.array([1.0]), unit=m_unit)
+    s = Unitful(val=jnp.array([1.0]), unit=s_unit)
+    GHz = Unitful(val=jnp.array([1.0]), unit=GHz_unit)
+    ns = Unitful(val=jnp.array([1.0]), unit=ns_unit)
+
+    # --- Physical constants ---
+    c = 3.0e8 * m / s
+    f = 1.0 * GHz
+    λ = c / f
+    k = 2 * jnp.pi / λ
+    ω = 2 * jnp.pi * f
+
+    x = 0.15 * m
+    t = 0.25 * ns
+
+    phase = k * x - ω * t
+
+    λ_math = λ.val * 10**λ.unit.scale
+    x_math = x.val * 10**x.unit.scale
+    f_math = f.val * 10**f.unit.scale
+    t_math = t.val * 10**t.unit.scale
+    expected_phase = (2 * math.pi / λ_math) * x_math - (2 * math.pi * f_math) * t_math
+    expected_phase = float(expected_phase.item())
+
+    result = jnp.sin(phase)  # type: ignore
+    expected_result = math.sin(expected_phase)
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+    assert jnp.issubdtype(result.val.dtype, jnp.floating)
+    assert jnp.allclose(result.val, jnp.array(expected_result))
+
+
+def test_sin_unitful_with_complex_scalar():
+    """Test sin with a Unitful whose val is a complex scalar"""
+    rad_unit = EMPTY_UNIT
+    angles = Unitful(val=1.0 + 1.0j, unit=rad_unit)
+
+    result = jnp.sin(angles)  # type: ignore
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, complex)
+    # sin(x + iy) = sin(x)cosh(y) + i·cos(x)sinh(y)
+    expected_val = cmath.sin(1 + 1j)
+    assert math.isclose(result.val.real, expected_val.real)
+    assert math.isclose(result.val.imag, expected_val.imag)
+
+
+def test_sin_overloaded_with_numpy_array():
+    """Test sin overloaded function with a Numpy array input"""
+    angles = np.array([0.0, np.pi / 2, np.pi / 3])
+    result = jnp.sin(angles, dtype=np.float32)  # type: ignore
+
+    assert isinstance(result, np.ndarray)
+    assert np.issubdtype(result.dtype, np.floating)
+
+    expected_vals = [0.0, math.sin(math.pi / 2), math.sin(math.pi / 3)]
+    expected_vals = np.array(expected_vals)
+    assert np.allclose(result, expected_vals)
+
+
+def test_sin_overloaded_with_jax_array():
+    """Test sin overloaded function with a Jax array input"""
+    angles = jnp.array([0.0, jnp.pi / 2, jnp.pi])
+    result = jnp.sin(angles)  # type: ignore
+
+    assert isinstance(result, jax.Array)
+    assert jnp.issubdtype(result.dtype, jnp.floating)
+
+    expected_vals = [0.0, math.sin(math.pi / 2), math.sin(math.pi)]
+    expected_vals = jnp.array(expected_vals)
+    assert jnp.allclose(result, expected_vals, atol=1e-7)
+
+
+def test_sin_unitful_with_physical_units():
+    """Test sin with a Unitful whose val has physical units (should raise exception)"""
+    length_unit = Unit(scale=0, dim={SI.m: 1})
+    angles = Unitful(val=jnp.array([0.0, 1.0]), unit=length_unit)
+
+    with pytest.raises(Exception):
+        jnp.sin(angles)  # type: ignore
+
+
+def test_sin_jax_arrays_jitted():
+    """Test sin function within a JIT-compiled function when input as jax array"""
+    angles = jnp.array([0.0, jnp.pi / 6, jnp.pi / 4])
+
+    def fn(x: Unitful) -> Unitful:
+        return jnp.sin(x)  # type: ignore
+
+    jitted_fn = jax.jit(fn)
+    result = jitted_fn(angles)
+
+    expected_vals = jnp.array([0.0, 0.5, jnp.sqrt(2) / 2])
+    expected_vals = jnp.array(expected_vals)
+
+    assert isinstance(result, jax.Array)
+    assert jnp.allclose(result, expected_vals, atol=1e-7)
+
+
+def test_sin_unitful_jitted():
+    """Test sin function within a JIT-compiled function when input as unitful"""
+    rad_unit = EMPTY_UNIT
+    angles = Unitful(val=jnp.array([0.0, jnp.pi / 6, 3 * jnp.pi / 2]), unit=rad_unit)
+
+    def fn(x: Unitful) -> Unitful:
+        return jnp.sin(x)  # type: ignore
+
+    jitted_fn = jax.jit(fn)
+    result = jitted_fn(angles)
+
+    expected_vals = [0.0, math.sin(math.pi / 6), math.sin(3 * math.pi / 2)]
+    expected_vals = jnp.array(expected_vals)
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+    assert jnp.allclose(result.val, expected_vals, atol=1e-7)
+
+
+def test_cos_unitful_with_jax_array():
+    """Test cos with a Unitful containing a Jax array"""
+    rad_unit = EMPTY_UNIT
+    angles = Unitful(val=jnp.array([0.0, jnp.pi]), unit=rad_unit)
+    result = jnp.cos(angles)  # type: ignore
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+
+    expected_vals = jnp.array([1.0, math.cos(math.pi)])
+    assert jnp.allclose(result.val, expected_vals, atol=1e-7)
+
+
+def test_tan_unitful_with_numpy_array():
+    """Test tan with a Unitful containing a numpy array"""
+    rad_unit = EMPTY_UNIT
+    angles = Unitful(val=np.array([0.0, np.pi / 4]), unit=rad_unit)
+    result = jnp.tan(angles)  # type: ignore
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, np.ndarray)
+    expected_vals = np.array([math.tan(0.0), math.tan(math.pi / 4)])
+    assert np.allclose(result.val, expected_vals)
+
+
+def test_arcsin_unitful_with_python_scalar():
+    """Test arcsin with a Unitful containing a float scalar"""
+    unitless = EMPTY_UNIT
+    y = Unitful(val=0.5, unit=unitless)
+    result = jnp.arcsin(y)  # type: ignore
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, float)
+    expected_vals = math.asin(0.5)
+    assert math.isclose(result.val, expected_vals)
+
+
+def test_arccos_unitful_with_numpy_array():
+    """Test arccos with a Unitful containing a numpy array"""
+    unitless = EMPTY_UNIT
+    y = Unitful(val=np.array([1.0, 0.0]), unit=unitless)
+    result = jnp.arccos(y)  # type: ignore
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, np.ndarray)
+    expected_vals = np.array([math.acos(1.0), math.acos(0.0)])
+    assert np.allclose(result.val, expected_vals)
+
+
+def test_arctan_unitful_with_jax_array():
+    """Test arctan with a Unitful containing a Jax array"""
+    unitless = EMPTY_UNIT
+    y = Unitful(val=jnp.array([0.0, 1.0]), unit=unitless)
+    result = jnp.arctan(y)  # type: ignore
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+    expected_vals = jnp.array([math.atan(0.0), math.atan(1.0)])
+    assert jnp.allclose(result.val, expected_vals, atol=1e-7)
+
+
+def test_sinh_unitful_with_numpy_array():
+    """Test sinh with a Unitful containing a numpy array"""
+    unitless = EMPTY_UNIT
+    x = Unitful(val=np.array([0.0, 1.0]), unit=unitless)
+    result = jnp.sinh(x)  # type: ignore
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, np.ndarray)
+    expected_vals = jnp.array([math.sinh(0.0), math.sinh(1.0)])
+    assert np.allclose(result.val, expected_vals)
+
+
+def test_cosh_unitful_with_python_scalar():
+    """Test cosh with a Unitful containing a Float scalar"""
+    unitless = EMPTY_UNIT
+    x = Unitful(val=1.0, unit=unitless)
+    result = jnp.cosh(x)  # type: ignore
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, float)
+    expected = math.cosh(1.0)
+    assert math.isclose(result.val, expected)
+
+
+def test_tanh_unitful_with_jax_array():
+    """Test tanh with a Unitful containing a Jax array"""
+    unitless = EMPTY_UNIT
+    x = Unitful(val=jnp.array([0.0, 1.0]), unit=unitless)
+    result = jnp.tanh(x)  # type: ignore
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+    expected_vals = jnp.array([math.tanh(0.0), math.tanh(1.0)])
+    assert jnp.allclose(result.val, expected_vals, atol=1e-7)
+
+
+def test_arcsinh_unitful_with_numpy_array():
+    """Test arcsinh with a Unitful containing a numpy array"""
+    unitless = EMPTY_UNIT
+    x = Unitful(val=np.array([0.0, 2.0]), unit=unitless)
+    result = jnp.arcsinh(x)  # type: ignore
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, np.ndarray)
+    expected_vals = np.array([math.asinh(0.0), math.asinh(2.0)])
+    assert np.allclose(result.val, expected_vals)
+
+
+def test_arccosh_unitful_with_python_scalar():
+    """Test arccosh with a Unitful containing a Float scalar"""
+    unitless = EMPTY_UNIT
+    x = Unitful(val=2.0, unit=unitless)
+    result = jnp.arccosh(x)  # type: ignore
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, float)
+    expected = math.acosh(2.0)
+    assert math.isclose(result.val, expected)
+
+
+def test_arctanh_unitful_with_jax_array():
+    """Test arctanh with a Unitful containing a Jax array"""
+    unitless = EMPTY_UNIT
+    x = Unitful(val=jnp.array([0.0, 0.5]), unit=unitless)
+    result = jnp.arctanh(x)  # type: ignore
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+    expected_vals = jnp.array([math.atanh(0.0), math.atanh(0.5)])
+    assert jnp.allclose(result.val, expected_vals, atol=1e-7)
+
+
+def test_where_unitful_numpy_backend():
+    """Test where with three Unitfuls using NumPy arrays"""
+    m = Unit(scale=0, dim={SI.m: 1})
+
+    c = Unitful(val=np.array([True, False, True]), unit=EMPTY_UNIT)
+    x = Unitful(val=np.array([1.0, 2.0, 3.0]), unit=m)
+    y = Unitful(val=np.array([10.0, 20.0, 30.0]), unit=m)
+
+    result = where(c, x, y)
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, np.ndarray)
+
+    expected = np.where(c.value(), x.value(), y.value())
+    assert np.allclose(result.value(), expected)
+
+
+def test_where_unitful_jax_backend():
+    """Test where with three Unitfuls using JAX arrays"""
+    m = Unit(scale=0, dim={SI.m: 1})
+    mm = Unit(scale=-3, dim={SI.m: 1})
+
+    c = Unitful(val=jnp.array([True, False, True]), unit=EMPTY_UNIT)
+    x = Unitful(val=jnp.array([1.0, 2.0, 3.0]), unit=m)
+    y = Unitful(val=jnp.array([10.0, 20.0, 30.0]), unit=mm)
+
+    result = jnp.where(c, x, y)  # type: ignore
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+
+    expected = np.where(np.array(c.value()), np.array(x.value()), np.array(y.value()))
+
+    assert np.allclose(np.asarray(result.value()), expected)
+
+
+def test_where_numpy_and_unitful():
+    """Test where with NumPy condition/x and Unitful y"""
+    condition = np.array([True, False, True])
+    x = np.array([1.0, 2.0, 3.0])
+    y = Unitful(val=np.array([10.0, 20.0, 30.0]), unit=EMPTY_UNIT)
+
+    result = where(condition, x, y)
+
+    expected = np.where(condition, x, y.value())
+
+    assert isinstance(result, Unitful)
+    assert np.allclose(np.asarray(result.value()), expected)
+
+
+def test_where_jax_and_unitful():
+    """Test where with JAX condition/x and Unitful y"""
+    condition = jnp.array([True, False, True])
+    x = jnp.array([1.0, 2.0, 3.0])
+    y = Unitful(val=np.array([10.0, 20.0, 30.0]), unit=EMPTY_UNIT)
+
+    result = where(condition, x, y)
+
+    assert isinstance(result, Unitful)
+    assert isinstance(result.val, jax.Array)
+
+    expected = np.where(np.array(condition), np.array(x), y.value())
+    assert np.allclose(np.asarray(result.value()), expected)
+
+
+def test_where_pure_numpy():
+    """Test where with pure numpy arrays"""
+    c = np.array([True, False, True])
+    x = np.array([1, 2, 3])
+    y = np.array([10, 20, 30])
+
+    result = where(c, x, y)
+
+    expected = np.where(c, x, y)
+    assert isinstance(result, np.ndarray)
+    assert (result == expected).all()
+
+
+def test_where_pure_jax():
+    """Test where with pure JAX arrays"""
+    c = jnp.array([True, False, True])
+    x = jnp.array([1, 2, 3])
+    y = jnp.array([10, 20, 30])
+
+    result = where(c, x, y)
+
+    expected = jnp.where(c, x, y)
+    assert isinstance(result, jax.Array)
+    assert np.allclose(np.asarray(result), np.asarray(expected))
+
+
+def test_where_mixed_numpy_jax():
+    """Test where mixing NumPy + JAX (should choose JAX backend)"""
+    c = np.array([True, False, True])
+    x = jnp.array([1, 2, 3])
+    y = np.array([10, 20, 30])
+
+    result = where(c, x, y)
+    assert isinstance(result, jax.Array)
+
+    expected = np.where(np.array(c), np.array(x), np.array(y))
+    assert np.allclose(np.asarray(result), expected)
+
+
+def test_where_unitful_jitted_static_arr():
+    """Test JIT-traced where with Unitful inputs; static_arr must be produced"""
+    m = Unit(scale=0, dim={SI.m: 1})
+
+    c = Unitful(val=jnp.array([True, False, True]), unit=EMPTY_UNIT, static_arr=np.array([True, False, True]))
+    x = Unitful(val=jnp.array([1.0, 2.0, 3.0]), unit=m, static_arr=np.array([1.0, 2.0, 3.0]))
+    y = Unitful(val=jnp.array([10.0, 20.0, 30.0]), unit=m, static_arr=np.array([10.0, 20.0, 30.0]))
+
+    def fn(condition: Unitful, x: Unitful, y: Unitful) -> Unitful:
+        if is_currently_compiling() and not unitful.STATIC_OPTIM_STOP_FLAG:
+            assert c.static_arr is not None
+            assert x.static_arr is not None
+            assert y.static_arr is not None
+        out = where(condition, x, y)
+        if is_currently_compiling() and not unitful.STATIC_OPTIM_STOP_FLAG:
+            assert out.static_arr is not None
+        return out
+
+    jitted_fn = jax.jit(fn)
+    result = jitted_fn(c, x, y)
+
+    expected = np.where(np.array([True, False, True]), np.array([1.0, 2.0, 3.0]), np.array([10.0, 20.0, 30.0]))
+
+    assert jnp.allclose(result.value(), jnp.array(expected))
+
+
+def test_where_raises_on_dim_mismatch():
+    """where(Unitful, Unitful, Unitful) should raise if x.unit.dim != y.unit.dim"""
+    m = Unit(scale=0, dim={SI.m: 1})
+    s = Unit(scale=0, dim={SI.s: 1})
+
+    c = Unitful(
+        val=jnp.array([True, False, True]),
+        unit=EMPTY_UNIT,
+        static_arr=np.array([True, False, True]),
+    )
+    x = Unitful(
+        val=jnp.array([1.0, 2.0, 3.0]),
+        unit=m,
+        static_arr=np.array([1.0, 2.0, 3.0]),
+    )
+    y = Unitful(
+        val=jnp.array([10.0, 20.0, 30.0]),
+        unit=s,  # dim mismatch with x
+        static_arr=np.array([10.0, 20.0, 30.0]),
+    )
+
+    with pytest.raises(
+        AssertionError,
+        match=r"need the same units for jnp\.where",
+    ):
+        where(c, x, y)
+
+
+def test_where_x_unitful_y_arraylike_dim_mismatch_assert():
+    """where(Unitful, ArrayLike, Unitful) promoted to EMPTY_UNIT, dim mismatch must assert"""
+    m = Unit(scale=0, dim={SI.m: 1})
+
+    # condition: ArrayLike (matches overload signature)
+    c = jnp.array([True, False, True])
+
+    x = Unitful(
+        val=jnp.array([1.0, 2.0, 3.0]),
+        unit=m,
+        static_arr=np.array([1.0, 2.0, 3.0]),
+    )
+
+    # y is ArrayLike -> promoted to Unitful with EMPTY_UNIT (dim={})
+    y = jnp.array([10.0, 20.0, 30.0])
+
+    with pytest.raises(
+        AssertionError,
+        match=r"need the same units for jnp\.where",
+    ):
+        where(c, x, y)
