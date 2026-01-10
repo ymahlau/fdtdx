@@ -23,6 +23,7 @@ from fdtdx.units.unitful import (
     multiply,
     ne,
     subtract,
+    sign
 )
 
 
@@ -1877,3 +1878,176 @@ def test_argmin_with_negative_nan_inf():
     # jnp.argmax([-1, nan, 5, inf]) → 3
     assert result1.val == jnp.array(1)
     assert result2.val == jnp.array(3)
+
+
+def test_sign_unitful_jax_array_drops_unit_and_preserves_float_dtype():
+    """Unitful(JAX float array) -> Unitful, unit dropped, JAX float dtype preserved."""
+    speed_unit = Unit(scale=3, dim={SI.m: 1, SI.s: -1})  # km/s
+    speeds = Unitful(val=jnp.array([-2.5, 0.0, 3.7, -1.2, 4.8], dtype=jnp.float32), unit=speed_unit)
+
+    result = jnp.sign(speeds)  # type: ignore
+
+    assert isinstance(result, Unitful)
+    assert result.unit.dim == {}
+    assert isinstance(result.val, jax.Array)
+    assert np.issubdtype(result.val.dtype, np.floating)
+    assert jnp.all(result.value() == jnp.array([-1.0, 0.0, 1.0, -1.0, 1.0], dtype=result.val.dtype))
+
+
+def test_sign_overload_jax_array_preserves_dtype():
+    """JAX array -> JAX array, dtype preserved (float->float)."""
+    x = jnp.array([-3.0, -0.0, 0.0, 2.2], dtype=jnp.float32)
+    y = sign(x)
+
+    assert isinstance(y, jax.Array)
+    assert np.issubdtype(y.dtype, np.floating)
+    assert jnp.all(y == jnp.array([-1.0, 0.0, 0.0, 1.0], dtype=y.dtype))
+
+
+def test_sign_overload_numpy_float_array_preserves_float_dtype():
+    """NumPy float array -> NumPy float array."""
+    x = np.array([-4.5, 0.0, 7.1], dtype=np.float64)
+    y = sign(x)
+
+    assert isinstance(y, np.ndarray)
+    assert np.issubdtype(y.dtype, np.floating)
+    assert np.array_equal(y, np.array([-1.0, 0.0, 1.0], dtype=y.dtype))
+
+
+def test_sign_overload_numpy_int_array_preserves_int_dtype():
+    """NumPy int array -> NumPy int array."""
+    x = np.array([-4, 0, 7], dtype=np.int32)
+    y = sign(x)
+
+    assert isinstance(y, np.ndarray)
+    assert np.issubdtype(y.dtype, np.integer)
+    assert np.array_equal(y, np.array([-1, 0, 1], dtype=y.dtype))
+
+
+def test_sign_overload_numpy_scalar():
+    """NumPy scalar -> NumPy scalar."""
+    x = np.float64(-0.3)
+    y = sign(x)
+
+    assert isinstance(y, np.number)
+    assert np.issubdtype(y.dtype, np.floating)
+    assert y == np.float64(-1.0)
+
+
+def test_sign_python_int_and_float():
+    """Python scalars go through dedicated overloads."""
+    assert sign(-7) == -1
+    assert sign(0) == 0
+    assert sign(9) == 1
+
+    assert sign(-7.2) == -1.0
+    assert sign(0.0) == 0.0
+    assert sign(9.9) == 1.0
+
+
+def test_sign_unitful_python_float_value():
+    """Unitful with python float val should be handled via sign(x.val) dispatch."""
+    unit = Unit(scale=0, dim={SI.s: 1})
+    u = Unitful(val=-0.3, unit=unit)
+
+    y = sign(u)
+
+    assert isinstance(y, Unitful)
+    assert y.unit.dim == {}
+    assert isinstance(y.val, float)
+    assert y.val == -1.0
+
+
+def test_sign_unitful_python_int_value():
+    """Unitful with python int val should be handled via sign(x.val) dispatch."""
+    unit = Unit(scale=0, dim={SI.s: 1})
+    u = Unitful(val=-3, unit=unit)
+
+    y = sign(u)
+
+    assert isinstance(y, Unitful)
+    assert y.unit.dim == {}
+    assert isinstance(y.val, int)
+    assert y.val == -1
+
+
+def test_jit_sign_on_jax_array_direct():
+    """jax.jit(sign) with JAX array input."""
+    f = jax.jit(sign)
+    x = jnp.array([-2.0, 0.0, 3.0], dtype=jnp.float32)
+
+    y = f(x)
+
+    assert isinstance(y, jax.Array)
+    assert np.issubdtype(y.dtype, np.floating)
+    assert jnp.all(y == jnp.array([-1.0, 0.0, 1.0], dtype=y.dtype))
+
+
+def test_jit_sign_on_unitful_direct():
+    """jax.jit(sign) with Unitful input (jit the dispatcher entrypoint)."""
+    unit_m = Unit(scale=0, dim={SI.m: 1})
+    x = Unitful(val=jnp.array([-2.0, 0.0, 3.0], dtype=jnp.float32), unit=unit_m)
+
+    f = jax.jit(sign)
+    y = f(x)
+
+    assert isinstance(y, Unitful)
+    assert y.unit.dim == {}
+    assert isinstance(y.val, jax.Array)
+    assert np.issubdtype(y.val.dtype, np.floating)
+    assert jnp.all(y.value() == jnp.array([-1.0, 0.0, 1.0], dtype=y.val.dtype))
+
+
+def test_jit_sign_unitful_with_static_arr_sets_static_arr_when_enabled():
+    """
+    When compiling and STATIC_OPTIM_STOP_FLAG is False, sign(Unitful) should attempt
+    to create a static_arr result if x has a static operand available.
+    """
+    unit_A = Unit(scale=0, dim={SI.A: 1})
+    x = Unitful(
+        val=jnp.asarray([-1.0, 0.0, 5.0], dtype=jnp.float32),
+        unit=unit_A,
+        static_arr=np.array([-1.0, 0.0, 4.9], dtype=np.float32),
+    )
+
+    def fn(u: Unitful) -> Unitful:
+        if is_currently_compiling() and not unitful.STATIC_OPTIM_STOP_FLAG:
+            assert u.static_arr is not None
+        out = sign(u)
+        if is_currently_compiling() and not unitful.STATIC_OPTIM_STOP_FLAG:
+            assert out.static_arr is not None
+        return out
+
+    y = jax.jit(fn)(x)
+
+    assert isinstance(y, Unitful)
+    assert y.unit.dim == {}
+    assert isinstance(y.val, jax.Array)
+    assert np.issubdtype(y.val.dtype, np.floating)
+    assert jnp.all(y.value() == jnp.array([-1.0, 0.0, 1.0], dtype=y.val.dtype))
+
+
+def test_jit_sign_numpy_array_raises():
+    """Document expected behavior: NumPy arrays aren't valid dynamic JIT args."""
+    f = jax.jit(sign)
+    x = np.array([-1.0, 0.0, 2.0], dtype=np.float32)
+
+    with pytest.raises((TypeError, ValueError)):
+        _ = f(x)
+
+
+def test_jit_sign_python_int_raises():
+    """Document expected behavior: Python scalars aren't valid dynamic JIT args by default."""
+    f = jax.jit(sign)
+
+    with pytest.raises((TypeError, ValueError)):
+        _ = f(-7)
+
+
+def test_jit_sign_python_int_static_argnums_ok():
+    """Python int can be accepted as a static argument."""
+    f = jax.jit(sign, static_argnums=0)
+    y = f(-7)
+
+    assert isinstance(y, int)
+    assert y == -1

@@ -1614,32 +1614,14 @@ def argmin(x, *args, **kwargs):  # type: ignore
 
 @overload
 def sign(x: Unitful) -> Unitful:
-    # Drop units and return integer {-1,0,1}
-    if isinstance(x.val, np.ndarray | np.number):
-        # NumPy path
-        y = np.sign(x.val)
-        if isinstance(y, np.ndarray):
-            y_int: np.ndarray | np.number = y.astype(np.int_)
-        else:
-            y_int = np.int_(y)
-        return Unitful(val=y_int, unit=EMPTY_UNIT, static_arr=None)
-    else:
-        # JAX path (includes tracers)
-        y = jax.lax.sign(x.val)
-        y_int = jax.lax.convert_element_type(y, jnp.int_)  # type: ignore
-        if not isinstance(y_int, jax.Array):
-            raise Exception(f"This is an internal error: sign produced {type(y_int)}")
-        new_static_arr = None
-        if is_traced(y_int):
-            x_arr = get_static_operand(x)
-            if x_arr is not None:
-                y_s = np.sign(x_arr)
-                if isinstance(y_s, np.ndarray):
-                    y_s = y_s.astype(np.int_)
-                else:
-                    y_s = np.int_(y_s)
-                new_static_arr = y_s
-        return Unitful(val=y_int, unit=EMPTY_UNIT, static_arr=new_static_arr)  # type: ignore
+    # Drop units and return sign by calling sign on the value
+    y = sign(x.val)  # type: ignore
+    new_static_arr = None
+    if isinstance(y, jax.Array) and is_traced(y):
+        x_arr = get_static_operand(x)
+        if x_arr is not None:
+            new_static_arr = sign(x_arr)  # type: ignore
+    return Unitful(val=y, unit=EMPTY_UNIT, static_arr=new_static_arr)
 
 
 @overload
@@ -1652,6 +1634,12 @@ def sign(x: jax.Array) -> jax.Array:
 def sign(x: np.ndarray) -> np.ndarray:
     # NumPy sign, preserve output type
     return np.sign(x)
+
+
+@overload
+def sign(x: np.number) -> np.number:
+    # NumPy scalar, preserve output type
+    return np.sign(x)  # type: ignore
 
 
 @overload
