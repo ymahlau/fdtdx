@@ -24,8 +24,6 @@ Example:
     >>> c1.to_rgb_255()  # (255, 0, 0)
 """
 
-from typing import Tuple
-
 from fdtdx.core.jax.pytrees import TreeClass, autoinit
 
 
@@ -96,7 +94,7 @@ class Color(TreeClass):
         except ValueError:
             raise ValueError(f"Invalid hex color: {hex_string}")
 
-    def to_rgb_normalized(self) -> Tuple[float, float, float]:
+    def to_rgb_normalized(self) -> tuple[float, float, float]:
         """Return color as normalized RGB tuple [0, 1].
 
         Returns:
@@ -104,7 +102,7 @@ class Color(TreeClass):
         """
         return self.r, self.g, self.b
 
-    def to_rgb_255(self) -> Tuple[int, int, int]:
+    def to_rgb_255(self) -> tuple[int, int, int]:
         """Return color as 8-bit RGB tuple (0-255).
 
         Returns:
@@ -121,7 +119,7 @@ class Color(TreeClass):
         r, g, b = self.to_rgb_255()
         return f"#{r:02X}{g:02X}{b:02X}"
 
-    def to_mpl(self) -> Tuple[float, float, float]:
+    def to_mpl(self) -> tuple[float, float, float]:
         """Return color in matplotlib-compatible format.
 
         This is an alias for to_rgb_normalized() for clarity when using
@@ -355,32 +353,6 @@ XKCD_MAROON = Color.from_rgb(101, 0, 33)
 XKCD_AVOCADO = Color.from_rgb(144, 177, 52)
 XKCD_PERIWINKLE = Color.from_rgb(142, 130, 254)
 XKCD_LILAC = Color.from_rgb(206, 162, 253)
-
-# ============================================================================
-# Legacy Color Compatibility
-# ============================================================================
-# For backward compatibility with existing code, maintain the original
-# constant names with their original values
-
-# Bright and primary colors
-GREEN = XKCD_GREEN.to_mpl()
-PINK = XKCD_PINK.to_mpl()
-MAGENTA = XKCD_MAGENTA.to_mpl()
-CYAN = XKCD_CYAN.to_mpl()
-LIGHT_BLUE = XKCD_LIGHT_BLUE.to_mpl()
-ORANGE = XKCD_ORANGE.to_mpl()
-LIGHT_GREEN = XKCD_LIGHT_GREEN.to_mpl()
-
-# Grayscale colors
-GREY = XKCD_GREY.to_mpl()
-DARK_GREY = XKCD_DARK_GREY.to_mpl()
-LIGHT_GREY = XKCD_LIGHT_GREY.to_mpl()
-
-# Earth tones
-BROWN = XKCD_BROWN.to_mpl()
-LIGHT_BROWN = XKCD_LIGHT_BROWN.to_mpl()
-TAN = XKCD_TAN.to_mpl()
-BEIGE = XKCD_BEIGE.to_mpl()
 
 # ============================================================================
 # Convenience Lists

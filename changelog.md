@@ -3,9 +3,7 @@
 ## Added
 - added new description for the placeholder attributes (@renaissancenerd)
 - added plot_field_slice function which creates 2x3 images (with colorbar) for given E and H fields (@renaissancenerd)
-- updated PhasorDetector for multiple frequencies (@renaissancenerd)
-- refactored GaussianPulseProfile by adding fdtdx.WaveCharacter (@renaissancenerd)
-- refactored Color with a comprehensive colors from the XKCD color survey  (@renaissancenerd)
+- refactored Color with comprehensive colors from the XKCD color survey  (@renaissancenerd)
 
 ## Changed
 
