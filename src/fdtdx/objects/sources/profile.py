@@ -73,6 +73,12 @@ class GaussianPulseProfile(TemporalProfile):
     #: Center frequency/wavelength of the carrier wave
     center_wave: WaveCharacter = frozen_field()
 
+    def __post_init__(self):
+        if self.spectral_width.phase_shift != 0.0:
+            raise ValueError(
+                "spectral_width should not have a phase_shift. Phase shifts should only be applied to center_wave."
+            )
+
     def get_amplitude(
         self,
         time: jax.Array,
