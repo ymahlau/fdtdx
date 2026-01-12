@@ -234,7 +234,7 @@ class Material(TreeClass):
 
     @property
     def is_all_diagonally_anisotropic(self) -> bool:
-        """Check if all material properties are diagonally anisotropic (all components not equal and no off-diagonal components).
+        """Check if all material properties are diagonally anisotropic (no off-diagonal components).
 
         Returns:
             bool: True if material is diagonally anisotropic
@@ -257,7 +257,7 @@ class Material(TreeClass):
 
     @property
     def is_diagonally_anisotropic_permittivity(self) -> bool:
-        """Check if material has diagonally anisotropic permittivity (all components not equal and no off-diagonal components).
+        """Check if material has diagonally anisotropic permittivity (no off-diagonal components).
 
         Returns:
             bool: True if material has diagonally anisotropic permittivity
@@ -275,7 +275,7 @@ class Material(TreeClass):
 
     @property
     def is_diagonally_anisotropic_permeability(self) -> bool:
-        """Check if material has diagonally anisotropic permeability (all components not equal and no off-diagonal components).
+        """Check if material has diagonally anisotropic permeability (no off-diagonal components).
 
         Returns:
             bool: True if material has diagonally anisotropic permeability
@@ -293,7 +293,7 @@ class Material(TreeClass):
 
     @property
     def is_diagonally_anisotropic_electric_conductivity(self) -> bool:
-        """Check if material has diagonally anisotropic electric conductivity (all components not equal and no off-diagonal components).
+        """Check if material has diagonally anisotropic electric conductivity (no off-diagonal components).
 
         Returns:
             bool: True if material has diagonally anisotropic electric conductivity
@@ -311,7 +311,7 @@ class Material(TreeClass):
 
     @property
     def is_diagonally_anisotropic_magnetic_conductivity(self) -> bool:
-        """Check if material has diagonally anisotropic magnetic conductivity (all components not equal and no off-diagonal components).
+        """Check if material has diagonally anisotropic magnetic conductivity (no off-diagonal components).
 
         Returns:
             bool: True if material has diagonally anisotropic magnetic conductivity
