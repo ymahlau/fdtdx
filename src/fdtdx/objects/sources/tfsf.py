@@ -196,10 +196,7 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         c = self._config.courant_number
 
         # Determine if fully anisotropic
-        is_fully_anisotropic = (
-            inv_permittivities.ndim > 0 and 
-            inv_permittivities.shape[0] == 9
-        )
+        is_fully_anisotropic = inv_permittivities.ndim > 0 and inv_permittivities.shape[0] == 9
 
         # Slice the permittivity tensor at the TFSF boundary, shape: (num_components, Nx, Ny, Nz)
         inv_permittivity_slice = inv_permittivities[:, *self.grid_slice]
@@ -210,16 +207,20 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         amplitude_H = {}
         for axis in [h_axis, v_axis, p_axis]:
             time_H[axis] = (time_step + self._time_offset_H[axis]) * delta_t
-            amplitude_H[axis] = self.temporal_profile.get_amplitude(
-                time=time_H[axis],
-                period=self.wave_character.get_period(),
-                phase_shift=self.wave_character.phase_shift,
-            ) * self.static_amplitude_factor
+            amplitude_H[axis] = (
+                self.temporal_profile.get_amplitude(
+                    time=time_H[axis],
+                    period=self.wave_character.get_period(),
+                    phase_shift=self.wave_character.phase_shift,
+                )
+                * self.static_amplitude_factor
+            )
 
         # if direction is negative, updates are reversed
         sign = 1 if self.direction == "+" else -1
         # inverse update is inverted
-        if inverse: sign = -sign
+        if inverse:
+            sign = -sign
 
         if is_fully_anisotropic:
             # vertical incident wave part
@@ -280,9 +281,9 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
 
         # Determine if fully anisotropic
         is_fully_anisotropic = (
-            isinstance(inv_permeabilities, jax.Array) and
-            inv_permeabilities.ndim > 0 and 
-            inv_permeabilities.shape[0] == 9
+            isinstance(inv_permeabilities, jax.Array)
+            and inv_permeabilities.ndim > 0
+            and inv_permeabilities.shape[0] == 9
         )
 
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
@@ -297,16 +298,20 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         amplitude_E = {}
         for axis in [h_axis, v_axis, p_axis]:
             time_E[axis] = (time_step + self._time_offset_E[axis]) * delta_t
-            amplitude_E[axis] = self.temporal_profile.get_amplitude(
-                time=time_E[axis],
-                period=self.wave_character.get_period(),
-                phase_shift=self.wave_character.phase_shift,
-            ) * self.static_amplitude_factor
+            amplitude_E[axis] = (
+                self.temporal_profile.get_amplitude(
+                    time=time_E[axis],
+                    period=self.wave_character.get_period(),
+                    phase_shift=self.wave_character.phase_shift,
+                )
+                * self.static_amplitude_factor
+            )
 
         # if direction is negative, updates are reversed
         sign = 1 if self.direction == "+" else -1
         # inverse update is inverted
-        if inverse: sign = -sign
+        if inverse:
+            sign = -sign
 
         if is_fully_anisotropic:
             # horizontal incident wave part
@@ -317,7 +322,7 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
             def get_inv_mu(row, col):
                 # get inverse permeability tensor element at (row, col)
                 idx = row * 3 + col
-                return inv_permeability_slice[idx] # type: ignore
+                return inv_permeability_slice[idx]  # type: ignore
 
             # update uses +E_h, we have to add update, resulting in +E_h
             # update uses -E_v, we have to add update, resulting in -E_v

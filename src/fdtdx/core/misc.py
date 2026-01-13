@@ -479,6 +479,7 @@ def normalize_polarization_for_source(
         )
     return e_pol, h_pol
 
+
 def expand_to_3x3(arr: jax.Array | float | None) -> jax.Array | None:
     """Expands an array from shape (1/3/9, Nx, Ny, Nz) to (3, 3, Nx, Ny, Nz).
 

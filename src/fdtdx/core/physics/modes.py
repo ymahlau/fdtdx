@@ -126,14 +126,24 @@ def compute_mode(
     """
     # Input validation
     if (
-        not (inv_permittivities.ndim == 4 and (inv_permittivities.shape[0] == 1 or inv_permittivities.shape[0] == 3 or inv_permittivities.shape[0] == 9))
+        not (
+            inv_permittivities.ndim == 4
+            and (
+                inv_permittivities.shape[0] == 1 or inv_permittivities.shape[0] == 3 or inv_permittivities.shape[0] == 9
+            )
+        )
         or sum(dim == 1 for dim in inv_permittivities.shape[1:]) != 1
     ):
         raise Exception(f"Invalid shape of inv_permittivities: {inv_permittivities.shape}")
     if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
         if (
             not (
-                inv_permeabilities.ndim == 4 and (inv_permeabilities.shape[0] == 1 or inv_permeabilities.shape[0] == 3 or inv_permeabilities.shape[0] == 9)
+                inv_permeabilities.ndim == 4
+                and (
+                    inv_permeabilities.shape[0] == 1
+                    or inv_permeabilities.shape[0] == 3
+                    or inv_permeabilities.shape[0] == 9
+                )
             )
             or sum(dim == 1 for dim in inv_permeabilities.shape[1:]) != 1
         ):
@@ -180,9 +190,11 @@ def compute_mode(
     if isinstance(inv_permittivities, jax.Array) and inv_permittivities.ndim > 0 and inv_permittivities.shape[0] == 9:
         eps = cast(jax.Array, expand_to_3x3(inv_permittivities))
         # Invert the 3x3 matrix
-        perm = (2, 3, 4, 0, 1)      # (3, 3, nx, ny, nz) -> (nx, ny, nz, 3, 3)
+        perm = (2, 3, 4, 0, 1)  # (3, 3, nx, ny, nz) -> (nx, ny, nz, 3, 3)
         inv_perm = (3, 4, 0, 1, 2)  # (nx, ny, nz, 3, 3) -> (3, 3, nx, ny, nz)
-        permittivities = jnp.linalg.inv(eps.transpose(perm)).transpose(inv_perm).reshape(9, *inv_permittivities.shape[1:])
+        permittivities = (
+            jnp.linalg.inv(eps.transpose(perm)).transpose(inv_perm).reshape(9, *inv_permittivities.shape[1:])
+        )
     else:
         permittivities = 1 / inv_permittivities
     other_axes = [a for a in range(1, 4) if permittivities.shape[a] != 1]
@@ -222,9 +234,11 @@ def compute_mode(
     if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0 and inv_permeabilities.shape[0] == 9:
         mu = cast(jax.Array, expand_to_3x3(inv_permeabilities))
         # Invert the 3x3 matrix
-        perm = (2, 3, 4, 0, 1)      # (3, 3, nx, ny, nz) -> (nx, ny, nz, 3, 3)
+        perm = (2, 3, 4, 0, 1)  # (3, 3, nx, ny, nz) -> (nx, ny, nz, 3, 3)
         inv_perm = (3, 4, 0, 1, 2)  # (nx, ny, nz, 3, 3) -> (3, 3, nx, ny, nz)
-        permeabilities = jnp.linalg.inv(mu.transpose(perm)).transpose(inv_perm).reshape(9, *inv_permeabilities.shape[1:])
+        permeabilities = (
+            jnp.linalg.inv(mu.transpose(perm)).transpose(inv_perm).reshape(9, *inv_permeabilities.shape[1:])
+        )
     else:
         permeabilities = 1 / inv_permeabilities
     if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
@@ -308,9 +322,9 @@ def tidy3d_mode_computation_wrapper(
         track_freq="central",
         group_index_step=False,
     )
-    permittivity_cross_section = cast(
-        jax.Array, expand_to_3x3(permittivity_cross_section)
-    ).reshape(9, *permittivity_cross_section.shape[1:])
+    permittivity_cross_section = cast(jax.Array, expand_to_3x3(permittivity_cross_section)).reshape(
+        9, *permittivity_cross_section.shape[1:]
+    )
 
     eps_cross = [
         permittivity_cross_section[0, :, :],
@@ -325,9 +339,9 @@ def tidy3d_mode_computation_wrapper(
     ]
     mu_cross = None
     if permeability_cross_section is not None:
-        permeability_cross_section = cast(
-            jax.Array, expand_to_3x3(permeability_cross_section)
-        ).reshape(9, *permittivity_cross_section.shape[1:])
+        permeability_cross_section = cast(jax.Array, expand_to_3x3(permeability_cross_section)).reshape(
+            9, *permittivity_cross_section.shape[1:]
+        )
 
         mu_cross = [
             permeability_cross_section[0, :, :],

@@ -88,24 +88,40 @@ def calculate_time_offset_yee(
         if inv_permittivities.ndim == 4:
             # Remove when anisotropic case is verified
             if inv_permittivities.shape[0] == 3 or inv_permittivities.shape[0] == 9:
-                is_isotropic = (
-                    (
-                        inv_permittivities.shape[0] == 3 and 
-                        jnp.allclose(inv_permittivities[0], inv_permittivities[1]) and 
-                        jnp.allclose(inv_permittivities[1], inv_permittivities[2])
-                    ) or
-                    (
-                        inv_permittivities.shape[0] == 9 and 
-                        jnp.allclose(inv_permittivities[0], inv_permittivities[4]) and 
-                        jnp.allclose(inv_permittivities[4], inv_permittivities[8]) and
-                        inv_permittivities[1] == 0.0 and
-                        inv_permittivities[2] == 0.0 and
-                        inv_permittivities[3] == 0.0 and
-                        inv_permittivities[5] == 0.0 and
-                        inv_permittivities[6] == 0.0 and
-                        inv_permittivities[7] == 0.0
-                    )
+                # Check if diagonal isotropic (shape[0] == 3)
+                is_diagonal_isotropic = jnp.logical_and(
+                    jnp.logical_and(
+                        jnp.allclose(inv_permittivities[0], inv_permittivities[1]),
+                        jnp.allclose(inv_permittivities[1], inv_permittivities[2]),
+                    ),
+                    inv_permittivities.shape[0] == 3,
                 )
+
+                # Check if full tensor isotropic (shape[0] == 9)
+                is_full_isotropic = jnp.logical_and(
+                    jnp.logical_and(
+                        jnp.logical_and(
+                            jnp.allclose(inv_permittivities[0], inv_permittivities[4]),
+                            jnp.allclose(inv_permittivities[4], inv_permittivities[8]),
+                        ),
+                        jnp.logical_and(
+                            jnp.logical_and(
+                                jnp.allclose(inv_permittivities[1], 0.0), jnp.allclose(inv_permittivities[2], 0.0)
+                            ),
+                            jnp.logical_and(
+                                jnp.allclose(inv_permittivities[3], 0.0), jnp.allclose(inv_permittivities[5], 0.0)
+                            ),
+                        ),
+                    ),
+                    jnp.logical_and(
+                        jnp.logical_and(
+                            jnp.allclose(inv_permittivities[6], 0.0), jnp.allclose(inv_permittivities[7], 0.0)
+                        ),
+                        inv_permittivities.shape[0] == 9,
+                    ),
+                )
+
+                is_isotropic = jnp.logical_or(is_diagonal_isotropic, is_full_isotropic)
 
                 def _raise_if_anisotropic(is_iso):
                     if not is_iso:
@@ -115,34 +131,53 @@ def calculate_time_offset_yee(
 
                 jax.debug.callback(_raise_if_anisotropic, is_isotropic)
 
-            if e_polarization is None:
-                raise ValueError("e_polarization is required for anisotropic materials (4D permittivity array)")
-            e_pol_squared = e_polarization**2
-            inv_perm_eff = jnp.sum(e_pol_squared[:, None, None, None] * inv_permittivities, axis=0)
+            # if e_polarization is None:
+            #    raise ValueError("e_polarization is required for anisotropic materials (4D permittivity array)")
+            # e_pol_squared = e_polarization**2
+            # inv_perm_eff = jnp.sum(e_pol_squared[:, None, None, None] * inv_permittivities, axis=0)
+
+            # For now just return the isotropic result
+            inv_perm_eff = inv_permittivities[0]
         else:
             inv_perm_eff = inv_permittivities
 
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim == 4:
             # Remove when anisotropic case is verified
-            if inv_permittivities.shape[0] == 3 or inv_permittivities.shape[0] == 9:
-                is_isotropic = (
-                    (
-                        inv_permittivities.shape[0] == 3 and 
-                        jnp.allclose(inv_permittivities[0], inv_permittivities[1]) and 
-                        jnp.allclose(inv_permittivities[1], inv_permittivities[2])
-                    ) or
-                    (
-                        inv_permittivities.shape[0] == 9 and 
-                        jnp.allclose(inv_permittivities[0], inv_permittivities[4]) and 
-                        jnp.allclose(inv_permittivities[4], inv_permittivities[8]) and
-                        inv_permittivities[1] == 0.0 and
-                        inv_permittivities[2] == 0.0 and
-                        inv_permittivities[3] == 0.0 and
-                        inv_permittivities[5] == 0.0 and
-                        inv_permittivities[6] == 0.0 and
-                        inv_permittivities[7] == 0.0
-                    )
+            if inv_permeabilities.shape[0] == 3 or inv_permeabilities.shape[0] == 9:
+                # Check if diagonal isotropic (shape[0] == 3)
+                is_diagonal_isotropic = jnp.logical_and(
+                    jnp.logical_and(
+                        jnp.allclose(inv_permeabilities[0], inv_permeabilities[1]),
+                        jnp.allclose(inv_permeabilities[1], inv_permeabilities[2]),
+                    ),
+                    inv_permeabilities.shape[0] == 3,
                 )
+
+                # Check if full tensor isotropic (shape[0] == 9)
+                is_full_isotropic = jnp.logical_and(
+                    jnp.logical_and(
+                        jnp.logical_and(
+                            jnp.allclose(inv_permeabilities[0], inv_permeabilities[4]),
+                            jnp.allclose(inv_permeabilities[4], inv_permeabilities[8]),
+                        ),
+                        jnp.logical_and(
+                            jnp.logical_and(
+                                jnp.allclose(inv_permeabilities[1], 0.0), jnp.allclose(inv_permeabilities[2], 0.0)
+                            ),
+                            jnp.logical_and(
+                                jnp.allclose(inv_permeabilities[3], 0.0), jnp.allclose(inv_permeabilities[5], 0.0)
+                            ),
+                        ),
+                    ),
+                    jnp.logical_and(
+                        jnp.logical_and(
+                            jnp.allclose(inv_permeabilities[6], 0.0), jnp.allclose(inv_permeabilities[7], 0.0)
+                        ),
+                        inv_permeabilities.shape[0] == 9,
+                    ),
+                )
+
+                is_isotropic = jnp.logical_or(is_diagonal_isotropic, is_full_isotropic)
 
                 def _raise_if_anisotropic(is_iso):
                     if not is_iso:
@@ -152,10 +187,13 @@ def calculate_time_offset_yee(
 
                 jax.debug.callback(_raise_if_anisotropic, is_isotropic)
 
-            if h_polarization is None:
-                raise ValueError("h_polarization is required for anisotropic materials (4D permeability array)")
-            h_pol_squared = h_polarization**2
-            inv_perm_eff_perm = jnp.sum(h_pol_squared[:, None, None, None] * inv_permeabilities, axis=0)
+            # if h_polarization is None:
+            #    raise ValueError("h_polarization is required for anisotropic materials (4D permeability array)")
+            # h_pol_squared = h_polarization**2
+            # inv_perm_eff_perm = jnp.sum(h_pol_squared[:, None, None, None] * inv_permeabilities, axis=0)
+
+            # For now just return the isotropic result
+            inv_perm_eff_perm = inv_permeabilities[0]
         else:
             inv_perm_eff_perm = inv_permeabilities
 

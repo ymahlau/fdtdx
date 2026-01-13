@@ -165,7 +165,7 @@ def apply_params(
                 isotropic=isotropic,
                 diagonally_anisotropic=diagonally_anisotropic,
             )
-        ) # shape: (num_materials, num_components)
+        )  # shape: (num_materials, num_components)
         if num_perm_components == 1 or num_perm_components == 3:
             inv_allowed = (1.0 / allowed_perm_array)[:, :, None, None, None]
         else:

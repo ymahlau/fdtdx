@@ -91,9 +91,19 @@ class StandardToInversePermittivityRange(ParameterTransformation):
                 mapped = v_expanded * (max_inv_perm_arr - min_inv_perm_arr) + min_inv_perm_arr
                 result[k] = mapped
             return result
-        else: # fully anisotropic
+        else:  # fully anisotropic
             # Compute min/max for each tensor element separately
-            max_inv_perm = [-math.inf, -math.inf, -math.inf, -math.inf, -math.inf, -math.inf, -math.inf, -math.inf, -math.inf]
+            max_inv_perm = [
+                -math.inf,
+                -math.inf,
+                -math.inf,
+                -math.inf,
+                -math.inf,
+                -math.inf,
+                -math.inf,
+                -math.inf,
+                -math.inf,
+            ]
             min_inv_perm = [math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf, math.inf]
             for v in self._materials.values():
                 # v.permittivity is tuple (εxx, εxy, εxz, εyx, εyy, εyz, εzx, εzy, εzz)
