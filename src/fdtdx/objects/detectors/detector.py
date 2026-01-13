@@ -318,9 +318,9 @@ class Detector(SimulationObject, ABC):
         elif squeezed_ndim == 3 and self.num_time_steps_recorded == 1:
             # single step, 3d-plot. # TODO: do as mean over planes
             for k, v in squeezed_arrs.items():
-                xy_slice = squeezed_arrs[k].mean(axis=0)
+                xy_slice = squeezed_arrs[k].mean(axis=2)
                 xz_slice = squeezed_arrs[k].mean(axis=1)
-                yz_slice = squeezed_arrs[k].mean(axis=2)
+                yz_slice = squeezed_arrs[k].mean(axis=0)
                 fig = plot_2d_from_slices(
                     xy_slice=xy_slice,
                     xz_slice=xz_slice,
@@ -337,9 +337,9 @@ class Detector(SimulationObject, ABC):
         elif squeezed_ndim == 4 and self.num_time_steps_recorded > 1:
             # video with 3d-volume in each time step. plot as slices
             for k, v in squeezed_arrs.items():
-                xy_slice = squeezed_arrs[k].mean(axis=1)
+                xy_slice = squeezed_arrs[k].mean(axis=3)
                 xz_slice = squeezed_arrs[k].mean(axis=2)
-                yz_slice = squeezed_arrs[k].mean(axis=3)
+                yz_slice = squeezed_arrs[k].mean(axis=1)
                 path = generate_video_from_slices(
                     plt_fn=plot_from_slices,
                     xy_slice=xy_slice,

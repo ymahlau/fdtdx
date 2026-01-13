@@ -5,6 +5,7 @@
 - added plot_field_slice function which creates 2x3 images (with colorbar) for given E and H fields (@renaissancenerd)
 
 ## Changed
+- fixed the detector plotting bug (#220) (@renaissancenerd)
 
 ## Removed
 
