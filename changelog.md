@@ -3,6 +3,7 @@
 ## Added
 - added new description for the placeholder attributes (@renaissancenerd)
 - added plot_field_slice function which creates 2x3 images (with colorbar) for given E and H fields (@renaissancenerd)
+- refactored GaussianPulseProfile by adding fdtdx.WaveCharacter (@renaissancenerd)
 
 ## Changed
 
