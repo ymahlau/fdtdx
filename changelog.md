@@ -6,6 +6,7 @@
 
 ## Changed
 - fixed the detector plotting bug (#220) (@renaissancenerd)
+- refactored GaussianPulseProfile by adding fdtdx.WaveCharacter (#90) (@renaissancenerd)
 
 ## Removed
 
