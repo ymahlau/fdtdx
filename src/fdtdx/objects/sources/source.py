@@ -7,7 +7,7 @@ import jax.numpy as jnp
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.misc import linear_interpolated_indexing, normalize_polarization_for_source
-from fdtdx.core.plotting.colors import ORANGE
+from fdtdx.core.plotting.colors import XKCD_DARK_ORANGE
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.object import SimulationObject
@@ -30,7 +30,7 @@ class Source(SimulationObject, ABC):
     switch: OnOffSwitch = frozen_field(default=OnOffSwitch())
 
     #: color of the object
-    color: tuple[float, float, float] | None = frozen_field(default=ORANGE)
+    color: tuple[float, float, float] | None = frozen_field(default=XKCD_DARK_ORANGE)
 
     _is_on_at_time_step_arr: jax.Array = private_field()
     _time_step_to_on_idx: jax.Array = private_field()

@@ -3,7 +3,7 @@ import functools
 from typing_extensions import override
 
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
-from fdtdx.core.plotting.colors import LIGHT_BLUE
+from fdtdx.core.plotting.colors import XKCD_LIGHT_BLUE
 from fdtdx.objects.boundaries.boundary import BaseBoundary
 
 
@@ -16,7 +16,7 @@ class PeriodicBoundary(BaseBoundary):
     """
 
     #: RGB color tuple for visualization. Defaults to light blue.
-    color: tuple[float, float, float] | None = frozen_field(default=LIGHT_BLUE)
+    color: tuple[float, float, float] | None = frozen_field(default=XKCD_LIGHT_BLUE)
 
     @property
     @override

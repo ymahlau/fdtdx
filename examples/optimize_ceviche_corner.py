@@ -87,7 +87,7 @@ def main(
     substrate = fdtdx.UniformMaterialObject(
         partial_real_shape=(None, None, 0.5e-6),
         material=fdtdx.Material(permittivity=fdtdx.constants.relative_permittivity_silica),
-        color=fdtdx.colors.ORANGE,
+        color=fdtdx.colors.XKCD_ORANGE,
     )
     placement_constraints.append(
         substrate.place_relative_to(
@@ -137,7 +137,7 @@ def main(
     waveguide_in = fdtdx.UniformMaterialObject(
         partial_real_shape=(None, width, height),
         material=material_config["Silicon"],
-        color=fdtdx.colors.LIGHT_BLUE,
+        color=fdtdx.colors.XKCD_LIGHT_BLUE,
     )
     placement_constraints.extend(
         [
@@ -178,7 +178,7 @@ def main(
     waveguide_out = fdtdx.UniformMaterialObject(
         partial_real_shape=(width, None, height),
         material=material_config["Silicon"],
-        color=fdtdx.colors.LIGHT_BLUE,
+        color=fdtdx.colors.XKCD_LIGHT_BLUE,
     )
     placement_constraints.extend(
         [
