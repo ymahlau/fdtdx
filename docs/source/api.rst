@@ -85,4 +85,3 @@ API
     fdtdx.WaveCharacter
     fdtdx.wavelength_to_period
     fdtdx.colors
-
