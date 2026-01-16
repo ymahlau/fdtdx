@@ -14,6 +14,7 @@ API
     fdtdx.BrushConstraint2D
     fdtdx.circular_brush
     fdtdx.ClosestIndex
+    fdtdx.colors
     fdtdx.compute_energy
     fdtdx.compute_mode
     fdtdx.compute_poynting_flux
@@ -84,4 +85,3 @@ API
     fdtdx.UniformPlaneSource
     fdtdx.WaveCharacter
     fdtdx.wavelength_to_period
-    fdtdx.colors
