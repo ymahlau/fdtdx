@@ -13,8 +13,13 @@ from fdtdx.objects.sources.tfsf import TFSFPlaneSource
 
 @autoinit
 class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
+    #: the electric polarization vector
     fixed_E_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
+
+    #: the magnetic polarization vector
     fixed_H_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
+
+    #: whether to normalize the polarization vector
     normalize_by_energy: bool = frozen_field(default=True)
 
     def get_EH_variation(
@@ -28,9 +33,11 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         jax.Array,  # time_offset_E: (3, *grid_shape)
         jax.Array,  # time_offset_H: (3, *grid_shape)
     ]:
-        inv_permittivities = inv_permittivities[*self.grid_slice]
+        # inv_permittivities shape: (3, Nx, Ny, Nz) - slice with component dimension
+        inv_permittivities = inv_permittivities[:, *self.grid_slice]
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
-            inv_permeabilities = inv_permeabilities[*self.grid_slice]
+            # inv_permeabilities shape: (3, Nx, Ny, Nz) - slice with component dimension
+            inv_permeabilities = inv_permeabilities[:, *self.grid_slice]
 
         # determine E/H polarization
         e_pol_raw, h_pol_raw = normalize_polarization_for_source(
@@ -114,6 +121,8 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
             inv_permeabilities=inv_permeabilities,
             resolution=self._config.resolution,
             time_step_duration=self._config.time_step_duration,
+            e_polarization=e_pol,
+            h_polarization=h_pol,
         )
 
         return E, H, time_offset_E, time_offset_H
@@ -130,7 +139,10 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
 
 @autoinit
 class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
+    #: the radius of the gaussian source
     radius: float = frozen_field()
+
+    #:  the standard deviation of the gaussian source
     std: float = frozen_field(default=1 / 3)  # relative to radius
 
     @staticmethod
@@ -176,6 +188,7 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
 
 @autoinit
 class UniformPlaneSource(LinearlyPolarizedPlaneSource):
+    #: the amplitude of the uniform source
     amplitude: float = frozen_field(default=1.0)
 
     def _get_amplitude_raw(

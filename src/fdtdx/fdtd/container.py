@@ -105,6 +105,34 @@ class ObjectContainer(TreeClass):
 
         return self._is_material_fn_true_for_all(_fn)
 
+    @property
+    def all_objects_isotropic_permittivity(self) -> bool:
+        def _fn(m: Material):
+            return m.is_isotropic_permittivity
+
+        return self._is_material_fn_true_for_all(_fn)
+
+    @property
+    def all_objects_isotropic_permeability(self) -> bool:
+        def _fn(m: Material):
+            return m.is_isotropic_permeability
+
+        return self._is_material_fn_true_for_all(_fn)
+
+    @property
+    def all_objects_isotropic_electric_conductivity(self) -> bool:
+        def _fn(m: Material):
+            return m.is_isotropic_electric_conductivity
+
+        return self._is_material_fn_true_for_all(_fn)
+
+    @property
+    def all_objects_isotropic_magnetic_conductivity(self) -> bool:
+        def _fn(m: Material):
+            return m.is_isotropic_magnetic_conductivity
+
+        return self._is_material_fn_true_for_all(_fn)
+
     def _is_material_fn_true_for_all(
         self,
         fn: Callable[[Material], bool],

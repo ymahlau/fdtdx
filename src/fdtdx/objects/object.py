@@ -13,6 +13,7 @@ from fdtdx.core.jax.pytrees import (
     private_field,
 )
 from fdtdx.core.misc import ensure_slice_tuple
+from fdtdx.core.plotting.colors import Color
 from fdtdx.typing import (
     INVALID_SLICE_TUPLE_3D,
     UNDEFINED_SHAPE_3D,
@@ -218,7 +219,7 @@ class SimulationObject(TreeClass, ABC):
 
     #: RGB color values for the object, where each component is in the interval [0, 1]. None indicates no color
     #: is specified. Defaults to None.
-    color: tuple[float, float, float] | None = frozen_field(default=None)
+    color: Color | None = frozen_field(default=None)
 
     #: Unique identifier for the object. Automatically enforced to be unique through the UniqueName validator.
     #: The user can also set a name manually.
@@ -798,7 +799,7 @@ class OrderableObject(SimulationObject):
                     partial_grid_shape=(10, 10, 10),
                     name="large_background",
                 )
-                self.color = "#e0e0e0"
+                self.color = Color.from_rgb(216, 220, 214)
 
         # Add a smaller centered object
         class CenterObject(SimulationObject):
@@ -808,7 +809,7 @@ class OrderableObject(SimulationObject):
                     partial_grid_shape=(200, 200, 200),
                     name="center_object",
                 )
-                self.color = "#ff5722"
+                self.color = Color.from_rgb(249, 115, 6)
 
         # Add a thin vertical object
         class VerticalObject(SimulationObject):
@@ -818,7 +819,7 @@ class OrderableObject(SimulationObject):
                     partial_grid_shape=(350, 350, 150),
                     name="vertical_object",
                 )
-                self.color = "#2196f3"
+                self.color = Color.from_rgb(1, 101, 252)
 
         # Add a horizontal slab
         class HorizontalSlab(SimulationObject):
@@ -828,4 +829,4 @@ class OrderableObject(SimulationObject):
                     partial_grid_shape=(100, 100, 400),
                     name="horizontal_slab",
                 )
-                self.color = "#4caf50"
+                self.color = Color.from_rgb(6, 71, 12)

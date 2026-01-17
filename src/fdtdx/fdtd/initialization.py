@@ -150,19 +150,32 @@ def apply_params(
             - Dictionary with parameter application info
     """
     info = {}
+    # Determine number of components from existing array shape
+    num_perm_components = arrays.inv_permittivities.shape[0]
+    isotropic_permittivity = num_perm_components == 1
+
     # apply parameter to devices
     for device in objects.devices:
         cur_material_indices = device(params[device.name], expand_to_sim_grid=True, **transform_kwargs)
-        allowed_perm_list = compute_allowed_permittivities(device.materials)
+        # allowed_perm_list is list of tuples with length 1 (isotropic) or 3 (anisotropic)
+        allowed_perm_list = compute_allowed_permittivities(device.materials, isotropic=isotropic_permittivity)
+        allowed_perm_array = jnp.asarray(allowed_perm_list)  # shape: (num_materials, num_components)
+
         if device.output_type == ParameterType.CONTINUOUS:
-            first_term = (1 - cur_material_indices) * (1 / allowed_perm_list[0])
-            second_term = cur_material_indices * (1 / allowed_perm_list[1])
-            new_perm_slice = first_term + second_term
+            # Linear interpolation between two materials
+            # inv_allowed: (2, num_components) -> (2, num_components, 1, 1, 1) for broadcasting
+            inv_allowed = (1.0 / allowed_perm_array)[:, :, None, None, None]
+            # cur_material_indices: (*grid_shape) broadcasts with (num_components, 1, 1, 1)
+            new_perm_slice = (1 - cur_material_indices) * inv_allowed[0] + cur_material_indices * inv_allowed[1]
         else:
-            new_perm_slice = jnp.asarray(allowed_perm_list)[cur_material_indices.astype(jnp.int32)]
-            new_perm_slice = straight_through_estimator(cur_material_indices, new_perm_slice)
-            new_perm_slice = 1 / new_perm_slice
-        new_perm = arrays.inv_permittivities.at[*device.grid_slice].set(new_perm_slice)
+            # Discrete material selection
+            # allowed_perm_array[indices] -> (*grid_shape, num_components), then moveaxis -> (num_components, *grid_shape)
+            component_values = jnp.moveaxis(allowed_perm_array[cur_material_indices.astype(jnp.int32)], -1, 0)
+            component_values = straight_through_estimator(cur_material_indices, component_values)
+            new_perm_slice = 1 / component_values
+
+        # Update all components of inv_permittivities array at once
+        new_perm = arrays.inv_permittivities.at[:, *device.grid_slice].set(new_perm_slice)
         arrays = arrays.at["inv_permittivities"].set(new_perm)
 
     # apply random key to sources
@@ -260,44 +273,54 @@ def _init_arrays(
         backend=config.backend,
     )
 
-    # permittivity
-    shape_params = volume_shape
+    # Determine isotropy flags and component counts for each property
+    isotropic_permittivity = objects.all_objects_isotropic_permittivity
+    isotropic_permeability = objects.all_objects_isotropic_permeability
+    isotropic_electric_conductivity = objects.all_objects_isotropic_electric_conductivity
+    isotropic_magnetic_conductivity = objects.all_objects_isotropic_magnetic_conductivity
+
+    num_perm_components = 1 if isotropic_permittivity else 3
+    num_permeability_components = 1 if isotropic_permeability else 3
+    num_electric_cond_components = 1 if isotropic_electric_conductivity else 3
+    num_magnetic_cond_components = 1 if isotropic_magnetic_conductivity else 3
+
+    # permittivity - shape (1, Nx, Ny, Nz) for isotropic, (3, Nx, Ny, Nz) for anisotropic
     inv_permittivities = create_named_sharded_matrix(
-        shape_params,
+        (num_perm_components, *volume_shape),
         value=0.0,
         dtype=config.dtype,
         sharding_axis=1,
         backend=config.backend,
     )
 
-    # permeability
+    # permeability - scalar 1.0 if non-magnetic, else (1, Nx, Ny, Nz) or (3, Nx, Ny, Nz)
     if objects.all_objects_non_magnetic:
         inv_permeabilities = 1.0
     else:
         inv_permeabilities = create_named_sharded_matrix(
-            shape_params,
+            (num_permeability_components, *volume_shape),
             value=0.0,
             dtype=config.dtype,
             sharding_axis=1,
             backend=config.backend,
         )
 
-    # electric conductivity
+    # electric conductivity - None if non-conductive, else (1, Nx, Ny, Nz) or (3, Nx, Ny, Nz)
     electric_conductivity = None
     if not objects.all_objects_non_electrically_conductive:
         electric_conductivity = create_named_sharded_matrix(
-            shape_params,
+            (num_electric_cond_components, *volume_shape),
             value=0.0,
             dtype=config.dtype,
             sharding_axis=1,
             backend=config.backend,
         )
 
-    # magnetic conductivity
+    # magnetic conductivity - None if non-conductive, else (1, Nx, Ny, Nz) or (3, Nx, Ny, Nz)
     magnetic_conductivity = None
     if not objects.all_objects_non_magnetically_conductive:
         magnetic_conductivity = create_named_sharded_matrix(
-            shape_params,
+            (num_magnetic_cond_components, *volume_shape),
             value=0.0,
             dtype=config.dtype,
             sharding_axis=1,
@@ -312,41 +335,74 @@ def _init_arrays(
     info = {}
     for o in sorted_obj:
         if isinstance(o, UniformMaterialObject):
-            inv_permittivities = inv_permittivities.at[*o.grid_slice].set(1 / o.material.permittivity)
+            # Material properties are tuples (εx, εy, εz)
+            # Arrays have shape (num_components, Nx, Ny, Nz) where num_components is 1 (isotropic) or 3 (anisotropic)
+            perm_tuple = o.material.permittivity[:num_perm_components]
+            inv_obj_permittivity = (1 / jnp.array(perm_tuple, dtype=config.dtype))[:, None, None, None]
+            inv_permittivities = inv_permittivities.at[:, *o.grid_slice].set(inv_obj_permittivity)
+
             if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
-                inv_permeabilities = inv_permeabilities.at[*o.grid_slice].set(1 / o.material.permeability)
+                perm_tuple = o.material.permeability[:num_permeability_components]
+                inv_obj_permeability = (1 / jnp.array(perm_tuple, dtype=config.dtype))[:, None, None, None]
+                inv_permeabilities = inv_permeabilities.at[:, *o.grid_slice].set(inv_obj_permeability)
+
             if electric_conductivity is not None:
                 # scale by grid size
-                cond = o.material.electric_conductivity * config.resolution
-                electric_conductivity = electric_conductivity.at[*o.grid_slice].set(cond)
+                cond_tuple = o.material.electric_conductivity[:num_electric_cond_components]
+                obj_electric_conductivity = (jnp.array(cond_tuple, dtype=config.dtype) * config.resolution)[
+                    :, None, None, None
+                ]
+                electric_conductivity = electric_conductivity.at[:, *o.grid_slice].set(obj_electric_conductivity)
+
             if magnetic_conductivity is not None:
                 # scale by grid size
-                cond = o.material.magnetic_conductivity * config.resolution
-                magnetic_conductivity = magnetic_conductivity.at[*o.grid_slice].set(cond)
+                cond_tuple = o.material.magnetic_conductivity[:num_magnetic_cond_components]
+                obj_magnetic_conductivity = (jnp.array(cond_tuple, dtype=config.dtype) * config.resolution)[
+                    :, None, None, None
+                ]
+                magnetic_conductivity = magnetic_conductivity.at[:, *o.grid_slice].set(obj_magnetic_conductivity)
+
         elif isinstance(o, (StaticMultiMaterialObject)):
             indices = o.get_material_mapping()
             mask = o.get_voxel_mask_for_shape()
 
-            allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permittivities(o.materials))
-            diff = allowed_inv_perms[indices] - inv_permittivities[*o.grid_slice]
-            inv_permittivities = inv_permittivities.at[*o.grid_slice].add(mask * diff)
+            # compute_allowed_permittivities returns list of tuples with length 1 (isotropic) or 3 (anisotropic)
+            allowed_perms = jnp.asarray(compute_allowed_permittivities(o.materials, isotropic=isotropic_permittivity))
+            allowed_inv_perms = 1 / allowed_perms  # shape: (num_materials, num_components)
+
+            # allowed_inv_perms[indices] -> (*grid_shape, num_components)
+            # After moveaxis -> (num_components, *grid_shape)
+            component_values = jnp.moveaxis(allowed_inv_perms[indices], -1, 0)
+            diff = component_values - inv_permittivities[:, *o.grid_slice]
+            inv_permittivities = inv_permittivities.at[:, *o.grid_slice].add(mask * diff)
 
             if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
-                allowed_inv_perms = 1 / jnp.asarray(compute_allowed_permeabilities(o.materials))
-                diff = allowed_inv_perms[indices] - inv_permeabilities[*o.grid_slice]
-                inv_permeabilities = inv_permeabilities.at[*o.grid_slice].add(mask * diff)
+                allowed_perms = jnp.asarray(
+                    compute_allowed_permeabilities(o.materials, isotropic=isotropic_permeability)
+                )
+                allowed_inv_perms = 1 / allowed_perms
+
+                component_values = jnp.moveaxis(allowed_inv_perms[indices], -1, 0)
+                diff = component_values - inv_permeabilities[:, *o.grid_slice]
+                inv_permeabilities = inv_permeabilities.at[:, *o.grid_slice].add(mask * diff)
 
             if electric_conductivity is not None:
-                allowed_conds = jnp.asarray(compute_allowed_electric_conductivities(o.materials))
-                update = allowed_conds[indices] * config.resolution
-                diff = update - electric_conductivity[*o.grid_slice]
-                electric_conductivity = electric_conductivity.at[*o.grid_slice].add(mask * diff)
+                allowed_conds = jnp.asarray(
+                    compute_allowed_electric_conductivities(o.materials, isotropic=isotropic_electric_conductivity)
+                )
+
+                component_values = jnp.moveaxis(allowed_conds[indices], -1, 0) * config.resolution
+                diff = component_values - electric_conductivity[:, *o.grid_slice]
+                electric_conductivity = electric_conductivity.at[:, *o.grid_slice].add(mask * diff)
 
             if magnetic_conductivity is not None:
-                allowed_conds = jnp.asarray(compute_allowed_magnetic_conductivities(o.materials))
-                update = allowed_conds[indices] * config.resolution
-                diff = update - magnetic_conductivity[*o.grid_slice]
-                magnetic_conductivity = magnetic_conductivity.at[*o.grid_slice].add(mask * diff)
+                allowed_conds = jnp.asarray(
+                    compute_allowed_magnetic_conductivities(o.materials, isotropic=isotropic_magnetic_conductivity)
+                )
+
+                component_values = jnp.moveaxis(allowed_conds[indices], -1, 0) * config.resolution
+                diff = component_values - magnetic_conductivity[:, *o.grid_slice]
+                magnetic_conductivity = magnetic_conductivity.at[:, *o.grid_slice].add(mask * diff)
         else:
             raise Exception(f"Unknown object type: {o}")
 

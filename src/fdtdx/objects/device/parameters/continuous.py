@@ -6,21 +6,40 @@ import jax.numpy as jnp
 
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, frozen_private_field
 from fdtdx.core.misc import PaddingConfig, advanced_padding
-from fdtdx.objects.device.parameters.transform import SameShapeTypeParameterTransform
+from fdtdx.objects.device.parameters.transform import ParameterTransformation, SameShapeTypeParameterTransform
 from fdtdx.typing import ParameterType
 
 
 @autoinit
-class StandardToInversePermittivityRange(SameShapeTypeParameterTransform):
+class StandardToInversePermittivityRange(ParameterTransformation):
     """Maps standard [0,1] range to inverse permittivity range.
 
     Linearly maps values from [0,1] to the range between minimum and maximum
     inverse permittivity values allowed by the material configuration.
+
+    For anisotropic materials, each axis (x, y, z) is interpolated independently
+    within its own min/max range, producing output with shape (3, *input_shape).
     """
 
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
         default=ParameterType.CONTINUOUS
     )
+
+    def _get_input_shape_impl(
+        self,
+        output_shape: dict[str, tuple[int, ...]],
+    ) -> dict[str, tuple[int, ...]]:
+        # Input shape is same as output for isotropic, or without leading 3 for anisotropic
+        # Since we don't have access to materials yet at this point in some cases,
+        # we return the output shape as-is (input param has spatial shape, output may have component dim)
+        return output_shape
+
+    def _get_output_type_impl(
+        self,
+        input_type: dict[str, ParameterType],
+    ) -> dict[str, ParameterType]:
+        # Output type is same as input (continuous -> continuous)
+        return input_type
 
     def __call__(
         self,
@@ -28,22 +47,49 @@ class StandardToInversePermittivityRange(SameShapeTypeParameterTransform):
         **kwargs,
     ) -> dict[str, jax.Array]:
         del kwargs
-        # determine minimum and maximum allowed permittivity
-        max_inv_perm, min_inv_perm = -math.inf, math.inf
-        if isinstance(self._materials, dict):
-            for k, v in self._materials.items():
-                p = 1 / v.permittivity
+
+        is_isotropic = all(mat.is_isotropic_permittivity for mat in self._materials.values())
+
+        if is_isotropic:
+            # Isotropic case: all materials have same permittivity on all axes
+            max_inv_perm, min_inv_perm = -math.inf, math.inf
+            for v in self._materials.values():
+                # For isotropic, all components are equal, just use first
+                p = 1 / v.permittivity[0]
                 if p > max_inv_perm:
                     max_inv_perm = p
                 if p < min_inv_perm:
                     min_inv_perm = p
 
-        # transform
-        result = {}
-        for k, v in params.items():
-            mapped = v * (max_inv_perm - min_inv_perm) + min_inv_perm
-            result[k] = mapped
-        return result
+            result = {}
+            for k, v in params.items():
+                mapped = v * (max_inv_perm - min_inv_perm) + min_inv_perm
+                result[k] = mapped
+            return result
+        else:
+            # Compute min/max for each axis separately
+            max_inv_perm = [-math.inf, -math.inf, -math.inf]
+            min_inv_perm = [math.inf, math.inf, math.inf]
+            for v in self._materials.values():
+                # v.permittivity is tuple (εx, εy, εz)
+                for axis in range(3):
+                    p = 1 / v.permittivity[axis]
+                    if p > max_inv_perm[axis]:
+                        max_inv_perm[axis] = p
+                    if p < min_inv_perm[axis]:
+                        min_inv_perm[axis] = p
+
+            max_inv_perm_arr = jnp.asarray(max_inv_perm)[:, None, None, None]
+            min_inv_perm_arr = jnp.asarray(min_inv_perm)[:, None, None, None]
+
+            # Transform: broadcast input to (3, ...) and interpolate each axis
+            result = {}
+            for k, v in params.items():
+                # v has shape (Nx, Ny, Nz), expand to (3, Nx, Ny, Nz)
+                v_expanded = v[None, ...]  # (1, Nx, Ny, Nz)
+                mapped = v_expanded * (max_inv_perm_arr - min_inv_perm_arr) + min_inv_perm_arr
+                result[k] = mapped
+            return result
 
 
 @autoinit

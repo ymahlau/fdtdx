@@ -162,6 +162,78 @@ class TestObjectContainer:
 
         assert self.container.all_objects_non_electrically_conductive is False
 
+    def test_all_objects_isotropic_permittivity(self):
+        """Test all_objects_isotropic_permittivity property."""
+        # Mock materials to be isotropic
+        mock_material = Mock(spec=Material)
+        mock_material.is_isotropic_permittivity = True
+        self.mock_uniform_material.material = mock_material
+        self.mock_device.materials = {"mat1": mock_material}
+        self.mock_static_multi_material.materials = {"mat1": mock_material}
+
+        assert self.container.all_objects_isotropic_permittivity is True
+
+        # Test with anisotropic material
+        mock_anisotropic_material = Mock(spec=Material)
+        mock_anisotropic_material.is_isotropic_permittivity = False
+        self.mock_uniform_material.material = mock_anisotropic_material
+
+        assert self.container.all_objects_isotropic_permittivity is False
+
+    def test_all_objects_isotropic_permeability(self):
+        """Test all_objects_isotropic_permeability property."""
+        # Mock materials to have isotropic permeability
+        mock_material = Mock(spec=Material)
+        mock_material.is_isotropic_permeability = True
+        self.mock_uniform_material.material = mock_material
+        self.mock_device.materials = {"mat1": mock_material}
+        self.mock_static_multi_material.materials = {"mat1": mock_material}
+
+        assert self.container.all_objects_isotropic_permeability is True
+
+        # Test with anisotropic permeability
+        mock_anisotropic_material = Mock(spec=Material)
+        mock_anisotropic_material.is_isotropic_permeability = False
+        self.mock_uniform_material.material = mock_anisotropic_material
+
+        assert self.container.all_objects_isotropic_permeability is False
+
+    def test_all_objects_isotropic_electric_conductivity(self):
+        """Test all_objects_isotropic_electric_conductivity property."""
+        # Mock materials to have isotropic electric conductivity
+        mock_material = Mock(spec=Material)
+        mock_material.is_isotropic_electric_conductivity = True
+        self.mock_uniform_material.material = mock_material
+        self.mock_device.materials = {"mat1": mock_material}
+        self.mock_static_multi_material.materials = {"mat1": mock_material}
+
+        assert self.container.all_objects_isotropic_electric_conductivity is True
+
+        # Test with anisotropic electric conductivity
+        mock_anisotropic_material = Mock(spec=Material)
+        mock_anisotropic_material.is_isotropic_electric_conductivity = False
+        self.mock_uniform_material.material = mock_anisotropic_material
+
+        assert self.container.all_objects_isotropic_electric_conductivity is False
+
+    def test_all_objects_isotropic_magnetic_conductivity(self):
+        """Test all_objects_isotropic_magnetic_conductivity property."""
+        # Mock materials to have isotropic magnetic conductivity
+        mock_material = Mock(spec=Material)
+        mock_material.is_isotropic_magnetic_conductivity = True
+        self.mock_uniform_material.material = mock_material
+        self.mock_device.materials = {"mat1": mock_material}
+        self.mock_static_multi_material.materials = {"mat1": mock_material}
+
+        assert self.container.all_objects_isotropic_magnetic_conductivity is True
+
+        # Test with anisotropic magnetic conductivity
+        mock_anisotropic_material = Mock(spec=Material)
+        mock_anisotropic_material.is_isotropic_magnetic_conductivity = False
+        self.mock_uniform_material.material = mock_anisotropic_material
+
+        assert self.container.all_objects_isotropic_magnetic_conductivity is False
+
     def test_iteration(self):
         """Test container iteration."""
         objects = list(self.container)

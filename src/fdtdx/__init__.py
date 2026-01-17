@@ -59,7 +59,16 @@ from fdtdx.objects.device.parameters.discretization import (
     circular_brush,
 )
 from fdtdx.objects.device.parameters.projection import SubpixelSmoothedProjection, TanhProjection
-from fdtdx.objects.device.parameters.symmetries import DiagonalSymmetry2D
+from fdtdx.objects.device.parameters.symmetries import (
+    DiagonalSymmetry2D,
+    DiagonalSymmetry3D,
+    HorizontalSymmetry2D,
+    HorizontalSymmetry3D,
+    PointSymmetry2D,
+    PointSymmetry3D,
+    VerticalSymmetry2D,
+    VerticalSymmetry3D,
+)
 from fdtdx.objects.device.parameters.transform import ParameterTransformation
 from fdtdx.objects.object import (
     GridCoordinateConstraint,
@@ -149,6 +158,13 @@ __all__ = [
     "TanhProjection",
     "SubpixelSmoothedProjection",
     "DiagonalSymmetry2D",
+    "DiagonalSymmetry3D",
+    "HorizontalSymmetry2D",
+    "HorizontalSymmetry3D",
+    "VerticalSymmetry2D",
+    "VerticalSymmetry3D",
+    "PointSymmetry2D",
+    "PointSymmetry3D",
     "ParameterTransformation",
     "circular_brush",
     "BOTTOM_Z_PADDING_CONFIG_REPEAT",

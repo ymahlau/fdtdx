@@ -9,7 +9,7 @@ from rich.progress import Progress
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, frozen_private_field, private_field
-from fdtdx.core.plotting.colors import LIGHT_GREEN
+from fdtdx.core.plotting.colors import XKCD_LIGHT_GREEN
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.objects.detectors.plotting.line_plot import plot_line_over_time, plot_waterfall_over_time
 from fdtdx.objects.detectors.plotting.plot2d import plot_2d_from_slices
@@ -54,7 +54,7 @@ class Detector(SimulationObject, ABC):
     num_video_workers: int | None = frozen_field(default=None)  # only used when generating video
 
     #: RGB color for plotting. Defaults to light green.
-    color: tuple[float, float, float] | None = frozen_field(default=LIGHT_GREEN)
+    color: tuple[float, float, float] | None = frozen_field(default=XKCD_LIGHT_GREEN)
 
     #: Interpolation method for plots. Defualts to "gaussian".
     plot_interpolation: str = frozen_field(default="gaussian")
@@ -318,9 +318,9 @@ class Detector(SimulationObject, ABC):
         elif squeezed_ndim == 3 and self.num_time_steps_recorded == 1:
             # single step, 3d-plot. # TODO: do as mean over planes
             for k, v in squeezed_arrs.items():
-                xy_slice = squeezed_arrs[k].mean(axis=0)
+                xy_slice = squeezed_arrs[k].mean(axis=2)
                 xz_slice = squeezed_arrs[k].mean(axis=1)
-                yz_slice = squeezed_arrs[k].mean(axis=2)
+                yz_slice = squeezed_arrs[k].mean(axis=0)
                 fig = plot_2d_from_slices(
                     xy_slice=xy_slice,
                     xz_slice=xz_slice,
@@ -337,9 +337,9 @@ class Detector(SimulationObject, ABC):
         elif squeezed_ndim == 4 and self.num_time_steps_recorded > 1:
             # video with 3d-volume in each time step. plot as slices
             for k, v in squeezed_arrs.items():
-                xy_slice = squeezed_arrs[k].mean(axis=1)
+                xy_slice = squeezed_arrs[k].mean(axis=3)
                 xz_slice = squeezed_arrs[k].mean(axis=2)
-                yz_slice = squeezed_arrs[k].mean(axis=3)
+                yz_slice = squeezed_arrs[k].mean(axis=1)
                 path = generate_video_from_slices(
                     plt_fn=plot_from_slices,
                     xy_slice=xy_slice,
