@@ -4,10 +4,10 @@ from typing import Literal, Self
 import jax
 import jax.numpy as jnp
 
+from fdtdx.colors import XKCD_DARK_ORANGE
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.misc import linear_interpolated_indexing, normalize_polarization_for_source
-from fdtdx.core.plotting.colors import XKCD_DARK_ORANGE
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.object import SimulationObject

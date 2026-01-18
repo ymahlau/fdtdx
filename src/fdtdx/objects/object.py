@@ -4,6 +4,7 @@ from typing import Literal, Self
 
 import jax
 
+from fdtdx.colors import Color
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import (
     TreeClass,
@@ -13,7 +14,6 @@ from fdtdx.core.jax.pytrees import (
     private_field,
 )
 from fdtdx.core.misc import ensure_slice_tuple
-from fdtdx.core.plotting.colors import Color
 from fdtdx.typing import (
     INVALID_SLICE_TUPLE_3D,
     UNDEFINED_SHAPE_3D,

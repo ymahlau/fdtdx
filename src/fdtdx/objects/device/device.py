@@ -4,11 +4,11 @@ from typing import Self, Sequence
 import jax
 import jax.numpy as jnp
 
+from fdtdx.colors import XKCD_LIGHT_PINK
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, field, frozen_field, frozen_private_field
 from fdtdx.core.jax.utils import check_specs
 from fdtdx.core.misc import expand_matrix, is_float_divisible
-from fdtdx.core.plotting.colors import XKCD_LIGHT_PINK
 from fdtdx.materials import Material
 from fdtdx.objects.device.parameters.transform import ParameterTransformation
 from fdtdx.objects.object import OrderableObject

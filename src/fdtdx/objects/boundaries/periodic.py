@@ -2,8 +2,8 @@ import functools
 
 from typing_extensions import override
 
+from fdtdx.colors import XKCD_LIGHT_BLUE
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
-from fdtdx.core.plotting.colors import XKCD_LIGHT_BLUE
 from fdtdx.objects.boundaries.boundary import BaseBoundary
 
 

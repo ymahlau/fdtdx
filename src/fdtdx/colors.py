@@ -31,18 +31,22 @@ from fdtdx.core.jax.pytrees import TreeClass, autoinit
 class Color(TreeClass):
     """Color representation with multiple format support.
 
+    The class contains colors which are from the XKCD color survey: https://xkcd.com/color/rgb.txt
+    and fdtdx implements most of them.
+
     This class represents a color and provides methods to convert between
     different color formats. Internally, colors are stored as normalized
     RGB values in the range [0, 1].
 
-    Attributes:
-        r (float): Red component, normalized to [0, 1]
-        g (float): Green component, normalized to [0, 1]
-        b (float): Blue component, normalized to [0, 1]
     """
 
+    #: r (float): Red component, normalized to [0, 1]
     r: float
+
+    #: g (float): Green component, normalized to [0, 1]
     g: float
+
+    #: b (float): Blue component, normalized to [0, 1]
     b: float
 
     def __post_init__(self):

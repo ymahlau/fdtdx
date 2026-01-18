@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 
 import jax
 
+from fdtdx.colors import XKCD_LIGHT_GREY
 from fdtdx.core.jax.pytrees import autoinit, field, frozen_field
-from fdtdx.core.plotting.colors import XKCD_LIGHT_GREY
 from fdtdx.materials import Material
 from fdtdx.objects.object import OrderableObject
 
