@@ -1214,3 +1214,177 @@ def test_resolve_constraints_partial_real_position_extends_without_size(simple_c
     # y and z axes: extend to volume boundaries
     assert resolved_slices["obj1"][1] == (0, 100)
     assert resolved_slices["obj1"][2] == (0, 100)
+
+
+def test_extend_to_inf_lower_bound_known_upper_not(simple_config, simple_volume, simple_material):
+    """Test _extend_to_inf_if_possible when lower bound is known but upper is not.
+
+    This covers the branch: elif b0 is not None and b1 is None and size is not None
+
+    Scenario: Object has a known size and lower boundary set, so upper boundary
+    can be computed (should NOT extend upper boundary).
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_real_position=(10.0, 20.0, 30.0),  # Sets lower boundaries
+        partial_grid_shape=(15, 15, 15),  # Known size
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+    constraints = []
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should succeed
+    assert errors["obj1"] is None
+
+    # Lower bounds from partial_real_position
+    assert resolved_slices["obj1"][0][0] == 10
+    assert resolved_slices["obj1"][1][0] == 20
+    assert resolved_slices["obj1"][2][0] == 30
+
+    # Upper bounds computed as lower + size (NOT extended to volume boundary)
+    assert resolved_slices["obj1"][0][1] == 25  # 10 + 15
+    assert resolved_slices["obj1"][1][1] == 35  # 20 + 15
+    assert resolved_slices["obj1"][2][1] == 45  # 30 + 15
+
+
+def test_extend_to_inf_upper_bound_known_lower_not(simple_config, simple_volume, simple_material):
+    """Test _extend_to_inf_if_possible when upper bound is known but lower is not.
+
+    Scenario: Object has a known size and upper boundary set, so lower boundary
+    can be computed (should NOT extend lower boundary).
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(15, 15, 15),  # Known size
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    # Set upper boundaries using GridCoordinateConstraint
+    constraint = GridCoordinateConstraint(
+        object="obj1",
+        axes=[0, 1, 2],
+        sides=["+", "+", "+"],  # Upper bounds
+        coordinates=[50, 60, 70],
+    )
+
+    constraints = [constraint]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should succeed
+    assert errors["obj1"] is None
+
+    # Lower bounds computed as upper - size (NOT extended to 0)
+    assert resolved_slices["obj1"][0][0] == 35  # 50 - 15
+    assert resolved_slices["obj1"][1][0] == 45  # 60 - 15
+    assert resolved_slices["obj1"][2][0] == 55  # 70 - 15
+
+    # Upper bounds from constraint
+    assert resolved_slices["obj1"][0][1] == 50
+    assert resolved_slices["obj1"][1][1] == 60
+    assert resolved_slices["obj1"][2][1] == 70
+
+
+def test_extend_to_inf_partial_real_position_partial_axes(simple_config, simple_volume, simple_material):
+    """Test mixed scenario with partial_real_position on some axes only.
+
+    This also helps cover the lower-bound-known case on some axes.
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_real_position=(15.0, None, 25.0),  # x and z have lower bounds, y does not
+        partial_grid_shape=(10, 10, 10),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+    constraints = []
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should succeed
+    assert errors["obj1"] is None
+
+    # x-axis: lower bound known (15), upper computed (25)
+    assert resolved_slices["obj1"][0] == (15, 25)
+
+    # y-axis: no bounds known, extends from 0
+    assert resolved_slices["obj1"][1] == (0, 10)
+
+    # z-axis: lower bound known (25), upper computed (35)
+    assert resolved_slices["obj1"][2] == (25, 35)
+
+
+def test_extend_to_inf_with_real_coordinate_constraint_upper(simple_config, simple_volume, simple_material):
+    """Test using RealCoordinateConstraint to set upper boundary.
+
+    Another way to cover the upper-bound-known case.
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(20, 20, 20),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    # Set upper boundary using RealCoordinateConstraint
+    constraint = RealCoordinateConstraint(
+        object="obj1",
+        axes=[0],
+        sides=["+"],  # Upper bound
+        coordinates=[80.0],  # Real coordinate 80.0 / resolution 1.0 = grid 80
+    )
+
+    constraints = [constraint]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should succeed
+    assert errors["obj1"] is None
+
+    # x-axis: lower computed as 80 - 20 = 60
+    assert resolved_slices["obj1"][0] == (60, 80)
+
+    # y and z axes: extend from 0
+    assert resolved_slices["obj1"][1] == (0, 20)
+    assert resolved_slices["obj1"][2] == (0, 20)
+
+
+def test_extend_to_inf_single_axis_upper_bound(simple_config, simple_volume, simple_material):
+    """Test upper bound on a single axis while others have lower bounds.
+
+    Mixed scenario to ensure both branches are hit.
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_real_position=(10.0, None, 30.0),  # x and z have lower bounds
+        partial_grid_shape=(15, 15, 15),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    # Set upper bound only for y-axis
+    constraint = GridCoordinateConstraint(object="obj1", axes=[1], sides=["+"], coordinates=[50])
+
+    constraints = [constraint]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should succeed
+    assert errors["obj1"] is None
+
+    # x-axis: lower bound known (10), upper computed (25) - covers first branch
+    assert resolved_slices["obj1"][0] == (10, 25)
+
+    # y-axis: upper bound known (50), lower computed (35) - covers second branch
+    assert resolved_slices["obj1"][1] == (35, 50)
+
+    # z-axis: lower bound known (30), upper computed (45) - covers first branch again
+    assert resolved_slices["obj1"][2] == (30, 45)
