@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 # from numbers import Number
-from typing import Any, Self
+from typing import Any, Callable, Self, overload
 
 import jax
 import jax.numpy as jnp
@@ -215,6 +215,7 @@ class Unitful(TreeClass):
         if not self.optimize_scale or not can_optimize_scale(self):
             return
         orig_val = self.val
+        print("is traced state ", is_traced(self.val))
         if is_traced(self.val):
             # if value is traced then optimize with static array
             assert self.static_arr is not None and isinstance(self.static_arr, StaticPhysicalArrayLike)
@@ -224,6 +225,7 @@ class Unitful(TreeClass):
             self.val = self.val * (10**power)
         else:
             # non-traced case: optimize scale
+            print(type(self.val))
             assert isinstance(self.val, PhysicalArrayLike)
             optimized_val, power = best_scale(self.val, self.unit.scale)
             self.val = optimized_val
@@ -2039,4 +2041,153 @@ def argmin(x: np.ndarray, *args, **kwargs) -> np.ndarray:
 @dispatch
 def argmin(x, *args, **kwargs):  # type: ignore
     del x, args, kwargs
+    raise NotImplementedError()
+
+
+## cond #######################################
+def _flatten_unitful_leaf(x):
+    """Flatten treating Unitful objects as atomic leaves (do NOT descend into their fields)."""
+    return jax.tree_util.tree_flatten(x, is_leaf=lambda x: isinstance(x, Unitful))
+
+
+@overload
+def cond(
+    pred: bool | jax.Array | np.bool_ | Unitful,
+    true_fun: Callable[[Any], Any],
+    false_fun: Callable[[Any], Any],
+    operand: Unitful | list[Unitful],
+) -> Any:
+    pred0 = pred.val if isinstance(pred, Unitful) else pred
+
+    # Only use Python if/else when pred and all operand are non-JAX.
+    has_jax = False
+    if is_traced(pred0) or isinstance(pred0, jax.Array):
+        has_jax = True
+
+    ops = operand if isinstance(operand, list) else [operand]
+    for u in ops:
+        v = u.val
+        if is_traced(v) or isinstance(v, jax.Array):
+            has_jax = True
+            break
+
+    if not has_jax:
+        return true_fun(operand) if bool(pred0) else false_fun(operand)
+
+    # todo check t/f func output
+    out_t = jax.eval_shape(true_fun, operand)
+    out_f = jax.eval_shape(false_fun, operand)
+
+    # Align pytree structures treating Unitful as leaves
+    t_leaves, t_def = _flatten_unitful_leaf(out_t)
+    f_leaves, f_def = _flatten_unitful_leaf(out_f)
+
+    # true_fun / false_fun outputs must have identical pytree structure
+    if t_def != f_def:
+        raise TypeError("cond branches return incompatible pytrees (cannot promote)")
+
+    def _non_unitful_sig(x):
+        if isinstance(x, jax.ShapeDtypeStruct):
+            return ("ShapeDtypeStruct", x.shape, x.dtype)
+        if isinstance(x, np.ndarray):
+            return ("np.ndarray", x.shape, x.dtype)
+        if isinstance(x, np.generic):
+            return ("np.scalar", type(x), x.dtype)
+        if isinstance(x, (bool, int, float, complex)):
+            return ("py.scalar", type(x))
+        return ("type", type(x))
+
+    for a, b in zip(t_leaves, f_leaves):
+        # Leaf types must match exactly (no promotion of any kind)
+        if type(a) is not type(b):
+            raise TypeError(
+                f"true_fun / false_fun outputs must have identical leaf types "
+                f"(got {type(a).__name__} vs {type(b).__name__})."
+            )
+
+        # For Unitful leaves, dimensions must match (scale differences allowed)
+        if isinstance(a, Unitful):  # then b is Unitful as well
+            if a.unit.dim != b.unit.dim:
+                raise TypeError(
+                    f"true_fun / false_fun outputs must have Unitful leaves with the same dimension "
+                    f"(got {a.unit.dim} vs {b.unit.dim})."
+                )
+        else:
+            if _non_unitful_sig(a) != _non_unitful_sig(b):
+                raise TypeError("true_fun / false_fun outputs must have matching non-Unitful leaf ")
+
+    return jax.lax._orig_cond(pred0, true_fun, false_fun, operand)  # type: ignore
+
+
+@overload
+def cond(
+    pred: bool | jax.Array | np.bool_ | Unitful,
+    true_fun: Callable[[Any], Any],
+    false_fun: Callable[[Any], Any],
+    operand: ArrayLike | list[ArrayLike],
+) -> Any:
+    pred0 = pred.val if isinstance(pred, Unitful) else pred
+
+    # Only use Python if/else when pred and all operand are non-JAX.
+    has_jax = False
+    if is_traced(pred0) or isinstance(pred0, jax.Array):
+        has_jax = True
+
+    ops = operand if isinstance(operand, list) else [operand]
+    for v in ops:
+        if is_traced(v) or isinstance(v, jax.Array):
+            has_jax = True
+            break
+
+    if not has_jax:
+        return true_fun(operand) if bool(pred0) else false_fun(operand)
+
+    # todo check t/f func output
+    out_t = jax.eval_shape(true_fun, operand)
+    out_f = jax.eval_shape(false_fun, operand)
+
+    # Align pytree structures treating Unitful as leaves
+    t_leaves, t_def = _flatten_unitful_leaf(out_t)
+    f_leaves, f_def = _flatten_unitful_leaf(out_f)
+
+    # true_fun / false_fun outputs must have identical pytree structure
+    if t_def != f_def:
+        raise TypeError("cond branches return incompatible pytrees (cannot promote)")
+
+    def _non_unitful_sig(x):
+        if isinstance(x, jax.ShapeDtypeStruct):
+            return ("ShapeDtypeStruct", x.shape, x.dtype)
+        if isinstance(x, np.ndarray):
+            return ("np.ndarray", x.shape, x.dtype)
+        if isinstance(x, np.generic):
+            return ("np.scalar", type(x), x.dtype)
+        if isinstance(x, (bool, int, float, complex)):
+            return ("py.scalar", type(x))
+        return ("type", type(x))
+
+    for a, b in zip(t_leaves, f_leaves):
+        # Leaf types must match exactly (no promotion of any kind)
+        if type(a) is not type(b):
+            raise TypeError(
+                f"true_fun / false_fun outputs must have identical leaf types "
+                f"(got {type(a).__name__} vs {type(b).__name__})."
+            )
+
+        # For Unitful leaves, dimensions must match (scale differences allowed)
+        if isinstance(a, Unitful):  # then b is Unitful as well
+            if a.unit.dim != b.unit.dim:
+                raise TypeError(
+                    f"true_fun / false_fun outputs must have Unitful leaves with the same dimension "
+                    f"(got {a.unit.dim} vs {b.unit.dim})."
+                )
+        else:
+            if _non_unitful_sig(a) != _non_unitful_sig(b):
+                raise TypeError("true_fun / false_fun outputs must have matching non-Unitful leaf ")
+
+    return jax.lax._orig_cond(pred0, true_fun, false_fun, operand)  # type: ignore
+
+
+@dispatch
+def cond(pred, true_fun, false_fun, operand):  # type: ignore
+    del pred, true_fun, false_fun, operand
     raise NotImplementedError()
