@@ -775,3 +775,442 @@ def test_place_objects_initializes_arrays(simple_config, simple_volume, simple_m
     assert arrays.E is not None
     assert arrays.H is not None
     assert arrays.inv_permittivities is not None
+
+
+def test_resolve_constraints_with_partial_real_position(simple_material):
+    """Test resolving objects with partial_real_position specified.
+
+    This test verifies that:
+    - Real-world positions are correctly converted to grid coordinates
+    - All three axes are properly positioned when specified
+    - The conversion uses the simulation resolution correctly
+    - Upper boundaries are computed from position + size
+    """
+    config = SimulationConfig(resolution=0.5, time=100e-15)
+
+    volume = SimulationVolume(
+        name="volume",
+        partial_grid_shape=(100, 100, 100),
+    )
+
+    # Object with real position specified (will be converted to grid coordinates)
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_real_position=(5.0, 10.0, 15.0),  # Real-world coordinates
+        partial_grid_shape=(10, 10, 10),  # Known size
+        material=simple_material,
+    )
+
+    objects = [volume, obj]
+    constraints = []  # No additional constraints needed
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, config)
+
+    # Should succeed
+    assert errors["obj1"] is None
+    assert isinstance(resolved_slices, dict)
+    assert "obj1" in resolved_slices
+
+    # Verify conversion from real to grid coordinates
+    # Real position 5.0 / resolution 0.5 = grid position 10
+    # Real position 10.0 / resolution 0.5 = grid position 20
+    # Real position 15.0 / resolution 0.5 = grid position 30
+    assert resolved_slices["obj1"][0][0] == 10  # x-axis start
+    assert resolved_slices["obj1"][1][0] == 20  # y-axis start
+    assert resolved_slices["obj1"][2][0] == 30  # z-axis start
+
+    # With size 10, end positions should be start + size
+    assert resolved_slices["obj1"][0][1] == 20  # x-axis end
+    assert resolved_slices["obj1"][1][1] == 30  # y-axis end
+    assert resolved_slices["obj1"][2][1] == 40  # z-axis end
+
+
+def test_resolve_constraints_partial_real_position_with_grid_shape(simple_config, simple_volume, simple_material):
+    """Test partial_real_position works with partial_grid_shape.
+
+    This test verifies that:
+    - Axes with None in partial_real_position extend from volume boundary (0)
+    - Axes with specified positions use those positions as lower bounds
+    - Mixed specification (some axes positioned, others extending) works correctly
+    - When size is known but position is not, object extends from 0
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_real_position=(10.0, None, 20.0),  # Only x and z specified
+        partial_grid_shape=(15, 15, 15),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+    constraints = []
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should succeed
+    assert errors["obj1"] is None
+
+    # x-axis: real position 10.0 / resolution 1.0 = grid position 10
+    assert resolved_slices["obj1"][0][0] == 10
+    assert resolved_slices["obj1"][0][1] == 25  # 10 + 15
+
+    # y-axis: no position specified, extends from 0 with known size 15
+    assert resolved_slices["obj1"][1][0] == 0
+    assert resolved_slices["obj1"][1][1] == 15  # 0 + 15
+
+    # z-axis: real position 20.0 / resolution 1.0 = grid position 20
+    assert resolved_slices["obj1"][2][0] == 20
+    assert resolved_slices["obj1"][2][1] == 35  # 20 + 15
+
+
+def test_resolve_constraints_partial_real_position_conflicts_with_constraint(
+    simple_config, simple_volume, simple_material
+):
+    """Test that conflicting partial_real_position and grid constraint raises error.
+
+    This test verifies that:
+    - Conflicts between partial_real_position and GridCoordinateConstraint are detected
+    - The error is properly reported in the errors dictionary
+    - The constraint resolution doesn't silently override the position
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_real_position=(10.0, None, None),  # Sets x-axis start to 10
+        partial_grid_shape=(15, 15, 15),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    # Constraint that conflicts with partial_real_position
+    constraint = GridCoordinateConstraint(
+        object="obj1",
+        axes=[0],
+        sides=["-"],
+        coordinates=[5],  # Different from 10 - conflict!
+    )
+
+    constraints = [constraint]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should detect the conflict
+    assert errors["obj1"] is not None
+
+
+def test_resolve_constraints_partial_real_position_with_real_shape(simple_material):
+    """Test partial_real_position works together with partial_real_shape.
+
+    This test verifies that:
+    - Both partial_real_position and partial_real_shape use consistent resolution
+    - Objects can be fully specified using only real-world coordinates
+    - The conversion to grid coordinates is accurate for both position and size
+    """
+    config = SimulationConfig(resolution=0.25, time=100e-15)
+
+    volume = SimulationVolume(
+        name="volume",
+        partial_grid_shape=(200, 200, 200),
+    )
+
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_real_position=(5.0, 10.0, 15.0),  # Real positions
+        partial_real_shape=(2.5, 5.0, 7.5),  # Real sizes
+        material=simple_material,
+    )
+
+    objects = [volume, obj]
+    constraints = []
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, config)
+
+    # Should succeed
+    assert errors["obj1"] is None
+
+    # Verify conversions with resolution 0.25:
+    # Position: 5.0/0.25=20, 10.0/0.25=40, 15.0/0.25=60
+    # Size: 2.5/0.25=10, 5.0/0.25=20, 7.5/0.25=30
+    assert resolved_slices["obj1"][0] == (20, 30)  # x: start=20, end=20+10
+    assert resolved_slices["obj1"][1] == (40, 60)  # y: start=40, end=40+20
+    assert resolved_slices["obj1"][2] == (60, 90)  # z: start=60, end=60+30
+
+
+def test_resolve_constraints_partial_real_position_mixed_with_constraints(
+    simple_config, simple_volume, simple_material
+):
+    """Test partial_real_position works alongside other constraints.
+
+    This test verifies that:
+    - Objects with partial_real_position can serve as anchors for positioning other objects
+    - PositionConstraint properly references objects positioned via partial_real_position
+    - The constraint resolution system integrates seamlessly with the new feature
+    - Axes without position specified extend from 0 when size is known
+    """
+    obj1 = UniformMaterialObject(
+        name="obj1",
+        partial_real_position=(10.0, None, None),  # x-axis position specified
+        partial_grid_shape=(10, 10, 10),
+        material=simple_material,
+    )
+
+    obj2 = UniformMaterialObject(
+        name="obj2",
+        partial_grid_shape=(20, 20, 20),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj1, obj2]
+
+    # Position obj2 relative to obj1
+    constraint = PositionConstraint(
+        object="obj2",
+        other_object="obj1",
+        axes=[0],
+        object_positions=[-1.0],  # Left side of obj2
+        other_object_positions=[1.0],  # Right side of obj1
+        grid_margins=[5],
+        margins=[None],
+    )
+
+    constraints = [constraint]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should succeed
+    assert errors["obj1"] is None
+    assert errors["obj2"] is None
+
+    # obj1 starts at x=10 (from partial_real_position)
+    assert resolved_slices["obj1"][0][0] == 10
+    assert resolved_slices["obj1"][0][1] == 20  # 10 + 10
+
+    # obj1 y and z axes extend from 0 with size 10
+    assert resolved_slices["obj1"][1] == (0, 10)
+    assert resolved_slices["obj1"][2] == (0, 10)
+
+    # obj2 should be positioned relative to obj1's right side (20) + margin (5)
+    # obj2's left side at position 25, size 20, so ends at 45
+    assert resolved_slices["obj2"][0][0] == 25
+    assert resolved_slices["obj2"][0][1] == 45
+
+
+def test_resolve_constraints_partial_real_position_all_none(simple_config, simple_volume, simple_material):
+    """Test object with partial_real_position=(None, None, None).
+
+    This test verifies that:
+    - Objects with all None values in partial_real_position work correctly
+    - Such objects extend from 0 when size is known (not to boundaries)
+    - No errors occur when partial_real_position is effectively unused
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_real_position=(None, None, None),  # All axes unspecified
+        partial_grid_shape=(10, 10, 10),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+    constraints = []
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should succeed
+    assert errors["obj1"] is None
+
+    # All axes extend from 0 with the specified size
+    assert resolved_slices["obj1"][0] == (0, 10)
+    assert resolved_slices["obj1"][1] == (0, 10)
+    assert resolved_slices["obj1"][2] == (0, 10)
+
+
+def test_resolve_constraints_partial_real_position_single_axis(simple_config, simple_volume, simple_material):
+    """Test partial_real_position with only one axis specified.
+
+    This test verifies that:
+    - Single-axis position specification works correctly
+    - Other axes with None extend from 0 when size is known
+    - The behavior matches expectations for partially-constrained objects
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_real_position=(None, 15.0, None),  # Only y-axis specified
+        partial_grid_shape=(10, 10, 10),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+    constraints = []
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should succeed
+    assert errors["obj1"] is None
+
+    # x-axis: extends from 0 with size 10
+    assert resolved_slices["obj1"][0] == (0, 10)
+
+    # y-axis: positioned at 15.0 (grid coordinate 15)
+    assert resolved_slices["obj1"][1][0] == 15
+    assert resolved_slices["obj1"][1][1] == 25  # 15 + 10
+
+    # z-axis: extends from 0 with size 10
+    assert resolved_slices["obj1"][2] == (0, 10)
+
+
+def test_resolve_constraints_partial_real_position_with_different_resolutions(simple_material):
+    """Test partial_real_position with various resolution values.
+
+    This test verifies that:
+    - The resolution scaling works correctly for different values
+    - Rounding to grid coordinates is consistent
+    - Fine resolutions work properly with non-integer real positions
+    """
+    # Test with very fine resolution
+    config_fine = SimulationConfig(resolution=0.1, time=100e-15)
+
+    volume = SimulationVolume(
+        name="volume",
+        partial_grid_shape=(500, 500, 500),
+    )
+
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_real_position=(3.7, 8.3, 12.1),  # Non-integer real positions
+        partial_grid_shape=(10, 10, 10),
+        material=simple_material,
+    )
+
+    objects = [volume, obj]
+    constraints = []
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, config_fine)
+
+    # Should succeed
+    assert errors["obj1"] is None
+
+    # Verify rounding: 3.7/0.1=37, 8.3/0.1=83, 12.1/0.1=121
+    assert resolved_slices["obj1"][0][0] == 37
+    assert resolved_slices["obj1"][1][0] == 83
+    assert resolved_slices["obj1"][2][0] == 121
+
+    # End positions: start + size
+    assert resolved_slices["obj1"][0][1] == 47
+    assert resolved_slices["obj1"][1][1] == 93
+    assert resolved_slices["obj1"][2][1] == 131
+
+
+def test_resolve_constraints_partial_real_position_without_size(simple_config, simple_volume, simple_material):
+    """Test partial_real_position without a known size.
+
+    This test verifies that:
+    - When position is specified but size is not, object extends to volume boundary
+    - This is the extend-to-infinity behavior for the upper bound
+    - The lower bound is set from partial_real_position
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_real_position=(10.0, 15.0, 20.0),  # Position specified
+        # No size specified
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+    constraints = []
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should succeed - position sets lower bound, extends to volume boundary for upper
+    assert errors["obj1"] is None
+
+    # Lower bounds from partial_real_position
+    assert resolved_slices["obj1"][0][0] == 10
+    assert resolved_slices["obj1"][1][0] == 15
+    assert resolved_slices["obj1"][2][0] == 20
+
+    # Upper bounds extend to volume boundary
+    assert resolved_slices["obj1"][0][1] == 100
+    assert resolved_slices["obj1"][1][1] == 100
+    assert resolved_slices["obj1"][2][1] == 100
+
+
+def test_resolve_constraints_partial_real_position_with_size_constraint(simple_config, simple_volume, simple_material):
+    """Test partial_real_position combined with SizeConstraint.
+
+    This test verifies that:
+    - partial_real_position can be used for position
+    - SizeConstraint can provide the size
+    - The two work together correctly
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_real_position=(10.0, 20.0, 30.0),  # Position specified
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    # Provide size through constraint
+    constraint = SizeConstraint(
+        object="obj1",
+        other_object="volume",
+        axes=[0, 1, 2],
+        other_axes=[0, 1, 2],
+        proportions=[0.1, 0.1, 0.1],  # 10% of volume size = 10 grid units
+        grid_offsets=[0, 0, 0],
+        offsets=[None, None, None],
+    )
+
+    constraints = [constraint]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should succeed
+    assert errors["obj1"] is None
+
+    # Position from partial_real_position, size from constraint
+    assert resolved_slices["obj1"][0] == (10, 20)  # start=10, size=10
+    assert resolved_slices["obj1"][1] == (20, 30)  # start=20, size=10
+    assert resolved_slices["obj1"][2] == (30, 40)  # start=30, size=10
+
+
+def test_resolve_constraints_partial_real_position_extends_without_size(simple_config, simple_volume, simple_material):
+    """Test that object without size extends to volume boundaries.
+
+    This test verifies that:
+    - When partial_real_position specifies some axes but no size is given
+    - Unspecified axes extend to volume boundaries
+    - This matches the extend-to-infinity behavior
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_real_position=(10.0, None, None),  # Only x-axis positioned
+        # No size specified
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    # Add size constraint only for x-axis
+    constraint = SizeConstraint(
+        object="obj1",
+        other_object="volume",
+        axes=[0],
+        other_axes=[0],
+        proportions=[0.2],  # 20% of volume = 20 grid units
+        grid_offsets=[0],
+        offsets=[None],
+    )
+
+    constraints = [constraint]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should succeed
+    assert errors["obj1"] is None
+
+    # x-axis: positioned at 10 with size 20
+    assert resolved_slices["obj1"][0] == (10, 30)
+
+    # y and z axes: extend to volume boundaries
+    assert resolved_slices["obj1"][1] == (0, 100)
+    assert resolved_slices["obj1"][2] == (0, 100)
