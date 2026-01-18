@@ -54,7 +54,7 @@ dev = [
     "ruff>=0.8.2",
     "tox-uv>=1.16.1",
     "pydoclint>=0.6.6",
-    "sphinx>=8.0",
+    "sphinx<9.0",
     "sphinx-autobuild>=2025.8.25",
     "sphinx-book-theme>=1.1.4",
     "nbsphinx>=0.9",
