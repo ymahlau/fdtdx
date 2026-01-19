@@ -187,7 +187,7 @@ def compute_mode(
         return mode_E, mode_H, neff
 
     # compute input to tidy3d Mode solver
-    if isinstance(inv_permittivities, jax.Array) and inv_permittivities.ndim > 0 and inv_permittivities.shape[0] == 9:
+    if inv_permittivities.shape[0] == 9:
         eps = cast(jax.Array, expand_to_3x3(inv_permittivities))
         # Invert the 3x3 matrix
         perm = (2, 3, 4, 0, 1)  # (3, 3, nx, ny, nz) -> (nx, ny, nz, 3, 3)
@@ -199,7 +199,7 @@ def compute_mode(
         permittivities = 1 / inv_permittivities
     other_axes = [a for a in range(1, 4) if permittivities.shape[a] != 1]
     propagation_axis = permittivities.shape[1:].index(1)
-    coords = [jnp.arange(permittivities.shape[dim] + 1) * resolution / 1e-6 for dim in other_axes]
+    coords = [np.arange(permittivities.shape[dim] + 1) * resolution / 1e-6 for dim in other_axes]
     permittivity_squeezed = jnp.take(
         permittivities,
         indices=0,
@@ -214,16 +214,21 @@ def compute_mode(
     if propagation_axis == 0:
         # propagation along x: tidy3d (x,y,z) → physical (y,z,x)
         perm_idx = [1, 2, 0]
+        perm_idx_full_anisotropy = [4, 5, 3, 7, 8, 6, 1, 2, 0]
     elif propagation_axis == 1:
         # propagation along y: tidy3d (x,y,z) → physical (x,z,y)
         perm_idx = [0, 2, 1]
+        perm_idx_full_anisotropy = [0, 2, 1, 6, 8, 7, 3, 5, 4]
     else:  # propagation_axis == 2
         # propagation along z: tidy3d (x,y,z) → physical (x,y,z)
         perm_idx = [0, 1, 2]
+        perm_idx_full_anisotropy = [0, 1, 2, 3, 4, 5, 6, 7, 8]
 
-    # Only apply rotation if anisotropic (3 or 9 components)
-    if permittivity_squeezed.shape[0] == 3 or permittivity_squeezed.shape[0] == 9:
+    # Only apply rotation if anisotropic (3 components)
+    if permittivity_squeezed.shape[0] == 3:
         permittivity_squeezed = permittivity_squeezed[jnp.array(perm_idx), :, :]
+    if permittivity_squeezed.shape[0] == 9:
+        permittivity_squeezed = permittivity_squeezed[jnp.array(perm_idx_full_anisotropy), :, :]
 
     result_shape_dtype = (
         jnp.zeros((3, *permittivity_squeezed.shape[1:]), dtype=jnp.complex64),
@@ -248,8 +253,10 @@ def compute_mode(
             axis=propagation_axis + 1,
         )
         # Apply same rotation to permeability if anisotropic
-        if permeability_squeezed.shape[0] == 3 or permeability_squeezed.shape[0] == 9:
+        if permeability_squeezed.shape[0] == 3:
             permeability_squeezed = permeability_squeezed[jnp.array(perm_idx), :, :]
+        if permeability_squeezed.shape[0] == 9:
+            permeability_squeezed = permeability_squeezed[jnp.array(perm_idx_full_anisotropy), :, :]
     else:  # float
         permeability_squeezed = permeabilities
 
@@ -273,10 +280,10 @@ def compute_mode(
 
 def tidy3d_mode_computation_wrapper(
     frequency: float,
-    permittivity_cross_section: jax.Array,
-    coords: List[jax.Array],
+    permittivity_cross_section: np.ndarray | jax.Array,
+    coords: List[np.ndarray],
     direction: Literal["+", "-"],
-    permeability_cross_section: jax.Array | float | None = None,
+    permeability_cross_section: np.ndarray | jax.Array | float | None = None,
     target_neff: float | None = None,
     angle_theta: float = 0.0,
     angle_phi: float = 0.0,
@@ -290,10 +297,10 @@ def tidy3d_mode_computation_wrapper(
 
     Args:
         frequency (float): Operating frequency in Hz
-        permittivity_cross_section (jax.Array): 2D array of relative permittivity values
-        coords (List[jax.Array]): List of coordinate arrays [x, y] defining the grid
+        permittivity_cross_section (np.ndarray): 2D array of relative permittivity values
+        coords (List[np.ndarray]): List of coordinate arrays [x, y] defining the grid
         direction (Literal["+", "-"], optional): Propagation direction, either "+" or "-"
-        permeability_cross_section (jax.Array | None, optional): 2D array of relative permeability values.
+        permeability_cross_section (np.ndarray | None, optional): 2D array of relative permeability values.
             Defauts to None.
         target_neff (float | None, optional): Target effective index to search around. Defaults to None.
         angle_theta (float, optional): Polar angle in radians. Defaults to 0.0.
@@ -322,10 +329,8 @@ def tidy3d_mode_computation_wrapper(
         track_freq="central",
         group_index_step=False,
     )
-    permittivity_cross_section = cast(jax.Array, expand_to_3x3(permittivity_cross_section)).reshape(
-        9, *permittivity_cross_section.shape[1:]
-    )
-
+    permittivity_cross_section = expand_to_3x3(permittivity_cross_section)  # type: ignore
+    permittivity_cross_section = permittivity_cross_section.reshape(9, *permittivity_cross_section.shape[2:])  # type: ignore
     eps_cross = [
         permittivity_cross_section[0, :, :],
         permittivity_cross_section[1, :, :],
@@ -339,9 +344,8 @@ def tidy3d_mode_computation_wrapper(
     ]
     mu_cross = None
     if permeability_cross_section is not None:
-        permeability_cross_section = cast(jax.Array, expand_to_3x3(permeability_cross_section)).reshape(
-            9, *permittivity_cross_section.shape[1:]
-        )
+        permeability_cross_section = expand_to_3x3(permeability_cross_section)  # type: ignore
+        permeability_cross_section = permeability_cross_section.reshape(9, *permeability_cross_section.shape[2:])  # type: ignore
 
         mu_cross = [
             permeability_cross_section[0, :, :],
