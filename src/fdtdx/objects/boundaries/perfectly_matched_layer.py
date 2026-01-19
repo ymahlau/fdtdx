@@ -4,7 +4,7 @@ from typing_extensions import override
 
 from fdtdx.constants import c, eps0, eta0
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
-from fdtdx.core.plotting.colors import DARK_GREY
+from fdtdx.core.plotting.colors import XKCD_DARK_GREY
 from fdtdx.objects.boundaries.boundary import BaseBoundary
 
 
@@ -45,7 +45,7 @@ class PerfectlyMatchedLayer(BaseBoundary):
     sigma_order: float | None = frozen_field(default=None)
 
     #: RGB color tuple for visualization. defaults to dark grey.
-    color: tuple[float, float, float] | None = frozen_field(default=DARK_GREY)
+    color: tuple[float, float, float] | None = frozen_field(default=XKCD_DARK_GREY)
 
     def __post_init__(self):
         """Sets default PML parameters if not provided."""
