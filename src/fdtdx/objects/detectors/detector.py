@@ -7,9 +7,9 @@ import numpy as np
 from matplotlib.figure import Figure
 from rich.progress import Progress
 
+from fdtdx.colors import XKCD_LIGHT_GREEN
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, frozen_private_field, private_field
-from fdtdx.core.plotting.colors import XKCD_LIGHT_GREEN
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.objects.detectors.plotting.line_plot import plot_line_over_time, plot_waterfall_over_time
 from fdtdx.objects.detectors.plotting.plot2d import plot_2d_from_slices
