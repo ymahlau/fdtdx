@@ -1,4 +1,5 @@
 from fdtdx import constants
+from fdtdx.colors import Color
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.constants import wavelength_to_period
 from fdtdx.conversion.json import export_json, export_json_str, import_from_json
@@ -19,7 +20,6 @@ from fdtdx.core.physics.metrics import (
     normalize_by_poynting_flux,
 )
 from fdtdx.core.physics.modes import compute_mode
-from fdtdx.core.plotting import colors
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.backward import full_backward
@@ -194,6 +194,6 @@ __all__ = [
     # other
     "wavelength_to_period",
     "Material",
-    "colors",
+    "Color",
     "constants",
 ]

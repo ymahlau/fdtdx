@@ -14,6 +14,7 @@ API
     fdtdx.BrushConstraint2D
     fdtdx.circular_brush
     fdtdx.ClosestIndex
+    fdtdx.colors.Color
     fdtdx.compute_energy
     fdtdx.compute_mode
     fdtdx.compute_poynting_flux
