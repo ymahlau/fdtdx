@@ -85,9 +85,9 @@ from fdtdx.objects.static_material.polygon import ExtrudedPolygon
 from fdtdx.objects.static_material.sphere import Sphere
 from fdtdx.objects.static_material.static import SimulationVolume, UniformMaterialObject
 from fdtdx.utils.logger import Logger
+from fdtdx.utils.plot_field_slice import plot_field_slice, plot_field_slice_component
+from fdtdx.utils.plot_material import plot_material, plot_material_from_side
 from fdtdx.utils.plot_setup import plot_setup, plot_setup_from_side
-from fdtdx.utils.plot_material import plot_material_from_side, plot_material
-from fdtdx.utils.plot_field_slice import plot_field_slice_component, plot_field_slice
 
 __all__ = [
     "Detector",
@@ -184,9 +184,9 @@ __all__ = [
     "Logger",
     "plot_setup",
     "plot_setup_from_side",
-    "plot_material_from_side", 
+    "plot_material_from_side",
     "plot_material",
-    "plot_field_slice_component", 
+    "plot_field_slice_component",
     "plot_field_slice",
     # config
     "SimulationConfig",
