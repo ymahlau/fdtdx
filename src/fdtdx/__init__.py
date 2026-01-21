@@ -47,7 +47,6 @@ from fdtdx.objects.device.parameters.continuous import (
     StandardToPlusOneMinusOneRange,
 )
 from fdtdx.objects.device.parameters.discrete import (
-    BOTTOM_Z_PADDING_CONFIG_REPEAT,
     BinaryMedianFilterModule,
     ConnectHolesAndStructures,
     RemoveFloatingMaterial,
@@ -86,7 +85,9 @@ from fdtdx.objects.static_material.polygon import ExtrudedPolygon
 from fdtdx.objects.static_material.sphere import Sphere
 from fdtdx.objects.static_material.static import SimulationVolume, UniformMaterialObject
 from fdtdx.utils.logger import Logger
-from fdtdx.utils.plot_setup import plot_setup
+from fdtdx.utils.plot_field_slice import plot_field_slice, plot_field_slice_component
+from fdtdx.utils.plot_material import plot_material, plot_material_from_side
+from fdtdx.utils.plot_setup import plot_setup, plot_setup_from_side
 
 __all__ = [
     "Detector",
@@ -167,7 +168,6 @@ __all__ = [
     "PointSymmetry3D",
     "ParameterTransformation",
     "circular_brush",
-    "BOTTOM_Z_PADDING_CONFIG_REPEAT",
     # sources
     "GaussianPlaneSource",
     "UniformPlaneSource",
@@ -183,6 +183,11 @@ __all__ = [
     # utils
     "Logger",
     "plot_setup",
+    "plot_setup_from_side",
+    "plot_material_from_side",
+    "plot_material",
+    "plot_field_slice_component",
+    "plot_field_slice",
     # config
     "SimulationConfig",
     "GradientConfig",

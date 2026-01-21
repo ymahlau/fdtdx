@@ -58,6 +58,12 @@ API
     fdtdx.PillarDiscretization
     fdtdx.place_objects
     fdtdx.plot_setup
+    fdtdx.plot_setup_from_side
+    fdtdx.plot_setup_from_side
+    fdtdx.plot_material_from_side
+    fdtdx.plot_material
+    fdtdx.plot_field_slice_component
+    fdtdx.plot_field_slice
     fdtdx.PositionConstraint
     fdtdx.PoyntingFluxDetector
     fdtdx.private_field
@@ -85,3 +91,4 @@ API
     fdtdx.UniformPlaneSource
     fdtdx.WaveCharacter
     fdtdx.wavelength_to_period
+    
