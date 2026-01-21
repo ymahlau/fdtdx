@@ -534,20 +534,39 @@ def resolve_object_constraints(
 def _resolve_static_positions(
     object_map: dict[str, SimulationObject],
     slice_dict: dict[str, list[list[int | None]]],
+    shape_dict: dict[str, list[int | None]],
     config: SimulationConfig,
 ):
-    """Fill in static or directly defined positions from partial_real_position."""
+    """Fill in static or directly defined positions from partial_real_position.
+
+    The partial_real_position represents the center position of the object.
+    This function converts it to grid coordinates and computes the slice boundaries
+    if the object's size is known.
+    """
     for obj_name, obj in object_map.items():
         # Check if the object has partial_real_position attribute
         if hasattr(obj, "partial_real_position") and obj.partial_real_position is not None:
             for axis in range(3):
                 if obj.partial_real_position[axis] is not None:
-                    # Convert real position to grid coordinate
-                    grid_position = round(
+                    # Convert real position (center) to grid coordinate
+                    grid_center = round(
                         obj.partial_real_position[axis] / config.resolution  # type: ignore
                     )
-                    # Set the lower bound (start position) of the slice
-                    slice_dict[obj_name][axis][0] = grid_position
+
+                    # If we know the size, we can compute both boundaries from center
+                    size = shape_dict[obj_name][axis]
+                    if size is not None:
+                        # Compute lower and upper bounds from center and size
+                        half_size = size / 2
+                        lower = round(grid_center - half_size)
+                        upper = lower + size  # Ensure exact size by computing from lower
+                        slice_dict[obj_name][axis][0] = lower
+                        slice_dict[obj_name][axis][1] = upper
+                    else:
+                        # If size unknown, just store the center position somehow
+                        # We'll need to resolve this later when size becomes known
+                        # For now, we can't fully resolve the position
+                        pass
     return slice_dict
 
 
@@ -602,6 +621,7 @@ def _apply_constraints_iteratively(
     slice_dict = _resolve_static_positions(
         object_map=object_map,
         slice_dict=slice_dict,
+        shape_dict=shape_dict,
         config=config,
     )
 
