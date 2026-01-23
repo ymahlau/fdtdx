@@ -53,16 +53,17 @@ Citation
 If you find this repository helpful for your work, please consider citing:
 
 .. code-block:: bibtex
-
-   @article{schubert2025quantized,
-      title={Quantized inverse design for photonic integrated circuits},
-      author={Schubert, Frederik and Mahlau, Yannik and Bethmann, Konrad and Hartmann, Fabian and Caspary, Reinhard and Munderloh, Marco and Ostermann, J{\"o}rn and Rosenhahn, Bodo},
-      journal={ACS omega},
-      volume={10},
-      number={5},
-      pages={5080--5086},
-      year={2025},
-      publisher={ACS Publications}
+   @article{Mahlau2026,
+      doi = {10.21105/joss.08912},
+      url = {https://doi.org/10.21105/joss.08912},
+      year = {2026},
+      publisher = {The Open Journal},
+      volume = {11},
+      number = {117},
+      pages = {8912},
+      author = {Mahlau, Yannik and Schubert, Frederik and Berg, Lukas and Rosenhahn, Bodo},
+      title = {FDTDX: High-Performance Open-Source FDTD Simulation with Automatic Differentiation},
+      journal = {Journal of Open Source Software}
    }
 
 

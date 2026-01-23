@@ -14,6 +14,7 @@ API
     fdtdx.BrushConstraint2D
     fdtdx.circular_brush
     fdtdx.ClosestIndex
+    fdtdx.colors.Color
     fdtdx.compute_energy
     fdtdx.compute_mode
     fdtdx.compute_poynting_flux
@@ -57,6 +58,12 @@ API
     fdtdx.PillarDiscretization
     fdtdx.place_objects
     fdtdx.plot_setup
+    fdtdx.plot_setup_from_side
+    fdtdx.plot_setup_from_side
+    fdtdx.plot_material_from_side
+    fdtdx.plot_material
+    fdtdx.plot_field_slice_component
+    fdtdx.plot_field_slice
     fdtdx.PositionConstraint
     fdtdx.PoyntingFluxDetector
     fdtdx.private_field
@@ -84,4 +91,4 @@ API
     fdtdx.UniformPlaneSource
     fdtdx.WaveCharacter
     fdtdx.wavelength_to_period
-
+    
