@@ -3,10 +3,17 @@ import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
 from fdtdx.constants import eta0
-from fdtdx.core.misc import expand_to_3x3
+from fdtdx.core.misc import expand_to_3x3, pad_fields
 from fdtdx.core.physics.curl import curl_E, curl_H, interpolate_fields
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
-from fdtdx.fdtd.misc import add_boundary_interfaces, collect_boundary_interfaces
+from fdtdx.fdtd.misc import (
+    add_boundary_interfaces,
+    avg_anisotropic_E_component,
+    avg_anisotropic_H_component,
+    collect_boundary_interfaces,
+    compute_anisotropic_update_matrices,
+    compute_anisotropic_update_matrices_reverse,
+)
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.detectors.detector import Detector
 
@@ -69,8 +76,7 @@ def update_E(
     arrays = arrays.aset("psi_E", psi_E)
 
     # Check if we have full anisotropic tensors (shape[0] == 9)
-    inv_eps_shape = getattr(inv_eps, "shape", (0,))
-    inv_eps_is_full_tensor = inv_eps_shape[0] == 9
+    inv_eps_is_full_tensor = inv_eps.shape[0] == 9
     sigma_E_is_full_tensor = sigma_E is not None and sigma_E.shape[0] == 9
 
     if not inv_eps_is_full_tensor and not sigma_E_is_full_tensor:
@@ -83,7 +89,7 @@ def update_E(
             factor = 1 - c * sigma_E * eta0 * inv_eps / 2
 
         # standard update formula using lossless material
-        # Component-wise multiplication for anisotropic materials:
+        # Component-wise multiplication for diagonally anisotropic materials:
         # E[i, x, y, z] = factor * E[i, x, y, z] + c * curl[i, x, y, z] * inv_eps[i, x, y, z]
         E = factor * arrays.E + c * curl * inv_eps
 
@@ -97,152 +103,43 @@ def update_E(
         inv_eps = expand_to_3x3(inv_eps)
         sigma_E = expand_to_3x3(sigma_E)
 
-        M1 = jnp.eye(3)[:, :, None, None, None]
-        M2 = jnp.eye(3)[:, :, None, None, None]
-        if sigma_E is not None:
-            factor = c * eta0 / 2 * jnp.einsum("ijxyz,jkxyz->ikxyz", inv_eps, sigma_E)
-            M1 += factor
-            M2 -= factor
-        perm = (2, 3, 4, 0, 1)  # (3, 3, Nx, Ny, Nz) -> (Nx, Ny, Nz, 3, 3)
-        inv_perm = (3, 4, 0, 1, 2)  # (Nx, Ny, Nz, 3, 3) -> (3, 3, Nx, Ny, Nz)
-        M1_t = M1.transpose(perm)
-        M2_t = M2.transpose(perm)
-        inv_eps_t = inv_eps.transpose(perm) if inv_eps is not None else None
-        A = jnp.linalg.solve(M1_t, M2_t).transpose(inv_perm)
-        B = c * jnp.linalg.solve(M1_t, inv_eps_t).transpose(inv_perm)
+        # Compute A and B matrices for forward update
+        # E^(n+1) = A @ E^(n) + B @ curl(H^(n+1/2))
+        A, B = compute_anisotropic_update_matrices(inv_eps, sigma_E, c, eta0)
 
-        E_pad = arrays.E
-        curl_pad = curl
-        for i, periodic in enumerate(periodic_axes):
-            pad_mode = "wrap" if periodic else "constant"
-            # Create padding tuple for current axis
-            if i == 0:
-                pad_width = ((0, 0), (1, 1), (0, 0), (0, 0))
-            elif i == 1:
-                pad_width = ((0, 0), (0, 0), (1, 1), (0, 0))
-            else:  # i == 2
-                pad_width = ((0, 0), (0, 0), (0, 0), (1, 1))
-            E_pad = jnp.pad(E_pad, pad_width, mode=pad_mode)
-            curl_pad = jnp.pad(curl_pad, pad_width, mode=pad_mode)
+        # We need to pad the fields and curl to account for ghost cells when computing the averages
+        E_pad = pad_fields(arrays.E, periodic_axes)
+        curl_pad = pad_fields(curl, periodic_axes)
 
-        Ex_y_avg = (
-            (
-                E_pad[0]
-                + jnp.roll(E_pad[0], -1, axis=1)
-                + jnp.roll(E_pad[0], 1, axis=0)
-                + jnp.roll(E_pad[0], (-1, 1), axis=(1, 0))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        Ex_z_avg = (
-            (
-                E_pad[0]
-                + jnp.roll(E_pad[0], -1, axis=2)
-                + jnp.roll(E_pad[0], 1, axis=0)
-                + jnp.roll(E_pad[0], (-1, 1), axis=(2, 0))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        Ey_x_avg = (
-            (
-                E_pad[1]
-                + jnp.roll(E_pad[1], -1, axis=0)
-                + jnp.roll(E_pad[1], 1, axis=1)
-                + jnp.roll(E_pad[1], (-1, 1), axis=(0, 1))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        Ey_z_avg = (
-            (
-                E_pad[1]
-                + jnp.roll(E_pad[1], -1, axis=2)
-                + jnp.roll(E_pad[1], 1, axis=1)
-                + jnp.roll(E_pad[1], (-1, 1), axis=(2, 1))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        Ez_x_avg = (
-            (
-                E_pad[2]
-                + jnp.roll(E_pad[2], -1, axis=0)
-                + jnp.roll(E_pad[2], 1, axis=2)
-                + jnp.roll(E_pad[2], (-1, 1), axis=(0, 2))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        Ez_y_avg = (
-            (
-                E_pad[2]
-                + jnp.roll(E_pad[2], -1, axis=1)
-                + jnp.roll(E_pad[2], 1, axis=2)
-                + jnp.roll(E_pad[2], (-1, 1), axis=(1, 2))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
+        # Compute the averages of the fields and curl
+        Ex_y_avg = avg_anisotropic_E_component(E_pad, component=0, location=1)  # calc Ex at location of Ey
+        Ex_z_avg = avg_anisotropic_E_component(E_pad, component=0, location=2)  # calc Ex at location of Ez
+        Ey_x_avg = avg_anisotropic_E_component(E_pad, component=1, location=0)  # calc Ey at location of Ex
+        Ey_z_avg = avg_anisotropic_E_component(E_pad, component=1, location=2)  # calc Ey at location of Ez
+        Ez_x_avg = avg_anisotropic_E_component(E_pad, component=2, location=0)  # calc Ez at location of Ex
+        Ez_y_avg = avg_anisotropic_E_component(E_pad, component=2, location=1)  # calc Ez at location of Ey
+        curlHx_y_avg = avg_anisotropic_E_component(curl_pad, component=0, location=1)  # calc curl(H)x at location of Ey
+        curlHx_z_avg = avg_anisotropic_E_component(curl_pad, component=0, location=2)  # calc curl(H)x at location of Ez
+        curlHy_x_avg = avg_anisotropic_E_component(curl_pad, component=1, location=0)  # calc curl(H)y at location of Ex
+        curlHy_z_avg = avg_anisotropic_E_component(curl_pad, component=1, location=2)  # calc curl(H)y at location of Ez
+        curlHz_x_avg = avg_anisotropic_E_component(curl_pad, component=2, location=0)  # calc curl(H)z at location of Ex
+        curlHz_y_avg = avg_anisotropic_E_component(curl_pad, component=2, location=1)  # calc curl(H)z at location of Ey
 
-        curlx_y_avg = (
-            (
-                curl_pad[0]
-                + jnp.roll(curl_pad[0], -1, axis=1)
-                + jnp.roll(curl_pad[0], 1, axis=0)
-                + jnp.roll(curl_pad[0], (-1, 1), axis=(1, 0))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        curlx_z_avg = (
-            (
-                curl_pad[0]
-                + jnp.roll(curl_pad[0], -1, axis=2)
-                + jnp.roll(curl_pad[0], 1, axis=0)
-                + jnp.roll(curl_pad[0], (-1, 1), axis=(2, 0))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        curly_x_avg = (
-            (
-                curl_pad[1]
-                + jnp.roll(curl_pad[1], -1, axis=0)
-                + jnp.roll(curl_pad[1], 1, axis=1)
-                + jnp.roll(curl_pad[1], (-1, 1), axis=(0, 1))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        curly_z_avg = (
-            (
-                curl_pad[1]
-                + jnp.roll(curl_pad[1], -1, axis=2)
-                + jnp.roll(curl_pad[1], 1, axis=1)
-                + jnp.roll(curl_pad[1], (-1, 1), axis=(2, 1))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        curlz_x_avg = (
-            (
-                curl_pad[2]
-                + jnp.roll(curl_pad[2], -1, axis=0)
-                + jnp.roll(curl_pad[2], 1, axis=2)
-                + jnp.roll(curl_pad[2], (-1, 1), axis=(0, 2))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        curlz_y_avg = (
-            (
-                curl_pad[2]
-                + jnp.roll(curl_pad[2], -1, axis=1)
-                + jnp.roll(curl_pad[2], 1, axis=2)
-                + jnp.roll(curl_pad[2], (-1, 1), axis=(1, 2))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-
+        # K = curl(H)
+        # Ex <= (Axx * Ex + Axy * x_avg(Ey) + Axz * x_avg(Ez)) +
+        #       (Bxx * Kx + Bxy * x_avg(Ky) + Bxz * x_avg(Kz))
         Ex = (A[0, 0] * arrays.E[0] + A[0, 1] * Ey_x_avg + A[0, 2] * Ez_x_avg) + (
-            B[0, 0] * curl[0] + B[0, 1] * curly_x_avg + B[0, 2] * curlz_x_avg
+            B[0, 0] * curl[0] + B[0, 1] * curlHy_x_avg + B[0, 2] * curlHz_x_avg
         )
+        # Ey <= (Ayx * y_avg(Ex) + Ayy * Ey + Ayz * y_avg(Ez)) +
+        #       (Byx * y_avg(Kx) + Byy * Ky + Byz * y_avg(Kz))
         Ey = (A[1, 0] * Ex_y_avg + A[1, 1] * arrays.E[1] + A[1, 2] * Ez_y_avg) + (
-            B[1, 0] * curlx_y_avg + B[1, 1] * curl[1] + B[1, 2] * curlz_y_avg
+            B[1, 0] * curlHx_y_avg + B[1, 1] * curl[1] + B[1, 2] * curlHz_y_avg
         )
+        # Ez <= (Azx * z_avg(Ex) + Azy * z_avg(Ey) + Azz * Ez) +
+        #       (Bzx * z_avg(Kx) + Bzy * z_avg(Ky) + Bzz * Kz)
         Ez = (A[2, 0] * Ex_z_avg + A[2, 1] * Ey_z_avg + A[2, 2] * arrays.E[2]) + (
-            B[2, 0] * curlx_z_avg + B[2, 1] * curly_z_avg + B[2, 2] * curl[2]
+            B[2, 0] * curlHx_z_avg + B[2, 1] * curlHy_z_avg + B[2, 2] * curl[2]
         )
 
         E = jnp.stack((Ex, Ey, Ez), axis=0)
@@ -325,8 +222,7 @@ def update_E_reverse(
     )
 
     # Check if we have full anisotropic tensors (shape[0] == 9)
-    inv_eps_shape = getattr(inv_eps, "shape", (0,))
-    inv_eps_is_full_tensor = inv_eps_shape[0] == 9
+    inv_eps_is_full_tensor = inv_eps.shape[0] == 9
     sigma_E_is_full_tensor = sigma_E is not None and sigma_E.shape[0] == 9
 
     if not inv_eps_is_full_tensor and not sigma_E_is_full_tensor:
@@ -342,152 +238,43 @@ def update_E_reverse(
         inv_eps = expand_to_3x3(inv_eps)
         sigma_E = expand_to_3x3(sigma_E)
 
-        M1 = jnp.eye(3)[:, :, None, None, None]
-        M2 = jnp.eye(3)[:, :, None, None, None]
-        if sigma_E is not None:
-            factor = c * eta0 / 2 * jnp.einsum("ijxyz,jkxyz->ikxyz", inv_eps, sigma_E)
-            M1 += factor
-            M2 -= factor
-        perm = (2, 3, 4, 0, 1)  # (3, 3, Nx, Ny, Nz) -> (Nx, Ny, Nz, 3, 3)
-        inv_perm = (3, 4, 0, 1, 2)  # (Nx, Ny, Nz, 3, 3) -> (3, 3, Nx, Ny, Nz)
-        M1_t = M1.transpose(perm)
-        M2_t = M2.transpose(perm)
-        inv_eps_t = inv_eps.transpose(perm) if inv_eps is not None else None
-        A = jnp.linalg.solve(M2_t, M1_t).transpose(inv_perm)
-        B = c * jnp.linalg.solve(M2_t, inv_eps_t).transpose(inv_perm)
+        # Compute A and B matrices for reverse update
+        # E^(n) = A @ E^(n+1) - B @ curl(H^(n+1/2))
+        A, B = compute_anisotropic_update_matrices_reverse(inv_eps, sigma_E, c, eta0)
 
-        E_pad = E
-        curl_pad = curl
-        for i, periodic in enumerate(periodic_axes):
-            pad_mode = "wrap" if periodic else "constant"
-            # Create padding tuple for current axis
-            if i == 0:
-                pad_width = ((0, 0), (1, 1), (0, 0), (0, 0))
-            elif i == 1:
-                pad_width = ((0, 0), (0, 0), (1, 1), (0, 0))
-            else:  # i == 2
-                pad_width = ((0, 0), (0, 0), (0, 0), (1, 1))
-            E_pad = jnp.pad(E_pad, pad_width, mode=pad_mode)
-            curl_pad = jnp.pad(curl_pad, pad_width, mode=pad_mode)
+        # We need to pad the fields and curl to account for ghost cells when computing the averages
+        E_pad = pad_fields(E, periodic_axes)
+        curl_pad = pad_fields(curl, periodic_axes)
 
-        Ex_y_avg = (
-            (
-                E_pad[0]
-                + jnp.roll(E_pad[0], -1, axis=1)
-                + jnp.roll(E_pad[0], 1, axis=0)
-                + jnp.roll(E_pad[0], (-1, 1), axis=(1, 0))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        Ex_z_avg = (
-            (
-                E_pad[0]
-                + jnp.roll(E_pad[0], -1, axis=2)
-                + jnp.roll(E_pad[0], 1, axis=0)
-                + jnp.roll(E_pad[0], (-1, 1), axis=(2, 0))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        Ey_x_avg = (
-            (
-                E_pad[1]
-                + jnp.roll(E_pad[1], -1, axis=0)
-                + jnp.roll(E_pad[1], 1, axis=1)
-                + jnp.roll(E_pad[1], (-1, 1), axis=(0, 1))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        Ey_z_avg = (
-            (
-                E_pad[1]
-                + jnp.roll(E_pad[1], -1, axis=2)
-                + jnp.roll(E_pad[1], 1, axis=1)
-                + jnp.roll(E_pad[1], (-1, 1), axis=(2, 1))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        Ez_x_avg = (
-            (
-                E_pad[2]
-                + jnp.roll(E_pad[2], -1, axis=0)
-                + jnp.roll(E_pad[2], 1, axis=2)
-                + jnp.roll(E_pad[2], (-1, 1), axis=(0, 2))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        Ez_y_avg = (
-            (
-                E_pad[2]
-                + jnp.roll(E_pad[2], -1, axis=1)
-                + jnp.roll(E_pad[2], 1, axis=2)
-                + jnp.roll(E_pad[2], (-1, 1), axis=(1, 2))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
+        # Compute the averages of the fields and curl
+        Ex_y_avg = avg_anisotropic_E_component(E_pad, component=0, location=1)  # calc Ex at location of Ey
+        Ex_z_avg = avg_anisotropic_E_component(E_pad, component=0, location=2)  # calc Ex at location of Ez
+        Ey_x_avg = avg_anisotropic_E_component(E_pad, component=1, location=0)  # calc Ey at location of Ex
+        Ey_z_avg = avg_anisotropic_E_component(E_pad, component=1, location=2)  # calc Ey at location of Ez
+        Ez_x_avg = avg_anisotropic_E_component(E_pad, component=2, location=0)  # calc Ez at location of Ex
+        Ez_y_avg = avg_anisotropic_E_component(E_pad, component=2, location=1)  # calc Ez at location of Ey
+        curlHx_y_avg = avg_anisotropic_E_component(curl_pad, component=0, location=1)  # calc curl(H)x at location of Ey
+        curlHx_z_avg = avg_anisotropic_E_component(curl_pad, component=0, location=2)  # calc curl(H)x at location of Ez
+        curlHy_x_avg = avg_anisotropic_E_component(curl_pad, component=1, location=0)  # calc curl(H)y at location of Ex
+        curlHy_z_avg = avg_anisotropic_E_component(curl_pad, component=1, location=2)  # calc curl(H)y at location of Ez
+        curlHz_x_avg = avg_anisotropic_E_component(curl_pad, component=2, location=0)  # calc curl(H)z at location of Ex
+        curlHz_y_avg = avg_anisotropic_E_component(curl_pad, component=2, location=1)  # calc curl(H)z at location of Ey
 
-        curlx_y_avg = (
-            (
-                curl_pad[0]
-                + jnp.roll(curl_pad[0], -1, axis=1)
-                + jnp.roll(curl_pad[0], 1, axis=0)
-                + jnp.roll(curl_pad[0], (-1, 1), axis=(1, 0))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        curlx_z_avg = (
-            (
-                curl_pad[0]
-                + jnp.roll(curl_pad[0], -1, axis=2)
-                + jnp.roll(curl_pad[0], 1, axis=0)
-                + jnp.roll(curl_pad[0], (-1, 1), axis=(2, 0))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        curly_x_avg = (
-            (
-                curl_pad[1]
-                + jnp.roll(curl_pad[1], -1, axis=0)
-                + jnp.roll(curl_pad[1], 1, axis=1)
-                + jnp.roll(curl_pad[1], (-1, 1), axis=(0, 1))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        curly_z_avg = (
-            (
-                curl_pad[1]
-                + jnp.roll(curl_pad[1], -1, axis=2)
-                + jnp.roll(curl_pad[1], 1, axis=1)
-                + jnp.roll(curl_pad[1], (-1, 1), axis=(2, 1))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        curlz_x_avg = (
-            (
-                curl_pad[2]
-                + jnp.roll(curl_pad[2], -1, axis=0)
-                + jnp.roll(curl_pad[2], 1, axis=2)
-                + jnp.roll(curl_pad[2], (-1, 1), axis=(0, 2))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        curlz_y_avg = (
-            (
-                curl_pad[2]
-                + jnp.roll(curl_pad[2], -1, axis=1)
-                + jnp.roll(curl_pad[2], 1, axis=2)
-                + jnp.roll(curl_pad[2], (-1, 1), axis=(1, 2))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-
+        # K = curl(H)
+        # Ex <= (Axx * Ex + Axy * x_avg(Ey) + Axz * x_avg(Ez)) -
+        #       (Bxx * Kx + Bxy * x_avg(Ky) + Bxz * x_avg(Kz))
         Ex = (A[0, 0] * E[0] + A[0, 1] * Ey_x_avg + A[0, 2] * Ez_x_avg) - (
-            B[0, 0] * curl[0] + B[0, 1] * curly_x_avg + B[0, 2] * curlz_x_avg
+            B[0, 0] * curl[0] + B[0, 1] * curlHy_x_avg + B[0, 2] * curlHz_x_avg
         )
+        # Ey <= (Ayx * y_avg(Ex) + Ayy * Ey + Ayz * y_avg(Ez)) -
+        #       (Byx * y_avg(Kx) + Byy * Ky + Byz * y_avg(Kz))
         Ey = (A[1, 0] * Ex_y_avg + A[1, 1] * E[1] + A[1, 2] * Ez_y_avg) - (
-            B[1, 0] * curlx_y_avg + B[1, 1] * curl[1] + B[1, 2] * curlz_y_avg
+            B[1, 0] * curlHx_y_avg + B[1, 1] * curl[1] + B[1, 2] * curlHz_y_avg
         )
+        # Ez <= (Azx * z_avg(Ex) + Azy * z_avg(Ey) + Azz * Ez) -
+        #       (Bzx * z_avg(Kx) + Bzy * z_avg(Ky) + Bzz * Kz)
         Ez = (A[2, 0] * Ex_z_avg + A[2, 1] * Ey_z_avg + A[2, 2] * E[2]) - (
-            B[2, 0] * curlx_z_avg + B[2, 1] * curly_z_avg + B[2, 2] * curl[2]
+            B[2, 0] * curlHx_z_avg + B[2, 1] * curlHy_z_avg + B[2, 2] * curl[2]
         )
 
         E = jnp.stack((Ex, Ey, Ez), axis=0)
@@ -568,151 +355,43 @@ def update_H(
         inv_mu = expand_to_3x3(inv_mu)
         sigma_H = expand_to_3x3(sigma_H)
 
-        M1 = jnp.eye(3)[:, :, None, None, None]
-        M2 = jnp.eye(3)[:, :, None, None, None]
-        if sigma_H is not None:
-            factor = c / eta0 / 2 * jnp.einsum("ijxyz,jkxyz->ikxyz", inv_mu, sigma_H)
-            M1 += factor
-            M2 -= factor
-        perm = (2, 3, 4, 0, 1)  # (3, 3, Nx, Ny, Nz) -> (Nx, Ny, Nz, 3, 3)
-        inv_perm = (3, 4, 0, 1, 2)  # (Nx, Ny, Nz, 3, 3) -> (3, 3, Nx, Ny, Nz)
-        M1_t = M1.transpose(perm)
-        M2_t = M2.transpose(perm)
-        inv_mu_t = inv_mu.transpose(perm) if inv_mu is not None else None
-        A = jnp.linalg.solve(M1_t, M2_t).transpose(inv_perm)
-        B = c * jnp.linalg.solve(M1_t, inv_mu_t).transpose(inv_perm)
+        # Compute A and B matrices for forward update
+        # H^(n+1/2) = A @ H^(n-1/2) - B @ curl(E^(n))
+        A, B = compute_anisotropic_update_matrices(inv_mu, sigma_H, c, 1 / eta0)
 
-        H_pad = arrays.H
-        curl_pad = curl
-        for i, periodic in enumerate(periodic_axes):
-            pad_mode = "wrap" if periodic else "constant"
-            if i == 0:
-                pad_width = ((0, 0), (1, 1), (0, 0), (0, 0))
-            elif i == 1:
-                pad_width = ((0, 0), (0, 0), (1, 1), (0, 0))
-            else:  # i == 2
-                pad_width = ((0, 0), (0, 0), (0, 0), (1, 1))
-            H_pad = jnp.pad(H_pad, pad_width, mode=pad_mode)
-            curl_pad = jnp.pad(curl_pad, pad_width, mode=pad_mode)
+        # We need to pad the fields and curl to account for ghost cells when computing the averages
+        H_pad = pad_fields(arrays.H, periodic_axes)
+        curl_pad = pad_fields(curl, periodic_axes)
 
-        Hx_y_avg = (
-            (
-                H_pad[0]
-                + jnp.roll(H_pad[0], 1, axis=1)
-                + jnp.roll(H_pad[0], -1, axis=0)
-                + jnp.roll(H_pad[0], (1, -1), axis=(1, 0))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        Hx_z_avg = (
-            (
-                H_pad[0]
-                + jnp.roll(H_pad[0], 1, axis=2)
-                + jnp.roll(H_pad[0], -1, axis=0)
-                + jnp.roll(H_pad[0], (1, -1), axis=(2, 0))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        Hy_x_avg = (
-            (
-                H_pad[1]
-                + jnp.roll(H_pad[1], 1, axis=0)
-                + jnp.roll(H_pad[1], -1, axis=1)
-                + jnp.roll(H_pad[1], (1, -1), axis=(0, 1))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        Hy_z_avg = (
-            (
-                H_pad[1]
-                + jnp.roll(H_pad[1], 1, axis=2)
-                + jnp.roll(H_pad[1], -1, axis=1)
-                + jnp.roll(H_pad[1], (1, -1), axis=(2, 1))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        Hz_x_avg = (
-            (
-                H_pad[2]
-                + jnp.roll(H_pad[2], 1, axis=0)
-                + jnp.roll(H_pad[2], -1, axis=2)
-                + jnp.roll(H_pad[2], (1, -1), axis=(0, 2))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        Hz_y_avg = (
-            (
-                H_pad[2]
-                + jnp.roll(H_pad[2], 1, axis=1)
-                + jnp.roll(H_pad[2], -1, axis=2)
-                + jnp.roll(H_pad[2], (1, -1), axis=(1, 2))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
+        # Compute the averages of the fields and curl
+        Hx_y_avg = avg_anisotropic_H_component(H_pad, component=0, location=1)  # calc Hx at location of Hy
+        Hx_z_avg = avg_anisotropic_H_component(H_pad, component=0, location=2)  # calc Hx at location of Hz
+        Hy_x_avg = avg_anisotropic_H_component(H_pad, component=1, location=0)  # calc Hy at location of Hx
+        Hy_z_avg = avg_anisotropic_H_component(H_pad, component=1, location=2)  # calc Hy at location of Hz
+        Hz_x_avg = avg_anisotropic_H_component(H_pad, component=2, location=0)  # calc Hz at location of Hx
+        Hz_y_avg = avg_anisotropic_H_component(H_pad, component=2, location=1)  # calc Hz at location of Hy
+        curlEx_y_avg = avg_anisotropic_H_component(curl_pad, component=0, location=1)  # calc curl(E)x at location of Hy
+        curlEx_z_avg = avg_anisotropic_H_component(curl_pad, component=0, location=2)  # calc curl(E)x at location of Hz
+        curlEy_x_avg = avg_anisotropic_H_component(curl_pad, component=1, location=0)  # calc curl(E)y at location of Hx
+        curlEy_z_avg = avg_anisotropic_H_component(curl_pad, component=1, location=2)  # calc curl(E)y at location of Hz
+        curlEz_x_avg = avg_anisotropic_H_component(curl_pad, component=2, location=0)  # calc curl(E)z at location of Hx
+        curlEz_y_avg = avg_anisotropic_H_component(curl_pad, component=2, location=1)  # calc curl(E)z at location of Hy
 
-        curlx_y_avg = (
-            (
-                curl_pad[0]
-                + jnp.roll(curl_pad[0], 1, axis=1)
-                + jnp.roll(curl_pad[0], -1, axis=0)
-                + jnp.roll(curl_pad[0], (1, -1), axis=(1, 0))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        curlx_z_avg = (
-            (
-                curl_pad[0]
-                + jnp.roll(curl_pad[0], 1, axis=2)
-                + jnp.roll(curl_pad[0], -1, axis=0)
-                + jnp.roll(curl_pad[0], (1, -1), axis=(2, 0))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        curly_x_avg = (
-            (
-                curl_pad[1]
-                + jnp.roll(curl_pad[1], 1, axis=0)
-                + jnp.roll(curl_pad[1], -1, axis=1)
-                + jnp.roll(curl_pad[1], (1, -1), axis=(0, 1))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        curly_z_avg = (
-            (
-                curl_pad[1]
-                + jnp.roll(curl_pad[1], 1, axis=2)
-                + jnp.roll(curl_pad[1], -1, axis=1)
-                + jnp.roll(curl_pad[1], (1, -1), axis=(2, 1))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        curlz_x_avg = (
-            (
-                curl_pad[2]
-                + jnp.roll(curl_pad[2], 1, axis=0)
-                + jnp.roll(curl_pad[2], -1, axis=2)
-                + jnp.roll(curl_pad[2], (1, -1), axis=(0, 2))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        curlz_y_avg = (
-            (
-                curl_pad[2]
-                + jnp.roll(curl_pad[2], 1, axis=1)
-                + jnp.roll(curl_pad[2], -1, axis=2)
-                + jnp.roll(curl_pad[2], (1, -1), axis=(1, 2))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-
+        # K = curl(E)
+        # Hx <= (Axx * Hx + Axy * x_avg(Hy) + Axz * x_avg(Hz)) -
+        #       (Bxx * Kx + Bxy * x_avg(Ky) + Bxz * x_avg(Kz))
         Hx = (A[0, 0] * arrays.H[0] + A[0, 1] * Hy_x_avg + A[0, 2] * Hz_x_avg) - (
-            B[0, 0] * curl[0] + B[0, 1] * curly_x_avg + B[0, 2] * curlz_x_avg
+            B[0, 0] * curl[0] + B[0, 1] * curlEy_x_avg + B[0, 2] * curlEz_x_avg
         )
+        # Hy <= (Ayx * y_avg(Hx) + Ayy * Hy + Ayz * y_avg(Hz)) -
+        #       (Byx * y_avg(Kx) + Byy * Ky + Byz * y_avg(Kz))
         Hy = (A[1, 0] * Hx_y_avg + A[1, 1] * arrays.H[1] + A[1, 2] * Hz_y_avg) - (
-            B[1, 0] * curlx_y_avg + B[1, 1] * curl[1] + B[1, 2] * curlz_y_avg
+            B[1, 0] * curlEx_y_avg + B[1, 1] * curl[1] + B[1, 2] * curlEz_y_avg
         )
+        # Hz <= (Azx * z_avg(Hx) + Azy * z_avg(Hy) + Azz * Hz) -
+        #       (Bzx * z_avg(Kx) + Bzy * z_avg(Ky) + Bzz * Kz)
         Hz = (A[2, 0] * Hx_z_avg + A[2, 1] * Hy_z_avg + A[2, 2] * arrays.H[2]) - (
-            B[2, 0] * curlx_z_avg + B[2, 1] * curly_z_avg + B[2, 2] * curl[2]
+            B[2, 0] * curlEx_z_avg + B[2, 1] * curlEy_z_avg + B[2, 2] * curl[2]
         )
 
         H = jnp.stack((Hx, Hy, Hz), axis=0)
@@ -814,151 +493,43 @@ def update_H_reverse(
         inv_mu = expand_to_3x3(inv_mu)
         sigma_H = expand_to_3x3(sigma_H)
 
-        M1 = jnp.eye(3)[:, :, None, None, None]
-        M2 = jnp.eye(3)[:, :, None, None, None]
-        if sigma_H is not None:
-            factor = c / eta0 / 2 * jnp.einsum("ijxyz,jkxyz->ikxyz", inv_mu, sigma_H)
-            M1 += factor
-            M2 -= factor
-        perm = (2, 3, 4, 0, 1)  # (3, 3, Nx, Ny, Nz) -> (Nx, Ny, Nz, 3, 3)
-        inv_perm = (3, 4, 0, 1, 2)  # (Nx, Ny, Nz, 3, 3) -> (3, 3, Nx, Ny, Nz)
-        M1_t = M1.transpose(perm)
-        M2_t = M2.transpose(perm)
-        inv_mu_t = inv_mu.transpose(perm) if inv_mu is not None else None
-        A = jnp.linalg.solve(M2_t, M1_t).transpose(inv_perm)
-        B = c * jnp.linalg.solve(M2_t, inv_mu_t).transpose(inv_perm)
+        # Compute A and B matrices for reverse update
+        # H^(n-1/2) = A @ H^(n+1/2) + B @ curl(E^(n))
+        A, B = compute_anisotropic_update_matrices_reverse(inv_mu, sigma_H, c, 1 / eta0)
 
-        H_pad = H
-        curl_pad = curl
-        for i, periodic in enumerate(periodic_axes):
-            pad_mode = "wrap" if periodic else "constant"
-            if i == 0:
-                pad_width = ((0, 0), (1, 1), (0, 0), (0, 0))
-            elif i == 1:
-                pad_width = ((0, 0), (0, 0), (1, 1), (0, 0))
-            else:  # i == 2
-                pad_width = ((0, 0), (0, 0), (0, 0), (1, 1))
-            H_pad = jnp.pad(H_pad, pad_width, mode=pad_mode)
-            curl_pad = jnp.pad(curl_pad, pad_width, mode=pad_mode)
+        # We need to pad the fields and curl to account for ghost cells when computing the averages
+        H_pad = pad_fields(H, periodic_axes)
+        curl_pad = pad_fields(curl, periodic_axes)
 
-        Hx_y_avg = (
-            (
-                H_pad[0]
-                + jnp.roll(H_pad[0], 1, axis=1)
-                + jnp.roll(H_pad[0], -1, axis=0)
-                + jnp.roll(H_pad[0], (1, -1), axis=(1, 0))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        Hx_z_avg = (
-            (
-                H_pad[0]
-                + jnp.roll(H_pad[0], 1, axis=2)
-                + jnp.roll(H_pad[0], -1, axis=0)
-                + jnp.roll(H_pad[0], (1, -1), axis=(2, 0))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        Hy_x_avg = (
-            (
-                H_pad[1]
-                + jnp.roll(H_pad[1], 1, axis=0)
-                + jnp.roll(H_pad[1], -1, axis=1)
-                + jnp.roll(H_pad[1], (1, -1), axis=(0, 1))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        Hy_z_avg = (
-            (
-                H_pad[1]
-                + jnp.roll(H_pad[1], 1, axis=2)
-                + jnp.roll(H_pad[1], -1, axis=1)
-                + jnp.roll(H_pad[1], (1, -1), axis=(2, 1))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        Hz_x_avg = (
-            (
-                H_pad[2]
-                + jnp.roll(H_pad[2], 1, axis=0)
-                + jnp.roll(H_pad[2], -1, axis=2)
-                + jnp.roll(H_pad[2], (1, -1), axis=(0, 2))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        Hz_y_avg = (
-            (
-                H_pad[2]
-                + jnp.roll(H_pad[2], 1, axis=1)
-                + jnp.roll(H_pad[2], -1, axis=2)
-                + jnp.roll(H_pad[2], (1, -1), axis=(1, 2))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
+        # Compute the averages of the fields and curl
+        Hx_y_avg = avg_anisotropic_H_component(H_pad, component=0, location=1)  # calc Hx at location of Hy
+        Hx_z_avg = avg_anisotropic_H_component(H_pad, component=0, location=2)  # calc Hx at location of Hz
+        Hy_x_avg = avg_anisotropic_H_component(H_pad, component=1, location=0)  # calc Hy at location of Hx
+        Hy_z_avg = avg_anisotropic_H_component(H_pad, component=1, location=2)  # calc Hy at location of Hz
+        Hz_x_avg = avg_anisotropic_H_component(H_pad, component=2, location=0)  # calc Hz at location of Hx
+        Hz_y_avg = avg_anisotropic_H_component(H_pad, component=2, location=1)  # calc Hz at location of Hy
+        curlEx_y_avg = avg_anisotropic_H_component(curl_pad, component=0, location=1)  # calc curl(E)x at location of Hy
+        curlEx_z_avg = avg_anisotropic_H_component(curl_pad, component=0, location=2)  # calc curl(E)x at location of Hz
+        curlEy_x_avg = avg_anisotropic_H_component(curl_pad, component=1, location=0)  # calc curl(E)y at location of Hx
+        curlEy_z_avg = avg_anisotropic_H_component(curl_pad, component=1, location=2)  # calc curl(E)y at location of Hz
+        curlEz_x_avg = avg_anisotropic_H_component(curl_pad, component=2, location=0)  # calc curl(E)z at location of Hx
+        curlEz_y_avg = avg_anisotropic_H_component(curl_pad, component=2, location=1)  # calc curl(E)z at location of Hy
 
-        curlx_y_avg = (
-            (
-                curl_pad[0]
-                + jnp.roll(curl_pad[0], 1, axis=1)
-                + jnp.roll(curl_pad[0], -1, axis=0)
-                + jnp.roll(curl_pad[0], (1, -1), axis=(1, 0))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        curlx_z_avg = (
-            (
-                curl_pad[0]
-                + jnp.roll(curl_pad[0], 1, axis=2)
-                + jnp.roll(curl_pad[0], -1, axis=0)
-                + jnp.roll(curl_pad[0], (1, -1), axis=(2, 0))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        curly_x_avg = (
-            (
-                curl_pad[1]
-                + jnp.roll(curl_pad[1], 1, axis=0)
-                + jnp.roll(curl_pad[1], -1, axis=1)
-                + jnp.roll(curl_pad[1], (1, -1), axis=(0, 1))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        curly_z_avg = (
-            (
-                curl_pad[1]
-                + jnp.roll(curl_pad[1], 1, axis=2)
-                + jnp.roll(curl_pad[1], -1, axis=1)
-                + jnp.roll(curl_pad[1], (1, -1), axis=(2, 1))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        curlz_x_avg = (
-            (
-                curl_pad[2]
-                + jnp.roll(curl_pad[2], 1, axis=0)
-                + jnp.roll(curl_pad[2], -1, axis=2)
-                + jnp.roll(curl_pad[2], (1, -1), axis=(0, 2))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-        curlz_y_avg = (
-            (
-                curl_pad[2]
-                + jnp.roll(curl_pad[2], 1, axis=1)
-                + jnp.roll(curl_pad[2], -1, axis=2)
-                + jnp.roll(curl_pad[2], (1, -1), axis=(1, 2))
-            )
-            / 4
-        )[1:-1, 1:-1, 1:-1]
-
+        # K = curl(E)
+        # Hx <= (Axx * Hx + Axy * x_avg(Hy) + Axz * x_avg(Hz)) +
+        #       (Bxx * Kx + Bxy * x_avg(Ky) + Bxz * x_avg(Kz))
         Hx = (A[0, 0] * H[0] + A[0, 1] * Hy_x_avg + A[0, 2] * Hz_x_avg) + (
-            B[0, 0] * curl[0] + B[0, 1] * curly_x_avg + B[0, 2] * curlz_x_avg
+            B[0, 0] * curl[0] + B[0, 1] * curlEy_x_avg + B[0, 2] * curlEz_x_avg
         )
+        # Hy <= (Ayx * y_avg(Hx) + Ayy * Hy + Ayz * y_avg(Hz)) +
+        #       (Byx * y_avg(Kx) + Byy * Ky + Byz * y_avg(Kz))
         Hy = (A[1, 0] * Hx_y_avg + A[1, 1] * H[1] + A[1, 2] * Hz_y_avg) + (
-            B[1, 0] * curlx_y_avg + B[1, 1] * curl[1] + B[1, 2] * curlz_y_avg
+            B[1, 0] * curlEx_y_avg + B[1, 1] * curl[1] + B[1, 2] * curlEz_y_avg
         )
+        # Hz <= (Azx * z_avg(Hx) + Azy * z_avg(Hy) + Azz * Hz) +
+        #       (Bzx * z_avg(Kx) + Bzy * z_avg(Ky) + Bzz * Kz)
         Hz = (A[2, 0] * Hx_z_avg + A[2, 1] * Hy_z_avg + A[2, 2] * H[2]) + (
-            B[2, 0] * curlx_z_avg + B[2, 1] * curly_z_avg + B[2, 2] * curl[2]
+            B[2, 0] * curlEx_z_avg + B[2, 1] * curlEy_z_avg + B[2, 2] * curl[2]
         )
 
         H = jnp.stack((Hx, Hy, Hz), axis=0)

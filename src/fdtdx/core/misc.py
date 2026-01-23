@@ -1,6 +1,6 @@
 import itertools
 import math
-from typing import Literal, Sequence
+from typing import Literal, Sequence, overload
 
 import jax
 import jax.numpy as jnp
@@ -480,6 +480,14 @@ def normalize_polarization_for_source(
     return e_pol, h_pol
 
 
+@overload
+def expand_to_3x3(arr: None) -> None: ...
+
+
+@overload
+def expand_to_3x3(arr: jax.Array | float) -> jax.Array: ...
+
+
 def expand_to_3x3(arr: jax.Array | float | None) -> jax.Array | None:
     """Expands an array from shape (1/3/9, Nx, Ny, Nz) to (3, 3, Nx, Ny, Nz).
 
@@ -529,3 +537,32 @@ def expand_to_3x3(arr: jax.Array | float | None) -> jax.Array | None:
     else:  # first_dim == 9
         # Full tensor: reshape to (3, 3, Nx, Ny, Nz)
         return arr.reshape((3, 3) + spatial_shape)
+
+
+def pad_fields(
+    fields: jax.Array,
+    periodic_axes: tuple[bool, bool, bool],
+) -> jax.Array:
+    """Pads fields for boundary conditions.
+
+    Args:
+        fields (jax.Array): Fields to pad (3, Nx, Ny, Nz) for each field component
+        periodic_axes (tuple[bool, bool, bool]): Tuple of booleans indicating which axes use periodic boundaries
+
+    Returns:
+        jax.Array: Padded fields (3, Nx, Ny, Nz) for each field component
+    """
+    padded_fields = fields
+
+    for i, periodic in enumerate(periodic_axes):
+        pad_mode = "wrap" if periodic else "constant"
+        # Create padding tuple for current axis
+        if i == 0:
+            pad_width = ((0, 0), (1, 1), (0, 0), (0, 0))
+        elif i == 1:
+            pad_width = ((0, 0), (0, 0), (1, 1), (0, 0))
+        else:  # i == 2
+            pad_width = ((0, 0), (0, 0), (0, 0), (1, 1))
+        padded_fields = jnp.pad(padded_fields, pad_width, mode=pad_mode)
+
+    return padded_fields

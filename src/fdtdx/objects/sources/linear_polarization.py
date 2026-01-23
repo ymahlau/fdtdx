@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import cast
 
 import jax
 import jax.numpy as jnp
@@ -123,8 +122,8 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
             and inv_permeabilities.shape[0] == 9
         ):
             # convert to 3x3 tensors
-            inv_eps_tensor = cast(jax.Array, expand_to_3x3(inv_permittivities))  # shape: (3, 3, Nx, Ny, Nz)
-            inv_mu_tensor = cast(jax.Array, expand_to_3x3(inv_permeabilities))  # shape: (3, 3, Nx, Ny, Nz)
+            inv_eps_tensor = expand_to_3x3(inv_permittivities)  # shape: (3, 3, Nx, Ny, Nz)
+            inv_mu_tensor = expand_to_3x3(inv_permeabilities)  # shape: (3, 3, Nx, Ny, Nz)
 
             # invert to get eps and mu tensors
             perm = (2, 3, 4, 0, 1)  # (3, 3, nx, ny, nz) -> (nx, ny, nz, 3, 3)

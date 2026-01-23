@@ -4,6 +4,7 @@ import jax.numpy as jnp
 from fdtdx.config import SimulationConfig
 from fdtdx.constants import c as c0
 from fdtdx.constants import eps0
+from fdtdx.core.misc import pad_fields
 
 
 def interpolate_fields(
@@ -34,18 +35,8 @@ def interpolate_fields(
         Uses PEC (Perfect Electric Conductor) boundary conditions where fields
         at boundaries are zero, unless periodic boundaries are specified.
     """
-    # Apply boundary conditions: PEC (zero) or periodic for each axis separately
-    for i, periodic in enumerate(periodic_axes):
-        pad_mode = "wrap" if periodic else "constant"
-        # Create padding tuple for current axis
-        if i == 0:
-            pad_width = ((0, 0), (1, 1), (0, 0), (0, 0))
-        elif i == 1:
-            pad_width = ((0, 0), (0, 0), (1, 1), (0, 0))
-        else:  # i == 2
-            pad_width = ((0, 0), (0, 0), (0, 0), (1, 1))
-        E_field = jnp.pad(E_field, pad_width, mode=pad_mode)
-        H_field = jnp.pad(H_field, pad_width, mode=pad_mode)
+    E_field = pad_fields(E_field, periodic_axes)
+    H_field = pad_fields(H_field, periodic_axes)
 
     E_x, E_y, E_z = E_field[0], E_field[1], E_field[2]
     H_x, H_y, H_z = H_field[0], H_field[1], H_field[2]
@@ -112,18 +103,7 @@ def curl_E(
         jax.Array: The curl of E - an H-type field located on the faces of the grid
                   (half-integer grid points). Has same shape as input (3, nx, ny, nz).
     """
-    # Pad each axis separately based on boundary conditions
-    E_pad = E
-    for i, periodic in enumerate(periodic_axes):
-        pad_mode = "wrap" if periodic else "constant"
-        # Create padding tuple for current axis
-        if i == 0:
-            pad_width = ((0, 0), (1, 1), (0, 0), (0, 0))
-        elif i == 1:
-            pad_width = ((0, 0), (0, 0), (1, 1), (0, 0))
-        else:  # i == 2
-            pad_width = ((0, 0), (0, 0), (0, 0), (1, 1))
-        E_pad = jnp.pad(E_pad, pad_width, mode=pad_mode)
+    E_pad = pad_fields(E, periodic_axes)
 
     dyEz = (jnp.roll(E_pad[2], -1, axis=1) - E_pad[2])[1:-1, 1:-1, 1:-1]
     dzEy = (jnp.roll(E_pad[1], -1, axis=2) - E_pad[1])[1:-1, 1:-1, 1:-1]
@@ -141,18 +121,18 @@ def curl_E(
         a = jnp.nan_to_num((b - 1.0) * sigma / (sigma + alpha * kappa) / kappa, nan=0.0, posinf=0.0, neginf=0.0)
 
         # Update auxiliary fields
-        psi_Hxy = b[4, :, :, :] * psi_Hxy + a[4, :, :, :] * dyEz
-        psi_Hxz = b[5, :, :, :] * psi_Hxz + a[5, :, :, :] * dzEy
-        psi_Hyz = b[5, :, :, :] * psi_Hyz + a[5, :, :, :] * dzEx
-        psi_Hyx = b[3, :, :, :] * psi_Hyx + a[3, :, :, :] * dxEz
-        psi_Hzx = b[3, :, :, :] * psi_Hzx + a[3, :, :, :] * dxEy
-        psi_Hzy = b[4, :, :, :] * psi_Hzy + a[4, :, :, :] * dyEx
+        psi_Hxy = b[4] * psi_Hxy + a[4] * dyEz
+        psi_Hxz = b[5] * psi_Hxz + a[5] * dzEy
+        psi_Hyz = b[5] * psi_Hyz + a[5] * dzEx
+        psi_Hyx = b[3] * psi_Hyx + a[3] * dxEz
+        psi_Hzx = b[3] * psi_Hzx + a[3] * dxEy
+        psi_Hzy = b[4] * psi_Hzy + a[4] * dyEx
 
     psi_H_updated = jnp.stack((psi_Hxy, psi_Hxz, psi_Hyz, psi_Hyx, psi_Hzx, psi_Hzy), axis=0)
 
-    curl_x = (1.0 / kappa[1, :, :, :] * dyEz + psi_Hxy) - (1.0 / kappa[2, :, :, :] * dzEy + psi_Hxz)
-    curl_y = (1.0 / kappa[2, :, :, :] * dzEx + psi_Hyz) - (1.0 / kappa[0, :, :, :] * dxEz + psi_Hyx)
-    curl_z = (1.0 / kappa[0, :, :, :] * dxEy + psi_Hzx) - (1.0 / kappa[1, :, :, :] * dyEx + psi_Hzy)
+    curl_x = (1.0 / kappa[1] * dyEz + psi_Hxy) - (1.0 / kappa[2] * dzEy + psi_Hxz)
+    curl_y = (1.0 / kappa[2] * dzEx + psi_Hyz) - (1.0 / kappa[0] * dxEz + psi_Hyx)
+    curl_z = (1.0 / kappa[0] * dxEy + psi_Hzx) - (1.0 / kappa[1] * dyEx + psi_Hzy)
     curl = jnp.stack((curl_x, curl_y, curl_z), axis=0)
 
     return curl, psi_H_updated
@@ -196,18 +176,7 @@ def curl_H(
         jax.Array: The curl of H - an E-type field located on the edges of the grid
                   (integer grid points). Has same shape as input (3, nx, ny, nz).
     """
-    # Pad each axis separately based on boundary conditions
-    H_pad = H
-    for i, periodic in enumerate(periodic_axes):
-        pad_mode = "wrap" if periodic else "constant"
-        # Create padding tuple for current axis
-        if i == 0:
-            pad_width = ((0, 0), (1, 1), (0, 0), (0, 0))
-        elif i == 1:
-            pad_width = ((0, 0), (0, 0), (1, 1), (0, 0))
-        else:  # i == 2
-            pad_width = ((0, 0), (0, 0), (0, 0), (1, 1))
-        H_pad = jnp.pad(H_pad, pad_width, mode=pad_mode)
+    H_pad = pad_fields(H, periodic_axes)
 
     dyHz = (H_pad[2] - jnp.roll(H_pad[2], 1, axis=1))[1:-1, 1:-1, 1:-1]
     dzHy = (H_pad[1] - jnp.roll(H_pad[1], 1, axis=2))[1:-1, 1:-1, 1:-1]
@@ -225,18 +194,18 @@ def curl_H(
         a = jnp.nan_to_num((b - 1.0) * sigma / (sigma + alpha * kappa) / kappa, nan=0.0, posinf=0.0, neginf=0.0)
 
         # Update auxiliary fields
-        psi_Exy = b[1, :, :, :] * psi_Exy + a[1, :, :, :] * dyHz
-        psi_Exz = b[2, :, :, :] * psi_Exz + a[2, :, :, :] * dzHy
-        psi_Eyz = b[2, :, :, :] * psi_Eyz + a[2, :, :, :] * dzHx
-        psi_Eyx = b[0, :, :, :] * psi_Eyx + a[0, :, :, :] * dxHz
-        psi_Ezx = b[0, :, :, :] * psi_Ezx + a[0, :, :, :] * dxHy
-        psi_Ezy = b[1, :, :, :] * psi_Ezy + a[1, :, :, :] * dyHx
+        psi_Exy = b[1] * psi_Exy + a[1] * dyHz
+        psi_Exz = b[2] * psi_Exz + a[2] * dzHy
+        psi_Eyz = b[2] * psi_Eyz + a[2] * dzHx
+        psi_Eyx = b[0] * psi_Eyx + a[0] * dxHz
+        psi_Ezx = b[0] * psi_Ezx + a[0] * dxHy
+        psi_Ezy = b[1] * psi_Ezy + a[1] * dyHx
 
     psi_E_updated = jnp.stack((psi_Exy, psi_Exz, psi_Eyz, psi_Eyx, psi_Ezx, psi_Ezy), axis=0)
 
-    curl_x = (1.0 / kappa[1, :, :, :] * dyHz + psi_Exy) - (1.0 / kappa[2, :, :, :] * dzHy + psi_Exz)
-    curl_y = (1.0 / kappa[2, :, :, :] * dzHx + psi_Eyz) - (1.0 / kappa[0, :, :, :] * dxHz + psi_Eyx)
-    curl_z = (1.0 / kappa[0, :, :, :] * dxHy + psi_Ezx) - (1.0 / kappa[1, :, :, :] * dyHx + psi_Ezy)
+    curl_x = (1.0 / kappa[1] * dyHz + psi_Exy) - (1.0 / kappa[2] * dzHy + psi_Exz)
+    curl_y = (1.0 / kappa[2] * dzHx + psi_Eyz) - (1.0 / kappa[0] * dxHz + psi_Eyx)
+    curl_z = (1.0 / kappa[0] * dxHy + psi_Ezx) - (1.0 / kappa[1] * dyHx + psi_Ezy)
     curl = jnp.stack((curl_x, curl_y, curl_z), axis=0)
 
     return curl, psi_E_updated

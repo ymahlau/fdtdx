@@ -1,5 +1,4 @@
 import math
-from typing import overload
 
 from fdtdx.core.jax.pytrees import TreeClass, frozen_field
 
@@ -62,8 +61,8 @@ class Material(TreeClass):
     in electromagnetic simulations. Supports both isotropic and anisotropic materials.
 
     Note:
-        All material properties are stored internally as 3-tuples (x, y, z components).
-        Scalar inputs are automatically broadcast to all three components.
+        All material properties are stored internally as 9-tuples (xx, xy, xz, yx, yy, yz, zx, zy, zz components).
+        Scalar inputs are automatically broadcast to all diagonal components.
 
     """
 
@@ -120,106 +119,6 @@ class Material(TreeClass):
         default=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         on_setattr=[_normalize_material_property],
     )
-
-    @overload
-    def __init__(
-        self,
-        *,
-        permittivity: float = 1.0,
-        permeability: float = 1.0,
-        electric_conductivity: float = 0.0,
-        magnetic_conductivity: float = 0.0,
-    ) -> None: ...
-
-    @overload
-    def __init__(
-        self,
-        *,
-        permittivity: tuple[float, float, float] = (1.0, 1.0, 1.0),
-        permeability: tuple[float, float, float] = (1.0, 1.0, 1.0),
-        electric_conductivity: tuple[float, float, float] = (0.0, 0.0, 0.0),
-        magnetic_conductivity: tuple[float, float, float] = (0.0, 0.0, 0.0),
-    ) -> None: ...
-
-    @overload
-    def __init__(
-        self,
-        *,
-        permittivity: tuple[float, float, float, float, float, float, float, float, float] = (
-            1.0,
-            0.0,
-            0.0,
-            0.0,
-            1.0,
-            0.0,
-            0.0,
-            0.0,
-            1.0,
-        ),
-        permeability: tuple[float, float, float, float, float, float, float, float, float] = (
-            1.0,
-            0.0,
-            0.0,
-            0.0,
-            1.0,
-            0.0,
-            0.0,
-            0.0,
-            1.0,
-        ),
-        electric_conductivity: tuple[float, float, float, float, float, float, float, float, float] = (
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-        ),
-        magnetic_conductivity: tuple[float, float, float, float, float, float, float, float, float] = (
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-        ),
-    ) -> None: ...
-
-    @overload
-    def __init__(
-        self,
-        *,
-        permittivity: tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]] = (
-            (1.0, 0.0, 0.0),
-            (0.0, 1.0, 0.0),
-            (0.0, 0.0, 1.0),
-        ),
-        permeability: tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]] = (
-            (1.0, 0.0, 0.0),
-            (0.0, 1.0, 0.0),
-            (0.0, 0.0, 1.0),
-        ),
-        electric_conductivity: tuple[
-            tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]
-        ] = (
-            (0.0, 0.0, 0.0),
-            (0.0, 0.0, 0.0),
-            (0.0, 0.0, 0.0),
-        ),
-        magnetic_conductivity: tuple[
-            tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]
-        ] = (
-            (0.0, 0.0, 0.0),
-            (0.0, 0.0, 0.0),
-            (0.0, 0.0, 0.0),
-        ),
-    ) -> None: ...
 
     def __init__(
         self,
@@ -281,6 +180,7 @@ class Material(TreeClass):
             0.0,
         ),
     ) -> None:
+        # Normalize inputs and set attributes using object.__setattr__ for frozen fields
         object.__setattr__(self, "permittivity", _normalize_material_property(permittivity))
         object.__setattr__(self, "permeability", _normalize_material_property(permeability))
         object.__setattr__(self, "electric_conductivity", _normalize_material_property(electric_conductivity))

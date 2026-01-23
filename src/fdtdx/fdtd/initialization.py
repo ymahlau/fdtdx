@@ -166,7 +166,7 @@ def apply_params(
                 diagonally_anisotropic=diagonally_anisotropic,
             )
         )  # shape: (num_materials, num_components)
-        if num_perm_components == 1 or num_perm_components == 3:
+        if isotropic or diagonally_anisotropic:
             inv_allowed = (1.0 / allowed_perm_array)[:, :, None, None, None]
         else:
             # Fully anisotropic: reshape to 3x3 matrix, invert, and flatten back to 9 elements

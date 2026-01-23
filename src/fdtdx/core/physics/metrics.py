@@ -6,8 +6,6 @@ All functions support JAX's automatic differentiation and work with the standard
 FDTD field array shapes.
 """
 
-from typing import cast
-
 import jax
 import jax.numpy as jnp
 
@@ -37,8 +35,8 @@ def compute_energy(
     inv_mu_shape = getattr(inv_permeability, "shape", ())
 
     if (len(inv_eps_shape) > 0 and inv_eps_shape[0] == 9) or (len(inv_mu_shape) > 0 and inv_mu_shape[0] == 9):
-        inv_permittivity = cast(jax.Array, expand_to_3x3(inv_permittivity))
-        inv_permeability = cast(jax.Array, expand_to_3x3(inv_permeability))
+        inv_permittivity = expand_to_3x3(inv_permittivity)
+        inv_permeability = expand_to_3x3(inv_permeability)
 
         # Invert the 3x3 matrices to get eps and mu
         perm = (2, 3, 4, 0, 1)  # (3, 3, nx, ny, nz) -> (nx, ny, nz, 3, 3)
