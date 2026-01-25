@@ -1,3 +1,5 @@
+import functools
+
 import jax.numpy as jnp
 import numpy as np
 
@@ -58,3 +60,24 @@ def test_numpy_extended_precision_semantics():
     if hasattr(np, "complex256"):
         is_real = np.dtype(np.complex256).itemsize > np.dtype(np.complex128).itemsize
         assert (np.complex256 in PHYSICAL_DTYPES) == is_real
+
+
+def test_physical_dtypes_called_once():
+    """lru_cache(maxsize=1) should guarantee a single execution."""
+    calls = {"n": 0}
+
+    @functools.lru_cache(maxsize=1)
+    def _physical_dtypes_test():
+        calls["n"] += 1
+        return ("dummy",)
+
+    # multiple calls
+    a = _physical_dtypes_test()
+    b = _physical_dtypes_test()
+    c = _physical_dtypes_test()
+
+    assert a == ("dummy",)
+    assert b is a
+    assert c is a
+
+    assert calls["n"] == 1

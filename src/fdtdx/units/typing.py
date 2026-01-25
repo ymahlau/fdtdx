@@ -65,7 +65,7 @@ NonPhysicalArrayLike = Union[
 
 def _jax_dtype_works(dtype: Any) -> bool:
     """
-    Conservative check: dtype must be constructible and usable in a simple op
+    dtype must be constructible and usable in a simple op
     on the current default backend.
     """
     try:
