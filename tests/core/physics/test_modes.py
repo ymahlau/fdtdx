@@ -13,7 +13,7 @@ from fdtdx.core.physics.modes import (
     tidy3d_mode_computation_wrapper,
 )
 from fdtdx.core.wavelength import WaveCharacter
-from fdtdx.units import A, V, m
+from fdtdx.units import A, Hz, V, m
 
 
 class TestModeTupleType:
@@ -162,7 +162,7 @@ class TestComputeMode:
     """Test the compute_mode function."""
 
     @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
-    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
+    @patch("fdtdx.core.physics.modes.normalize_by_averaged_flux")
     def test_compute_mode_basic(self, mock_normalize, mock_tidy3d_wrapper):
         """Test basic compute_mode functionality."""
         # Mock the tidy3d wrapper
@@ -185,13 +185,14 @@ class TestComputeMode:
 
         # Test inputs
         frequency = 2e14  # 200 THz
+        wave_character = WaveCharacter(frequency=frequency * Hz)
         inv_permittivities = jnp.ones((1, 5, 5)) * 0.25  # eps = 4.0
         inv_permeabilities = 1.0  # mu = 1.0
-        resolution = 1e-8  # 10 nm
+        resolution = 1e-8 * m  # 10 nm
 
         # Test the function
         E, H, neff = compute_mode(
-            frequency=frequency,
+            wave_character=wave_character,
             inv_permittivities=inv_permittivities,
             inv_permeabilities=inv_permeabilities,
             resolution=resolution,
@@ -207,13 +208,14 @@ class TestComputeMode:
     def test_invalid_permittivities_shape(self):
         """Test that invalid permittivities shape raises exception."""
         frequency = 2e14
+        wave_character = WaveCharacter(frequency=frequency * Hz)
         # 3D array but not squeezable to 2D
         inv_permittivities = jnp.ones((2, 2, 2))
         inv_permeabilities = 1.0
-        resolution = 1e-8
+        resolution = 1e-8 * m
 
         with pytest.raises(Exception, match="Invalid shape of inv_permittivities"):
-            compute_mode(frequency, inv_permittivities, inv_permeabilities, resolution, "+")
+            compute_mode(wave_character, inv_permittivities, inv_permeabilities, resolution, "+")
 
     @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
     def test_different_propagation_axes(self, mock_tidy3d_wrapper):
@@ -229,8 +231,11 @@ class TestComputeMode:
         )
         mock_tidy3d_wrapper.return_value = [mock_mode]
 
-        # Mock normalize_by_poynting_flux to return simple arrays
-        with patch("fdtdx.core.physics.modes.normalize_by_poynting_flux") as mock_normalize:
+        frequency = 2e14
+        wave_character = WaveCharacter(frequency=frequency * Hz)
+
+        # Mock normalize_by_averaged_flux to return simple arrays
+        with patch("fdtdx.core.physics.modes.normalize_by_averaged_flux") as mock_normalize:
             mock_normalize.return_value = (
                 jnp.ones((3, 3, 1, 4), dtype=jnp.complex64),
                 jnp.ones((3, 3, 1, 4), dtype=jnp.complex64),
@@ -238,12 +243,12 @@ class TestComputeMode:
 
             # Test propagation along axis 0 (shape: 1, 3, 4)
             inv_permittivities = jnp.ones((1, 3, 4))
-            E, H, neff = compute_mode(2e14, inv_permittivities, 1.0, 1e-8, "+")
+            E, H, neff = compute_mode(wave_character, inv_permittivities, 1.0, 1e-8 * m, "+")
             assert E.shape == (3, 3, 1, 4)
 
             # Test propagation along axis 1 (shape: 3, 1, 4)
             inv_permittivities = jnp.ones((3, 1, 4))
-            E, H, neff = compute_mode(2e14, inv_permittivities, 1.0, 1e-8, "+")
+            E, H, neff = compute_mode(wave_character, inv_permittivities, 1.0, 1e-8 * m, "+")
             assert E.shape == (3, 3, 1, 4)  # Note: axis handling in the function
 
 
