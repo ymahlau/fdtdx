@@ -15,12 +15,12 @@ class TestFraction(unittest.TestCase):
 
     def test_string_representation(self):
         """Test __str__ and __repr__ methods."""
-        self.assertEqual(str(self.f1), "1 / 2")
-        self.assertEqual(str(self.f2), "1 / 3")
+        self.assertEqual(str(self.f1), "(1/2)")
+        self.assertEqual(str(self.f2), "(1/3)")
         self.assertEqual(str(self.zero), "0")
         self.assertEqual(str(self.one), "1")
         self.assertEqual(str(Fraction(5, 1)), "5")
-        self.assertEqual(repr(self.f1), "1 / 2")
+        self.assertEqual(repr(self.f1), "(1/2)")
 
     def test_reduction(self):
         """Test fraction reduction."""
