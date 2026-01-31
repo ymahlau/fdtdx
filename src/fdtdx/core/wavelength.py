@@ -1,5 +1,6 @@
 from fdtdx import constants
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
+from fdtdx.units import Hz, m, s
 from fdtdx.units.unitful import Unitful
 
 
@@ -29,8 +30,22 @@ class WaveCharacter(TreeClass):
         self._check_input()
 
     def _check_input(self):
+        # Validate input: exactly one of Period, Frequency, or Wavelength must be provided.
         if sum([self.period is not None, self.frequency is not None, self.wavelength is not None]) != 1:
             raise Exception("Need to set exactly one of Period, Frequency or Wavelength in WaveCharacter")
+
+        # Validate unit dimensions for the provided quantity.
+        if self.frequency is not None:
+            assert isinstance(self.frequency, Unitful)
+            assert self.frequency.unit.dim == Hz.unit.dim, "Please specify frequency in Hz"
+
+        if self.wavelength is not None:
+            assert isinstance(self.wavelength, Unitful)
+            assert self.wavelength.unit.dim == m.unit.dim, "Please specify wavelength in meter"
+
+        if self.period is not None:
+            assert isinstance(self.period, Unitful)
+            assert self.period.unit.dim == s.unit.dim, "Please specify period in seconds"
 
     def get_period(self) -> Unitful:
         if self.period is None:
