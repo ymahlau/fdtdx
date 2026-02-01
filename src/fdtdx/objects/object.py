@@ -81,7 +81,7 @@ class PositionConstraint:
     other_object_positions: tuple[float, ...]
 
     #: Optional real-space margins between objects
-    margins: tuple[float, ...]
+    margins: tuple[Unitful, ...]
 
     #: Optional grid-space margins between objects
     grid_margins: tuple[int, ...]
@@ -113,7 +113,7 @@ class SizeConstraint:
     proportions: tuple[float, ...]
 
     #: Additional real-space size offsets
-    offsets: tuple[float, ...]
+    offsets: tuple[Unitful, ...]
 
     #: Additional grid-space size offsets
     grid_offsets: tuple[int, ...]
@@ -145,7 +145,7 @@ class SizeExtensionConstraint:
     other_position: float
 
     #: Additional real-space offset
-    offset: float
+    offset: Unitful
 
     #: Additional grid-space offset
     grid_offset: int
@@ -192,7 +192,7 @@ class RealCoordinateConstraint:
     sides: tuple[Literal["+", "-"], ...]
 
     #: Real-space coordinates to align with
-    coordinates: tuple[float, ...]
+    coordinates: tuple[Unitful, ...]
 
 
 @autoinit
@@ -499,7 +499,7 @@ class SimulationObject(TreeClass, ABC):
         axes: tuple[int, ...] | int = (0, 1, 2),
         own_positions: tuple[float, ...] | float | None = None,
         other_positions: tuple[float, ...] | float | None = None,
-        margins: tuple[float, ...] | float | None = None,
+        margins: tuple[Unitful, ...] | Unitful | None = None,
         grid_margins: tuple[int, ...] | int | None = None,
     ) -> PositionConstraint:
         """Creates a PositionConstraint that places this object at the same position as another object.

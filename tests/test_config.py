@@ -105,6 +105,9 @@ def test_simulation_config_unitful_array_inputs():
     """Test SimulationConfig with Unitful array inputs for time and resolution"""
     # Create array inputs (though config likely expects scalars, test robustness)
     resolution_vals = jnp.array([10e-9])
+    # Using an array value like jnp.array([1e-12]) can trigger best_scale during Unitful construction.
+    # The resulting log_offset may be large, and 10**log_offset becomes a huge Python int that JAX
+    # may parse as int32, causing an overflow.
     time_vals = jnp.array([1e-12])
 
     resolution = Unitful(val=resolution_vals, unit=Unit(scale=0, dim={SI.m: 1}))

@@ -20,6 +20,7 @@ from fdtdx.typing import (
     PartialRealShape3D,
     SliceTuple3D,
 )
+from fdtdx.units.unitful import Unitful
 
 
 @autoinit
@@ -76,12 +77,16 @@ class Device(OrderableObject, ABC):
         return self._single_voxel_grid_shape
 
     @property
-    def single_voxel_real_shape(self) -> tuple[float, float, float]:
-        """Calculate the shape of a single voxel in real (physical) coordinates.
+    def single_voxel_real_shape(self) -> tuple[Unitful, Unitful, Unitful]:
+        """Physical size of a single voxel.
+
+        This converts the voxel extent from grid/cell units to real (physical) length units by
+        multiplying the per-axis voxel size in grid cells (`single_voxel_grid_shape`) with the
+        simulation spatial resolution (`config.resolution`).
 
         Returns:
-            tuple[float, float, float]: Tuple of (x,y,z) dimensions in real units, computed by multiplying
-                the grid shape by the simulation resolution.
+            tuple[Unitful, Unitful, Unitful]: (dx, dy, dz) of a single voxel as physical lengths
+            (e.g., in m / um / nm depending on `resolution`), each carrying a length unit.
         """
         grid_shape = self.single_voxel_grid_shape
         return (
@@ -121,7 +126,7 @@ class Device(OrderableObject, ABC):
             if partial_grid is not None:
                 voxel_grid_shape.append(partial_grid)
             elif partial_real is not None:
-                voxel_grid_shape.append(round(partial_real / config.resolution))
+                voxel_grid_shape.append(round((partial_real / config.resolution).float_materialise()))
             else:
                 raise Exception(f"Multi-Material voxels not specified in axis: {axis=}")
 
@@ -130,8 +135,8 @@ class Device(OrderableObject, ABC):
         # sanity checks on the voxel shape
         for axis in range(3):
             float_div = is_float_divisible(
-                self.single_voxel_real_shape[axis],
-                self._config.resolution,
+                self.single_voxel_real_shape[axis].float_value(),
+                self._config.resolution.float_value(),
             )
             if not float_div:
                 raise Exception(f"Not divisible: {self.single_voxel_real_shape[axis]=}, {self._config.resolution=}")

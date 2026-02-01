@@ -1,11 +1,12 @@
 import jax
 import jax.numpy as jnp
-import numpy as np
 
+import fdtdx.functional as ff
 from fdtdx.core.grid import polygon_to_mask
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
+from fdtdx.units.unitful import Unitful
 
 
 @autoinit
@@ -21,8 +22,8 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
     #: The extrusion axis.
     axis: int = frozen_field()
 
-    #: numpy array of shape (N, 2) specifying the position of vertices in metrical units (meter).
-    vertices: np.ndarray = frozen_field()
+    #: Unitful array of shape (N, 2) giving vertex positions as physical lengths (meters).
+    vertices: Unitful = frozen_field()
 
     @property
     def horizontal_axis(self) -> int:
@@ -43,10 +44,10 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
         return 1 if self.axis == 2 else 2
 
     @property
-    def centered_vertices(self) -> np.ndarray:
+    def centered_vertices(self) -> Unitful:
         vx = self.vertices[:, 0] + 0.5 * self.real_shape[self.horizontal_axis]
         vy = self.vertices[:, 1] + 0.5 * self.real_shape[self.vertical_axis]
-        return np.stack((vx, vy), axis=-1)
+        return ff.stack((vx, vy), axis=-1)
 
     def get_voxel_mask_for_shape(self) -> jax.Array:
         n_horizontal = self.grid_shape[self.horizontal_axis]

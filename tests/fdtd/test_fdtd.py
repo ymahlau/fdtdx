@@ -6,6 +6,7 @@ from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.fdtd import checkpointed_fdtd, custom_fdtd_forward, reversible_fdtd
 from fdtdx.objects.object import SimulationObject
+from fdtdx.units import m, s
 
 
 class DummySimulationObject(SimulationObject):
@@ -50,8 +51,8 @@ def empty_objects():
 @pytest.fixture
 def dummy_config():
     return SimulationConfig(
-        time=0.1,
-        resolution=1.0,
+        time=0.1 * s,
+        resolution=1.0 * m,
         backend="gpu",
         dtype=jnp.float32,
         courant_factor=0.99,
@@ -98,8 +99,8 @@ def test_custom_fdtd_forward_runs(dummy_arrays, dummy_objects, dummy_config):
 
 def test_zero_time(dummy_arrays, dummy_objects):
     config = SimulationConfig(
-        time=0.0,
-        resolution=1.0,
+        time=0.0 * s,
+        resolution=1.0 * m,
         backend="gpu",
         dtype=jnp.float32,
         courant_factor=0.99,
