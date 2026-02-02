@@ -95,6 +95,17 @@ def test_get_orthogonal_vector_missing_wave_vector_info():
         )
 
 
+def test_get_orthogonal_vector_redundant_wave_vector_info():
+    """Test exception when both wave_vector and direction/propagation_axis provided."""
+    with pytest.raises(Exception):
+        get_orthogonal_vector(
+            v_E=jnp.array([1.0, 0.0, 0.0]),
+            wave_vector=jnp.array([0.0, 0.0, 1.0]),
+            direction="+",
+            propagation_axis=2,
+        )
+
+
 def test_get_single_directional_rotation_matrix_x_axis():
     """Test rotation matrix generation around x-axis."""
     angle = jnp.pi / 2
@@ -198,4 +209,28 @@ def test_rotate_vector_combined_rotations():
     result = rotate_vector(vector, azimuth, elevation, axes_tuple)
 
     # Result should be normalized (assuming input was normalized)
+    assert jnp.allclose(jnp.linalg.norm(result), 1.0, atol=1e-6)
+
+
+def test_rotate_vector_preserves_magnitude():
+    """Test that rotation preserves vector magnitude for non-unit vectors."""
+    vector = jnp.array([3.0, 4.0, 0.0])  # magnitude = 5
+    axes_tuple = (0, 1, 2)
+    azimuth = jnp.pi / 3
+    elevation = jnp.pi / 6
+    result = rotate_vector(vector, azimuth, elevation, axes_tuple)
+
+    original_norm = jnp.linalg.norm(vector)
+    result_norm = jnp.linalg.norm(result)
+    assert jnp.allclose(result_norm, original_norm, atol=1e-6)
+
+
+def test_rotate_vector_different_axes_with_rotation():
+    """Test vector rotation with different axes configuration and non-zero angles."""
+    vector = jnp.array([0.0, 1.0, 0.0])
+    axes_tuple = (1, 2, 0)  # y=horizontal, z=vertical, x=propagation
+    azimuth = jnp.pi / 2
+    result = rotate_vector(vector, azimuth, 0.0, axes_tuple)
+
+    # Result should still have unit magnitude
     assert jnp.allclose(jnp.linalg.norm(result), 1.0, atol=1e-6)

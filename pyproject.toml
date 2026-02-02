@@ -42,6 +42,9 @@ extend-select = ["I"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "unit: marks tests as unit tests (deselect with '-m \"not unit\"')",
+]
 
 [project.optional-dependencies]
 dev = [
