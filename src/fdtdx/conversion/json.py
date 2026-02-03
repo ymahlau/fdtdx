@@ -119,10 +119,21 @@ def _import_obj_from_json(obj: dict | float | int | str | bool | None) -> Any:
         imported_vals = [_import_obj_from_json(v) for v in vals if v not in ["__module__", "__name__"]]
         return cls(imported_vals)
     # dictionary
-    if "__name__" == "dict":
+    if name == "dict":
         return {k: _import_obj_from_json(v) for k, v in obj.items() if k not in ["__module__", "__name__"]}
     # other classes
     kwargs_dict = {k: _import_obj_from_json(v) for k, v in obj.items() if k not in ["__module__", "__name__"]}
+
+    # Map JSON dimension strings back to SI enum members to restore correct key types for Unit.
+    if name == "Unit" and "dim" in kwargs_dict:
+        full_name_map = {}
+        for s in SI:
+            full_name_map[s.name] = s
+            full_name_map[s.value] = s
+        raw_dim = kwargs_dict["dim"]
+        if isinstance(raw_dim, dict):
+            kwargs_dict["dim"] = {full_name_map.get(k, k): v for k, v in raw_dim.items()}
+
     return cls(**kwargs_dict)
 
 
