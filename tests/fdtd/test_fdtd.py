@@ -6,7 +6,7 @@ from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.fdtd import checkpointed_fdtd, custom_fdtd_forward, reversible_fdtd
 from fdtdx.objects.object import SimulationObject
-from fdtdx.units import m, s
+from fdtdx.units import A_per_m, V_per_m, inv_eps, inv_mu, m, s
 
 
 class DummySimulationObject(SimulationObject):
@@ -25,10 +25,10 @@ def dummy_arrays():
     mat_shape = (2, 2, 2)  # scalar per voxel
 
     return ArrayContainer(
-        E=jnp.zeros(field_shape),
-        H=jnp.zeros(field_shape),
-        inv_permittivities=jnp.ones(mat_shape),
-        inv_permeabilities=jnp.ones(mat_shape),
+        E=jnp.zeros(field_shape) * V_per_m,
+        H=jnp.zeros(field_shape) * A_per_m,
+        inv_permittivities=jnp.ones(mat_shape) * inv_eps,
+        inv_permeabilities=jnp.ones(mat_shape) * inv_mu,
         boundary_states={},
         detector_states={},
         recording_state=None,
@@ -55,7 +55,7 @@ def dummy_config():
         resolution=1.0 * m,
         backend="gpu",
         dtype=jnp.float32,
-        courant_factor=0.99,
+        courant_factor=0.99 * s,
         gradient_config=None,
     )
 

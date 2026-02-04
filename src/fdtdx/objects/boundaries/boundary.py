@@ -75,7 +75,7 @@ class BaseBoundary(SimulationObject, ABC, Generic[T]):
         self,
         E: Unitful,
         boundary_state: T,
-        inverse_permittivity: jax.Array,
+        inverse_permittivity: jax.Array | Unitful,
     ) -> Unitful:
         raise NotImplementedError()
 
@@ -84,7 +84,7 @@ class BaseBoundary(SimulationObject, ABC, Generic[T]):
         self,
         H: Unitful,
         boundary_state: T,
-        inverse_permeability: jax.Array | float,
+        inverse_permeability: jax.Array | float | Unitful,
     ) -> Unitful:
         raise NotImplementedError()
 

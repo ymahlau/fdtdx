@@ -100,6 +100,16 @@ V_per_m = V / m
 A_per_m_unit = Unit(scale=0, dim={SI.A: 1, SI.m: -1})
 A_per_m = A / m
 
+eps_unit = Unit(scale=0, dim={SI.kg: -1, SI.m: -3, SI.s: 4, SI.A: 2})
+inv_eps_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 3, SI.s: -4, SI.A: -2})
+eps = Unitful(val=1.0, unit=eps_unit)
+inv_eps = Unitful(val=1.0, unit=inv_eps_unit)
+
+mu_unit = Unit(scale=0, dim={SI.kg: 1, SI.m: 1, SI.s: -2, SI.A: -2})
+inv_mu_unit = Unit(scale=0, dim={SI.kg: -1, SI.m: -1, SI.s: 2, SI.A: 2})
+mu = Unitful(val=1.0, unit=mu_unit)
+inv_mu = Unitful(val=1.0, unit=inv_mu_unit)
+
 __all__ = [
     "SI",
     "Unitful",
