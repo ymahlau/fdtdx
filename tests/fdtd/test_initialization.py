@@ -1384,3 +1384,65 @@ def test_extend_to_inf_with_position_constraint_creating_lower_bound(simple_conf
 
     # obj2: positioned after obj1 (20) + margin (5) = 25, size 20, so upper at 45
     assert resolved_slices["obj2"][0] == (25, 45)
+
+
+def test_extend_to_inf_lower_bound_one_axis_only(simple_config, simple_volume, simple_material):
+    """Test lower bound on just one axis to ensure the if check is covered.
+
+    This specifically tests that (o, 1) is checked before removal.
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(15, None, None),  # Only x has size
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    # Set lower boundary only for x-axis
+    constraint = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[10])
+
+    constraints = [constraint]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should succeed
+    assert errors["obj1"] is None
+
+    # x-axis: lower=10, size=15, upper=25
+    assert resolved_slices["obj1"][0] == (10, 25)
+
+    # y and z extend to volume
+    assert resolved_slices["obj1"][1] == (0, 100)
+    assert resolved_slices["obj1"][2] == (0, 100)
+
+
+def test_extend_to_inf_upper_bound_one_axis_only(simple_config, simple_volume, simple_material):
+    """Test upper bound on just one axis to ensure the if check is covered.
+
+    This specifically tests that (o, 0) is checked before removal.
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(15, None, None),  # Only x has size
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    # Set upper boundary only for x-axis
+    constraint = GridCoordinateConstraint(object="obj1", axes=[0], sides=["+"], coordinates=[50])
+
+    constraints = [constraint]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should succeed
+    assert errors["obj1"] is None
+
+    # x-axis: upper=50, size=15, lower=35
+    assert resolved_slices["obj1"][0] == (35, 50)
+
+    # y and z extend to volume
+    assert resolved_slices["obj1"][1] == (0, 100)
+    assert resolved_slices["obj1"][2] == (0, 100)
