@@ -112,7 +112,6 @@ def export_vti(
         offset = (grid_slice[0].start, grid_slice[1].start, grid_slice[2].start)
 
     shape = next(iter(cell_data.values())).shape[-3:]
-    nx, ny, nz = shape
 
     assert all(a.shape[-3:] == shape for a in cell_data.values()), (
         "All arrays in a VTI file need to be defined over the same underlying grid."
@@ -124,6 +123,8 @@ def export_vti(
     assert all(str(a.dtype) in NUMPY_TO_VTK_DTYPE for a in cell_data.values()), (
         f"VTI files only support dtypes {list(NUMPY_TO_VTK_DTYPE.keys())}."
     )
+
+    nx, ny, nz = shape
 
     all_encoded_data = []
     current_offset = 0
