@@ -1,13 +1,13 @@
-import pytest
-
 import jax
 import jax.numpy as jnp
+import pytest
 
 import fdtdx
 from fdtdx import (
-    export_vti, 
-    export_arrays_snapshot_to_vti, 
+    export_arrays_snapshot_to_vti,
+    export_vti,
 )
+
 
 def test_export_vti_file_creation(tmp_path):
     """Test that export_vti creates a valid file with expected XML tags."""
@@ -15,21 +15,18 @@ def test_export_vti_file_creation(tmp_path):
     nx, ny, nz = 10, 10, 10
     scalar_field = jnp.zeros((nx, ny, nz), dtype=jnp.float32)
     vector_field = jnp.zeros((3, nx, ny, nz), dtype=jnp.float32)
-    
-    cell_data = {
-        "pressure": scalar_field,
-        "velocity": vector_field
-    }
-    
+
+    cell_data = {"pressure": scalar_field, "velocity": vector_field}
+
     output_path = tmp_path / "test_output.vti"
     export_vti(cell_data, output_path, resolution=1e-9)
-    
+
     assert output_path.exists()
-    
+
     # Basic validation of file content
     with open(output_path, "rb") as f:
         content = f.read()
-        
+
     # Check XML structure basics
     assert b'<VTKFile type="ImageData"' in content
     assert b'WholeExtent="0 10 0 10 0 10"' in content
@@ -45,15 +42,15 @@ def test_export_vti_with_offset(tmp_path):
     nx, ny, nz = 5, 5, 5
     data = jnp.zeros((nx, ny, nz), dtype=jnp.float32)
     cell_data = {"field": data}
-    
-    offset = (10, 20, 30)
+
     output_path = tmp_path / "offset_test.vti"
-    
-    export_vti(cell_data, output_path, resolution=1.0, offset=offset)
-    
+
+    grid_slice = (slice(10, 15), slice(20, 25), slice(30, 35))
+    export_vti(cell_data, output_path, resolution=1.0, grid_slice=grid_slice)
+
     with open(output_path, "r", encoding="utf-8", errors="ignore") as f:
         content = f.read()
-        
+
     # Extent should be: x_start, x_end, y_start, y_end, z_start, z_end
     # x: 10 to 10+5=15, y: 20 to 20+5=25, z: 30 to 30+5=35
     expected_extent = 'WholeExtent="10 15 20 25 30 35"'
@@ -65,7 +62,7 @@ def test_export_vti_validation_errors(tmp_path):
     # Mismatched shapes
     data1 = jnp.zeros((10, 10, 10), dtype=jnp.float32)
     data2 = jnp.zeros((5, 5, 5), dtype=jnp.float32)
-    
+
     with pytest.raises(AssertionError, match="same underlying grid"):
         export_vti({"a": data1, "b": data2}, tmp_path / "fail.vti", 1.0)
 
@@ -84,8 +81,11 @@ def test_export_arrays_snapshot_to_vti(tmp_path):
     )
     volume = fdtdx.SimulationVolume(
         partial_real_shape=(2.0e-6, 2.0e-6, 2.0e-6),
+        material=fdtdx.Material(
+            permittivity=2.5, permeability=1.5, electric_conductivity=0.1, magnetic_conductivity=0.2
+        ),
     )
-    
+
     key, subkey = jax.random.split(key)
     objects, arrays, params, config, _ = fdtdx.place_objects(
         object_list=[volume],
@@ -111,7 +111,7 @@ def test_export_arrays_snapshot_to_vti(tmp_path):
     assert 'Name="permittivity"' in content
     assert 'Name="E"' in content
     assert 'Name="H"' in content
-    
+
     # Check spacing/resolution was passed correctly
-    res_str = f'{config.resolution} {config.resolution} {config.resolution}'
+    res_str = f"{config.resolution} {config.resolution} {config.resolution}"
     assert res_str in content
