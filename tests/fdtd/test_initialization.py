@@ -1446,3 +1446,76 @@ def test_extend_to_inf_upper_bound_one_axis_only(simple_config, simple_volume, s
     # y and z extend to volume
     assert resolved_slices["obj1"][1] == (0, 100)
     assert resolved_slices["obj1"][2] == (0, 100)
+
+
+def test_size_dependent_position_with_partial_real_position(simple_config, simple_volume, simple_material):
+    """Test scenario where position depends on size that is resolved through constraints.
+
+    Setup:
+    - Volume has fully specified size
+    - Object 2 has size constraint dependent on volume (half the size)
+    - Object 2 position is specified through place_at_center (partial_real_position)
+    - Object 3 has same_size constraint relative to object 2
+    - Object 3 position is specified through partial_real_position
+
+    This tests that the code can handle cases where:
+    1. Size of object 2 is not known initially but resolved through SizeConstraint
+    2. Position of object 2 must wait for size to be resolved
+    3. Size of object 3 depends on object 2's size
+    4. Position of object 3 must wait for its size to be resolved
+    """
+    # Object 2: size depends on volume, position at center
+    obj2 = UniformMaterialObject(
+        name="obj2",
+        partial_real_position=(50.0, 50.0, 50.0),  # Center at (50, 50, 50)
+        material=simple_material,
+    )
+
+    # Object 3: size depends on obj2, position specified
+    obj3 = UniformMaterialObject(
+        name="obj3",
+        partial_real_position=(25.0, None, None),  # x-center at 25
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj2, obj3]
+
+    constraints = [
+        # obj2 should be half the size of volume in all dimensions
+        SizeConstraint(
+            object="obj2",
+            other_object="volume",
+            axes=[0, 1, 2],
+            other_axes=[0, 1, 2],
+            proportions=[0.5, 0.5, 0.5],
+            grid_offsets=[0, 0, 0],
+            offsets=[None, None, None],
+        ),
+        # obj3 should have same size as obj2
+        SizeConstraint(
+            object="obj3",
+            other_object="obj2",
+            axes=[0, 1, 2],
+            other_axes=[0, 1, 2],
+            proportions=[1.0, 1.0, 1.0],
+            grid_offsets=[0, 0, 0],
+            offsets=[None, None, None],
+        ),
+    ]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should succeed
+    assert errors["obj2"] is None
+    assert errors["obj3"] is None
+
+    # obj2: size = 100 * 0.5 = 50, center at 50, so bounds are (25, 75)
+    assert resolved_slices["obj2"][0] == (25, 75)
+    assert resolved_slices["obj2"][1] == (25, 75)
+    assert resolved_slices["obj2"][2] == (25, 75)
+
+    # obj3: size = 50 (same as obj2), x-center at 25 so bounds are (0, 50)
+    # y and z extend from 0 since no position specified
+    assert resolved_slices["obj3"][0] == (0, 50)
+    assert resolved_slices["obj3"][1] == (0, 50)
+    assert resolved_slices["obj3"][2] == (0, 50)
