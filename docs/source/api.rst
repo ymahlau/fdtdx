@@ -25,9 +25,11 @@ API
     fdtdx.DiagonalSymmetry2D
     fdtdx.DtypeConversion
     fdtdx.EnergyDetector
+    fdtdx.export_arrays_snapshot_to_vti
     fdtdx.export_json
     fdtdx.export_json_str
     fdtdx.export_stl
+    fdtdx.export_vti
     fdtdx.ExtrudedPolygon
     fdtdx.field
     fdtdx.FieldDetector
