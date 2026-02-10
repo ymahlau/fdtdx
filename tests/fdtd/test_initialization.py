@@ -1519,3 +1519,128 @@ def test_size_dependent_position_with_partial_real_position(simple_config, simpl
     assert resolved_slices["obj3"][0] == (0, 50)
     assert resolved_slices["obj3"][1] == (0, 50)
     assert resolved_slices["obj3"][2] == (0, 50)
+
+
+def test_extend_to_inf_both_boundaries_known(simple_config, simple_volume, simple_material):
+    """Test extend-to-infinity when both boundaries are already known.
+
+    This tests lines 1102-1106 where both b0 and b1 are not None.
+    The object should not be extended.
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    # Set both boundaries explicitly
+    constraints = [
+        GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[10]),
+        GridCoordinateConstraint(object="obj1", axes=[0], sides=["+"], coordinates=[30]),
+        # Don't set y and z boundaries - they should extend
+    ]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should succeed
+    assert errors["obj1"] is None
+
+    # x-axis: both boundaries explicitly set, not extended
+    assert resolved_slices["obj1"][0] == (10, 30)
+
+    # y and z axes: no boundaries set, should extend to volume
+    assert resolved_slices["obj1"][1] == (0, 100)
+    assert resolved_slices["obj1"][2] == (0, 100)
+
+
+def test_extend_to_inf_lower_known_upper_computed(simple_config, simple_volume, simple_material):
+    """Test extend-to-infinity when lower bound is known and upper is computed from size.
+
+    This tests lines 1108-1110 where b0 is not None, b1 is None, and size is not None.
+    Upper boundary should be computed, not extended.
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(25, None, None),  # Only x has known size
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    # Set only the lower boundary for x-axis
+    constraint = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[15])
+
+    constraints = [constraint]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should succeed
+    assert errors["obj1"] is None
+
+    # x-axis: lower=15, size=25, so upper=40 (computed, not extended to 100)
+    assert resolved_slices["obj1"][0] == (15, 40)
+
+    # y and z: no size or boundaries, extend to volume
+    assert resolved_slices["obj1"][1] == (0, 100)
+    assert resolved_slices["obj1"][2] == (0, 100)
+
+
+def test_extend_to_inf_upper_known_lower_computed(simple_config, simple_volume, simple_material):
+    """Test extend-to-infinity when upper bound is known and lower is computed from size.
+
+    This tests lines 1112-1114 where b1 is not None, b0 is None, and size is not None.
+    Lower boundary should be computed, not extended.
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(30, None, None),  # Only x has known size
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    # Set only the upper boundary for x-axis
+    constraint = GridCoordinateConstraint(object="obj1", axes=[0], sides=["+"], coordinates=[80])
+
+    constraints = [constraint]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should succeed
+    assert errors["obj1"] is None
+
+    # x-axis: upper=80, size=30, so lower=50 (computed, not extended to 0)
+    assert resolved_slices["obj1"][0] == (50, 80)
+
+    # y and z: no size or boundaries, extend to volume
+    assert resolved_slices["obj1"][1] == (0, 100)
+    assert resolved_slices["obj1"][2] == (0, 100)
+
+
+def test_extend_to_inf_no_boundaries_with_size(simple_config, simple_volume, simple_material):
+    """Test extend-to-infinity when no boundaries are set but size is known.
+
+    This tests lines 1116-1120 where b0 is None, b1 is None, and size is not None.
+    Lower should extend from 0, upper should be computed from size.
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(40, 40, 40),  # Size is known
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    # No position constraints at all
+    constraints = []
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # Should succeed
+    assert errors["obj1"] is None
+
+    # All axes: no boundaries set, size=40, so extends from 0 to 40
+    assert resolved_slices["obj1"][0] == (0, 40)
+    assert resolved_slices["obj1"][1] == (0, 40)
+    assert resolved_slices["obj1"][2] == (0, 40)
