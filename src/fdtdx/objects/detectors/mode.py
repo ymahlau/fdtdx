@@ -48,6 +48,7 @@ class ModeOverlapDetector(PhasorDetector):
     plot: bool = frozen_field(default=False, init=False)  # noqa: DOC603, DOC601 # single scalar is useless for plotting
     _mode_E: jax.Array = private_field()
     _mode_H: jax.Array = private_field()
+    _mode_neff: jax.Array = private_field()  # not required for detection, used for inspection
 
     @property
     def propagation_axis(self) -> int:
@@ -84,7 +85,7 @@ class ModeOverlapDetector(PhasorDetector):
         else:
             inv_permeability_slice = inv_permeabilities
 
-        mode_E, mode_H, _ = compute_mode(
+        mode_E, mode_H, mode_neff = compute_mode(
             frequency=self.wave_characters[0].get_frequency(),
             inv_permittivities=inv_permittivity_slice,
             inv_permeabilities=inv_permeability_slice,
@@ -96,6 +97,7 @@ class ModeOverlapDetector(PhasorDetector):
 
         self = self.aset("_mode_E", mode_E, create_new_ok=True)
         self = self.aset("_mode_H", mode_H, create_new_ok=True)
+        self = self.aset("_mode_neff", mode_neff, create_new_ok=True)
         return self
 
     def compute_overlap_to_mode(

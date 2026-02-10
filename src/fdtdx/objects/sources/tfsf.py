@@ -144,41 +144,24 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         return center, azimuth, elevation
 
     @abstractmethod
-    def get_EH_variation(
-        self,
-        key: jax.Array,
-        inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array | float,
-    ) -> tuple[
-        jax.Array,  # E: (3, *grid_shape)
-        jax.Array,  # H: (3, *grid_shape)
-        jax.Array,  # time_offset_E: (3, *grid_shape)
-        jax.Array,  # time_offset_H: (3, *grid_shape)
-    ]:
-        # normal coordinates
-        raise NotImplementedError()
-
     def apply(
         self: Self,
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
     ) -> Self:
-        self = super().apply(
-            key=key,
-            inv_permittivities=inv_permittivities,
-            inv_permeabilities=inv_permeabilities,
-        )
-        E, H, time_offset_E, time_offset_H = self.get_EH_variation(
-            key=key,
-            inv_permittivities=inv_permittivities,
-            inv_permeabilities=inv_permeabilities,
-        )
-        self = self.aset("_E", E, create_new_ok=True)
-        self = self.aset("_H", H, create_new_ok=True)
-        self = self.aset("_time_offset_E", time_offset_E, create_new_ok=True)
-        self = self.aset("_time_offset_H", time_offset_H, create_new_ok=True)
-        return self
+        """
+        Subclasses must implement this method and populate the following private fields
+        using `self.aset`:
+            - `_E`: (3, *grid_shape)
+            - `_H`: (3, *grid_shape)
+            - `_time_offset_E`: (3, *grid_shape)
+            - `_time_offset_H`: (3, *grid_shape)
+
+        Returns:
+            Self: The updated instance with fields set.
+        """
+        raise NotImplementedError()
 
     def update_E(
         self,
