@@ -7,7 +7,7 @@ import jax.numpy as jnp
 from fdtdx.core.grid import calculate_time_offset_yee
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.linalg import get_wave_vector_raw, rotate_vector
-from fdtdx.core.misc import linear_interpolated_indexing, normalize_polarization_for_source
+from fdtdx.core.misc import expand_to_3x3, linear_interpolated_indexing, normalize_polarization_for_source
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.objects.sources.tfsf import TFSFPlaneSource
 
@@ -107,7 +107,33 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
             H = H / total_energy_root
 
         # adjust H for impedance of the medium
-        impedance = jnp.sqrt(inv_permittivities / inv_permeabilities)
+        # check if fully anisotropic
+        if (
+            isinstance(inv_permittivities, jax.Array)
+            and inv_permittivities.ndim >= 1
+            and inv_permittivities.shape[0] == 9
+        ) or (
+            isinstance(inv_permeabilities, jax.Array)
+            and inv_permeabilities.ndim >= 1
+            and inv_permeabilities.shape[0] == 9
+        ):
+            # convert to 3x3 tensors
+            inv_eps_tensor = expand_to_3x3(inv_permittivities)  # shape: (3, 3, Nx, Ny, Nz)
+            inv_mu_tensor = expand_to_3x3(inv_permeabilities)  # shape: (3, 3, Nx, Ny, Nz)
+
+            # invert to get eps and mu tensors
+            perm = (2, 3, 4, 0, 1)  # (3, 3, nx, ny, nz) -> (nx, ny, nz, 3, 3)
+            inv_perm = (3, 4, 0, 1, 2)  # (nx, ny, nz, 3, 3) -> (3, 3, nx, ny, nz)
+            eps = jnp.linalg.inv(inv_eps_tensor.transpose(perm)).transpose(inv_perm)
+            mu = jnp.linalg.inv(inv_mu_tensor.transpose(perm)).transpose(inv_perm)
+
+            # compute effective permittivity and permeability along polarization directions
+            eps_eff = jnp.einsum("i,ijxyz,j->xyz", e_pol, eps, e_pol)
+            mu_eff = jnp.einsum("i,ijxyz,j->xyz", h_pol, mu, h_pol)
+            impedance = jnp.sqrt(mu_eff / eps_eff)
+        else:
+            impedance = jnp.sqrt(inv_permittivities / inv_permeabilities)
+
         H = H / impedance
 
         time_offset_E, time_offset_H = calculate_time_offset_yee(

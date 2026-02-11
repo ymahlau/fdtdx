@@ -1,6 +1,7 @@
 from typing import Sequence
 
 import jax
+import jax.numpy as jnp
 
 from fdtdx.fdtd.container import ArrayContainer
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
@@ -68,3 +69,120 @@ def add_boundary_interfaces(
         arrays = arrays.at[k].set(v)
 
     return arrays
+
+
+def compute_anisotropic_update_matrices(
+    inv_material_prop: jax.Array,
+    sigma: jax.Array | None,
+    c: float,
+    eta_factor: float,
+) -> tuple[jax.Array, jax.Array]:
+    """Computes the A and B matrices for anisotropic FDTD updates.
+
+    Args:
+        inv_material_prop (jax.Array): Inverse material property tensor (3, 3, Nx, Ny, Nz)
+        sigma (jax.Array | None): Conductivity tensor (3, 3, Nx, Ny, Nz) or None
+        c (float): Courant number
+        eta_factor (float): eta0 for electric, 1/eta0 for magnetic
+
+    Returns:
+        tuple[jax.Array, jax.Array]: A and B matrices
+    """
+
+    M1 = jnp.eye(3)[:, :, None, None, None]
+    M2 = jnp.eye(3)[:, :, None, None, None]
+    if sigma is not None:
+        factor = c * eta_factor / 2 * jnp.einsum("ijxyz,jkxyz->ikxyz", inv_material_prop, sigma)
+        M1 += factor
+        M2 -= factor
+    perm = (2, 3, 4, 0, 1)  # (3, 3, Nx, Ny, Nz) -> (Nx, Ny, Nz, 3, 3)
+    inv_perm = (3, 4, 0, 1, 2)  # (Nx, Ny, Nz, 3, 3) -> (3, 3, Nx, Ny, Nz)
+    A = jnp.linalg.solve(M1.transpose(perm), M2.transpose(perm)).transpose(inv_perm)
+    B = c * jnp.linalg.solve(M1.transpose(perm), inv_material_prop.transpose(perm)).transpose(inv_perm)
+
+    return A, B
+
+
+def compute_anisotropic_update_matrices_reverse(
+    inv_material_prop: jax.Array,
+    sigma: jax.Array | None,
+    c: float,
+    eta_factor: float,
+) -> tuple[jax.Array, jax.Array]:
+    """Computes the A and B matrices for reverse anisotropic FDTD updates.
+
+    Args:
+        inv_material_prop (jax.Array): Inverse material property tensor (3, 3, Nx, Ny, Nz)
+        sigma (jax.Array | None): Conductivity tensor (3, 3, Nx, Ny, Nz) or None
+        c (float): Courant number
+        eta_factor (float): eta0 for electric, 1/eta0 for magnetic
+
+    Returns:
+        tuple[jax.Array, jax.Array]: A and B matrices
+    """
+    M1 = jnp.eye(3)[:, :, None, None, None]
+    M2 = jnp.eye(3)[:, :, None, None, None]
+    if sigma is not None:
+        factor = c * eta_factor / 2 * jnp.einsum("ijxyz,jkxyz->ikxyz", inv_material_prop, sigma)
+        M1 += factor
+        M2 -= factor
+    perm = (2, 3, 4, 0, 1)  # (3, 3, Nx, Ny, Nz) -> (Nx, Ny, Nz, 3, 3)
+    inv_perm = (3, 4, 0, 1, 2)  # (Nx, Ny, Nz, 3, 3) -> (3, 3, Nx, Ny, Nz)
+    A = jnp.linalg.solve(M2.transpose(perm), M1.transpose(perm)).transpose(inv_perm)
+    B = c * jnp.linalg.solve(M2.transpose(perm), inv_material_prop.transpose(perm)).transpose(inv_perm)
+
+    return A, B
+
+
+def avg_anisotropic_E_component(
+    field: jax.Array,
+    component: int,
+    location: int,
+) -> jax.Array:
+    """Averages an E field component at a given location.
+
+    Args:
+        field (jax.Array): E field to average (3, Nx, Ny, Nz)
+        component (int): Component to average, 0 for Ex, 1 for Ey, 2 for Ez
+        location (int): Location to calculate average, 0 for Ex, 1 for Ey, 2 for Ez
+
+    Returns:
+        jax.Array: Averaged E field component
+    """
+
+    return (
+        (
+            field[component]
+            + jnp.roll(field[component], -1, axis=location)
+            + jnp.roll(field[component], 1, axis=component)
+            + jnp.roll(field[component], (-1, 1), axis=(location, component))
+        )
+        / 4
+    )[1:-1, 1:-1, 1:-1]
+
+
+def avg_anisotropic_H_component(
+    field: jax.Array,
+    component: int,
+    location: int,
+) -> jax.Array:
+    """Averages an H field component at a given location.
+
+    Args:
+        field (jax.Array): H field to average (3, Nx, Ny, Nz)
+        component (int): Component to average, 0 for Hx, 1 for Hy, 2 for Hz
+        location (int): Location to calculate average, 0 for Hx, 1 for Hy, 2 for Hz
+
+    Returns:
+        jax.Array: Averaged H field component
+    """
+
+    return (
+        (
+            field[component]
+            + jnp.roll(field[component], 1, axis=location)
+            + jnp.roll(field[component], -1, axis=component)
+            + jnp.roll(field[component], (1, -1), axis=(location, component))
+        )
+        / 4
+    )[1:-1, 1:-1, 1:-1]

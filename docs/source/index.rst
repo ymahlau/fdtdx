@@ -53,6 +53,7 @@ Citation
 If you find this repository helpful for your work, please consider citing:
 
 .. code-block:: bibtex
+   
    @article{Mahlau2026,
       doi = {10.21105/joss.08912},
       url = {https://doi.org/10.21105/joss.08912},
@@ -72,6 +73,7 @@ If you find this repository helpful for your work, please consider citing:
    :caption: Contents:
    
    quickstart
+   examples
    advanced
    api
    contributing

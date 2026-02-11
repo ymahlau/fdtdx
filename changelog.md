@@ -5,10 +5,13 @@
 - added plot_field_slice function which creates 2x3 images (with colorbar) for given E and H fields (@renaissancenerd)
 - refactored Color with comprehensive colors from the XKCD color survey  (@renaissancenerd)
 - added option to export to VTI file for visualization with external tools (e.g., ParaView) (@l-berg)
+- Implemented support for anisotropic materials (diagonal and fully tensorial) (@rachsmith)
+- Added Component example notebook showcasing uniform plane source (@Shardy2907)
 
 ## Changed
 - fixed the detector plotting bug (#220) (@renaissancenerd)
 - refactored GaussianPulseProfile by adding fdtdx.WaveCharacter (#90) (@renaissancenerd)
+- Improved Documentation (@ymahlau)
 
 ## Removed
 
