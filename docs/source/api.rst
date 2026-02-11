@@ -51,7 +51,6 @@ API
     fdtdx.normalize_by_poynting_flux
     fdtdx.ObjectContainer
     fdtdx.OnOffSwitch
-    fdtdx.ParameterContainer
     fdtdx.ParameterTransformation
     fdtdx.PerfectlyMatchedLayer
     fdtdx.PeriodicBoundary
@@ -92,4 +91,3 @@ API
     fdtdx.UniformPlaneSource
     fdtdx.WaveCharacter
     fdtdx.wavelength_to_period
-    

@@ -57,6 +57,10 @@ autosummary_generate = True
 #     'exclude-members': '__init__, __new__, __post_init__, __repr__, __eq__, __hash__, __weakref__',
 #     'undoc-members': False,  # Don't document members without docstrings
 # }
+autodoc_type_aliases = {
+    'fdtdx.ParameterContainer': 'fdtdx.ParameterContainer',
+    'fdtdx.DetectorState': 'fdtdx.DetectorState',
+}
 
 autodoc_default_options = {
     'undoc-members': False,  # Don't document members without docstrings

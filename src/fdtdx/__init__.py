@@ -34,7 +34,7 @@ from fdtdx.materials import Material
 from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
-from fdtdx.objects.detectors.detector import Detector
+from fdtdx.objects.detectors.detector import Detector, DetectorState
 from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.detectors.field import FieldDetector
 from fdtdx.objects.detectors.mode import ModeOverlapDetector
@@ -142,6 +142,7 @@ __all__ = [
     "BoundaryConfig",
     "boundary_objects_from_config",
     # detector
+    "DetectorState",
     "EnergyDetector",
     "PoyntingFluxDetector",
     "FieldDetector",
