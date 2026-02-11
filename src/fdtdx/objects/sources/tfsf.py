@@ -150,17 +150,7 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
     ) -> Self:
-        """
-        Subclasses must implement this method and populate the following private fields
-        using `self.aset`:
-            - `_E`: (3, *grid_shape)
-            - `_H`: (3, *grid_shape)
-            - `_time_offset_E`: (3, *grid_shape)
-            - `_time_offset_H`: (3, *grid_shape)
-
-        Returns:
-            Self: The updated instance with fields set.
-        """
+        # Must populate self._E, self._H, self._time_offset_E, and self._time_offset_H
         raise NotImplementedError()
 
     def update_E(
