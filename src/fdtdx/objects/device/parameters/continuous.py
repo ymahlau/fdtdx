@@ -18,7 +18,7 @@ class StandardToInversePermittivityRange(ParameterTransformation):
     inverse permittivity values allowed by the material configuration.
 
     For anisotropic materials, each axis (x, y, z) is interpolated independently
-    within its own min/max range, producing output with shape (3, *input_shape).
+    within its own min/max range, producing output with shape ``(3, *input_shape)``.
     """
 
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(

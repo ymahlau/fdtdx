@@ -8,7 +8,6 @@ API
     fdtdx.ArrayContainer
     fdtdx.autoinit
     fdtdx.BinaryMedianFilterModule
-    fdtdx.BOTTOM_Z_PADDING_CONFIG_REPEAT
     fdtdx.boundary_objects_from_config
     fdtdx.BoundaryConfig
     fdtdx.BrushConstraint2D

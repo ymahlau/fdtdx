@@ -22,6 +22,7 @@ extensions = [
     "myst_nb",
     "sphinx.ext.mathjax",
     "sphinx.ext.viewcode",
+    'sphinx_copybutton',
 ]
 
 templates_path = ['_templates']

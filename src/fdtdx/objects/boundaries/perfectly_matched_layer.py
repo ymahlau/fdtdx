@@ -171,9 +171,9 @@ class PerfectlyMatchedLayer(BaseBoundary):
         """Modifies simulation arrays to include PML parameters.
 
         Args:
-            alpha: Alpha array for PML calculations (shape: (3, *volume_shape))
-            kappa: Kappa array for PML calculations (shape: (3, *volume_shape))
-            sigma: Sigma array for PML calculations (shape: (3, *volume_shape))
+            alpha: Alpha array for PML calculations (shape: ``(3, *volume_shape)``)
+            kappa: Kappa array for PML calculations (shape: ``(3, *volume_shape)``)
+            sigma: Sigma array for PML calculations (shape: ``(3, *volume_shape)``)
             electric_conductivity: Electric conductivity array (shape: volume_shape)
             magnetic_conductivity: Magnetic conductivity array (shape: volume_shape)
 

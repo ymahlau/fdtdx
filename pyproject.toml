@@ -60,6 +60,7 @@ dev = [
     "nbsphinx>=0.9",
     "sphinx-autodoc-typehints>=3.2.0",
     "myst_nb>=1.3.0",
+    "sphinx-copybutton>=0.5.2",
 ]
 cuda12 = [
     "jax[cuda12]>=0.4.36",
