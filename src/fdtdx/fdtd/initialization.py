@@ -654,6 +654,99 @@ def resolve_object_constraints(
     return resolved_slices, errors
 
 
+def _resolve_static_positions_initial(
+    object_map: dict[str, SimulationObject],
+    slice_dict: dict[str, list[list[int | None]]],
+    shape_dict: dict[str, list[int | None]],
+    config: SimulationConfig,
+):
+    """Fill in static or directly defined positions from partial_real_position during initial setup.
+
+    The partial_real_position represents the center position of the object.
+    This function converts it to grid coordinates and computes the slice boundaries
+    if the object's size is known.
+    """
+    for obj_name, obj in object_map.items():
+        # Check if the object has partial_real_position attribute
+        if hasattr(obj, "partial_real_position") and obj.partial_real_position is not None:
+            for axis in range(3):
+                if obj.partial_real_position[axis] is not None:
+                    # Convert real position (center) to grid coordinate
+                    grid_center = round(
+                        obj.partial_real_position[axis] / config.resolution  # type: ignore
+                    )
+
+                    # If we know the size, we can compute both boundaries from center
+                    size = shape_dict[obj_name][axis]
+                    if size is not None:
+                        # Compute lower and upper bounds from center and size
+                        half_size = size / 2
+                        lower = round(grid_center - half_size)
+                        upper = lower + size  # Ensure exact size by computing from lower
+                        slice_dict[obj_name][axis][0] = lower
+                        slice_dict[obj_name][axis][1] = upper
+    return slice_dict
+
+
+def _resolve_static_positions_iterative(
+    object_map: dict[str, SimulationObject],
+    slice_dict: dict[str, list[list[int | None]]],
+    shape_dict: dict[str, list[int | None]],
+    config: SimulationConfig,
+):
+    """Iteratively resolve positions from partial_real_position when size becomes known.
+
+    This is called in each iteration of constraint resolution, so that positions
+    can be computed as soon as the size is determined through constraints.
+    Returns True if any new positions were resolved.
+    """
+    resolved_something = False
+    for obj_name, obj in object_map.items():
+        # Check if the object has partial_real_position attribute
+        if hasattr(obj, "partial_real_position") and obj.partial_real_position is not None:
+            for axis in range(3):
+                if obj.partial_real_position[axis] is not None:
+                    # Check if position is already resolved
+                    b0, b1 = slice_dict[obj_name][axis]
+                    if b0 is not None and b1 is not None:
+                        continue  # Already resolved
+
+                    # Convert real position (center) to grid coordinate
+                    grid_center = round(
+                        obj.partial_real_position[axis] / config.resolution  # type: ignore
+                    )
+
+                    # If we know the size, we can compute both boundaries from center
+                    size = shape_dict[obj_name][axis]
+                    if size is not None:
+                        # Compute lower and upper bounds from center and size
+                        half_size = size / 2
+                        lower = round(grid_center - half_size)
+                        upper = lower + size  # Ensure exact size by computing from lower
+
+                        # Only set if not already set, and verify consistency if partially set
+                        if b0 is None:
+                            slice_dict[obj_name][axis][0] = lower
+                            resolved_something = True
+                        elif b0 != lower:
+                            raise Exception(
+                                f"Inconsistent position for {obj_name} axis {axis}: "
+                                f"partial_real_position implies lower bound {lower}, "
+                                f"but constraint set it to {b0}"
+                            )
+
+                        if b1 is None:
+                            slice_dict[obj_name][axis][1] = upper
+                            resolved_something = True
+                        elif b1 != upper:
+                            raise Exception(
+                                f"Inconsistent position for {obj_name} axis {axis}: "
+                                f"partial_real_position implies upper bound {upper}, "
+                                f"but constraint set it to {b1}"
+                            )
+    return resolved_something, slice_dict
+
+
 def _check_objects_names_from_constraints(
     constraints: Sequence[PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint],
     object_names: list[str],
@@ -702,6 +795,13 @@ def _apply_constraints_iteratively(
         config=config,
     )
 
+    slice_dict = _resolve_static_positions_initial(
+        object_map=object_map,
+        slice_dict=slice_dict,
+        shape_dict=shape_dict,
+        config=config,
+    )
+
     # iterate
     for _ in range(max_iter):
         changed = False
@@ -715,6 +815,15 @@ def _apply_constraints_iteratively(
             ]
         ):
             break
+
+        # Try to resolve positions from partial_real_position if size is now known
+        resolved, slice_dict = _resolve_static_positions_iterative(
+            object_map=object_map,
+            slice_dict=slice_dict,
+            shape_dict=shape_dict,
+            config=config,
+        )
+        changed = changed or resolved
 
         # update the grid slices based on static shape and partial known positions
         resolved, slice_dict, errors = _update_grid_slices_from_shapes(
@@ -1086,28 +1195,50 @@ def _extend_to_inf_if_possible(
     shape_dict: dict[str, list[int | None]],
     volume_name: str,
 ):
-    # Extend objects to infinity, which fulfull the properties:
-    # - do not already have a specified shape
-    # - are not object in a size constraint/extend_to
+    # Extend objects to infinity, which fulfill the properties:
+    # - do not already have both boundaries specified
+    # - are not constrained by extension constraints in that direction
+    # Note: Objects with known size but no position will extend from 0
+    # Note: Size constraints alone don't prevent extension - they just constrain the size
     resolved_something = False
     for axis in range(3):
         extension_obj = [(o, 0) for o in object_map.keys()] + [(o, 1) for o in object_map.keys()]
+
+        # Remove objects that are in extension constraints (not size constraints!)
+        # Size constraints only constrain the size, not the position
         for c in constraints:
-            if isinstance(c, SizeConstraint) and axis in c.axes:
-                if (c.object, 0) in extension_obj:
-                    extension_obj.remove((c.object, 0))
-                if (c.object, 1) in extension_obj:
-                    extension_obj.remove((c.object, 1))
             if isinstance(c, SizeExtensionConstraint) and axis == c.axis:
                 direction = 0 if c.direction == "-" else 1
                 if (c.object, direction) in extension_obj:
                     extension_obj.remove((c.object, direction))
+
+        # For each object, determine what can be extended
         for o in object_map.keys():
-            if shape_dict[o][axis] is not None:
+            b0, b1 = slice_dict[o][axis]
+            size = shape_dict[o][axis]
+
+            # Both boundaries known - don't extend either
+            if b0 is not None and b1 is not None:
                 if (o, 0) in extension_obj:
                     extension_obj.remove((o, 0))
                 if (o, 1) in extension_obj:
                     extension_obj.remove((o, 1))
+            # Lower bound known but upper not - can compute upper if size known
+            elif b0 is not None and b1 is None and size is not None:
+                if (o, 1) in extension_obj:
+                    extension_obj.remove((o, 1))
+            # Upper bound known but lower not - can compute upper if size known
+            elif b1 is not None and b0 is None and size is not None:
+                if (o, 0) in extension_obj:
+                    extension_obj.remove((o, 0))
+            # No boundaries known but size is known - extend lower from 0, upper can be computed
+            elif b0 is None and b1 is None and size is not None:
+                # Keep lower (0) in extension_obj so it extends from 0
+                # Remove upper from extension_obj since it will be computed
+                if (o, 1) in extension_obj:
+                    extension_obj.remove((o, 1))
+
+        # Apply extensions
         for o, direction in extension_obj:
             if slice_dict[o][axis][direction] is not None:
                 continue
