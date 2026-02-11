@@ -133,6 +133,34 @@ class ObjectContainer(TreeClass):
 
         return self._is_material_fn_true_for_all(_fn)
 
+    @property
+    def all_objects_diagonally_anisotropic_permittivity(self) -> bool:
+        def _fn(m: Material):
+            return m.is_diagonally_anisotropic_permittivity
+
+        return self._is_material_fn_true_for_all(_fn)
+
+    @property
+    def all_objects_diagonally_anisotropic_permeability(self) -> bool:
+        def _fn(m: Material):
+            return m.is_diagonally_anisotropic_permeability
+
+        return self._is_material_fn_true_for_all(_fn)
+
+    @property
+    def all_objects_diagonally_anisotropic_electric_conductivity(self) -> bool:
+        def _fn(m: Material):
+            return m.is_diagonally_anisotropic_electric_conductivity
+
+        return self._is_material_fn_true_for_all(_fn)
+
+    @property
+    def all_objects_diagonally_anisotropic_magnetic_conductivity(self) -> bool:
+        def _fn(m: Material):
+            return m.is_diagonally_anisotropic_magnetic_conductivity
+
+        return self._is_material_fn_true_for_all(_fn)
+
     def _is_material_fn_true_for_all(
         self,
         fn: Callable[[Material], bool],
