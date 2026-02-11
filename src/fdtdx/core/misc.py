@@ -1,6 +1,6 @@
 import itertools
 import math
-from typing import Literal, Sequence
+from typing import Literal, Sequence, overload
 
 import jax
 import jax.numpy as jnp
@@ -478,3 +478,91 @@ def normalize_polarization_for_source(
             propagation_axis=propagation_axis,
         )
     return e_pol, h_pol
+
+
+@overload
+def expand_to_3x3(arr: None) -> None: ...
+
+
+@overload
+def expand_to_3x3(arr: jax.Array | float) -> jax.Array: ...
+
+
+def expand_to_3x3(arr: jax.Array | float | None) -> jax.Array | None:
+    """Expands an array from shape (1/3/9, Nx, Ny, Nz) to (3, 3, Nx, Ny, Nz).
+
+    Args:
+        arr: Array with shape (1, Nx, Ny, Nz), (3, Nx, Ny, Nz), or (9, Nx, Ny, Nz),
+             a scalar (float), or None.
+
+    Returns:
+        Array with shape (3, 3, Nx, Ny, Nz) or (3, 3, 1, 1, 1) for scalars,
+        or None if input is None.
+        - scalar: [[a, 0, 0], [0, a, 0], [0, 0, a]] with shape (3, 3, 1, 1, 1)
+        - shape[0] == 1: [[a, 0, 0], [0, a, 0], [0, 0, a]] (isotropic) with shape (3, 3, Nx, Ny, Nz)
+        - shape[0] == 3: [[a, 0, 0], [0, b, 0], [0, 0, c]] (diagonal) with shape (3, 3, Nx, Ny, Nz)
+        - shape[0] == 9: reshape to (3, 3, Nx, Ny, Nz) (full tensor)
+    """
+    if arr is None:
+        return None
+
+    # Convert to array to handle scalars and ensure we have a jax array
+    arr = jnp.asarray(arr)
+
+    # Handle scalar case (e.g., inv_mu = 1.0 for non-magnetic materials)
+    if arr.ndim == 0:
+        # Create isotropic diagonal tensor that broadcasts
+        zero = jnp.zeros((), dtype=arr.dtype)
+        return jnp.array(
+            [
+                [[[[arr]]], [[[zero]]], [[[zero]]]],
+                [[[[zero]]], [[[arr]]], [[[zero]]]],
+                [[[[zero]]], [[[zero]]], [[[arr]]]],
+            ]
+        )
+
+    first_dim = arr.shape[0]
+    spatial_shape = arr.shape[1:]  # (Nx, Ny, Nz)
+
+    if first_dim == 1:
+        # Isotropic: [[a, 0, 0], [0, a, 0], [0, 0, a]]
+        zeros = jnp.zeros(spatial_shape, dtype=arr.dtype)
+        a = arr[0]
+        return jnp.stack([jnp.stack([a, zeros, zeros]), jnp.stack([zeros, a, zeros]), jnp.stack([zeros, zeros, a])])
+    elif first_dim == 3:
+        # Diagonal: [[a, 0, 0], [0, b, 0], [0, 0, c]]
+        zeros = jnp.zeros(spatial_shape, dtype=arr.dtype)
+        a, b, c = arr[0], arr[1], arr[2]
+        return jnp.stack([jnp.stack([a, zeros, zeros]), jnp.stack([zeros, b, zeros]), jnp.stack([zeros, zeros, c])])
+    else:  # first_dim == 9
+        # Full tensor: reshape to (3, 3, Nx, Ny, Nz)
+        return arr.reshape((3, 3) + spatial_shape)
+
+
+def pad_fields(
+    fields: jax.Array,
+    periodic_axes: tuple[bool, bool, bool],
+) -> jax.Array:
+    """Pads fields for boundary conditions.
+
+    Args:
+        fields (jax.Array): Fields to pad (3, Nx, Ny, Nz) for each field component
+        periodic_axes (tuple[bool, bool, bool]): Tuple of booleans indicating which axes use periodic boundaries
+
+    Returns:
+        jax.Array: Padded fields (3, Nx, Ny, Nz) for each field component
+    """
+    padded_fields = fields
+
+    for i, periodic in enumerate(periodic_axes):
+        pad_mode = "wrap" if periodic else "constant"
+        # Create padding tuple for current axis
+        if i == 0:
+            pad_width = ((0, 0), (1, 1), (0, 0), (0, 0))
+        elif i == 1:
+            pad_width = ((0, 0), (0, 0), (1, 1), (0, 0))
+        else:  # i == 2
+            pad_width = ((0, 0), (0, 0), (0, 0), (1, 1))
+        padded_fields = jnp.pad(padded_fields, pad_width, mode=pad_mode)
+
+    return padded_fields

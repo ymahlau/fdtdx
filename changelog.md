@@ -4,6 +4,7 @@
 - added new description for the placeholder attributes (@renaissancenerd)
 - added plot_field_slice function which creates 2x3 images (with colorbar) for given E and H fields (@renaissancenerd)
 - refactored Color with comprehensive colors from the XKCD color survey  (@renaissancenerd)
+- added option to export to VTI file for visualization with external tools (e.g., ParaView) (@l-berg)
 
 ## Changed
 - fixed the detector plotting bug (#220) (@renaissancenerd)

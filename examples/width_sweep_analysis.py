@@ -261,8 +261,8 @@ def make_waveguide_simulation(wavelength, mesh, width, height, absorber_thicknes
         direction='+',
         wave_character=fdtdx.WaveCharacter(wavelength=wavelength),
         temporal_profile=fdtdx.GaussianPulseProfile(
-            center_frequency=frequency, 
-            spectral_width=frequency/10
+            center_wave=fdtdx.WaveCharacter(frequency=frequency), 
+            spectral_width=fdtdx.WaveCharacter(frequency=frequency/10)
         ),
         name="Source",
         color=fdtdx.colors.GREEN,

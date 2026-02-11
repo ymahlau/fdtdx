@@ -1,8 +1,10 @@
 from fdtdx import constants
+from fdtdx.colors import Color
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.constants import wavelength_to_period
 from fdtdx.conversion.json import export_json, export_json_str, import_from_json
 from fdtdx.conversion.stl import export_stl
+from fdtdx.conversion.vti import export_arrays_snapshot_to_vti, export_vti
 from fdtdx.core.jax.pytrees import (
     TreeClass,
     autoinit,
@@ -19,7 +21,6 @@ from fdtdx.core.physics.metrics import (
     normalize_by_poynting_flux,
 )
 from fdtdx.core.physics.modes import compute_mode
-from fdtdx.core.plotting import colors
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.backward import full_backward
@@ -47,7 +48,6 @@ from fdtdx.objects.device.parameters.continuous import (
     StandardToPlusOneMinusOneRange,
 )
 from fdtdx.objects.device.parameters.discrete import (
-    BOTTOM_Z_PADDING_CONFIG_REPEAT,
     BinaryMedianFilterModule,
     ConnectHolesAndStructures,
     RemoveFloatingMaterial,
@@ -86,7 +86,9 @@ from fdtdx.objects.static_material.polygon import ExtrudedPolygon
 from fdtdx.objects.static_material.sphere import Sphere
 from fdtdx.objects.static_material.static import SimulationVolume, UniformMaterialObject
 from fdtdx.utils.logger import Logger
-from fdtdx.utils.plot_setup import plot_setup
+from fdtdx.utils.plot_field_slice import plot_field_slice, plot_field_slice_component
+from fdtdx.utils.plot_material import plot_material, plot_material_from_side
+from fdtdx.utils.plot_setup import plot_setup, plot_setup_from_side
 
 __all__ = [
     "Detector",
@@ -95,6 +97,8 @@ __all__ = [
     "export_json",
     "export_json_str",
     "import_from_json",
+    "export_vti",
+    "export_arrays_snapshot_to_vti",
     # core
     "TreeClass",
     "autoinit",
@@ -167,7 +171,6 @@ __all__ = [
     "PointSymmetry3D",
     "ParameterTransformation",
     "circular_brush",
-    "BOTTOM_Z_PADDING_CONFIG_REPEAT",
     # sources
     "GaussianPlaneSource",
     "UniformPlaneSource",
@@ -183,12 +186,17 @@ __all__ = [
     # utils
     "Logger",
     "plot_setup",
+    "plot_setup_from_side",
+    "plot_material_from_side",
+    "plot_material",
+    "plot_field_slice_component",
+    "plot_field_slice",
     # config
     "SimulationConfig",
     "GradientConfig",
     # other
     "wavelength_to_period",
     "Material",
-    "colors",
+    "Color",
     "constants",
 ]
