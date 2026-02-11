@@ -144,41 +144,14 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         return center, azimuth, elevation
 
     @abstractmethod
-    def get_EH_variation(
-        self,
-        key: jax.Array,
-        inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array | float,
-    ) -> tuple[
-        jax.Array,  # E: (num_components, *grid_shape)
-        jax.Array,  # H: (num_components, *grid_shape)
-        jax.Array,  # time_offset_E: (num_components, *grid_shape)
-        jax.Array,  # time_offset_H: (num_components, *grid_shape)
-    ]:
-        # normal coordinates
-        raise NotImplementedError()
-
     def apply(
         self: Self,
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
     ) -> Self:
-        self = super().apply(
-            key=key,
-            inv_permittivities=inv_permittivities,
-            inv_permeabilities=inv_permeabilities,
-        )
-        E, H, time_offset_E, time_offset_H = self.get_EH_variation(
-            key=key,
-            inv_permittivities=inv_permittivities,
-            inv_permeabilities=inv_permeabilities,
-        )
-        self = self.aset("_E", E, create_new_ok=True)
-        self = self.aset("_H", H, create_new_ok=True)
-        self = self.aset("_time_offset_E", time_offset_E, create_new_ok=True)
-        self = self.aset("_time_offset_H", time_offset_H, create_new_ok=True)
-        return self
+        # Must populate self._E, self._H, self._time_offset_E, and self._time_offset_H
+        raise NotImplementedError()
 
     def update_E(
         self,

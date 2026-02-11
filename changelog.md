@@ -7,6 +7,7 @@
 - added option to export to VTI file for visualization with external tools (e.g., ParaView) (@l-berg)
 - Implemented support for anisotropic materials (diagonal and fully tensorial) (@rachsmith)
 - Added Component example notebook showcasing uniform plane source (@Shardy2907)
+- Mode source and mode detector now expose the effective index (@l-berg)
 
 ## Changed
 - fixed the detector plotting bug (#220) (@renaissancenerd)
