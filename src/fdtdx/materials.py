@@ -71,10 +71,10 @@ class Material(TreeClass):
     #: For isotropic materials, provide a scalar float.
     #: For diagonally anisotropic materials, provide a tuple of 3 floats (εx, εy, εz).
     #: For fully anisotropic materials, provide either:
-    #: 
+    #:
     #:   - A tuple of 9 floats (εxx, εxy, εxz, εyx, εyy, εyz, εzx, εzy, εzz), or
     #:   - A nested tuple ((εxx, εxy, εxz), (εyx, εyy, εyz), (εzx, εzy, εzz))
-    #: 
+    #:
     #: Stored internally as a 9-tuple. Defaults to (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0).
     permittivity: tuple[float, float, float, float, float, float, float, float, float] = frozen_field(
         default=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
@@ -86,10 +86,10 @@ class Material(TreeClass):
     #: For isotropic materials, provide a scalar float.
     #: For diagonally anisotropic materials, provide a tuple of 3 floats (μx, μy, μz).
     #: For fully anisotropic materials, provide either:
-    #: 
+    #:
     #:   - A tuple of 9 floats (μxx, μxy, μxz, μyx, μyy, μyz, μzx, μzy, μzz), or
     #:   - A nested tuple ((μxx, μxy, μxz), (μyx, μyy, μyz), (μzx, μzy, μzz))
-    #: 
+    #:
     #: Stored internally as a 9-tuple. Defaults to (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0).
     permeability: tuple[float, float, float, float, float, float, float, float, float] = frozen_field(
         default=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
@@ -101,10 +101,10 @@ class Material(TreeClass):
     #: For isotropic materials, provide a scalar float.
     #: For diagonally anisotropic materials, provide a tuple of 3 floats (σx, σy, σz).
     #: For fully anisotropic materials, provide either:
-    #: 
+    #:
     #:   - A tuple of 9 floats (σxx, σxy, σxz, σyx, σyy, σyz, σzx, σzy, σzz), or
     #:   - A nested tuple ((σxx, σxy, σxz), (σyx, σyy, σyz), (σzx, σzy, σzz))
-    #: 
+    #:
     #: Stored internally as a 9-tuple. Defaults to (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0).
     electric_conductivity: tuple[float, float, float, float, float, float, float, float, float] = frozen_field(
         default=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
@@ -118,10 +118,10 @@ class Material(TreeClass):
     #: For isotropic materials, provide a scalar float.
     #: For diagonally anisotropic materials, provide a tuple of 3 floats (σx, σy, σz).
     #: For fully anisotropic materials, provide either:
-    #: 
+    #:
     #:   - A tuple of 9 floats (σxx, σxy, σxz, σyx, σyy, σyz, σzx, σzy, σzz), or
     #:   - A nested tuple ((σxx, σxy, σxz), (σyx, σyy, σyz), (σzx, σzy, σzz))
-    #: 
+    #:
     #: Stored internally as a 9-tuple. Defaults to (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0).
     magnetic_conductivity: tuple[float, float, float, float, float, float, float, float, float] = frozen_field(
         default=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
