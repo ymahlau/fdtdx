@@ -294,8 +294,8 @@ class DetectorConvergenceCondition(StoppingCondition):
             start_last = jnp.clip(start_last, 0, config.time_steps_total - self._spp)
 
             # todo: implement unitful.jax.lax.dynamic_slice()
-            ref_2d = jax.lax.dynamic_slice(readings.array_value(), (start_ref, 0), (self.prev_periods * self._spp, 1))
-            last_2d = jax.lax.dynamic_slice(readings.array_value(), (start_last, 0), (self._spp, 1))
+            ref_2d = jax.lax.dynamic_slice(readings, (start_ref, 0), (self.prev_periods * self._spp, 1))
+            last_2d = jax.lax.dynamic_slice(readings, (start_last, 0), (self._spp, 1))
 
             readings_ref = jnp.squeeze(ref_2d, axis=1)  # (k*spp,)
             readings_last = jnp.squeeze(last_2d, axis=1)  # (spp,)

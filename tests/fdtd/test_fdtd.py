@@ -62,6 +62,7 @@ def dummy_config():
 
 def test_reversible_fdtd_runs(dummy_arrays, dummy_objects, dummy_config):
     key = jax.random.PRNGKey(0)
+    # Note: Error caused by a change in the data type of Unitful.val; see the bug description in fdtd.py for details.
     t, arrs = reversible_fdtd(dummy_arrays, dummy_objects, dummy_config, key)
 
     assert isinstance(t, jax.Array)
@@ -71,6 +72,7 @@ def test_reversible_fdtd_runs(dummy_arrays, dummy_objects, dummy_config):
 
 def test_checkpointed_fdtd_runs(dummy_arrays, dummy_objects, dummy_config):
     key = jax.random.PRNGKey(0)
+    # Note: same bug as in test_reversible_fdtd_runs
     t, arrs = checkpointed_fdtd(dummy_arrays, dummy_objects, dummy_config, key)
 
     assert isinstance(t, jax.Array)
@@ -79,6 +81,7 @@ def test_checkpointed_fdtd_runs(dummy_arrays, dummy_objects, dummy_config):
 
 def test_custom_fdtd_forward_runs(dummy_arrays, dummy_objects, dummy_config):
     key = jax.random.PRNGKey(0)
+    # Note: same bug as in test_reversible_fdtd_runs
     t, arrs = custom_fdtd_forward(
         dummy_arrays,
         dummy_objects,

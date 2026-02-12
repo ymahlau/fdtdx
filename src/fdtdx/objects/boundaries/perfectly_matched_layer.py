@@ -127,8 +127,8 @@ class PerfectlyMatchedLayer(BaseBoundary[PMLBoundaryState]):
             dtype=dtype,
         )
 
-        bE = jnp.exp(-self._config.courant_number * (sigma_E / kappa + alpha))
-        bH = jnp.exp(-self._config.courant_number * (sigma_H / kappa + alpha))
+        bE = jnp.exp(-self._config.courant_number.float_value() * (sigma_E / kappa + alpha))
+        bH = jnp.exp(-self._config.courant_number.float_value() * (sigma_H / kappa + alpha))
 
         cE = (bE - 1) * sigma_E / (sigma_E * kappa + kappa**2 * alpha)
         cH = (bH - 1) * sigma_H / (sigma_H * kappa + kappa**2 * alpha)

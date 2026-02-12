@@ -16,9 +16,8 @@ class Cylinder(StaticMultiMaterialObject):
 
     """
 
-    radius: Unitful = frozen_field()
     #: The radius of the fiber in meter.
-    radius: float = frozen_field()
+    radius: Unitful = frozen_field()
 
     #: The principal axis along which the fiber extends (0=x, 1=y, 2=z).
     axis: int = frozen_field()

@@ -108,7 +108,7 @@ def test_placement():
     sphere = fdtdx.Sphere(
         partial_real_shape=(1e-6 * m, 1e-6 * m, 1e-6 * m),
         materials=materials,
-        radius=300e-9,
+        radius=300e-9 * m,
         material_name="polymer",
     )
     constraints.append(sphere.same_position(volume))

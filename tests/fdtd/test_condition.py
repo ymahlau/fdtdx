@@ -50,7 +50,7 @@ class TestCondition:
         config = SimulationConfig(
             time=100e-11 * s,
             resolution=1e-4 * m,
-            courant_factor=0.99,
+            courant_factor=0.99 * s,
         )
         detector_name = "test_detector"
         detector = EnergyDetector(name=detector_name)
@@ -192,8 +192,8 @@ class TestCondition:
         nH = arrays.H.size
         v = jnp.sqrt(threshold / float(nE + nH)) * 0.9
         v = jnp.asarray(v, dtype=arrays.E.dtype)
-        E_new = jnp.full_like(arrays.E, v)
-        H_new = jnp.full_like(arrays.H, v)
+        E_new = jnp.full_like(arrays.E, v) * V_per_m
+        H_new = jnp.full_like(arrays.H, v) * A_per_m
         arrays_new = arrays.aset("E", E_new).aset("H", H_new)
         state_below_thresh = (jnp.array(min_steps + 1), arrays_new)
         cond_fun = cond_fun.setup(state_below_thresh, config, objects)
