@@ -13,6 +13,7 @@ from fdtdx.objects.boundaries.boundary import BaseBoundaryState
 from fdtdx.objects.detectors.detector import DetectorState
 from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.static_material.static import SimulationVolume
+from fdtdx.units import A_per_m, V_per_m, m, s
 
 
 class TestCondition:
@@ -31,8 +32,8 @@ class TestCondition:
 
         # Create array container
         arrays = ArrayContainer(
-            E=E,
-            H=H,
+            E=E * V_per_m,
+            H=H * A_per_m,
             inv_permittivities=inv_permittivities,
             inv_permeabilities=inv_permeabilities,
             boundary_states=boundary_states,
@@ -47,13 +48,13 @@ class TestCondition:
         state = (time_step, arrays)
 
         config = SimulationConfig(
-            time=100e-11,
-            resolution=1e-4,
-            courant_factor=0.99,
+            time=100e-11 * s,
+            resolution=1e-4 * m,
+            courant_factor=0.99 * s,
         )
         detector_name = "test_detector"
         detector = EnergyDetector(name=detector_name)
-        volume = SimulationVolume(partial_real_shape=(1e-3, 1e-3, 1e-3))
+        volume = SimulationVolume(partial_real_shape=(1e-3 * m, 1e-3 * m, 1e-3 * m))
         position_constraints = []
         position_constraints.extend(detector.same_position_and_size(volume))
         key = jax.random.PRNGKey(0)
@@ -73,7 +74,7 @@ class TestCondition:
         objects = setup_simulation_state["objects"]
         detector_name = setup_simulation_state["dn"]
         arrays = state[1]
-        cw_source_period = 5e-11  # 20 GHz
+        cw_source_period = 5e-11 * s  # 20 GHz
         wave_character = WaveCharacter(period=cw_source_period)
         threshold = 1e-6
         min_steps = 1572  # Approximately 5 periods at 20 GHz with dt ~ 1.906e-13 s.
@@ -191,8 +192,8 @@ class TestCondition:
         nH = arrays.H.size
         v = jnp.sqrt(threshold / float(nE + nH)) * 0.9
         v = jnp.asarray(v, dtype=arrays.E.dtype)
-        E_new = jnp.full_like(arrays.E, v)
-        H_new = jnp.full_like(arrays.H, v)
+        E_new = jnp.full_like(arrays.E, v) * V_per_m
+        H_new = jnp.full_like(arrays.H, v) * A_per_m
         arrays_new = arrays.aset("E", E_new).aset("H", H_new)
         state_below_thresh = (jnp.array(min_steps + 1), arrays_new)
         cond_fun = cond_fun.setup(state_below_thresh, config, objects)
@@ -213,7 +214,7 @@ class TestCondition:
         # Therefore we have time / time_step_duration ≈ 524.5, which is rounded up to 525.
         # This is the number of time steps. Remember that min_steps cannot be larger than this
         detector_name = setup_simulation_state["dn"]
-        cw_source_period = 5e-11  # 20 GHz
+        cw_source_period = 5e-11 * s  # 20 GHz
         wave_character = WaveCharacter(frequency=1 / cw_source_period)
         prev_periods = 2
         min_steps = 786
@@ -239,7 +240,7 @@ class TestCondition:
             arrays.detector_states["bad_detector"] = {"energy": jnp.zeros((config.time_steps_total,))}
             DetectorConvergenceCondition(
                 detector_name="bad_detector",
-                wave_character=WaveCharacter(period=5e-11),
+                wave_character=WaveCharacter(period=5e-11 * s),
                 prev_periods=2,
                 threshold=1e-6,
             ).setup(state, config, objects)
@@ -249,7 +250,7 @@ class TestCondition:
             arrays.detector_states["bad_detector"] = {"energy": jnp.zeros((config.time_steps_total - 1, 1))}
             DetectorConvergenceCondition(
                 detector_name="bad_detector",
-                wave_character=WaveCharacter(period=5e-11),
+                wave_character=WaveCharacter(period=5e-11 * s),
                 prev_periods=2,
                 threshold=1e-6,
             ).setup(state, config, objects)
@@ -258,7 +259,7 @@ class TestCondition:
         with pytest.raises(ValueError, match="prev_periods must be >= 1"):
             DetectorConvergenceCondition(
                 detector_name=detector_name,
-                wave_character=WaveCharacter(period=5e-11),
+                wave_character=WaveCharacter(period=5e-11 * s),
                 prev_periods=0,
                 threshold=1e-6,
             ).setup(state, config, objects)
@@ -267,7 +268,7 @@ class TestCondition:
         with pytest.raises(ValueError, match="must be larger"):
             DetectorConvergenceCondition(
                 detector_name=detector_name,
-                wave_character=WaveCharacter(period=1e-12),
+                wave_character=WaveCharacter(period=1e-12 * s),
                 prev_periods=5,
                 threshold=1e-6,
                 min_steps=3,
@@ -277,7 +278,7 @@ class TestCondition:
         with pytest.raises(ValueError, match="must be non-negative"):
             DetectorConvergenceCondition(
                 detector_name=detector_name,
-                wave_character=WaveCharacter(period=5e-11),
+                wave_character=WaveCharacter(period=5e-11 * s),
                 prev_periods=2,
                 threshold=-1e-6,
             ).setup(state, config, objects)

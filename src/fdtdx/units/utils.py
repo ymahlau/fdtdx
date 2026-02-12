@@ -114,11 +114,16 @@ def best_scale(
         if not math.isfinite(abs_val) or abs_val == 0:
             return arr, previous_scale
         log_offset = -round(math.log(abs_val, 10))
-        new_arr = arr * (10**log_offset)
+        # TODO: Improve this logic (current fallback is a workaround and may change dtypes).
+        try:
+            new_arr = arr * (10**log_offset)
+        except OverflowError:
+            # fallback: avoid huge Python int -> parsed as int32 in JAX
+            new_arr = arr * (10.0**log_offset)
         return new_arr, log_offset
 
     # scalar logic: absolute value as close to one
-    if isinstance(arr, float | complex | int | np.number):
+    if isinstance(arr, float | complex | np.number):
         abs_val = abs(arr)
         return scalar_helper(abs_val)
 

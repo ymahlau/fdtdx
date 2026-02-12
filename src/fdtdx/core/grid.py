@@ -84,7 +84,7 @@ def calculate_time_offset_yee(
 def polygon_to_mask(
     boundary: tuple[Unitful, Unitful, Unitful, Unitful],
     resolution: Unitful,
-    polygon_vertices: np.ndarray,
+    polygon_vertices: Unitful,
 ) -> np.ndarray:
     """
     Generate a 2D binary mask from a polygon.
@@ -105,8 +105,9 @@ def polygon_to_mask(
     min_x, min_y, max_x, max_y = boundary
 
     # Create coordinate arrays
-    x_coords = np.arange(min_x, max_x + 0.5 * resolution, resolution)
-    y_coords = np.arange(min_y, max_y + 0.5 * resolution, resolution)
+    # todo: Compute these using the Unitful API (keep units consistent).
+    x_coords = np.arange(min_x.value(), (max_x + 0.5 * resolution).value(), resolution.value())
+    y_coords = np.arange(min_y.value(), (max_y + 0.5 * resolution).value(), resolution.value())
 
     # Create meshgrid
     X, Y = np.meshgrid(x_coords, y_coords, indexing="ij")
@@ -115,7 +116,7 @@ def polygon_to_mask(
     points = np.column_stack((X.ravel(), Y.ravel()))
 
     # Create matplotlib Path object from polygon vertices
-    polygon_path = Path(polygon_vertices)
+    polygon_path = Path(polygon_vertices.value())
 
     # Test which points are inside the polygon
     inside_polygon = polygon_path.contains_points(points)

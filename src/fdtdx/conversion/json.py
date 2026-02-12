@@ -7,6 +7,8 @@ import jax
 from fdtdx.core.jax.pytrees import TreeClass
 from fdtdx.core.null import CUSTOM_NULL
 from fdtdx.typing import JAX_DTYPES
+from fdtdx.units.typing import SI
+from fdtdx.units.unitful import Unitful
 
 
 def _export_json(obj: Any) -> dict | float | int | str | bool | None:
@@ -25,6 +27,14 @@ def _export_json(obj: Any) -> dict | float | int | str | bool | None:
         return {
             "__dtype__": str_name,
         }
+    # unitful
+    if isinstance(obj, Unitful):
+        if obj.val in JAX_DTYPES:
+            str_name = str(obj.val).split("'")[1]
+            return {
+                "__dtype__": str_name,
+                "unit": f"{obj.unit}",
+            }
     # composite types need module and name
     result_dict: dict = {"__module__": f"{type(obj).__module__}", "__name__": f"{type(obj).__name__}"}
     # tree classes
@@ -37,6 +47,8 @@ def _export_json(obj: Any) -> dict | float | int | str | bool | None:
     # dictionaries
     if isinstance(obj, dict):
         for k, v in obj.items():
+            if isinstance(k, SI):
+                k = k.value
             if not isinstance(k, str):
                 raise NotImplementedError()
             assert k not in ["__module__", "__name__"]
@@ -107,10 +119,21 @@ def _import_obj_from_json(obj: dict | float | int | str | bool | None) -> Any:
         imported_vals = [_import_obj_from_json(v) for v in vals if v not in ["__module__", "__name__"]]
         return cls(imported_vals)
     # dictionary
-    if "__name__" == "dict":
+    if name == "dict":
         return {k: _import_obj_from_json(v) for k, v in obj.items() if k not in ["__module__", "__name__"]}
     # other classes
     kwargs_dict = {k: _import_obj_from_json(v) for k, v in obj.items() if k not in ["__module__", "__name__"]}
+
+    # Map JSON dimension strings back to SI enum members to restore correct key types for Unit.
+    if name == "Unit" and "dim" in kwargs_dict:
+        full_name_map = {}
+        for s in SI:
+            full_name_map[s.name] = s
+            full_name_map[s.value] = s
+        raw_dim = kwargs_dict["dim"]
+        if isinstance(raw_dim, dict):
+            kwargs_dict["dim"] = {full_name_map.get(k, k): v for k, v in raw_dim.items()}
+
     return cls(**kwargs_dict)
 
 

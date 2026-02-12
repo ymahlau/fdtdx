@@ -70,8 +70,8 @@ class Source(SimulationObject, ABC):
     def update_E(
         self,
         E: Unitful,
-        inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array | float,
+        inv_permittivities: jax.Array | Unitful,
+        inv_permeabilities: jax.Array | float | Unitful,
         time_step: jax.Array,
         inverse: bool,
     ) -> Unitful:
@@ -93,8 +93,8 @@ class Source(SimulationObject, ABC):
     def update_H(
         self,
         H: Unitful,
-        inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array | float,
+        inv_permittivities: jax.Array | Unitful,
+        inv_permeabilities: jax.Array | float | Unitful,
         time_step: jax.Array,
         inverse: bool,
     ) -> Unitful:
@@ -147,8 +147,8 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
     def update_E(
         self,
         E: Unitful,
-        inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array | float,
+        inv_permittivities: jax.Array | Unitful,
+        inv_permeabilities: jax.Array | float | Unitful,
         time_step: jax.Array,
         inverse: bool,
     ) -> Unitful:
@@ -159,7 +159,7 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
         time_phase = (
             2 * jnp.pi * time_step * delta_t / self.wave_character.get_period() + self.wave_character.phase_shift
         )
-        magnitude = ff.real(self.amplitude * jnp.exp(-1j * time_phase))
+        magnitude = ff.real(self.amplitude * ff.exp(-1j * time_phase))
         magnitude = magnitude * self.static_amplitude_factor
         e_pol, _ = normalize_polarization_for_source(
             direction=self.direction,
@@ -175,8 +175,8 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
     def update_H(
         self,
         H: Unitful,
-        inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array | float,
+        inv_permittivities: jax.Array | Unitful,
+        inv_permeabilities: jax.Array | float | Unitful,
         time_step: jax.Array,
         inverse: bool,
     ) -> Unitful:
@@ -187,7 +187,7 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
         time_phase = (
             2 * jnp.pi * time_step * delta_t / self.wave_character.get_period() + self.wave_character.phase_shift
         )
-        magnitude = ff.real(self.amplitude * jnp.exp(-1j * time_phase))
+        magnitude = ff.real(self.amplitude * ff.exp(-1j * time_phase))
         magnitude = magnitude * self.static_amplitude_factor
         _, h_pol = normalize_polarization_for_source(
             direction=self.direction,

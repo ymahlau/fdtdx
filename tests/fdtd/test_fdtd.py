@@ -6,6 +6,7 @@ from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.fdtd import checkpointed_fdtd, custom_fdtd_forward, reversible_fdtd
 from fdtdx.objects.object import SimulationObject
+from fdtdx.units import A_per_m, V_per_m, inv_eps, inv_mu, m, s
 
 
 class DummySimulationObject(SimulationObject):
@@ -24,10 +25,10 @@ def dummy_arrays():
     mat_shape = (2, 2, 2)  # scalar per voxel
 
     return ArrayContainer(
-        E=jnp.zeros(field_shape),
-        H=jnp.zeros(field_shape),
-        inv_permittivities=jnp.ones(mat_shape),
-        inv_permeabilities=jnp.ones(mat_shape),
+        E=jnp.zeros(field_shape) * V_per_m,
+        H=jnp.zeros(field_shape) * A_per_m,
+        inv_permittivities=jnp.ones(mat_shape) * inv_eps,
+        inv_permeabilities=jnp.ones(mat_shape) * inv_mu,
         boundary_states={},
         detector_states={},
         recording_state=None,
@@ -50,17 +51,18 @@ def empty_objects():
 @pytest.fixture
 def dummy_config():
     return SimulationConfig(
-        time=0.1,
-        resolution=1.0,
+        time=0.1 * s,
+        resolution=1.0 * m,
         backend="gpu",
         dtype=jnp.float32,
-        courant_factor=0.99,
+        courant_factor=0.99 * s,
         gradient_config=None,
     )
 
 
 def test_reversible_fdtd_runs(dummy_arrays, dummy_objects, dummy_config):
     key = jax.random.PRNGKey(0)
+    # Note: Error caused by a change in the data type of Unitful.val; see the bug description in fdtd.py for details.
     t, arrs = reversible_fdtd(dummy_arrays, dummy_objects, dummy_config, key)
 
     assert isinstance(t, jax.Array)
@@ -70,6 +72,7 @@ def test_reversible_fdtd_runs(dummy_arrays, dummy_objects, dummy_config):
 
 def test_checkpointed_fdtd_runs(dummy_arrays, dummy_objects, dummy_config):
     key = jax.random.PRNGKey(0)
+    # Note: same bug as in test_reversible_fdtd_runs
     t, arrs = checkpointed_fdtd(dummy_arrays, dummy_objects, dummy_config, key)
 
     assert isinstance(t, jax.Array)
@@ -78,6 +81,7 @@ def test_checkpointed_fdtd_runs(dummy_arrays, dummy_objects, dummy_config):
 
 def test_custom_fdtd_forward_runs(dummy_arrays, dummy_objects, dummy_config):
     key = jax.random.PRNGKey(0)
+    # Note: same bug as in test_reversible_fdtd_runs
     t, arrs = custom_fdtd_forward(
         dummy_arrays,
         dummy_objects,
@@ -98,8 +102,8 @@ def test_custom_fdtd_forward_runs(dummy_arrays, dummy_objects, dummy_config):
 
 def test_zero_time(dummy_arrays, dummy_objects):
     config = SimulationConfig(
-        time=0.0,
-        resolution=1.0,
+        time=0.0 * s,
+        resolution=1.0 * m,
         backend="gpu",
         dtype=jnp.float32,
         courant_factor=0.99,

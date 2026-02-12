@@ -7,6 +7,7 @@ from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_private_field
 from fdtdx.materials import Material
 from fdtdx.typing import ParameterType
+from fdtdx.units.unitful import Unitful
 
 
 @autoinit
@@ -18,7 +19,7 @@ class ParameterTransformation(TreeClass, ABC):
     _materials: dict[str, Material] = frozen_private_field()
     _config: SimulationConfig = frozen_private_field()
     _matrix_voxel_grid_shape: tuple[int, int, int] = frozen_private_field()
-    _single_voxel_size: tuple[float, float, float] = frozen_private_field()
+    _single_voxel_size: tuple[Unitful, Unitful, Unitful] = frozen_private_field()
 
     # settings
     _check_single_array: bool = frozen_private_field(default=False)
@@ -30,7 +31,7 @@ class ParameterTransformation(TreeClass, ABC):
         config: SimulationConfig,
         materials: dict[str, Material],
         matrix_voxel_grid_shape: tuple[int, int, int],
-        single_voxel_size: tuple[float, float, float],
+        single_voxel_size: tuple[Unitful, Unitful, Unitful],
         output_shape: dict[str, tuple[int, ...]],
     ) -> Self:
         self = self.aset("_config", config, create_new_ok=True)

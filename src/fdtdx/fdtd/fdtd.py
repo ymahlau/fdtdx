@@ -67,6 +67,8 @@ def reversible_fdtd(
         arr: ArrayContainer,
     ) -> SimulationState:
         state = (jnp.asarray(0, dtype=jnp.int32), arr)
+        # Bug: checked the type of E. At this point, E.val is still a jax.Array,
+        # but when I check it inside forward, the type of E.val has changed to Unitful.
         state = eqxi.while_loop(
             max_steps=config.time_steps_total,
             cond_fun=lambda s: config.time_steps_total > s[0],
@@ -316,6 +318,8 @@ def checkpointed_fdtd(
         stopping_condition = stopping_condition.setup(state, config, objects)
     else:
         stopping_condition = TimeStepCondition().setup(state, config, objects)
+    # Bug (same as the top): checked the type of E. At this point, E.val is still a jax.Array,
+    # but when I check it inside forward, the type of E.val has changed to Unitful.
     state = eqxi.while_loop(
         max_steps=config.time_steps_total,
         cond_fun=partial(

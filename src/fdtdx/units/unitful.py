@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 # from numbers import Number
-from typing import Any, Self
+from typing import Any, Self, Type
 
 import jax
 import jax.numpy as jnp
@@ -1358,6 +1358,31 @@ def eq(x: np.ndarray, y: np.ndarray) -> np.ndarray:
 @overload
 def eq(x: np.number, y: np.number) -> np.bool:
     return x == y
+
+
+## todo:  eq should handle type comparisons for Unitful, as well as comparisons for other types.#####
+@overload
+def eq(x: Unitful, y: Type) -> bool:
+    if isinstance(y, Unitful):
+        return True
+    return False
+
+
+@overload
+def eq(x: Type, y: Unitful) -> bool:
+    return eq(y, x)
+
+
+@overload
+def eq(x: ArrayLike, y: Type) -> bool:
+    if isinstance(x, y):
+        return True
+    return False
+
+
+@overload
+def eq(x: Type, y: ArrayLike) -> bool:
+    return eq(y, x)
 
 
 @dispatch

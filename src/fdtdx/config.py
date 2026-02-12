@@ -9,6 +9,7 @@ from fdtdx import constants
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field
 from fdtdx.interfaces.recorder import Recorder
 from fdtdx.typing import BackendOption
+from fdtdx.units import s
 from fdtdx.units.unitful import Unitful
 
 
@@ -62,7 +63,7 @@ class SimulationConfig(TreeClass):
     dtype: jnp.dtype = frozen_field(default=jnp.float32)
 
     #: Safety factor for the Courant condition (default: 0.99).
-    courant_factor: float = frozen_field(default=0.99)
+    courant_factor: Unitful = frozen_field(default=0.99 * s)
 
     #: Optional configuration for gradient computation.
     gradient_config: GradientConfig | None = field(default=None)
@@ -100,7 +101,7 @@ class SimulationConfig(TreeClass):
             jax.config.update("jax_platform_name", "cpu")
 
     @property
-    def courant_number(self) -> float:
+    def courant_number(self) -> Unitful:
         """Calculate the Courant number for the simulation.
 
         The Courant number is a dimensionless quantity that determines stability
@@ -125,7 +126,8 @@ class SimulationConfig(TreeClass):
             float: Time step duration in seconds, calculated using the Courant
                 condition and spatial resolution.
         """
-        return self.courant_number * self.resolution / constants.c
+        # todo: should courant_number be dimensionless? --- IGNORE ---
+        return self.courant_number.float_value() * self.resolution / constants.c
 
     @property
     def time_steps_total(self) -> int:

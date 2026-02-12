@@ -187,7 +187,7 @@ def normalize_by_poynting_flux(
         axis=axis,
     )
     norm_factor = flux / normalization_target
-    factor = ff.sqrt(ff.abs(norm_factor))
+    factor = 1.0 / ff.sqrt(ff.abs(norm_factor))
 
     norm_E = E * factor
     norm_B = B * factor

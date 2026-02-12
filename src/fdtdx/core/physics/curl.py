@@ -96,6 +96,7 @@ def curl_E(
     """
     # Pad each axis separately based on boundary conditions
     E_pad = E
+
     for i, periodic in enumerate(periodic_axes):
         pad_mode = "wrap" if periodic else "constant"
         # Create padding tuple for current axis

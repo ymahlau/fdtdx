@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 
 from fdtdx.core.grid import calculate_spatial_offsets_yee, calculate_time_offset_yee, polygon_to_mask
+from fdtdx.units import m, s
 
 
 def test_calculate_spatial_offsets_yee_basic():
@@ -24,12 +25,12 @@ def test_calculate_spatial_offsets_yee_basic():
 
 def test_calculate_time_offset_yee_basic():
     """Test basic functionality of calculate_time_offset_yee"""
-    center = jnp.array([1.0, 2.0])
+    center = (1.0, 2.0)
     wave_vector = jnp.array([1.0, 0.0, 0.0])
     inv_permittivities = jnp.ones((4, 4, 1))
     inv_permeabilities = 1.0
-    resolution = 0.1
-    time_step_duration = 1e-15
+    resolution = 0.1 * m
+    time_step_duration = 1e-15 * s
 
     time_offset_E, time_offset_H = calculate_time_offset_yee(
         center, wave_vector, inv_permittivities, inv_permeabilities, resolution, time_step_duration
@@ -40,18 +41,18 @@ def test_calculate_time_offset_yee_basic():
     assert time_offset_H.shape == (3, 4, 4, 1)
 
     # Check that results are finite
-    assert jnp.all(jnp.isfinite(time_offset_E))
-    assert jnp.all(jnp.isfinite(time_offset_H))
+    assert jnp.all(jnp.isfinite(time_offset_E.value()))
+    assert jnp.all(jnp.isfinite(time_offset_H.value()))
 
 
 def test_calculate_time_offset_yee_with_effective_index():
     """Test calculate_time_offset_yee with effective_index parameter"""
-    center = jnp.array([0.0, 0.0])
+    center = (0.0, 0.0)
     wave_vector = jnp.array([1.0, 0.0, 0.0])
     inv_permittivities = jnp.ones((2, 2, 1))
     inv_permeabilities = 1.0
-    resolution = 0.1
-    time_step_duration = 1e-15
+    resolution = 0.1 * m
+    time_step_duration = 1e-15 * s
     effective_index = 1.5
 
     time_offset_E, time_offset_H = calculate_time_offset_yee(
@@ -63,17 +64,17 @@ def test_calculate_time_offset_yee_with_effective_index():
     assert time_offset_H.shape == (3, 2, 2, 1)
 
     # Check that results are finite
-    assert jnp.all(jnp.isfinite(time_offset_E))
-    assert jnp.all(jnp.isfinite(time_offset_H))
+    assert jnp.all(jnp.isfinite(time_offset_E.value()))
+    assert jnp.all(jnp.isfinite(time_offset_H.value()))
 
 
 def test_calculate_time_offset_yee_invalid_permittivity_shape():
     """Test that invalid permittivity shapes raise exceptions"""
-    center = jnp.array([0.0, 0.0])
+    center = (0.0, 0.0)
     wave_vector = jnp.array([1.0, 0.0, 0.0])
     inv_permeabilities = 1.0
-    resolution = 0.1
-    time_step_duration = 1e-15
+    resolution = 0.1 * m
+    time_step_duration = 1e-15 * s
 
     # Test with 1D array
     inv_permittivities_1d = jnp.ones((4,))
@@ -92,12 +93,12 @@ def test_calculate_time_offset_yee_invalid_permittivity_shape():
 
 def test_calculate_time_offset_yee_array_permeabilities():
     """Test calculate_time_offset_yee with array permeabilities"""
-    center = jnp.array([0.0, 0.0])
+    center = (0.0, 0.0)
     wave_vector = jnp.array([1.0, 0.0, 0.0])
     inv_permittivities = jnp.ones((3, 3, 1))
     inv_permeabilities = jnp.ones((3, 3, 1)) * 2.0
-    resolution = 0.1
-    time_step_duration = 1e-15
+    resolution = 0.1 * m
+    time_step_duration = 1e-15 * s
 
     time_offset_E, time_offset_H = calculate_time_offset_yee(
         center, wave_vector, inv_permittivities, inv_permeabilities, resolution, time_step_duration
@@ -108,16 +109,16 @@ def test_calculate_time_offset_yee_array_permeabilities():
     assert time_offset_H.shape == (3, 3, 3, 1)
 
     # Check that results are finite
-    assert jnp.all(jnp.isfinite(time_offset_E))
-    assert jnp.all(jnp.isfinite(time_offset_H))
+    assert jnp.all(jnp.isfinite(time_offset_E.value()))
+    assert jnp.all(jnp.isfinite(time_offset_H.value()))
 
 
 def test_polygon_to_mask_basic_square():
     """Test polygon_to_mask with a basic square polygon"""
-    boundary = (0.0, 0.0, 2.0, 2.0)
-    resolution = 0.5
+    boundary = (0.0 * m, 0.0 * m, 2.0 * m, 2.0 * m)
+    resolution = 0.5 * m
     # Square polygon
-    polygon_vertices = np.array(
+    polygon_vertices = m * np.array(
         [
             [0.5, 0.5],
             [1.5, 0.5],
@@ -143,10 +144,10 @@ def test_polygon_to_mask_basic_square():
 
 def test_polygon_to_mask_triangle():
     """Test polygon_to_mask with a triangle polygon"""
-    boundary = (0.0, 0.0, 3.0, 3.0)
-    resolution = 1.0
+    boundary = (0.0 * m, 0.0 * m, 3.0 * m, 3.0 * m)
+    resolution = 1.0 * m
     # Triangle polygon
-    polygon_vertices = np.array(
+    polygon_vertices = m * np.array(
         [
             [1.0, 1.0],
             [2.0, 1.0],
@@ -167,10 +168,10 @@ def test_polygon_to_mask_triangle():
 
 def test_polygon_to_mask_empty_polygon():
     """Test polygon_to_mask with a very small polygon that might not contain grid points"""
-    boundary = (0.0, 0.0, 2.0, 2.0)
-    resolution = 1.0
+    boundary = (0.0 * m, 0.0 * m, 2.0 * m, 2.0 * m)
+    resolution = 1.0 * m
     # Very small triangle
-    polygon_vertices = np.array([[0.1, 0.1], [0.2, 0.1], [0.15, 0.2], [0.1, 0.1]])
+    polygon_vertices = m * np.array([[0.1, 0.1], [0.2, 0.1], [0.15, 0.2], [0.1, 0.1]])
 
     mask = polygon_to_mask(boundary, resolution, polygon_vertices)
 
@@ -181,26 +182,26 @@ def test_polygon_to_mask_empty_polygon():
 
 def test_polygon_to_mask_invalid_vertices_shape():
     """Test polygon_to_mask with invalid vertex shapes"""
-    boundary = (0.0, 0.0, 2.0, 2.0)
-    resolution = 0.5
+    boundary = (0.0 * m, 0.0 * m, 2.0 * m, 2.0 * m)
+    resolution = 0.5 * m
 
     # Test with 1D array
-    polygon_vertices_1d = np.array([0.5, 0.5, 1.5, 1.5])
+    polygon_vertices_1d = m * np.array([0.5, 0.5, 1.5, 1.5])
     with pytest.raises(AssertionError):
         polygon_to_mask(boundary, resolution, polygon_vertices_1d)
 
     # Test with 3D coordinates
-    polygon_vertices_3d = np.array([[0.5, 0.5, 0.0], [1.5, 0.5, 0.0], [1.5, 1.5, 0.0], [0.5, 1.5, 0.0]])
+    polygon_vertices_3d = m * np.array([[0.5, 0.5, 0.0], [1.5, 0.5, 0.0], [1.5, 1.5, 0.0], [0.5, 1.5, 0.0]])
     with pytest.raises(AssertionError):
         polygon_to_mask(boundary, resolution, polygon_vertices_3d)
 
 
 def test_polygon_to_mask_large_polygon():
     """Test polygon_to_mask with a polygon that covers the entire boundary"""
-    boundary = (0.0, 0.0, 2.0, 2.0)
-    resolution = 1.0
+    boundary = (0.0 * m, 0.0 * m, 2.0 * m, 2.0 * m)
+    resolution = 1.0 * m
     # Large polygon that covers entire boundary
-    polygon_vertices = np.array([[-1.0, -1.0], [3.0, -1.0], [3.0, 3.0], [-1.0, 3.0], [-1.0, -1.0]])
+    polygon_vertices = m * np.array([[-1.0, -1.0], [3.0, -1.0], [3.0, 3.0], [-1.0, 3.0], [-1.0, -1.0]])
 
     mask = polygon_to_mask(boundary, resolution, polygon_vertices)
 

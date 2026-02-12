@@ -5,6 +5,7 @@ import pytest
 
 from fdtdx import constants
 from fdtdx.config import SimulationConfig
+from fdtdx.units import s
 from fdtdx.units.typing import SI
 from fdtdx.units.unitful import Unit, Unitful
 
@@ -15,7 +16,7 @@ def test_simulation_config_time_step_duration_unitful():
     resolution = Unitful(val=1e-9, unit=Unit(scale=0, dim={SI.m: 1}))  # 1 nm
     time = Unitful(val=10e-12, unit=Unit(scale=0, dim={SI.s: 1}))  # 10 ps
 
-    config = SimulationConfig(time=time, resolution=resolution, courant_factor=0.5)
+    config = SimulationConfig(time=time, resolution=resolution, courant_factor=0.5 * s)
 
     time_step = config.time_step_duration
 
@@ -52,7 +53,7 @@ def test_simulation_config_unitful_with_different_scales():
     resolution = Unitful(val=0.5, unit=Unit(scale=-3, dim={SI.m: 1}))  # 0.5 mm
     time = Unitful(val=2.0, unit=Unit(scale=-6, dim={SI.s: 1}))  # 2 μs
 
-    config = SimulationConfig(time=time, resolution=resolution, courant_factor=0.8)
+    config = SimulationConfig(time=time, resolution=resolution, courant_factor=0.8 * s)
 
     # Test time_step_duration preserves unit consistency
     time_step = config.time_step_duration
@@ -81,7 +82,7 @@ def test_simulation_config_time_steps_total_with_fractional_result():
     resolution = Unitful(val=50e-9, unit=Unit(scale=0, dim={SI.m: 1}))  # 50 nm
     time = Unitful(val=1.337e-15, unit=Unit(scale=0, dim={SI.s: 1}))  # 1.337 fs
 
-    config = SimulationConfig(time=time, resolution=resolution, courant_factor=0.99)
+    config = SimulationConfig(time=time, resolution=resolution, courant_factor=0.99 * s)
 
     # Verify the intermediate calculation uses Unitful properly
     time_step_duration = config.time_step_duration
@@ -105,6 +106,9 @@ def test_simulation_config_unitful_array_inputs():
     """Test SimulationConfig with Unitful array inputs for time and resolution"""
     # Create array inputs (though config likely expects scalars, test robustness)
     resolution_vals = jnp.array([10e-9])
+    # Using an array value like jnp.array([1e-12]) can trigger best_scale during Unitful construction.
+    # The resulting log_offset may be large, and 10**log_offset becomes a huge Python int that JAX
+    # may parse as int32, causing an overflow.
     time_vals = jnp.array([1e-12])
 
     resolution = Unitful(val=resolution_vals, unit=Unit(scale=0, dim={SI.m: 1}))

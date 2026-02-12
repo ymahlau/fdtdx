@@ -4,11 +4,13 @@ from typing import Self
 import jax
 import jax.numpy as jnp
 
+import fdtdx.functional as ff
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field, frozen_private_field
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.container import DetectorState, ObjectContainer, SimulationState
+from fdtdx.units.unitful import Unitful
 
 
 @autoinit
@@ -136,8 +138,9 @@ class EnergyThresholdCondition(StoppingCondition):
         curr_time_step, arrays = state
         time_condition = curr_time_step < self.max_steps
         min_steps_condition = curr_time_step < self.min_steps
-        total_energy = jnp.sum(compute_energy(arrays.E, arrays.H, arrays.inv_permittivities, arrays.inv_permeabilities))
-        converged = total_energy < self.threshold
+        energy = compute_energy(arrays.E, arrays.H, arrays.inv_permittivities, arrays.inv_permeabilities)
+        total_energy = ff.sum(energy)
+        converged = total_energy.array_value() < self.threshold
 
         return time_condition & (min_steps_condition | ~converged)
 
@@ -194,7 +197,8 @@ class DetectorConvergenceCondition(StoppingCondition):
 
     def setup(self, state: SimulationState, config: SimulationConfig, objects: ObjectContainer) -> Self:
         """Setting up internal attributes and validating inputs."""
-        spp = int(round(self.wave_character.get_period() / config.time_step_duration))
+        ### todo: implement unitful.round()
+        spp = int(round((self.wave_character.get_period() / config.time_step_duration).float_materialise()))
         self = self.aset("_spp", spp, create_new_ok=True)
         self = self.aset(
             "max_steps", config.time_steps_total if self.max_steps is None else self.max_steps, create_new_ok=True
@@ -274,7 +278,7 @@ class DetectorConvergenceCondition(StoppingCondition):
         """
         curr_time_step, arrays = state
         converged: jnp.ndarray = jnp.array(False, dtype=bool)
-        readings: jax.Array = next(iter(arrays.detector_states[self.detector_name].values()))
+        readings: Unitful = next(iter(arrays.detector_states[self.detector_name].values()))
 
         # Always continue if below minimum steps, always stop if at end_step
         time_condition = curr_time_step < config.time_steps_total
@@ -289,6 +293,7 @@ class DetectorConvergenceCondition(StoppingCondition):
             start_ref = jnp.clip(start_ref, 0, config.time_steps_total - self.prev_periods * self._spp)
             start_last = jnp.clip(start_last, 0, config.time_steps_total - self._spp)
 
+            # todo: implement unitful.jax.lax.dynamic_slice()
             ref_2d = jax.lax.dynamic_slice(readings, (start_ref, 0), (self.prev_periods * self._spp, 1))
             last_2d = jax.lax.dynamic_slice(readings, (start_last, 0), (self._spp, 1))
 

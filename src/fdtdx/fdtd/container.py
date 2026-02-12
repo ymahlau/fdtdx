@@ -20,6 +20,7 @@ from fdtdx.objects.device.device import Device
 from fdtdx.objects.object import SimulationObject
 from fdtdx.objects.sources.source import Source
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject, UniformMaterialObject
+from fdtdx.units.unitful import Unitful
 
 # Type alias for parameter dictionaries containing JAX arrays
 ParameterContainer = dict[str, dict[str, jax.Array] | jax.Array]
@@ -190,16 +191,16 @@ class ArrayContainer(TreeClass):
     """
 
     #: Electric field array.
-    E: jax.Array
+    E: Unitful
 
     #: Magnetic field array.
-    H: jax.Array
+    H: Unitful
 
     #: Inverse permittivity values array.
-    inv_permittivities: jax.Array
+    inv_permittivities: jax.Array | Unitful
 
     #: Inverse permeability values array.
-    inv_permeabilities: jax.Array | float
+    inv_permeabilities: jax.Array | float | Unitful
 
     #: Dictionary mapping boundary names to their states.
     boundary_states: dict[str, BaseBoundaryState]

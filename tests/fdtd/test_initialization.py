@@ -23,6 +23,7 @@ from fdtdx.objects.object import (
     SimulationObject,
 )
 from fdtdx.objects.static_material.static import UniformMaterialObject
+from fdtdx.units import m
 
 
 class TestInitialization:
@@ -32,7 +33,7 @@ class TestInitialization:
         config = Mock(spec=SimulationConfig)
         config.dtype = jnp.float32
         config.backend = "cpu"
-        config.resolution = 1.0
+        config.resolution = 1.0 * m
         config.time_steps_total = 100
         config.gradient_config = None
         return config
@@ -44,7 +45,7 @@ class TestInitialization:
         volume.name = "volume"
         volume.grid_shape = (10, 10, 10)
         volume.partial_grid_shape = (10, 10, 10)
-        volume.partial_real_shape = (10.0, 10.0, 10.0)
+        volume.partial_real_shape = (10.0 * m, 10.0 * m, 10.0 * m)
         volume.placement_order = 0
         return volume
 
@@ -55,7 +56,7 @@ class TestInitialization:
         obj.name = "test_object"
         obj.grid_shape = (5, 5, 5)
         obj.partial_grid_shape = (5, 5, 5)
-        obj.partial_real_shape = (5.0, 5.0, 5.0)
+        obj.partial_real_shape = (5.0 * m, 5.0 * m, 5.0 * m)
         obj.placement_order = 1
         return obj
 
@@ -268,7 +269,7 @@ class TestInitialization:
         constraint = Mock(spec=RealCoordinateConstraint)
         constraint.object = mock_object
         constraint.axes = [0]
-        constraint.coordinates = [5.0]  # 5.0 units
+        constraint.coordinates = [5.0 * m]  # 5.0 units
         constraint.sides = ["-"]
 
         # Call the function

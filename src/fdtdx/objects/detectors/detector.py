@@ -163,8 +163,8 @@ class Detector(SimulationObject, ABC):
         E: Unitful,
         H: Unitful,
         state: DetectorState,
-        inv_permittivity: jax.Array,
-        inv_permeability: jax.Array | float,
+        inv_permittivity: jax.Array | Unitful,
+        inv_permeability: jax.Array | float | Unitful,
     ) -> DetectorState:
         """Updates detector state with current field values.
 

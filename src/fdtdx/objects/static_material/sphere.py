@@ -4,6 +4,7 @@ import jax.numpy as jnp
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
+from fdtdx.units.unitful import Unitful
 
 
 @autoinit
@@ -16,20 +17,20 @@ class Sphere(StaticMultiMaterialObject):
     """
 
     #: The default radius of the sphere in meter (used if specific axis radii are not provided).
-    radius: float = frozen_field()
+    radius: Unitful = frozen_field()
 
     #: Name of the sphere material in the materials dictionary to be used for the object.
     material_name: str = frozen_field()
     # Optional parameters for ellipsoid shape
 
     #: The radius along the x-axis in meter. If none, use radius. Defaults to None.
-    radius_x: float | None = frozen_field(default=None)
+    radius_x: Unitful | None = frozen_field(default=None)
 
     #: The radius along the y-axis in meter. If none, use radius. Defaults to None.
-    radius_y: float | None = frozen_field(default=None)
+    radius_y: Unitful | None = frozen_field(default=None)
 
     #: The radius along the z-axis in meter. If none, use radius. Defaults to None.
-    radius_z: float | None = frozen_field(default=None)
+    radius_z: Unitful | None = frozen_field(default=None)
 
     def get_voxel_mask_for_shape(self) -> jax.Array:
         """Generates a voxel mask for a sphere or ellipsoid shape.
@@ -49,9 +50,9 @@ class Sphere(StaticMultiMaterialObject):
         radius_z = self.radius_z if self.radius_z is not None else self.radius
 
         # Convert radii to grid units
-        grid_radius_x = radius_x / self._config.resolution
-        grid_radius_y = radius_y / self._config.resolution
-        grid_radius_z = radius_z / self._config.resolution
+        grid_radius_x = (radius_x / self._config.resolution).float_value()
+        grid_radius_y = (radius_y / self._config.resolution).float_value()
+        grid_radius_z = (radius_z / self._config.resolution).float_value()
 
         # Create 3D grid
         x, y, z = jnp.meshgrid(jnp.arange(x_dim), jnp.arange(y_dim), jnp.arange(z_dim), indexing="ij")
