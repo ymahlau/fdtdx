@@ -2,6 +2,7 @@ import jax
 import jax.numpy as jnp
 from typing_extensions import override
 
+from fdtdx import Color
 from fdtdx.colors import XKCD_DARK_GREY
 from fdtdx.constants import c, eps0, eta0
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
@@ -45,7 +46,7 @@ class PerfectlyMatchedLayer(BaseBoundary):
     sigma_order: float | None = frozen_field(default=None)
 
     #: RGB color tuple for visualization. defaults to dark grey.
-    color: tuple[float, float, float] | None = frozen_field(default=XKCD_DARK_GREY)
+    color: Color | None = frozen_field(default=XKCD_DARK_GREY)
 
     def __post_init__(self):
         """Sets default PML parameters if not provided."""

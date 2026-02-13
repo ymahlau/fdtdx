@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 import jax
 
-from fdtdx.colors import XKCD_LIGHT_GREY
+from fdtdx.colors import XKCD_LIGHT_GREY, Color
 from fdtdx.core.jax.pytrees import autoinit, field, frozen_field
 from fdtdx.materials import Material
 from fdtdx.objects.object import OrderableObject
@@ -14,7 +14,7 @@ class UniformMaterialObject(OrderableObject):
     material: Material = field()
 
     #: the color object
-    color: tuple[float, float, float] | None = frozen_field(default=XKCD_LIGHT_GREY)
+    color: Color | None = frozen_field(default=XKCD_LIGHT_GREY)
 
 
 @autoinit
@@ -23,7 +23,7 @@ class StaticMultiMaterialObject(OrderableObject, ABC):
     materials: dict[str, Material] = field()
 
     #: the color of the material
-    color: tuple[float, float, float] | None = frozen_field(default=XKCD_LIGHT_GREY)
+    color: Color | None = frozen_field(default=XKCD_LIGHT_GREY)
 
     @abstractmethod
     def get_voxel_mask_for_shape(self) -> jax.Array:

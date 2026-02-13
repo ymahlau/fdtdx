@@ -7,7 +7,7 @@ import numpy as np
 from matplotlib.figure import Figure
 from rich.progress import Progress
 
-from fdtdx.colors import XKCD_LIGHT_GREEN
+from fdtdx.colors import XKCD_LIGHT_GREEN, Color
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, frozen_private_field, private_field
 from fdtdx.core.switch import OnOffSwitch
@@ -54,7 +54,7 @@ class Detector(SimulationObject, ABC):
     num_video_workers: int | None = frozen_field(default=None)  # only used when generating video
 
     #: RGB color for plotting. Defaults to light green.
-    color: tuple[float, float, float] | None = frozen_field(default=XKCD_LIGHT_GREEN)
+    color: Color | None = frozen_field(default=XKCD_LIGHT_GREEN)
 
     #: Interpolation method for plots. Defualts to "gaussian".
     plot_interpolation: str = frozen_field(default="gaussian")

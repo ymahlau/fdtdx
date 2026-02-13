@@ -4,7 +4,7 @@ from typing import Self, Sequence
 import jax
 import jax.numpy as jnp
 
-from fdtdx.colors import XKCD_LIGHT_PINK
+from fdtdx.colors import XKCD_LIGHT_PINK, Color
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, field, frozen_field, frozen_private_field
 from fdtdx.core.jax.utils import check_specs
@@ -38,7 +38,7 @@ class Device(OrderableObject, ABC):
     param_transforms: Sequence[ParameterTransformation] = field()
 
     #: Color of the object when plotted. Defaults to XKCD_LIGHT_PINK.
-    color: tuple[float, float, float] | None = frozen_field(default=XKCD_LIGHT_PINK)
+    color: Color | None = frozen_field(default=XKCD_LIGHT_PINK)
 
     #: Size of the material voxels used within the device in metrical units (meter). Note that this is independent of the simulation voxel size.
     #: Defaults to undefined shape. For all three axes, either the voxel grid or real shape needs to be defined.
