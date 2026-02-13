@@ -460,8 +460,8 @@ class BoundaryConfig(TreeClass):
             sigma_start (float, optional): Initial sigma value for all boundaries. Defaults to 0.0.
             sigma_end (float, optional): Final sigma value for all boundaries. Defaults to 1.0.
             sigma_order (float, optional): Polynomial order for sigma grading at all boundaries. Defaults to 3.0.
-            override_types (dict[str, str], optional): Dictionary mapping specific boundaries 
-                ("min_x", "max_x", "min_y", "max_y", "min_z", "max_z") to their boundary types ("pml", "periodic"), 
+            override_types (dict[str, str], optional): Dictionary mapping specific boundaries
+                ("min_x", "max_x", "min_y", "max_y", "min_z", "max_z") to their boundary types ("pml", "periodic"),
                 overriding the global boundary_type. Defaults to None.
         Returns:
             BoundaryConfig: New config object with uniform parameters

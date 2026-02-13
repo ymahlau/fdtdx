@@ -1,10 +1,10 @@
-from fdtdx import Color
 from abc import ABC, abstractmethod
 from typing import Literal, Self
 
 import jax
 import jax.numpy as jnp
 
+from fdtdx import Color
 from fdtdx.colors import XKCD_DARK_ORANGE
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
