@@ -7,8 +7,7 @@ import numpy as np
 from matplotlib.figure import Figure
 from rich.progress import Progress
 
-from fdtdx.colors import Color
-from fdtdx.colors import XKCD_LIGHT_GREEN
+from fdtdx.colors import XKCD_LIGHT_GREEN, Color
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, frozen_private_field, private_field
 from fdtdx.core.switch import OnOffSwitch

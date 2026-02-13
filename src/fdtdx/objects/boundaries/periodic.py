@@ -2,7 +2,7 @@ import functools
 
 from typing_extensions import override
 
-from fdtdx.colors import Color, XKCD_LIGHT_BLUE
+from fdtdx.colors import XKCD_LIGHT_BLUE, Color
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.objects.boundaries.boundary import BaseBoundary
 

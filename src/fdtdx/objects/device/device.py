@@ -4,7 +4,7 @@ from typing import Self, Sequence
 import jax
 import jax.numpy as jnp
 
-from fdtdx.colors import Color, XKCD_LIGHT_PINK
+from fdtdx.colors import XKCD_LIGHT_PINK, Color
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, field, frozen_field, frozen_private_field
 from fdtdx.core.jax.utils import check_specs

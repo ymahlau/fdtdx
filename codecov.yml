@@ -6,10 +6,10 @@ coverage:
     patch:
       default:
         informational: true
-        target: 90%     # New code should have 85% coverage
-        threshold: 0%   # Allow up to 5% below the target before failing
+        target: 90%
+        threshold: 0% 
     project:
       default:
         informational: false
-        target: 45%           # Fail if overall coverage drops below 80%
-        threshold: 2%         # Allow 2% decrease from previous coverage
+        target: 45%           # Fail if overall coverage drops below
+        threshold: 2%         # Allow decrease from previous coverage

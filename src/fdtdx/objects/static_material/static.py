@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 import jax
 
-from fdtdx.colors import Color, XKCD_LIGHT_GREY
+from fdtdx.colors import XKCD_LIGHT_GREY, Color
 from fdtdx.core.jax.pytrees import autoinit, field, frozen_field
 from fdtdx.materials import Material
 from fdtdx.objects.object import OrderableObject
