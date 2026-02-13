@@ -24,17 +24,15 @@ class ModePlaneSource(TFSFPlaneSource):
     _inv_permittivity: jax.Array = private_field()
     _inv_permeability: jax.Array | float = private_field()
 
+    _neff: jax.Array = private_field()  # not required for sim, used for inspection
+
     def apply(
         self: Self,
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
     ) -> Self:
-        self = super().apply(
-            key=key,
-            inv_permittivities=inv_permittivities,
-            inv_permeabilities=inv_permeabilities,
-        )
+        del key
         if (
             self.azimuth_angle != 0
             or self.elevation_angle != 0
@@ -55,38 +53,6 @@ class ModePlaneSource(TFSFPlaneSource):
         self = self.aset("_inv_permittivity", inv_permittivity_slice, create_new_ok=True)
         self = self.aset("_inv_permeability", inv_permeability_slice, create_new_ok=True)
 
-        return self
-
-    def get_EH_variation(
-        self,
-        key: jax.Array,
-        inv_permittivities: jax.Array,
-        inv_permeabilities: jax.Array | float,
-    ) -> tuple[
-        jax.Array,  # E: (3, *grid_shape)
-        jax.Array,  # H: (3, *grid_shape)
-        jax.Array,  # time_offset_E: (3, *grid_shape)
-        jax.Array,  # time_offset_H: (3, *grid_shape)
-    ]:
-        del key
-
-        center = jnp.asarray(
-            [round(self.grid_shape[self.horizontal_axis]), round(self.grid_shape[self.vertical_axis])], dtype=jnp.int32
-        )
-
-        # inv_permittivities shape: (3, Nx, Ny, Nz) - slice with component dimension
-        inv_permittivity_slice = inv_permittivities[:, *self.grid_slice]
-        if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
-            # inv_permeabilities shape: (3, Nx, Ny, Nz) - slice with component dimension
-            inv_permeability_slice = inv_permeabilities[:, *self.grid_slice]
-        else:
-            inv_permeability_slice = inv_permeabilities
-
-        raw_wave_vector = get_wave_vector_raw(
-            direction=self.direction,
-            propagation_axis=self.propagation_axis,
-        )
-
         # compute mode
         mode_E, mode_H, eff_index = compute_mode(
             frequency=self.wave_character.get_frequency(),
@@ -99,6 +65,17 @@ class ModePlaneSource(TFSFPlaneSource):
         )
         mode_E, mode_H = jnp.real(mode_E), jnp.real(mode_H)
 
+        self = self.aset("_E", mode_E, create_new_ok=True)
+        self = self.aset("_H", mode_H, create_new_ok=True)
+        self = self.aset("_neff", eff_index, create_new_ok=True)
+
+        center = jnp.asarray(
+            [round(self.grid_shape[self.horizontal_axis]), round(self.grid_shape[self.vertical_axis])], dtype=jnp.int32
+        )
+        raw_wave_vector = get_wave_vector_raw(
+            direction=self.direction,
+            propagation_axis=self.propagation_axis,
+        )
         time_offset_E, time_offset_H = calculate_time_offset_yee(
             center=center,
             wave_vector=raw_wave_vector,
@@ -109,7 +86,10 @@ class ModePlaneSource(TFSFPlaneSource):
             effective_index=jnp.real(eff_index),
         )
 
-        return mode_E, mode_H, time_offset_E, time_offset_H
+        self = self.aset("_time_offset_E", time_offset_E, create_new_ok=True)
+        self = self.aset("_time_offset_H", time_offset_H, create_new_ok=True)
+
+        return self
 
     def plot(self, save_path: str | Path):
         if self._H is None or self._E is None:
