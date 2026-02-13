@@ -6,10 +6,18 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'FDTDX'
-copyright = '2025, Yannik Mahlau'
-author = 'Yannik Mahlau'
-release = '0.4.3'
+import tomllib
+from pathlib import Path
+
+root_path = Path(__file__).parents[2] 
+
+with open(root_path / "pyproject.toml", "rb") as f:
+    data = tomllib.load(f)
+
+project = data["project"]["name"]
+author = data["project"]["authors"][0]["name"]
+release = data["project"]["version"]
+copyright = f'2025, {author}'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
