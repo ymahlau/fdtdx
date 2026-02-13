@@ -1,3 +1,4 @@
+from fdtdx import Color
 import jax
 import jax.numpy as jnp
 from typing_extensions import override
@@ -45,7 +46,7 @@ class PerfectlyMatchedLayer(BaseBoundary):
     sigma_order: float | None = frozen_field(default=None)
 
     #: RGB color tuple for visualization. defaults to dark grey.
-    color: tuple[float, float, float] | None = frozen_field(default=XKCD_DARK_GREY)
+    color: Color | None = frozen_field(default=XKCD_DARK_GREY)
 
     def __post_init__(self):
         """Sets default PML parameters if not provided."""

@@ -433,17 +433,18 @@ class BoundaryConfig(TreeClass):
     @classmethod
     def from_uniform_bound(
         cls,
-        thickness=10,
-        boundary_type="pml",
-        kappa_start=None,
-        kappa_end=None,
-        kappa_order=None,
-        alpha_start=None,
-        alpha_end=None,
-        alpha_order=None,
-        sigma_start=None,
-        sigma_end=None,
-        sigma_order=None,
+        thickness: int = 10,
+        boundary_type: str = "pml",
+        kappa_start: float | None = None,
+        kappa_end: float | None = None,
+        kappa_order: float | None = None,
+        alpha_start: float | None = None,
+        alpha_end: float | None = None,
+        alpha_order: float | None = None,
+        sigma_start: float | None = None,
+        sigma_end: float | None = None,
+        sigma_order: float | None = None,
+        override_types: dict[str, str] | None = None,
     ) -> "BoundaryConfig":
         """Creates a BoundaryConfig with uniform parameters for all boundaries.
 
@@ -459,16 +460,20 @@ class BoundaryConfig(TreeClass):
             sigma_start (float, optional): Initial sigma value for all boundaries. Defaults to 0.0.
             sigma_end (float, optional): Final sigma value for all boundaries. Defaults to 1.0.
             sigma_order (float, optional): Polynomial order for sigma grading at all boundaries. Defaults to 3.0.
+            override_types (dict[str, str], optional): Dictionary mapping specific boundaries 
+                ("min_x", "max_x", "min_y", "max_y", "min_z", "max_z") to their boundary types ("pml", "periodic"), 
+                overriding the global boundary_type. Defaults to None.
         Returns:
             BoundaryConfig: New config object with uniform parameters
         """
+        override_types = {} if override_types is None else override_types
         return cls(
-            boundary_type_minx=boundary_type,
-            boundary_type_maxx=boundary_type,
-            boundary_type_miny=boundary_type,
-            boundary_type_maxy=boundary_type,
-            boundary_type_minz=boundary_type,
-            boundary_type_maxz=boundary_type,
+            boundary_type_minx=boundary_type if "min_x" not in override_types else override_types["min_x"],
+            boundary_type_maxx=boundary_type if "max_x" not in override_types else override_types["max_x"],
+            boundary_type_miny=boundary_type if "min_y" not in override_types else override_types["min_y"],
+            boundary_type_maxy=boundary_type if "max_y" not in override_types else override_types["max_y"],
+            boundary_type_minz=boundary_type if "min_z" not in override_types else override_types["min_z"],
+            boundary_type_maxz=boundary_type if "max_z" not in override_types else override_types["max_z"],
             thickness_grid_minx=thickness,
             thickness_grid_maxx=thickness,
             thickness_grid_miny=thickness,

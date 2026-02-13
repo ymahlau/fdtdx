@@ -1,3 +1,4 @@
+from fdtdx import Color
 from abc import ABC
 from typing import Self, Sequence
 
@@ -38,7 +39,7 @@ class Device(OrderableObject, ABC):
     param_transforms: Sequence[ParameterTransformation] = field()
 
     #: Color of the object when plotted. Defaults to XKCD_LIGHT_PINK.
-    color: tuple[float, float, float] | None = frozen_field(default=XKCD_LIGHT_PINK)
+    color: Color | None = frozen_field(default=XKCD_LIGHT_PINK)
 
     #: Size of the material voxels used within the device in metrical units (meter). Note that this is independent of the simulation voxel size.
     #: Defaults to undefined shape. For all three axes, either the voxel grid or real shape needs to be defined.

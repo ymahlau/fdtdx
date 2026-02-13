@@ -1,3 +1,4 @@
+from fdtdx import Color
 from abc import ABC, abstractmethod
 from typing import Literal, Self
 
@@ -30,7 +31,7 @@ class Source(SimulationObject, ABC):
     switch: OnOffSwitch = frozen_field(default=OnOffSwitch())
 
     #: color of the object
-    color: tuple[float, float, float] | None = frozen_field(default=XKCD_DARK_ORANGE)
+    color: Color | None = frozen_field(default=XKCD_DARK_ORANGE)
 
     _is_on_at_time_step_arr: jax.Array = private_field()
     _time_step_to_on_idx: jax.Array = private_field()
