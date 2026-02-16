@@ -40,12 +40,28 @@ def test_check_specs_dict_arrays_wrong_shapes():
         check_specs(arrays, expected_shapes)
 
 
-def test_check_specs_mismatched_structures():
-    """Test check_specs with mismatched structures (array vs dict)."""
+def test_check_specs_mismatched_structures_array_vs_dict():
+    """Test check_specs with array given but dict expected."""
     arr = jnp.array([[1, 2], [3, 4]])
     expected_shapes = {"a": (2, 2)}
     with pytest.raises(Exception):
         check_specs(arr, expected_shapes)
+
+
+def test_check_specs_mismatched_structures_dict_vs_tuple():
+    """Test check_specs with dict given but tuple expected."""
+    arrays = {"a": jnp.array([1, 2])}
+    expected_shape = (2,)
+    with pytest.raises(Exception):
+        check_specs(arrays, expected_shape)
+
+
+def test_check_specs_dict_different_lengths():
+    """Test check_specs with dict arrays and expected shapes of different lengths."""
+    arrays = {"a": jnp.array([1, 2]), "b": jnp.array([3, 4])}
+    expected_shapes = {"a": (2,)}
+    with pytest.raises(Exception):
+        check_specs(arrays, expected_shapes)
 
 
 def test_check_shape_dtype_single_array_correct():
@@ -83,9 +99,33 @@ def test_check_shape_dtype_dict_arrays_wrong_shape():
         check_shape_dtype(arrays, expected_shape_dtypes)
 
 
-def test_check_shape_dtype_mismatched_structures():
-    """Test check_shape_dtype with mismatched structures (array vs dict)."""
+def test_check_shape_dtype_single_array_wrong_shape():
+    """Test check_shape_dtype with a single array that has wrong shape but correct dtype."""
+    arr = jnp.array([[1, 2], [3, 4]], dtype=jnp.float32)
+    expected_shape_dtype = jax.ShapeDtypeStruct((3, 2), jnp.float32)
+    with pytest.raises(Exception):
+        check_shape_dtype(arr, expected_shape_dtype)
+
+
+def test_check_shape_dtype_mismatched_structures_array_vs_dict():
+    """Test check_shape_dtype with array given but dict expected."""
     arr = jnp.array([[1, 2], [3, 4]], dtype=jnp.float32)
     expected_shape_dtypes = {"a": jax.ShapeDtypeStruct((2, 2), jnp.float32)}
     with pytest.raises(Exception):
         check_shape_dtype(arr, expected_shape_dtypes)
+
+
+def test_check_shape_dtype_mismatched_structures_dict_vs_single():
+    """Test check_shape_dtype with dict given but single ShapeDtypeStruct expected."""
+    arrays = {"a": jnp.array([1, 2], dtype=jnp.float32)}
+    expected = jax.ShapeDtypeStruct((2,), jnp.float32)
+    with pytest.raises(Exception):
+        check_shape_dtype(arrays, expected)
+
+
+def test_check_shape_dtype_dict_different_lengths():
+    """Test check_shape_dtype with dict arrays and expected of different lengths."""
+    arrays = {"a": jnp.array([1], dtype=jnp.float32), "b": jnp.array([2], dtype=jnp.float32)}
+    expected = {"a": jax.ShapeDtypeStruct((1,), jnp.float32)}
+    with pytest.raises(Exception):
+        check_shape_dtype(arrays, expected)

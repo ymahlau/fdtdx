@@ -22,6 +22,7 @@ Adding unit tests to the fdtdx project with the `pytest -m unit` marker.
 | core/jax/pytrees.py | core/jax/test_pytrees.py | 44 | 96% |
 | core/jax/sharding.py | core/jax/test_sharding.py | 26 | 100% |
 | core/jax/ste.py | core/jax/test_ste.py | 8 | 100% |
+| core/jax/utils.py | core/jax/test_utils.py | 15 | 100% |
 | core/linalg.py | core/test_linalg.py | 21 | 98% |
 
 ## Integration Tests
