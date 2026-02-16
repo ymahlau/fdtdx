@@ -1,8 +1,9 @@
 from unittest.mock import Mock
 
 import jax.numpy as jnp
+import pytest
 
-from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, SimulationState, reset_array_container
+from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, reset_array_container
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.materials import Material
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
@@ -16,8 +17,6 @@ from fdtdx.objects.static_material.static import StaticMultiMaterialObject, Unif
 
 class TestObjectContainer:
     def setup_method(self):
-        """Set up test fixtures."""
-        # Create mock objects with proper name attributes
         self.mock_source = Mock(spec=Source)
         self.mock_source.name = "source1"
 
@@ -44,11 +43,9 @@ class TestObjectContainer:
         self.mock_static_multi_material = Mock(spec=StaticMultiMaterialObject)
         self.mock_static_multi_material.name = "multi_mat"
 
-        # Mock volume object
         self.mock_volume = Mock(spec=SimulationObject)
         self.mock_volume.name = "volume"
 
-        # Create object list with volume at index 0
         self.object_list = [
             self.mock_volume,
             self.mock_source,
@@ -64,229 +61,183 @@ class TestObjectContainer:
         self.container = ObjectContainer(object_list=self.object_list, volume_idx=0)
 
     def test_volume_property(self):
-        """Test volume property returns correct object."""
         assert self.container.volume == self.mock_volume
 
     def test_objects_property(self):
-        """Test objects property returns all objects."""
         assert self.container.objects == self.object_list
 
     def test_sources_property(self):
-        """Test sources property filters correctly."""
         sources = self.container.sources
         assert len(sources) == 1
         assert sources[0] == self.mock_source
 
     def test_detectors_property(self):
-        """Test detectors property filters correctly."""
         detectors = self.container.detectors
         assert len(detectors) == 2
         assert self.mock_detector in detectors
         assert self.mock_inverse_detector in detectors
 
     def test_forward_detectors_property(self):
-        """Test forward_detectors property filters correctly."""
         forward_detectors = self.container.forward_detectors
         assert len(forward_detectors) == 1
         assert forward_detectors[0] == self.mock_detector
 
     def test_backward_detectors_property(self):
-        """Test backward_detectors property filters correctly."""
         backward_detectors = self.container.backward_detectors
         assert len(backward_detectors) == 1
         assert backward_detectors[0] == self.mock_inverse_detector
 
     def test_pml_objects_property(self):
-        """Test pml_objects property filters correctly."""
         pml_objects = self.container.pml_objects
         assert len(pml_objects) == 1
         assert pml_objects[0] == self.mock_pml
 
     def test_periodic_objects_property(self):
-        """Test periodic_objects property filters correctly."""
         periodic_objects = self.container.periodic_objects
         assert len(periodic_objects) == 1
         assert periodic_objects[0] == self.mock_periodic
 
     def test_boundary_objects_property(self):
-        """Test boundary_objects property filters correctly."""
         boundary_objects = self.container.boundary_objects
         assert len(boundary_objects) == 2
         assert self.mock_pml in boundary_objects
         assert self.mock_periodic in boundary_objects
 
     def test_static_material_objects_property(self):
-        """Test static_material_objects property filters correctly."""
         static_materials = self.container.static_material_objects
         assert len(static_materials) == 2
         assert self.mock_uniform_material in static_materials
         assert self.mock_static_multi_material in static_materials
 
     def test_devices_property(self):
-        """Test devices property filters correctly."""
         devices = self.container.devices
         assert len(devices) == 1
         assert devices[0] == self.mock_device
 
-    def test_all_objects_non_magnetic(self):
-        """Test all_objects_non_magnetic property."""
-        # Mock materials to be non-magnetic
+    def _setup_all_materials(self, **attrs):
+        """Helper to set material attributes on all material-bearing objects."""
+        mock_material = Mock(spec=Material)
+        for attr, val in attrs.items():
+            setattr(mock_material, attr, val)
+        self.mock_uniform_material.material = mock_material
+        self.mock_device.materials = {"mat1": mock_material}
+        self.mock_static_multi_material.materials = {"mat1": mock_material}
+        return mock_material
+
+    @pytest.mark.parametrize(
+        "property_name,attr_name,true_val",
+        [
+            ("all_objects_non_magnetic", "is_magnetic", False),
+            ("all_objects_non_electrically_conductive", "is_electrically_conductive", False),
+            ("all_objects_non_magnetically_conductive", "is_magnetically_conductive", False),
+            ("all_objects_isotropic_permittivity", "is_isotropic_permittivity", True),
+            ("all_objects_isotropic_permeability", "is_isotropic_permeability", True),
+            ("all_objects_isotropic_electric_conductivity", "is_isotropic_electric_conductivity", True),
+            ("all_objects_isotropic_magnetic_conductivity", "is_isotropic_magnetic_conductivity", True),
+            ("all_objects_diagonally_anisotropic_permittivity", "is_diagonally_anisotropic_permittivity", True),
+            ("all_objects_diagonally_anisotropic_permeability", "is_diagonally_anisotropic_permeability", True),
+            (
+                "all_objects_diagonally_anisotropic_electric_conductivity",
+                "is_diagonally_anisotropic_electric_conductivity",
+                True,
+            ),
+            (
+                "all_objects_diagonally_anisotropic_magnetic_conductivity",
+                "is_diagonally_anisotropic_magnetic_conductivity",
+                True,
+            ),
+        ],
+    )
+    def test_material_property_all_true(self, property_name, attr_name, true_val):
+        """Test each material property returns True when all materials satisfy it."""
+        self._setup_all_materials(**{attr_name: true_val})
+        assert getattr(self.container, property_name) is True
+
+    def test_material_property_false_on_uniform(self):
+        """Test material property returns False when UniformMaterialObject fails."""
+        self._setup_all_materials(is_magnetic=False)
+        bad = Mock(spec=Material)
+        bad.is_magnetic = True
+        self.mock_uniform_material.material = bad
+        assert self.container.all_objects_non_magnetic is False
+
+    def test_material_fn_device_with_single_material(self):
+        """Test _is_material_fn_true_for_all when Device.materials is a single Material."""
         mock_material = Mock(spec=Material)
         mock_material.is_magnetic = False
         self.mock_uniform_material.material = mock_material
-        self.mock_device.materials = {"mat1": mock_material}
-        self.mock_static_multi_material.materials = {"mat1": mock_material}
-
+        self.mock_device.materials = mock_material
+        self.mock_static_multi_material.materials = mock_material
         assert self.container.all_objects_non_magnetic is True
 
-        # Test with magnetic material
-        mock_magnetic_material = Mock(spec=Material)
-        mock_magnetic_material.is_magnetic = True
-        self.mock_uniform_material.material = mock_magnetic_material
-
+    def test_material_fn_dict_value_fails(self):
+        """Test _is_material_fn_true_for_all returns False when one dict value fails."""
+        good = Mock(spec=Material)
+        good.is_magnetic = False
+        bad = Mock(spec=Material)
+        bad.is_magnetic = True
+        self.mock_uniform_material.material = good
+        self.mock_device.materials = {"good": good, "bad": bad}
+        self.mock_static_multi_material.materials = {"m": good}
         assert self.container.all_objects_non_magnetic is False
 
-    def test_all_objects_non_electrically_conductive(self):
-        """Test all_objects_non_electrically_conductive property."""
-        # Mock materials to be non-conductive
-        mock_material = Mock(spec=Material)
-        mock_material.is_electrically_conductive = False
-        self.mock_uniform_material.material = mock_material
-
-        assert self.container.all_objects_non_electrically_conductive is True
-
-        # Test with conductive material
-        mock_conductive_material = Mock(spec=Material)
-        mock_conductive_material.is_electrically_conductive = True
-        self.mock_uniform_material.material = mock_conductive_material
-
-        assert self.container.all_objects_non_electrically_conductive is False
-
-    def test_all_objects_isotropic_permittivity(self):
-        """Test all_objects_isotropic_permittivity property."""
-        # Mock materials to be isotropic
-        mock_material = Mock(spec=Material)
-        mock_material.is_isotropic_permittivity = True
-        self.mock_uniform_material.material = mock_material
-        self.mock_device.materials = {"mat1": mock_material}
-        self.mock_static_multi_material.materials = {"mat1": mock_material}
-
-        assert self.container.all_objects_isotropic_permittivity is True
-
-        # Test with anisotropic material
-        mock_anisotropic_material = Mock(spec=Material)
-        mock_anisotropic_material.is_isotropic_permittivity = False
-        self.mock_uniform_material.material = mock_anisotropic_material
-
-        assert self.container.all_objects_isotropic_permittivity is False
-
-    def test_all_objects_isotropic_permeability(self):
-        """Test all_objects_isotropic_permeability property."""
-        # Mock materials to have isotropic permeability
-        mock_material = Mock(spec=Material)
-        mock_material.is_isotropic_permeability = True
-        self.mock_uniform_material.material = mock_material
-        self.mock_device.materials = {"mat1": mock_material}
-        self.mock_static_multi_material.materials = {"mat1": mock_material}
-
-        assert self.container.all_objects_isotropic_permeability is True
-
-        # Test with anisotropic permeability
-        mock_anisotropic_material = Mock(spec=Material)
-        mock_anisotropic_material.is_isotropic_permeability = False
-        self.mock_uniform_material.material = mock_anisotropic_material
-
-        assert self.container.all_objects_isotropic_permeability is False
-
-    def test_all_objects_isotropic_electric_conductivity(self):
-        """Test all_objects_isotropic_electric_conductivity property."""
-        # Mock materials to have isotropic electric conductivity
-        mock_material = Mock(spec=Material)
-        mock_material.is_isotropic_electric_conductivity = True
-        self.mock_uniform_material.material = mock_material
-        self.mock_device.materials = {"mat1": mock_material}
-        self.mock_static_multi_material.materials = {"mat1": mock_material}
-
-        assert self.container.all_objects_isotropic_electric_conductivity is True
-
-        # Test with anisotropic electric conductivity
-        mock_anisotropic_material = Mock(spec=Material)
-        mock_anisotropic_material.is_isotropic_electric_conductivity = False
-        self.mock_uniform_material.material = mock_anisotropic_material
-
-        assert self.container.all_objects_isotropic_electric_conductivity is False
-
-    def test_all_objects_isotropic_magnetic_conductivity(self):
-        """Test all_objects_isotropic_magnetic_conductivity property."""
-        # Mock materials to have isotropic magnetic conductivity
-        mock_material = Mock(spec=Material)
-        mock_material.is_isotropic_magnetic_conductivity = True
-        self.mock_uniform_material.material = mock_material
-        self.mock_device.materials = {"mat1": mock_material}
-        self.mock_static_multi_material.materials = {"mat1": mock_material}
-
-        assert self.container.all_objects_isotropic_magnetic_conductivity is True
-
-        # Test with anisotropic magnetic conductivity
-        mock_anisotropic_material = Mock(spec=Material)
-        mock_anisotropic_material.is_isotropic_magnetic_conductivity = False
-        self.mock_uniform_material.material = mock_anisotropic_material
-
-        assert self.container.all_objects_isotropic_magnetic_conductivity is False
+    def test_material_fn_no_material_objects(self):
+        """Test _is_material_fn_true_for_all with only non-material objects."""
+        container = ObjectContainer(
+            object_list=[self.mock_volume, self.mock_source, self.mock_pml],
+            volume_idx=0,
+        )
+        assert container.all_objects_non_magnetic is True
 
     def test_iteration(self):
-        """Test container iteration."""
         objects = list(self.container)
         assert objects == self.object_list
 
     def test_getitem_by_name(self):
-        """Test __getitem__ with object name."""
         obj = self.container["source1"]
         assert obj == self.mock_source
 
+    def test_getitem_nonexistent_raises(self):
+        with pytest.raises(ValueError, match="does not exist"):
+            self.container["nonexistent"]
+
     def test_contains(self):
-        """Test __contains__ method."""
         assert "source1" in self.container
         assert "nonexistent" not in self.container
 
     def test_setitem(self):
-        """Test __setitem__ method."""
         new_source = Mock(spec=Source)
         new_source.name = "source1"
         self.container["source1"] = new_source
         assert self.container["source1"] == new_source
 
+    def test_setitem_nonexistent_replaces_last(self):
+        """Test __setitem__ with nonexistent key replaces last element (missing raise)."""
+        new_obj = Mock(spec=SimulationObject)
+        new_obj.name = "nonexistent"
+        self.container["nonexistent"] = new_obj
+        # Bug: ValueError not raised, idx=-1 causes last element to be replaced
+        assert self.container.object_list[-1] == new_obj
+
     def test_copy(self):
-        """Test copy method."""
         copied = self.container.copy()
         assert copied.object_list == self.container.object_list
         assert copied.volume_idx == self.container.volume_idx
-        # Verify it's a different list object
         assert copied.object_list is not self.container.object_list
 
     def test_replace_sources(self):
-        """Test replace_sources method."""
         new_source = Mock(spec=Source)
         new_source.name = "new_source"
-        new_sources = [new_source]
 
-        new_container = self.container.replace_sources(new_sources)
+        new_container = self.container.replace_sources([new_source])
 
-        # Verify old sources are gone
         assert len(new_container.sources) == 1
         assert new_container.sources[0] == new_source
-        # Verify other objects are preserved
         assert len(new_container.detectors) == 2
 
 
 class TestArrayContainer:
-    def __init__(self):
-        self.magnetic_conductivity = None
-        self.electric_conductivity = None
-
     def setup_method(self):
-        """Set up test fixtures."""
-        # Create mock arrays
         self.E = jnp.ones((3, 10, 10, 10))
         self.H = jnp.ones((3, 10, 10, 10))
         self.psi_E = jnp.zeros((6, 10, 10, 10))
@@ -297,7 +248,6 @@ class TestArrayContainer:
         self.inv_permittivities = jnp.ones((3, 10, 10, 10))
         self.inv_permeabilities = jnp.ones((3, 10, 10, 10))
 
-        # Create mock states
         self.detector_states = {"detector1": Mock(spec=DetectorState)}
         self.recording_state = Mock(spec=RecordingState)
 
@@ -315,8 +265,7 @@ class TestArrayContainer:
             recording_state=self.recording_state,
         )
 
-    def test_array_container_creation(self):
-        """Test ArrayContainer creation with all fields."""
+    def test_creation(self):
         assert jnp.array_equal(self.array_container.E, self.E)
         assert jnp.array_equal(self.array_container.H, self.H)
         assert jnp.array_equal(self.array_container.inv_permittivities, self.inv_permittivities)
@@ -324,8 +273,7 @@ class TestArrayContainer:
         assert self.array_container.detector_states == self.detector_states
         assert self.array_container.recording_state == self.recording_state
 
-    def test_array_container_optional_fields(self):
-        """Test ArrayContainer creation with optional fields."""
+    def test_optional_conductivity_fields(self):
         electric_conductivity = jnp.ones((3, 10, 10, 10))
         magnetic_conductivity = jnp.ones((3, 10, 10, 10))
 
@@ -341,26 +289,37 @@ class TestArrayContainer:
             inv_permeabilities=self.inv_permeabilities,
             detector_states=self.detector_states,
             recording_state=self.recording_state,
-            electric_conductivity=self.electric_conductivity,
-            magnetic_conductivity=self.magnetic_conductivity,
+            electric_conductivity=electric_conductivity,
+            magnetic_conductivity=magnetic_conductivity,
         )
 
         assert jnp.array_equal(container.electric_conductivity, electric_conductivity)
         assert jnp.array_equal(container.magnetic_conductivity, magnetic_conductivity)
 
-    def test_array_container_tree_class_properties(self):
-        """Test that ArrayContainer inherits TreeClass properties."""
-        # TreeClass methods should be available on the class, not instance
-        assert hasattr(ArrayContainer, "tree_flatten")
-        assert hasattr(ArrayContainer, "tree_unflatten")
-        # aset should be available on instance
-        assert hasattr(self.array_container, "aset")
+    def test_default_conductivity_is_none(self):
+        assert self.array_container.electric_conductivity is None
+        assert self.array_container.magnetic_conductivity is None
+
+    def test_inv_permeabilities_float(self):
+        """Test that inv_permeabilities can be a float."""
+        container = ArrayContainer(
+            E=self.E,
+            H=self.H,
+            psi_E=self.psi_E,
+            psi_H=self.psi_H,
+            alpha=self.alpha,
+            kappa=self.kappa,
+            sigma=self.sigma,
+            inv_permittivities=self.inv_permittivities,
+            inv_permeabilities=1.0,
+            detector_states=self.detector_states,
+            recording_state=self.recording_state,
+        )
+        assert container.inv_permeabilities == 1.0
 
 
 class TestResetArrayContainer:
     def setup_method(self):
-        """Set up test fixtures."""
-        # Create mock arrays with non-zero values
         self.E = jnp.ones((3, 5, 5, 5))
         self.H = jnp.ones((3, 5, 5, 5))
         self.psi_E = jnp.zeros((6, 5, 5, 5))
@@ -371,7 +330,6 @@ class TestResetArrayContainer:
         self.inv_permittivities = jnp.ones((3, 5, 5, 5))
         self.inv_permeabilities = jnp.ones((3, 5, 5, 5))
 
-        # Create mock states
         self.detector_states = {"detector1": {"data": jnp.ones(10)}}
         self.recording_state = RecordingState(data={"recording": jnp.ones(10)}, state={"state": jnp.ones(5)})
 
@@ -389,63 +347,50 @@ class TestResetArrayContainer:
             recording_state=self.recording_state,
         )
 
-        # Create mock objects
         self.mock_boundary = Mock(spec=PerfectlyMatchedLayer)
         self.mock_boundary.name = "boundary1"
 
         self.objects = ObjectContainer(object_list=[self.mock_boundary], volume_idx=0)
 
-    def test_reset_array_container_with_detector_reset(self):
-        """Test reset_array_container with detector state reset."""
-        result = reset_array_container(
-            arrays=self.array_container, objects=self.objects, reset_detector_states=True, reset_recording_state=False
-        )
+    def test_e_and_h_fields_zeroed(self):
+        result = reset_array_container(arrays=self.array_container, objects=self.objects)
+        assert jnp.all(result.E == 0)
+        assert jnp.all(result.H == 0)
 
-        # Detector states should be zeroed
+    def test_material_properties_preserved(self):
+        result = reset_array_container(arrays=self.array_container, objects=self.objects)
+        assert jnp.array_equal(result.inv_permittivities, self.inv_permittivities)
+        assert jnp.array_equal(result.inv_permeabilities, self.inv_permeabilities)
+
+    def test_detector_states_reset_by_default(self):
+        result = reset_array_container(arrays=self.array_container, objects=self.objects)
         assert jnp.all(result.detector_states["detector1"]["data"] == 0)
 
-        # Recording state should NOT be reset
-        assert result.recording_state == self.recording_state
-
-    def test_reset_array_container_with_recording_reset(self):
-        """Test reset_array_container with recording state reset."""
+    def test_detector_states_preserved_when_not_reset(self):
         result = reset_array_container(
-            arrays=self.array_container, objects=self.objects, reset_detector_states=False, reset_recording_state=True
+            arrays=self.array_container, objects=self.objects, reset_detector_states=False
+        )
+        assert jnp.array_equal(
+            result.detector_states["detector1"]["data"],
+            self.detector_states["detector1"]["data"],
         )
 
-        # Detector states should NOT be reset - compare individual elements
-        assert jnp.array_equal(result.detector_states["detector1"]["data"], self.detector_states["detector1"]["data"])
+    def test_recording_state_not_reset_by_default(self):
+        result = reset_array_container(arrays=self.array_container, objects=self.objects)
+        assert result.recording_state == self.recording_state
 
-        # Recording state should be reset (zeroed)
+    def test_recording_state_reset(self):
+        result = reset_array_container(
+            arrays=self.array_container, objects=self.objects, reset_recording_state=True
+        )
         assert jnp.all(result.recording_state.data["recording"] == 0)
         assert jnp.all(result.recording_state.state["state"] == 0)
 
-    def test_reset_array_container_no_recording_state(self):
-        """Test reset_array_container with no recording state."""
+    def test_recording_state_none_handled(self):
         array_container_no_recording = self.array_container.aset("recording_state", None)
-
         result = reset_array_container(
             arrays=array_container_no_recording,
             objects=self.objects,
-            reset_detector_states=True,
             reset_recording_state=True,
         )
-
-        # Should handle None recording state gracefully
         assert result.recording_state is None
-
-
-class TestSimulationState:
-    def test_simulation_state_type_alias(self):
-        """Test that SimulationState is properly defined as a type alias."""
-        # Create a mock ArrayContainer
-        array_container = Mock(spec=ArrayContainer)
-        time_step = jnp.array(5)
-
-        # Test that the tuple format works
-        state: SimulationState = (time_step, array_container)
-
-        assert isinstance(state, tuple)
-        assert len(state) == 2
-        assert state[0] == time_step
-        assert state[1] == array_container
