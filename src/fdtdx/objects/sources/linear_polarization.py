@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Self
 
 import jax
 import jax.numpy as jnp
@@ -6,7 +7,7 @@ import jax.numpy as jnp
 from fdtdx.core.grid import calculate_time_offset_yee
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.linalg import get_wave_vector_raw, rotate_vector
-from fdtdx.core.misc import linear_interpolated_indexing, normalize_polarization_for_source
+from fdtdx.core.misc import expand_to_3x3, linear_interpolated_indexing, normalize_polarization_for_source
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.objects.sources.tfsf import TFSFPlaneSource
 
@@ -22,17 +23,12 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
     #: whether to normalize the polarization vector
     normalize_by_energy: bool = frozen_field(default=True)
 
-    def get_EH_variation(
-        self,
+    def apply(
+        self: Self,
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
-    ) -> tuple[
-        jax.Array,  # E: (3, *grid_shape)
-        jax.Array,  # H: (3, *grid_shape)
-        jax.Array,  # time_offset_E: (3, *grid_shape)
-        jax.Array,  # time_offset_H: (3, *grid_shape)
-    ]:
+    ):
         # inv_permittivities shape: (3, Nx, Ny, Nz) - slice with component dimension
         inv_permittivities = inv_permittivities[:, *self.grid_slice]
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
@@ -111,7 +107,33 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
             H = H / total_energy_root
 
         # adjust H for impedance of the medium
-        impedance = jnp.sqrt(inv_permittivities / inv_permeabilities)
+        # check if fully anisotropic
+        if (
+            isinstance(inv_permittivities, jax.Array)
+            and inv_permittivities.ndim >= 1
+            and inv_permittivities.shape[0] == 9
+        ) or (
+            isinstance(inv_permeabilities, jax.Array)
+            and inv_permeabilities.ndim >= 1
+            and inv_permeabilities.shape[0] == 9
+        ):
+            # convert to 3x3 tensors
+            inv_eps_tensor = expand_to_3x3(inv_permittivities)  # shape: (3, 3, Nx, Ny, Nz)
+            inv_mu_tensor = expand_to_3x3(inv_permeabilities)  # shape: (3, 3, Nx, Ny, Nz)
+
+            # invert to get eps and mu tensors
+            perm = (2, 3, 4, 0, 1)  # (3, 3, nx, ny, nz) -> (nx, ny, nz, 3, 3)
+            inv_perm = (3, 4, 0, 1, 2)  # (nx, ny, nz, 3, 3) -> (3, 3, nx, ny, nz)
+            eps = jnp.linalg.inv(inv_eps_tensor.transpose(perm)).transpose(inv_perm)
+            mu = jnp.linalg.inv(inv_mu_tensor.transpose(perm)).transpose(inv_perm)
+
+            # compute effective permittivity and permeability along polarization directions
+            eps_eff = jnp.einsum("i,ijxyz,j->xyz", e_pol, eps, e_pol)
+            mu_eff = jnp.einsum("i,ijxyz,j->xyz", h_pol, mu, h_pol)
+            impedance = jnp.sqrt(mu_eff / eps_eff)
+        else:
+            impedance = jnp.sqrt(inv_permittivities / inv_permeabilities)
+
         H = H / impedance
 
         time_offset_E, time_offset_H = calculate_time_offset_yee(
@@ -125,7 +147,12 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
             h_polarization=h_pol,
         )
 
-        return E, H, time_offset_E, time_offset_H
+        self = self.aset("_E", E, create_new_ok=True)
+        self = self.aset("_H", H, create_new_ok=True)
+        self = self.aset("_time_offset_E", time_offset_E, create_new_ok=True)
+        self = self.aset("_time_offset_H", time_offset_H, create_new_ok=True)
+
+        return self
 
     @abstractmethod
     def _get_amplitude_raw(

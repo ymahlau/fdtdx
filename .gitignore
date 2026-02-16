@@ -20,6 +20,7 @@ docs/source/notebooks
 docs/source/api
 docs/jupyter_execute
 tests/generated/
+scripts/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

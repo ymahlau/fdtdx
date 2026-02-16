@@ -1,0 +1,42 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:  # Allows manual triggering from Actions tab
+
+permissions:
+  contents: read
+
+jobs:
+  pypi-publish:
+    name: Build and publish Python 🐍 distributions to PyPI
+    runs-on: ubuntu-latest
+    # This permission is REQUIRED for Trusted Publishing
+    permissions:
+      id-token: write  
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: pip install build
+
+      - name: Build package
+        run: python -m build
+
+      - name: Publish distribution 📦 to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # We don't need a password/token input because we use 
+          # Trusted Publishing (id-token permission above).
+          print_hash: true

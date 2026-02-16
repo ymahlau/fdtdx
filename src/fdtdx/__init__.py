@@ -4,6 +4,7 @@ from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.constants import wavelength_to_period
 from fdtdx.conversion.json import export_json, export_json_str, import_from_json
 from fdtdx.conversion.stl import export_stl
+from fdtdx.conversion.vti import export_arrays_snapshot_to_vti, export_vti
 from fdtdx.core.jax.pytrees import (
     TreeClass,
     autoinit,
@@ -33,7 +34,7 @@ from fdtdx.materials import Material
 from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
-from fdtdx.objects.detectors.detector import Detector
+from fdtdx.objects.detectors.detector import Detector, DetectorState
 from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.detectors.field import FieldDetector
 from fdtdx.objects.detectors.mode import ModeOverlapDetector
@@ -96,6 +97,8 @@ __all__ = [
     "export_json",
     "export_json_str",
     "import_from_json",
+    "export_vti",
+    "export_arrays_snapshot_to_vti",
     # core
     "TreeClass",
     "autoinit",
@@ -139,6 +142,7 @@ __all__ = [
     "BoundaryConfig",
     "boundary_objects_from_config",
     # detector
+    "DetectorState",
     "EnergyDetector",
     "PoyntingFluxDetector",
     "FieldDetector",

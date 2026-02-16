@@ -73,8 +73,6 @@ If you find this repository helpful for you work, please consider citing:
   title = {FDTDX: High-Performance Open-Source FDTD Simulation with Automatic Differentiation},
   journal = {Journal of Open Source Software}
 }
-
-
 ```
 
 ## Acknowedgement

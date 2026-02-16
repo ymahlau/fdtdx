@@ -6,10 +6,18 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'FDTDX'
-copyright = '2025, Yannik Mahlau'
-author = 'Yannik Mahlau'
-release = '0.4.3'
+import tomllib
+from pathlib import Path
+
+root_path = Path(__file__).parents[2] 
+
+with open(root_path / "pyproject.toml", "rb") as f:
+    data = tomllib.load(f)
+
+project = data["project"]["name"]
+author = data["project"]["authors"][0]["name"]
+release = data["project"]["version"]
+copyright = f'2025, {author}'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -22,6 +30,7 @@ extensions = [
     "myst_nb",
     "sphinx.ext.mathjax",
     "sphinx.ext.viewcode",
+    'sphinx_copybutton',
 ]
 
 templates_path = ['_templates']
@@ -56,6 +65,10 @@ autosummary_generate = True
 #     'exclude-members': '__init__, __new__, __post_init__, __repr__, __eq__, __hash__, __weakref__',
 #     'undoc-members': False,  # Don't document members without docstrings
 # }
+autodoc_type_aliases = {
+    'fdtdx.ParameterContainer': 'fdtdx.ParameterContainer',
+    'fdtdx.DetectorState': 'fdtdx.DetectorState',
+}
 
 autodoc_default_options = {
     'undoc-members': False,  # Don't document members without docstrings

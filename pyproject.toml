@@ -1,6 +1,6 @@
 [project]
 name = "fdtdx"
-version = "0.5.0"
+version = "0.6.0"
 description = "A JAX framework for the finite-difference time-domain (FDTD) method for solving Maxwell's equations with a focus on inverse design of photonic devices." 
 readme = "README.md"
 authors = [
@@ -63,6 +63,7 @@ dev = [
     "nbsphinx>=0.9",
     "sphinx-autodoc-typehints>=3.2.0",
     "myst_nb>=1.3.0",
+    "sphinx-copybutton>=0.5.2",
 ]
 cuda12 = [
     "jax[cuda12]>=0.4.36",

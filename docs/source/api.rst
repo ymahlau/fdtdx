@@ -8,7 +8,6 @@ API
     fdtdx.ArrayContainer
     fdtdx.autoinit
     fdtdx.BinaryMedianFilterModule
-    fdtdx.BOTTOM_Z_PADDING_CONFIG_REPEAT
     fdtdx.boundary_objects_from_config
     fdtdx.BoundaryConfig
     fdtdx.BrushConstraint2D
@@ -25,9 +24,11 @@ API
     fdtdx.DiagonalSymmetry2D
     fdtdx.DtypeConversion
     fdtdx.EnergyDetector
+    fdtdx.export_arrays_snapshot_to_vti
     fdtdx.export_json
     fdtdx.export_json_str
     fdtdx.export_stl
+    fdtdx.export_vti
     fdtdx.ExtrudedPolygon
     fdtdx.field
     fdtdx.FieldDetector
@@ -50,7 +51,6 @@ API
     fdtdx.normalize_by_poynting_flux
     fdtdx.ObjectContainer
     fdtdx.OnOffSwitch
-    fdtdx.ParameterContainer
     fdtdx.ParameterTransformation
     fdtdx.PerfectlyMatchedLayer
     fdtdx.PeriodicBoundary
@@ -91,4 +91,3 @@ API
     fdtdx.UniformPlaneSource
     fdtdx.WaveCharacter
     fdtdx.wavelength_to_period
-    

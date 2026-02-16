@@ -28,8 +28,9 @@ def metric_efficiency(
             - jax.Array: Mean efficiency across all input-output pairs
             - dict: Additional info including individual metric values and efficiencies
               with keys like:
-                "{detector}_{metric}" for raw metric values
-                "{out}_{by}_{in}_efficiency" for individual efficiency ratios
+
+                - "{detector}_{metric}" for raw metric values
+                - "{out}_{by}_{in}_efficiency" for individual efficiency ratios
     """
     efficiencies, info = [], {}
     for in_name in in_names:
