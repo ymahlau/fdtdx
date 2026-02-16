@@ -270,8 +270,8 @@ def test_calculate_time_offset_yee_4d_permeability():
         assert jnp.all(jnp.isfinite(time_offset_E))
 
 
-def test_calculate_time_offset_yee_4d_permeability_requires_h_polarization():
-    """Test that 4D permeability without h_polarization raises ValueError."""
+def test_calculate_time_offset_yee_4d_permeability_without_h_polarization():
+    """Test that 4D isotropic permeability works without h_polarization (uses [0] slice)."""
     center = jnp.array([1.0, 1.0])
     wave_vector = jnp.array([1.0, 0.0, 0.0])
     resolution = 0.1
@@ -285,41 +285,45 @@ def test_calculate_time_offset_yee_4d_permeability_requires_h_polarization():
 
     e_pol = jnp.array([0.0, 1.0, 0.0])
 
-    with pytest.raises(ValueError, match="h_polarization is required"):
-        calculate_time_offset_yee(
-            center,
-            wave_vector,
-            inv_permittivities,
-            inv_permeabilities,
-            resolution,
-            time_step_duration,
-            e_polarization=e_pol,
-            # h_polarization not provided
-        )
+    time_offset_E, time_offset_H = calculate_time_offset_yee(
+        center,
+        wave_vector,
+        inv_permittivities,
+        inv_permeabilities,
+        resolution,
+        time_step_duration,
+        e_polarization=e_pol,
+        # h_polarization not provided - should still work
+    )
+    assert time_offset_E.shape == (3, 3, 3, 1)
+    assert time_offset_H.shape == (3, 3, 3, 1)
+    assert jnp.all(jnp.isfinite(time_offset_E))
 
 
-def test_calculate_time_offset_yee_4d_permittivity_requires_e_polarization():
-    """Test that isotropic 4D permittivity without e_polarization raises ValueError."""
+def test_calculate_time_offset_yee_4d_permittivity_without_e_polarization():
+    """Test that isotropic 4D permittivity works without e_polarization (uses [0] slice)."""
     center = jnp.array([1.0, 1.0])
     wave_vector = jnp.array([1.0, 0.0, 0.0])
     resolution = 0.1
     time_step_duration = 1e-15
 
-    # Isotropic 4D permittivity (shape (1, Nx, Ny, Nz) - doesn't trigger anisotropic check)
+    # Isotropic 4D permittivity (shape (1, Nx, Ny, Nz))
     inv_permittivities = jnp.ones((1, 3, 3, 1))
 
     inv_permeabilities = 1.0
 
-    with pytest.raises(ValueError, match="e_polarization is required"):
-        calculate_time_offset_yee(
-            center,
-            wave_vector,
-            inv_permittivities,
-            inv_permeabilities,
-            resolution,
-            time_step_duration,
-            # e_polarization not provided
-        )
+    time_offset_E, time_offset_H = calculate_time_offset_yee(
+        center,
+        wave_vector,
+        inv_permittivities,
+        inv_permeabilities,
+        resolution,
+        time_step_duration,
+        # e_polarization not provided - should still work
+    )
+    assert time_offset_E.shape == (3, 3, 3, 1)
+    assert time_offset_H.shape == (3, 3, 3, 1)
+    assert jnp.all(jnp.isfinite(time_offset_E))
 
 
 def test_calculate_time_offset_yee_isotropic_4d_permeability_with_h_polarization():
