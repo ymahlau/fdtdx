@@ -1644,3 +1644,26 @@ def test_extend_to_inf_no_boundaries_with_size(simple_config, simple_volume, sim
     assert resolved_slices["obj1"][0] == (0, 40)
     assert resolved_slices["obj1"][1] == (0, 40)
     assert resolved_slices["obj1"][2] == (0, 40)
+
+
+def test_extend_to_inf_no_bounds_but_size_known_triggers_upper_removal(simple_config, simple_volume, simple_material):
+    """
+    Trigger branch:
+    b0 is None, b1 is None, size is not None
+    and (o, 1) is in extension_obj.
+    """
+
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_real_shape=(10.0, 10.0, 10.0),  # size known
+        # no position → no bounds
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+    constraints = []  # important: no constraints that remove extension flags
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # This configuration is valid, we just care about hitting the branch
+    assert errors["obj1"] is None
