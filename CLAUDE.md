@@ -26,6 +26,7 @@ Adding unit tests to the fdtdx project with the `pytest -m unit` marker.
 | core/linalg.py | core/test_linalg.py | 21 | 98% |
 | core/physics/curl.py | core/physics/test_curl.py | 14 | 100% |
 | core/physics/losses.py | core/physics/test_losses.py | 8 | 100% |
+| core/physics/metrics.py | core/physics/test_metrics.py | 18 | 100% |
 
 ## Integration Tests
 - Tests location: `tests/integration/` (mirrors `src/fdtdx/` structure)
