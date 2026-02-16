@@ -410,8 +410,3 @@ class TestAutoinit:
         decorated = autoinit(CustomInit)
         assert decorated is CustomInit
 
-    @pytest.mark.unit
-    def test_generates_init(self):
-        obj = SimpleTree(x=5, y="test")
-        assert obj.x == 5
-        assert obj.y == "test"

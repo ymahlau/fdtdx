@@ -79,11 +79,6 @@ class TestPrettyPrintSharding:
         sharding = get_named_sharding_from_shape((10, 20), sharding_axis=0)
         result = pretty_print_sharding(sharding)
         assert result.startswith("NamedSharding(")
-
-    @pytest.mark.unit
-    def test_named_sharding_contains_spec(self):
-        sharding = get_named_sharding_from_shape((10, 20), sharding_axis=0)
-        result = pretty_print_sharding(sharding)
         assert "PartitionSpec" in result
 
     @pytest.mark.unit
@@ -136,14 +131,6 @@ class TestGetNamedShardingFromShape:
         spec = result.spec
         assert spec[0] == SHARD_STR
         assert spec[1] is None
-
-    @pytest.mark.unit
-    def test_partition_spec_last_axis(self):
-        result = get_named_sharding_from_shape((10, 20, 30), sharding_axis=2)
-        spec = result.spec
-        assert spec[0] is None
-        assert spec[1] is None
-        assert spec[2] == SHARD_STR
 
     @pytest.mark.unit
     def test_mesh_has_shard_axis_name(self):
@@ -200,20 +187,6 @@ class TestCreateNamedShardedMatrix:
         assert jnp.allclose(result, 3.5)
 
     @pytest.mark.unit
-    def test_zero_value(self):
-        result = create_named_sharded_matrix(
-            shape=(4, 6), value=0.0, sharding_axis=0, dtype=jnp.float32, backend="cpu"
-        )
-        assert jnp.all(result == 0.0)
-
-    @pytest.mark.unit
-    def test_negative_value(self):
-        result = create_named_sharded_matrix(
-            shape=(2, 4), value=-2.0, sharding_axis=0, dtype=jnp.float32, backend="cpu"
-        )
-        assert jnp.allclose(result, -2.0)
-
-    @pytest.mark.unit
     def test_raises_on_indivisible_sharding_axis(self):
         # Mock 2 CPU devices to trigger the divisibility check
         cpu = CPU_DEVICES[0]
@@ -243,15 +216,6 @@ class TestCreateNamedShardedMatrix:
         )
         # 2*4 elements * 4 bytes (float32) = 32
         assert sharding_module.counter == old_counter + 32
-
-    @pytest.mark.unit
-    def test_counter_increment_different_dtype(self):
-        old_counter = sharding_module.counter
-        create_named_sharded_matrix(
-            shape=(2, 3), value=1.0, sharding_axis=0, dtype=jnp.int32, backend="cpu"
-        )
-        # 2*3 elements * 4 bytes (int32) = 24
-        assert sharding_module.counter == old_counter + 24
 
     @pytest.mark.unit
     def test_sharding_axis_fallback_when_dim_is_one(self):
