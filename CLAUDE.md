@@ -17,11 +17,25 @@ Adding unit tests to the fdtdx project with the `pytest -m unit` marker.
 | constants.py | test_constants.py | 11 | 100% |
 | conversion/json.py | conversion/test_json.py | 19 | 96% |
 | conversion/stl.py | conversion/test_stl.py | 14 | 100% |
+| conversion/vti.py | conversion/test_vti.py | 29 | 100% |
 | core/grid.py | core/test_grid.py | 17 | 100% |
 | core/linalg.py | core/test_linalg.py | 21 | 98% |
 
+## Integration Tests
+- Tests location: `tests/integration/` (mirrors `src/fdtdx/` structure)
+- Run integration tests: `.venv/bin/python -m pytest tests/integration -m integration`
+- Use `@pytest.mark.integration` marker
+- For tests that require full simulation setup (e.g., `place_objects`, `apply_params`)
+- When splitting existing tests from `tests/`, move integration-style tests here
+
+| Module | Test File | Tests |
+|--------|-----------|-------|
+| conversion/vti.py | conversion/test_vti.py | 1 |
+
 ## Guidelines
 - Avoid redundant tests - maintain coverage without duplication
-- Use mocks when needed (e.g., JAX backend detection in config.py)
+- Use mocks when needed (e.g., JAX backend detection in config.py, ArrayContainer in vti.py)
 - Reuse existing test code and real classes (e.g., WaveCharacter) when possible
 - Use `git mv` when moving test files to preserve history
+- When existing tests in `tests/` contain both unit and integration tests, split them:
+  move unit tests to `tests/unit/`, integration tests to `tests/integration/`
