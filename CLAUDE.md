@@ -32,6 +32,7 @@ Adding unit tests to the fdtdx project with the `pytest -m unit` marker.
 | core/plotting/device_permittivity_index_utils.py | core/plotting/test_device_permittivity_index_utils.py | 8 | 100% |
 | core/plotting/utils.py | core/plotting/test_plotting_utils.py | 10 | 96% |
 | core/switch.py | core/test_switch.py | 21 | 93% |
+| fdtd/backward.py | fdtd/test_backward.py | 11 | 100% |
 
 ## Integration Tests
 - Tests location: `tests/integration/` (mirrors `src/fdtdx/` structure)
