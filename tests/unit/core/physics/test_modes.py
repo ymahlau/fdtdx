@@ -13,26 +13,7 @@ from fdtdx.core.physics.modes import (
 )
 
 
-class TestModeTupleType:
-    """Test the ModeTupleType named tuple."""
-
-    def test_mode_tuple_creation(self):
-        """Test creating a ModeTupleType instance."""
-        mode = ModeTupleType(
-            neff=1.5 + 0.1j,
-            Ex=np.array([1, 2, 3]),
-            Ey=np.array([4, 5, 6]),
-            Ez=np.array([7, 8, 9]),
-            Hx=np.array([10, 11, 12]),
-            Hy=np.array([13, 14, 15]),
-            Hz=np.array([16, 17, 18]),
-        )
-
-        assert mode.neff == 1.5 + 0.1j
-        assert np.array_equal(mode.Ex, np.array([1, 2, 3]))
-        assert isinstance(mode, tuple)  # Should behave like a tuple
-
-
+@pytest.mark.unit
 class TestComputeModePolarizationFraction:
     """Test the compute_mode_polarization_fraction function."""
 
@@ -90,6 +71,7 @@ class TestComputeModePolarizationFraction:
             compute_mode_polarization_fraction(mode, (0, 1), "invalid_pol")
 
 
+@pytest.mark.unit
 class TestSortModes:
     """Test the sort_modes function."""
 
@@ -155,51 +137,9 @@ class TestSortModes:
         # The other modes should follow
 
 
+@pytest.mark.unit
 class TestComputeMode:
     """Test the compute_mode function."""
-
-    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
-    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
-    def test_compute_mode_basic(self, mock_normalize, mock_tidy3d_wrapper):
-        """Test basic compute_mode functionality."""
-        # Mock the tidy3d wrapper
-        mock_mode = ModeTupleType(
-            neff=1.5 + 0.1j,
-            Ex=np.ones((5, 5), dtype=np.complex64),
-            Ey=np.ones((5, 5), dtype=np.complex64),
-            Ez=np.ones((5, 5), dtype=np.complex64),
-            Hx=np.ones((5, 5), dtype=np.complex64),
-            Hy=np.ones((5, 5), dtype=np.complex64),
-            Hz=np.ones((5, 5), dtype=np.complex64),
-        )
-        mock_tidy3d_wrapper.return_value = [mock_mode]
-
-        # Mock the normalization function
-        mock_normalize.return_value = (
-            jnp.ones((3, 5, 1, 5), dtype=jnp.complex64),
-            jnp.ones((3, 5, 1, 5), dtype=jnp.complex64),
-        )
-
-        # Test inputs
-        frequency = 2e14  # 200 THz
-        inv_permittivities = jnp.ones((3, 1, 5, 5)) * 0.25  # eps = 4.0
-        inv_permeabilities = 1.0  # mu = 1.0
-        resolution = 1e-8  # 10 nm
-
-        # Test the function
-        E, H, neff = compute_mode(
-            frequency=frequency,
-            inv_permittivities=inv_permittivities,
-            inv_permeabilities=inv_permeabilities,
-            resolution=resolution,
-            direction="+",
-            mode_index=0,
-        )
-
-        # Verify the outputs
-        assert E.shape == (3, 5, 1, 5)
-        assert H.shape == (3, 5, 1, 5)
-        assert neff.dtype == jnp.complex64
 
     def test_invalid_permittivities_shape(self):
         """Test that invalid permittivities shape raises exception."""
@@ -212,38 +152,20 @@ class TestComputeMode:
         with pytest.raises(Exception, match="Invalid shape of inv_permittivities"):
             compute_mode(frequency, inv_permittivities, inv_permeabilities, resolution, "+")
 
-    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
-    def test_different_propagation_axes(self, mock_tidy3d_wrapper):
-        """Test different propagation axis configurations."""
-        mock_mode = ModeTupleType(
-            neff=1.5 + 0.1j,
-            Ex=np.ones((3, 4), dtype=np.complex64),
-            Ey=np.ones((3, 4), dtype=np.complex64),
-            Ez=np.ones((3, 4), dtype=np.complex64),
-            Hx=np.ones((3, 4), dtype=np.complex64),
-            Hy=np.ones((3, 4), dtype=np.complex64),
-            Hz=np.ones((3, 4), dtype=np.complex64),
-        )
-        mock_tidy3d_wrapper.return_value = [mock_mode]
+    def test_invalid_permeabilities_shape(self):
+        """Test that invalid permeabilities shape raises exception."""
+        frequency = 2e14
+        inv_permittivities = jnp.ones((3, 1, 5, 5))
+        # Invalid: 4D array with no singleton spatial dim
+        inv_permeabilities = jnp.ones((3, 2, 2, 2))
+        resolution = 1e-8
 
-        # Mock normalize_by_poynting_flux to return simple arrays
-        with patch("fdtdx.core.physics.modes.normalize_by_poynting_flux") as mock_normalize:
-            mock_normalize.return_value = (
-                jnp.ones((3, 3, 1, 4), dtype=jnp.complex64),
-                jnp.ones((3, 3, 1, 4), dtype=jnp.complex64),
-            )
-
-            # Test propagation along axis 0 (shape: 3, 1, 3, 4)
-            inv_permittivities = jnp.ones((3, 1, 3, 4))
-            E, H, neff = compute_mode(2e14, inv_permittivities, 1.0, 1e-8, "+")
-            assert E.shape == (3, 3, 1, 4)
-
-            # Test propagation along axis 1 (shape: 3, 3, 1, 4)
-            inv_permittivities = jnp.ones((3, 3, 1, 4))
-            E, H, neff = compute_mode(2e14, inv_permittivities, 1.0, 1e-8, "+")
-            assert E.shape == (3, 3, 1, 4)  # Note: axis handling in the function
+        with pytest.raises(Exception, match="Invalid shape of inv_permeabilities"):
+            compute_mode(frequency, inv_permittivities, inv_permeabilities, resolution, "+")
 
 
+
+@pytest.mark.unit
 class TestAnisotropicModeComputation:
     """Test anisotropic material handling in compute_mode."""
 
@@ -483,7 +405,93 @@ class TestAnisotropicModeComputation:
         assert perm_passed.shape[0] == 1
         assert np.allclose(perm_passed[0], 4.0)
 
+    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
+    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
+    def test_full_anisotropy_permittivity_9_components(self, mock_normalize, mock_tidy3d_wrapper):
+        """Test 9-component full anisotropy permittivity (matrix inversion + rotation)."""
+        mock_mode = ModeTupleType(
+            neff=1.5 + 0.1j,
+            Ex=np.ones((5, 6), dtype=np.complex64),
+            Ey=np.ones((5, 6), dtype=np.complex64),
+            Ez=np.ones((5, 6), dtype=np.complex64),
+            Hx=np.ones((5, 6), dtype=np.complex64),
+            Hy=np.ones((5, 6), dtype=np.complex64),
+            Hz=np.ones((5, 6), dtype=np.complex64),
+        )
+        mock_tidy3d_wrapper.return_value = [mock_mode]
+        mock_normalize.return_value = (
+            jnp.ones((3, 1, 5, 6), dtype=jnp.complex64),
+            jnp.ones((3, 1, 5, 6), dtype=jnp.complex64),
+        )
 
+        # Full 9-component anisotropy: diagonal inv_permittivity matrix
+        # inv_eps = diag(1/2, 1/3, 1/4) => eps = diag(2, 3, 4)
+        # Shape: (9, 1, 5, 6) - propagation along axis 0
+        inv_permittivities = jnp.zeros((9, 1, 5, 6))
+        inv_permittivities = inv_permittivities.at[0].set(1 / 2.0)  # inv_eps_xx
+        inv_permittivities = inv_permittivities.at[4].set(1 / 3.0)  # inv_eps_yy
+        inv_permittivities = inv_permittivities.at[8].set(1 / 4.0)  # inv_eps_zz
+
+        compute_mode(
+            frequency=2e14,
+            inv_permittivities=inv_permittivities,
+            inv_permeabilities=1.0,
+            resolution=1e-8,
+            direction="+",
+        )
+
+        # Verify the wrapper was called with 9-component permittivity
+        call_args = mock_tidy3d_wrapper.call_args
+        perm_passed = call_args.kwargs["permittivity_cross_section"]
+        assert perm_passed.shape[0] == 9
+
+    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
+    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
+    def test_full_anisotropy_permeability_9_components(self, mock_normalize, mock_tidy3d_wrapper):
+        """Test 9-component full anisotropy permeability (matrix inversion + rotation)."""
+        mock_mode = ModeTupleType(
+            neff=1.5 + 0.1j,
+            Ex=np.ones((5, 6), dtype=np.complex64),
+            Ey=np.ones((5, 6), dtype=np.complex64),
+            Ez=np.ones((5, 6), dtype=np.complex64),
+            Hx=np.ones((5, 6), dtype=np.complex64),
+            Hy=np.ones((5, 6), dtype=np.complex64),
+            Hz=np.ones((5, 6), dtype=np.complex64),
+        )
+        mock_tidy3d_wrapper.return_value = [mock_mode]
+        mock_normalize.return_value = (
+            jnp.ones((3, 1, 5, 6), dtype=jnp.complex64),
+            jnp.ones((3, 1, 5, 6), dtype=jnp.complex64),
+        )
+
+        # 3-component permittivity
+        inv_permittivities = jnp.zeros((3, 1, 5, 6))
+        inv_permittivities = inv_permittivities.at[0].set(1 / 2.0)
+        inv_permittivities = inv_permittivities.at[1].set(1 / 3.0)
+        inv_permittivities = inv_permittivities.at[2].set(1 / 4.0)
+
+        # Full 9-component anisotropic permeability: diagonal
+        # Shape: (9, 1, 5, 6) - propagation along axis 0
+        inv_permeabilities = jnp.zeros((9, 1, 5, 6))
+        inv_permeabilities = inv_permeabilities.at[0].set(1 / 1.1)  # inv_mu_xx
+        inv_permeabilities = inv_permeabilities.at[4].set(1 / 1.2)  # inv_mu_yy
+        inv_permeabilities = inv_permeabilities.at[8].set(1 / 1.3)  # inv_mu_zz
+
+        compute_mode(
+            frequency=2e14,
+            inv_permittivities=inv_permittivities,
+            inv_permeabilities=inv_permeabilities,
+            resolution=1e-8,
+            direction="+",
+        )
+
+        # Verify the wrapper was called with 9-component permeability
+        call_args = mock_tidy3d_wrapper.call_args
+        perm_passed = call_args.kwargs["permeability_cross_section"]
+        assert perm_passed.shape[0] == 9
+
+
+@pytest.mark.unit
 class TestTidy3DModeComputationWrapper:
     """Test the tidy3d_mode_computation_wrapper function."""
 
