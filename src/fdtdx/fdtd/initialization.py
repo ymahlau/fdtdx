@@ -531,6 +531,23 @@ def resolve_object_constraints(
     return resolved_slices, errors
 
 
+def _center_to_bounds(real_pos: float, resolution: float, size: int) -> tuple[int, int]:
+    """Convert a real-world center position and grid size to (lower, upper) grid bounds.
+
+    Args:
+        real_pos: Center position in real-world coordinates.
+        resolution: Grid resolution (real-world units per grid cell).
+        size: Object size in grid cells.
+
+    Returns:
+        Tuple (lower, upper) of integer grid indices such that upper - lower == size.
+    """
+    grid_center = round(real_pos / resolution)
+    lower = round(grid_center - size / 2)
+    upper = lower + size  # derive upper from lower to guarantee exact size
+    return lower, upper
+
+
 def _resolve_static_positions_initial(
     object_map: dict[str, SimulationObject],
     slice_dict: dict[str, list[list[int | None]]],
@@ -548,18 +565,14 @@ def _resolve_static_positions_initial(
         if hasattr(obj, "partial_real_position") and obj.partial_real_position is not None:
             for axis in range(3):
                 if obj.partial_real_position[axis] is not None:
-                    # Convert real position (center) to grid coordinate
-                    grid_center = round(
-                        obj.partial_real_position[axis] / config.resolution  # type: ignore
-                    )
-
                     # If we know the size, we can compute both boundaries from center
                     size = shape_dict[obj_name][axis]
                     if size is not None:
-                        # Compute lower and upper bounds from center and size
-                        half_size = size / 2
-                        lower = round(grid_center - half_size)
-                        upper = lower + size  # Ensure exact size by computing from lower
+                        lower, upper = _center_to_bounds(
+                            obj.partial_real_position[axis],  # type: ignore
+                            config.resolution,
+                            size,
+                        )
                         slice_dict[obj_name][axis][0] = lower
                         slice_dict[obj_name][axis][1] = upper
     return slice_dict
@@ -570,6 +583,7 @@ def _resolve_static_positions_iterative(
     slice_dict: dict[str, list[list[int | None]]],
     shape_dict: dict[str, list[int | None]],
     config: SimulationConfig,
+    errors: dict[str, str | None],
 ):
     """Iteratively resolve positions from partial_real_position when size becomes known.
 
@@ -588,25 +602,21 @@ def _resolve_static_positions_iterative(
                     if b0 is not None and b1 is not None:
                         continue  # Already resolved
 
-                    # Convert real position (center) to grid coordinate
-                    grid_center = round(
-                        obj.partial_real_position[axis] / config.resolution  # type: ignore
-                    )
-
                     # If we know the size, we can compute both boundaries from center
                     size = shape_dict[obj_name][axis]
                     if size is not None:
-                        # Compute lower and upper bounds from center and size
-                        half_size = size / 2
-                        lower = round(grid_center - half_size)
-                        upper = lower + size  # Ensure exact size by computing from lower
+                        lower, upper = _center_to_bounds(
+                            obj.partial_real_position[axis],  # type: ignore
+                            config.resolution,
+                            size,
+                        )
 
                         # Only set if not already set, and verify consistency if partially set
                         if b0 is None:
                             slice_dict[obj_name][axis][0] = lower
                             resolved_something = True
                         elif b0 != lower:
-                            raise Exception(
+                            errors[obj_name] = (
                                 f"Inconsistent position for {obj_name} axis {axis}: "
                                 f"partial_real_position implies lower bound {lower}, "
                                 f"but constraint set it to {b0}"
@@ -616,12 +626,12 @@ def _resolve_static_positions_iterative(
                             slice_dict[obj_name][axis][1] = upper
                             resolved_something = True
                         elif b1 != upper:
-                            raise Exception(
+                            errors[obj_name] = (
                                 f"Inconsistent position for {obj_name} axis {axis}: "
                                 f"partial_real_position implies upper bound {upper}, "
                                 f"but constraint set it to {b1}"
                             )
-    return resolved_something, slice_dict
+    return resolved_something, slice_dict, errors
 
 
 def _check_objects_names_from_constraints(
@@ -694,11 +704,12 @@ def _apply_constraints_iteratively(
             break
 
         # Try to resolve positions from partial_real_position if size is now known
-        resolved, slice_dict = _resolve_static_positions_iterative(
+        resolved, slice_dict, errors = _resolve_static_positions_iterative(
             object_map=object_map,
             slice_dict=slice_dict,
             shape_dict=shape_dict,
             config=config,
+            errors=errors,
         )
         changed = changed or resolved
 
@@ -1100,7 +1111,7 @@ def _extend_to_inf_if_possible(
                     extension_obj.remove((o, 0))
                 if (o, 1) in extension_obj:
                     extension_obj.remove((o, 1))
-            # Lower bound known but upper not - can compute upper if size known
+            # Lower bound known but upper not - can compute lower if size known
             elif b0 is not None and b1 is None and size is not None:
                 if (o, 1) in extension_obj:
                     extension_obj.remove((o, 1))
