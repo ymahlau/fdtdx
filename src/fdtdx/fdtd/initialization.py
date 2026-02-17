@@ -1111,11 +1111,11 @@ def _extend_to_inf_if_possible(
                     extension_obj.remove((o, 0))
                 if (o, 1) in extension_obj:
                     extension_obj.remove((o, 1))
-            # Lower bound known but upper not - can compute lower if size known
+            # Lower bound known but upper not - can compute upper if size known
             elif b0 is not None and b1 is None and size is not None:
                 if (o, 1) in extension_obj:
                     extension_obj.remove((o, 1))
-            # Upper bound known but lower not - can compute upper if size known
+            # Upper bound known but lower not - can compute lower if size known
             elif b1 is not None and b0 is None and size is not None:
                 if (o, 0) in extension_obj:
                     extension_obj.remove((o, 0))

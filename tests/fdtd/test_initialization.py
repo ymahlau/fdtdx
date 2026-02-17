@@ -1667,3 +1667,317 @@ def test_extend_to_inf_no_bounds_but_size_known_triggers_upper_removal(simple_co
 
     # This configuration is valid, we just care about hitting the branch
     assert errors["obj1"] is None
+
+
+def test_initial_position_skipped_when_size_unknown(simple_config, simple_volume, simple_material):
+    """Lines 558-574: partial_real_position is set but no size is known yet.
+
+    When the object's size cannot be determined during the initial (pre-iteration)
+    pass, _resolve_static_positions_initial must skip computing bounds so that the
+    iterative pass can pick it up later once a SizeConstraint resolves the size.
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_real_position=(50.0, 50.0, 50.0),  # center known
+        # No partial_grid_shape / partial_real_shape → size unknown at init time
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    # A SizeConstraint will resolve the size during the iterative phase.
+    # After that, _resolve_static_positions_iterative places the object.
+    size_constraint = SizeConstraint(
+        object="obj1",
+        other_object="volume",
+        axes=[0, 1, 2],
+        other_axes=[0, 1, 2],
+        proportions=[0.2, 0.2, 0.2],
+        grid_offsets=[0, 0, 0],
+        offsets=[None, None, None],
+    )
+
+    constraints = [size_constraint]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # size = 100 * 0.2 = 20; center = 50; half = 10 → (40, 60)
+    assert errors["obj1"] is None
+    assert resolved_slices["obj1"][0] == (40, 60)
+    assert resolved_slices["obj1"][1] == (40, 60)
+    assert resolved_slices["obj1"][2] == (40, 60)
+
+
+def test_initial_position_skipped_when_axis_is_none(simple_config, simple_volume, simple_material):
+    """Lines 558-574: partial_real_position has None for some axes.
+
+    Axes whose partial_real_position entry is None must be left untouched by
+    _resolve_static_positions_initial; only axes with an explicit value are placed.
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_real_position=(30.0, None, 70.0),  # y intentionally absent
+        partial_grid_shape=(10, 10, 10),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+    constraints = []
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    assert errors["obj1"] is None
+    # x: center 30, size 10, half 5 → (25, 35)
+    assert resolved_slices["obj1"][0] == (25, 35)
+    # y: no center specified → extends from 0 with known size 10
+    assert resolved_slices["obj1"][1] == (0, 10)
+    # z: center 70, size 10, half 5 → (65, 75)
+    assert resolved_slices["obj1"][2] == (65, 75)
+
+
+def test_initial_position_no_partial_real_position_attribute(simple_config, simple_volume, simple_material):
+    """Lines 558-574: hasattr guard — object without partial_real_position is silently skipped.
+
+    _resolve_static_positions_initial uses hasattr() before accessing the attribute.
+    An object that has no partial_real_position at all must be resolved by other means
+    without any AttributeError.
+    """
+    # UniformMaterialObject with only a grid shape and no position hint.
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(10, 10, 10),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+    # No position constraint either — the object will extend from 0.
+    constraints = []
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    assert errors["obj1"] is None
+    # Size known, no position → placed at origin
+    assert resolved_slices["obj1"][0] == (0, 10)
+    assert resolved_slices["obj1"][1] == (0, 10)
+    assert resolved_slices["obj1"][2] == (0, 10)
+
+
+def test_iterative_position_upper_bound_conflict(simple_config, simple_volume, simple_material):
+    """Line 632: elif b1 != upper — upper bound derived from lower+size conflicts
+    with the upper bound implied by partial_real_position.
+
+    Setup:
+    - size=10, lower bound fixed at 40 via GridCoordinateConstraint → upper=50
+      (computed by _update_grid_slices_from_shapes from lower+size).
+    - partial_real_position center=50 → _center_to_bounds gives lower=45, upper=55.
+    - When the iterative pass runs, b1 is already 50 (set from lower+size), but
+      partial_real_position implies upper=55, so b1 != upper triggers line 632.
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_real_position=(50.0, None, None),  # center 50, size 10 → expects (45, 55)
+        partial_grid_shape=(10, 10, 10),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    # Fix the lower bound to 40. With size=10, _update_grid_slices_from_shapes
+    # will derive upper=50. partial_real_position implies upper=55 → conflict.
+    constraint = GridCoordinateConstraint(
+        object="obj1",
+        axes=[0],
+        sides=["-"],
+        coordinates=[40],  # lower=40, size=10 → upper=50; but center=50 implies upper=55
+    )
+
+    constraints = [constraint]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # The conflict between upper=50 (from lower+size) and upper=55
+    # (from partial_real_position) must be recorded.
+    assert errors["obj1"] is not None
+
+
+def test_extend_to_inf_size_extension_suppresses_extension_on_correct_axis(
+    simple_config, simple_volume, simple_material
+):
+    """Lines 1096-1102: a SizeExtensionConstraint removes an object from
+    extension_obj only on the axis it targets (axis == c.axis guard).
+
+    Object has a SizeExtensionConstraint on axis 0 direction "+".  The constraint
+    fixes that boundary, so the object must NOT be extended on axis 0 upper.
+    Axes 1 and 2 are completely unconstrained, so they extend to volume boundaries.
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(20, None, None),  # size known only for x
+        material=simple_material,
+    )
+
+    anchor = UniformMaterialObject(
+        name="anchor",
+        partial_grid_shape=(10, 10, 10),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, anchor, obj]
+
+    constraints = [
+        # Pin anchor's lower bound so it is fully resolvable.
+        GridCoordinateConstraint(object="anchor", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 0, 0]),
+        # SizeExtensionConstraint on axis 0, direction "+" for obj1.
+        # This must remove (obj1, 1) from extension_obj for axis 0 only.
+        SizeExtensionConstraint(
+            object="obj1",
+            other_object="anchor",
+            axis=0,
+            direction="+",
+            other_position=1.0,  # right edge of anchor = 20
+            grid_offset=None,
+            offset=None,
+        ),
+    ]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    assert errors["obj1"] is None
+    # axis 0 upper bound is set by the SizeExtensionConstraint to anchor's right
+    # edge = 10 + 10 = 20; lower = 20 - 20 = 0.
+    assert resolved_slices["obj1"][0] == (0, 20)
+    # axes 1 and 2 are unaffected by the x-axis SizeExtensionConstraint and
+    # must extend to volume boundaries (0, 100).
+    assert resolved_slices["obj1"][1] == (0, 100)
+    assert resolved_slices["obj1"][2] == (0, 100)
+
+
+def test_extend_to_inf_size_constraint_does_not_suppress_extension(simple_config, simple_volume, simple_material):
+    """Lines 1096-1102: a SizeConstraint (not SizeExtensionConstraint) must NOT
+    remove an object from extension_obj.
+
+    The isinstance check ensures only SizeExtensionConstraint objects are removed.
+    An object whose size is governed by a SizeConstraint must still have its
+    position extended to the volume boundary when no position is specified.
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        material=simple_material,  # no partial shape
+    )
+
+    objects = [simple_volume, obj]
+
+    constraints = [
+        # SizeConstraint sets the size but must not suppress extension.
+        SizeConstraint(
+            object="obj1",
+            other_object="volume",
+            axes=[0, 1, 2],
+            other_axes=[0, 1, 2],
+            proportions=[0.5, 0.5, 0.5],
+            grid_offsets=[0, 0, 0],
+            offsets=[None, None, None],
+        ),
+    ]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    assert errors["obj1"] is None
+    # Size = 50, no position constraint → extends from 0 to 50 on all axes.
+    assert resolved_slices["obj1"][0] == (0, 50)
+    assert resolved_slices["obj1"][1] == (0, 50)
+    assert resolved_slices["obj1"][2] == (0, 50)
+
+
+def test_extend_to_inf_size_extension_on_different_axis_does_not_suppress(
+    simple_config, simple_volume, simple_material
+):
+    """Lines 1096-1102: the axis == c.axis guard ensures a SizeExtensionConstraint
+    on one axis does not suppress extension on a different axis.
+
+    A SizeExtensionConstraint on axis 0 direction "+" must leave axis 1 and axis 2
+    free to extend.  Specifically (obj1, 1) for axis 1 and axis 2 must remain in
+    extension_obj and be extended to the volume boundary.
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(20, None, None),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, obj]
+
+    constraints = [
+        # SizeExtensionConstraint only on axis 0 — must not affect axes 1 or 2.
+        SizeExtensionConstraint(
+            object="obj1",
+            other_object=None,  # extend to volume boundary
+            axis=0,
+            direction="+",
+            other_position=0.0,
+            grid_offset=None,
+            offset=None,
+        ),
+    ]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    assert errors["obj1"] is None
+    # axis 0: upper bound set to volume boundary 100, lower = 100 - 20 = 80.
+    assert resolved_slices["obj1"][0] == (80, 100)
+    # axes 1 and 2: no constraint → extend to (0, 100).
+    assert resolved_slices["obj1"][1] == (0, 100)
+    assert resolved_slices["obj1"][2] == (0, 100)
+
+
+def test_extend_to_inf_lower_bound_only_already_removed_from_extension_obj(
+    simple_config, simple_volume, simple_material
+):
+    """Lines 1107-1118: branch where b0 is not None, b1 is None, size is not None,
+    but (o, 1) is already absent from extension_obj because a SizeExtensionConstraint
+    claimed the upper bound on that axis.
+
+    When the upper-bound entry is already removed from extension_obj before the
+    per-object loop runs, the `if (o, 1) in extension_obj` guard at line 1117 must
+    evaluate to False and the object must not be double-removed (no KeyError / crash).
+    The upper bound is then set by _update_grid_slices_from_shapes via the known size.
+    """
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(15, None, None),
+        material=simple_material,
+    )
+
+    anchor = UniformMaterialObject(
+        name="anchor",
+        partial_grid_shape=(10, 10, 10),
+        material=simple_material,
+    )
+
+    objects = [simple_volume, anchor, obj]
+
+    constraints = [
+        # Lower bound of obj1 on axis 0.
+        GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[10]),
+        # Pin anchor so it is resolvable.
+        GridCoordinateConstraint(object="anchor", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[0, 0, 0]),
+        # SizeExtensionConstraint on axis 0, direction "+" removes (obj1, 1) from
+        # extension_obj before the per-object loop; the upper bound is set to
+        # anchor's right edge = 10.
+        SizeExtensionConstraint(
+            object="obj1",
+            other_object="anchor",
+            axis=0,
+            direction="+",
+            other_position=1.0,  # right edge of anchor = 10
+            grid_offset=None,
+            offset=None,
+        ),
+    ]
+
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+
+    # obj1 lower = 10 (from GridCoordinateConstraint)
+    # obj1 upper = 10 (anchor right edge, from SizeExtensionConstraint)
+    # size = 15 but bounds imply size = 0 → inconsistency error expected
+    assert errors["obj1"] is not None
