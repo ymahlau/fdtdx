@@ -1934,17 +1934,6 @@ def test_extend_to_inf_lower_bound_only_already_removed_from_extension_obj(
 ):
     """Lines 1107-1118: b0 not None, b1 None, size not None, but (o, 1) already
     absent from extension_obj because the SizeExtensionConstraint loop removed it.
-
-    When the SizeExtensionConstraint loop (lines 1098-1102) runs for axis 0 and
-    removes (obj1, 1), the per-object loop at line 1116 finds the `elif` branch
-    (b0 not None, b1 None, size not None) and evaluates `if (o, 1) in extension_obj`
-    as False — it must not crash and must not double-remove.
-
-    Setup: obj1 has known size=20 on axis 0, lower bound b0=10 (set by constraint),
-    no upper bound. A SizeExtensionConstraint on axis 0 direction "+" removes (obj1,1)
-    before the per-object loop runs. Nothing else resolves → _extend_to_inf_if_possible
-    is called. The upper bound is then derived from lower+size by
-    _update_grid_slices_from_shapes in the same or following iteration.
     """
     obj = UniformMaterialObject(
         name="obj1",
@@ -1962,11 +1951,6 @@ def test_extend_to_inf_lower_bound_only_already_removed_from_extension_obj(
             sides=["-"],
             coordinates=[10],
         ),
-        # Removes (obj1, 1) from extension_obj for axis 0 before the per-object loop.
-        # With other_object=None it tries to extend to volume boundary, but lower
-        # bound is already known, so the inconsistency path is tested instead of
-        # extension.  The critical thing is that the guard `if (o,1) in extension_obj`
-        # at line 1117 evaluates to False without error.
         SizeExtensionConstraint(
             object="obj1",
             other_object=None,
@@ -1980,7 +1964,4 @@ def test_extend_to_inf_lower_bound_only_already_removed_from_extension_obj(
 
     resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
 
-    # obj1 lower=10, size=20 → upper=30. SizeExtensionConstraint also sets upper=100
-    # (volume boundary) → inconsistency → error recorded, OR resolution succeeds
-    # with upper=100 if the extension fires first. Either way no crash.
     assert "obj1" in errors
