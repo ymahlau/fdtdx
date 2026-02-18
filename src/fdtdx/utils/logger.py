@@ -5,7 +5,7 @@ import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Sequence, cast
 
 import jax
 import jax.numpy as jnp
@@ -287,7 +287,8 @@ class Logger:
 
             # raw parameters and indices
             if isinstance(device_params, dict):
-                for k, v in device_params.items():
+                device_params_dict = cast(dict[str,jax.Array], device_params)
+                for k, v in device_params_dict.items():
                     jnp.save(self.params_dir / f"params_{iter_idx}_{device.name}_{k}.npy", v)
             else:
                 jnp.save(self.params_dir / f"params_{iter_idx}_{device.name}.npy", device_params)
