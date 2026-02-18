@@ -133,6 +133,8 @@ class EnergyThresholdCondition(StoppingCondition):
         Returns:
             jax.Array: Boolean scalar - True if condition not met and curr_time_step < max_steps.
         """
+        if self.max_steps is None or self.min_steps is None:
+            raise RuntimeError("EnergyThresholdCondition.setup() must be calle before use. ")
         curr_time_step, arrays = state
         time_condition = curr_time_step < self.max_steps
         min_steps_condition = curr_time_step < self.min_steps
@@ -209,6 +211,8 @@ class DetectorConvergenceCondition(StoppingCondition):
         return self
 
     def _validate(self, state: SimulationState, config: SimulationConfig, objects: ObjectContainer) -> None:
+        if self._spp is None:
+            raise RuntimeError("DetectorConvergenceCondition: _spp was not initialized. Run setup() first.")
         _, arrays = state
 
         if (self.prev_periods + 1) * self._spp > config.time_steps_total:
@@ -250,7 +254,8 @@ class DetectorConvergenceCondition(StoppingCondition):
 
         if self.threshold < 0:
             raise ValueError(f"Detector convergence threshold must be non-negative, got {self.threshold}.")
-
+        if self.min_steps is None:
+            raise RuntimeError("DetectorConvergenceCondition: min_steps was not initialized.")
         if self.min_steps is not None and self.min_steps < (self.prev_periods + 1) * self._spp:
             raise ValueError(
                 "min_steps must be larger than the number of steps used to compute convergence, "
@@ -272,6 +277,20 @@ class DetectorConvergenceCondition(StoppingCondition):
         Returns:
             jax.Array: Boolean scalar - True if condition not met and curr_time_step < max_steps.
         """
+        if self._spp is None or self.min_steps is None or self.max_steps is None:
+            raise RuntimeError("DetectorConvergenceCondition.setup() must be called before use.")
+        
+    
+        # Assigning to local Variables
+        spp =self._spp
+        min_steps = self.min_steps
+        max_steps = self.max_steps
+        threshold = self.threshold
+        prev_periods = self.prev_periods  
+
+        
+        
+
         curr_time_step, arrays = state
         converged: jnp.ndarray = jnp.array(False, dtype=bool)
         readings: jax.Array = next(iter(arrays.detector_states[self.detector_name].values()))
@@ -282,14 +301,14 @@ class DetectorConvergenceCondition(StoppingCondition):
 
         # Wrapping this in a func so we don't compute it until min_steps_condition == True
         def _compute_converged(_):
-            start_ref = curr_time_step - (self.prev_periods + 1) * self._spp
-            start_last = curr_time_step - self._spp
+            start_ref = curr_time_step - (prev_periods + 1) * spp
+            start_last = curr_time_step - spp
 
             # Clamp to valid bounds to avoid OOB under JIT (it doesn't like that)
-            start_ref = jnp.clip(start_ref, 0, config.time_steps_total - self.prev_periods * self._spp)
-            start_last = jnp.clip(start_last, 0, config.time_steps_total - self._spp)
+            start_ref = jnp.clip(start_ref, 0, config.time_steps_total - prev_periods * spp)
+            start_last = jnp.clip(start_last, 0, config.time_steps_total - spp)
 
-            ref_2d = jax.lax.dynamic_slice(readings, (start_ref, 0), (self.prev_periods * self._spp, 1))
+            ref_2d = jax.lax.dynamic_slice(readings, (start_ref, 0), (prev_periods * spp, 1))
             last_2d = jax.lax.dynamic_slice(readings, (start_last, 0), (self._spp, 1))
 
             readings_ref = jnp.squeeze(ref_2d, axis=1)  # (k*spp,)

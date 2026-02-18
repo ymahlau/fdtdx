@@ -47,8 +47,9 @@ def get_dtype_bytes(dtype: jnp.dtype) -> int:
 def pretty_print_sharding(sharding: jax.sharding.Sharding) -> str:
     if isinstance(sharding, jax.sharding.NamedSharding):
         return f"NamedSharding({sharding.mesh.devices}, {sharding.spec})"
-    elif isinstance(sharding, jax.sharding.PositionalSharding):
-        return f"PositionalSharding({sharding._devices}, {sharding._ids.shape})"
+    #
+    # elif isinstance(sharding, jax.sharding.PositionalSharding):
+    #    return f"PositionalSharding({sharding._devices}, {sharding._ids.shape})"
     elif isinstance(sharding, jax.sharding.SingleDeviceSharding):
         return f"SingleDeviceSharding({sharding._device})"
     else:
@@ -109,7 +110,7 @@ def create_named_sharded_matrix(
             dtype=dtype,
             device=device,
         )
-        device_matrix = value_fn(device_matrix, value)
+        device_matrix = value_fn(device_matrix, value) # type: ignore
         matrices.append(device_matrix)
     num_bytes = get_dtype_bytes(dtype)
     counter += math.prod(shape) * num_bytes

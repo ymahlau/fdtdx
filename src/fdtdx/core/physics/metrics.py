@@ -34,7 +34,7 @@ def compute_energy(
     inv_eps_shape = getattr(inv_permittivity, "shape", ())
     inv_mu_shape = getattr(inv_permeability, "shape", ())
 
-    if (len(inv_eps_shape) > 0 and inv_eps_shape[0] == 9) or (len(inv_mu_shape) > 0 and inv_mu_shape[0] == 9):
+    if (inv_eps_shape and inv_eps_shape[0] == 9) or (inv_mu_shape and inv_mu_shape[0] == 9):
         inv_permittivity = expand_to_3x3(inv_permittivity)
         inv_permeability = expand_to_3x3(inv_permeability)
 

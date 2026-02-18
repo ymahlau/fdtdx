@@ -3,6 +3,7 @@ from typing import Self, Sequence
 
 import jax
 import jax.numpy as jnp
+from typing import cast
 
 from fdtdx.colors import XKCD_LIGHT_PINK, Color
 from fdtdx.config import SimulationConfig
@@ -213,10 +214,11 @@ class Device(OrderableObject, ABC):
         # walk through modules
         for transform in self.param_transforms:
             check_specs(params, transform._input_shape)
-            params = transform(params, **transform_kwargs)
+            params_dict = cast(dict[str, jax.Array], params)
+            params = transform(params_dict, **transform_kwargs)
             check_specs(params, transform._output_shape)
         if len(params) == 1:
-            params = list(params.values())[0]
+            params = cast(jax.Array, list(params.values())[0])
         else:
             raise Exception(
                 "The parameter mapping should return a single array of indices. If using a continuous device, please"
