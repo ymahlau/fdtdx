@@ -1,9 +1,8 @@
 from abc import ABC
-from typing import Self, Sequence
+from typing import Self, Sequence, cast
 
 import jax
 import jax.numpy as jnp
-from typing import cast
 
 from fdtdx.colors import XKCD_LIGHT_PINK, Color
 from fdtdx.config import SimulationConfig

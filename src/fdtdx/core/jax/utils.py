@@ -1,5 +1,6 @@
-import jax
 from typing import cast
+
+import jax
 
 
 def check_specs(
@@ -14,7 +15,7 @@ def check_specs(
     if not isinstance(expected_shapes, dict):
         expected_shapes = {"dummy": expected_shapes}
     arrays = cast(dict[str, jax.Array], arrays)
-    
+
     if len(arrays) != len(expected_shapes):
         raise Exception(
             f"Arrays and expected dict have different lengths: {arrays.keys()=} \n\n but {expected_shapes=}"

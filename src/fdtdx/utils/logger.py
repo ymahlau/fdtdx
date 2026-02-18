@@ -287,7 +287,7 @@ class Logger:
 
             # raw parameters and indices
             if isinstance(device_params, dict):
-                device_params_dict = cast(dict[str,jax.Array], device_params)
+                device_params_dict = cast(dict[str, jax.Array], device_params)
                 for k, v in device_params_dict.items():
                     jnp.save(self.params_dir / f"params_{iter_idx}_{device.name}_{k}.npy", v)
             else:

@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any, Literal, cast
+
 import jax
 import matplotlib.pyplot as plt
 import numpy as np

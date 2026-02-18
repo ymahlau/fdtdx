@@ -279,17 +279,13 @@ class DetectorConvergenceCondition(StoppingCondition):
         """
         if self._spp is None or self.min_steps is None or self.max_steps is None:
             raise RuntimeError("DetectorConvergenceCondition.setup() must be called before use.")
-        
-    
-        # Assigning to local Variables
-        spp =self._spp
-        min_steps = self.min_steps
-        max_steps = self.max_steps
-        threshold = self.threshold
-        prev_periods = self.prev_periods  
 
-        
-        
+        # Assigning to local Variables
+        spp = self._spp
+        min_steps = self.min_steps
+
+        threshold = self.threshold
+        prev_periods = self.prev_periods
 
         curr_time_step, arrays = state
         converged: jnp.ndarray = jnp.array(False, dtype=bool)
@@ -297,7 +293,7 @@ class DetectorConvergenceCondition(StoppingCondition):
 
         # Always continue if below minimum steps, always stop if at end_step
         time_condition = curr_time_step < config.time_steps_total
-        min_steps_condition = curr_time_step >= self.min_steps
+        min_steps_condition = curr_time_step >= min_steps
 
         # Wrapping this in a func so we don't compute it until min_steps_condition == True
         def _compute_converged(_):
@@ -322,7 +318,7 @@ class DetectorConvergenceCondition(StoppingCondition):
             fft_last = jnp.fft.rfft(readings_last, n=self._spp)  # (spp//2 + 1,)
 
             spectra_distance = jnp.linalg.norm(jnp.abs(fft_ref) - jnp.abs(fft_last))
-            return spectra_distance < self.threshold
+            return spectra_distance < threshold
 
         converged = jax.lax.cond(
             min_steps_condition,
