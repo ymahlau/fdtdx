@@ -7,6 +7,7 @@ Adding unit tests to the fdtdx project with the `pytest -m unit` marker.
 - Tests location: `tests/unit/` (mirrors `src/fdtdx/` structure)
 - Run unit tests: `.venv/bin/python -m pytest tests/unit -m unit`
 - Coverage report: `.venv/bin/python -m pytest tests/unit --cov=fdtdx --cov-report=html`
+- Coverage must run on the full unit suite (not individual files) to avoid JAX crash
 - Use `.venv` directly, not `uv` (uv reverts JAX fixes)
 
 ## Completed Unit Tests
@@ -34,6 +35,7 @@ Adding unit tests to the fdtdx project with the `pytest -m unit` marker.
 | core/switch.py | core/test_switch.py | 21 | 93% |
 | fdtd/backward.py | fdtd/test_backward.py | 11 | 100% |
 | fdtd/container.py | fdtd/test_container.py | 45 | 100% |
+| fdtd/fdtd.py | fdtd/test_fdtd.py | 21 | 71% |
 
 ## Integration Tests
 - Tests location: `tests/integration/` (mirrors `src/fdtdx/` structure)
@@ -45,6 +47,16 @@ Adding unit tests to the fdtdx project with the `pytest -m unit` marker.
 | Module | Test File | Tests |
 |--------|-----------|-------|
 | conversion/vti.py | conversion/test_vti.py | 1 |
+
+## Simulation Tests
+- Tests location: `tests/simulation/` (mirrors `src/fdtdx/` structure)
+- Run simulation tests: `.venv/bin/python -m pytest tests/simulation -m simulation`
+- Use `@pytest.mark.simulation` marker (auto-applied via conftest.py)
+- For tests that require `jax.grad`/`jax.value_and_grad` through full simulation passes
+
+| Module | Test File | Tests |
+|--------|-----------|-------|
+| fdtd/fdtd.py | fdtd/test_fdtd.py | 3 |
 
 ## Guidelines
 - Avoid redundant tests - maintain coverage without duplication
