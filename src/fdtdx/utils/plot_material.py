@@ -1,6 +1,6 @@
 from pathlib import Path
-from typing import Any, Literal
-
+from typing import Any, Literal, cast
+import jax
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
@@ -68,6 +68,7 @@ def plot_material_from_side(
     slice_offset = round(position / config.resolution)
 
     # Get array shape
+    material_array = cast(jax.Array, material_array)
     array_shape = material_array.shape
 
     # Determine slice parameters based on viewing side
@@ -105,7 +106,7 @@ def plot_material_from_side(
     im = ax.imshow(
         material_slice.T,  # Transpose for correct orientation
         origin="lower",
-        extent=extent,
+        extent=cast(tuple[int | float, int | float, int | float, int | float], tuple(extent)),
         aspect="equal",
         cmap="viridis",
         interpolation="nearest",
