@@ -36,6 +36,8 @@ Adding unit tests to the fdtdx project with the `pytest -m unit` marker.
 | fdtd/backward.py | fdtd/test_backward.py | 11 | 100% |
 | fdtd/container.py | fdtd/test_container.py | 45 | 100% |
 | fdtd/fdtd.py | fdtd/test_fdtd.py | 21 | 71% |
+| fdtd/forward.py | fdtd/test_forward.py | 11 | 100% |
+| fdtd/initialization.py | fdtd/test_initialization.py | 57 | 70% |
 
 ## Integration Tests
 - Tests location: `tests/integration/` (mirrors `src/fdtdx/` structure)
@@ -47,6 +49,7 @@ Adding unit tests to the fdtdx project with the `pytest -m unit` marker.
 | Module | Test File | Tests |
 |--------|-----------|-------|
 | conversion/vti.py | conversion/test_vti.py | 1 |
+| fdtd/initialization.py | fdtd/test_initialization.py | 11 |
 
 ## Simulation Tests
 - Tests location: `tests/simulation/` (mirrors `src/fdtdx/` structure)
