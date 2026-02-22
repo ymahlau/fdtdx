@@ -158,7 +158,9 @@ def test_custom_fdtd_forward_same_start_end(dummy_arrays, dummy_objects, dummy_c
     assert isinstance(arrs, ArrayContainer)
 
 
+# ---------------------------------------------------------------------------
 # SimulationProgressBar unit tests
+# ---------------------------------------------------------------------------
 
 
 class TestSimulationProgressBar:
@@ -202,17 +204,21 @@ class TestSimulationProgressBar:
         assert mock_bar.n == 7
         mock_bar.refresh.assert_called_once()
 
-    def test_host_update_respects_update_interval(self):
-        """_host_update should only call refresh on multiples of update_interval."""
+    def test_host_update_always_refreshes_when_called(self):
+        """_host_update must unconditionally refresh the bar on every call.
+
+        The update_interval modulo check now lives on the device (jax.lax.cond),
+        so _host_update itself is only invoked when the interval condition is
+        already satisfied — it should never skip a refresh.
+        """
         mock_bar = MagicMock()
         pbar = SimulationProgressBar(total_steps=20, update_interval=5)
         pbar._bar = mock_bar
 
-        for step in range(20):
+        for step in range(0, 20, 5):  # simulate only the steps that pass the device-side cond
             pbar._host_update(step)
 
-        # Steps 0, 5, 10, 15 → 4 refreshes
-        assert mock_bar.refresh.call_count == 4
+        assert mock_bar.refresh.call_count == 4  # steps 0, 5, 10, 15
 
     def test_host_update_noop_when_bar_is_none(self):
         """_host_update should not raise or do anything if called outside context."""
@@ -231,7 +237,7 @@ class TestSimulationProgressBar:
         mock_bar.reset.assert_called_once()
 
     def test_reset_noop_when_bar_is_none(self):
-        """reset() should not raise when called outside a context manager."""
+        """reset() should not raise when called outside of a context manager."""
         pbar = SimulationProgressBar(total_steps=10)
         pbar.reset()  # must not raise
 
@@ -253,6 +259,25 @@ class TestSimulationProgressBar:
             # Verify ordered=True is forwarded
             _, kwargs = mock_io_cb.call_args
             assert kwargs.get("ordered") is True
+
+    def test_get_callback_gates_io_callback_on_device(self):
+        """io_callback must only fire on steps satisfying step % update_interval == 0.
+
+        The modulo check is performed on the device via jax.lax.cond, so steps
+        that don't satisfy the condition must not trigger the host callback at
+        all — not merely skip the tqdm refresh.
+        """
+        pbar = SimulationProgressBar(total_steps=20, update_interval=5)
+        pbar._bar = MagicMock()
+        cb = pbar.get_callback()
+
+        # Invoke the callback for every step outside a while_loop so effects fire
+        for step in range(20):
+            cb(jnp.asarray(step, dtype=jnp.int32))
+        jax.effects_barrier()
+
+        # Only steps 0, 5, 10, 15 pass the device-side cond → exactly 4 host calls
+        assert pbar._bar.refresh.call_count == 4
 
     def test_missing_tqdm_raises_import_error(self):
         """If tqdm is not installed, constructing SimulationProgressBar should raise ImportError."""

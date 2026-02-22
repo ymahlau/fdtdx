@@ -27,8 +27,10 @@ class SimulationProgressBar:
     Args:
         total_steps (int): Total number of simulation time steps.
         desc (str): Description label shown next to the progress bar.
-        update_interval (int): Update the bar every N steps to reduce callback overhead.
-            Defaults to 1 (update every step).
+        update_interval (int): Issue a host callback (and therefore a device→host
+            sync) only every N steps. The interval check runs on the device via
+            ``jax.lax.cond``, so steps that don't satisfy ``step % N == 0``
+            incur no sync overhead at all. Defaults to 1 (sync every step).
     """
 
     def __init__(self, total_steps: int, desc: str = "FDTD", update_interval: int = 1):
@@ -65,15 +67,16 @@ class SimulationProgressBar:
 
     # JAX-compatible update
     def _host_update(self, time_step: int):
-        """Called on the host side; must not be traced by JAX."""
+        """Called on the host side; must not be traced by JAX.
+
+        Only called when the JAX-side interval check has already passed, so
+        every invocation unconditionally updates the bar.
+        """
         if self._bar is None:
             return
         # time_step is a 0-d numpy/int array coming from the device
-        step = int(time_step)
-        if step % self.update_interval == 0:
-            # Set absolute position so repeated calls are idempotent
-            self._bar.n = step
-            self._bar.refresh()
+        self._bar.n = int(time_step)
+        self._bar.refresh()
 
     def get_callback(self):
         """Return a function that can be called inside a JAX computation.
@@ -81,6 +84,12 @@ class SimulationProgressBar:
         The returned function accepts a single integer scalar (the current
         time step) and triggers a host-side progress-bar update via
         ``jax.experimental.io_callback``.
+
+        The ``update_interval`` check is performed **on the device** using
+        ``jax.lax.cond``, so the expensive ``io_callback`` (which forces a
+        device→host sync) is only issued every ``update_interval`` steps.
+        When ``update_interval == 1`` the cond is always true and compiles
+        away to a no-op branch.
 
         Usage inside a body_fun passed to ``eqxi.while_loop``::
 
@@ -90,13 +99,25 @@ class SimulationProgressBar:
                 ...
         """
         host_fn = self._host_update  # capture self
+        update_interval = self.update_interval
 
-        def _callback(time_step: jax.Array):
+        def _do_update(time_step: jax.Array):
             jax.experimental.io_callback(
                 host_fn,
                 result_shape_dtypes=(),  # no return value
                 time_step=time_step,
                 ordered=True,  # preserve ordering across steps
+            )
+
+        def _noop(_time_step: jax.Array):
+            pass
+
+        def _callback(time_step: jax.Array):
+            jax.lax.cond(
+                time_step % update_interval == 0,
+                _do_update,
+                _noop,
+                time_step,
             )
 
         return _callback
