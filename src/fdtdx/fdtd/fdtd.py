@@ -13,11 +13,117 @@ from fdtdx.interfaces.state import RecordingState
 from fdtdx.objects.detectors.detector import DetectorState
 
 
+class SimulationProgressBar:
+    """A progress bar for FDTD simulations that can be updated from within JAX loops.
+
+    Uses ``jax.experimental.io_callback`` to safely perform side effects (progress
+    bar updates) from inside compiled JAX code such as ``jax.lax.while_loop``.
+
+    Example::
+
+        with SimulationProgressBar(total_steps=config.time_steps_total, desc="Forward") as pbar:
+            state = reversible_fdtd(arrays, objects, config, key, progress_bar=pbar)
+
+    Args:
+        total_steps (int): Total number of simulation time steps.
+        desc (str): Description label shown next to the progress bar.
+        update_interval (int): Update the bar every N steps to reduce callback overhead.
+            Defaults to 1 (update every step).
+    """
+
+    def __init__(self, total_steps: int, desc: str = "FDTD", update_interval: int = 1):
+        try:
+            from tqdm.auto import tqdm
+        except ImportError as e:
+            raise ImportError("tqdm is required for SimulationProgressBar. Install it with: pip install tqdm") from e
+        self._tqdm = tqdm
+        self.total_steps = total_steps
+        self.desc = desc
+        self.update_interval = update_interval
+        self._bar = None
+
+    # Context manager
+    def __enter__(self):
+        self._bar = self._tqdm(
+            total=self.total_steps,
+            desc=self.desc,
+            unit="step",
+            dynamic_ncols=True,
+        )
+        return self
+
+    def __exit__(self, *_):
+        if self._bar is not None:
+            self._bar.close()
+            self._bar = None
+
+    # Public helpers
+    def reset(self):
+        """Reset the bar to zero (useful when reusing across multiple runs)."""
+        if self._bar is not None:
+            self._bar.reset()
+
+    # JAX-compatible update
+    def _host_update(self, time_step: int):
+        """Called on the host side; must not be traced by JAX."""
+        if self._bar is None:
+            return
+        # time_step is a 0-d numpy/int array coming from the device
+        step = int(time_step)
+        if step % self.update_interval == 0:
+            # Set absolute position so repeated calls are idempotent
+            self._bar.n = step
+            self._bar.refresh()
+
+    def get_callback(self):
+        """Return a function that can be called inside a JAX computation.
+
+        The returned function accepts a single integer scalar (the current
+        time step) and triggers a host-side progress-bar update via
+        ``jax.experimental.io_callback``.
+
+        Usage inside a body_fun passed to ``eqxi.while_loop``::
+
+            callback = pbar.get_callback()
+            def body_fun(state):
+                callback(state[0])   # state[0] is the time-step counter
+                ...
+        """
+        host_fn = self._host_update  # capture self
+
+        def _callback(time_step: jax.Array):
+            jax.experimental.io_callback(
+                host_fn,
+                result_shape_dtypes=(),  # no return value
+                time_step=time_step,
+                ordered=True,  # preserve ordering across steps
+            )
+
+        return _callback
+
+
+# Internal helper: wrap a body_fun with an optional progress-bar callback
+def _wrap_body_with_progress(body_fun, progress_bar: "SimulationProgressBar | None"):
+    """Return a new body_fun that calls the progress bar callback if provided."""
+    if progress_bar is None:
+        return body_fun
+
+    callback = progress_bar.get_callback()
+
+    def wrapped(state):
+        # Fire callback *before* the step so step 0 shows up immediately
+        callback(state[0])
+        return body_fun(state)
+
+    return wrapped
+
+
 def reversible_fdtd(
     arrays: ArrayContainer,
     objects: ObjectContainer,
     config: SimulationConfig,
     key: jax.Array,
+    progress_bar: "SimulationProgressBar | None" = None,
 ) -> SimulationState:
     """Run a memory-efficient differentiable FDTD simulation leveraging time-reversal symmetry.
 
@@ -41,6 +147,12 @@ def reversible_fdtd(
             - time_steps_total: Total number of steps to simulate
             - invertible_optimization: Whether to record boundaries for backprop
         key (jax.Array): JAX PRNGKey for any stochastic operations
+        progress_bar (SimulationProgressBar | None): Optional progress bar instance.
+            Must already be entered as a context manager before being passed here.
+            Example::
+
+                with SimulationProgressBar(config.time_steps_total) as pbar:
+                    state = reversible_fdtd(arrays, objects, config, key, progress_bar=pbar)
 
     Returns:
         SimulationState: Tuple containing:
@@ -60,6 +172,19 @@ def reversible_fdtd(
         objects,
     )
 
+    # Build the (optionally instrumented) forward body function once so both
+    # reversible_fdtd_base and fdtd_bwd share the same wrapping logic.
+    _forward_body = partial(
+        forward,
+        config=config,
+        objects=objects,
+        key=key,
+        record_detectors=True,
+        record_boundaries=config.invertible_optimization,
+        simulate_boundaries=True,
+    )
+    _forward_body_with_progress = _wrap_body_with_progress(_forward_body, progress_bar)
+
     def reversible_fdtd_base(
         arr: ArrayContainer,
     ) -> SimulationState:
@@ -67,15 +192,7 @@ def reversible_fdtd(
         state = eqxi.while_loop(
             max_steps=config.time_steps_total,
             cond_fun=lambda s: config.time_steps_total > s[0],
-            body_fun=partial(
-                forward,
-                config=config,
-                objects=objects,
-                key=key,
-                record_detectors=True,
-                record_boundaries=config.invertible_optimization,
-                simulate_boundaries=True,
-            ),
+            body_fun=_forward_body_with_progress,
             init_val=state,
             kind="lax",
         )
@@ -341,6 +458,7 @@ def checkpointed_fdtd(
     config: SimulationConfig,
     key: jax.Array,
     stopping_condition: StoppingCondition | None = None,
+    progress_bar: "SimulationProgressBar | None" = None,
 ) -> SimulationState:
     """Run an FDTD simulation with gradient checkpointing for memory efficiency.
 
@@ -355,6 +473,12 @@ def checkpointed_fdtd(
         key (jax.Array): JAX PRNGKey for any stochastic operations
         stopping_condition (StoppingCondition, optional): Custom stopping condition on which simulation is halted.
             If none is provided, we default to TimeStepCondition (simulation progresses until max time is reached)
+        progress_bar (SimulationProgressBar | None): Optional progress bar instance.
+            Must already be entered as a context manager before being passed here.
+            Example::
+
+                with SimulationProgressBar(config.time_steps_total) as pbar:
+                    state = checkpointed_fdtd(arrays, objects, config, key, progress_bar=pbar)
 
     Returns:
         SimulationState: Tuple containing final time step and ArrayContainer with final state
@@ -369,6 +493,18 @@ def checkpointed_fdtd(
         stopping_condition = stopping_condition.setup(state, config, objects)
     else:
         stopping_condition = TimeStepCondition().setup(state, config, objects)
+
+    _forward_body = partial(
+        forward,
+        config=config,
+        objects=objects,
+        key=key,
+        record_detectors=True,
+        record_boundaries=config.invertible_optimization,
+        simulate_boundaries=True,
+    )
+    _forward_body_with_progress = _wrap_body_with_progress(_forward_body, progress_bar)
+
     state = eqxi.while_loop(
         max_steps=config.time_steps_total,
         cond_fun=partial(
@@ -376,15 +512,7 @@ def checkpointed_fdtd(
             config=config,
             objects=objects,
         ),
-        body_fun=partial(
-            forward,
-            config=config,
-            objects=objects,
-            key=key,
-            record_detectors=True,
-            record_boundaries=config.invertible_optimization,
-            simulate_boundaries=True,
-        ),
+        body_fun=_forward_body_with_progress,
         init_val=state,
         kind="lax" if config.only_forward is None else "checkpointed",
         checkpoints=(None if config.gradient_config is None else config.gradient_config.num_checkpoints),
@@ -402,6 +530,7 @@ def custom_fdtd_forward(
     record_detectors: bool,
     start_time: int | jax.Array,
     end_time: int | jax.Array,
+    progress_bar: "SimulationProgressBar | None" = None,
 ) -> SimulationState:
     """Run a customizable forward FDTD simulation between specified time steps.
 
@@ -417,6 +546,12 @@ def custom_fdtd_forward(
         record_detectors (bool): Whether to record detector readings
         start_time (int | jax.Array): Time step to start from
         end_time (int | jax.Array): Time step to end at
+        progress_bar (SimulationProgressBar | None): Optional progress bar instance.
+            Must already be entered as a context manager before being passed here.
+            Example::
+
+                with SimulationProgressBar(end_time - start_time, desc="Partial sim") as pbar:
+                    state = custom_fdtd_forward(..., progress_bar=pbar)
 
     Returns:
         SimulationState: Tuple containing final time step and ArrayContainer with final state
@@ -428,18 +563,22 @@ def custom_fdtd_forward(
     if reset_container:
         arrays = reset_array_container(arrays, objects)
     state = (jnp.asarray(start_time, dtype=jnp.int32), arrays)
+
+    _forward_body = partial(
+        forward,
+        config=config,
+        objects=objects,
+        key=key,
+        record_detectors=record_detectors,
+        record_boundaries=False,
+        simulate_boundaries=True,
+    )
+    _forward_body_with_progress = _wrap_body_with_progress(_forward_body, progress_bar)
+
     state = eqxi.while_loop(
         max_steps=config.time_steps_total,
         cond_fun=lambda s: end_time > s[0],
-        body_fun=partial(
-            forward,
-            config=config,
-            objects=objects,
-            key=key,
-            record_detectors=record_detectors,
-            record_boundaries=False,
-            simulate_boundaries=True,
-        ),
+        body_fun=_forward_body_with_progress,
         init_val=state,
         kind="lax",
         checkpoints=None,
