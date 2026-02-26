@@ -345,6 +345,9 @@ class TestArrayContainer:
             magnetic_conductivity=self.magnetic_conductivity,
         )
 
+        assert container.electric_conductivity is not None
+        assert container.magnetic_conductivity is not None
+
         assert jnp.array_equal(container.electric_conductivity, electric_conductivity)
         assert jnp.array_equal(container.magnetic_conductivity, magnetic_conductivity)
 
@@ -417,6 +420,7 @@ class TestResetArrayContainer:
         assert jnp.array_equal(result.detector_states["detector1"]["data"], self.detector_states["detector1"]["data"])
 
         # Recording state should be reset (zeroed)
+        assert result.recording_state is not None
         assert jnp.all(result.recording_state.data["recording"] == 0)
         assert jnp.all(result.recording_state.state["state"] == 0)
 

@@ -1,6 +1,7 @@
 from collections import namedtuple
 from types import SimpleNamespace
 from typing import List, Literal
+from jax.typing import ArrayLike
 
 import jax
 import jax.numpy as jnp
@@ -267,10 +268,10 @@ def compute_mode(
 
 def tidy3d_mode_computation_wrapper(
     frequency: float,
-    permittivity_cross_section: jax.Array,
+    permittivity_cross_section: ArrayLike,
     coords: List[np.ndarray],
     direction: Literal["+", "-"],
-    permeability_cross_section: jax.Array | float | None = None,
+    permeability_cross_section: ArrayLike | float | None = None,
     target_neff: float | None = None,
     angle_theta: float = 0.0,
     angle_phi: float = 0.0,

@@ -87,7 +87,7 @@ class TestComputeModePolarizationFraction:
         )
 
         with pytest.raises(ValueError, match="pol must be 'te' or 'tm'"):
-            compute_mode_polarization_fraction(mode, (0, 1), "invalid_pol")
+            compute_mode_polarization_fraction(mode, (0, 1), "invalid_pol") #type: ignore
 
 
 class TestSortModes:
