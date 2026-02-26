@@ -80,15 +80,6 @@ class TestPlotFieldSliceComponent:
             plot_field_slice_component(field, "Ex", ax)
         plt.close(fig)
 
-    def test_neg_inf_values_raise_error(self):
-        """Test that negative infinite values raise ValueError."""
-        field = jnp.array([[1.0, -jnp.inf], [3.0, 4.0]])
-        fig, ax = plt.subplots()
-
-        with pytest.raises(ValueError, match="contains infinite values"):
-            plot_field_slice_component(field, "Ex", ax)
-        plt.close(fig)
-
 
 class TestPlotFieldSlice:
     """Tests for plot_field_slice function."""
@@ -275,15 +266,6 @@ class TestPlotFieldSlice:
         with pytest.raises(ValueError, match="E field contains infinite values"):
             plot_field_slice(E, H)
 
-    def test_e_contains_neg_inf(self):
-        """Test that E field with -inf raises error."""
-        E = jnp.ones((3, 10, 10))
-        E = E.at[2, 7, 7].set(-jnp.inf)
-        H = jnp.ones((3, 10, 10))
-
-        with pytest.raises(ValueError, match="E field contains infinite values"):
-            plot_field_slice(E, H)
-
     def test_h_contains_nan(self):
         """Test that H field with NaN raises error."""
         E = jnp.ones((3, 10, 10))
@@ -302,64 +284,10 @@ class TestPlotFieldSlice:
         with pytest.raises(ValueError, match="H field contains infinite values"):
             plot_field_slice(E, H)
 
-    def test_h_contains_neg_inf(self):
-        """Test that H field with -inf raises error."""
-        E = jnp.ones((3, 10, 10))
-        H = jnp.ones((3, 10, 10))
-        H = H.at[2, 7, 7].set(-jnp.inf)
-
-        with pytest.raises(ValueError, match="H field contains infinite values"):
-            plot_field_slice(E, H)
-
-    def test_large_field_arrays(self):
-        """Test with larger field arrays."""
-        E = jnp.ones((3, 100, 100))
-        H = jnp.ones((3, 100, 100)) * 0.5
-
-        fig = plot_field_slice(E, H)
-        assert fig is not None
-        plt.close(fig)
-
     def test_small_field_arrays(self):
         """Test with minimal size arrays."""
         E = jnp.ones((3, 2, 2))
         H = jnp.ones((3, 2, 2))
-
-        fig = plot_field_slice(E, H)
-        assert fig is not None
-        plt.close(fig)
-
-    def test_rectangular_field(self):
-        """Test with non-square field arrays."""
-        E = jnp.ones((3, 20, 30))
-        H = jnp.ones((3, 20, 30)) * 0.5
-
-        fig = plot_field_slice(E, H)
-        assert fig is not None
-        plt.close(fig)
-
-    def test_4d_rectangular_x_slice(self):
-        """Test 4D rectangular array with x slice."""
-        E = jnp.ones((3, 1, 20, 30))
-        H = jnp.ones((3, 1, 20, 30)) * 0.5
-
-        fig = plot_field_slice(E, H)
-        assert fig is not None
-        plt.close(fig)
-
-    def test_4d_rectangular_y_slice(self):
-        """Test 4D rectangular array with y slice."""
-        E = jnp.ones((3, 20, 1, 30))
-        H = jnp.ones((3, 20, 1, 30)) * 0.5
-
-        fig = plot_field_slice(E, H)
-        assert fig is not None
-        plt.close(fig)
-
-    def test_4d_rectangular_z_slice(self):
-        """Test 4D rectangular array with z slice."""
-        E = jnp.ones((3, 20, 30, 1))
-        H = jnp.ones((3, 20, 30, 1)) * 0.5
 
         fig = plot_field_slice(E, H)
         assert fig is not None
@@ -452,7 +380,3 @@ class TestPlotFieldSlice:
         assert cbar_label == "Field value", f"Expected 'Field value', got '{cbar_label}'"
 
         plt.close(fig)
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

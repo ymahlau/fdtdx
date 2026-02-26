@@ -13,6 +13,21 @@ Adding unit tests to the fdtdx project with the `pytest -m unit` marker.
 ## Completed Unit Tests
 | Module | Test File | Tests | Coverage |
 |--------|-----------|-------|----------|
+| objects/boundaries/boundary.py | objects/boundaries/test_boundary.py | 15 | ~90% |
+| objects/detectors/detector.py | objects/detectors/test_detector.py | 16 | ~85% |
+| objects/detectors/diffractive.py | objects/detectors/test_diffractive.py | 22 | ~90% |
+| objects/detectors/energy.py | objects/detectors/test_energy.py | 17 | ~95% |
+| objects/detectors/field.py | objects/detectors/test_field.py | 16 | ~95% |
+| objects/detectors/mode.py | objects/detectors/test_mode.py | 18 | ~85% |
+| objects/detectors/phasor.py | objects/detectors/test_phasor.py | 14 | ~90% |
+| objects/detectors/plotting/line_plot.py | objects/detectors/plotting/test_line_plot.py | 15 | ~95% |
+| objects/detectors/plotting/plot2d.py | objects/detectors/plotting/test_plot2d.py | 16 | ~95% |
+| objects/detectors/plotting/video.py | objects/detectors/plotting/test_video.py | 12 | ~90% |
+| objects/detectors/poynting_flux.py | objects/detectors/test_poynting_flux.py | 15 | ~95% |
+| objects/boundaries/initialization.py | objects/boundaries/test_initialization.py | 44 | ~95% |
+| objects/boundaries/perfectly_matched_layer.py | objects/boundaries/test_perfectly_matched_layer.py | 35 | ~90% |
+| objects/boundaries/periodic.py | objects/boundaries/test_periodic.py | 17 | ~95% |
+| objects/boundaries/utils.py | objects/boundaries/test_boundary_utils.py | 50 | ~100% |
 | colors.py | test_colors.py | 19 | 100% |
 | config.py | test_config.py | 20 | 92% |
 | constants.py | test_constants.py | 11 | 100% |
@@ -39,6 +54,18 @@ Adding unit tests to the fdtdx project with the `pytest -m unit` marker.
 | fdtd/fdtd.py | fdtd/test_fdtd.py | 21 | 71% |
 | fdtd/forward.py | fdtd/test_forward.py | 11 | 100% |
 | fdtd/initialization.py | fdtd/test_initialization.py | 57 | 70% |
+| fdtd/misc.py | fdtd/test_fdtd_misc.py | 17 | 100% |
+| fdtd/stop_conditions.py | fdtd/test_stop_conditions.py | 34 | 97% |
+| fdtd/update.py | fdtd/test_update.py | 51 | 100% |
+| fdtd/wrapper.py | fdtd/test_wrapper.py | 8 | 100% |
+| interfaces/modules.py | interfaces/test_modules.py | 24 | 95% |
+| interfaces/recorder.py | interfaces/test_recorder.py | 15 | ~85% |
+| interfaces/state.py | interfaces/test_state.py | 16 | 100% |
+| interfaces/time_filter.py | interfaces/test_time_filter.py | 22 | ~90% |
+| utils/logger.py | utils/test_logger.py | 17 | ~90% |
+| utils/plot_field_slice.py | utils/test_plot_field_slice.py | 35 | ~95% |
+| utils/plot_material.py | utils/test_plot_material.py | 20 | ~90% |
+| utils/plot_setup.py | utils/test_plot_setup.py | 15 | ~90% |
 
 ## Integration Tests
 - Tests location: `tests/integration/` (mirrors `src/fdtdx/` structure)
@@ -51,6 +78,9 @@ Adding unit tests to the fdtdx project with the `pytest -m unit` marker.
 |--------|-----------|-------|
 | conversion/vti.py | conversion/test_vti.py | 1 |
 | fdtd/initialization.py | fdtd/test_initialization.py | 11 |
+| fdtd/stop_conditions.py | fdtd/test_stop_conditions.py | 5 |
+| utils/plot_material.py | utils/test_plot_material.py | 14 |
+| utils/plot_setup.py | utils/test_plot_setup.py | 6 |
 
 ## Simulation Tests
 - Tests location: `tests/simulation/` (mirrors `src/fdtdx/` structure)

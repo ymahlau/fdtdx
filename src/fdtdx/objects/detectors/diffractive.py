@@ -118,9 +118,11 @@ class DiffractiveDetector(Detector):
         cur_E = jnp.squeeze(cur_E, axis=prop_axis + 1)  # Shape: (3, nx, ny)
         cur_H = jnp.squeeze(cur_H, axis=prop_axis + 1)  # Shape: (3, nx, ny)
 
-        # Compute FFT of each field component
-        E_k = jnp.fft.fft2(cur_E, axes=tuple(d + 1 for d in plane_dims))  # FFT in spatial dimensions
-        H_k = jnp.fft.fft2(cur_H, axes=tuple(d + 1 for d in plane_dims))
+        # Compute FFT of each field component.
+        # After the squeeze, cur_E/cur_H always have shape (3, dim1, dim2), so the
+        # two spatial axes are always 1 and 2 regardless of which axis was squeezed.
+        E_k = jnp.fft.fft2(cur_E, axes=(1, 2))
+        H_k = jnp.fft.fft2(cur_H, axes=(1, 2))
 
         # Convert orders to array for vectorization
         orders = jnp.array(self.orders)  # Shape: (num_orders, 2)
