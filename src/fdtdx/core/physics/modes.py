@@ -317,6 +317,7 @@ def tidy3d_mode_computation_wrapper(
         track_freq="central",
         group_index_step=False,
     )
+    permittivity_cross_section = jnp.asarray(permittivity_cross_section)
     permittivity_cross_section = expand_to_3x3(permittivity_cross_section)
     permittivity_cross_section = permittivity_cross_section.reshape(9, *permittivity_cross_section.shape[2:])
     eps_cross = [
@@ -332,6 +333,7 @@ def tidy3d_mode_computation_wrapper(
     ]
     mu_cross = None
     if permeability_cross_section is not None:
+        permeability_cross_section = jnp.asarray(permeability_cross_section)
         permeability_cross_section = expand_to_3x3(permeability_cross_section)
         permeability_cross_section = permeability_cross_section.reshape(9, *permeability_cross_section.shape[2:])
 

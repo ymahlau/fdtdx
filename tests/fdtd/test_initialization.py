@@ -74,7 +74,7 @@ def test_resolve_constraints_unknown_object_in_constraint(simple_config, simple_
     objects = [simple_volume]
 
     # Reference an object that doesn't exist
-    constraint = GridCoordinateConstraint(object="nonexistent_object", axes=[0], sides=["-"], coordinates=[10])
+    constraint = GridCoordinateConstraint(object="nonexistent_object", axes=(0,), sides=("-",), coordinates=(10,))
 
     constraints = [constraint]
 
@@ -132,12 +132,12 @@ def test_resolve_constraints_conflicting_grid_coordinates(simple_config, simple_
     objects = [simple_volume, obj]
 
     # Create two conflicting constraints
-    constraint1 = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[10])
+    constraint1 = GridCoordinateConstraint(object="obj1", axes=(0,), sides=("-",), coordinates=(10,))
     constraint2 = GridCoordinateConstraint(
         object="obj1",
-        axes=[0],
-        sides=["-"],
-        coordinates=[20],  # Different coordinate - conflict!
+        axes=(0,),
+        sides=("-",),
+        coordinates=(20,),  # Different coordinate - conflict!
     )
 
     constraints = [constraint1, constraint2]
@@ -158,12 +158,12 @@ def test_resolve_constraints_conflicting_real_coordinates(simple_config, simple_
     objects = [simple_volume, obj]
 
     # Create two conflicting real coordinate constraints
-    constraint1 = RealCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[10.0])
+    constraint1 = RealCoordinateConstraint(object="obj1", axes=(0,), sides=("-",), coordinates=(10.0,))
     constraint2 = RealCoordinateConstraint(
         object="obj1",
-        axes=[0],
-        sides=["-"],
-        coordinates=[20.0],  # Different coordinate - conflict!
+        axes=(0,),
+        sides=("-",),
+        coordinates=(20.0,),  # Different coordinate - conflict!
     )
 
     constraints = [constraint1, constraint2]
@@ -186,30 +186,30 @@ def test_resolve_constraints_inconsistent_size_and_position(simple_config, simpl
     size_constraint = SizeConstraint(
         object="obj1",
         other_object="volume",
-        axes=[0],
-        other_axes=[0],
-        proportions=[0.5],
-        grid_offsets=[0],
-        offsets=[None],
+        axes=(0,),
+        other_axes=(0,),
+        proportions=(0.5,),
+        grid_offsets=(0,),
+        offsets=(0.0,),
     )
 
     # Position that would require different size
     pos_constraint = PositionConstraint(
         object="obj1",
         other_object="volume",
-        axes=[0],
-        object_positions=[0.0],
-        other_object_positions=[-1.0],  # At start
-        grid_margins=[5],  # With margin
-        margins=[None],
+        axes=(0,),
+        object_positions=(0.0,),
+        other_object_positions=(-1.0,),  # At start
+        grid_margins=(5,),  # With margin
+        margins=(0.0,),
     )
 
     # Fix position explicitly that conflicts
     grid_constraint = GridCoordinateConstraint(
         object="obj1",
-        axes=[0],
-        sides=["-"],
-        coordinates=[0],  # Should start at 0, but position constraint says 5
+        axes=(0,),
+        sides=("-",),
+        coordinates=(0,),  # Should start at 0, but position constraint says 5
     )
 
     constraints = [size_constraint, pos_constraint, grid_constraint]
@@ -234,21 +234,21 @@ def test_resolve_constraints_with_real_margins(simple_config, simple_volume, sim
     size_constraint = SizeConstraint(
         object="obj1",
         other_object="volume",
-        axes=[0, 1, 2],
-        other_axes=[0, 1, 2],
-        proportions=[0.1, 0.1, 0.1],
-        grid_offsets=[0, 0, 0],
-        offsets=[None, None, None],
+        axes=(0, 1, 2),
+        other_axes=(0, 1, 2),
+        proportions=(0.1, 0.1, 0.1),
+        grid_offsets=(0, 0, 0),
+        offsets=(0.0, 0.0, 0.0),
     )
 
     pos_constraint = PositionConstraint(
         object="obj1",
         other_object="volume",
-        axes=[0],
-        object_positions=[0.0],
-        other_object_positions=[-1.0],  # At start of volume
-        grid_margins=[None],
-        margins=[5.0],  # Real margin: 5.0 / 1.0 resolution = 5 grid units
+        axes=(0,),
+        object_positions=(0.0,),
+        other_object_positions=(-1.0,),  # At start of volume
+        grid_margins=(0,),
+        margins=(5.0,),  # Real margin: 5.0 / 1.0 resolution = 5 grid units
     )
 
     constraints = [size_constraint, pos_constraint]
@@ -277,11 +277,11 @@ def test_resolve_constraints_with_both_margins(simple_volume, simple_material):
     constraint = PositionConstraint(
         object="obj1",
         other_object="volume",
-        axes=[0],
-        object_positions=[0.0],
-        other_object_positions=[-1.0],
-        grid_margins=[2],  # 2 grid units
-        margins=[1.0],  # 1.0 / 0.5 = 2 grid units, total = 4
+        axes=(0,),
+        object_positions=(0.0,),
+        other_object_positions=(-1.0,),
+        grid_margins=(2,),  # 2 grid units
+        margins=(1.0,),  # 1.0 / 0.5 = 2 grid units, total = 4
     )
 
     constraints = [constraint]
@@ -308,11 +308,11 @@ def test_resolve_constraints_with_real_offset_in_size(simple_volume, simple_mate
     constraint = SizeConstraint(
         object="obj1",
         other_object="volume",
-        axes=[0],
-        other_axes=[0],
-        proportions=[0.5],
-        grid_offsets=[None],
-        offsets=[2.0],  # Real offset: 2.0 / 0.5 = 4 grid units
+        axes=(0,),
+        other_axes=(0,),
+        proportions=(0.5,),
+        grid_offsets=(0,),
+        offsets=(2.0,),  # Real offset: 2.0 / 0.5 = 4 grid units
     )
 
     constraints = [constraint]
@@ -337,11 +337,11 @@ def test_resolve_constraints_with_grid_offset_in_size(simple_config, simple_volu
     constraint = SizeConstraint(
         object="obj1",
         other_object="volume",
-        axes=[0],
-        other_axes=[0],
-        proportions=[0.5],
-        grid_offsets=[10],  # 10 grid units
-        offsets=[None],
+        axes=(0,),
+        other_axes=(0,),
+        proportions=(0.5,),
+        grid_offsets=(10,),  # 10 grid units
+        offsets=(0.0,),
     )
 
     constraints = [constraint]
@@ -371,7 +371,7 @@ def test_resolve_constraints_size_extension_with_real_offset(simple_volume, simp
     objects = [simple_volume, obj1, obj2]
 
     # Position obj1 first
-    pos_constraint = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[20])
+    pos_constraint = GridCoordinateConstraint(object="obj1", axes=(0,), sides=("-",), coordinates=(20,))
 
     # Extend obj2 from obj1 with real offset
     ext_constraint = SizeExtensionConstraint(
@@ -380,7 +380,7 @@ def test_resolve_constraints_size_extension_with_real_offset(simple_volume, simp
         axis=0,
         direction="+",  # Extend to the right
         other_position=1.0,  # From right side of obj1
-        grid_offset=None,
+        grid_offset=0,
         offset=2.0,  # Real offset: 2.0 / 0.5 = 4 grid units
     )
 
@@ -410,7 +410,7 @@ def test_resolve_constraints_size_extension_with_grid_offset(simple_config, simp
     objects = [simple_volume, obj1, obj2]
 
     # Position obj1 first
-    pos_constraint = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[20])
+    pos_constraint = GridCoordinateConstraint(object="obj1", axes=(0,), sides=("-",), coordinates=(20,))
 
     # Extend obj2 from obj1 with grid offset
     ext_constraint = SizeExtensionConstraint(
@@ -420,7 +420,7 @@ def test_resolve_constraints_size_extension_with_grid_offset(simple_config, simp
         direction="-",  # Extend to the left
         other_position=-1.0,  # From left side of obj1
         grid_offset=5,  # 5 grid units offset
-        offset=None,
+        offset=0.0,
     )
 
     constraints = [pos_constraint, ext_constraint]
@@ -445,9 +445,9 @@ def test_resolve_constraints_size_extension_to_volume_boundary(simple_config, si
     objects = [simple_volume, obj]
 
     # Position obj at a specific location in all axes
-    pos_constraint_x = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[20])
+    pos_constraint_x = GridCoordinateConstraint(object="obj1", axes=(0,), sides=("-",), coordinates=(20,))
 
-    pos_constraint_y = GridCoordinateConstraint(object="obj1", axes=[1], sides=["-"], coordinates=[20])
+    pos_constraint_y = GridCoordinateConstraint(object="obj1", axes=(1,), sides=("-",), coordinates=(20,))
 
     # Extend to volume boundary in the negative direction
     ext_constraint = SizeExtensionConstraint(
@@ -456,8 +456,8 @@ def test_resolve_constraints_size_extension_to_volume_boundary(simple_config, si
         axis=2,
         direction="-",
         other_position=0.0,
-        grid_offset=None,
-        offset=None,
+        grid_offset=0,
+        offset=0.0,
     )
 
     constraints = [pos_constraint_x, pos_constraint_y, ext_constraint]
@@ -490,7 +490,7 @@ def test_resolve_constraints_with_partial_real_shape(simple_material):
 
     # Position the object at origin
     constraints_list = [
-        GridCoordinateConstraint(object="obj1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[0, 0, 0])
+        GridCoordinateConstraint(object="obj1", axes=(0, 1, 2), sides=("-", "-", "-"), coordinates=(0, 0, 0))
     ]
 
     resolved_slices, errors = resolve_object_constraints(objects, constraints_list, config)
@@ -515,7 +515,7 @@ def test_resolve_constraints_extend_to_infinity(simple_config, simple_volume, si
     objects = [simple_volume, obj]
 
     # Only specify position in one axis, others should extend to infinity (volume boundaries)
-    constraint = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[20])
+    constraint = GridCoordinateConstraint(object="obj1", axes=(0,), sides=("-",), coordinates=(20,))
 
     constraints = [constraint]
 
@@ -677,7 +677,7 @@ def test_place_objects_creates_object_container(simple_config, simple_volume, si
 
     # Position the object
     constraint = GridCoordinateConstraint(
-        object="obj1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+        object="obj1", axes=(0, 1, 2), sides=("-", "-", "-"), coordinates=(10, 10, 10)
     )
 
     constraints = [constraint]
@@ -711,8 +711,8 @@ def test_place_objects_with_multiple_objects(simple_config, simple_volume, simpl
 
     # Position both objects
     constraints = [
-        GridCoordinateConstraint(object="obj1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]),
-        GridCoordinateConstraint(object="obj2", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[40, 40, 40]),
+        GridCoordinateConstraint(object="obj1", axes=(0, 1, 2), sides=("-", "-", "-"), coordinates=(10, 10, 10)),
+        GridCoordinateConstraint(object="obj2", axes=(0, 1, 2), sides=("-", "-", "-"), coordinates=(40, 40, 40)),
     ]
 
     key = jax.random.PRNGKey(0)
@@ -737,7 +737,7 @@ def test_place_objects_updates_config(simple_config, simple_volume, simple_mater
     objects = [simple_volume, obj]
 
     constraint = GridCoordinateConstraint(
-        object="obj1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+        object="obj1", axes=(0, 1, 2), sides=("-", "-", "-"), coordinates=(10, 10, 10)
     )
 
     constraints = [constraint]
@@ -763,7 +763,7 @@ def test_place_objects_initializes_arrays(simple_config, simple_volume, simple_m
     objects = [simple_volume, obj]
 
     constraint = GridCoordinateConstraint(
-        object="obj1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+        object="obj1", axes=(0, 1, 2), sides=("-", "-", "-"), coordinates=(10, 10, 10)
     )
 
     constraints = [constraint]
@@ -880,9 +880,9 @@ def test_resolve_constraints_partial_real_position_conflicts_with_constraint(
     # partial_real_position says lower bound should be 10, but constraint says 5
     constraint = GridCoordinateConstraint(
         object="obj1",
-        axes=[0],
-        sides=["-"],
-        coordinates=[5],  # Conflicts with computed lower bound of 10
+        axes=(0,),
+        sides=("-",),
+        coordinates=(5,),  # Conflicts with computed lower bound of 10
     )
 
     constraints = [constraint]
@@ -963,11 +963,11 @@ def test_resolve_constraints_partial_real_position_mixed_with_constraints(
     constraint = PositionConstraint(
         object="obj2",
         other_object="obj1",
-        axes=[0],
-        object_positions=[-1.0],  # Left side of obj2
-        other_object_positions=[1.0],  # Right side of obj1 (at 20)
-        grid_margins=[5],
-        margins=[None],
+        axes=(0,),
+        object_positions=(-1.0,),  # Left side of obj2
+        other_object_positions=(1.0,),  # Right side of obj1 (at 20)
+        grid_margins=(5,),
+        margins=(0.0,),
     )
 
     constraints = [constraint]
@@ -1170,9 +1170,9 @@ def test_extend_to_inf_lower_bound_known_upper_not(simple_config, simple_volume,
     # Set lower boundaries only using GridCoordinateConstraint
     constraint = GridCoordinateConstraint(
         object="obj1",
-        axes=[0, 1, 2],
-        sides=["-", "-", "-"],  # Lower bounds
-        coordinates=[10, 20, 30],
+        axes=(0, 1, 2),
+        sides=("-", "-", "-"),  # Lower bounds
+        coordinates=(10, 20, 30),
     )
 
     constraints = [constraint]
@@ -1212,9 +1212,9 @@ def test_extend_to_inf_upper_bound_known_lower_not(simple_config, simple_volume,
     # Set upper boundaries using GridCoordinateConstraint
     constraint = GridCoordinateConstraint(
         object="obj1",
-        axes=[0, 1, 2],
-        sides=["+", "+", "+"],  # Upper bounds
-        coordinates=[50, 60, 70],
+        axes=(0, 1, 2),
+        sides=("+", "+", "+"),  # Upper bounds
+        coordinates=(50, 60, 70),
     )
 
     constraints = [constraint]
@@ -1283,9 +1283,9 @@ def test_extend_to_inf_with_real_coordinate_constraint_upper(simple_config, simp
     # Set upper boundary using RealCoordinateConstraint
     constraint = RealCoordinateConstraint(
         object="obj1",
-        axes=[0],
-        sides=["+"],  # Upper bound
-        coordinates=[80.0],  # Real coordinate 80.0 / resolution 1.0 = grid 80
+        axes=(0,),
+        sides=("+",),  # Upper bound
+        coordinates=(80.0,),  # Real coordinate 80.0 / resolution 1.0 = grid 80
     )
 
     constraints = [constraint]
@@ -1318,8 +1318,8 @@ def test_extend_to_inf_single_axis_upper_bound(simple_config, simple_volume, sim
 
     # Set lower bounds for x and z, upper bound for y
     constraints = [
-        GridCoordinateConstraint(object="obj1", axes=[0, 2], sides=["-", "-"], coordinates=[10, 30]),
-        GridCoordinateConstraint(object="obj1", axes=[1], sides=["+"], coordinates=[50]),
+        GridCoordinateConstraint(object="obj1", axes=(0, 2), sides=("-", "-"), coordinates=(10, 30)),
+        GridCoordinateConstraint(object="obj1", axes=(1,), sides=("+",), coordinates=(50,)),
     ]
 
     resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
@@ -1358,17 +1358,17 @@ def test_extend_to_inf_with_position_constraint_creating_lower_bound(simple_conf
     objects = [simple_volume, obj1, obj2]
 
     # Position obj1 first
-    constraint1 = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[10])
+    constraint1 = GridCoordinateConstraint(object="obj1", axes=(0,), sides=("-",), coordinates=(10,))
 
     # Position obj2 after obj1 - this sets obj2's lower bound
     constraint2 = PositionConstraint(
         object="obj2",
         other_object="obj1",
-        axes=[0],
-        object_positions=[-1.0],  # Left side of obj2
-        other_object_positions=[1.0],  # Right side of obj1
-        grid_margins=[5],
-        margins=[None],
+        axes=(0,),
+        object_positions=(-1.0,),  # Left side of obj2
+        other_object_positions=(1.0,),  # Right side of obj1
+        grid_margins=(5,),
+        margins=(0.0,),
     )
 
     constraints = [constraint1, constraint2]
@@ -1400,7 +1400,7 @@ def test_extend_to_inf_lower_bound_one_axis_only(simple_config, simple_volume, s
     objects = [simple_volume, obj]
 
     # Set lower boundary only for x-axis
-    constraint = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[10])
+    constraint = GridCoordinateConstraint(object="obj1", axes=(0,), sides=("-",), coordinates=(10,))
 
     constraints = [constraint]
 
@@ -1431,7 +1431,7 @@ def test_extend_to_inf_upper_bound_one_axis_only(simple_config, simple_volume, s
     objects = [simple_volume, obj]
 
     # Set upper boundary only for x-axis
-    constraint = GridCoordinateConstraint(object="obj1", axes=[0], sides=["+"], coordinates=[50])
+    constraint = GridCoordinateConstraint(object="obj1", axes=(0,), sides=("+",), coordinates=(50,))
 
     constraints = [constraint]
 
@@ -1485,21 +1485,21 @@ def test_size_dependent_position_with_partial_real_position(simple_config, simpl
         SizeConstraint(
             object="obj2",
             other_object="volume",
-            axes=[0, 1, 2],
-            other_axes=[0, 1, 2],
-            proportions=[0.5, 0.5, 0.5],
-            grid_offsets=[0, 0, 0],
-            offsets=[None, None, None],
+            axes=(0, 1, 2),
+            other_axes=(0, 1, 2),
+            proportions=(0.5, 0.5, 0.5),
+            grid_offsets=(0, 0, 0),
+            offsets=(0.0, 0.0, 0.0),
         ),
         # obj3 should have same size as obj2
         SizeConstraint(
             object="obj3",
             other_object="obj2",
-            axes=[0, 1, 2],
-            other_axes=[0, 1, 2],
-            proportions=[1.0, 1.0, 1.0],
-            grid_offsets=[0, 0, 0],
-            offsets=[None, None, None],
+            axes=(0, 1, 2),
+            other_axes=(0, 1, 2),
+            proportions=(1.0, 1.0, 1.0),
+            grid_offsets=(0, 0, 0),
+            offsets=(0.0, 0.0, 0.0),
         ),
     ]
 
@@ -1536,8 +1536,8 @@ def test_extend_to_inf_both_boundaries_known(simple_config, simple_volume, simpl
 
     # Set both boundaries explicitly
     constraints = [
-        GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[10]),
-        GridCoordinateConstraint(object="obj1", axes=[0], sides=["+"], coordinates=[30]),
+        GridCoordinateConstraint(object="obj1", axes=(0,), sides=("-",), coordinates=(10,)),
+        GridCoordinateConstraint(object="obj1", axes=(0,), sides=("+",), coordinates=(30,)),
         # Don't set y and z boundaries - they should extend
     ]
 
@@ -1569,7 +1569,7 @@ def test_extend_to_inf_lower_known_upper_computed(simple_config, simple_volume, 
     objects = [simple_volume, obj]
 
     # Set only the lower boundary for x-axis
-    constraint = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[15])
+    constraint = GridCoordinateConstraint(object="obj1", axes=(0,), sides=("-",), coordinates=(15,))
 
     constraints = [constraint]
 
@@ -1601,7 +1601,7 @@ def test_extend_to_inf_upper_known_lower_computed(simple_config, simple_volume, 
     objects = [simple_volume, obj]
 
     # Set only the upper boundary for x-axis
-    constraint = GridCoordinateConstraint(object="obj1", axes=[0], sides=["+"], coordinates=[80])
+    constraint = GridCoordinateConstraint(object="obj1", axes=(0,), sides=("+",), coordinates=(80,))
 
     constraints = [constraint]
 
@@ -1690,11 +1690,11 @@ def test_initial_position_skipped_when_size_unknown(simple_config, simple_volume
     size_constraint = SizeConstraint(
         object="obj1",
         other_object="volume",
-        axes=[0, 1, 2],
-        other_axes=[0, 1, 2],
-        proportions=[0.2, 0.2, 0.2],
-        grid_offsets=[0, 0, 0],
-        offsets=[None, None, None],
+        axes=(0, 1, 2),
+        other_axes=(0, 1, 2),
+        proportions=(0.2, 0.2, 0.2),
+        grid_offsets=(0, 0, 0),
+        offsets=(0.0, 0.0, 0.0),
     )
 
     constraints = [size_constraint]
@@ -1780,19 +1780,19 @@ def test_iterative_position_upper_bound_conflict(simple_config, simple_volume, s
         SizeConstraint(
             object="obj1",
             other_object="volume",
-            axes=[0, 1, 2],
-            other_axes=[0, 1, 2],
-            proportions=[0.2, 0.2, 0.2],
-            grid_offsets=[0, 0, 0],
-            offsets=[None, None, None],
+            axes=(0, 1, 2),
+            other_axes=(0, 1, 2),
+            proportions=(0.2, 0.2, 0.2),
+            grid_offsets=(0, 0, 0),
+            offsets=(0.0, 0.0, 0.0),
         ),
         # Sets b1=60 on axis 0 in the constraint loop (step 4, iter 1).
         # center=45, size=20 → upper=55 ≠ 60 → conflict on line 632 in iter 2.
         GridCoordinateConstraint(
             object="obj1",
-            axes=[0],
-            sides=["+"],
-            coordinates=[60],
+            axes=(0,),
+            sides=("+",),
+            coordinates=(60,),
         ),
     ]
 
@@ -1835,8 +1835,8 @@ def test_extend_to_inf_size_extension_suppresses_extension_on_correct_axis(
             axis=0,
             direction="+",
             other_position=0.0,
-            grid_offset=None,
-            offset=None,
+            grid_offset=0,
+            offset=0.0,
         ),
     ]
 
@@ -1871,11 +1871,11 @@ def test_extend_to_inf_size_constraint_does_not_suppress_extension(simple_config
         SizeConstraint(
             object="obj1",
             other_object="volume",
-            axes=[0, 1, 2],
-            other_axes=[0, 1, 2],
-            proportions=[0.5, 0.5, 0.5],
-            grid_offsets=[0, 0, 0],
-            offsets=[None, None, None],
+            axes=(0, 1, 2),
+            other_axes=(0, 1, 2),
+            proportions=(0.5, 0.5, 0.5),
+            grid_offsets=(0, 0, 0),
+            offsets=(0.0, 0.0, 0.0),
         ),
     ]
 
@@ -1914,8 +1914,8 @@ def test_extend_to_inf_size_extension_on_different_axis_does_not_suppress(
             axis=0,
             direction="-",  # lower boundary on axis 0
             other_position=0.0,
-            grid_offset=None,
-            offset=None,
+            grid_offset=0,
+            offset=0.0,
         ),
     ]
 
@@ -1947,9 +1947,9 @@ def test_extend_to_inf_lower_bound_only_already_removed_from_extension_obj(
         # Sets b0=10 on axis 0; upper left None.
         GridCoordinateConstraint(
             object="obj1",
-            axes=[0],
-            sides=["-"],
-            coordinates=[10],
+            axes=(0,),
+            sides=("-",),
+            coordinates=(10,),
         ),
         SizeExtensionConstraint(
             object="obj1",
@@ -1957,8 +1957,8 @@ def test_extend_to_inf_lower_bound_only_already_removed_from_extension_obj(
             axis=0,
             direction="+",
             other_position=0.0,
-            grid_offset=None,
-            offset=None,
+            grid_offset=0,
+            offset=0.0,
         ),
     ]
 
