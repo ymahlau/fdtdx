@@ -32,7 +32,7 @@ class ExtendedTreeClassIndexer(TreeClassIndexer):
     """
 
     def __getitem__(self, where: Any) -> Self:
-        return super().__getitem__(where)  # type: ignore
+        return super().__getitem__(where)
 
 
 @dataclass(frozen=True)
@@ -228,7 +228,7 @@ class TreeClass(tc.TreeClass):
             else:
                 raise Exception(f"Invalid operation type: {op_type}. This is an internal bug!")
             if idx != len(ops) - 1:
-                attr_list.append(current_parent)  # type: ignore
+                attr_list.append(current_parent)
 
         # from bottom-up set attributes and update
         cur_attr = val
@@ -245,7 +245,7 @@ class TreeClass(tc.TreeClass):
                         f"Can only update by index if __setitem__ is implemented, but got {current_parent.__class__}"
                     )
                 cpy = current_parent.copy()  # type: ignore
-                cpy[int(op)] = cur_attr  # type: ignore
+                cpy[int(op)] = cur_attr
                 cur_attr = cpy
             elif op_type == "key":
                 if "__setitem__" not in dir(current_parent):
@@ -253,7 +253,7 @@ class TreeClass(tc.TreeClass):
                         f"Can only update by index if __setitem__ is implemented, but got {current_parent.__class__}"
                     )
                 cpy = current_parent.copy()  # type: ignore
-                cpy[op] = cur_attr  # type: ignore
+                cpy[op] = cur_attr
                 cur_attr = cpy
             else:
                 raise Exception(f"Invalid operation type: {op_type}. This is an internal bug!")

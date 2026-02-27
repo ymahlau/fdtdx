@@ -192,7 +192,7 @@ class DetectorConvergenceCondition(StoppingCondition):
     threshold: float = frozen_field(default=1e-6)
     min_steps: int | None = frozen_field(default=None)
     max_steps: int | None = frozen_field(default=None)
-    _spp: int | None = frozen_private_field(default=None)  # type: ignore
+    _spp: int | None = frozen_private_field(default=None)
 
     def setup(self, state: SimulationState, config: SimulationConfig, objects: ObjectContainer) -> Self:
         """Setting up internal attributes and validating inputs."""

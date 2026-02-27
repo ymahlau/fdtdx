@@ -1,5 +1,3 @@
-from typing import cast
-
 import jax
 import numpy as np
 import seaborn as sns
@@ -55,8 +53,9 @@ def device_matrix_index_figure(
         - Proper axis labels and grid settings
     """
     assert device_matrix_indices.ndim == 3
-
-    fig, ax = cast(tuple[Figure, Axes], plt.subplots(figsize=(12, 12)))
+    fig: Figure
+    ax: Axes
+    fig, ax = plt.subplots(figsize=(12, 12))
     image_palette = sns.color_palette("YlOrBr", as_cmap=True)
     background_name = get_background_material_name(material)
     ordered_name_list = compute_ordered_names(material)

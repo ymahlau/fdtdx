@@ -611,7 +611,11 @@ def _init_params(
         params[d.name] = cur_dict
     return params
 
-AnyConstraint = (PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint | RealCoordinateConstraint)
+
+AnyConstraint = (
+    PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint | RealCoordinateConstraint
+)
+
 
 def resolve_object_constraints(
     objects: list[SimulationObject],

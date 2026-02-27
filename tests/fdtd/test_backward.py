@@ -1,4 +1,4 @@
-from typing import Tuple , cast
+from typing import Tuple, cast
 from unittest.mock import Mock, patch
 
 import jax
@@ -7,12 +7,12 @@ import pytest
 
 from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.backward import backward, cond_fn, full_backward
-from fdtdx.fdtd.container import ObjectContainer, ArrayContainer
+from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 
 
 class TestBackwardPropagation:
     @pytest.fixture
-    def mock_config(self)-> SimulationConfig:
+    def mock_config(self) -> SimulationConfig:
         """Create a mock simulation configuration."""
         config = Mock(spec=SimulationConfig)
         config.grid_shape = (10, 10, 10)
@@ -53,7 +53,7 @@ class TestBackwardPropagation:
         return cast(ObjectContainer, objects)
 
     @pytest.fixture
-    def mock_state(self, mock_arrays : ArrayContainer) -> Tuple[jax.Array, ArrayContainer]:
+    def mock_state(self, mock_arrays: ArrayContainer) -> Tuple[jax.Array, ArrayContainer]:
         """Create a mock simulation state."""
         return (jnp.array(5), mock_arrays)
 
@@ -280,7 +280,6 @@ class TestBackwardPropagation:
         """Test that backward step properly decrements time step."""
         # Create a simple test with minimal mocks
         mock_arrays = Mock(spec=ArrayContainer)
-        mock_arrays_casted = cast(ArrayContainer, mock_arrays)
         mock_arrays.E = jnp.ones((3, 5, 5, 5))
         mock_arrays.H = jnp.zeros((3, 5, 5, 5))
         mock_arrays.aset = lambda field, value: mock_arrays

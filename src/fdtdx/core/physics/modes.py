@@ -1,12 +1,12 @@
 from collections import namedtuple
 from types import SimpleNamespace
 from typing import List, Literal
-from jax.typing import ArrayLike
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 import tidy3d
+from jax.typing import ArrayLike
 from tidy3d.components.mode.solver import compute_modes as _compute_modes
 
 from fdtdx.core.misc import expand_to_3x3

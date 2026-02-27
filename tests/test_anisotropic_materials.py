@@ -118,16 +118,16 @@ class TestMaterialClass:
     def test_invalid_tuple_length(self):
         """Test that tuples with wrong length raise an error."""
         with pytest.raises(ValueError, match="must have exactly 3 or 9 elements"):
-            Material(permittivity=(2.0, 2.5)) # type: ignore
+            Material(permittivity=(2.0, 2.5))  # type: ignore
 
         with pytest.raises(ValueError, match="must have exactly 3 or 9 elements"):
-            Material(permeability=(1.0, 1.2, 1.5, 2.0)) # type: ignore
+            Material(permeability=(1.0, 1.2, 1.5, 2.0))  # type: ignore
 
         with pytest.raises(ValueError, match="Nested tuple must have 3 elements in each row"):
-            Material(permittivity=((1.0, 2.0), (3.0, 4.0), (5.0, 6.0))) # type: ignore
+            Material(permittivity=((1.0, 2.0), (3.0, 4.0), (5.0, 6.0)))  # type: ignore
 
         with pytest.raises(ValueError, match="Invalid material property tuple"):
-            Material(permeability=((1.0, 2.0), 3.0, 4.0)) # type: ignore
+            Material(permeability=((1.0, 2.0), 3.0, 4.0))  # type: ignore
 
     def test_is_all_isotropic_property(self):
         """Test the is_all_isotropic property."""
