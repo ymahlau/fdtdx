@@ -1,5 +1,6 @@
 from unittest.mock import Mock
 
+import jax
 import jax.numpy as jnp
 
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, SimulationState, reset_array_container
@@ -280,13 +281,11 @@ class TestObjectContainer:
 
 
 class TestArrayContainer:
-    def __init__(self):
-        self.magnetic_conductivity = None
-        self.electric_conductivity = None
-
     def setup_method(self):
         """Set up test fixtures."""
         # Create mock arrays
+        self.magnetic_conductivity = None
+        self.electric_conductivity = None
         self.E = jnp.ones((3, 10, 10, 10))
         self.H = jnp.ones((3, 10, 10, 10))
         self.psi_E = jnp.zeros((6, 10, 10, 10))
@@ -341,18 +340,22 @@ class TestArrayContainer:
             inv_permeabilities=self.inv_permeabilities,
             detector_states=self.detector_states,
             recording_state=self.recording_state,
-            electric_conductivity=self.electric_conductivity,
-            magnetic_conductivity=self.magnetic_conductivity,
+            electric_conductivity=electric_conductivity,
+            magnetic_conductivity=magnetic_conductivity,
         )
+
+        assert container.electric_conductivity is not None
+        assert container.magnetic_conductivity is not None
 
         assert jnp.array_equal(container.electric_conductivity, electric_conductivity)
         assert jnp.array_equal(container.magnetic_conductivity, magnetic_conductivity)
 
     def test_array_container_tree_class_properties(self):
         """Test that ArrayContainer inherits TreeClass properties."""
-        # TreeClass methods should be available on the class, not instance
-        assert hasattr(ArrayContainer, "tree_flatten")
-        assert hasattr(ArrayContainer, "tree_unflatten")
+        leaves, treedef = jax.tree_util.tree_flatten(self.array_container)
+
+        assert len(leaves) > 0, "PyTree flattening failed to find any leaves"
+        assert treedef is not None, "PyTree unflattening definition is missing"
         # aset should be available on instance
         assert hasattr(self.array_container, "aset")
 
@@ -417,6 +420,7 @@ class TestResetArrayContainer:
         assert jnp.array_equal(result.detector_states["detector1"]["data"], self.detector_states["detector1"]["data"])
 
         # Recording state should be reset (zeroed)
+        assert result.recording_state is not None
         assert jnp.all(result.recording_state.data["recording"] == 0)
         assert jnp.all(result.recording_state.state["state"] == 0)
 

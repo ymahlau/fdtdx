@@ -1,3 +1,5 @@
+from typing import cast
+
 import jax
 
 
@@ -12,6 +14,8 @@ def check_specs(
         arrays = {"dummy": arrays}
     if not isinstance(expected_shapes, dict):
         expected_shapes = {"dummy": expected_shapes}
+    arrays = cast(dict[str, jax.Array], arrays)
+
     if len(arrays) != len(expected_shapes):
         raise Exception(
             f"Arrays and expected dict have different lengths: {arrays.keys()=} \n\n but {expected_shapes=}"
@@ -33,6 +37,8 @@ def check_shape_dtype(
         arrays = {"dummy": arrays}
     if not isinstance(expected_shape_dtypes, dict):
         expected_shape_dtypes = {"dummy": expected_shape_dtypes}
+    expected_shape_dtypes = cast(dict[str, jax.ShapeDtypeStruct], expected_shape_dtypes)
+    arrays = cast(dict[str, jax.Array], arrays)
     if len(arrays) != len(expected_shape_dtypes):
         raise Exception(
             f"Arrays and expected dict have different lengths: {arrays.keys()=} \n\n but {expected_shape_dtypes=}"

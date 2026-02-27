@@ -57,7 +57,7 @@ class ModePlaneSource(TFSFPlaneSource):
         mode_E, mode_H, eff_index = compute_mode(
             frequency=self.wave_character.get_frequency(),
             inv_permittivities=inv_permittivity_slice,
-            inv_permeabilities=inv_permeability_slice,  # type: ignore
+            inv_permeabilities=inv_permeability_slice,
             resolution=self._config.resolution,
             direction=self.direction,
             mode_index=self.mode_index,

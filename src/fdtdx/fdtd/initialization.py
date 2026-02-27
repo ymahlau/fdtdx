@@ -612,9 +612,14 @@ def _init_params(
     return params
 
 
+AnyConstraint = (
+    PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint | RealCoordinateConstraint
+)
+
+
 def resolve_object_constraints(
     objects: list[SimulationObject],
-    constraints: Sequence[PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint],
+    constraints: Sequence[AnyConstraint],
     config: SimulationConfig,
     max_iter: int = DEFAULT_MAX_ITER,
 ) -> tuple[dict, dict]:
@@ -758,7 +763,7 @@ def _resolve_static_positions_iterative(
 
 
 def _check_objects_names_from_constraints(
-    constraints: Sequence[PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint],
+    constraints: Sequence[AnyConstraint],
     object_names: list[str],
 ):
     """Collect object names mentioned in constraints and verify they exist."""
@@ -774,7 +779,7 @@ def _check_objects_names_from_constraints(
 
 def _apply_constraints_iteratively(
     objects: list[SimulationObject],
-    constraints: Sequence[PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint],
+    constraints: Sequence[AnyConstraint],
     config: SimulationConfig,
     max_iter: int = DEFAULT_MAX_ITER,
 ) -> tuple[dict, dict]:
@@ -1200,7 +1205,7 @@ def _apply_size_extension_constraint(
 
 
 def _extend_to_inf_if_possible(
-    constraints: Sequence[PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint],
+    constraints: Sequence[AnyConstraint],
     object_map: dict[str, SimulationObject],
     slice_dict: dict[str, list[list[int | None]]],
     shape_dict: dict[str, list[int | None]],

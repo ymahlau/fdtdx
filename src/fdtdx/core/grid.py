@@ -57,7 +57,7 @@ def calculate_time_offset_yee(
     xyz = jnp.stack([x, y, z], axis=-1)
     center_list = [center[0], center[1]]
     propagation_axis = spatial_shape.index(1)
-    center_list.insert(propagation_axis, 0)  # type: ignore
+    center_list.insert(propagation_axis, 0)
     center_3d = jnp.asarray(center_list, dtype=jnp.float32)[None, None, None, :]
     xyz = xyz - center_3d
 

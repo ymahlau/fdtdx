@@ -135,7 +135,8 @@ def plot_setup_from_side(
                     if not o.name.startswith("Object"):
                         print_single = True
             label = o.__class__.__name__ if o.name.startswith("Object") else o.name
-            patch = Patch(color=o.color, label=label)
+            color_val = str(o.color)
+            patch = Patch(color=color_val, label=label)
             if print_single:
                 handles.append(patch)
             else:
@@ -170,8 +171,8 @@ def plot_setup_from_side(
     ax.set_xlabel(axis_labels[0])
     ax.set_ylabel(axis_labels[1])
     ax.set_title(title)
-    ax.set_xlim([0, plane_size[0] * resolution])
-    ax.set_ylim([0, plane_size[1] * resolution])
+    ax.set_xlim((0, plane_size[0] * resolution))
+    ax.set_ylim((0, plane_size[1] * resolution))
     ax.set_aspect("equal")
     ax.grid(True)
 

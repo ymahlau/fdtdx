@@ -47,8 +47,9 @@ def get_dtype_bytes(dtype: jnp.dtype) -> int:
 def pretty_print_sharding(sharding: jax.sharding.Sharding) -> str:
     if isinstance(sharding, jax.sharding.NamedSharding):
         return f"NamedSharding({sharding.mesh.devices}, {sharding.spec})"
-    elif isinstance(sharding, jax.sharding.PositionalSharding):
-        return f"PositionalSharding({sharding._devices}, {sharding._ids.shape})"
+    #
+    # elif isinstance(sharding, jax.sharding.PositionalSharding):
+    #    return f"PositionalSharding({sharding._devices}, {sharding._ids.shape})"
     elif isinstance(sharding, jax.sharding.SingleDeviceSharding):
         return f"SingleDeviceSharding({sharding._device})"
     else:

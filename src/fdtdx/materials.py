@@ -1,4 +1,5 @@
 import math
+from typing import cast
 
 from fdtdx.core.jax.pytrees import TreeClass, frozen_field
 
@@ -45,7 +46,20 @@ def _normalize_material_property(
             else:
                 raise ValueError(f"Invalid material property tuple: {value}. Expected a tuple of 3 tuples or 3 floats.")
         elif len(value) == 9:
-            return value
+            return cast(
+                tuple[
+                    int | float,
+                    int | float,
+                    int | float,
+                    int | float,
+                    int | float,
+                    int | float,
+                    int | float,
+                    int | float,
+                    int | float,
+                ],
+                value,
+            )
         else:
             raise ValueError(f"Material property tuple must have exactly 3 or 9 elements, got {len(value)}")
     else:
