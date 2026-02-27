@@ -65,15 +65,15 @@ class TestBackwardPropagation:
     def test_cond_fn_true(self):
         """Test condition function returns True when time step > start."""
         state = cast(Tuple[jax.Array, ArrayContainer], (jnp.array(10), Mock()))
-        assert cond_fn(state, start_time_step=5) is True
+        assert bool(cond_fn(state, start_time_step=5)) is True
 
     def test_cond_fn_false(self):
         """Test condition function returns False when time step <= start."""
         state = cast(Tuple[jax.Array, ArrayContainer], (jnp.array(5), Mock()))
-        assert cond_fn(state, start_time_step=5) is False
+        assert bool(cond_fn(state, start_time_step=5)) is False
 
         state = cast(Tuple[jax.Array, ArrayContainer], (jnp.array(3), Mock()))
-        assert cond_fn(state, start_time_step=5) is False
+        assert bool(cond_fn(state, start_time_step=5)) is False
 
     @patch("fdtdx.fdtd.backward.eqxi.while_loop")
     def test_full_backward_calls_while_loop(self, mock_while_loop, mock_state, mock_objects, mock_config, key):

@@ -280,13 +280,11 @@ class TestObjectContainer:
 
 
 class TestArrayContainer:
-    def __init__(self):
-        self.magnetic_conductivity = None
-        self.electric_conductivity = None
-
     def setup_method(self):
         """Set up test fixtures."""
         # Create mock arrays
+        self.magnetic_conductivity = None
+        self.electric_conductivity = None
         self.E = jnp.ones((3, 10, 10, 10))
         self.H = jnp.ones((3, 10, 10, 10))
         self.psi_E = jnp.zeros((6, 10, 10, 10))
