@@ -339,8 +339,8 @@ class TestArrayContainer:
             inv_permeabilities=self.inv_permeabilities,
             detector_states=self.detector_states,
             recording_state=self.recording_state,
-            electric_conductivity=self.electric_conductivity,
-            magnetic_conductivity=self.magnetic_conductivity,
+            electric_conductivity=electric_conductivity,
+            magnetic_conductivity=magnetic_conductivity,
         )
 
         assert container.electric_conductivity is not None
@@ -352,7 +352,7 @@ class TestArrayContainer:
     def test_array_container_tree_class_properties(self):
         """Test that ArrayContainer inherits TreeClass properties."""
         # TreeClass methods should be available on the class, not instance
-        assert hasattr(ArrayContainer, "tree_flatten")
+        assert hasattr(ArrayContainer, "__tree_flatten__")
         assert hasattr(ArrayContainer, "tree_unflatten")
         # aset should be available on instance
         assert hasattr(self.array_container, "aset")
