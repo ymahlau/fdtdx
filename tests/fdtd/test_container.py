@@ -1,6 +1,7 @@
 from unittest.mock import Mock
 
 import jax.numpy as jnp
+import jax
 
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, SimulationState, reset_array_container
 from fdtdx.interfaces.state import RecordingState
@@ -351,9 +352,10 @@ class TestArrayContainer:
 
     def test_array_container_tree_class_properties(self):
         """Test that ArrayContainer inherits TreeClass properties."""
-        # TreeClass methods should be available on the class, not instance
-        assert hasattr(ArrayContainer, "__tree_flatten__")
-        assert hasattr(ArrayContainer, "tree_unflatten")
+        leaves, treedef = jax.tree_util.tree_flatten(self.array_container)
+        
+        assert len(leaves) > 0, "PyTree flattening failed to find any leaves"
+        assert treedef is not None, "PyTree unflattening definition is missing"
         # aset should be available on instance
         assert hasattr(self.array_container, "aset")
 
