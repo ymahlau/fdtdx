@@ -207,16 +207,33 @@ class TestAutoUpdateInterval:
 class TestSimulationProgressBar:
     """Unit tests for SimulationProgressBar that do not require a running simulation."""
 
+    @staticmethod
+    def _mock_tqdm_modules(mock_bar):
+        """Return a sys.modules patch that injects a fake tqdm.auto module.
+
+        This approach works whether tqdm is actually installed or not, because
+        it registers a fresh fake module object rather than patching an
+        attribute on the real one.
+        """
+        import types
+
+        mock_tqdm_cls = MagicMock(return_value=mock_bar)
+        fake_tqdm_auto = types.ModuleType("tqdm.auto")
+        fake_tqdm_auto.tqdm = mock_tqdm_cls
+        fake_tqdm = types.ModuleType("tqdm")
+        return mock_tqdm_cls, patch.dict("sys.modules", {"tqdm": fake_tqdm, "tqdm.auto": fake_tqdm_auto})
+
     def test_context_manager_opens_and_closes_bar(self):
         """Entering the context manager should create a tqdm bar; exiting should close it.
 
-        We patch tqdm.auto.tqdm at the module level so __enter__ picks it up.
+        Uses a sys.modules injection so the test does not require tqdm to be
+        installed in the test environment.
         """
         mock_bar = MagicMock()
-        mock_tqdm_cls = MagicMock(return_value=mock_bar)
+        mock_tqdm_cls, modules_patch = self._mock_tqdm_modules(mock_bar)
 
         pbar = SimulationProgressBar(total_steps=100, desc="Test")
-        with patch("tqdm.auto.tqdm", mock_tqdm_cls):
+        with modules_patch:
             with pbar:
                 assert pbar._bar is mock_bar
 
