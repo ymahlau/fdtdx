@@ -7,7 +7,12 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import GradientConfig, SimulationConfig
-from fdtdx.core.progress import SimulationProgressBar, _auto_update_interval, _wrap_body_with_progress
+from fdtdx.core.progress import (
+    SimulationProgressBar,
+    _auto_update_interval,
+    _make_pbar,
+    _wrap_body_with_progress,
+)
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.fdtd import checkpointed_fdtd, custom_fdtd_forward, reversible_fdtd
 from fdtdx.objects.object import SimulationObject
@@ -202,18 +207,18 @@ class TestAutoUpdateInterval:
 class TestSimulationProgressBar:
     """Unit tests for SimulationProgressBar that do not require a running simulation."""
 
-    def test_context_manager_opens_and_closes_tqdm(self):
-        """Entering the context manager should create a tqdm bar; exiting should close it."""
+    def test_context_manager_opens_and_closes_bar(self):
+        """Entering the context manager should create a tqdm bar; exiting should close it.
+
+        We patch tqdm.auto.tqdm at the module level so __enter__ picks it up.
+        """
         mock_bar = MagicMock()
         mock_tqdm_cls = MagicMock(return_value=mock_bar)
 
-        # _tqdm is an instance attribute, so we inject it directly after construction
         pbar = SimulationProgressBar(total_steps=100, desc="Test")
-        pbar._tqdm = mock_tqdm_cls
-        pbar._available = True
-
-        with pbar:
-            assert pbar._bar is mock_bar
+        with patch("tqdm.auto.tqdm", mock_tqdm_cls):
+            with pbar:
+                assert pbar._bar is mock_bar
 
         mock_bar.close.assert_called_once()
         assert pbar._bar is None
@@ -222,18 +227,16 @@ class TestSimulationProgressBar:
         """__exit__ must set bar.n = total_steps before closing so the bar reaches 100 %.
 
         The in-loop callback fires with the pre-step counter, so without this
-        fix the bar would stop at total_steps - update_interval.
+        the bar would stop at total_steps - update_interval.
         """
         mock_bar = MagicMock()
         mock_tqdm_cls = MagicMock(return_value=mock_bar)
 
         pbar = SimulationProgressBar(total_steps=100, desc="Test", update_interval=10)
-        pbar._tqdm = mock_tqdm_cls
-        pbar._available = True
-
-        with pbar:
-            # Simulate the last in-loop callback firing at step 90 (pre-step)
-            pbar._host_update(90)
+        with patch("tqdm.auto.tqdm", mock_tqdm_cls):
+            with pbar:
+                # Simulate the last in-loop callback firing at step 90 (pre-step)
+                pbar._host_update(90)
 
         # __exit__ must have set n=100 before close
         assert mock_bar.n == 100
@@ -254,6 +257,17 @@ class TestSimulationProgressBar:
     def test_default_update_interval(self):
         pbar = SimulationProgressBar(total_steps=50)
         assert pbar.update_interval == 1
+
+    def test_init_does_not_import_tqdm(self):
+        """Constructing SimulationProgressBar must not touch tqdm at all.
+
+        The import is deferred to __enter__ so that construction is always
+        safe, even in environments without tqdm installed.
+        """
+        with patch.dict("sys.modules", {"tqdm": None, "tqdm.auto": None}):
+            # Must not raise ImportError
+            pbar = SimulationProgressBar(total_steps=10)
+            assert pbar._bar is None
 
     def test_host_update_sets_bar_position(self):
         """_host_update should set bar.n to the given step and call refresh."""
@@ -312,28 +326,6 @@ class TestSimulationProgressBar:
         pbar = SimulationProgressBar(total_steps=10)
         pbar._host_update(3)  # must not raise
 
-    def test_missing_tqdm_warns_and_disables_bar(self):
-        """If tqdm is not installed, construction should warn but NOT raise.
-
-        The simulation must still run — the bar is simply not shown.
-        """
-        with patch.dict("sys.modules", {"tqdm": None, "tqdm.auto": None}):
-            import importlib
-
-            import fdtdx.core.progress as progress_mod
-
-            importlib.reload(progress_mod)
-
-            with pytest.warns(ImportWarning, match="tqdm"):
-                pbar = progress_mod.SimulationProgressBar(total_steps=10)
-
-            assert not pbar._available
-            assert pbar._bar is None
-
-            # Context manager must be safe even without tqdm
-            with pbar:
-                assert pbar._bar is None  # no bar created
-
     def test_get_callback_returns_callable(self):
         pbar = SimulationProgressBar(total_steps=10)
         cb = pbar.get_callback()
@@ -369,6 +361,57 @@ class TestSimulationProgressBar:
 
         # Only steps 0, 5, 10, 15 pass the device-side cond → exactly 4 host calls
         assert pbar._bar.refresh.call_count == 4
+
+
+class TestMakePbar:
+    """Unit tests for the _make_pbar factory — the single gating point for tqdm availability."""
+
+    def test_returns_none_when_show_progress_false(self):
+        assert _make_pbar(show_progress=False, total_steps=100, desc="x") is None
+
+    def test_returns_none_when_total_steps_zero(self):
+        assert _make_pbar(show_progress=True, total_steps=0, desc="x") is None
+
+    def test_returns_none_when_total_steps_negative(self):
+        assert _make_pbar(show_progress=True, total_steps=-1, desc="x") is None
+
+    def test_returns_pbar_when_tqdm_available(self):
+        """When tqdm is installed _make_pbar must return a SimulationProgressBar."""
+        from fdtdx.core.progress import SimulationProgressBar
+
+        result = _make_pbar(show_progress=True, total_steps=100, desc="Test")
+        assert isinstance(result, SimulationProgressBar)
+
+    def test_returns_none_and_warns_when_tqdm_missing(self):
+        """When tqdm is absent _make_pbar must return None (not a bar) and warn.
+
+        Returning None means _wrap_body_with_progress leaves the body function
+        untouched — zero JAX overhead, no io_callbacks, no device→host syncs.
+        """
+        with patch.dict("sys.modules", {"tqdm": None, "tqdm.auto": None}):
+            import importlib
+
+            import fdtdx.core.progress as progress_mod
+
+            importlib.reload(progress_mod)
+
+            with pytest.warns(ImportWarning, match="tqdm"):
+                result = progress_mod._make_pbar(show_progress=True, total_steps=100, desc="Test")
+
+            assert result is None
+
+    def test_step_offset_forwarded_to_pbar(self):
+        """step_offset passed to _make_pbar must be stored on the returned pbar."""
+        result = _make_pbar(show_progress=True, total_steps=50, desc="x", step_offset=25)
+        assert result is not None
+        assert result.step_offset == 25
+
+    def test_auto_interval_applied(self):
+        """_make_pbar must set update_interval via _auto_update_interval."""
+        result = _make_pbar(show_progress=True, total_steps=1000, desc="x")
+        assert result is not None
+        expected = _auto_update_interval(1000)
+        assert result.update_interval == expected
 
 
 # Integration tests: show_progress flag wired into each simulation function

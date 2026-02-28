@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.progress import SimulationProgressBar, _auto_update_interval, _wrap_body_with_progress
+from fdtdx.core.progress import _make_pbar, _wrap_body_with_progress
 from fdtdx.fdtd.backward import backward
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, SimulationState, reset_array_container
 from fdtdx.fdtd.forward import forward, forward_single_args_wrapper
@@ -65,14 +65,10 @@ def reversible_fdtd(
     #     raise Exception(f"Reversible FDTD does not work with Conductive Materials")
     arrays = reset_array_container(arrays, objects)
 
-    pbar = (
-        SimulationProgressBar(
-            total_steps=config.time_steps_total,
-            desc="FDTD (reversible)",
-            update_interval=_auto_update_interval(config.time_steps_total),
-        )
-        if show_progress
-        else None
+    pbar = _make_pbar(
+        show_progress=show_progress,
+        total_steps=config.time_steps_total,
+        desc="FDTD (reversible)",
     )
 
     # Build the (optionally instrumented) forward body function once so both
@@ -396,14 +392,10 @@ def checkpointed_fdtd(
     else:
         stopping_condition = TimeStepCondition().setup(state, config, objects)
 
-    pbar = (
-        SimulationProgressBar(
-            total_steps=config.time_steps_total,
-            desc="FDTD (checkpointed)",
-            update_interval=_auto_update_interval(config.time_steps_total),
-        )
-        if show_progress
-        else None
+    pbar = _make_pbar(
+        show_progress=show_progress,
+        total_steps=config.time_steps_total,
+        desc="FDTD (checkpointed)",
     )
 
     _forward_body = partial(
@@ -485,15 +477,11 @@ def custom_fdtd_forward(
     else:
         n_steps = int(end_time) - int(start_time)
 
-    pbar = (
-        SimulationProgressBar(
-            total_steps=n_steps,
-            desc="FDTD (forward)",
-            update_interval=_auto_update_interval(n_steps),
-            step_offset=int(start_time),
-        )
-        if show_progress and n_steps > 0
-        else None
+    pbar = _make_pbar(
+        show_progress=show_progress,
+        total_steps=n_steps,
+        desc="FDTD (forward)",
+        step_offset=0 if not show_progress else int(start_time),
     )
 
     _forward_body = partial(

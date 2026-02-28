@@ -41,8 +41,11 @@ class SimulationProgressBar:
     ``step % update_interval == 0`` incur **zero** sync overhead.
 
     This class is intended to be used as a context manager; it is created,
-    opened, and closed automatically by the simulation functions.  Users do
-    not need to instantiate it directly.
+    opened, and closed automatically by the simulation functions via
+    :func:`_make_pbar`.  Users do not need to instantiate it directly.
+
+    The tqdm import is deferred to :meth:`__enter__` so that constructing this
+    object never raises or warns — only opening the context manager does.
 
     Args:
         total_steps: Total number of simulation time steps (length of this segment).
@@ -61,22 +64,6 @@ class SimulationProgressBar:
         update_interval: int = 1,
         step_offset: int = 0,
     ):
-        try:
-            from tqdm.auto import tqdm
-
-            self._tqdm = tqdm
-            self._available = True
-        except ImportError:
-            # tqdm is optional; the bar simply won't display.
-            import warnings
-
-            warnings.warn(
-                "tqdm is not installed — progress bar disabled. Install it with: pip install tqdm",
-                ImportWarning,
-                stacklevel=3,
-            )
-            self._tqdm = None
-            self._available = False
         self.total_steps = total_steps
         self.desc = desc
         self.update_interval = update_interval
@@ -89,13 +76,20 @@ class SimulationProgressBar:
     # Context manager
 
     def __enter__(self) -> SimulationProgressBar:
-        if self._available:
-            self._bar = self._tqdm(
+        # Defer the tqdm import to here so __init__ never raises.
+        try:
+            from tqdm.auto import tqdm
+
+            self._bar = tqdm(
                 total=self.total_steps,
                 desc=self.desc,
                 unit="step",
                 dynamic_ncols=True,
             )
+        except ImportError:
+            # tqdm not installed — bar stays None, no callbacks will fire
+            # because _make_pbar already returned None in this case.
+            pass
         return self
 
     def __exit__(self, *_) -> None:
@@ -163,10 +157,55 @@ class SimulationProgressBar:
 # Internal helpers used by the simulation functions
 
 
+def _make_pbar(
+    show_progress: bool,
+    total_steps: int,
+    desc: str,
+    step_offset: int = 0,
+) -> SimulationProgressBar | None:
+    """Return a :class:`SimulationProgressBar` or ``None``.
+
+    This is the single point where we decide whether to create a progress bar.
+    Returning ``None`` causes :func:`_wrap_body_with_progress` to leave the
+    body function completely unmodified — zero JAX overhead.
+
+    ``None`` is returned when any of the following apply:
+
+    * ``show_progress`` is ``False``
+    * ``total_steps`` is zero or negative (nothing to show)
+    * tqdm is not installed (checked here via a cheap import probe so the
+      simulation functions never import tqdm themselves)
+
+    The tqdm probe only attempts ``import tqdm`` — it does **not** import
+    ``tqdm.auto`` or instantiate anything, so its cost is a single
+    ``sys.modules`` lookup on repeated calls.
+    """
+    if not show_progress or total_steps <= 0:
+        return None
+    try:
+        import tqdm  # noqa: F401 — availability probe only
+    except ImportError:
+        import warnings
+
+        warnings.warn(
+            "tqdm is not installed — progress bar disabled. Install it with: pip install tqdm",
+            ImportWarning,
+            stacklevel=3,
+        )
+        return None
+    return SimulationProgressBar(
+        total_steps=total_steps,
+        desc=desc,
+        update_interval=_auto_update_interval(total_steps),
+        step_offset=step_offset,
+    )
+
+
 def _wrap_body_with_progress(body_fun, progress_bar: SimulationProgressBar | None):
     """Wrap *body_fun* so that it fires the progress-bar callback each step.
 
-    Returns *body_fun* unchanged when *progress_bar* is ``None``.
+    Returns *body_fun* unchanged when *progress_bar* is ``None``, adding
+    zero JAX overhead.
     """
     if progress_bar is None:
         return body_fun
