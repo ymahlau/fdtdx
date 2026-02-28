@@ -1,0 +1,1408 @@
+{
+    "__fdtdx_version__": "0.6.0",
+    "__module__": "builtins",
+    "__name__": "dict",
+    "__schema__": "fdtdx.place_objects.v1",
+    "config": {
+        "__module__": "fdtdx.config",
+        "__name__": "SimulationConfig",
+        "backend": "cpu",
+        "courant_factor": 0.99,
+        "dtype": {
+            "__dtype__": "jax.numpy.float32"
+        },
+        "gradient_config": null,
+        "resolution": 1e-07,
+        "time": 1e-13
+    },
+    "constraints": {
+        "__module__": "builtins",
+        "__name__": "list",
+        "__value__": [
+            {
+                "__module__": "fdtdx.objects.object",
+                "__name__": "PositionConstraint",
+                "__value__": {
+                    "axes": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            1,
+                            2
+                        ]
+                    },
+                    "grid_margins": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            0
+                        ]
+                    },
+                    "margins": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            0
+                        ]
+                    },
+                    "object": "Object_1",
+                    "object_positions": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            -1,
+                            0,
+                            0
+                        ]
+                    },
+                    "other_object": "Object_0",
+                    "other_object_positions": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            -1,
+                            0,
+                            0
+                        ]
+                    }
+                }
+            },
+            {
+                "__module__": "fdtdx.objects.object",
+                "__name__": "PositionConstraint",
+                "__value__": {
+                    "axes": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            1,
+                            2
+                        ]
+                    },
+                    "grid_margins": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            0
+                        ]
+                    },
+                    "margins": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            0
+                        ]
+                    },
+                    "object": "Object_2",
+                    "object_positions": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            1,
+                            0,
+                            0
+                        ]
+                    },
+                    "other_object": "Object_0",
+                    "other_object_positions": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            1,
+                            0,
+                            0
+                        ]
+                    }
+                }
+            },
+            {
+                "__module__": "fdtdx.objects.object",
+                "__name__": "PositionConstraint",
+                "__value__": {
+                    "axes": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            1,
+                            0,
+                            2
+                        ]
+                    },
+                    "grid_margins": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            0
+                        ]
+                    },
+                    "margins": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            0
+                        ]
+                    },
+                    "object": "Object_3",
+                    "object_positions": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            -1,
+                            0,
+                            0
+                        ]
+                    },
+                    "other_object": "Object_0",
+                    "other_object_positions": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            -1,
+                            0,
+                            0
+                        ]
+                    }
+                }
+            },
+            {
+                "__module__": "fdtdx.objects.object",
+                "__name__": "PositionConstraint",
+                "__value__": {
+                    "axes": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            1,
+                            0,
+                            2
+                        ]
+                    },
+                    "grid_margins": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            0
+                        ]
+                    },
+                    "margins": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            0
+                        ]
+                    },
+                    "object": "Object_4",
+                    "object_positions": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            1,
+                            0,
+                            0
+                        ]
+                    },
+                    "other_object": "Object_0",
+                    "other_object_positions": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            1,
+                            0,
+                            0
+                        ]
+                    }
+                }
+            },
+            {
+                "__module__": "fdtdx.objects.object",
+                "__name__": "PositionConstraint",
+                "__value__": {
+                    "axes": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            2,
+                            0,
+                            1
+                        ]
+                    },
+                    "grid_margins": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            0
+                        ]
+                    },
+                    "margins": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            0
+                        ]
+                    },
+                    "object": "Object_5",
+                    "object_positions": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            -1,
+                            0,
+                            0
+                        ]
+                    },
+                    "other_object": "Object_0",
+                    "other_object_positions": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            -1,
+                            0,
+                            0
+                        ]
+                    }
+                }
+            },
+            {
+                "__module__": "fdtdx.objects.object",
+                "__name__": "PositionConstraint",
+                "__value__": {
+                    "axes": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            2,
+                            0,
+                            1
+                        ]
+                    },
+                    "grid_margins": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            0
+                        ]
+                    },
+                    "margins": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            0
+                        ]
+                    },
+                    "object": "Object_6",
+                    "object_positions": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            1,
+                            0,
+                            0
+                        ]
+                    },
+                    "other_object": "Object_0",
+                    "other_object_positions": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            1,
+                            0,
+                            0
+                        ]
+                    }
+                }
+            },
+            {
+                "__module__": "fdtdx.objects.object",
+                "__name__": "PositionConstraint",
+                "__value__": {
+                    "axes": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            1,
+                            2
+                        ]
+                    },
+                    "grid_margins": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            0
+                        ]
+                    },
+                    "margins": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            -1.5e-06
+                        ]
+                    },
+                    "object": "Object_7",
+                    "object_positions": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            1
+                        ]
+                    },
+                    "other_object": "Object_0",
+                    "other_object_positions": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            1
+                        ]
+                    }
+                }
+            },
+            {
+                "__module__": "fdtdx.objects.object",
+                "__name__": "PositionConstraint",
+                "__value__": {
+                    "axes": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            1,
+                            2
+                        ]
+                    },
+                    "grid_margins": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            0
+                        ]
+                    },
+                    "margins": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            0
+                        ]
+                    },
+                    "object": "Cube",
+                    "object_positions": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            0
+                        ]
+                    },
+                    "other_object": "Object_0",
+                    "other_object_positions": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            0
+                        ]
+                    }
+                }
+            },
+            {
+                "__module__": "fdtdx.objects.object",
+                "__name__": "PositionConstraint",
+                "__value__": {
+                    "axes": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            1,
+                            2
+                        ]
+                    },
+                    "grid_margins": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            0
+                        ]
+                    },
+                    "margins": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            0
+                        ]
+                    },
+                    "object": "Video",
+                    "object_positions": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            0
+                        ]
+                    },
+                    "other_object": "Object_0",
+                    "other_object_positions": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            0
+                        ]
+                    }
+                }
+            },
+            {
+                "__module__": "fdtdx.objects.object",
+                "__name__": "SizeConstraint",
+                "__value__": {
+                    "axes": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            1,
+                            2
+                        ]
+                    },
+                    "grid_offsets": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            0
+                        ]
+                    },
+                    "object": "Video",
+                    "offsets": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            0,
+                            0
+                        ]
+                    },
+                    "other_axes": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0,
+                            1,
+                            2
+                        ]
+                    },
+                    "other_object": "Object_0",
+                    "proportions": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            1,
+                            1,
+                            1
+                        ]
+                    }
+                }
+            }
+        ]
+    },
+    "meta": {
+        "__module__": "builtins",
+        "__name__": "dict",
+        "seed": 42
+    },
+    "object_list": {
+        "__module__": "builtins",
+        "__name__": "list",
+        "__value__": [
+            {
+                "__module__": "fdtdx.objects.static_material.static",
+                "__name__": "SimulationVolume",
+                "color": {
+                    "__module__": "fdtdx.colors",
+                    "__name__": "Color",
+                    "b": 0.8392156862745098,
+                    "g": 0.8627450980392157,
+                    "r": 0.8470588235294118
+                },
+                "material": {
+                    "__module__": "fdtdx.materials",
+                    "__name__": "Material",
+                    "electric_conductivity": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0
+                        ]
+                    },
+                    "magnetic_conductivity": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0
+                        ]
+                    },
+                    "permeability": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            1.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ]
+                    },
+                    "permittivity": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            1.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0
+                        ]
+                    }
+                },
+                "max_random_grid_offsets": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "max_random_real_offsets": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "name": "Object_0",
+                "partial_grid_shape": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        null,
+                        null
+                    ]
+                },
+                "partial_real_position": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        null,
+                        null
+                    ]
+                },
+                "partial_real_shape": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        1.2e-05,
+                        1.2e-05,
+                        1.2e-05
+                    ]
+                },
+                "placement_order": -1000
+            },
+            {
+                "__module__": "fdtdx.objects.boundaries.perfectly_matched_layer",
+                "__name__": "PerfectlyMatchedLayer",
+                "alpha_end": 0.0,
+                "alpha_order": 1.0,
+                "alpha_start": 107.60132103166194,
+                "axis": 0,
+                "color": {
+                    "__module__": "fdtdx.colors",
+                    "__name__": "Color",
+                    "b": 0.21568627450980393,
+                    "g": 0.21568627450980393,
+                    "r": 0.21176470588235294
+                },
+                "direction": "-",
+                "kappa_end": 1.0,
+                "kappa_order": 3.0,
+                "kappa_start": 1.0,
+                "max_random_grid_offsets": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "max_random_real_offsets": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "name": "Object_1",
+                "partial_grid_shape": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        10,
+                        null,
+                        null
+                    ]
+                },
+                "partial_real_position": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        null,
+                        null
+                    ]
+                },
+                "partial_real_shape": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        null,
+                        null
+                    ]
+                },
+                "sigma_end": null,
+                "sigma_order": 3.0,
+                "sigma_start": 0.0
+            },
+            {
+                "__module__": "fdtdx.objects.boundaries.perfectly_matched_layer",
+                "__name__": "PerfectlyMatchedLayer",
+                "alpha_end": 0.0,
+                "alpha_order": 1.0,
+                "alpha_start": 107.60132103166194,
+                "axis": 0,
+                "color": {
+                    "__module__": "fdtdx.colors",
+                    "__name__": "Color",
+                    "b": 0.21568627450980393,
+                    "g": 0.21568627450980393,
+                    "r": 0.21176470588235294
+                },
+                "direction": "+",
+                "kappa_end": 1.0,
+                "kappa_order": 3.0,
+                "kappa_start": 1.0,
+                "max_random_grid_offsets": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "max_random_real_offsets": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "name": "Object_2",
+                "partial_grid_shape": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        10,
+                        null,
+                        null
+                    ]
+                },
+                "partial_real_position": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        null,
+                        null
+                    ]
+                },
+                "partial_real_shape": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        null,
+                        null
+                    ]
+                },
+                "sigma_end": null,
+                "sigma_order": 3.0,
+                "sigma_start": 0.0
+            },
+            {
+                "__module__": "fdtdx.objects.boundaries.perfectly_matched_layer",
+                "__name__": "PerfectlyMatchedLayer",
+                "alpha_end": 0.0,
+                "alpha_order": 1.0,
+                "alpha_start": 107.60132103166194,
+                "axis": 1,
+                "color": {
+                    "__module__": "fdtdx.colors",
+                    "__name__": "Color",
+                    "b": 0.21568627450980393,
+                    "g": 0.21568627450980393,
+                    "r": 0.21176470588235294
+                },
+                "direction": "-",
+                "kappa_end": 1.0,
+                "kappa_order": 3.0,
+                "kappa_start": 1.0,
+                "max_random_grid_offsets": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "max_random_real_offsets": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "name": "Object_3",
+                "partial_grid_shape": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        10,
+                        null
+                    ]
+                },
+                "partial_real_position": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        null,
+                        null
+                    ]
+                },
+                "partial_real_shape": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        null,
+                        null
+                    ]
+                },
+                "sigma_end": null,
+                "sigma_order": 3.0,
+                "sigma_start": 0.0
+            },
+            {
+                "__module__": "fdtdx.objects.boundaries.perfectly_matched_layer",
+                "__name__": "PerfectlyMatchedLayer",
+                "alpha_end": 0.0,
+                "alpha_order": 1.0,
+                "alpha_start": 107.60132103166194,
+                "axis": 1,
+                "color": {
+                    "__module__": "fdtdx.colors",
+                    "__name__": "Color",
+                    "b": 0.21568627450980393,
+                    "g": 0.21568627450980393,
+                    "r": 0.21176470588235294
+                },
+                "direction": "+",
+                "kappa_end": 1.0,
+                "kappa_order": 3.0,
+                "kappa_start": 1.0,
+                "max_random_grid_offsets": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "max_random_real_offsets": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "name": "Object_4",
+                "partial_grid_shape": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        10,
+                        null
+                    ]
+                },
+                "partial_real_position": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        null,
+                        null
+                    ]
+                },
+                "partial_real_shape": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        null,
+                        null
+                    ]
+                },
+                "sigma_end": null,
+                "sigma_order": 3.0,
+                "sigma_start": 0.0
+            },
+            {
+                "__module__": "fdtdx.objects.boundaries.perfectly_matched_layer",
+                "__name__": "PerfectlyMatchedLayer",
+                "alpha_end": 0.0,
+                "alpha_order": 1.0,
+                "alpha_start": 107.60132103166194,
+                "axis": 2,
+                "color": {
+                    "__module__": "fdtdx.colors",
+                    "__name__": "Color",
+                    "b": 0.21568627450980393,
+                    "g": 0.21568627450980393,
+                    "r": 0.21176470588235294
+                },
+                "direction": "-",
+                "kappa_end": 1.0,
+                "kappa_order": 3.0,
+                "kappa_start": 1.0,
+                "max_random_grid_offsets": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "max_random_real_offsets": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "name": "Object_5",
+                "partial_grid_shape": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        null,
+                        10
+                    ]
+                },
+                "partial_real_position": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        null,
+                        null
+                    ]
+                },
+                "partial_real_shape": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        null,
+                        null
+                    ]
+                },
+                "sigma_end": null,
+                "sigma_order": 3.0,
+                "sigma_start": 0.0
+            },
+            {
+                "__module__": "fdtdx.objects.boundaries.perfectly_matched_layer",
+                "__name__": "PerfectlyMatchedLayer",
+                "alpha_end": 0.0,
+                "alpha_order": 1.0,
+                "alpha_start": 107.60132103166194,
+                "axis": 2,
+                "color": {
+                    "__module__": "fdtdx.colors",
+                    "__name__": "Color",
+                    "b": 0.21568627450980393,
+                    "g": 0.21568627450980393,
+                    "r": 0.21176470588235294
+                },
+                "direction": "+",
+                "kappa_end": 1.0,
+                "kappa_order": 3.0,
+                "kappa_start": 1.0,
+                "max_random_grid_offsets": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "max_random_real_offsets": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "name": "Object_6",
+                "partial_grid_shape": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        null,
+                        10
+                    ]
+                },
+                "partial_real_position": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        null,
+                        null
+                    ]
+                },
+                "partial_real_shape": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        null,
+                        null
+                    ]
+                },
+                "sigma_end": null,
+                "sigma_order": 3.0,
+                "sigma_start": 0.0
+            },
+            {
+                "__module__": "fdtdx.objects.sources.linear_polarization",
+                "__name__": "UniformPlaneSource",
+                "amplitude": 1.0,
+                "azimuth_angle": 0.0,
+                "color": {
+                    "__module__": "fdtdx.colors",
+                    "__name__": "Color",
+                    "b": 0.00784313725490196,
+                    "g": 0.3176470588235294,
+                    "r": 0.7764705882352941
+                },
+                "direction": "-",
+                "elevation_angle": 0.0,
+                "fixed_E_polarization_vector": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        1,
+                        0,
+                        0
+                    ]
+                },
+                "fixed_H_polarization_vector": null,
+                "max_angle_random_offset": 0.0,
+                "max_horizontal_offset": 0.0,
+                "max_random_grid_offsets": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "max_random_real_offsets": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "max_vertical_offset": 0.0,
+                "name": "Object_7",
+                "normalize_by_energy": true,
+                "partial_grid_shape": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        null,
+                        1
+                    ]
+                },
+                "partial_real_position": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        null,
+                        null
+                    ]
+                },
+                "partial_real_shape": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        1e-05,
+                        1e-05,
+                        null
+                    ]
+                },
+                "static_amplitude_factor": 1.0,
+                "switch": {
+                    "__module__": "fdtdx.core.switch",
+                    "__name__": "OnOffSwitch",
+                    "end_after_periods": null,
+                    "end_time": null,
+                    "fixed_on_time_steps": null,
+                    "interval": 1,
+                    "is_always_off": false,
+                    "on_for_periods": null,
+                    "on_for_time": null,
+                    "period": null,
+                    "start_after_periods": null,
+                    "start_time": null
+                },
+                "temporal_profile": {
+                    "__module__": "fdtdx.objects.sources.profile",
+                    "__name__": "SingleFrequencyProfile",
+                    "num_startup_periods": 4,
+                    "phase_shift": 3.141592653589793
+                },
+                "wave_character": {
+                    "__module__": "fdtdx.core.wavelength",
+                    "__name__": "WaveCharacter",
+                    "frequency": null,
+                    "period": null,
+                    "phase_shift": 0.0,
+                    "wavelength": 1.55e-06
+                }
+            },
+            {
+                "__module__": "fdtdx.objects.static_material.static",
+                "__name__": "UniformMaterialObject",
+                "color": {
+                    "__module__": "fdtdx.colors",
+                    "__name__": "Color",
+                    "b": 0.7529411764705882,
+                    "g": 0.5058823529411764,
+                    "r": 1.0
+                },
+                "material": {
+                    "__module__": "fdtdx.materials",
+                    "__name__": "Material",
+                    "electric_conductivity": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0
+                        ]
+                    },
+                    "magnetic_conductivity": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0
+                        ]
+                    },
+                    "permeability": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            1.7,
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.7,
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.7
+                        ]
+                    },
+                    "permittivity": {
+                        "__module__": "builtins",
+                        "__name__": "tuple",
+                        "__value__": [
+                            2.5,
+                            0.0,
+                            0.0,
+                            0.0,
+                            2.5,
+                            0.0,
+                            0.0,
+                            0.0,
+                            2.5
+                        ]
+                    }
+                },
+                "max_random_grid_offsets": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "max_random_real_offsets": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "name": "Cube",
+                "partial_grid_shape": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        null,
+                        null
+                    ]
+                },
+                "partial_real_position": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        null,
+                        null
+                    ]
+                },
+                "partial_real_shape": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        3e-06,
+                        3e-06,
+                        3e-06
+                    ]
+                },
+                "placement_order": 0
+            },
+            {
+                "__module__": "fdtdx.objects.detectors.energy",
+                "__name__": "EnergyDetector",
+                "aggregate": null,
+                "as_slices": true,
+                "color": {
+                    "__module__": "fdtdx.colors",
+                    "__name__": "Color",
+                    "b": 0.4823529411764706,
+                    "g": 0.9764705882352941,
+                    "r": 0.5882352941176471
+                },
+                "dtype": {
+                    "__dtype__": "jax.numpy.float32"
+                },
+                "exact_interpolation": true,
+                "if_inverse_plot_backwards": true,
+                "inverse": false,
+                "max_random_grid_offsets": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "max_random_real_offsets": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "name": "Video",
+                "num_video_workers": 8,
+                "partial_grid_shape": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        null,
+                        null
+                    ]
+                },
+                "partial_real_position": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        null,
+                        null
+                    ]
+                },
+                "partial_real_shape": {
+                    "__module__": "builtins",
+                    "__name__": "tuple",
+                    "__value__": [
+                        null,
+                        null,
+                        null
+                    ]
+                },
+                "plot": true,
+                "plot_dpi": null,
+                "plot_interpolation": "gaussian",
+                "reduce_volume": false,
+                "switch": {
+                    "__module__": "fdtdx.core.switch",
+                    "__name__": "OnOffSwitch",
+                    "end_after_periods": null,
+                    "end_time": null,
+                    "fixed_on_time_steps": null,
+                    "interval": 3,
+                    "is_always_off": false,
+                    "on_for_periods": null,
+                    "on_for_time": null,
+                    "period": null,
+                    "start_after_periods": null,
+                    "start_time": null
+                },
+                "x_slice": null,
+                "y_slice": null,
+                "z_slice": null
+            }
+        ]
+    }
+}
