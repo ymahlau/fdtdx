@@ -45,36 +45,66 @@ class SimulationProgressBar:
     not need to instantiate it directly.
 
     Args:
-        total_steps: Total number of simulation time steps.
+        total_steps: Total number of simulation time steps (length of this segment).
         desc: Label shown next to the bar.
         update_interval: Issue a host callback only every N steps.  Use
             :func:`_auto_update_interval` to pick a sensible default.
+        step_offset: The absolute time step that corresponds to position 0 on
+            the bar.  Set to ``start_time`` for partial simulations so that
+            the displayed position stays in ``[0, total_steps]``.
     """
 
-    def __init__(self, total_steps: int, desc: str = "FDTD", update_interval: int = 1):
+    def __init__(
+        self,
+        total_steps: int,
+        desc: str = "FDTD",
+        update_interval: int = 1,
+        step_offset: int = 0,
+    ):
         try:
             from tqdm.auto import tqdm
-        except ImportError as exc:
-            raise ImportError("tqdm is required for the progress bar. Install it with: pip install tqdm") from exc
-        self._tqdm = tqdm
+
+            self._tqdm = tqdm
+            self._available = True
+        except ImportError:
+            # tqdm is optional; the bar simply won't display.
+            import warnings
+
+            warnings.warn(
+                "tqdm is not installed — progress bar disabled. Install it with: pip install tqdm",
+                ImportWarning,
+                stacklevel=3,
+            )
+            self._tqdm = None
+            self._available = False
         self.total_steps = total_steps
         self.desc = desc
         self.update_interval = update_interval
+        # Absolute step value that corresponds to position 0 on the bar.
+        # For full simulations this is 0; for partial runs (custom_fdtd_forward)
+        # it equals start_time so that bar.n stays in [0, total_steps].
+        self.step_offset = step_offset
         self._bar = None
 
     # Context manager
 
     def __enter__(self) -> SimulationProgressBar:
-        self._bar = self._tqdm(
-            total=self.total_steps,
-            desc=self.desc,
-            unit="step",
-            dynamic_ncols=True,
-        )
+        if self._available:
+            self._bar = self._tqdm(
+                total=self.total_steps,
+                desc=self.desc,
+                unit="step",
+                dynamic_ncols=True,
+            )
         return self
 
     def __exit__(self, *_) -> None:
         if self._bar is not None:
+            # Force the bar to 100 % before closing.  The in-loop callback
+            # fires with the *pre-step* counter, so the last update lands at
+            # total_steps - update_interval rather than total_steps.
+            self._bar.n = self.total_steps
+            self._bar.refresh()
             self._bar.close()
             self._bar = None
 
@@ -86,10 +116,14 @@ class SimulationProgressBar:
         The device-side ``lax.cond`` in :meth:`get_callback` ensures this is
         only ever called when ``step % update_interval == 0``, so no further
         filtering is needed here.
+
+        ``step_offset`` is subtracted so the bar position stays relative to
+        the start of this particular simulation segment rather than showing
+        the absolute time step.  For full simulations ``step_offset`` is 0.
         """
         if self._bar is None:
             return
-        self._bar.n = int(time_step)
+        self._bar.n = int(time_step) - self.step_offset
         self._bar.refresh()
 
     # JAX-side callback factory

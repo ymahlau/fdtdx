@@ -474,12 +474,23 @@ def custom_fdtd_forward(
         arrays = reset_array_container(arrays, objects)
     state = (jnp.asarray(start_time, dtype=jnp.int32), arrays)
 
-    n_steps = int(end_time) - int(start_time)
+    # start_time and end_time must be statically known Python ints here so that
+    # we can compute n_steps for the progress bar without triggering JAX
+    # concretization.  They are always statically known at call sites of this
+    # function (they control the loop bound, not an array value).
+    if isinstance(start_time, jax.Array) or isinstance(end_time, jax.Array):
+        # Traced arrays: skip the progress bar entirely to avoid concretization.
+        show_progress = False
+        n_steps = 0
+    else:
+        n_steps = int(end_time) - int(start_time)
+
     pbar = (
         SimulationProgressBar(
             total_steps=n_steps,
             desc="FDTD (forward)",
             update_interval=_auto_update_interval(n_steps),
+            step_offset=int(start_time),
         )
         if show_progress and n_steps > 0
         else None

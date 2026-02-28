@@ -210,6 +210,7 @@ class TestSimulationProgressBar:
         # _tqdm is an instance attribute, so we inject it directly after construction
         pbar = SimulationProgressBar(total_steps=100, desc="Test")
         pbar._tqdm = mock_tqdm_cls
+        pbar._available = True
 
         with pbar:
             assert pbar._bar is mock_bar
@@ -217,11 +218,38 @@ class TestSimulationProgressBar:
         mock_bar.close.assert_called_once()
         assert pbar._bar is None
 
+    def test_exit_forces_bar_to_100_percent(self):
+        """__exit__ must set bar.n = total_steps before closing so the bar reaches 100 %.
+
+        The in-loop callback fires with the pre-step counter, so without this
+        fix the bar would stop at total_steps - update_interval.
+        """
+        mock_bar = MagicMock()
+        mock_tqdm_cls = MagicMock(return_value=mock_bar)
+
+        pbar = SimulationProgressBar(total_steps=100, desc="Test", update_interval=10)
+        pbar._tqdm = mock_tqdm_cls
+        pbar._available = True
+
+        with pbar:
+            # Simulate the last in-loop callback firing at step 90 (pre-step)
+            pbar._host_update(90)
+
+        # __exit__ must have set n=100 before close
+        assert mock_bar.n == 100
+        mock_bar.refresh.assert_called()
+        mock_bar.close.assert_called_once()
+
     def test_default_attributes(self):
         pbar = SimulationProgressBar(total_steps=200, desc="Fwd", update_interval=5)
         assert pbar.total_steps == 200
         assert pbar.desc == "Fwd"
         assert pbar.update_interval == 5
+        assert pbar.step_offset == 0
+
+    def test_step_offset_default_is_zero(self):
+        pbar = SimulationProgressBar(total_steps=50)
+        assert pbar.step_offset == 0
 
     def test_default_update_interval(self):
         pbar = SimulationProgressBar(total_steps=50)
@@ -237,6 +265,30 @@ class TestSimulationProgressBar:
 
         assert mock_bar.n == 7
         mock_bar.refresh.assert_called_once()
+
+    def test_host_update_applies_step_offset(self):
+        """bar.n must equal time_step - step_offset so partial runs show relative progress.
+
+        For a run from step 50 to 100, step_offset=50, so when the callback
+        fires with time_step=60 the bar should show n=10, not n=60.
+        """
+        mock_bar = MagicMock()
+        pbar = SimulationProgressBar(total_steps=50, step_offset=50)
+        pbar._bar = mock_bar
+
+        pbar._host_update(60)
+
+        assert mock_bar.n == 10  # 60 - 50
+
+    def test_host_update_with_zero_offset(self):
+        """With step_offset=0 (default), bar.n equals the raw time_step."""
+        mock_bar = MagicMock()
+        pbar = SimulationProgressBar(total_steps=100, step_offset=0)
+        pbar._bar = mock_bar
+
+        pbar._host_update(42)
+
+        assert mock_bar.n == 42
 
     def test_host_update_always_refreshes_when_called(self):
         """_host_update must unconditionally refresh on every call.
@@ -259,6 +311,28 @@ class TestSimulationProgressBar:
         """_host_update should not raise when called outside of a context manager."""
         pbar = SimulationProgressBar(total_steps=10)
         pbar._host_update(3)  # must not raise
+
+    def test_missing_tqdm_warns_and_disables_bar(self):
+        """If tqdm is not installed, construction should warn but NOT raise.
+
+        The simulation must still run — the bar is simply not shown.
+        """
+        with patch.dict("sys.modules", {"tqdm": None, "tqdm.auto": None}):
+            import importlib
+
+            import fdtdx.core.progress as progress_mod
+
+            importlib.reload(progress_mod)
+
+            with pytest.warns(ImportWarning, match="tqdm"):
+                pbar = progress_mod.SimulationProgressBar(total_steps=10)
+
+            assert not pbar._available
+            assert pbar._bar is None
+
+            # Context manager must be safe even without tqdm
+            with pbar:
+                assert pbar._bar is None  # no bar created
 
     def test_get_callback_returns_callable(self):
         pbar = SimulationProgressBar(total_steps=10)
@@ -295,17 +369,6 @@ class TestSimulationProgressBar:
 
         # Only steps 0, 5, 10, 15 pass the device-side cond → exactly 4 host calls
         assert pbar._bar.refresh.call_count == 4
-
-    def test_missing_tqdm_raises_import_error(self):
-        """If tqdm is not installed, constructing SimulationProgressBar should raise ImportError."""
-        with patch.dict("sys.modules", {"tqdm": None, "tqdm.auto": None}):
-            with pytest.raises(ImportError, match="tqdm"):
-                import importlib
-
-                import fdtdx.core.progress as progress_mod
-
-                importlib.reload(progress_mod)
-                progress_mod.SimulationProgressBar(total_steps=10)
 
 
 # Integration tests: show_progress flag wired into each simulation function
@@ -384,6 +447,54 @@ class TestShowProgressFlag:
         )
         assert int(t) == 3
         assert isinstance(arrs, ArrayContainer)
+
+    def test_custom_fdtd_jax_array_times_disables_progress(self, dummy_arrays, dummy_objects, dummy_config):
+        """Passing jax.Array start_time/end_time must not cause concretization errors.
+
+        When start_time or end_time are traced jax.Arrays the function must
+        silently disable the progress bar rather than calling int() and
+        triggering a ConcretizationTypeError.
+        """
+        key = jax.random.PRNGKey(0)
+        start = jnp.asarray(0, dtype=jnp.int32)
+        end = jnp.asarray(2, dtype=jnp.int32)
+        # This must not raise a ConcretizationTypeError
+        t, arrs = custom_fdtd_forward(
+            dummy_arrays,
+            dummy_objects,
+            dummy_config,
+            key,
+            reset_container=True,
+            record_detectors=False,
+            start_time=start,
+            end_time=end,
+            show_progress=True,
+        )
+        assert isinstance(t, jax.Array)
+        assert isinstance(arrs, ArrayContainer)
+
+    def test_partial_run_bar_shows_relative_progress(self):
+        """Progress bar for a partial run must display steps relative to start_time.
+
+        With start_time=50 and total_steps=50, a callback at absolute step 60
+        must set bar.n to 10, not 60.  Without step_offset the bar would
+        immediately overflow its total.
+        """
+        mock_bar = MagicMock()
+        pbar = SimulationProgressBar(
+            total_steps=50,
+            step_offset=50,
+            update_interval=1,
+        )
+        pbar._bar = mock_bar
+
+        # Simulate callbacks as they would arrive from the device
+        for abs_step in range(50, 100, 10):
+            pbar._host_update(abs_step)
+
+        # Just verify the last assignment via attribute tracking
+        assert mock_bar.n == 40  # last callback: abs 90 - offset 50 = 40
+        assert mock_bar.n <= 50  # must never exceed total_steps
 
     # Callback wiring tests (outside lax.while_loop for determinism)
 
