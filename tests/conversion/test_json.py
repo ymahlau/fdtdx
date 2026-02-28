@@ -1,10 +1,12 @@
+from pathlib import Path
+
 import jax
 import jax.numpy as jnp
 import pytest
 
 from fdtdx.colors import PINK
 from fdtdx.config import SimulationConfig
-from fdtdx.conversion.json import export_json, export_json_str, import_from_json
+from fdtdx.conversion.json import JsonSetup, export_json, export_json_str, import_from_json
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, ParameterContainer
@@ -20,7 +22,8 @@ from fdtdx.objects.static_material.static import SimulationVolume, UniformMateri
 @pytest.fixture
 def setup_simulation_inputs():
     """Set up a basic simulation inputs for testing."""
-    key = jax.random.PRNGKey(seed=42)
+    seed = 42
+    key = jax.random.PRNGKey(seed=seed)
 
     object_list = []
     constraints = []
@@ -89,6 +92,7 @@ def setup_simulation_inputs():
     constraints.extend(det.same_position_and_size(volume))
 
     return {
+        "seed": seed,
         "key": key,
         "config": config,
         "volume": volume,
@@ -98,6 +102,12 @@ def setup_simulation_inputs():
         "object_list": object_list,
         "constraints": constraints,
     }
+
+
+@pytest.fixture
+def jsonsetup_path(request) -> Path:
+    test_dir = Path(str(request.fspath)).parent
+    return test_dir / "setup_test.json"
 
 
 def test_detector_json(setup_simulation_inputs):
@@ -191,7 +201,7 @@ def test_object_container_json():
 
 
 def test_run_simulation_with_imported_json(setup_simulation_inputs):
-    """Ensures that a simulation can be executed from exported JSON settings and successfully executed."""
+    """Ensures that a simulation can be executed from exported JSON settings."""
     key = setup_simulation_inputs["key"]
     key, subkey = jax.random.split(key)
     config = setup_simulation_inputs["config"]
@@ -237,3 +247,57 @@ def test_run_simulation_with_imported_json(setup_simulation_inputs):
     jitted_loss = jax.jit(sim_fn).lower(params, arrays, key).compile()
     new_arrays = jitted_loss(params, arrays, subkey)
     assert new_arrays is not None
+
+
+def test_jsonsetup_dumps_and_loads(setup_simulation_inputs):
+    "test json dumps and loads from JsonSetup"
+    config = setup_simulation_inputs["config"]
+    object_list = setup_simulation_inputs["object_list"]
+    constraints = setup_simulation_inputs["constraints"]
+
+    setup = JsonSetup(
+        config=config,
+        object_list=list(object_list),
+        constraints=list(constraints),
+        meta={"seed": setup_simulation_inputs["key"], "test": "other meta data"},
+    )
+
+    s = setup.dumps()
+    setup2 = JsonSetup.loads(s)
+
+    assert isinstance(setup2, JsonSetup)
+    assert isinstance(setup2.object_list, list)
+    assert isinstance(setup2.constraints, list)
+    assert setup2.meta == {"test": "test_some_extra_data"}
+
+
+def test_run_simulation_with_jsonsetup(jsonsetup_path: Path):
+    """Ensures that a simulation can be executed by loaded json setup."""
+    setup2 = JsonSetup.load_json(jsonsetup_path)
+    assert setup2 is not None
+    meta = setup2.meta
+    assert meta is not None
+    seed = int(meta.get("seed", 42))
+    key = jax.random.PRNGKey(seed)
+    assert seed is not None
+    key, subkey = jax.random.split(key)
+
+    objects, arrays, params, cfg2, _ = place_objects(
+        object_list=setup2.object_list,
+        config=setup2.config,
+        constraints=setup2.constraints,
+        key=subkey,
+    )
+
+    def sim_fn(params: ParameterContainer, arrays: ArrayContainer, key: jax.Array):
+        # Apply parameters to objects and arrays
+        arrays, new_objects, _ = apply_params(arrays, objects, params, key)
+
+        # Run FDTD simulation (forward)
+        final_state = run_fdtd(arrays=arrays, objects=new_objects, config=cfg2, key=key)
+        _, arrays = final_state
+        return arrays
+
+    compiled = jax.jit(sim_fn).lower(params, arrays, key).compile()
+    out = compiled(params, arrays, subkey)
+    assert out is not None
