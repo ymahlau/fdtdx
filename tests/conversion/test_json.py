@@ -259,7 +259,7 @@ def test_jsonsetup_dumps_and_loads(setup_simulation_inputs):
         config=config,
         object_list=list(object_list),
         constraints=list(constraints),
-        meta={"seed": setup_simulation_inputs["key"], "test": "other meta data"},
+        meta={"seed": setup_simulation_inputs["seed"], "test": "other meta data"},
     )
 
     s = setup.dumps()
@@ -268,7 +268,7 @@ def test_jsonsetup_dumps_and_loads(setup_simulation_inputs):
     assert isinstance(setup2, JsonSetup)
     assert isinstance(setup2.object_list, list)
     assert isinstance(setup2.constraints, list)
-    assert setup2.meta == {"test": "test_some_extra_data"}
+    assert setup2.meta == {"seed": 42, "test": "other meta data"}
 
 
 def test_run_simulation_with_jsonsetup(jsonsetup_path: Path):
