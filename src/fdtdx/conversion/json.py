@@ -1,12 +1,193 @@
+import dataclasses
 import importlib
 import json
-from typing import Any, Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Sequence
 
 import jax
 
+from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import TreeClass
 from fdtdx.core.null import NULL
+from fdtdx.objects.object import (
+    GridCoordinateConstraint,
+    PositionConstraint,
+    SimulationObject,
+    SizeConstraint,
+    SizeExtensionConstraint,
+)
 from fdtdx.typing import JAX_DTYPES
+
+
+@dataclass(frozen=True)
+class JsonSetup:
+    """
+    Serializable payload for `fdtdx.place_objects`.
+
+    Encapsulates:
+      - config
+      - object_list
+      - constraints
+    """
+
+    config: SimulationConfig
+    object_list: List[SimulationObject]
+    constraints: List[PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint]
+    meta: Optional[Dict[str, Any]] = None
+
+    @classmethod
+    def load_json(cls, path: str | Path) -> "JsonSetup":
+        """Load setup from JSON file."""
+        s = Path(path).read_text()
+        return cls.loads(s)
+
+    @classmethod
+    def loads(cls, json_str: str) -> "JsonSetup":
+        """Load setup from JSON string produced by `export_json_str`."""
+        data = import_from_json(json_str)
+        return cls.from_dict(data)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "JsonSetup":
+        """Construct setup from decoded dictionary."""
+        config = data.get("config", data.get("SimulationConfig", None))
+        if config is None:
+            raise ValueError("Missing 'config' or 'SimulationConfig'.")
+
+        object_list = data.get("object_list", None)
+        if object_list is None:
+            raise ValueError("Missing 'object_list'.")
+
+        constraints = data.get("constraints", [])
+        if constraints is None:
+            raise ValueError("Missing 'constraints'.")
+
+        meta = data.get("meta", None)
+
+        object_list = cls._unwrap_list(object_list, "object_list")
+        constraints = cls._unwrap_list(constraints, "constraints")
+
+        settings = cls(config=config, object_list=object_list, constraints=constraints, meta=meta)
+        settings.validate()
+        return settings
+
+    def dumps(self) -> str:
+        """
+        Serialize setup to JSON string.
+
+        Formatting depends on `export_json_str` implementation.
+        """
+        export_format = {
+            "__schema__": "fdtdx.place_objects.v1",
+            "__fdtdx_version__": "0.6.0",
+            "config": self.config,
+            "object_list": self.object_list,
+            "constraints": self.constraints,
+        }
+        if self.meta:
+            export_format["meta"] = self.meta
+        return export_json_str(export_format)
+
+    def export_json(self, path: str | Path) -> None:
+        """Write setup to JSON file."""
+        Path(path).write_text(self.dumps())
+
+    def validate(self) -> None:
+        """
+        Perform structural validation before calling `place_objects`.
+        """
+        errors: List[str] = []
+
+        if not isinstance(self.object_list, list):
+            errors.append(f"'object_list' must be a list, got {type(self.object_list)}")
+        if not isinstance(self.constraints, list):
+            errors.append(f"'constraints' must be a list, got {type(self.constraints)}")
+
+        valid_object_names = {
+            # config-related objects / scene objects
+            "SimulationVolume",
+            "UniformMaterialObject",
+            # sources
+            "ModePlaneSource",
+            "GaussianPlaneSource",
+            "UniformPlaneSource",
+            "LinearlyPolarizedPlaneSource",
+            # detectors
+            "EnergyDetector",
+            "FieldDetector",
+            "ModeOverlapDetector",
+            "PhasorDetector",
+            "PoyntingFluxDetector",
+            # boundary
+            "PerfectlyMatchedLayer",
+            # misc used inside objects (may appear as standalone nodes in JSON)
+            "OnOffSwitch",
+            "SingleFrequencyProfile",
+            "GaussianPulseProfile",
+            "WaveCharacter",
+        }
+
+        valid_constraint_names = {
+            # constraints
+            "PositionConstraint",
+            "SizeConstraint",
+            "SizeExtensionConstraint",
+            "GridCoordinateConstraint",
+        }
+
+        for i, o in enumerate(self.object_list):
+            name = type(o).__name__
+            if type(o).__module__.startswith("fdtdx.materials"):
+                continue
+
+            if name not in valid_object_names:
+                errors.append(f"object_list[{i}] has unsupported type '{name}'")
+
+        for i, c in enumerate(self.constraints):
+            name = type(c).__name__
+            if name not in valid_constraint_names:
+                errors.append(f"constraints[{i}] has unsupported type '{name}'")
+
+        # must contain a SimulationVolume
+        vols = [o for o in self.object_list if type(o).__name__ == "SimulationVolume"]
+        if len(vols) == 0:
+            errors.append("No SimulationVolume found in object_list.")
+        elif len(vols) > 1:
+            errors.append(f"Multiple SimulationVolume found ({len(vols)}). Expected exactly one.")
+
+        # names should be unique
+        names = []
+        for o in self.object_list:
+            n = getattr(o, "name", None)
+            if isinstance(n, str) and n:
+                names.append(n)
+        dup = sorted({n for n in names if names.count(n) > 1})
+        if dup:
+            errors.append(f"Duplicate object names: {dup}")
+        name_set = set(names)
+
+        # constraints often have .object / .other_object as strings
+        for i, c in enumerate(self.constraints):
+            for field in ("object", "other_object"):
+                if hasattr(c, field):
+                    v = getattr(c, field)
+                    if isinstance(v, str) and v not in name_set:
+                        errors.append(f"Constraint[{i}] references unknown {field}='{v}'")
+
+        if errors:
+            raise ValueError("Invalid place_objects payload:\n- " + "\n- ".join(errors))
+
+    @staticmethod
+    def _unwrap_list(x: Any, name: str) -> List[Any]:
+        """Ensure value is a plain Python list."""
+        if isinstance(x, list):
+            return x
+        if isinstance(x, dict) and x.get("__name__") == "list" and "__value__" in x:
+            v = x["__value__"]
+            if isinstance(v, list):
+                return v
+        raise ValueError(f"'{name}' must be a list (or list wrapper), got {type(x)}")
 
 
 def _export_json(obj: Any) -> dict | float | int | str | bool | None:
@@ -25,7 +206,13 @@ def _export_json(obj: Any) -> dict | float | int | str | bool | None:
         return {
             "__dtype__": str_name,
         }
-    # composite types need module and name
+    # dataclass
+    if dataclasses.is_dataclass(obj) and not isinstance(obj, type) and hasattr(obj, "__dict__"):
+        return {
+            "__module__": type(obj).__module__,
+            "__name__": type(obj).__name__,
+            "__value__": {k: _export_json(v) for k, v in obj.__dict__.items() if not k.startswith("_")},
+        }
     result_dict: dict = {"__module__": f"{type(obj).__module__}", "__name__": f"{type(obj).__name__}"}
     # tree classes
     if isinstance(obj, TreeClass):
@@ -104,10 +291,14 @@ def _import_obj_from_json(obj: dict | float | int | str | bool | None) -> Any:
     # sequence
     if "__value__" in obj:
         vals = obj["__value__"]
-        imported_vals = [_import_obj_from_json(v) for v in vals if v not in ["__module__", "__name__"]]
+        # dataclass
+        if isinstance(vals, dict):
+            kwargs = {k: _import_obj_from_json(v) for k, v in vals.items()}
+            return cls(**kwargs)
+        imported_vals = [_import_obj_from_json(v) for v in vals]
         return cls(imported_vals)
     # dictionary
-    if "__name__" == "dict":
+    if name == "dict":
         return {k: _import_obj_from_json(v) for k, v in obj.items() if k not in ["__module__", "__name__"]}
     # other classes
     kwargs_dict = {k: _import_obj_from_json(v) for k, v in obj.items() if k not in ["__module__", "__name__"]}
