@@ -275,9 +275,9 @@ def test_run_simulation_with_jsonsetup(jsonsetup_path: Path):
     """Ensures that a simulation can be executed by loaded json setup."""
     setup2 = JsonSetup.load_json(jsonsetup_path)
     assert setup2 is not None
-    meta = setup2.meta
-    assert meta is not None
-    seed = int(meta.get("seed", 42))
+    assert setup2.meta is not None
+    seed = setup2.meta.get("seed")
+    assert seed is not None
     key = jax.random.PRNGKey(seed)
     assert seed is not None
     key, subkey = jax.random.split(key)
