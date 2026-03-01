@@ -1,3 +1,4 @@
+import dataclasses
 import importlib
 import json
 from typing import Any, Sequence
@@ -25,7 +26,13 @@ def _export_json(obj: Any) -> dict | float | int | str | bool | None:
         return {
             "__dtype__": str_name,
         }
-    # composite types need module and name
+    # dataclass
+    if dataclasses.is_dataclass(obj) and not isinstance(obj, type) and hasattr(obj, "__dict__"):
+        return {
+            "__module__": type(obj).__module__,
+            "__name__": type(obj).__name__,
+            "__value__": {k: _export_json(v) for k, v in obj.__dict__.items() if not k.startswith("_")},
+        }
     result_dict: dict = {"__module__": f"{type(obj).__module__}", "__name__": f"{type(obj).__name__}"}
     # tree classes
     if isinstance(obj, TreeClass):
@@ -104,10 +111,14 @@ def _import_obj_from_json(obj: dict | float | int | str | bool | None) -> Any:
     # sequence
     if "__value__" in obj:
         vals = obj["__value__"]
-        imported_vals = [_import_obj_from_json(v) for v in vals if v not in ["__module__", "__name__"]]
+        # dataclass
+        if isinstance(vals, dict):
+            kwargs = {k: _import_obj_from_json(v) for k, v in vals.items()}
+            return cls(**kwargs)
+        imported_vals = [_import_obj_from_json(v) for v in vals]
         return cls(imported_vals)
     # dictionary
-    if "__name__" == "dict":
+    if name == "dict":
         return {k: _import_obj_from_json(v) for k, v in obj.items() if k not in ["__module__", "__name__"]}
     # other classes
     kwargs_dict = {k: _import_obj_from_json(v) for k, v in obj.items() if k not in ["__module__", "__name__"]}
