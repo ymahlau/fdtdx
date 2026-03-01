@@ -67,8 +67,12 @@ def plot_material_from_side(
     # Calculate slice index from position
     slice_offset = round(position / config.resolution)
 
-    # Get array shape
-    array_shape = material_array.shape
+    # Select the requested component axis, giving a 3D array of shape (Nx, Ny, Nz).
+    # material_array has shape (num_components, Nx, Ny, Nz) in the new API, so we
+    # must slice out the component dimension before reading array_shape, otherwise
+    # array_shape[0] would be num_components instead of Nx.
+    material_array = material_array[material_axis]  # → (Nx, Ny, Nz)
+    array_shape = material_array.shape  # (Nx, Ny, Nz)
 
     # Determine slice parameters based on viewing side
     if viewing_side == "z":
@@ -76,7 +80,7 @@ def plot_material_from_side(
         center_idx = array_shape[2] // 2
         slice_idx = center_idx + slice_offset
         slice_idx = max(0, min(slice_idx, array_shape[2] - 1))
-        material_slice = material_array[material_axis, :, :, slice_idx]
+        material_slice = material_array[:, :, slice_idx]
         axis_labels = ("x (µm)", "y (µm)")
         title = f"XY plane - {type} at z={position * 1e6:.2f} µm"
         extent = [0, array_shape[0] * resolution, 0, array_shape[1] * resolution]
@@ -86,7 +90,7 @@ def plot_material_from_side(
         center_idx = array_shape[1] // 2
         slice_idx = center_idx + slice_offset
         slice_idx = max(0, min(slice_idx, array_shape[1] - 1))
-        material_slice = material_array[material_axis, :, slice_idx, :]
+        material_slice = material_array[:, slice_idx, :]
         axis_labels = ("x (µm)", "z (µm)")
         title = f"XZ plane - {type} at y={position * 1e6:.2f} µm"
         extent = [0, array_shape[0] * resolution, 0, array_shape[2] * resolution]
@@ -96,7 +100,7 @@ def plot_material_from_side(
         center_idx = array_shape[0] // 2
         slice_idx = center_idx + slice_offset
         slice_idx = max(0, min(slice_idx, array_shape[0] - 1))
-        material_slice = material_array[material_axis, slice_idx, :, :]
+        material_slice = material_array[slice_idx, :, :]
         axis_labels = ("y (µm)", "z (µm)")
         title = f"YZ plane - {type} at x={position * 1e6:.2f} µm"
         extent = [0, array_shape[1] * resolution, 0, array_shape[2] * resolution]
@@ -137,6 +141,7 @@ def plot_material(
     plot_legend: bool = True,
     positions: tuple[float, float, float] = (0.0, 0.0, 0.0),
     type: MaterialType = "permittivity",
+    material_axis: int = 0,
 ) -> Figure:
     """Creates a visualization of material distribution showing slices in XY, XZ and YZ planes.
 
@@ -152,6 +157,8 @@ def plot_material(
         positions (tuple[float, float, float], optional): Positions of slices in x, y, z directions (in meters).
             Zero means at center, 1e-6 would mean center+1µm
         type (MaterialType, optional): Type of material to plot, either "permittivity" or "permeability"
+        material_axis (int, optional): Which component axis to plot (0, 1, or 2 for x, y, z components).
+            For anisotropic materials this selects the diagonal element. Default is 0.
 
     Returns:
         Figure: The generated figure object
@@ -172,6 +179,7 @@ def plot_material(
         config=config,
         arrays=arrays,
         viewing_side="z",
+        material_axis=material_axis,
         filename=None,
         ax=axs[0],
         plot_legend=plot_legend,
@@ -184,6 +192,7 @@ def plot_material(
         config=config,
         arrays=arrays,
         viewing_side="y",
+        material_axis=material_axis,
         filename=None,
         ax=axs[1],
         plot_legend=plot_legend,
@@ -196,6 +205,7 @@ def plot_material(
         config=config,
         arrays=arrays,
         viewing_side="x",
+        material_axis=material_axis,
         filename=None,
         ax=axs[2],
         plot_legend=plot_legend,
