@@ -331,7 +331,7 @@ def test_plot_material_permeability(simple_material_setup):
 
 
 def test_plot_material_verify_values(simple_material_setup):
-    """Test that plot_material correctly displays material values."""
+    """Test that plot_material correctly displays material values and spans the full domain."""
     config, arrays = simple_material_setup
 
     # Plot XY plane at center
@@ -353,6 +353,20 @@ def test_plot_material_verify_values(simple_material_setup):
     # The data should contain material values
     assert data is not None
     assert data.size > 0
+
+    # Verify the plot spans the full simulation domain.
+    # Setup uses 40 grid cells at 50nm resolution = 2.0 µm in each direction.
+    # If the component axis bug is present, array_shape[0] == num_components (~3)
+    # instead of Nx (40), collapsing the x-extent to ~0.15 µm instead of 2.0 µm.
+    extent = im.get_extent()  # [xmin, xmax, ymin, ymax] in µm
+    expected_size_um = 2.0  # 40 cells * 50nm = 2µm
+    assert abs(extent[1] - expected_size_um) < 0.1, (
+        f"X-extent should be ~{expected_size_um} µm but got {extent[1]:.4f} µm. "
+        f"This likely means array_shape[0] is num_components instead of Nx."
+    )
+    assert abs(extent[3] - expected_size_um) < 0.1, (
+        f"Y-extent should be ~{expected_size_um} µm but got {extent[3]:.4f} µm."
+    )
 
     plt.close(fig)
 
@@ -595,3 +609,44 @@ def test_plot_material_all_types_objects():
     assert result_fig is not None
     assert (TEST_OUTPUT_DIR / "test_plot_material_all_types.png").exists()
     plt.close(fig)
+
+
+def test_plot_material_material_axis(simple_material_setup):
+    """Test that material_axis is accepted by plot_material and forwarded to all subplots.
+
+    Before the fix, plot_material had no material_axis parameter and never forwarded
+    it to plot_material_from_side, so components 1 and 2 were silently unreachable.
+    """
+    config, arrays = simple_material_setup
+
+    for axis in [0, 1, 2]:
+        result_fig = plot_material(
+            config=config,
+            arrays=arrays,
+            plot_legend=False,
+            type="permittivity",
+            material_axis=axis,
+        )
+        assert result_fig is not None, f"plot_material returned None for material_axis={axis}"
+
+        # Verify all three subplots have image data
+        axs = result_fig.get_axes()
+        # Filter out colorbar axes (they have no images)
+        plot_axs = [a for a in axs if len(a.get_images()) > 0]
+        assert len(plot_axs) == 3, f"Expected 3 subplots with image data for material_axis={axis}, got {len(plot_axs)}"
+
+        # Verify each subplot spans the full 2µm domain on both axes
+        expected_size_um = 2.0  # 40 cells * 50nm
+        for ax in plot_axs:
+            im = ax.get_images()[0]
+            extent = im.get_extent()  # [xmin, xmax, ymin, ymax]
+            assert abs(extent[1] - expected_size_um) < 0.1, (
+                f"material_axis={axis}: x-extent should be ~{expected_size_um} µm "
+                f"but got {extent[1]:.4f} µm in subplot '{ax.get_title()}'"
+            )
+            assert abs(extent[3] - expected_size_um) < 0.1, (
+                f"material_axis={axis}: y-extent should be ~{expected_size_um} µm "
+                f"but got {extent[3]:.4f} µm in subplot '{ax.get_title()}'"
+            )
+
+        plt.close("all")
