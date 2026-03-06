@@ -31,7 +31,7 @@ def plot_material_from_side(
         config (SimulationConfig): Configuration object containing simulation parameters like resolution
         arrays (ArrayContainer): Container holding the material arrays (permittivity, permeability)
         viewing_side (Literal['x', 'y', 'z']): Which plane to view ('x' for YZ, 'y' for XZ, 'z' for XY)
-        materialaxis (int): Which material axis to plot (for anisotropic materials). Can be 0, 1, 2 for x, y or z.
+        material_axis (int): Index into the leading component dimension of the material array (for anisotropic materials).
         filename (str | Path | None, optional): If provided, saves the plot to this file instead of displaying
         ax (Any | None, optional): Optional matplotlib axis to plot on. If None, creates new figure
         plot_legend (bool, optional): Whether to add a colorbar legend
@@ -67,43 +67,39 @@ def plot_material_from_side(
     # Calculate slice index from position
     slice_offset = round(position / config.resolution)
 
-    # Select the requested component axis, giving a 3D array of shape (Nx, Ny, Nz).
-    # material_array has shape (num_components, Nx, Ny, Nz) in the new API, so we
-    # must slice out the component dimension before reading array_shape, otherwise
-    # array_shape[0] would be num_components instead of Nx.
-    material_array = material_array[material_axis]  # → (Nx, Ny, Nz)
-    array_shape = material_array.shape  # (Nx, Ny, Nz)
+    # material_array has shape (num_components, Nx, Ny, Nz)
+    spatial_shape = material_array.shape[1:]  # (Nx, Ny, Nz)
 
     # Determine slice parameters based on viewing side
     if viewing_side == "z":
         # XY plane - slice through Z axis
-        center_idx = array_shape[2] // 2
+        center_idx = spatial_shape[2] // 2
         slice_idx = center_idx + slice_offset
-        slice_idx = max(0, min(slice_idx, array_shape[2] - 1))
-        material_slice = material_array[:, :, slice_idx]
+        slice_idx = max(0, min(slice_idx, spatial_shape[2] - 1))
+        material_slice = material_array[material_axis, :, :, slice_idx]
         axis_labels = ("x (µm)", "y (µm)")
         title = f"XY plane - {type} at z={position * 1e6:.2f} µm"
-        extent = [0, array_shape[0] * resolution, 0, array_shape[1] * resolution]
+        extent = [0, spatial_shape[0] * resolution, 0, spatial_shape[1] * resolution]
 
     elif viewing_side == "y":
         # XZ plane - slice through Y axis
-        center_idx = array_shape[1] // 2
+        center_idx = spatial_shape[1] // 2
         slice_idx = center_idx + slice_offset
-        slice_idx = max(0, min(slice_idx, array_shape[1] - 1))
-        material_slice = material_array[:, slice_idx, :]
+        slice_idx = max(0, min(slice_idx, spatial_shape[1] - 1))
+        material_slice = material_array[material_axis, :, slice_idx, :]
         axis_labels = ("x (µm)", "z (µm)")
         title = f"XZ plane - {type} at y={position * 1e6:.2f} µm"
-        extent = [0, array_shape[0] * resolution, 0, array_shape[2] * resolution]
+        extent = [0, spatial_shape[0] * resolution, 0, spatial_shape[2] * resolution]
 
     else:  # viewing_side == "x"
         # YZ plane - slice through X axis
-        center_idx = array_shape[0] // 2
+        center_idx = spatial_shape[0] // 2
         slice_idx = center_idx + slice_offset
-        slice_idx = max(0, min(slice_idx, array_shape[0] - 1))
-        material_slice = material_array[slice_idx, :, :]
+        slice_idx = max(0, min(slice_idx, spatial_shape[0] - 1))
+        material_slice = material_array[material_axis, slice_idx, :, :]
         axis_labels = ("y (µm)", "z (µm)")
         title = f"YZ plane - {type} at x={position * 1e6:.2f} µm"
-        extent = [0, array_shape[1] * resolution, 0, array_shape[2] * resolution]
+        extent = [0, spatial_shape[1] * resolution, 0, spatial_shape[2] * resolution]
 
     # Plot the material slice
     im = ax.imshow(
