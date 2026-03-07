@@ -108,7 +108,6 @@ def _import_obj_from_json(obj: dict | float | int | str | bool | None) -> Any:
     mod, name = obj["__module__"], obj["__name__"]
     module = importlib.import_module(mod)
     cls = getattr(module, name)
-    # sequence
     if "__value__" in obj:
         vals = obj["__value__"]
         # dataclass
