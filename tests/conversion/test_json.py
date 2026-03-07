@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import jax
 import jax.numpy as jnp
 import pytest
@@ -102,12 +100,6 @@ def setup_simulation_inputs():
         "object_list": object_list,
         "constraints": constraints,
     }
-
-
-@pytest.fixture
-def jsonsetup_path(request) -> Path:
-    test_dir = Path(str(request.fspath)).parent
-    return test_dir / "setup_test.json"
 
 
 def test_detector_json(setup_simulation_inputs):
@@ -271,9 +263,24 @@ def test_jsonsetup_dumps_and_loads(setup_simulation_inputs):
     assert setup2.meta == {"seed": 42, "test": "other meta data"}
 
 
-def test_run_simulation_with_jsonsetup(jsonsetup_path: Path):
+def test_run_simulation_with_jsonsetup(setup_simulation_inputs, tmp_path):
     """Ensures that a simulation can be executed by loaded json setup."""
-    setup2 = JsonSetup.load_json(jsonsetup_path)
+
+    # export json
+    print(tmp_path)
+    setup = JsonSetup(
+        config=setup_simulation_inputs["config"],
+        object_list=list(setup_simulation_inputs["object_list"]),
+        constraints=list(setup_simulation_inputs["constraints"]),
+        meta={"seed": setup_simulation_inputs["seed"], "test": "other meta data"},
+    )
+
+    json_path = tmp_path / "setup_test.json"
+    setup.export_json(json_path)
+    assert json_path.exists()
+
+    # load json
+    setup2 = JsonSetup.load_json(json_path)
     assert setup2 is not None
     assert setup2.meta is not None
     seed = setup2.meta.get("seed")
