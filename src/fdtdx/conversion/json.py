@@ -114,6 +114,7 @@ def _import_obj_from_json(obj: dict | float | int | str | bool | None) -> Any:
         if isinstance(vals, dict):
             kwargs = {k: _import_obj_from_json(v) for k, v in vals.items()}
             return cls(**kwargs)
+        # sequence
         imported_vals = [_import_obj_from_json(v) for v in vals]
         return cls(imported_vals)
     # dictionary
