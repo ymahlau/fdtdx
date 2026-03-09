@@ -228,6 +228,7 @@ class TreeClass(tc.TreeClass):
             else:
                 raise Exception(f"Invalid operation type: {op_type}. This is an internal bug!")
             if idx != len(ops) - 1:
+                assert current_parent is not None
                 attr_list.append(current_parent)
 
         # from bottom-up set attributes and update
