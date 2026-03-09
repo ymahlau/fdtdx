@@ -133,6 +133,70 @@ class TestStandardToInversePermittivityRange:
         output_type = transform._get_output_type_impl(input_type)
         assert output_type == input_type
 
+    def test_fully_anisotropic_materials(self):
+        """Test transformation with fully anisotropic materials (non-zero off-diagonal elements)."""
+        # Nested 3x3 tuple gives non-zero off-diagonal elements → fully anisotropic
+        materials = {
+            "air": Material(permittivity=1.0),
+            "aniso_full": Material(
+                permittivity=((2.0, 0.5, 0.0), (0.5, 3.0, 0.0), (0.0, 0.0, 4.0))
+            ),
+        }
+
+        transform = StandardToInversePermittivityRange()
+        transform = transform.aset("_materials", materials)
+
+        params = {"test_param": jnp.ones((2, 3, 4)) * 0.5}
+        result = transform(params)
+
+        # Fully anisotropic output should have shape (9, Nx, Ny, Nz)
+        assert result["test_param"].shape == (9, 2, 3, 4)
+        assert jnp.all(jnp.isfinite(result["test_param"]))
+
+    def test_fully_anisotropic_boundary_values(self):
+        """Test boundary values (0 and 1) for fully anisotropic materials."""
+        materials = {
+            "air": Material(permittivity=1.0),
+            "aniso_full": Material(
+                permittivity=((2.0, 0.5, 0.0), (0.5, 3.0, 0.0), (0.0, 0.0, 4.0))
+            ),
+        }
+
+        transform = StandardToInversePermittivityRange()
+        transform = transform.aset("_materials", materials)
+
+        # At value=0, output should equal min_inv_perm for each component
+        result_0 = transform({"p": jnp.zeros((2, 2, 2))})
+        assert result_0["p"].shape == (9, 2, 2, 2)
+        # At value=1, output should equal max_inv_perm for each component
+        result_1 = transform({"p": jnp.ones((2, 2, 2))})
+        assert result_1["p"].shape == (9, 2, 2, 2)
+        # max >= min for all components
+        assert jnp.all(result_1["p"] >= result_0["p"])
+
+    def test_fully_anisotropic_multiple_params(self):
+        """Test fully anisotropic transformation with multiple parameters."""
+        materials = {
+            "air": Material(permittivity=1.0),
+            "aniso_full": Material(
+                permittivity=((2.0, 0.1, 0.0), (0.1, 3.0, 0.0), (0.0, 0.0, 4.0))
+            ),
+        }
+
+        transform = StandardToInversePermittivityRange()
+        transform = transform.aset("_materials", materials)
+
+        params = {
+            "param1": jnp.zeros((3, 3, 3)),
+            "param2": jnp.ones((3, 3, 3)),
+        }
+        result = transform(params)
+
+        assert "param1" in result
+        assert "param2" in result
+        assert result["param1"].shape == (9, 3, 3, 3)
+        assert result["param2"].shape == (9, 3, 3, 3)
+
 
 class TestStandardToCustomRange:
     """Test StandardToCustomRange transformation."""
@@ -285,6 +349,17 @@ class TestGaussianSmoothing2D:
 
         # Should raise ValueError when trying to find vertical axis or squeeze
         with pytest.raises(ValueError):
+            transform(params)
+
+    def test_apply_smoothing_3d_after_squeeze_raises_error(self):
+        """Test ValueError when array has a size-1 axis but is still 3D after squeezing."""
+        transform = GaussianSmoothing2D(std_discrete=1)
+
+        # Shape (4, 1, 3, 5): has axis 1 with size 1, but squeezing it gives (4, 3, 5) which is 3D
+        arr_4d = jnp.ones((4, 1, 3, 5))
+        params = {"test": arr_4d}
+
+        with pytest.raises(ValueError, match="Expected 2D array"):
             transform(params)
 
     def test_multiple_parameters(self):

@@ -4,6 +4,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.objects.sources.profile import GaussianPulseProfile, SingleFrequencyProfile
+from fdtdx.core.wavelength import WaveCharacter
 
 
 class TestSingleFrequencyProfile:
@@ -127,17 +128,19 @@ class TestGaussianPulseProfile:
     def test_initialization(self):
         """Test initialization with parameters."""
         profile = GaussianPulseProfile(
-            spectral_width=1e12, center_frequency=193.4e12
+            spectral_width=WaveCharacter(frequency=1e12),
+            center_wave=WaveCharacter(frequency=193.4e12),
         )
-        assert profile.spectral_width == 1e12
-        assert profile.center_frequency == 193.4e12
+        assert profile.spectral_width.get_frequency() == 1e12
+        assert profile.center_wave.get_frequency() == 193.4e12
 
     def test_get_amplitude_at_zero(self):
         """Test amplitude at time zero."""
         profile = GaussianPulseProfile(
-            spectral_width=1e12, center_frequency=193.4e12
+            spectral_width=WaveCharacter(frequency=1e12),
+            center_wave=WaveCharacter(frequency=193.4e12),
         )
-        period = 1 / profile.center_frequency
+        period = 1 / profile.center_wave.get_frequency()
 
         amplitude = profile.get_amplitude(time=0.0, period=period)
 
@@ -147,7 +150,8 @@ class TestGaussianPulseProfile:
     def test_get_amplitude_returns_scalar(self):
         """Test that amplitude returns scalar value."""
         profile = GaussianPulseProfile(
-            spectral_width=1e12, center_frequency=193.4e12
+            spectral_width=WaveCharacter(frequency=1e12),
+            center_wave=WaveCharacter(frequency=193.4e12),
         )
         period = 1e-12
 
@@ -160,9 +164,10 @@ class TestGaussianPulseProfile:
     def test_get_amplitude_gaussian_envelope(self):
         """Test that amplitude has Gaussian envelope."""
         profile = GaussianPulseProfile(
-            spectral_width=1e12, center_frequency=193.4e12
+            spectral_width=WaveCharacter(frequency=1e12),
+            center_wave=WaveCharacter(frequency=193.4e12),
         )
-        period = 1 / profile.center_frequency
+        period = 1 / profile.center_wave.get_frequency()
 
         # Sample at different times
         t_center = profile.get_amplitude(time=0.0, period=period)
@@ -177,7 +182,8 @@ class TestGaussianPulseProfile:
     def test_get_amplitude_with_phase_shift(self):
         """Test amplitude with external phase shift."""
         profile = GaussianPulseProfile(
-            spectral_width=1e12, center_frequency=193.4e12
+            spectral_width=WaveCharacter(frequency=1e12),
+            center_wave=WaveCharacter(frequency=193.4e12),
         )
         period = 1e-12
 
@@ -193,8 +199,14 @@ class TestGaussianPulseProfile:
 
     def test_get_amplitude_spectral_width_effect(self):
         """Test effect of spectral width on pulse duration."""
-        narrow = GaussianPulseProfile(spectral_width=1e11, center_frequency=193.4e12)
-        wide = GaussianPulseProfile(spectral_width=1e13, center_frequency=193.4e12)
+        narrow = GaussianPulseProfile(
+            spectral_width=WaveCharacter(frequency=1e11),
+            center_wave=WaveCharacter(frequency=193.4e12),
+        )
+        wide = GaussianPulseProfile(
+            spectral_width=WaveCharacter(frequency=1e13),
+            center_wave=WaveCharacter(frequency=193.4e12),
+        )
         period = 1 / 193.4e12
 
         # Narrow spectral width = longer pulse
@@ -218,7 +230,8 @@ class TestProfileComparison:
             phase_shift=0.0, num_startup_periods=1
         )
         gaussian = GaussianPulseProfile(
-            spectral_width=1e12, center_frequency=freq
+            spectral_width=WaveCharacter(frequency=1e12),
+            center_wave=WaveCharacter(frequency=freq),
         )
         period = 1 / freq
 
@@ -241,7 +254,8 @@ class TestProfileComparison:
             phase_shift=0.0, num_startup_periods=1
         )
         gaussian = GaussianPulseProfile(
-            spectral_width=1e12, center_frequency=freq
+            spectral_width=WaveCharacter(frequency=1e12),
+            center_wave=WaveCharacter(frequency=freq),
         )
 
         for phase in [0.0, jnp.pi / 4, jnp.pi / 2, jnp.pi]:

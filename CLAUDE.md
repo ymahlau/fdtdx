@@ -78,6 +78,7 @@ Adding unit tests to the fdtdx project with the `pytest -m unit` marker.
 |--------|-----------|-------|
 | conversion/vti.py | conversion/test_vti.py | 1 |
 | fdtd/initialization.py | fdtd/test_initialization.py | 11 |
+| fdtd/initialization.py | fdtd/test_placement.py | 1 |
 | fdtd/stop_conditions.py | fdtd/test_stop_conditions.py | 5 |
 | utils/plot_material.py | utils/test_plot_material.py | 14 |
 | utils/plot_setup.py | utils/test_plot_setup.py | 6 |

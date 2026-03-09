@@ -347,7 +347,8 @@ class TestModePlaneSourceGetEHVariation:
         )
 
         inv_perm = jnp.ones((1, 8, 8, 8), dtype=jnp.float32)
-        E, H, time_E, time_H = placed.get_EH_variation(jax_key, inv_perm, 1.0)
+        applied = placed.apply(jax_key, inv_perm, 1.0)
+        E, H, time_E, time_H = applied._E, applied._H, applied._time_offset_E, applied._time_offset_H
 
         assert E.shape == (3, 8, 8, 1)
         assert H.shape == (3, 8, 8, 1)
@@ -384,7 +385,7 @@ class TestModePlaneSourceGetEHVariation:
         )
 
         inv_perm = jnp.ones((1, 8, 8, 8), dtype=jnp.float32)
-        placed.get_EH_variation(jax_key, inv_perm, 1.0)
+        placed.apply(jax_key, inv_perm, 1.0)
 
         # Verify compute_mode was called
         mock_compute_mode.assert_called_once()

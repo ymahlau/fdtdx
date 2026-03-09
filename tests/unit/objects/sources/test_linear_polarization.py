@@ -312,7 +312,8 @@ class TestLinearlyPolarizedPlaneSourceApply:
         inv_perm = jnp.ones((1, 8, 8, 8), dtype=jnp.float32)
         inv_perm_mu = 1.0
 
-        E, H, time_E, time_H = placed.get_EH_variation(jax_key, inv_perm, inv_perm_mu)
+        applied = placed.apply(jax_key, inv_perm, inv_perm_mu)
+        E, H, time_E, time_H = applied._E, applied._H, applied._time_offset_E, applied._time_offset_H
 
         # Verify shapes
         assert E.shape == (3, 8, 8, 1)
@@ -349,7 +350,8 @@ class TestLinearlyPolarizedPlaneSourceApply:
 
         inv_perm = jnp.ones((1, 8, 8, 8), dtype=jnp.float32)
 
-        E, H, time_E, time_H = placed.get_EH_variation(jax_key, inv_perm, 1.0)
+        applied = placed.apply(jax_key, inv_perm, 1.0)
+        E, H = applied._E, applied._H
 
         assert E.shape == (3, 8, 8, 1)
         assert H.shape == (3, 8, 8, 1)
@@ -413,5 +415,6 @@ class TestAnisotropicPermeability:
         inv_perm_mu = jnp.ones((3, 8, 8, 8), dtype=jnp.float32) * 0.5
 
         # Should not raise
-        E, H, _, _ = placed.get_EH_variation(jax_key, inv_perm, inv_perm_mu)
+        applied = placed.apply(jax_key, inv_perm, inv_perm_mu)
+        E = applied._E
         assert E.shape == (3, 8, 8, 1)

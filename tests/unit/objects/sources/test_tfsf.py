@@ -301,6 +301,36 @@ class TestTFSFPlaneSourceUpdateE:
         E_updated = applied.update_E(E, inv_perm, 1.0, time_step, inverse=False)
         assert not jnp.allclose(E_updated, E)
 
+    def test_update_E_fully_anisotropic_permittivity(self, placed_gaussian_source):
+        """Test update_E with fully anisotropic permittivity (9-component tensor)."""
+        E = jnp.zeros((3, 8, 8, 8), dtype=jnp.float32)
+        # 9-component inv_permittivities triggers the fully anisotropic branch
+        inv_perm_anisotropic = jnp.ones((9, 8, 8, 8), dtype=jnp.float32)
+        time_step = jnp.array(10)
+
+        E_updated = placed_gaussian_source.update_E(
+            E, inv_perm_anisotropic, 1.0, time_step, inverse=False
+        )
+
+        assert not jnp.allclose(E_updated, E)
+
+    def test_update_E_fully_anisotropic_inverse(self, placed_gaussian_source):
+        """Test update_E inverse=True with fully anisotropic permittivity."""
+        E = jnp.zeros((3, 8, 8, 8), dtype=jnp.float32)
+        inv_perm_anisotropic = jnp.ones((9, 8, 8, 8), dtype=jnp.float32)
+        time_step = jnp.array(10)
+
+        E_forward = placed_gaussian_source.update_E(
+            E, inv_perm_anisotropic, 1.0, time_step, inverse=False
+        )
+        E_inverse = placed_gaussian_source.update_E(
+            E, inv_perm_anisotropic, 1.0, time_step, inverse=True
+        )
+
+        diff_forward = E_forward - E
+        diff_inverse = E_inverse - E
+        assert not jnp.allclose(diff_forward, diff_inverse)
+
 
 class TestTFSFPlaneSourceUpdateH:
     """Tests for update_H method."""
@@ -383,6 +413,38 @@ class TestTFSFPlaneSourceUpdateH:
         # Should handle anisotropic permeability
         H_updated = applied.update_H(H, inv_perm, inv_perm_mu, time_step, inverse=False)
         assert not jnp.allclose(H_updated, H)
+
+    def test_update_H_fully_anisotropic_permeability(self, placed_gaussian_source):
+        """Test update_H with fully anisotropic permeability (9-component tensor)."""
+        H = jnp.zeros((3, 8, 8, 8), dtype=jnp.float32)
+        inv_perm = jnp.ones((1, 8, 8, 8), dtype=jnp.float32)
+        # 9-component inv_permeabilities triggers the fully anisotropic branch
+        inv_perm_mu_anisotropic = jnp.ones((9, 8, 8, 8), dtype=jnp.float32)
+        time_step = jnp.array(10)
+
+        H_updated = placed_gaussian_source.update_H(
+            H, inv_perm, inv_perm_mu_anisotropic, time_step, inverse=False
+        )
+
+        assert not jnp.allclose(H_updated, H)
+
+    def test_update_H_fully_anisotropic_inverse(self, placed_gaussian_source):
+        """Test update_H inverse=True with fully anisotropic permeability."""
+        H = jnp.zeros((3, 8, 8, 8), dtype=jnp.float32)
+        inv_perm = jnp.ones((1, 8, 8, 8), dtype=jnp.float32)
+        inv_perm_mu_anisotropic = jnp.ones((9, 8, 8, 8), dtype=jnp.float32)
+        time_step = jnp.array(10)
+
+        H_forward = placed_gaussian_source.update_H(
+            H, inv_perm, inv_perm_mu_anisotropic, time_step, inverse=False
+        )
+        H_inverse = placed_gaussian_source.update_H(
+            H, inv_perm, inv_perm_mu_anisotropic, time_step, inverse=True
+        )
+
+        diff_forward = H_forward - H
+        diff_inverse = H_inverse - H
+        assert not jnp.allclose(diff_forward, diff_inverse)
 
 
 class TestTFSFPlaneSourceApply:

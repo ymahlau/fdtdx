@@ -1,9 +1,11 @@
 import jax
 import numpy as np
+import pytest
 
 import fdtdx
 
 
+@pytest.mark.integration
 def test_placement():
     config = fdtdx.SimulationConfig(
         resolution=100e-9,
