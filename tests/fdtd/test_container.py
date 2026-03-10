@@ -9,7 +9,7 @@ from fdtdx.interfaces.state import RecordingState
 from fdtdx.materials import Material
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
-from fdtdx.objects.detectors.detector import Detector, DetectorState
+from fdtdx.objects.detectors.detector import Detector
 from fdtdx.objects.device.device import Device
 from fdtdx.objects.object import SimulationObject
 from fdtdx.objects.sources.source import Source
@@ -298,7 +298,7 @@ class TestArrayContainer:
         self.inv_permeabilities = jnp.ones((3, 10, 10, 10))
 
         # Create mock states
-        self.detector_states = {"detector1": Mock(spec=DetectorState)}
+        self.detector_states: dict[str, dict[str, jax.Array]] = {"detector1": {"energy": jnp.zeros((1, 1, 1))}}
         self.recording_state = Mock(spec=RecordingState)
 
         self.array_container = ArrayContainer(
@@ -311,7 +311,7 @@ class TestArrayContainer:
             sigma=self.sigma,
             inv_permittivities=self.inv_permittivities,
             inv_permeabilities=self.inv_permeabilities,
-            detector_states=cast(dict[str, dict[str, jax.Array]], self.detector_states),
+            detector_states=self.detector_states,
             recording_state=self.recording_state,
         )
 
@@ -339,7 +339,7 @@ class TestArrayContainer:
             sigma=self.sigma,
             inv_permittivities=self.inv_permittivities,
             inv_permeabilities=self.inv_permeabilities,
-            detector_states=cast(dict[str, dict[str, jax.Array]], self.detector_states),
+            detector_states=self.detector_states,
             recording_state=self.recording_state,
             electric_conductivity=electric_conductivity,
             magnetic_conductivity=magnetic_conductivity,
