@@ -1,3 +1,4 @@
+from typing import cast
 from unittest.mock import Mock
 
 import jax
@@ -62,7 +63,7 @@ class TestObjectContainer:
             self.mock_static_multi_material,
         ]
 
-        self.container = ObjectContainer(object_list=self.object_list, volume_idx=0)
+        self.container = ObjectContainer(object_list=cast(list[SimulationObject], self.object_list), volume_idx=0)
 
     def test_volume_property(self):
         """Test volume property returns correct object."""
@@ -269,7 +270,7 @@ class TestObjectContainer:
         """Test replace_sources method."""
         new_source = Mock(spec=Source)
         new_source.name = "new_source"
-        new_sources = [new_source]
+        new_sources = cast(list[Source], [new_source])
 
         new_container = self.container.replace_sources(new_sources)
 
@@ -310,7 +311,7 @@ class TestArrayContainer:
             sigma=self.sigma,
             inv_permittivities=self.inv_permittivities,
             inv_permeabilities=self.inv_permeabilities,
-            detector_states=self.detector_states,
+            detector_states=cast(dict[str, dict[str, jax.Array]], self.detector_states),
             recording_state=self.recording_state,
         )
 
@@ -338,7 +339,7 @@ class TestArrayContainer:
             sigma=self.sigma,
             inv_permittivities=self.inv_permittivities,
             inv_permeabilities=self.inv_permeabilities,
-            detector_states=self.detector_states,
+            detector_states=cast(dict[str, dict[str, jax.Array]], self.detector_states),
             recording_state=self.recording_state,
             electric_conductivity=electric_conductivity,
             magnetic_conductivity=magnetic_conductivity,

@@ -153,7 +153,7 @@ class Device(OrderableObject, ABC):
                 materials=self.materials,
                 matrix_voxel_grid_shape=self.matrix_voxel_grid_shape,
                 single_voxel_size=self.single_voxel_real_shape,
-                output_shape=cur_shape,
+                output_shape=cast(dict[str, tuple[int, ...]], cur_shape),
             )
             new_t_list.append(t_new)
             cur_shape = t_new._input_shape

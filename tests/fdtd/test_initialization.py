@@ -1,3 +1,4 @@
+from typing import cast
 from unittest.mock import MagicMock, Mock, patch
 
 import jax
@@ -5,7 +6,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
+from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, ParameterContainer
 from fdtdx.fdtd.initialization import apply_params, place_objects, resolve_object_constraints
 from fdtdx.materials import Material
 from fdtdx.objects.device.parameters.transform import ParameterType
@@ -588,7 +589,7 @@ def test_apply_params_continuous_type(mock_compute_perm):
     # Mock the object apply method
     device.apply = Mock(return_value=device)
 
-    result_arrays, result_objects, info = apply_params(arrays, objects, params, key)
+    result_arrays, result_objects, info = apply_params(arrays, objects, cast(ParameterContainer, params), key)
 
     # Verify the continuous path was taken
     assert device.call_count > 0
@@ -654,7 +655,7 @@ def test_apply_params_discrete_type(mock_ste, mock_compute_perm):
     # Mock the object apply method
     device.apply = Mock(return_value=device)
 
-    result_arrays, result_objects, info = apply_params(arrays, objects, params, key)
+    result_arrays, result_objects, info = apply_params(arrays, objects, cast(ParameterContainer, params), key)
 
     # Verify the discrete path was taken (straight through estimator called)
     assert mock_ste.called

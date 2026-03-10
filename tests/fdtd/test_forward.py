@@ -1,3 +1,4 @@
+from typing import cast
 from unittest.mock import Mock, patch
 
 import jax
@@ -43,7 +44,7 @@ class TestForward:
             sigma=sigma,
             inv_permittivities=inv_permittivities,
             inv_permeabilities=inv_permeabilities,
-            detector_states=detector_states,
+            detector_states=cast(dict[str, dict[str, jax.Array]], detector_states),
             recording_state=recording_state,
         )
 

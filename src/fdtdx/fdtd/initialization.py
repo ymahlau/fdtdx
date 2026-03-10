@@ -28,7 +28,7 @@ DEFAULT_MAX_ITER = 1000
 
 
 def place_objects(
-    object_list: list[SimulationObject],
+    object_list: Sequence[SimulationObject],
     config: SimulationConfig,
     constraints: Sequence[(PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint)],
     key: jax.Array,
@@ -618,7 +618,7 @@ AnyConstraint = (
 
 
 def resolve_object_constraints(
-    objects: list[SimulationObject],
+    objects: Sequence[SimulationObject],
     constraints: Sequence[AnyConstraint],
     config: SimulationConfig,
     max_iter: int = DEFAULT_MAX_ITER,
@@ -645,7 +645,7 @@ def resolve_object_constraints(
 
     # Apply constraints iteratively
     resolved, errors = _apply_constraints_iteratively(
-        objects=objects,
+        objects=list(objects),
         constraints=constraints,
         config=config,
         max_iter=max_iter,
