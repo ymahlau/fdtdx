@@ -1,4 +1,4 @@
-from typing import Literal, cast
+from typing import Literal
 
 import jax
 import jax.numpy as jnp
@@ -341,4 +341,4 @@ def axis_direction_from_kind(kind: str) -> tuple[int, Literal["+", "-"]]:
     else:
         raise Exception(f"Invalid kind: {kind}")
 
-    return axis, cast(Literal["+", "-"], direction)
+    return axis, direction

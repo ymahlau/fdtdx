@@ -1,7 +1,7 @@
 
 # Unpublished
 ## Added
-
+- added typechecking to the CI/CD pipeline (@elyes298)
 ## Changed
 
 ## Removed

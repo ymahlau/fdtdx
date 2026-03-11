@@ -24,7 +24,7 @@ def test_check_specs_single_array_wrong_shape():
 def test_check_specs_dict_arrays_correct_shapes():
     """Test check_specs with a dictionary of arrays that have correct shapes."""
     arrays = {"a": jnp.array([[1, 2], [3, 4]]), "b": jnp.array([1, 2, 3])}
-    expected_shapes = {"a": (2, 2), "b": (3,)}
+    expected_shapes: dict[str, tuple[int, ...]] = {"a": (2, 2), "b": (3,)}
     # Should not raise an exception
     check_specs(arrays, expected_shapes)
 
@@ -32,7 +32,7 @@ def test_check_specs_dict_arrays_correct_shapes():
 def test_check_specs_dict_arrays_wrong_shapes():
     """Test check_specs with a dictionary of arrays that have wrong shapes."""
     arrays = {"a": jnp.array([[1, 2], [3, 4]]), "b": jnp.array([1, 2, 3])}
-    expected_shapes = {
+    expected_shapes: dict[str, tuple[int, ...]] = {
         "a": (2, 2),
         "b": (4,),  # Wrong shape
     }
@@ -43,7 +43,7 @@ def test_check_specs_dict_arrays_wrong_shapes():
 def test_check_specs_mismatched_structures():
     """Test check_specs with mismatched structures (array vs dict)."""
     arr = jnp.array([[1, 2], [3, 4]])
-    expected_shapes = {"a": (2, 2)}
+    expected_shapes: dict[str, tuple[int, ...]] = {"a": (2, 2)}
     with pytest.raises(Exception):
         check_specs(arr, expected_shapes)
 

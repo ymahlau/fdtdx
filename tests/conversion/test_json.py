@@ -13,6 +13,7 @@ from fdtdx.fdtd.wrapper import run_fdtd
 from fdtdx.materials import Material
 from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.detectors.energy import EnergyDetector
+from fdtdx.objects.object import SimulationObject
 from fdtdx.objects.sources.linear_polarization import UniformPlaneSource
 from fdtdx.objects.static_material.static import SimulationVolume, UniformMaterialObject
 
@@ -177,7 +178,7 @@ def test_constraints_json(setup_simulation_inputs):
 
 def test_object_container_json():
     """test JSON serialization and deserialization of the object container."""
-    obj_list = [
+    obj_list: list[SimulationObject] = [
         EnergyDetector(),
         UniformPlaneSource(wave_character=WaveCharacter(wavelength=1e-6), direction="-"),
         SimulationVolume(),
