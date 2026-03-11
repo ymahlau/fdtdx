@@ -217,7 +217,9 @@ class Device(OrderableObject, ABC):
             params = transform(params_dict, **transform_kwargs)
             check_specs(params, transform._output_shape)
         if len(params) == 1:
-            params = cast(jax.Array, list(params.values())[0])
+            single_val = list(params.values())[0]
+            assert isinstance(single_val, jax.Array)
+            params = single_val
         else:
             raise Exception(
                 "The parameter mapping should return a single array of indices. If using a continuous device, please"

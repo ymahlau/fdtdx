@@ -134,7 +134,7 @@ class EnergyThresholdCondition(StoppingCondition):
             jax.Array: Boolean scalar - True if condition not met and curr_time_step < max_steps.
         """
         if self.max_steps is None or self.min_steps is None:
-            raise RuntimeError("EnergyThresholdCondition.setup() must be calle before use. ")
+            raise RuntimeError("EnergyThresholdCondition.setup() must be called before use. ")
         curr_time_step, arrays = state
         time_condition = curr_time_step < self.max_steps
         min_steps_condition = curr_time_step < self.min_steps

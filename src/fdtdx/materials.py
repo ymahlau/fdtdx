@@ -48,15 +48,15 @@ def _normalize_material_property(
         elif len(value) == 9:
             return cast(
                 tuple[
-                    int | float,
-                    int | float,
-                    int | float,
-                    int | float,
-                    int | float,
-                    int | float,
-                    int | float,
-                    int | float,
-                    int | float,
+                    float,
+                    float,
+                    float,
+                    float,
+                    float,
+                    float,
+                    float,
+                    float,
+                    float,
                 ],
                 value,
             )

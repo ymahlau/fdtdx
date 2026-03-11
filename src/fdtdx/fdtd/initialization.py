@@ -26,11 +26,15 @@ from fdtdx.objects.static_material.static import SimulationVolume, StaticMultiMa
 
 DEFAULT_MAX_ITER = 1000
 
+AnyConstraint = (
+    PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint | RealCoordinateConstraint
+)
+
 
 def place_objects(
     object_list: Sequence[SimulationObject],
     config: SimulationConfig,
-    constraints: Sequence[(PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint)],
+    constraints: Sequence[AnyConstraint],
     key: jax.Array,
 ) -> tuple[
     ObjectContainer,
@@ -610,11 +614,6 @@ def _init_params(
         cur_dict = d.init_params(key=subkey)
         params[d.name] = cur_dict
     return params
-
-
-AnyConstraint = (
-    PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint | RealCoordinateConstraint
-)
 
 
 def resolve_object_constraints(
