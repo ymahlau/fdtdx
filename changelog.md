@@ -1,7 +1,7 @@
 
 # Unpublished
 ## Added
-- added progressbar for FDTD runs (@renaissancenerd)
+- added progressbar for FDTD simulations and runs (@renaissancenerd)
 
 ## Changed
 
