@@ -60,8 +60,6 @@ class JsonSetup:
             raise ValueError("Missing 'object_list'.")
 
         constraints = data.get("constraints", [])
-        if constraints is None:
-            raise ValueError("Missing 'constraints'.")
 
         meta = data.get("meta", None)
 
