@@ -40,7 +40,6 @@ def three_materials():
 # ──────────────────────────────────────────────
 
 
-@pytest.mark.unit
 class TestIndexMatrixToStr:
     def test_2x2_matrix(self):
         arr = jnp.array([[0, 1], [2, 3]])
@@ -57,7 +56,6 @@ class TestIndexMatrixToStr:
 # ──────────────────────────────────────────────
 
 
-@pytest.mark.unit
 class TestDeviceMatrixIndexFigure:
     def test_asserts_3d_input(self, two_materials):
         indices_2d = jnp.zeros((4, 4), dtype=jnp.int32)

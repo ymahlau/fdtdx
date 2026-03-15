@@ -13,7 +13,6 @@ from fdtdx.core.physics.modes import (
 )
 
 
-@pytest.mark.unit
 class TestComputeModePolarizationFraction:
     """Test the compute_mode_polarization_fraction function."""
 
@@ -71,7 +70,6 @@ class TestComputeModePolarizationFraction:
             compute_mode_polarization_fraction(mode, (0, 1), "invalid_pol")
 
 
-@pytest.mark.unit
 class TestSortModes:
     """Test the sort_modes function."""
 
@@ -137,7 +135,6 @@ class TestSortModes:
         # The other modes should follow
 
 
-@pytest.mark.unit
 class TestComputeMode:
     """Test the compute_mode function."""
 
@@ -165,7 +162,6 @@ class TestComputeMode:
 
 
 
-@pytest.mark.unit
 class TestAnisotropicModeComputation:
     """Test anisotropic material handling in compute_mode."""
 
@@ -491,7 +487,6 @@ class TestAnisotropicModeComputation:
         assert perm_passed.shape[0] == 9
 
 
-@pytest.mark.unit
 class TestTidy3DModeComputationWrapper:
     """Test the tidy3d_mode_computation_wrapper function."""
 

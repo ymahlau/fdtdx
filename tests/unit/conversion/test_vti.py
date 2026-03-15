@@ -21,7 +21,6 @@ from fdtdx.conversion.vti import (
 class TestNumpyToVtkDtype:
     """Tests for the NUMPY_TO_VTK_DTYPE constant mapping."""
 
-    @pytest.mark.unit
     def test_contains_all_expected_dtypes(self):
         expected = {
             "int8", "uint8", "int16", "uint16", "int32", "uint32",
@@ -29,7 +28,6 @@ class TestNumpyToVtkDtype:
         }
         assert set(NUMPY_TO_VTK_DTYPE.keys()) == expected
 
-    @pytest.mark.unit
     def test_vtk_type_names_are_capitalized(self):
         for numpy_dtype, vtk_name in NUMPY_TO_VTK_DTYPE.items():
             assert vtk_name[0].isupper(), f"VTK name for {numpy_dtype} should be capitalized"
@@ -42,7 +40,6 @@ class TestNumpyToVtkDtype:
 class TestEncodeArray:
     """Tests for the encode_array function."""
 
-    @pytest.mark.unit
     def test_header_format(self):
         """Header should be 4 unsigned 32-bit ints: [1, uncompressed_size, uncompressed_size, compressed_size]."""
         arr = jnp.ones((3, 3, 3), dtype=jnp.float32)
@@ -56,7 +53,6 @@ class TestEncodeArray:
         assert last_block_size == uncompressed_size
         assert compressed_size == len(result) - 16
 
-    @pytest.mark.unit
     def test_fortran_order_flattening(self):
         """Verify array is flattened in Fortran (column-major) order."""
         arr = jnp.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]], dtype=jnp.float32)
@@ -69,7 +65,6 @@ class TestEncodeArray:
         recovered = jnp.frombuffer(decompressed, dtype=jnp.float32)
         assert jnp.array_equal(recovered, expected_flat)
 
-    @pytest.mark.unit
     def test_compression_level_0_no_compression(self):
         """Level 0 should produce valid but uncompressed output."""
         arr = jnp.ones((4, 4, 4), dtype=jnp.float32)
@@ -79,7 +74,6 @@ class TestEncodeArray:
         decompressed = zlib.decompress(compressed_data)
         assert decompressed == arr.flatten(order="F").tobytes()
 
-    @pytest.mark.unit
     def test_compression_level_9_smaller_output(self):
         """Level 9 should produce smaller or equal output compared to level 0."""
         arr = jnp.ones((10, 10, 10), dtype=jnp.float32)
@@ -87,7 +81,6 @@ class TestEncodeArray:
         result_9 = encode_array(arr, compression_level=9)
         assert len(result_9) <= len(result_0)
 
-    @pytest.mark.unit
     def test_different_dtypes(self):
         """Test encoding with different numeric dtypes."""
         for dtype in [jnp.float32, jnp.float64, jnp.int32]:
@@ -104,7 +97,6 @@ class TestEncodeArray:
 class TestExportVti:
     """Tests for the export_vti function."""
 
-    @pytest.mark.unit
     def test_xml_header(self, tmp_path):
         data = jnp.zeros((4, 4, 4), dtype=jnp.float32)
         path = tmp_path / "test.vti"
@@ -116,7 +108,6 @@ class TestExportVti:
         assert b'byte_order="LittleEndian"' in content
         assert b'compressor="vtkZLibDataCompressor"' in content
 
-    @pytest.mark.unit
     def test_xml_footer(self, tmp_path):
         data = jnp.zeros((4, 4, 4), dtype=jnp.float32)
         path = tmp_path / "test.vti"
@@ -125,7 +116,6 @@ class TestExportVti:
         content = path.read_bytes()
         assert content.endswith(b"\n</AppendedData>\n</VTKFile>")
 
-    @pytest.mark.unit
     def test_extent_default_offset(self, tmp_path):
         data = jnp.zeros((5, 6, 7), dtype=jnp.float32)
         path = tmp_path / "test.vti"
@@ -134,7 +124,6 @@ class TestExportVti:
         content = path.read_text(encoding="utf-8", errors="ignore")
         assert 'WholeExtent="0 5 0 6 0 7"' in content
 
-    @pytest.mark.unit
     def test_extent_with_offset(self, tmp_path):
         data = jnp.zeros((5, 5, 5), dtype=jnp.float32)
         path = tmp_path / "test.vti"
@@ -143,7 +132,6 @@ class TestExportVti:
         content = path.read_text(encoding="utf-8", errors="ignore")
         assert 'WholeExtent="10 15 20 25 30 35"' in content
 
-    @pytest.mark.unit
     def test_extent_with_grid_slice(self, tmp_path):
         data = jnp.zeros((5, 5, 5), dtype=jnp.float32)
         path = tmp_path / "test.vti"
@@ -153,7 +141,6 @@ class TestExportVti:
         content = path.read_text(encoding="utf-8", errors="ignore")
         assert 'WholeExtent="2 7 3 8 4 9"' in content
 
-    @pytest.mark.unit
     def test_grid_slice_with_nonzero_offset_raises(self, tmp_path):
         data = jnp.zeros((5, 5, 5), dtype=jnp.float32)
         path = tmp_path / "test.vti"
@@ -161,7 +148,6 @@ class TestExportVti:
         with pytest.raises(AssertionError):
             export_vti({"field": data}, path, resolution=1.0, offset=(1, 0, 0), grid_slice=grid_slice)
 
-    @pytest.mark.unit
     def test_spacing(self, tmp_path):
         data = jnp.zeros((3, 3, 3), dtype=jnp.float32)
         path = tmp_path / "test.vti"
@@ -170,7 +156,6 @@ class TestExportVti:
         content = path.read_text(encoding="utf-8", errors="ignore")
         assert 'Spacing="0.5 0.5 0.5"' in content
 
-    @pytest.mark.unit
     def test_scalar_field_components(self, tmp_path):
         data = jnp.zeros((3, 3, 3), dtype=jnp.float32)
         path = tmp_path / "test.vti"
@@ -180,7 +165,6 @@ class TestExportVti:
         assert 'Name="scalar"' in content
         assert 'NumberOfComponents="1"' in content
 
-    @pytest.mark.unit
     def test_vector_field_components(self, tmp_path):
         data = jnp.zeros((3, 4, 4, 4), dtype=jnp.float32)
         path = tmp_path / "test.vti"
@@ -190,7 +174,6 @@ class TestExportVti:
         assert 'Name="velocity"' in content
         assert 'NumberOfComponents="3"' in content
 
-    @pytest.mark.unit
     def test_mixed_scalar_and_vector(self, tmp_path):
         scalar = jnp.zeros((4, 4, 4), dtype=jnp.float32)
         vector = jnp.zeros((3, 4, 4, 4), dtype=jnp.float32)
@@ -201,32 +184,27 @@ class TestExportVti:
         assert 'Name="pressure"' in content
         assert 'Name="velocity"' in content
 
-    @pytest.mark.unit
     def test_mismatched_shapes_raises(self, tmp_path):
         data1 = jnp.zeros((10, 10, 10), dtype=jnp.float32)
         data2 = jnp.zeros((5, 5, 5), dtype=jnp.float32)
         with pytest.raises(AssertionError, match="same underlying grid"):
             export_vti({"a": data1, "b": data2}, tmp_path / "fail.vti", 1.0)
 
-    @pytest.mark.unit
     def test_2d_array_raises(self, tmp_path):
         data = jnp.zeros((10, 10), dtype=jnp.float32)
         with pytest.raises(AssertionError, match="Only 3d scalar fields"):
             export_vti({"a": data}, tmp_path / "fail.vti", 1.0)
 
-    @pytest.mark.unit
     def test_5d_array_raises(self, tmp_path):
         data = jnp.zeros((2, 3, 4, 5, 6), dtype=jnp.float32)
         with pytest.raises(AssertionError, match="Only 3d scalar fields"):
             export_vti({"a": data}, tmp_path / "fail.vti", 1.0)
 
-    @pytest.mark.unit
     def test_unsupported_dtype_raises(self, tmp_path):
         data = jnp.zeros((3, 3, 3), dtype=jnp.bool_)
         with pytest.raises(AssertionError, match="VTI files only support dtypes"):
             export_vti({"a": data}, tmp_path / "fail.vti", 1.0)
 
-    @pytest.mark.unit
     def test_string_path(self, tmp_path):
         """Test that string paths work (not just Path objects)."""
         data = jnp.zeros((3, 3, 3), dtype=jnp.float32)
@@ -234,7 +212,6 @@ class TestExportVti:
         export_vti({"field": data}, path, resolution=1.0)
         assert (tmp_path / "string_path.vti").exists()
 
-    @pytest.mark.unit
     def test_data_roundtrip_integrity(self, tmp_path):
         """Verify binary data in the file can be decompressed back to original values."""
         arr = jnp.arange(27, dtype=jnp.float32).reshape(3, 3, 3)
@@ -287,7 +264,6 @@ class TestExportArraysSnapshotToVti:
 
         return mock
 
-    @pytest.mark.unit
     def test_exports_core_fields(self, tmp_path):
         arrays = self._make_mock_arrays()
         path = tmp_path / "snapshot.vti"
@@ -298,7 +274,6 @@ class TestExportArraysSnapshotToVti:
         assert 'Name="E"' in content
         assert 'Name="H"' in content
 
-    @pytest.mark.unit
     def test_exports_permeability_when_array(self, tmp_path):
         arrays = self._make_mock_arrays(scalar_permeability=False)
         path = tmp_path / "snapshot.vti"
@@ -307,7 +282,6 @@ class TestExportArraysSnapshotToVti:
         content = path.read_text(encoding="utf-8", errors="ignore")
         assert 'Name="permeabilities"' in content
 
-    @pytest.mark.unit
     def test_skips_permeability_when_scalar(self, tmp_path):
         arrays = self._make_mock_arrays(scalar_permeability=True)
         path = tmp_path / "snapshot.vti"
@@ -316,7 +290,6 @@ class TestExportArraysSnapshotToVti:
         content = path.read_text(encoding="utf-8", errors="ignore")
         assert 'Name="permeabilities"' not in content
 
-    @pytest.mark.unit
     def test_exports_conductivities_when_present(self, tmp_path):
         arrays = self._make_mock_arrays(include_conductivity=True)
         path = tmp_path / "snapshot.vti"
@@ -326,7 +299,6 @@ class TestExportArraysSnapshotToVti:
         assert 'Name="electric_conductivity"' in content
         assert 'Name="magnetic_conductivity"' in content
 
-    @pytest.mark.unit
     def test_skips_conductivities_when_none(self, tmp_path):
         arrays = self._make_mock_arrays(include_conductivity=False)
         path = tmp_path / "snapshot.vti"
@@ -336,7 +308,6 @@ class TestExportArraysSnapshotToVti:
         assert 'Name="electric_conductivity"' not in content
         assert 'Name="magnetic_conductivity"' not in content
 
-    @pytest.mark.unit
     def test_permittivity_is_inverse_of_input(self, tmp_path):
         """The function computes 1/inv_permittivities, so values should be inverted."""
         arrays = self._make_mock_arrays()

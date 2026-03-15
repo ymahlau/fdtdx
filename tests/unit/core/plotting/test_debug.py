@@ -14,7 +14,6 @@ from fdtdx.core.plotting.debug import (
 # ── generate_unique_filename ──────────────────────────────────────────
 
 
-@pytest.mark.unit
 class TestGenerateUniqueFilename:
     def test_default_prefix(self):
         result = generate_unique_filename()
@@ -34,7 +33,6 @@ class TestGenerateUniqueFilename:
 # ── debug_plot_2d ─────────────────────────────────────────────────────
 
 
-@pytest.mark.unit
 class TestDebugPlot2d:
     def test_saves_file_with_given_filename(self, tmp_path):
         arr = np.ones((3, 4))
@@ -71,7 +69,6 @@ class TestDebugPlot2d:
 # ── debug_plot_lines ──────────────────────────────────────────────────
 
 
-@pytest.mark.unit
 class TestDebugPlotLines:
     def test_single_line(self, tmp_path):
         data = {"line1": np.array([1.0, 2.0, 3.0])}

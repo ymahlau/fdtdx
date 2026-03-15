@@ -73,7 +73,6 @@ class TestCondition:
 
         return {"state": state, "config": config, "objects": objects, "dn": detector_name}
 
-    @pytest.mark.integration
     def test_condition_function_signature(self, setup_simulation_state):
         """Test that stopping condition function has the correct signature and returns expected types."""
         state = setup_simulation_state["state"]
@@ -124,7 +123,6 @@ class TestCondition:
         assert dc_result.dtype == jnp.bool_
         assert dc_result.shape == ()
 
-    @pytest.mark.integration
     def test_time_step_condition(self, setup_simulation_state):
         state = setup_simulation_state["state"]
         config = setup_simulation_state["config"]
@@ -144,7 +142,6 @@ class TestCondition:
         state = (jnp.array(config.time_steps_total + 1), state[1])
         assert not cond_fun(state, config, objects)
 
-    @pytest.mark.integration
     def test_energy_threshold_condition(self, setup_simulation_state):
         state = setup_simulation_state["state"]
         config = setup_simulation_state["config"]
@@ -214,7 +211,6 @@ class TestCondition:
         cond_fun = cond_fun.setup(state_at_end, config, objects)
         assert not cond_fun(state_at_end, config, objects)
 
-    @pytest.mark.integration
     def test_detector_convergence_condition(self, setup_simulation_state):
         state = setup_simulation_state["state"]
         config = setup_simulation_state["config"]
@@ -329,7 +325,6 @@ class TestCondition:
         cond_fun = cond_fun.setup(state_at_end, config, objects)
         assert not cond_fun(state_at_end, config, objects)
 
-    @pytest.mark.integration
     def test_jit_compatibility(self, setup_simulation_state):
         state = setup_simulation_state["state"]
         config = setup_simulation_state["config"]

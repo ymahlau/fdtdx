@@ -18,28 +18,24 @@ def close_plots():
 class TestPlotFilledStdCurvesValidation:
     """Tests for input validation in plot_filled_std_curves."""
 
-    @pytest.mark.unit
     def test_only_upper_raises(self):
         x = np.arange(5, dtype=float)
         mean = np.ones(5)
         with pytest.raises(ValueError, match="both upper and lower"):
             plot_filled_std_curves(x, mean, "blue", "lightblue", upper=np.ones(5))
 
-    @pytest.mark.unit
     def test_only_lower_raises(self):
         x = np.arange(5, dtype=float)
         mean = np.ones(5)
         with pytest.raises(ValueError, match="both upper and lower"):
             plot_filled_std_curves(x, mean, "blue", "lightblue", lower=np.ones(5))
 
-    @pytest.mark.unit
     def test_neither_std_nor_bounds_raises(self):
         x = np.arange(5, dtype=float)
         mean = np.ones(5)
         with pytest.raises(ValueError, match="either std or upper/lower"):
             plot_filled_std_curves(x, mean, "blue", "lightblue")
 
-    @pytest.mark.unit
     def test_both_std_and_bounds_raises(self):
         x = np.arange(5, dtype=float)
         mean = np.ones(5)
@@ -53,7 +49,6 @@ class TestPlotFilledStdCurvesValidation:
 class TestPlotFilledStdCurvesStdMode:
     """Tests for std-based plotting."""
 
-    @pytest.mark.unit
     def test_std_mode_plots_correctly(self):
         x = np.array([0.0, 1.0, 2.0])
         mean = np.array([1.0, 2.0, 3.0])
@@ -79,7 +74,6 @@ class TestPlotFilledStdCurvesStdMode:
 class TestPlotFilledStdCurvesBoundsMode:
     """Tests for explicit upper/lower bound plotting."""
 
-    @pytest.mark.unit
     def test_upper_lower_mode(self):
         x = np.array([0.0, 1.0, 2.0])
         mean = np.array([1.0, 2.0, 3.0])
@@ -100,7 +94,6 @@ class TestPlotFilledStdCurvesBoundsMode:
 class TestPlotFilledStdCurvesClipping:
     """Tests for min_val and max_val clipping."""
 
-    @pytest.mark.unit
     def test_min_val_clips_all_curves(self):
         x = np.array([0.0, 1.0])
         mean = np.array([0.5, -0.5])
@@ -119,7 +112,6 @@ class TestPlotFilledStdCurvesClipping:
         assert np.all(plotted_lower >= 0.0)
         np.testing.assert_array_equal(plotted_lower, np.array([0.0, 0.0]))
 
-    @pytest.mark.unit
     def test_max_val_clips_all_curves(self):
         x = np.array([0.0, 1.0])
         mean = np.array([5.0, 10.0])
@@ -142,7 +134,6 @@ class TestPlotFilledStdCurvesClipping:
 class TestPlotFilledStdCurvesStyling:
     """Tests for styling parameters passed to matplotlib."""
 
-    @pytest.mark.unit
     def test_colors_and_alpha_passed(self):
         x = np.array([0.0, 1.0])
         mean = np.ones(2)
@@ -159,7 +150,6 @@ class TestPlotFilledStdCurvesStyling:
         assert mock_plot.call_args_list[0][1]["alpha"] == 0.5
         assert mock_fill.call_args[1]["alpha"] == 0.5
 
-    @pytest.mark.unit
     def test_label_linestyle_marker(self):
         x = np.array([0.0, 1.0])
         mean = np.ones(2)

@@ -78,7 +78,6 @@ def simulation_setup():
     return config, objects, large_obj
 
 
-@pytest.mark.integration
 def test_plot_setup_from_side_xy(simulation_setup):
     """Test plot_setup_from_side with XY plane (viewing from z direction)."""
     config, container, _ = simulation_setup
@@ -98,7 +97,6 @@ def test_plot_setup_from_side_xy(simulation_setup):
     plt.close(fig)
 
 
-@pytest.mark.integration
 def test_plot_setup_from_side_xz(simulation_setup):
     """Test plot_setup_from_side with XZ plane (viewing from y direction)."""
     config, container, _ = simulation_setup
@@ -118,7 +116,6 @@ def test_plot_setup_from_side_xz(simulation_setup):
     plt.close(fig)
 
 
-@pytest.mark.integration
 def test_plot_setup_from_side_yz(simulation_setup):
     """Test plot_setup_from_side with YZ plane (viewing from x direction)."""
     config, container, _ = simulation_setup
@@ -138,7 +135,6 @@ def test_plot_setup_from_side_yz(simulation_setup):
     plt.close(fig)
 
 
-@pytest.mark.integration
 def test_plot_setup(simulation_setup):
     """Test plot_setup function with all three planes."""
     config, container, _ = simulation_setup
@@ -155,7 +151,6 @@ def test_plot_setup(simulation_setup):
     plt.close("all")
 
 
-@pytest.mark.integration
 def test_plot_setup_exclude_large_objects(simulation_setup):
     """Test plot_setup with exclude_large_object_ratio to filter out large objects."""
     config, container, _ = simulation_setup
@@ -183,7 +178,6 @@ def test_plot_setup_exclude_large_objects(simulation_setup):
     plt.close("all")
 
 
-@pytest.mark.integration
 def test_exclude_large_object_ratio_threshold(simulation_setup):
     """Test that exclude_large_object_ratio correctly filters objects at the threshold."""
     config, container, _ = simulation_setup

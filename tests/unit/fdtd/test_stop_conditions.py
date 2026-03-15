@@ -48,7 +48,6 @@ def _make_state(time_step, arrays=None):
 
 
 class TestTimeStepCondition:
-    @pytest.mark.unit
     def test_continues_before_end(self):
         config = _CONFIG
         state = _make_state(0)
@@ -56,21 +55,18 @@ class TestTimeStepCondition:
         result = cond(state, config, None)
         assert bool(result) is True
 
-    @pytest.mark.unit
     def test_stops_at_end(self):
         config = _CONFIG
         state = _make_state(config.time_steps_total)
         cond = TimeStepCondition().setup(state, config, None)
         assert bool(cond(state, config, None)) is False
 
-    @pytest.mark.unit
     def test_stops_past_end(self):
         config = _CONFIG
         state = _make_state(config.time_steps_total + 5)
         cond = TimeStepCondition().setup(state, config, None)
         assert bool(cond(state, config, None)) is False
 
-    @pytest.mark.unit
     def test_output_is_bool_scalar(self):
         config = _CONFIG
         state = _make_state(0)
@@ -79,7 +75,6 @@ class TestTimeStepCondition:
         assert result.dtype == jnp.bool_
         assert result.shape == ()
 
-    @pytest.mark.unit
     def test_setup_returns_self(self):
         cond = TimeStepCondition()
         returned = cond.setup(_make_state(0), _CONFIG, None)
@@ -92,47 +87,39 @@ class TestTimeStepCondition:
 
 
 class TestEnergyThresholdCondition:
-    @pytest.mark.unit
     def test_zero_threshold_raises(self):
         with pytest.raises(ValueError, match="must be positive"):
             EnergyThresholdCondition(threshold=0.0, min_steps=5).setup(_make_state(0), _CONFIG, None)
 
-    @pytest.mark.unit
     def test_negative_threshold_raises(self):
         with pytest.raises(ValueError, match="must be positive"):
             EnergyThresholdCondition(threshold=-1e-5, min_steps=5).setup(_make_state(0), _CONFIG, None)
 
-    @pytest.mark.unit
     def test_negative_min_steps_raises(self):
         with pytest.raises(ValueError, match="must be non-negative"):
             EnergyThresholdCondition(threshold=1e-5, min_steps=-1).setup(_make_state(0), _CONFIG, None)
 
-    @pytest.mark.unit
     def test_default_max_steps_uses_total(self):
         config = _CONFIG
         cond = EnergyThresholdCondition(threshold=1e-5).setup(_make_state(0), config, None)
         assert cond.max_steps == config.time_steps_total
 
-    @pytest.mark.unit
     def test_explicit_max_steps_preserved(self):
         config = _CONFIG
         cond = EnergyThresholdCondition(threshold=1e-5, max_steps=100).setup(_make_state(0), config, None)
         assert cond.max_steps == 100
 
-    @pytest.mark.unit
     def test_default_min_steps_is_10_percent(self):
         config = _CONFIG
         cond = EnergyThresholdCondition(threshold=1e-5).setup(_make_state(0), config, None)
         expected = int(round(config.time_steps_total * 0.1))
         assert cond.min_steps == expected
 
-    @pytest.mark.unit
     def test_explicit_min_steps_preserved(self):
         config = _CONFIG
         cond = EnergyThresholdCondition(threshold=1e-5, min_steps=7).setup(_make_state(0), config, None)
         assert cond.min_steps == 7
 
-    @pytest.mark.unit
     def test_continues_before_min_steps(self):
         config = _CONFIG
         min_steps = 20
@@ -141,7 +128,6 @@ class TestEnergyThresholdCondition:
         state = _make_state(min_steps - 5)
         assert bool(cond(state, config, None)) is True
 
-    @pytest.mark.unit
     def test_continues_when_above_threshold(self):
         """After min_steps, energy above threshold → condition continues."""
         config = _CONFIG
@@ -151,7 +137,6 @@ class TestEnergyThresholdCondition:
         state = _make_state(min_steps + 1)
         assert bool(cond(state, config, None)) is True
 
-    @pytest.mark.unit
     def test_stops_when_below_threshold(self):
         """After min_steps, energy below threshold → condition stops."""
         config = _CONFIG
@@ -167,7 +152,6 @@ class TestEnergyThresholdCondition:
         state = _make_state(min_steps + 1, arrays)
         assert bool(cond(state, config, None)) is False
 
-    @pytest.mark.unit
     def test_stops_at_max_steps(self):
         """At max_steps the simulation always stops."""
         config = _CONFIG
@@ -178,7 +162,6 @@ class TestEnergyThresholdCondition:
         state = _make_state(max_steps)
         assert bool(cond(state, config, None)) is False
 
-    @pytest.mark.unit
     def test_output_is_bool_scalar(self):
         config = _CONFIG
         cond = EnergyThresholdCondition(threshold=1e-5, min_steps=5).setup(_make_state(0), config, None)
@@ -208,7 +191,6 @@ def _detector_arrays(config, name="det", *, readings=None):
 class TestDetectorConvergenceCondition:
     # -- setup / spp --
 
-    @pytest.mark.unit
     def test_spp_computation(self):
         config = _detector_config()
         spp = 10
@@ -223,7 +205,6 @@ class TestDetectorConvergenceCondition:
         ).setup(_make_state(0, arrays), config, None)
         assert cond._spp == spp
 
-    @pytest.mark.unit
     def test_default_max_steps_uses_total(self):
         config = _detector_config()
         spp = 10
@@ -238,7 +219,6 @@ class TestDetectorConvergenceCondition:
         ).setup(_make_state(0, arrays), config, None)
         assert cond.max_steps == config.time_steps_total
 
-    @pytest.mark.unit
     def test_explicit_max_steps_preserved(self):
         config = _detector_config()
         spp = 10
@@ -254,7 +234,6 @@ class TestDetectorConvergenceCondition:
         ).setup(_make_state(0, arrays), config, None)
         assert cond.max_steps == 200
 
-    @pytest.mark.unit
     def test_default_min_steps_is_prev_plus_one_times_spp(self):
         config = _detector_config()
         spp = 10
@@ -271,7 +250,6 @@ class TestDetectorConvergenceCondition:
 
     # -- _validate errors --
 
-    @pytest.mark.unit
     def test_missing_detector_raises(self):
         config = _detector_config()
         spp = 10
@@ -285,7 +263,6 @@ class TestDetectorConvergenceCondition:
                 min_steps=30,
             ).setup(_make_state(0, arrays), config, None)
 
-    @pytest.mark.unit
     def test_wrong_detector_type_raises(self):
         config = _detector_config()
         spp = 10
@@ -301,7 +278,6 @@ class TestDetectorConvergenceCondition:
                 min_steps=30,
             ).setup(_make_state(0, arrays), config, None)
 
-    @pytest.mark.unit
     def test_1d_readings_raises(self):
         config = _detector_config()
         spp = 10
@@ -316,7 +292,6 @@ class TestDetectorConvergenceCondition:
                 min_steps=30,
             ).setup(_make_state(0, arrays), config, None)
 
-    @pytest.mark.unit
     def test_wrong_reading_count_raises(self):
         config = _detector_config()
         spp = 10
@@ -331,7 +306,6 @@ class TestDetectorConvergenceCondition:
                 min_steps=30,
             ).setup(_make_state(0, arrays), config, None)
 
-    @pytest.mark.unit
     def test_prev_periods_lt1_raises(self):
         config = _detector_config()
         spp = 10
@@ -345,7 +319,6 @@ class TestDetectorConvergenceCondition:
                 min_steps=30,
             ).setup(_make_state(0, arrays), config, None)
 
-    @pytest.mark.unit
     def test_negative_threshold_raises(self):
         config = _detector_config()
         spp = 10
@@ -359,7 +332,6 @@ class TestDetectorConvergenceCondition:
                 min_steps=30,
             ).setup(_make_state(0, arrays), config, None)
 
-    @pytest.mark.unit
     def test_min_steps_too_small_raises(self):
         config = _detector_config()
         spp = 10
@@ -375,7 +347,6 @@ class TestDetectorConvergenceCondition:
                 min_steps=5,
             ).setup(_make_state(0, arrays), config, None)
 
-    @pytest.mark.unit
     def test_period_exceeds_total_raises(self):
         config = _detector_config()
         # Use a period so large that (prev_periods+1)*spp > time_steps_total
@@ -391,7 +362,6 @@ class TestDetectorConvergenceCondition:
 
     # -- __call__ logic --
 
-    @pytest.mark.unit
     def test_continues_before_min_steps(self):
         config = _detector_config()
         spp = 10
@@ -409,7 +379,6 @@ class TestDetectorConvergenceCondition:
         state = _make_state(min_steps - 5, arrays)
         assert bool(cond(state, config, None)) is True
 
-    @pytest.mark.unit
     def test_stops_at_time_steps_total(self):
         config = _detector_config()
         spp = 10
@@ -427,7 +396,6 @@ class TestDetectorConvergenceCondition:
         state = _make_state(config.time_steps_total, arrays)
         assert bool(cond(state, config, None)) is False
 
-    @pytest.mark.unit
     def test_continues_when_not_converged(self):
         """After min_steps, large spectral distance → not converged → continue."""
         config = _detector_config()
@@ -452,7 +420,6 @@ class TestDetectorConvergenceCondition:
         state = _make_state(min_steps + spp, arrays)
         assert bool(cond(state, config, None)) is True
 
-    @pytest.mark.unit
     def test_stops_when_converged(self):
         """After min_steps, all-constant readings → zero spectral distance → stop."""
         config = _detector_config()
@@ -475,7 +442,6 @@ class TestDetectorConvergenceCondition:
         state = _make_state(min_steps + spp, arrays)
         assert bool(cond(state, config, None)) is False
 
-    @pytest.mark.unit
     def test_output_is_bool_scalar(self):
         config = _detector_config()
         spp = 10

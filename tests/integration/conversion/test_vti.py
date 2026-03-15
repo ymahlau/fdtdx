@@ -7,7 +7,6 @@ import fdtdx
 from fdtdx import export_arrays_snapshot_to_vti
 
 
-@pytest.mark.integration
 def test_export_arrays_snapshot_to_vti(tmp_path):
     key = jax.random.PRNGKey(seed=42)
 

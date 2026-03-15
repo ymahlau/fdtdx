@@ -46,7 +46,6 @@ def simple_material():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 def test_place_objects_creates_object_container(simple_config, simple_volume, simple_material):
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(20, 20, 20), material=simple_material)
     constraint = GridCoordinateConstraint(
@@ -62,7 +61,6 @@ def test_place_objects_creates_object_container(simple_config, simple_volume, si
     assert obj_container.volume_idx == 0
 
 
-@pytest.mark.integration
 def test_place_objects_with_multiple_objects(simple_config, simple_volume, simple_material):
     obj1 = UniformMaterialObject(name="obj1", partial_grid_shape=(20, 20, 20), material=simple_material)
     obj2 = UniformMaterialObject(name="obj2", partial_grid_shape=(20, 20, 20), material=simple_material)
@@ -78,7 +76,6 @@ def test_place_objects_with_multiple_objects(simple_config, simple_volume, simpl
     assert obj_container.volume_idx == 0
 
 
-@pytest.mark.integration
 def test_place_objects_updates_config(simple_config, simple_volume, simple_material):
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(20, 20, 20), material=simple_material)
     constraint = GridCoordinateConstraint(
@@ -92,7 +89,6 @@ def test_place_objects_updates_config(simple_config, simple_volume, simple_mater
     assert config.resolution == simple_config.resolution
 
 
-@pytest.mark.integration
 def test_place_objects_initializes_arrays(simple_config, simple_volume, simple_material):
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(20, 20, 20), material=simple_material)
     constraint = GridCoordinateConstraint(
@@ -107,7 +103,6 @@ def test_place_objects_initializes_arrays(simple_config, simple_volume, simple_m
     assert arrays.inv_permittivities is not None
 
 
-@pytest.mark.integration
 def test_place_objects_raises_on_unresolvable_constraint(simple_config, simple_volume, simple_material):
     """place_objects should raise ValueError when constraints can't be resolved."""
     obj = UniformMaterialObject(name="obj1", material=simple_material)
@@ -123,7 +118,6 @@ def test_place_objects_raises_on_unresolvable_constraint(simple_config, simple_v
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 def test_diagonally_anisotropic_material(simple_config, simple_volume):
     """Diagonally anisotropic material triggers 3-component arrays for all properties.
 
@@ -156,7 +150,6 @@ def test_diagonally_anisotropic_material(simple_config, simple_volume):
     assert arrays.magnetic_conductivity is not None
 
 
-@pytest.mark.integration
 def test_fully_anisotropic_material(simple_config, simple_volume):
     """Fully anisotropic material (off-diagonal) triggers 9-component arrays.
 
@@ -191,7 +184,6 @@ def test_fully_anisotropic_material(simple_config, simple_volume):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 def test_static_multi_material_object_sphere(simple_config, simple_volume):
     """Sphere (StaticMultiMaterialObject subclass) is correctly processed in _init_arrays.
 
@@ -226,7 +218,6 @@ def test_static_multi_material_object_sphere(simple_config, simple_volume):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 def test_pml_boundary_modifies_arrays(simple_config, simple_volume, simple_material):
     """PML boundary triggers boundary array modification in _init_arrays.
 
@@ -262,7 +253,6 @@ def test_pml_boundary_modifies_arrays(simple_config, simple_volume, simple_mater
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 def test_recording_state_with_gradient_config(simple_volume, simple_material):
     """GradientConfig with Recorder triggers recording state initialization in _init_arrays.
 
@@ -293,7 +283,6 @@ def test_recording_state_with_gradient_config(simple_volume, simple_material):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 def test_device_init_params(simple_config, simple_volume):
     """Device in object list triggers _init_params loop body.
 

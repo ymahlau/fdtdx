@@ -166,7 +166,6 @@ def sphere_setup():
     return config, arrays
 
 
-@pytest.mark.integration
 def test_plot_material_from_side_xy_permittivity(simple_material_setup):
     """Test plot_material_from_side with XY plane showing permittivity."""
     config, arrays = simple_material_setup
@@ -188,7 +187,6 @@ def test_plot_material_from_side_xy_permittivity(simple_material_setup):
     plt.close(fig)
 
 
-@pytest.mark.integration
 def test_plot_material_from_side_xz_permittivity(simple_material_setup):
     """Test plot_material_from_side with XZ plane showing permittivity."""
     config, arrays = simple_material_setup
@@ -210,7 +208,6 @@ def test_plot_material_from_side_xz_permittivity(simple_material_setup):
     plt.close(fig)
 
 
-@pytest.mark.integration
 def test_plot_material_from_side_yz_permittivity(simple_material_setup):
     """Test plot_material_from_side with YZ plane showing permittivity."""
     config, arrays = simple_material_setup
@@ -232,7 +229,6 @@ def test_plot_material_from_side_yz_permittivity(simple_material_setup):
     plt.close(fig)
 
 
-@pytest.mark.integration
 def test_plot_material_from_side_with_offset(simple_material_setup):
     """Test plot_material_from_side with position offset."""
     config, arrays = simple_material_setup
@@ -254,7 +250,6 @@ def test_plot_material_from_side_with_offset(simple_material_setup):
     plt.close(fig)
 
 
-@pytest.mark.integration
 def test_plot_material_all_planes_permittivity(simple_material_setup):
     """Test plot_material function showing permittivity in all three planes."""
     config, arrays = simple_material_setup
@@ -272,7 +267,6 @@ def test_plot_material_all_planes_permittivity(simple_material_setup):
     plt.close("all")
 
 
-@pytest.mark.integration
 def test_plot_material_with_custom_positions(simple_material_setup):
     """Test plot_material with custom slice positions."""
     config, arrays = simple_material_setup
@@ -293,7 +287,6 @@ def test_plot_material_with_custom_positions(simple_material_setup):
     plt.close("all")
 
 
-@pytest.mark.integration
 def test_plot_material_permeability(simple_material_setup):
     """Test plot_material_from_side showing permeability."""
     config, arrays = simple_material_setup
@@ -315,7 +308,6 @@ def test_plot_material_permeability(simple_material_setup):
     plt.close(fig)
 
 
-@pytest.mark.integration
 def test_plot_material_verify_values(simple_material_setup):
     """Test that plot_material correctly displays material values and spans the full domain."""
     config, arrays = simple_material_setup
@@ -354,7 +346,6 @@ def test_plot_material_verify_values(simple_material_setup):
     plt.close(fig)
 
 
-@pytest.mark.integration
 def test_plot_material_cylinder_slice(cylinder_setup):
     """Test plotting material with cylinder object."""
     config, arrays = cylinder_setup
@@ -376,7 +367,6 @@ def test_plot_material_cylinder_slice(cylinder_setup):
     plt.close(fig)
 
 
-@pytest.mark.integration
 def test_plot_material_sphere_slice(sphere_setup):
     """Test plotting material with sphere object."""
     config, arrays = sphere_setup
@@ -398,7 +388,6 @@ def test_plot_material_sphere_slice(sphere_setup):
     plt.close(fig)
 
 
-@pytest.mark.integration
 def test_plot_material_custom_axes(simple_material_setup):
     """Test plot_material with custom axes provided."""
     config, arrays = simple_material_setup
@@ -425,7 +414,6 @@ def test_plot_material_custom_axes(simple_material_setup):
     plt.close(fig)
 
 
-@pytest.mark.integration
 def test_plot_material_edge_positions(simple_material_setup):
     """Test plot_material with extreme position values (clamped to edge)."""
     config, arrays = simple_material_setup
@@ -445,7 +433,6 @@ def test_plot_material_edge_positions(simple_material_setup):
     plt.close(fig)
 
 
-@pytest.mark.integration
 def test_plot_material_no_legend(simple_material_setup):
     """Test plot_material without legend."""
     config, arrays = simple_material_setup
@@ -467,7 +454,6 @@ def test_plot_material_no_legend(simple_material_setup):
     plt.close(fig)
 
 
-@pytest.mark.integration
 def test_plot_material_with_external_figure(simple_material_setup):
     """Test plot_material with externally created figure."""
     config, arrays = simple_material_setup
@@ -493,7 +479,6 @@ def test_plot_material_with_external_figure(simple_material_setup):
     plt.close(fig)
 
 
-@pytest.mark.integration
 def test_plot_material_all_types_objects():
     """Test plot_material with UniformMaterialObject, Cylinder, and Sphere."""
     config = SimulationConfig(
@@ -587,7 +572,6 @@ def test_plot_material_all_types_objects():
     plt.close(fig)
 
 
-@pytest.mark.integration
 def test_plot_material_material_axis(simple_material_setup):
     """Test that material_axis is accepted by plot_material and forwarded to all subplots.
 

@@ -12,7 +12,6 @@ class TestStraightThroughEstimator:
 
     # ---- Forward pass: output equals y ----
 
-    @pytest.mark.unit
     def test_forward_scalar(self):
         """Forward value equals y for scalar inputs."""
         x = jnp.array(1.0)
@@ -20,7 +19,6 @@ class TestStraightThroughEstimator:
         result = straight_through_estimator(x, y)
         assert jnp.allclose(result, y)
 
-    @pytest.mark.unit
     def test_forward_1d(self):
         """Forward value equals y for 1-D arrays."""
         x = jnp.array([1.0, 2.0, 3.0])
@@ -28,7 +26,6 @@ class TestStraightThroughEstimator:
         result = straight_through_estimator(x, y)
         assert jnp.allclose(result, y)
 
-    @pytest.mark.unit
     def test_forward_identical_inputs(self):
         """When x == y, output equals both."""
         x = jnp.array([2.0, 3.0])
@@ -37,7 +34,6 @@ class TestStraightThroughEstimator:
 
     # ---- Gradient flow: grad w.r.t. x, not y ----
 
-    @pytest.mark.unit
     def test_gradient_wrt_x_is_identity(self):
         """Gradient of STE w.r.t. x is 1 (identity)."""
         x = jnp.array(3.0)
@@ -49,7 +45,6 @@ class TestStraightThroughEstimator:
         grad_val = jax.grad(f)(x)
         assert jnp.allclose(grad_val, 1.0)
 
-    @pytest.mark.unit
     def test_gradient_wrt_y_is_zero(self):
         """Gradient of STE w.r.t. y is 0 (stop_gradient)."""
         x = jnp.array(3.0)
@@ -61,7 +56,6 @@ class TestStraightThroughEstimator:
         grad_val = jax.grad(f)(y)
         assert jnp.allclose(grad_val, 0.0)
 
-    @pytest.mark.unit
     def test_gradient_weighted_sum(self):
         """Gradient flows correctly through a weighted sum."""
         x = jnp.array([1.0, 2.0, 3.0])
@@ -77,7 +71,6 @@ class TestStraightThroughEstimator:
 
     # ---- Output shape / dtype ----
 
-    @pytest.mark.unit
     def test_output_shape_preserved(self):
         """Output shape matches input shapes."""
         x = jnp.ones((2, 3, 4))
@@ -87,7 +80,6 @@ class TestStraightThroughEstimator:
 
     # ---- Integer discretization scenario ----
 
-    @pytest.mark.unit
     def test_integer_discretization(self):
         """Typical STE use case: x is continuous, y is discretized version."""
         x = jnp.array([1.3, 2.7, 3.1])

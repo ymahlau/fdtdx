@@ -21,15 +21,12 @@ from fdtdx.core.null import NULL
 class TestSafeHasattr:
     """Tests for the safe_hasattr helper."""
 
-    @pytest.mark.unit
     def test_returns_true_for_existing_attr(self):
         assert safe_hasattr("hello", "upper") is True
 
-    @pytest.mark.unit
     def test_returns_false_for_missing_attr(self):
         assert safe_hasattr("hello", "nonexistent") is False
 
-    @pytest.mark.unit
     def test_returns_false_on_keyerror(self):
         """safe_hasattr should catch KeyError from __getattr__ and return False."""
 
@@ -46,7 +43,6 @@ class TestSafeHasattr:
 class TestTreeClassField:
     """Tests for the TreeClassField dataclass."""
 
-    @pytest.mark.unit
     def test_default_values(self):
         f = TreeClassField(name="x", type=int)
         assert f.name == "x"
@@ -61,7 +57,6 @@ class TestTreeClassField:
         assert f.alias is None
         assert f.value is NULL
 
-    @pytest.mark.unit
     def test_iter_yields_field_name_value_pairs(self):
         f = TreeClassField(name="x", type=int, init=False)
         d = dict(f)
@@ -69,7 +64,6 @@ class TestTreeClassField:
         assert d["type"] is int
         assert d["init"] is False
 
-    @pytest.mark.unit
     def test_frozen(self):
         f = TreeClassField(name="x", type=int)
         with pytest.raises(AttributeError):
@@ -84,31 +78,25 @@ class TestParseOperations:
 
     fn = staticmethod(TreeClass._parse_operations)
 
-    @pytest.mark.unit
     def test_single_attribute(self):
         assert self.fn("single") == [("single", "attribute")]
 
-    @pytest.mark.unit
     def test_chained_attributes(self):
         result = self.fn("a->b->c")
         assert result == [("a", "attribute"), ("b", "attribute"), ("c", "attribute")]
 
-    @pytest.mark.unit
     def test_integer_index(self):
         result = self.fn("a->[0]")
         assert result == [("a", "attribute"), (0, "index")]
 
-    @pytest.mark.unit
     def test_negative_index(self):
         result = self.fn("a->[-5]")
         assert result == [("a", "attribute"), (-5, "index")]
 
-    @pytest.mark.unit
     def test_string_key(self):
         result = self.fn("a->['name']")
         assert result == [("a", "attribute"), ("name", "key")]
 
-    @pytest.mark.unit
     def test_mixed_operations(self):
         result = self.fn("a->b->[0]->['name']")
         assert result == [
@@ -118,7 +106,6 @@ class TestParseOperations:
             ("name", "key"),
         ]
 
-    @pytest.mark.unit
     def test_string_key_with_spaces(self):
         result = self.fn("data->['hello world']->result")
         assert result == [
@@ -129,47 +116,38 @@ class TestParseOperations:
 
     # Error cases
 
-    @pytest.mark.unit
     def test_empty_string_raises(self):
         with pytest.raises(ValueError, match="Empty string"):
             self.fn("")
 
-    @pytest.mark.unit
     def test_ends_with_arrow_raises(self):
         with pytest.raises(ValueError, match="ends with"):
             self.fn("a->")
 
-    @pytest.mark.unit
     def test_starts_with_arrow_raises(self):
         with pytest.raises(ValueError, match="Empty attribute at position"):
             self.fn("->b")
 
-    @pytest.mark.unit
     def test_unclosed_bracket_raises(self):
         with pytest.raises(ValueError, match="Unclosed bracket"):
             self.fn("a->[")
 
-    @pytest.mark.unit
     def test_invalid_bracket_content_raises(self):
         with pytest.raises(ValueError, match="Invalid bracket content"):
             self.fn("a->[invalid]")
 
-    @pytest.mark.unit
     def test_invalid_attribute_name_raises(self):
         with pytest.raises(ValueError, match="Invalid attribute name"):
             self.fn("a->123invalid")
 
-    @pytest.mark.unit
     def test_brackets_inside_string_key_raises(self):
         with pytest.raises(ValueError, match="Invalid bracket content"):
             self.fn("a->['has [brackets]']")
 
-    @pytest.mark.unit
     def test_quotes_inside_string_key_raises(self):
         with pytest.raises(ValueError, match="cannot contain single quotes"):
             self.fn("a->['it's bad']")
 
-    @pytest.mark.unit
     def test_missing_arrow_separator_raises(self):
         """After a bracket op, the next char must be '->' if there's more to parse."""
         with pytest.raises(ValueError, match="Expected '->' at position"):
@@ -213,24 +191,20 @@ class TreeWithFrozenPrivate(TreeClass):
 class TestFieldFunctions:
     """Tests for field, private_field, frozen_field, frozen_private_field."""
 
-    @pytest.mark.unit
     def test_field_default(self):
         obj = SimpleTree(x=10)
         assert obj.x == 10
         assert obj.y == "hello"
 
-    @pytest.mark.unit
     def test_private_field_not_in_init(self):
         obj = TreeWithPrivate(public_val=42)
         assert obj.public_val == 42
         assert obj._hidden == "secret"
 
-    @pytest.mark.unit
     def test_frozen_field_default(self):
         obj = TreeWithFrozen()
         assert obj.data == (1, 2, 3)
 
-    @pytest.mark.unit
     def test_frozen_private_field_default(self):
         obj = TreeWithFrozenPrivate()
         assert obj.internal == (("a", 1),)
@@ -242,7 +216,6 @@ class TestFieldFunctions:
 class TestTreeClassFields:
     """Tests for get_class_fields and get_public_fields."""
 
-    @pytest.mark.unit
     def test_get_class_fields_returns_all(self):
         obj = TreeWithPrivate(public_val=42)
         fields = obj.get_class_fields()
@@ -250,13 +223,11 @@ class TestTreeClassFields:
         assert "public_val" in names
         assert "_hidden" in names
 
-    @pytest.mark.unit
     def test_get_class_fields_returns_tree_class_field_instances(self):
         obj = SimpleTree(x=1)
         fields = obj.get_class_fields()
         assert all(isinstance(f, TreeClassField) for f in fields)
 
-    @pytest.mark.unit
     def test_get_public_fields_excludes_private(self):
         obj = TreeWithPrivate(public_val=42)
         public = obj.get_public_fields()
@@ -264,7 +235,6 @@ class TestTreeClassFields:
         assert "public_val" in names
         assert "_hidden" not in names
 
-    @pytest.mark.unit
     def test_get_public_fields_include_value(self):
         obj = SimpleTree(x=99, y="world")
         public = obj.get_public_fields()
@@ -279,21 +249,18 @@ class TestTreeClassFields:
 class TestAset:
     """Tests for the aset method (non-recursive attribute setting)."""
 
-    @pytest.mark.unit
     def test_set_simple_attribute(self):
         obj = SimpleTree(x=1, y="a")
         updated = obj.aset("x", 42)
         assert updated.x == 42
         assert updated.y == "a"
 
-    @pytest.mark.unit
     def test_set_nested_attribute(self):
         child = SimpleTree(x=1, y="a")
         parent = NestedTree(child=child)
         updated = parent.aset("child->x", 99)
         assert updated.child.x == 99
 
-    @pytest.mark.unit
     def test_set_with_list_index(self):
         @autoinit
         class WithList(TreeClass):
@@ -304,7 +271,6 @@ class TestAset:
         assert updated.items[1] == 99
         assert updated.items[0] == 10
 
-    @pytest.mark.unit
     def test_set_with_dict_key(self):
         @autoinit
         class WithDict(TreeClass):
@@ -314,25 +280,21 @@ class TestAset:
         updated = obj.aset("data->['key']", "new")
         assert updated.data["key"] == "new"
 
-    @pytest.mark.unit
     def test_nonexistent_attribute_raises(self):
         obj = SimpleTree(x=1)
         with pytest.raises(Exception, match="does not exist"):
             obj.aset("nonexistent", 42)
 
-    @pytest.mark.unit
     def test_create_new_ok(self):
         obj = SimpleTree(x=1)
         updated = obj.aset("new_attr", 42, create_new_ok=True)
         assert updated.new_attr == 42
 
-    @pytest.mark.unit
     def test_original_unchanged(self):
         obj = SimpleTree(x=1, y="a")
         _ = obj.aset("x", 42)
         assert obj.x == 1
 
-    @pytest.mark.unit
     def test_missing_dict_key_raises(self):
         @autoinit
         class WithDict(TreeClass):
@@ -342,7 +304,6 @@ class TestAset:
         with pytest.raises(Exception, match="does not exist"):
             obj.aset("data->['missing']", 99)
 
-    @pytest.mark.unit
     def test_missing_dict_key_create_new_ok(self):
         @autoinit
         class WithDict(TreeClass):
@@ -352,20 +313,17 @@ class TestAset:
         updated = obj.aset("data->['new_key']", 99, create_new_ok=True)
         assert updated.data["new_key"] == 99
 
-    @pytest.mark.unit
     def test_index_on_non_subscriptable_raises(self):
         obj = SimpleTree(x=1)
         with pytest.raises(Exception, match="does not implement __getitem__"):
             obj.aset("x->[0]", 42)
 
-    @pytest.mark.unit
     def test_key_on_non_subscriptable_raises(self):
         """Traversing a string key on a non-dict-like object should raise."""
         obj = SimpleTree(x=1)
         with pytest.raises(Exception, match="does not implement __getitem__"):
             obj.aset("x->['key']", 42)
 
-    @pytest.mark.unit
     def test_set_attr_on_non_treeclass_raises(self):
         """Setting attribute through a non-TreeClass intermediate should raise in backward pass."""
 
@@ -381,7 +339,6 @@ class TestAset:
         with pytest.raises(Exception, match="Can only set attribute on"):
             obj.aset("inner->val", 99)
 
-    @pytest.mark.unit
     def test_set_index_on_immutable_sequence_raises(self):
         """Setting by index on tuple (no __setitem__) in backward pass should raise."""
 
@@ -401,7 +358,6 @@ class TestAset:
 class TestAutoinit:
     """Tests for the autoinit decorator."""
 
-    @pytest.mark.unit
     def test_preserves_custom_init(self):
         class CustomInit(TreeClass):
             def __init__(self, val):

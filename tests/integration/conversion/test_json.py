@@ -102,7 +102,6 @@ def setup_simulation_inputs():
     }
 
 
-@pytest.mark.integration
 def test_detector_json(setup_simulation_inputs):
     """test JSON serialization and deserialization of the detector."""
     det = setup_simulation_inputs["detector"]
@@ -113,7 +112,6 @@ def test_detector_json(setup_simulation_inputs):
     assert rec.name == "Detector"
 
 
-@pytest.mark.integration
 def test_config_json(setup_simulation_inputs):
     """test JSON serialization and deserialization of the simulation config."""
     conf = setup_simulation_inputs["config"]
@@ -125,7 +123,6 @@ def test_config_json(setup_simulation_inputs):
     assert rec.resolution == 100e-9
 
 
-@pytest.mark.integration
 def test_volume_json(setup_simulation_inputs):
     """test JSON serialization and deserialization of the volume."""
     vol = setup_simulation_inputs["volume"]
@@ -141,7 +138,6 @@ def test_volume_json(setup_simulation_inputs):
     assert rec.material.permeability == expected_mu
 
 
-@pytest.mark.integration
 def test_source_json(setup_simulation_inputs):
     """test JSON serialization and deserialization of the source."""
     sor = setup_simulation_inputs["source"]
@@ -154,7 +150,6 @@ def test_source_json(setup_simulation_inputs):
     assert rec.wave_character.wavelength == 1.550e-6
 
 
-@pytest.mark.integration
 def test_object_json(setup_simulation_inputs):
     """test JSON serialization and deserialization of the object."""
     obj = setup_simulation_inputs["object"]
@@ -168,7 +163,6 @@ def test_object_json(setup_simulation_inputs):
     assert rec.color == PINK
 
 
-@pytest.mark.integration
 def test_constraints_json(setup_simulation_inputs):
     """test JSON serialization and deserialization of the constraints."""
     cond = setup_simulation_inputs["constraints"]
@@ -183,7 +177,6 @@ def test_constraints_json(setup_simulation_inputs):
     assert ("SizeConstraint", "Detector", cube_other) in keys
 
 
-@pytest.mark.integration
 def test_object_container_json():
     """test JSON serialization and deserialization of the object container."""
     obj_list = [
@@ -199,7 +192,6 @@ def test_object_container_json():
     assert rec.object_list[1].direction == "-"
 
 
-@pytest.mark.integration
 def test_run_simulation_with_imported_json(setup_simulation_inputs):
     """Ensures that a simulation can be executed from exported JSON settings and successfully executed."""
     key = setup_simulation_inputs["key"]

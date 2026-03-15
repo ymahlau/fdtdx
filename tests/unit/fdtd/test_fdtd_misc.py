@@ -70,7 +70,6 @@ def mock_pml():
     return [MockPML("pml1")]
 
 
-@pytest.mark.unit
 def test_collect_boundary_interfaces(mock_arraycontainer, mock_pml):
     arrays = mock_arraycontainer(E=jnp.array([[1, 2], [3, 4]]), H=jnp.array([[5, 6], [7, 8]]))
 
@@ -86,7 +85,6 @@ def test_collect_boundary_interfaces(mock_arraycontainer, mock_pml):
     assert jnp.array_equal(result["pml1_H"], expected_H)
 
 
-@pytest.mark.unit
 def test_collect_boundary_interfaces_single_field(mock_arraycontainer, mock_pml):
     """custom fields_to_collect=('E',) only collects E keys."""
     arrays = mock_arraycontainer(E=jnp.array([[1, 2], [3, 4]]), H=jnp.array([[5, 6], [7, 8]]))
@@ -98,7 +96,6 @@ def test_collect_boundary_interfaces_single_field(mock_arraycontainer, mock_pml)
     assert jnp.array_equal(result["pml1_E"], arrays.E[:, 0:1])
 
 
-@pytest.mark.unit
 def test_collect_boundary_interfaces_multiple_pmls(mock_arraycontainer):
     """Multiple PML objects each produce their own keys."""
     pmls = [MockPML("pml1", start=0, end=1), MockPML("pml2", start=1, end=2)]
@@ -114,7 +111,6 @@ def test_collect_boundary_interfaces_multiple_pmls(mock_arraycontainer):
     assert jnp.array_equal(result["pml2_E"], arrays.E[:, 1:2])
 
 
-@pytest.mark.unit
 def test_add_boundary_interfaces(mock_arraycontainer, mock_pml):
     arrays = mock_arraycontainer(E=jnp.array([[1, 2], [3, 4]]), H=jnp.array([[5, 6], [7, 8]]))
 
@@ -131,7 +127,6 @@ def test_add_boundary_interfaces(mock_arraycontainer, mock_pml):
     assert jnp.array_equal(updated.H[:, 1:], jnp.array([[6], [8]]))
 
 
-@pytest.mark.unit
 def test_add_boundary_interfaces_single_field(mock_arraycontainer, mock_pml):
     """custom fields_to_add=('H',) only updates H, leaves E untouched."""
     arrays = mock_arraycontainer(E=jnp.array([[1, 2], [3, 4]]), H=jnp.array([[5, 6], [7, 8]]))
@@ -144,7 +139,6 @@ def test_add_boundary_interfaces_single_field(mock_arraycontainer, mock_pml):
     assert jnp.array_equal(updated.E, jnp.array([[1, 2], [3, 4]]))
 
 
-@pytest.mark.unit
 def test_add_boundary_interfaces_multiple_pmls(mock_arraycontainer):
     """Multiple PML objects each restore their own boundary slice."""
     pmls = [MockPML("pml1", start=0, end=1), MockPML("pml2", start=1, end=2)]
@@ -166,7 +160,6 @@ def test_add_boundary_interfaces_multiple_pmls(mock_arraycontainer):
     assert jnp.array_equal(updated.H[:, 1:2], values["pml2_H"])
 
 
-@pytest.mark.unit
 def test_round_trip_collect_add(mock_arraycontainer, mock_pml):
     """Ensure collect → add restores the original arrays."""
     original = mock_arraycontainer(E=jnp.array([[1, 2], [3, 4]]), H=jnp.array([[5, 6], [7, 8]]))
@@ -187,7 +180,6 @@ def test_round_trip_collect_add(mock_arraycontainer, mock_pml):
     assert jnp.array_equal(restored.H, original.H)
 
 
-@pytest.mark.unit
 def test_compute_anisotropic_update_matrices_without_conductivity():
     """Test compute_anisotropic_update_matrices with zero conductivity."""
     spatial_shape = (5, 5, 5)
@@ -207,7 +199,6 @@ def test_compute_anisotropic_update_matrices_without_conductivity():
     assert jnp.allclose(B, expected_B, atol=1e-6)
 
 
-@pytest.mark.unit
 def test_compute_anisotropic_update_matrices_with_conductivity():
     """Test compute_anisotropic_update_matrices with non-zero conductivity."""
     spatial_shape = (5, 5, 5)
@@ -228,7 +219,6 @@ def test_compute_anisotropic_update_matrices_with_conductivity():
     assert jnp.all(jnp.isfinite(B))
 
 
-@pytest.mark.unit
 def test_compute_anisotropic_update_matrices_reverse_without_conductivity():
     """Test compute_anisotropic_update_matrices_reverse with zero conductivity."""
     spatial_shape = (5, 5, 5)
@@ -246,7 +236,6 @@ def test_compute_anisotropic_update_matrices_reverse_without_conductivity():
     assert jnp.allclose(B_rev, expected_B_rev, atol=1e-6)
 
 
-@pytest.mark.unit
 def test_compute_anisotropic_update_matrices_reverse_with_conductivity():
     """Test compute_anisotropic_update_matrices_reverse with non-zero conductivity."""
     spatial_shape = (5, 5, 5)
@@ -266,7 +255,6 @@ def test_compute_anisotropic_update_matrices_reverse_with_conductivity():
     assert jnp.all(jnp.isfinite(B_rev))
 
 
-@pytest.mark.unit
 def test_compute_anisotropic_matrices_forward_reverse_agree_no_sigma():
     """Without conductivity, forward and reverse matrices are equal (both identity A, same B)."""
     spatial_shape = (3, 3, 3)
@@ -279,7 +267,6 @@ def test_compute_anisotropic_matrices_forward_reverse_agree_no_sigma():
     assert jnp.allclose(B_fwd, B_rev, atol=1e-6)
 
 
-@pytest.mark.unit
 def test_compute_anisotropic_matrices_forward_reverse_differ_with_sigma():
     """With conductivity, forward A and reverse A differ (M1 != M2 implies M1^-1 M2 != M2^-1 M1)."""
     spatial_shape = (3, 3, 3)
@@ -292,7 +279,6 @@ def test_compute_anisotropic_matrices_forward_reverse_differ_with_sigma():
     assert not jnp.allclose(A_fwd, A_rev)
 
 
-@pytest.mark.unit
 def test_avg_anisotropic_E_component():
     """Test avg_anisotropic_E_component for all off-diagonal (component != location) cases."""
     # Create a padded E field (3, Nx=3, Ny=3, Nz=3)
@@ -326,7 +312,6 @@ def test_avg_anisotropic_E_component():
     assert jnp.allclose(Ez_avg_y, expected_Ez_avg_y)
 
 
-@pytest.mark.unit
 def test_avg_anisotropic_E_component_diagonal():
     """Test avg_anisotropic_E_component when component == location (diagonal cases).
 
@@ -360,7 +345,6 @@ def test_avg_anisotropic_E_component_diagonal():
     assert jnp.allclose(Ez_avg_z, expected_Ez_avg_z)
 
 
-@pytest.mark.unit
 def test_avg_anisotropic_H_component():
     """Test avg_anisotropic_H_component for all off-diagonal (component != location) cases."""
     # Create a padded H field (3, Nx=3, Ny=3, Nz=3)
@@ -394,7 +378,6 @@ def test_avg_anisotropic_H_component():
     assert jnp.allclose(Hz_avg_y, expected_Hz_avg_y)
 
 
-@pytest.mark.unit
 def test_avg_anisotropic_H_component_diagonal():
     """Test avg_anisotropic_H_component when component == location (diagonal cases).
 
