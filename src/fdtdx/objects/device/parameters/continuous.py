@@ -72,9 +72,9 @@ class StandardToInversePermittivityRange(ParameterTransformation):
             max_inv_perm = [-math.inf, -math.inf, -math.inf]
             min_inv_perm = [math.inf, math.inf, math.inf]
             for v in self._materials.values():
-                # v.permittivity is tuple (εx, εy, εz)
+                # v.permittivity is 9-tuple (εxx,...,εyy,...,εzz); diagonal at indices 0, 4, 8
                 for axis in range(3):
-                    p = 1 / v.permittivity[axis]
+                    p = 1 / v.permittivity[axis * 4]
                     if p > max_inv_perm[axis]:
                         max_inv_perm[axis] = p
                     if p < min_inv_perm[axis]:
