@@ -8,7 +8,6 @@ from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.container import ArrayContainer
 from fdtdx.fdtd.stop_conditions import DetectorConvergenceCondition, EnergyThresholdCondition, TimeStepCondition
 
-
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------

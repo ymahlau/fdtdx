@@ -36,7 +36,6 @@ from fdtdx.objects.static_material.static import (
     UniformMaterialObject,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -111,13 +110,22 @@ def test_resolve_constraints_conflicting_real_coordinates(simple_config, simple_
 def test_resolve_constraints_inconsistent_size_and_position(simple_config, simple_volume, simple_material):
     obj = UniformMaterialObject(name="obj1", material=simple_material)
     size_constraint = SizeConstraint(
-        object="obj1", other_object="volume", axes=[0], other_axes=[0],
-        proportions=[0.5], grid_offsets=[0], offsets=[None],
+        object="obj1",
+        other_object="volume",
+        axes=[0],
+        other_axes=[0],
+        proportions=[0.5],
+        grid_offsets=[0],
+        offsets=[None],
     )
     pos_constraint = PositionConstraint(
-        object="obj1", other_object="volume", axes=[0],
-        object_positions=[0.0], other_object_positions=[-1.0],
-        grid_margins=[5], margins=[None],
+        object="obj1",
+        other_object="volume",
+        axes=[0],
+        object_positions=[0.0],
+        other_object_positions=[-1.0],
+        grid_margins=[5],
+        margins=[None],
     )
     grid_constraint = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[0])
     resolved_slices, errors = resolve_object_constraints(
@@ -129,13 +137,22 @@ def test_resolve_constraints_inconsistent_size_and_position(simple_config, simpl
 def test_resolve_constraints_with_real_margins(simple_config, simple_volume, simple_material):
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(10, 10, 10), material=simple_material)
     size_constraint = SizeConstraint(
-        object="obj1", other_object="volume", axes=[0, 1, 2], other_axes=[0, 1, 2],
-        proportions=[0.1, 0.1, 0.1], grid_offsets=[0, 0, 0], offsets=[None, None, None],
+        object="obj1",
+        other_object="volume",
+        axes=[0, 1, 2],
+        other_axes=[0, 1, 2],
+        proportions=[0.1, 0.1, 0.1],
+        grid_offsets=[0, 0, 0],
+        offsets=[None, None, None],
     )
     pos_constraint = PositionConstraint(
-        object="obj1", other_object="volume", axes=[0],
-        object_positions=[0.0], other_object_positions=[-1.0],
-        grid_margins=[None], margins=[5.0],
+        object="obj1",
+        other_object="volume",
+        axes=[0],
+        object_positions=[0.0],
+        other_object_positions=[-1.0],
+        grid_margins=[None],
+        margins=[5.0],
     )
     resolved_slices, errors = resolve_object_constraints(
         [simple_volume, obj], [size_constraint, pos_constraint], simple_config
@@ -148,9 +165,13 @@ def test_resolve_constraints_with_both_margins(simple_volume, simple_material):
     config = SimulationConfig(resolution=0.5, time=100e-15)
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(10, 10, 10), material=simple_material)
     constraint = PositionConstraint(
-        object="obj1", other_object="volume", axes=[0],
-        object_positions=[0.0], other_object_positions=[-1.0],
-        grid_margins=[2], margins=[1.0],
+        object="obj1",
+        other_object="volume",
+        axes=[0],
+        object_positions=[0.0],
+        other_object_positions=[-1.0],
+        grid_margins=[2],
+        margins=[1.0],
     )
     resolved_slices, errors = resolve_object_constraints([simple_volume, obj], [constraint], config)
     assert isinstance(resolved_slices, dict)
@@ -161,8 +182,13 @@ def test_resolve_constraints_with_real_offset_in_size(simple_volume, simple_mate
     config = SimulationConfig(resolution=0.5, time=100e-15)
     obj = UniformMaterialObject(name="obj1", material=simple_material)
     constraint = SizeConstraint(
-        object="obj1", other_object="volume", axes=[0], other_axes=[0],
-        proportions=[0.5], grid_offsets=[None], offsets=[2.0],
+        object="obj1",
+        other_object="volume",
+        axes=[0],
+        other_axes=[0],
+        proportions=[0.5],
+        grid_offsets=[None],
+        offsets=[2.0],
     )
     resolved_slices, errors = resolve_object_constraints([simple_volume, obj], [constraint], config)
     assert isinstance(resolved_slices, dict)
@@ -172,8 +198,13 @@ def test_resolve_constraints_with_real_offset_in_size(simple_volume, simple_mate
 def test_resolve_constraints_with_grid_offset_in_size(simple_config, simple_volume, simple_material):
     obj = UniformMaterialObject(name="obj1", material=simple_material)
     constraint = SizeConstraint(
-        object="obj1", other_object="volume", axes=[0], other_axes=[0],
-        proportions=[0.5], grid_offsets=[10], offsets=[None],
+        object="obj1",
+        other_object="volume",
+        axes=[0],
+        other_axes=[0],
+        proportions=[0.5],
+        grid_offsets=[10],
+        offsets=[None],
     )
     resolved_slices, errors = resolve_object_constraints([simple_volume, obj], [constraint], simple_config)
     assert isinstance(resolved_slices, dict)
@@ -186,8 +217,13 @@ def test_resolve_constraints_size_extension_with_real_offset(simple_volume, simp
     obj2 = UniformMaterialObject(name="obj2", material=simple_material)
     pos_constraint = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[20])
     ext_constraint = SizeExtensionConstraint(
-        object="obj2", other_object="obj1", axis=0, direction="+",
-        other_position=1.0, grid_offset=None, offset=2.0,
+        object="obj2",
+        other_object="obj1",
+        axis=0,
+        direction="+",
+        other_position=1.0,
+        grid_offset=None,
+        offset=2.0,
     )
     resolved_slices, errors = resolve_object_constraints(
         [simple_volume, obj1, obj2], [pos_constraint, ext_constraint], config
@@ -201,8 +237,13 @@ def test_resolve_constraints_size_extension_with_grid_offset(simple_config, simp
     obj2 = UniformMaterialObject(name="obj2", material=simple_material)
     pos_constraint = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[20])
     ext_constraint = SizeExtensionConstraint(
-        object="obj2", other_object="obj1", axis=0, direction="-",
-        other_position=-1.0, grid_offset=5, offset=None,
+        object="obj2",
+        other_object="obj1",
+        axis=0,
+        direction="-",
+        other_position=-1.0,
+        grid_offset=5,
+        offset=None,
     )
     resolved_slices, errors = resolve_object_constraints(
         [simple_volume, obj1, obj2], [pos_constraint, ext_constraint], simple_config
@@ -217,8 +258,13 @@ def test_resolve_constraints_size_extension_to_volume_boundary(simple_config, si
         GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[20]),
         GridCoordinateConstraint(object="obj1", axes=[1], sides=["-"], coordinates=[20]),
         SizeExtensionConstraint(
-            object="obj1", other_object=None, axis=2, direction="-",
-            other_position=0.0, grid_offset=None, offset=None,
+            object="obj1",
+            other_object=None,
+            axis=2,
+            direction="-",
+            other_position=0.0,
+            grid_offset=None,
+            offset=None,
         ),
     ]
     resolved_slices, errors = resolve_object_constraints([simple_volume, obj], constraints, simple_config)
@@ -298,8 +344,13 @@ def test_check_objects_names_unknown_name():
 
 def test_check_objects_names_other_object_unknown():
     c = SizeConstraint(
-        object="obj1", other_object="missing", axes=[0], other_axes=[0],
-        proportions=[1.0], grid_offsets=[0], offsets=[None],
+        object="obj1",
+        other_object="missing",
+        axes=[0],
+        other_axes=[0],
+        proportions=[1.0],
+        grid_offsets=[0],
+        offsets=[None],
     )
     with pytest.raises(ValueError, match="Unknown object name"):
         _check_objects_names_from_constraints([c], ["obj1", "volume"])
@@ -437,8 +488,13 @@ def test_apply_size_extension_constraint_other_not_placed_yet(simple_config, sim
         "obj2": [[None, None], [None, None], [None, None]],
     }
     c = SizeExtensionConstraint(
-        object="obj2", other_object="obj1", axis=0, direction="+",
-        other_position=1.0, grid_offset=None, offset=None,
+        object="obj2",
+        other_object="obj1",
+        axis=0,
+        direction="+",
+        other_position=1.0,
+        grid_offset=None,
+        offset=None,
     )
     resolved, _ = _apply_size_extension_constraint(c, obj_map, simple_config, slice_dict, "volume")
     assert resolved is False
@@ -724,9 +780,13 @@ def test_apply_position_constraint_other_not_placed(simple_config, simple_volume
     }
     shape_dict = {"volume": [100, 100, 100], "obj1": [10, 10, 10]}
     c = PositionConstraint(
-        object="obj1", other_object="volume", axes=[0],
-        object_positions=[0.0], other_object_positions=[-1.0],
-        grid_margins=[0], margins=[None],
+        object="obj1",
+        other_object="volume",
+        axes=[0],
+        object_positions=[0.0],
+        other_object_positions=[-1.0],
+        grid_margins=[0],
+        margins=[None],
     )
     resolved, _ = _apply_position_constraint(c, obj_map, simple_config, shape_dict, slice_dict)
     assert resolved is False
@@ -742,9 +802,13 @@ def test_apply_position_constraint_object_size_unknown(simple_config, simple_vol
     }
     shape_dict = {"volume": [100, 100, 100], "obj1": [None, None, None]}
     c = PositionConstraint(
-        object="obj1", other_object="volume", axes=[0],
-        object_positions=[0.0], other_object_positions=[-1.0],
-        grid_margins=[0], margins=[None],
+        object="obj1",
+        other_object="volume",
+        axes=[0],
+        object_positions=[0.0],
+        other_object_positions=[-1.0],
+        grid_margins=[0],
+        margins=[None],
     )
     resolved, _ = _apply_position_constraint(c, obj_map, simple_config, shape_dict, slice_dict)
     assert resolved is False
@@ -761,8 +825,13 @@ def test_apply_size_constraint_other_shape_unknown(simple_config, simple_volume,
     obj_map = {"volume": simple_volume, "obj1": obj}
     shape_dict = {"volume": [None, None, None], "obj1": [None, None, None]}
     c = SizeConstraint(
-        object="obj1", other_object="volume", axes=[0], other_axes=[0],
-        proportions=[0.5], grid_offsets=[0], offsets=[None],
+        object="obj1",
+        other_object="volume",
+        axes=[0],
+        other_axes=[0],
+        proportions=[0.5],
+        grid_offsets=[0],
+        offsets=[None],
     )
     resolved, _ = _apply_size_constraint(c, obj_map, simple_config, shape_dict)
     assert resolved is False
@@ -775,8 +844,13 @@ def test_apply_size_constraint_conflicting_shape_raises(simple_config, simple_vo
     # Set obj1 shape to 60 in axis 0, but constraint would compute 50
     shape_dict = {"volume": [100, 100, 100], "obj1": [60, None, None]}
     c = SizeConstraint(
-        object="obj1", other_object="volume", axes=[0], other_axes=[0],
-        proportions=[0.5], grid_offsets=[0], offsets=[None],
+        object="obj1",
+        other_object="volume",
+        axes=[0],
+        other_axes=[0],
+        proportions=[0.5],
+        grid_offsets=[0],
+        offsets=[None],
     )
     with pytest.raises(Exception):
         _apply_size_constraint(c, obj_map, simple_config, shape_dict)
@@ -884,9 +958,13 @@ def test_apply_position_constraint_conflicting_b0_raises(simple_config, simple_v
     shape_dict = {"volume": [100, 100, 100], "obj1": [10, 10, 10]}
     # Constraint: obj1 left edge at volume left edge (b0=0 for obj1)
     c = PositionConstraint(
-        object="obj1", other_object="volume", axes=[0],
-        object_positions=[-1.0], other_object_positions=[-1.0],
-        grid_margins=[0], margins=[None],
+        object="obj1",
+        other_object="volume",
+        axes=[0],
+        object_positions=[-1.0],
+        other_object_positions=[-1.0],
+        grid_margins=[0],
+        margins=[None],
     )
     with pytest.raises(Exception, match="Inconsistent"):
         _apply_position_constraint(c, obj_map, simple_config, shape_dict, slice_dict)
@@ -904,9 +982,13 @@ def test_apply_position_constraint_conflicting_b1_raises(simple_config, simple_v
     shape_dict = {"volume": [100, 100, 100], "obj1": [10, 10, 10]}
     # Constraint: obj1 left edge at volume left edge → b0=0, b1=10
     c = PositionConstraint(
-        object="obj1", other_object="volume", axes=[0],
-        object_positions=[-1.0], other_object_positions=[-1.0],
-        grid_margins=[0], margins=[None],
+        object="obj1",
+        other_object="volume",
+        axes=[0],
+        object_positions=[-1.0],
+        other_object_positions=[-1.0],
+        grid_margins=[0],
+        margins=[None],
     )
     with pytest.raises(Exception, match="Inconsistent"):
         _apply_position_constraint(c, obj_map, simple_config, shape_dict, slice_dict)
@@ -927,8 +1009,13 @@ def test_apply_size_extension_constraint_conflicting_value_raises(simple_config,
         "obj1": [[20, None], [None, None], [None, None]],
     }
     c = SizeExtensionConstraint(
-        object="obj1", other_object=None, axis=0, direction="-",
-        other_position=0.0, grid_offset=None, offset=None,
+        object="obj1",
+        other_object=None,
+        axis=0,
+        direction="-",
+        other_position=0.0,
+        grid_offset=None,
+        offset=None,
     )
     with pytest.raises(Exception, match="Inconsistent grid shape"):
         _apply_size_extension_constraint(c, obj_map, simple_config, slice_dict, "volume")
@@ -944,8 +1031,13 @@ def test_apply_size_extension_constraint_volume_upper_bound_none_raises(simple_c
         "obj1": [[None, None], [None, None], [None, None]],
     }
     c = SizeExtensionConstraint(
-        object="obj1", other_object=None, axis=0, direction="+",
-        other_position=0.0, grid_offset=None, offset=None,
+        object="obj1",
+        other_object=None,
+        axis=0,
+        direction="+",
+        other_position=0.0,
+        grid_offset=None,
+        offset=None,
     )
     with pytest.raises(Exception, match="This should never happen"):
         _apply_size_extension_constraint(c, obj_map, simple_config, slice_dict, "volume")

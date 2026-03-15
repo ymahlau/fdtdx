@@ -11,7 +11,6 @@ from fdtdx.config import SimulationConfig
 from fdtdx.materials import Material
 from fdtdx.objects.static_material.sphere import Sphere
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

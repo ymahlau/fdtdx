@@ -4,8 +4,11 @@ Tests UniformMaterialObject, StaticMultiMaterialObject (via concrete subclass),
 and SimulationVolume.
 """
 
+import jax
+import jax.numpy as jnp
 import pytest
 
+from fdtdx.colors import XKCD_LIGHT_GREY
 from fdtdx.core.jax.pytrees import autoinit
 from fdtdx.materials import Material
 from fdtdx.objects.static_material.static import (
@@ -13,8 +16,6 @@ from fdtdx.objects.static_material.static import (
     StaticMultiMaterialObject,
     UniformMaterialObject,
 )
-from fdtdx.colors import XKCD_LIGHT_GREY
-
 
 # ---------------------------------------------------------------------------
 # UniformMaterialObject
@@ -34,6 +35,7 @@ class TestUniformMaterialObject:
 
     def test_color_overridable(self):
         from fdtdx.colors import Color
+
         mat = Material(permittivity=1.0)
         custom_color = Color(r=0.5, g=0.5, b=0.5)
         obj = UniformMaterialObject(material=mat, color=custom_color)
@@ -41,6 +43,7 @@ class TestUniformMaterialObject:
 
     def test_is_simulation_object(self):
         from fdtdx.objects.object import SimulationObject
+
         mat = Material(permittivity=1.0)
         obj = UniformMaterialObject(material=mat)
         assert isinstance(obj, SimulationObject)
@@ -55,10 +58,6 @@ class TestUniformMaterialObject:
 # ---------------------------------------------------------------------------
 # StaticMultiMaterialObject – via minimal concrete subclass
 # ---------------------------------------------------------------------------
-
-
-import jax.numpy as jnp
-import jax
 
 
 @autoinit
@@ -76,6 +75,7 @@ class TestStaticMultiMaterialObject:
     @pytest.fixture
     def config(self):
         from fdtdx.config import SimulationConfig
+
         return SimulationConfig(
             time=100e-15,
             resolution=50e-9,
@@ -116,7 +116,6 @@ class TestStaticMultiMaterialObject:
 
     def test_abstract_methods_required(self):
         """StaticMultiMaterialObject cannot be instantiated without implementations."""
-        import abc
 
         @autoinit
         class _IncompleteObject(StaticMultiMaterialObject):

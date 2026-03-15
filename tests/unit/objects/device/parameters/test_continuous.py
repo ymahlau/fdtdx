@@ -138,9 +138,7 @@ class TestStandardToInversePermittivityRange:
         # Nested 3x3 tuple gives non-zero off-diagonal elements → fully anisotropic
         materials = {
             "air": Material(permittivity=1.0),
-            "aniso_full": Material(
-                permittivity=((2.0, 0.5, 0.0), (0.5, 3.0, 0.0), (0.0, 0.0, 4.0))
-            ),
+            "aniso_full": Material(permittivity=((2.0, 0.5, 0.0), (0.5, 3.0, 0.0), (0.0, 0.0, 4.0))),
         }
 
         transform = StandardToInversePermittivityRange()
@@ -157,9 +155,7 @@ class TestStandardToInversePermittivityRange:
         """Test boundary values (0 and 1) for fully anisotropic materials."""
         materials = {
             "air": Material(permittivity=1.0),
-            "aniso_full": Material(
-                permittivity=((2.0, 0.5, 0.0), (0.5, 3.0, 0.0), (0.0, 0.0, 4.0))
-            ),
+            "aniso_full": Material(permittivity=((2.0, 0.5, 0.0), (0.5, 3.0, 0.0), (0.0, 0.0, 4.0))),
         }
 
         transform = StandardToInversePermittivityRange()
@@ -178,9 +174,7 @@ class TestStandardToInversePermittivityRange:
         """Test fully anisotropic transformation with multiple parameters."""
         materials = {
             "air": Material(permittivity=1.0),
-            "aniso_full": Material(
-                permittivity=((2.0, 0.1, 0.0), (0.1, 3.0, 0.0), (0.0, 0.0, 4.0))
-            ),
+            "aniso_full": Material(permittivity=((2.0, 0.1, 0.0), (0.1, 3.0, 0.0), (0.0, 0.0, 4.0))),
         }
 
         transform = StandardToInversePermittivityRange()

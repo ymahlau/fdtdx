@@ -1,17 +1,16 @@
 """Tests for objects/device/parameters/projection.py - projection transformations."""
 
-import jax
 import jax.numpy as jnp
 import pytest
 
+from fdtdx.config import SimulationConfig
+from fdtdx.materials import Material
 from fdtdx.objects.device.parameters.projection import (
     SubpixelSmoothedProjection,
     TanhProjection,
     smoothed_projection,
     tanh_projection,
 )
-from fdtdx.materials import Material
-from fdtdx.config import SimulationConfig
 
 
 class TestTanhProjection:

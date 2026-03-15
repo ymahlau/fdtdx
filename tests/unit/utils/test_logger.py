@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, patch
 
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-import numpy as np
 import pytest
 
 from fdtdx.utils.logger import (

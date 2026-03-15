@@ -1,6 +1,5 @@
 import jax
 import numpy as np
-import pytest
 
 import fdtdx
 

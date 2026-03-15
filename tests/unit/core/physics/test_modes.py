@@ -161,7 +161,6 @@ class TestComputeMode:
             compute_mode(frequency, inv_permittivities, inv_permeabilities, resolution, "+")
 
 
-
 class TestAnisotropicModeComputation:
     """Test anisotropic material handling in compute_mode."""
 

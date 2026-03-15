@@ -147,9 +147,7 @@ class TestReversibleFdtdGradients:
             electric_conductivity=None,
             magnetic_conductivity=None,
         )
-        loss, grads = jax.value_and_grad(self._loss_fn)(
-            arrays.inv_permittivities, arrays, sim_objects, sim_config, key
-        )
+        loss, grads = jax.value_and_grad(self._loss_fn)(arrays.inv_permittivities, arrays, sim_objects, sim_config, key)
         assert jnp.isfinite(loss)
         assert jnp.all(jnp.isfinite(grads))
         assert loss > 0, "Loss should be positive with nonzero initial fields"

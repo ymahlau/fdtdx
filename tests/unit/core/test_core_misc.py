@@ -31,8 +31,8 @@ from fdtdx.core.misc import (
 )
 from fdtdx.materials import Material
 
-
 # ── expand_matrix ──────────────────────────────────────────────────────
+
 
 class TestExpandMatrix:
     def test_3d_input(self):
@@ -57,6 +57,7 @@ class TestExpandMatrix:
 
 
 # ── ensure_slice_tuple ─────────────────────────────────────────────────
+
 
 class TestEnsureSliceTuple:
     def test_int_to_slice(self):
@@ -91,6 +92,7 @@ class TestEnsureSliceTuple:
 
 # ── is_float_divisible ─────────────────────────────────────────────────
 
+
 class TestIsFloatDivisible:
     def test_exact_division(self):
         assert is_float_divisible(10.0, 5.0)
@@ -112,6 +114,7 @@ class TestIsFloatDivisible:
 
 # ── is_index_in_slice ──────────────────────────────────────────────────
 
+
 class TestIsIndexInSlice:
     def test_in_range(self):
         assert is_index_in_slice(2, slice(1, 5), 10)
@@ -130,6 +133,7 @@ class TestIsIndexInSlice:
 
 
 # ── cast_floating_to_numpy ─────────────────────────────────────────────
+
 
 class TestCastFloatingToNumpy:
     def test_float_casting(self):
@@ -158,6 +162,7 @@ class TestCastFloatingToNumpy:
 
 # ── batched_diag_construct ─────────────────────────────────────────────
 
+
 class TestBatchedDiagConstruct:
     def test_2d_input(self):
         arr = jnp.array([[1, 2, 3], [4, 5, 6]])
@@ -180,6 +185,7 @@ class TestBatchedDiagConstruct:
 
 # ── invert_dict ────────────────────────────────────────────────────────
 
+
 class TestInvertDict:
     def test_basic(self):
         assert invert_dict({"a": 1, "b": 2}) == {1: "a", 2: "b"}
@@ -189,6 +195,7 @@ class TestInvertDict:
 
 
 # ── prime_factorization ────────────────────────────────────────────────
+
 
 class TestPrimeFactorization:
     def test_prime_number(self):
@@ -209,6 +216,7 @@ class TestPrimeFactorization:
 
 # ── find_squarest_divisors ─────────────────────────────────────────────
 
+
 class TestFindSquarestDivisors:
     def test_perfect_square(self):
         a, b = find_squarest_divisors(16)
@@ -227,6 +235,7 @@ class TestFindSquarestDivisors:
 
 # ── index_1d_array ─────────────────────────────────────────────────────
 
+
 class TestIndex1dArray:
     def test_basic(self):
         arr = jnp.array([10, 20, 30, 40])
@@ -243,6 +252,7 @@ class TestIndex1dArray:
 
 
 # ── index_by_slice ─────────────────────────────────────────────────────
+
 
 class TestIndexBySlice:
     def test_basic(self):
@@ -263,6 +273,7 @@ class TestIndexBySlice:
 
 
 # ── index_by_slice_take_1d ─────────────────────────────────────────────
+
 
 class TestIndexBySliceTake1d:
     def test_subset(self):
@@ -288,6 +299,7 @@ class TestIndexBySliceTake1d:
 
 # ── index_by_slice_take ────────────────────────────────────────────────
 
+
 class TestIndexBySliceTake:
     def test_multi_axis(self):
         arr = jnp.arange(24).reshape(2, 3, 4)
@@ -307,6 +319,7 @@ class TestIndexBySliceTake:
 
 # ── mask_1d_from_slice ─────────────────────────────────────────────────
 
+
 class TestMask1dFromSlice:
     def test_basic(self):
         mask = mask_1d_from_slice(slice(1, 4), 6)
@@ -324,6 +337,7 @@ class TestMask1dFromSlice:
 
 
 # ── assimilate_shape ───────────────────────────────────────────────────
+
 
 class TestAssimilateShape:
     def test_basic_reshape(self):
@@ -370,6 +384,7 @@ class TestAssimilateShape:
 
 # ── linear_interpolated_indexing ───────────────────────────────────────
 
+
 class TestLinearInterpolatedIndexing:
     def test_exact_integer_point(self):
         arr = jnp.array([[1.0, 2.0], [3.0, 4.0]])
@@ -394,6 +409,7 @@ class TestLinearInterpolatedIndexing:
 
 # ── get_air_name ───────────────────────────────────────────────────────
 
+
 class TestGetAirName:
     def test_fallback_to_first_material(self, capsys):
         # With 9-tuple permittivity, v.permittivity == 1 is always False
@@ -414,6 +430,7 @@ class TestGetAirName:
 
 # ── get_background_material_name ───────────────────────────────────────
 
+
 class TestGetBackgroundMaterialName:
     def test_picks_lowest_permittivity(self):
         materials = {
@@ -429,6 +446,7 @@ class TestGetBackgroundMaterialName:
 
 
 # ── PaddingConfig & advanced_padding ───────────────────────────────────
+
 
 class TestAdvancedPadding:
     def test_constant_padding(self):
@@ -482,6 +500,7 @@ class TestAdvancedPadding:
 
 # ── normalize_polarization_for_source ──────────────────────────────────
 
+
 class TestNormalizePolarizationForSource:
     def test_e_pol_given(self):
         e_pol, h_pol = normalize_polarization_for_source(
@@ -528,6 +547,7 @@ class TestNormalizePolarizationForSource:
 
 # ── expand_to_3x3 ─────────────────────────────────────────────────────
 
+
 class TestExpandTo3x3:
     def test_none(self):
         assert expand_to_3x3(None) is None
@@ -563,6 +583,7 @@ class TestExpandTo3x3:
 
 
 # ── pad_fields ─────────────────────────────────────────────────────────
+
 
 class TestPadFields:
     def test_shape_all_periodic(self):

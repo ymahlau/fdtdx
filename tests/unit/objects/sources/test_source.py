@@ -8,13 +8,12 @@ import jax
 import jax.numpy as jnp
 import pytest
 
+from fdtdx.config import SimulationConfig
+from fdtdx.core.switch import OnOffSwitch
+from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.sources.source import (
-    DirectionalPlaneSourceBase,
     HardConstantAmplitudePlanceSource,
 )
-from fdtdx.core.wavelength import WaveCharacter
-from fdtdx.core.switch import OnOffSwitch
-from fdtdx.config import SimulationConfig
 
 
 @pytest.fixture

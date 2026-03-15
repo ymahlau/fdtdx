@@ -29,26 +29,27 @@ import numpy as np
 import fdtdx
 
 # ── Domain constants ──────────────────────────────────────────────────────────
-_WAVELENGTH = 1e-6       # free-space wavelength (m)
-_RESOLUTION = 50e-9      # grid resolution (m) → 20 cells/λ in vacuum
-_PML_CELLS = 10          # PML thickness in cells
-_DOMAIN_XY = 3 * _RESOLUTION   # transverse extent (3 cells, periodic BCs)
-_DOMAIN_Z = 4e-6         # total z-extent including PML (40 cells)
+_WAVELENGTH = 1e-6  # free-space wavelength (m)
+_RESOLUTION = 50e-9  # grid resolution (m) → 20 cells/λ in vacuum
+_PML_CELLS = 10  # PML thickness in cells
+_DOMAIN_XY = 3 * _RESOLUTION  # transverse extent (3 cells, periodic BCs)
+_DOMAIN_Z = 4e-6  # total z-extent including PML (40 cells)
 
 # Grid indices (left face of each object)
-_SOURCE_Z = _PML_CELLS + 2   # = 12  (2 cells into active region)
-_DET1_Z = _SOURCE_Z + 5      # = 17  (5 cells from source)
-_DET2_VAC_Z = _DET1_Z + 5    # = 22  (5 cells from D1 → 0.25 µm, Δφ = π/2)
-_DET2_DIEL_Z = _DET1_Z + 3   # = 20  (3 cells from D1 → 0.15 µm, Δφ ≈ 1.88 rad)
+_SOURCE_Z = _PML_CELLS + 2  # = 12  (2 cells into active region)
+_DET1_Z = _SOURCE_Z + 5  # = 17  (5 cells from source)
+_DET2_VAC_Z = _DET1_Z + 5  # = 22  (5 cells from D1 → 0.25 µm, Δφ = π/2)
+_DET2_DIEL_Z = _DET1_Z + 3  # = 20  (3 cells from D1 → 0.15 µm, Δφ ≈ 1.88 rad)
 
-_DET_SEP_VAC = 5 * _RESOLUTION    # 0.25 µm
-_DET_SEP_DIEL = 3 * _RESOLUTION   # 0.15 µm
+_DET_SEP_VAC = 5 * _RESOLUTION  # 0.25 µm
+_DET_SEP_DIEL = 3 * _RESOLUTION  # 0.15 µm
 
-_SIM_TIME = 120e-15      # 120 fs ≈ 36 optical periods at λ = 1 µm
-_TOLERANCE = 0.05        # 5 % relative tolerance
+_SIM_TIME = 120e-15  # 120 fs ≈ 36 optical periods at λ = 1 µm
+_TOLERANCE = 0.05  # 5 % relative tolerance
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _build_1d_base():
     """Build the common 1D-like simulation domain.
@@ -89,11 +90,13 @@ def _build_1d_base():
         direction="+",
         fixed_E_polarization_vector=(1, 0, 0),  # x-polarized, propagation in +z
     )
-    constraints.extend([
-        source.same_size(volume, axes=(0, 1)),
-        source.place_at_center(volume, axes=(0, 1)),
-        source.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(_SOURCE_Z,)),
-    ])
+    constraints.extend(
+        [
+            source.same_size(volume, axes=(0, 1)),
+            source.place_at_center(volume, axes=(0, 1)),
+            source.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(_SOURCE_Z,)),
+        ]
+    )
     objects.append(source)
 
     return objects, constraints, config, volume, wave
@@ -109,11 +112,13 @@ def _add_phasor_det(name, z_idx, wave, volume, objects, constraints):
         components=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"),
         plot=False,
     )
-    constraints.extend([
-        det.same_size(volume, axes=(0, 1)),
-        det.place_at_center(volume, axes=(0, 1)),
-        det.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(z_idx,)),
-    ])
+    constraints.extend(
+        [
+            det.same_size(volume, axes=(0, 1)),
+            det.place_at_center(volume, axes=(0, 1)),
+            det.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(z_idx,)),
+        ]
+    )
     objects.append(det)
 
 
@@ -163,6 +168,7 @@ def _measure_k(p_near: complex, p_far: complex, separation: float) -> float:
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
+
 def test_phase_velocity_vacuum():
     """Wave vector in vacuum matches k = 2π/λ within 5 %.
 
@@ -184,8 +190,7 @@ def test_phase_velocity_vacuum():
     # Amplitudes should be equal (no attenuation in lossless vacuum)
     rel_amp_diff = abs(abs(p1) - abs(p2)) / abs(p1)
     assert rel_amp_diff < _TOLERANCE, (
-        f"Amplitude mismatch: |d1|={abs(p1):.4e}, |d2|={abs(p2):.4e}, "
-        f"relative diff={rel_amp_diff:.3f} > {_TOLERANCE}"
+        f"Amplitude mismatch: |d1|={abs(p1):.4e}, |d2|={abs(p2):.4e}, relative diff={rel_amp_diff:.3f} > {_TOLERANCE}"
     )
 
     # Wave vector must match analytic value
@@ -193,8 +198,7 @@ def test_phase_velocity_vacuum():
     k_analytic = 2 * np.pi / _WAVELENGTH
     rel_err = abs(k_measured - k_analytic) / k_analytic
     assert rel_err < _TOLERANCE, (
-        f"k_measured={k_measured:.4e} m⁻¹, k_analytic={k_analytic:.4e} m⁻¹, "
-        f"relative error={rel_err:.3f} > {_TOLERANCE}"
+        f"k_measured={k_measured:.4e} m⁻¹, k_analytic={k_analytic:.4e} m⁻¹, relative error={rel_err:.3f} > {_TOLERANCE}"
     )
 
 
@@ -247,7 +251,7 @@ def test_wave_impedance_vacuum():
     fdtdx stores E_stored = E_SI / η₀ and H_stored = H_SI, so
     |E_stored|/|H_stored| = Z_SI / η₀ = 1 for vacuum.
     """
-    Z_analytic = 1.0   # = Z₀/η₀ in fdtdx normalized units
+    Z_analytic = 1.0  # = Z₀/η₀ in fdtdx normalized units
 
     objects, constraints, config, volume, wave = _build_1d_base()
     _add_phasor_det("d1", _DET1_Z, wave, volume, objects, constraints)
@@ -275,8 +279,8 @@ def test_wave_impedance_dielectric():
     standing-wave artifacts.
     """
     epsilon_r = 4.0
-    n = float(np.sqrt(epsilon_r))   # = 2.0
-    Z_analytic = 1.0 / n             # = 0.5 in fdtdx normalized units
+    n = float(np.sqrt(epsilon_r))  # = 2.0
+    Z_analytic = 1.0 / n  # = 0.5 in fdtdx normalized units
 
     objects, constraints, config, volume, wave = _build_1d_base()
 

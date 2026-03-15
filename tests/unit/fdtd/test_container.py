@@ -367,9 +367,7 @@ class TestResetArrayContainer:
         assert jnp.all(result.detector_states["detector1"]["data"] == 0)
 
     def test_detector_states_preserved_when_not_reset(self):
-        result = reset_array_container(
-            arrays=self.array_container, objects=self.objects, reset_detector_states=False
-        )
+        result = reset_array_container(arrays=self.array_container, objects=self.objects, reset_detector_states=False)
         assert jnp.array_equal(
             result.detector_states["detector1"]["data"],
             self.detector_states["detector1"]["data"],
@@ -380,9 +378,7 @@ class TestResetArrayContainer:
         assert result.recording_state == self.recording_state
 
     def test_recording_state_reset(self):
-        result = reset_array_container(
-            arrays=self.array_container, objects=self.objects, reset_recording_state=True
-        )
+        result = reset_array_container(arrays=self.array_container, objects=self.objects, reset_recording_state=True)
         assert jnp.all(result.recording_state.data["recording"] == 0)
         assert jnp.all(result.recording_state.state["state"] == 0)
 

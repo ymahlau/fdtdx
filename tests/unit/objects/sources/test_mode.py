@@ -4,14 +4,15 @@ Tests for ModePlaneSource class.
 These are unit tests that use mocks where possible to avoid full simulation.
 """
 
+from unittest.mock import MagicMock, patch
+
 import jax
 import jax.numpy as jnp
 import pytest
-from unittest.mock import MagicMock, patch
 
-from fdtdx.objects.sources.mode import ModePlaneSource
-from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.config import SimulationConfig
+from fdtdx.core.wavelength import WaveCharacter
+from fdtdx.objects.sources.mode import ModePlaneSource
 
 
 @pytest.fixture
@@ -285,9 +286,7 @@ class TestModePlaneSourcePlot:
 
     @patch("fdtdx.objects.sources.mode.plt")
     @patch("fdtdx.objects.sources.mode.compute_mode")
-    def test_plot_calls_matplotlib(
-        self, mock_compute_mode, mock_plt, mode_source, micro_config, jax_key, tmp_path
-    ):
+    def test_plot_calls_matplotlib(self, mock_compute_mode, mock_plt, mode_source, micro_config, jax_key, tmp_path):
         """Test that plot() calls matplotlib functions correctly."""
         mock_E = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64)
         mock_H = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64)
@@ -321,9 +320,7 @@ class TestModePlaneSourceGetEHVariation:
 
     @patch("fdtdx.objects.sources.mode.compute_mode")
     @patch("fdtdx.objects.sources.mode.calculate_time_offset_yee")
-    def test_get_EH_variation_returns_correct_shapes(
-        self, mock_time_offset, mock_compute_mode, micro_config, jax_key
-    ):
+    def test_get_EH_variation_returns_correct_shapes(self, mock_time_offset, mock_compute_mode, micro_config, jax_key):
         """Test that get_EH_variation returns arrays with correct shapes."""
         mock_E = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64) * 2.0
         mock_H = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64) * 0.5
@@ -357,9 +354,7 @@ class TestModePlaneSourceGetEHVariation:
 
     @patch("fdtdx.objects.sources.mode.compute_mode")
     @patch("fdtdx.objects.sources.mode.calculate_time_offset_yee")
-    def test_get_EH_variation_calls_compute_mode(
-        self, mock_time_offset, mock_compute_mode, micro_config, jax_key
-    ):
+    def test_get_EH_variation_calls_compute_mode(self, mock_time_offset, mock_compute_mode, micro_config, jax_key):
         """Test that get_EH_variation calls compute_mode with correct args."""
         mock_E = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64)
         mock_H = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64)

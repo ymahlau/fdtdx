@@ -65,7 +65,7 @@ def sinusoidal_E_field():
     x = jnp.linspace(0, 2 * jnp.pi, 8)
     y = jnp.linspace(0, 2 * jnp.pi, 8)
     z = jnp.linspace(0, 2 * jnp.pi, 8)
-    X, Y, Z = jnp.meshgrid(x, y, z, indexing='ij')
+    X, Y, Z = jnp.meshgrid(x, y, z, indexing="ij")
 
     Ex = jnp.sin(X) * jnp.cos(Y)
     Ey = jnp.sin(Y) * jnp.cos(Z)
@@ -80,7 +80,7 @@ def sinusoidal_H_field():
     x = jnp.linspace(0, 2 * jnp.pi, 8)
     y = jnp.linspace(0, 2 * jnp.pi, 8)
     z = jnp.linspace(0, 2 * jnp.pi, 8)
-    X, Y, Z = jnp.meshgrid(x, y, z, indexing='ij')
+    X, Y, Z = jnp.meshgrid(x, y, z, indexing="ij")
 
     Hx = jnp.cos(X) * jnp.sin(Y) * 0.5
     Hy = jnp.cos(Y) * jnp.sin(Z) * 0.5

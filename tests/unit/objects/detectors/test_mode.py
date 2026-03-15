@@ -54,32 +54,24 @@ class TestModeOverlapDetectorDefaults:
 
     def test_custom_mode_index(self, single_frequency):
         """Custom mode index is stored."""
-        det = ModeOverlapDetector(
-            wave_characters=single_frequency, direction="+", mode_index=2
-        )
+        det = ModeOverlapDetector(wave_characters=single_frequency, direction="+", mode_index=2)
         assert det.mode_index == 2
 
     def test_filter_pol_te(self, single_frequency):
         """TE polarization filter is stored."""
-        det = ModeOverlapDetector(
-            wave_characters=single_frequency, direction="+", filter_pol="te"
-        )
+        det = ModeOverlapDetector(wave_characters=single_frequency, direction="+", filter_pol="te")
         assert det.filter_pol == "te"
 
     def test_filter_pol_tm(self, single_frequency):
         """TM polarization filter is stored."""
-        det = ModeOverlapDetector(
-            wave_characters=single_frequency, direction="+", filter_pol="tm"
-        )
+        det = ModeOverlapDetector(wave_characters=single_frequency, direction="+", filter_pol="tm")
         assert det.filter_pol == "tm"
 
 
 class TestModeOverlapDetectorPropagationAxis:
     """Tests for the propagation_axis property."""
 
-    def test_propagation_axis_z(
-        self, simulation_config, plane_grid_slice, random_key, single_frequency
-    ):
+    def test_propagation_axis_z(self, simulation_config, plane_grid_slice, random_key, single_frequency):
         """Plane perpendicular to z-axis → propagation_axis == 2."""
         det = ModeOverlapDetector(wave_characters=single_frequency, direction="+")
         det = det.place_on_grid(plane_grid_slice, simulation_config, random_key)
@@ -99,9 +91,7 @@ class TestModeOverlapDetectorPropagationAxis:
         det = det.place_on_grid(y_plane, simulation_config, random_key)
         assert det.propagation_axis == 1
 
-    def test_non_plane_shape_raises(
-        self, simulation_config, small_grid_slice, random_key, single_frequency
-    ):
+    def test_non_plane_shape_raises(self, simulation_config, small_grid_slice, random_key, single_frequency):
         """Volume detector shape raises with message about invalid shape."""
         det = ModeOverlapDetector(wave_characters=single_frequency, direction="+")
         det = det.place_on_grid(small_grid_slice, simulation_config, random_key)
@@ -112,9 +102,7 @@ class TestModeOverlapDetectorPropagationAxis:
 class TestModeOverlapDetectorPlaceOnGrid:
     """Tests for place_on_grid constraints."""
 
-    def test_single_wave_char_succeeds(
-        self, simulation_config, plane_grid_slice, random_key, single_frequency
-    ):
+    def test_single_wave_char_succeeds(self, simulation_config, plane_grid_slice, random_key, single_frequency):
         """Single wave character placement succeeds."""
         det = ModeOverlapDetector(wave_characters=single_frequency, direction="+")
         placed = det.place_on_grid(plane_grid_slice, simulation_config, random_key)
@@ -187,9 +175,7 @@ class TestModeOverlapDetectorComputeOverlap:
         mode_E = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64) * 0.5
         mode_H = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64) * 0.5
 
-        overlap = det.compute_overlap_to_mode(
-            state=state, mode_E=mode_E, mode_H=mode_H
-        )
+        overlap = det.compute_overlap_to_mode(state=state, mode_E=mode_E, mode_H=mode_H)
 
         assert jnp.iscomplexobj(overlap)
 
@@ -208,9 +194,7 @@ class TestModeOverlapDetectorComputeOverlap:
         mode_E = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64)
         mode_H = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64)
 
-        overlap = det.compute_overlap_to_mode(
-            state=state, mode_E=mode_E, mode_H=mode_H
-        )
+        overlap = det.compute_overlap_to_mode(state=state, mode_E=mode_E, mode_H=mode_H)
 
         assert jnp.isclose(jnp.abs(overlap), 0.0)
 
@@ -248,9 +232,7 @@ class TestModeOverlapDetectorComputeOverlap:
         mode_E = jnp.zeros((3, 8, 8, 1), dtype=jnp.complex64).at[0].set(1.0)
         mode_H = jnp.zeros((3, 8, 8, 1), dtype=jnp.complex64).at[1].set(1.0)
 
-        overlap = det.compute_overlap_to_mode(
-            state=state, mode_E=mode_E, mode_H=mode_H
-        )
+        overlap = det.compute_overlap_to_mode(state=state, mode_E=mode_E, mode_H=mode_H)
 
         assert jnp.abs(overlap) > 0
 
@@ -281,9 +263,7 @@ class TestModeOverlapDetectorComputeOverlap:
         mode_E = jnp.zeros((3, 8, 8, 1), dtype=jnp.complex64)
         mode_H = jnp.zeros((3, 8, 8, 1), dtype=jnp.complex64)
 
-        overlap = det.compute_overlap_to_mode(
-            state=state, mode_E=mode_E, mode_H=mode_H
-        )
+        overlap = det.compute_overlap_to_mode(state=state, mode_E=mode_E, mode_H=mode_H)
 
         assert jnp.isclose(jnp.abs(overlap), 0.0)
 
@@ -319,16 +299,10 @@ class TestModeOverlapDetectorComputeOverlap:
         phasors = state["phasor"]
         phasors_E = phasors[0, 0, :3]
         phasors_H = phasors[0, 0, 3:]
-        E_cross_H = jnp.cross(mode_E, jnp.conj(phasors_H), axis=0)[
-            det.propagation_axis
-        ]
-        E_cross_H_back = jnp.cross(jnp.conj(phasors_E), mode_H, axis=0)[
-            det.propagation_axis
-        ]
+        E_cross_H = jnp.cross(mode_E, jnp.conj(phasors_H), axis=0)[det.propagation_axis]
+        E_cross_H_back = jnp.cross(jnp.conj(phasors_E), mode_H, axis=0)[det.propagation_axis]
         expected = jnp.sum(E_cross_H + E_cross_H_back) / 4.0
 
-        overlap = det.compute_overlap_to_mode(
-            state=state, mode_E=mode_E, mode_H=mode_H
-        )
+        overlap = det.compute_overlap_to_mode(state=state, mode_E=mode_E, mode_H=mode_H)
 
         assert jnp.isclose(overlap, expected)

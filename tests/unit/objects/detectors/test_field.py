@@ -1,8 +1,6 @@
 """Tests for objects/detectors/field.py - Field detector."""
 
-import jax
 import jax.numpy as jnp
-import pytest
 
 from fdtdx.objects.detectors.field import FieldDetector
 
@@ -10,9 +8,7 @@ from fdtdx.objects.detectors.field import FieldDetector
 class TestFieldDetectorShapes:
     """Tests for FieldDetector shape and initialization."""
 
-    def test_shape_dtype_full_volume(
-        self, simulation_config, small_grid_slice, random_key
-    ):
+    def test_shape_dtype_full_volume(self, simulation_config, small_grid_slice, random_key):
         """Test shape calculation for full volume recording."""
         detector = FieldDetector()
         detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)
@@ -24,9 +20,7 @@ class TestFieldDetectorShapes:
         assert shape_dtype["fields"].shape == (6, 8, 8, 8)
         assert shape_dtype["fields"].dtype == jnp.float32
 
-    def test_shape_dtype_reduced_volume(
-        self, simulation_config, small_grid_slice, random_key
-    ):
+    def test_shape_dtype_reduced_volume(self, simulation_config, small_grid_slice, random_key):
         """Test shape calculation for reduced volume."""
         detector = FieldDetector(reduce_volume=True)
         detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)
@@ -35,9 +29,7 @@ class TestFieldDetectorShapes:
 
         assert shape_dtype["fields"].shape == (6,)
 
-    def test_shape_dtype_subset_components(
-        self, simulation_config, small_grid_slice, random_key
-    ):
+    def test_shape_dtype_subset_components(self, simulation_config, small_grid_slice, random_key):
         """Test shape with subset of components."""
         detector = FieldDetector(components=("Ex", "Ey"))
         detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)
@@ -169,16 +161,12 @@ class TestFieldDetectorUpdate:
         # Time step 0: E = 1.0
         E1 = jnp.ones((3, 8, 8, 8), dtype=jnp.float32)
         H1 = jnp.zeros((3, 8, 8, 8), dtype=jnp.float32)
-        state = detector.update(
-            jnp.array(0), E1, H1, state, inv_permittivity, inv_permeability
-        )
+        state = detector.update(jnp.array(0), E1, H1, state, inv_permittivity, inv_permeability)
 
         # Time step 1: E = 2.0
         E2 = jnp.ones((3, 8, 8, 8), dtype=jnp.float32) * 2.0
         H2 = jnp.zeros((3, 8, 8, 8), dtype=jnp.float32)
-        state = detector.update(
-            jnp.array(1), E2, H2, state, inv_permittivity, inv_permeability
-        )
+        state = detector.update(jnp.array(1), E2, H2, state, inv_permittivity, inv_permeability)
 
         assert jnp.isclose(state["fields"][0, 0], 1.0)  # t=0
         assert jnp.isclose(state["fields"][1, 0], 2.0)  # t=1
@@ -244,9 +232,7 @@ class TestFieldDetectorConfiguration:
 class TestFieldDetectorPlaneSlice:
     """Tests for FieldDetector with plane/line slices."""
 
-    def test_plane_slice_shape(
-        self, simulation_config, plane_grid_slice, random_key
-    ):
+    def test_plane_slice_shape(self, simulation_config, plane_grid_slice, random_key):
         """Test shape with 2D plane slice."""
         detector = FieldDetector()
         detector = detector.place_on_grid(plane_grid_slice, simulation_config, random_key)
@@ -255,9 +241,7 @@ class TestFieldDetectorPlaneSlice:
 
         assert shape_dtype["fields"].shape == (6, 8, 8, 1)
 
-    def test_line_slice_shape(
-        self, simulation_config, line_grid_slice, random_key
-    ):
+    def test_line_slice_shape(self, simulation_config, line_grid_slice, random_key):
         """Test shape with 1D line slice."""
         detector = FieldDetector()
         detector = detector.place_on_grid(line_grid_slice, simulation_config, random_key)

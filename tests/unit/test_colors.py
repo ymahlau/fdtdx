@@ -3,18 +3,18 @@
 import pytest
 
 from fdtdx.colors import (
-    Color,
-    XKCD_RED,
-    XKCD_GREEN,
-    XKCD_BLUE,
-    XKCD_WHITE,
-    XKCD_BLACK,
-    PRIMARY_COLORS,
-    VIBRANT_COLORS,
-    PASTEL_COLORS,
-    NEON_COLORS,
     EARTH_TONES,
     GREYSCALE,
+    NEON_COLORS,
+    PASTEL_COLORS,
+    PRIMARY_COLORS,
+    VIBRANT_COLORS,
+    XKCD_BLACK,
+    XKCD_BLUE,
+    XKCD_GREEN,
+    XKCD_RED,
+    XKCD_WHITE,
+    Color,
 )
 
 

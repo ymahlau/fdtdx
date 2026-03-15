@@ -16,7 +16,6 @@ from fdtdx.objects.device.device import Device
 from fdtdx.objects.device.parameters.discretization import ClosestIndex
 from fdtdx.typing import ParameterType
 
-
 # ---------------------------------------------------------------------------
 # Minimal concrete Device for testing
 # ---------------------------------------------------------------------------
@@ -89,17 +88,13 @@ class TestOutputType:
         device = _make_device(two_materials, param_transforms=[])
         assert device.output_type == ParameterType.CONTINUOUS
 
-    def test_with_closest_index_returns_binary_for_two_materials(
-        self, config, key, two_materials
-    ):
+    def test_with_closest_index_returns_binary_for_two_materials(self, config, key, two_materials):
         transform = ClosestIndex()
         device = _make_device(two_materials, param_transforms=[transform])
         placed = _place_device(device, config, key)
         assert placed.output_type == ParameterType.BINARY
 
-    def test_with_closest_index_returns_discrete_for_three_materials(
-        self, config, key, three_materials
-    ):
+    def test_with_closest_index_returns_discrete_for_three_materials(self, config, key, three_materials):
         transform = ClosestIndex()
         device = _make_device(three_materials, param_transforms=[transform], voxel_grid=(1, 1, 1))
         placed = _place_device(device, config, key)
@@ -138,9 +133,7 @@ class TestPlaceOnGrid:
         device = _make_device(two_materials, voxel_grid=(2, 2, 2))
         placed = _place_device(device, config, key)
         res = config.resolution
-        assert placed.single_voxel_real_shape == pytest.approx(
-            (2 * res, 2 * res, 2 * res)
-        )
+        assert placed.single_voxel_real_shape == pytest.approx((2 * res, 2 * res, 2 * res))
 
     def test_voxel_size_from_real_shape(self, config, key, two_materials):
         """partial_voxel_real_shape should convert to grid units."""
@@ -174,9 +167,7 @@ class TestPlaceOnGrid:
         with pytest.raises(Exception):
             _place_device(device, config, key)
 
-    def test_continuous_output_with_three_materials_raises(
-        self, config, key, three_materials
-    ):
+    def test_continuous_output_with_three_materials_raises(self, config, key, three_materials):
         """Continuous output (no transforms) requires exactly 2 materials."""
         device = _make_device(three_materials, param_transforms=[])
         with pytest.raises(Exception, match="exactly two materials"):
@@ -189,9 +180,7 @@ class TestPlaceOnGrid:
 
 
 class TestInitParams:
-    def test_returns_array_with_matrix_shape_no_transforms(
-        self, config, key, two_materials
-    ):
+    def test_returns_array_with_matrix_shape_no_transforms(self, config, key, two_materials):
         device = _make_device(two_materials, voxel_grid=(2, 2, 2))
         placed = _place_device(device, config, key, ((0, 10), (0, 10), (0, 10)))
         params = placed.init_params(key)

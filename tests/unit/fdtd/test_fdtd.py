@@ -5,7 +5,6 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import GradientConfig, SimulationConfig
-from fdtdx.core.progress import SimulationProgressBar
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.fdtd import checkpointed_fdtd, custom_fdtd_forward, reversible_fdtd
 from fdtdx.fdtd.stop_conditions import TimeStepCondition
@@ -109,7 +108,11 @@ class TestReversibleFdtd:
 
     def test_zero_time_produces_no_evolution(self, dummy_arrays, dummy_objects, key):
         config = SimulationConfig(
-            time=0.0, resolution=40e-6, backend="cpu", dtype=jnp.float32, courant_factor=0.99,
+            time=0.0,
+            resolution=40e-6,
+            backend="cpu",
+            dtype=jnp.float32,
+            courant_factor=0.99,
         )
         t, arrs = reversible_fdtd(dummy_arrays, dummy_objects, config, key)
         assert int(t) == 0
@@ -170,9 +173,7 @@ class TestCheckpointedFdtd:
     def test_with_custom_stopping_condition(self, dummy_arrays, dummy_objects, config_checkpointed, key):
         """Covers the stopping_condition.setup() path (line 369)."""
         condition = TimeStepCondition()
-        t, arrs = checkpointed_fdtd(
-            dummy_arrays, dummy_objects, config_checkpointed, key, stopping_condition=condition
-        )
+        t, arrs = checkpointed_fdtd(dummy_arrays, dummy_objects, config_checkpointed, key, stopping_condition=condition)
         assert isinstance(t, jax.Array)
         assert isinstance(arrs, ArrayContainer)
         assert int(t) == config_checkpointed.time_steps_total
@@ -188,8 +189,14 @@ class TestCheckpointedFdtd:
 class TestCustomFdtdForward:
     def test_returns_simulation_state(self, dummy_arrays, dummy_objects, config_few_steps, key):
         t, arrs = custom_fdtd_forward(
-            dummy_arrays, dummy_objects, config_few_steps, key,
-            reset_container=True, record_detectors=False, start_time=0, end_time=1,
+            dummy_arrays,
+            dummy_objects,
+            config_few_steps,
+            key,
+            reset_container=True,
+            record_detectors=False,
+            start_time=0,
+            end_time=1,
         )
         assert isinstance(t, jax.Array)
         assert isinstance(arrs, ArrayContainer)
@@ -197,54 +204,96 @@ class TestCustomFdtdForward:
     def test_advances_to_end_time(self, dummy_arrays, dummy_objects, config_few_steps, key):
         end = min(3, config_few_steps.time_steps_total)
         t, _ = custom_fdtd_forward(
-            dummy_arrays, dummy_objects, config_few_steps, key,
-            reset_container=True, record_detectors=False, start_time=0, end_time=end,
+            dummy_arrays,
+            dummy_objects,
+            config_few_steps,
+            key,
+            reset_container=True,
+            record_detectors=False,
+            start_time=0,
+            end_time=end,
         )
         assert int(t) == end
 
     def test_same_start_end_no_evolution(self, dummy_arrays, dummy_objects, config_few_steps, key):
         t, arrs = custom_fdtd_forward(
-            dummy_arrays, dummy_objects, config_few_steps, key,
-            reset_container=False, record_detectors=False, start_time=5, end_time=5,
+            dummy_arrays,
+            dummy_objects,
+            config_few_steps,
+            key,
+            reset_container=False,
+            record_detectors=False,
+            start_time=5,
+            end_time=5,
         )
         assert int(t) == 5
         assert isinstance(arrs, ArrayContainer)
 
     def test_output_shapes_match_input(self, dummy_arrays, dummy_objects, config_few_steps, key, field_shape):
         _, arrs = custom_fdtd_forward(
-            dummy_arrays, dummy_objects, config_few_steps, key,
-            reset_container=True, record_detectors=False, start_time=0, end_time=1,
+            dummy_arrays,
+            dummy_objects,
+            config_few_steps,
+            key,
+            reset_container=True,
+            record_detectors=False,
+            start_time=0,
+            end_time=1,
         )
         assert arrs.E.shape == field_shape
         assert arrs.H.shape == field_shape
 
     def test_reset_container_false(self, dummy_arrays, dummy_objects, config_few_steps, key):
         t, arrs = custom_fdtd_forward(
-            dummy_arrays, dummy_objects, config_few_steps, key,
-            reset_container=False, record_detectors=False, start_time=0, end_time=1,
+            dummy_arrays,
+            dummy_objects,
+            config_few_steps,
+            key,
+            reset_container=False,
+            record_detectors=False,
+            start_time=0,
+            end_time=1,
         )
         assert isinstance(t, jax.Array)
         assert isinstance(arrs, ArrayContainer)
 
     def test_with_record_detectors(self, dummy_arrays, dummy_objects, config_few_steps, key):
         t, arrs = custom_fdtd_forward(
-            dummy_arrays, dummy_objects, config_few_steps, key,
-            reset_container=True, record_detectors=True, start_time=0, end_time=1,
+            dummy_arrays,
+            dummy_objects,
+            config_few_steps,
+            key,
+            reset_container=True,
+            record_detectors=True,
+            start_time=0,
+            end_time=1,
         )
         assert isinstance(t, jax.Array)
         assert isinstance(arrs, ArrayContainer)
 
     def test_partial_time_range(self, dummy_arrays, dummy_objects, config_few_steps, key):
         t, _ = custom_fdtd_forward(
-            dummy_arrays, dummy_objects, config_few_steps, key,
-            reset_container=True, record_detectors=False, start_time=2, end_time=4,
+            dummy_arrays,
+            dummy_objects,
+            config_few_steps,
+            key,
+            reset_container=True,
+            record_detectors=False,
+            start_time=2,
+            end_time=4,
         )
         assert int(t) == 4
 
     def test_empty_objects(self, dummy_arrays, empty_objects, config_few_steps, key):
         t, arrs = custom_fdtd_forward(
-            dummy_arrays, empty_objects, config_few_steps, key,
-            reset_container=True, record_detectors=False, start_time=0, end_time=1,
+            dummy_arrays,
+            empty_objects,
+            config_few_steps,
+            key,
+            reset_container=True,
+            record_detectors=False,
+            start_time=0,
+            end_time=1,
         )
         assert isinstance(t, jax.Array)
         assert isinstance(arrs, ArrayContainer)
@@ -262,9 +311,7 @@ class TestShowProgressFlag:
 
     def test_checkpointed_fdtd_with_progress(self, dummy_arrays, dummy_objects, config_checkpointed):
         key = jax.random.PRNGKey(0)
-        t, arrs = checkpointed_fdtd(
-            dummy_arrays, dummy_objects, config_checkpointed, key, show_progress=True
-        )
+        t, arrs = checkpointed_fdtd(dummy_arrays, dummy_objects, config_checkpointed, key, show_progress=True)
         assert isinstance(t, jax.Array)
         assert isinstance(arrs, ArrayContainer)
 

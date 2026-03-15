@@ -93,7 +93,9 @@ def test_curl_E_linear_field():
     psi_H = jnp.zeros((6, 6, 6, 6))
 
     curl_result, _ = curl_E(
-        _make_config(), E, psi_H,
+        _make_config(),
+        E,
+        psi_H,
         alpha=jnp.zeros((6, 6, 6, 6)),
         kappa=jnp.ones((6, 6, 6, 6)),
         sigma=jnp.zeros((6, 6, 6, 6)),
@@ -111,7 +113,9 @@ def test_curl_E_zero_field():
     psi_H = jnp.zeros((6, 4, 4, 4))
 
     curl_result, _ = curl_E(
-        _make_config(), E, psi_H,
+        _make_config(),
+        E,
+        psi_H,
         alpha=jnp.zeros((6, 4, 4, 4)),
         kappa=jnp.ones((6, 4, 4, 4)),
         sigma=jnp.zeros((6, 4, 4, 4)),
@@ -131,7 +135,9 @@ def test_curl_E_no_boundaries():
     sigma = jnp.ones((6, n, n, n)) * 0.1
 
     curl_result, psi_updated = curl_E(
-        _make_config(), E, psi_H_init,
+        _make_config(),
+        E,
+        psi_H_init,
         alpha=jnp.ones((6, n, n, n)) * 0.05,
         kappa=kappa,
         sigma=sigma,
@@ -159,7 +165,9 @@ def test_curl_E_pml_updates():
     alpha = jnp.ones((6, n, n, n)) * 0.1
 
     curl_result, psi_updated = curl_E(
-        _make_config(), E, psi_H_init,
+        _make_config(),
+        E,
+        psi_H_init,
         alpha=alpha,
         kappa=jnp.ones((6, n, n, n)),
         sigma=sigma,
@@ -184,7 +192,9 @@ def test_curl_E_mixed_periodic():
     psi_H = jnp.zeros((6, n, n, n))
 
     curl_result, _ = curl_E(
-        _make_config(), E, psi_H,
+        _make_config(),
+        E,
+        psi_H,
         alpha=jnp.zeros((6, n, n, n)),
         kappa=jnp.ones((6, n, n, n)),
         sigma=jnp.zeros((6, n, n, n)),
@@ -215,7 +225,9 @@ def test_curl_H_linear_field():
     psi_E = jnp.zeros((6, 6, 6, 6))
 
     curl_result, _ = curl_H(
-        _make_config(), H, psi_E,
+        _make_config(),
+        H,
+        psi_E,
         alpha=jnp.zeros((6, 6, 6, 6)),
         kappa=jnp.ones((6, 6, 6, 6)),
         sigma=jnp.zeros((6, 6, 6, 6)),
@@ -233,7 +245,9 @@ def test_curl_H_zero_field():
     psi_E = jnp.zeros((6, 4, 4, 4))
 
     curl_result, _ = curl_H(
-        _make_config(), H, psi_E,
+        _make_config(),
+        H,
+        psi_E,
         alpha=jnp.zeros((6, 4, 4, 4)),
         kappa=jnp.ones((6, 4, 4, 4)),
         sigma=jnp.zeros((6, 4, 4, 4)),
@@ -252,7 +266,9 @@ def test_curl_H_no_boundaries():
     sigma = jnp.ones((6, n, n, n)) * 0.1
 
     curl_result, psi_updated = curl_H(
-        _make_config(), H, psi_E_init,
+        _make_config(),
+        H,
+        psi_E_init,
         alpha=jnp.ones((6, n, n, n)) * 0.05,
         kappa=jnp.ones((6, n, n, n)),
         sigma=sigma,
@@ -276,7 +292,9 @@ def test_curl_H_pml_updates():
     alpha = jnp.ones((6, n, n, n)) * 0.1
 
     curl_result, psi_updated = curl_H(
-        _make_config(), H, psi_E_init,
+        _make_config(),
+        H,
+        psi_E_init,
         alpha=alpha,
         kappa=jnp.ones((6, n, n, n)),
         sigma=sigma,
@@ -301,7 +319,9 @@ def test_curl_H_mixed_periodic():
     psi_E = jnp.zeros((6, n, n, n))
 
     curl_result, _ = curl_H(
-        _make_config(), H, psi_E,
+        _make_config(),
+        H,
+        psi_E,
         alpha=jnp.zeros((6, n, n, n)),
         kappa=jnp.ones((6, n, n, n)),
         sigma=jnp.zeros((6, n, n, n)),
@@ -311,5 +331,3 @@ def test_curl_H_mixed_periodic():
 
     assert curl_result.shape == (3, n, n, n)
     assert jnp.all(jnp.isfinite(curl_result))
-
-

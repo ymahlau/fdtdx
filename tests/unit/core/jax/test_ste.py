@@ -2,7 +2,6 @@
 
 import jax
 import jax.numpy as jnp
-import pytest
 
 from fdtdx.core.jax.ste import straight_through_estimator
 

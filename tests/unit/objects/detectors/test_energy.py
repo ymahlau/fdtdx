@@ -1,6 +1,5 @@
 """Tests for objects/detectors/energy.py - Energy detector."""
 
-import jax
 import jax.numpy as jnp
 import pytest
 
@@ -10,9 +9,7 @@ from fdtdx.objects.detectors.energy import EnergyDetector
 class TestEnergyDetectorShapes:
     """Tests for EnergyDetector shape and initialization."""
 
-    def test_shape_dtype_full_volume(
-        self, simulation_config, small_grid_slice, random_key
-    ):
+    def test_shape_dtype_full_volume(self, simulation_config, small_grid_slice, random_key):
         """Test shape calculation for full volume recording."""
         detector = EnergyDetector()
         detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)
@@ -23,9 +20,7 @@ class TestEnergyDetectorShapes:
         assert shape_dtype["energy"].shape == (8, 8, 8)
         assert shape_dtype["energy"].dtype == jnp.float32
 
-    def test_shape_dtype_reduced_volume(
-        self, simulation_config, small_grid_slice, random_key
-    ):
+    def test_shape_dtype_reduced_volume(self, simulation_config, small_grid_slice, random_key):
         """Test shape calculation for reduced volume."""
         detector = EnergyDetector(reduce_volume=True)
         detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)
@@ -34,9 +29,7 @@ class TestEnergyDetectorShapes:
 
         assert shape_dtype["energy"].shape == (1,)
 
-    def test_shape_dtype_as_slices(
-        self, simulation_config, small_grid_slice, random_key
-    ):
+    def test_shape_dtype_as_slices(self, simulation_config, small_grid_slice, random_key):
         """Test shape calculation for slice mode."""
         detector = EnergyDetector(as_slices=True)
         detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)
@@ -50,9 +43,7 @@ class TestEnergyDetectorShapes:
         assert shape_dtype["XZ Plane"].shape == (8, 8)
         assert shape_dtype["YZ Plane"].shape == (8, 8)
 
-    def test_slices_and_reduce_raises(
-        self, simulation_config, small_grid_slice, random_key
-    ):
+    def test_slices_and_reduce_raises(self, simulation_config, small_grid_slice, random_key):
         """Test that both as_slices and reduce_volume raises error."""
         detector = EnergyDetector(as_slices=True, reduce_volume=True)
         detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)
@@ -205,15 +196,11 @@ class TestEnergyDetectorUpdate:
 
         # Time step 0: low energy
         E1 = jnp.ones((3, 8, 8, 8), dtype=jnp.float32) * 0.5
-        state = detector.update(
-            jnp.array(0), E1, H, state, inv_permittivity, inv_permeability
-        )
+        state = detector.update(jnp.array(0), E1, H, state, inv_permittivity, inv_permeability)
 
         # Time step 1: higher energy
         E2 = jnp.ones((3, 8, 8, 8), dtype=jnp.float32) * 2.0
-        state = detector.update(
-            jnp.array(1), E2, H, state, inv_permittivity, inv_permeability
-        )
+        state = detector.update(jnp.array(1), E2, H, state, inv_permittivity, inv_permeability)
 
         # Higher E field should give higher energy
         assert state["energy"][1, 0] > state["energy"][0, 0]

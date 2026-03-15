@@ -3,7 +3,6 @@ import jax.numpy as jnp
 
 from fdtdx.core.physics.losses import metric_efficiency
 
-
 # ──────────────────────────────────────────────────────────────
 # metric_efficiency
 # ──────────────────────────────────────────────────────────────
@@ -55,9 +54,14 @@ def test_info_keys_multiple_pairs():
     states = _make_detector_states({"s1": 1.0, "s2": 1.0, "d1": 1.0, "d2": 1.0})
     _, info = metric_efficiency(states, ["s1", "s2"], ["d1", "d2"], "energy")
     expected_keys = {
-        "s1_energy", "s2_energy", "d1_energy", "d2_energy",
-        "d1_by_s1_efficiency", "d2_by_s1_efficiency",
-        "d1_by_s2_efficiency", "d2_by_s2_efficiency",
+        "s1_energy",
+        "s2_energy",
+        "d1_energy",
+        "d2_energy",
+        "d1_by_s1_efficiency",
+        "d2_by_s1_efficiency",
+        "d1_by_s2_efficiency",
+        "d2_by_s2_efficiency",
     }
     assert expected_keys == set(info.keys())
 
@@ -83,6 +87,7 @@ def test_array_values_are_meaned():
 
 def test_input_stop_gradient():
     """Input values use stop_gradient (verified via jax.grad)."""
+
     def loss_fn(det_val):
         states = {
             "src": {"energy": jnp.array(4.0)},

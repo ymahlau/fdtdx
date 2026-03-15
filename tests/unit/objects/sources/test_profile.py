@@ -1,10 +1,9 @@
 """Tests for objects/sources/profile.py - Temporal profiles."""
 
 import jax.numpy as jnp
-import pytest
 
-from fdtdx.objects.sources.profile import GaussianPulseProfile, SingleFrequencyProfile
 from fdtdx.core.wavelength import WaveCharacter
+from fdtdx.objects.sources.profile import GaussianPulseProfile, SingleFrequencyProfile
 
 
 class TestSingleFrequencyProfile:
@@ -18,9 +17,7 @@ class TestSingleFrequencyProfile:
 
     def test_custom_parameters(self):
         """Test with custom parameters."""
-        profile = SingleFrequencyProfile(
-            phase_shift=jnp.pi / 2, num_startup_periods=10
-        )
+        profile = SingleFrequencyProfile(phase_shift=jnp.pi / 2, num_startup_periods=10)
         assert profile.phase_shift == jnp.pi / 2
         assert profile.num_startup_periods == 10
 
@@ -61,9 +58,7 @@ class TestSingleFrequencyProfile:
 
     def test_get_amplitude_with_phase_shift(self):
         """Test amplitude with additional phase shift."""
-        profile = SingleFrequencyProfile(
-            phase_shift=jnp.pi, num_startup_periods=1
-        )
+        profile = SingleFrequencyProfile(phase_shift=jnp.pi, num_startup_periods=1)
         period = 1e-12
 
         # After startup with additional π phase shift: cos(...+π) should be negative
@@ -80,9 +75,7 @@ class TestSingleFrequencyProfile:
 
         # After startup with external phase shift of π/2
         time = 2 * period
-        amplitude = profile.get_amplitude(
-            time=time, period=period, phase_shift=jnp.pi / 2
-        )
+        amplitude = profile.get_amplitude(time=time, period=period, phase_shift=jnp.pi / 2)
 
         # cos(4π + π/2) = cos(π/2) = 0
         assert jnp.isclose(amplitude, 0.0, atol=1e-6)
@@ -114,9 +107,7 @@ class TestSingleFrequencyProfile:
         # Times well after startup
         base_time = 10 * period
         times = base_time + jnp.array([0.0, 0.25, 0.5, 0.75, 1.0]) * period
-        amplitudes = jnp.array(
-            [profile.get_amplitude(t, period) for t in times]
-        )
+        amplitudes = jnp.array([profile.get_amplitude(t, period) for t in times])
 
         expected = jnp.array([1.0, 0.0, -1.0, 0.0, 1.0])
         assert jnp.allclose(amplitudes, expected, atol=1e-6)
@@ -188,9 +179,7 @@ class TestGaussianPulseProfile:
         period = 1e-12
 
         amp_no_shift = profile.get_amplitude(time=1e-14, period=period, phase_shift=0.0)
-        amp_with_shift = profile.get_amplitude(
-            time=1e-14, period=period, phase_shift=jnp.pi
-        )
+        amp_with_shift = profile.get_amplitude(time=1e-14, period=period, phase_shift=jnp.pi)
 
         # Phase shift shouldn't change the absolute value significantly
         # (carrier is modulated by Gaussian envelope)
@@ -226,9 +215,7 @@ class TestProfileComparison:
     def test_single_freq_vs_gaussian_at_center(self):
         """Compare single frequency and Gaussian at center."""
         freq = 193.4e12
-        single_freq = SingleFrequencyProfile(
-            phase_shift=0.0, num_startup_periods=1
-        )
+        single_freq = SingleFrequencyProfile(phase_shift=0.0, num_startup_periods=1)
         gaussian = GaussianPulseProfile(
             spectral_width=WaveCharacter(frequency=1e12),
             center_wave=WaveCharacter(frequency=freq),
@@ -250,9 +237,7 @@ class TestProfileComparison:
         period = 1 / freq
         time = 1e-14
 
-        single_freq = SingleFrequencyProfile(
-            phase_shift=0.0, num_startup_periods=1
-        )
+        single_freq = SingleFrequencyProfile(phase_shift=0.0, num_startup_periods=1)
         gaussian = GaussianPulseProfile(
             spectral_width=WaveCharacter(frequency=1e12),
             center_wave=WaveCharacter(frequency=freq),

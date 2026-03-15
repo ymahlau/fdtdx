@@ -41,28 +41,29 @@ import fdtdx
 
 # ── Domain constants ──────────────────────────────────────────────────────────
 _WAVELENGTH = 1e-6
-_RESOLUTION = 25e-9        # 40 cells/λ in vacuum
+_RESOLUTION = 25e-9  # 40 cells/λ in vacuum
 _PML_CELLS = 10
-_DOMAIN_XY = 3 * _RESOLUTION   # 3 cells, periodic
-_DOMAIN_Z = 5e-6            # 200 cells total
+_DOMAIN_XY = 3 * _RESOLUTION  # 3 cells, periodic
+_DOMAIN_Z = 5e-6  # 200 cells total
 _Z_CELLS = int(round(_DOMAIN_Z / _RESOLUTION))  # = 200
 
-_SOURCE_Z = _PML_CELLS + 2   # = 12
-_INTERFACE_Z = 100            # cell index of interface (2.5 µm from left)
-_DET_T_Z = 140                # transmission-side detector (dielectric)
+_SOURCE_Z = _PML_CELLS + 2  # = 12
+_INTERFACE_Z = 100  # cell index of interface (2.5 µm from left)
+_DET_T_Z = 140  # transmission-side detector (dielectric)
 
 _DIEL_CELLS_Z = _Z_CELLS - _INTERFACE_Z  # = 100 cells = 2.5 µm
 
-_SIM_TIME = 120e-15           # 120 fs ≈ 36 optical periods
+_SIM_TIME = 120e-15  # 120 fs ≈ 36 optical periods
 _TOLERANCE = 0.05
 
 # Approximate time step and steps per optical period (3D Courant, factor 0.99)
-_DT_APPROX = 0.99 * _RESOLUTION / (3e8 * np.sqrt(3))   # ≈ 4.76e-17 s
+_DT_APPROX = 0.99 * _RESOLUTION / (3e8 * np.sqrt(3))  # ≈ 4.76e-17 s
 _STEPS_PER_PERIOD = int(round(_WAVELENGTH / (3e8 * _DT_APPROX)))  # ≈ 70
-_N_AVG_STEPS = 10 * _STEPS_PER_PERIOD   # average over last ~10 optical periods
+_N_AVG_STEPS = 10 * _STEPS_PER_PERIOD  # average over last ~10 optical periods
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _build_base():
     """Domain with periodic xy BCs, PML in z, and a +z UniformPlaneSource."""
@@ -98,20 +99,20 @@ def _build_base():
         direction="+",
         fixed_E_polarization_vector=(1, 0, 0),
     )
-    constraints.extend([
-        source.same_size(volume, axes=(0, 1)),
-        source.place_at_center(volume, axes=(0, 1)),
-        source.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(_SOURCE_Z,)),
-    ])
+    constraints.extend(
+        [
+            source.same_size(volume, axes=(0, 1)),
+            source.place_at_center(volume, axes=(0, 1)),
+            source.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(_SOURCE_Z,)),
+        ]
+    )
     objects.append(source)
 
     return objects, constraints, config, volume
 
 
 def _add_flux_det(name, z_idx, volume, objects, constraints):
-    """Add a 1-cell-thick PoyntingFluxDetector (direction="+") at z_idx.
-
-    """
+    """Add a 1-cell-thick PoyntingFluxDetector (direction="+") at z_idx."""
     det = fdtdx.PoyntingFluxDetector(
         name=name,
         partial_grid_shape=(None, None, 1),
@@ -119,11 +120,13 @@ def _add_flux_det(name, z_idx, volume, objects, constraints):
         reduce_volume=True,
         plot=False,
     )
-    constraints.extend([
-        det.same_size(volume, axes=(0, 1)),
-        det.place_at_center(volume, axes=(0, 1)),
-        det.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(z_idx,)),
-    ])
+    constraints.extend(
+        [
+            det.same_size(volume, axes=(0, 1)),
+            det.place_at_center(volume, axes=(0, 1)),
+            det.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(z_idx,)),
+        ]
+    )
     objects.append(det)
 
 
@@ -133,11 +136,13 @@ def _add_dielectric(epsilon_r, volume, objects, constraints):
         partial_grid_shape=(None, None, _DIEL_CELLS_Z),
         material=fdtdx.Material(permittivity=epsilon_r),
     )
-    constraints.extend([
-        diel.same_size(volume, axes=(0, 1)),
-        diel.place_at_center(volume, axes=(0, 1)),
-        diel.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(_INTERFACE_Z,)),
-    ])
+    constraints.extend(
+        [
+            diel.same_size(volume, axes=(0, 1)),
+            diel.place_at_center(volume, axes=(0, 1)),
+            diel.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(_INTERFACE_Z,)),
+        ]
+    )
     objects.append(diel)
 
 
@@ -164,6 +169,7 @@ def _mean_flux(arrays, name):
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
+
 
 def test_fresnel_transmission():
     """Transmitted power matches T = 4n₁n₂/(n₁+n₂)² within 5 % for ε_r=4 (n₂=2).
@@ -192,8 +198,7 @@ def test_fresnel_transmission():
     T_measured = S_T / S0
     rel_err = abs(T_measured - T_analytic) / T_analytic
     assert rel_err < _TOLERANCE, (
-        f"T_measured={T_measured:.4f}, T_analytic={T_analytic:.4f}, "
-        f"relative error={rel_err:.3f} > {_TOLERANCE}"
+        f"T_measured={T_measured:.4f}, T_analytic={T_analytic:.4f}, relative error={rel_err:.3f} > {_TOLERANCE}"
     )
 
 
@@ -206,8 +211,8 @@ def test_fresnel_power_conservation():
     """
     epsilon_r = 4.0
     n1, n2 = 1.0, float(np.sqrt(epsilon_r))
-    T_analytic = 4.0 * n1 * n2 / (n1 + n2) ** 2   # ≈ 0.889
-    R_analytic = ((n1 - n2) / (n1 + n2)) ** 2       # ≈ 0.111
+    T_analytic = 4.0 * n1 * n2 / (n1 + n2) ** 2  # ≈ 0.889
+    R_analytic = ((n1 - n2) / (n1 + n2)) ** 2  # ≈ 0.111
 
     # Reference run: vacuum everywhere, detector at transmission-side position
     obj0, con0, cfg0, vol0 = _build_base()
@@ -223,19 +228,17 @@ def test_fresnel_power_conservation():
     assert S0 > 0, f"Reference flux zero: {S0}"
 
     T_measured = S_T / S0
-    R_measured = 1.0 - T_measured   # energy conservation
+    R_measured = 1.0 - T_measured  # energy conservation
 
     T_err = abs(T_measured - T_analytic) / T_analytic
     R_err = abs(R_measured - R_analytic) / R_analytic
     RT_sum = T_measured + R_measured
 
     assert T_err < _TOLERANCE, (
-        f"T_measured={T_measured:.4f}, T_analytic={T_analytic:.4f}, "
-        f"relative error={T_err:.3f} > {_TOLERANCE}"
+        f"T_measured={T_measured:.4f}, T_analytic={T_analytic:.4f}, relative error={T_err:.3f} > {_TOLERANCE}"
     )
     assert R_err < _TOLERANCE, (
-        f"R_measured={R_measured:.4f}, R_analytic={R_analytic:.4f}, "
-        f"relative error={R_err:.3f} > {_TOLERANCE}"
+        f"R_measured={R_measured:.4f}, R_analytic={R_analytic:.4f}, relative error={R_err:.3f} > {_TOLERANCE}"
     )
     assert abs(RT_sum - 1.0) < _TOLERANCE, (
         f"T+R={RT_sum:.4f} deviates from 1.0 by {abs(RT_sum - 1.0):.4f} > {_TOLERANCE}"

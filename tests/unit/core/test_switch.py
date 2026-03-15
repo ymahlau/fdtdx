@@ -2,8 +2,8 @@ import pytest
 
 from fdtdx.core.switch import OnOffSwitch, is_on_at_time_step, is_on_at_time_step_from_switch
 
-
 # ── is_on_at_time_step (standalone function) ──────────────────────────────
+
 
 class TestIsOnAtTimeStep:
     """Tests for the standalone is_on_at_time_step function."""
@@ -97,18 +97,27 @@ class TestIsOnAtTimeStep:
 
     def test_error_conflicting_start_specs(self):
         with pytest.raises(Exception, match="Invalid start time"):
-            is_on_at_time_step(**self._defaults(
-                start_time=0.0, start_after_periods=1.0, period=10.0,
-            ))
+            is_on_at_time_step(
+                **self._defaults(
+                    start_time=0.0,
+                    start_after_periods=1.0,
+                    period=10.0,
+                )
+            )
 
     def test_error_conflicting_end_specs(self):
         with pytest.raises(Exception, match="Invalid end time"):
-            is_on_at_time_step(**self._defaults(
-                end_time=10.0, end_after_periods=2.0, period=5.0,
-            ))
+            is_on_at_time_step(
+                **self._defaults(
+                    end_time=10.0,
+                    end_after_periods=2.0,
+                    period=5.0,
+                )
+            )
 
 
 # ── OnOffSwitch class ─────────────────────────────────────────────────────
+
 
 class TestOnOffSwitch:
     """Tests for OnOffSwitch class methods."""
@@ -131,12 +140,14 @@ class TestOnOffSwitch:
     def test_time_step_to_on_arr_idx_maps_on_steps(self):
         switch = OnOffSwitch(start_time=1.0, end_time=3.0)
         result = switch.calculate_time_step_to_on_arr_idx(
-            num_total_time_steps=6, time_step_duration=1.0,
+            num_total_time_steps=6,
+            time_step_duration=1.0,
         )
         assert result == [-1, 0, 1, 2, -1, -1]
 
 
 # ── is_on_at_time_step_from_switch ────────────────────────────────────────
+
 
 class TestIsOnAtTimeStepFromSwitch:
     """Tests for the is_on_at_time_step_from_switch helper."""

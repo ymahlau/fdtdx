@@ -11,31 +11,23 @@ class TestDiffractiveDetectorInit:
 
     def test_valid_complex64_dtype(self):
         """complex64 dtype is accepted."""
-        det = DiffractiveDetector(
-            frequencies=[3e14], direction="+", dtype=jnp.complex64
-        )
+        det = DiffractiveDetector(frequencies=[3e14], direction="+", dtype=jnp.complex64)
         assert det.dtype == jnp.complex64
 
     def test_valid_complex128_dtype(self):
         """complex128 dtype is accepted."""
-        det = DiffractiveDetector(
-            frequencies=[3e14], direction="+", dtype=jnp.complex128
-        )
+        det = DiffractiveDetector(frequencies=[3e14], direction="+", dtype=jnp.complex128)
         assert det.dtype == jnp.complex128
 
     def test_float32_dtype_raises(self):
         """Non-complex dtype raises during post-init validation."""
         with pytest.raises(Exception, match="Invalid dtype"):
-            DiffractiveDetector(
-                frequencies=[3e14], direction="+", dtype=jnp.float32
-            )
+            DiffractiveDetector(frequencies=[3e14], direction="+", dtype=jnp.float32)
 
     def test_float64_dtype_raises(self):
         """float64 dtype raises during post-init validation."""
         with pytest.raises(Exception, match="Invalid dtype"):
-            DiffractiveDetector(
-                frequencies=[3e14], direction="+", dtype=jnp.float64
-            )
+            DiffractiveDetector(frequencies=[3e14], direction="+", dtype=jnp.float64)
 
     def test_default_order_is_zeroth(self):
         """Default diffraction order is (0, 0)."""
@@ -45,9 +37,7 @@ class TestDiffractiveDetectorInit:
     def test_custom_orders(self):
         """Custom diffraction orders are stored correctly."""
         orders = ((0, 0), (1, 0), (-1, 0), (0, 1))
-        det = DiffractiveDetector(
-            frequencies=[3e14], direction="+", orders=orders
-        )
+        det = DiffractiveDetector(frequencies=[3e14], direction="+", orders=orders)
         assert len(det.orders) == 4
 
     def test_direction_plus(self):
@@ -90,9 +80,7 @@ class TestDiffractiveDetectorPropagationAxis:
         det = det.place_on_grid(y_plane, simulation_config, random_key)
         assert det.propagation_axis == 1
 
-    def test_non_plane_shape_raises(
-        self, simulation_config, small_grid_slice, random_key
-    ):
+    def test_non_plane_shape_raises(self, simulation_config, small_grid_slice, random_key):
         """Volume detector (no single-cell dimension) raises."""
         det = DiffractiveDetector(frequencies=[3e14], direction="+")
         det = det.place_on_grid(small_grid_slice, simulation_config, random_key)
@@ -103,9 +91,7 @@ class TestDiffractiveDetectorPropagationAxis:
 class TestDiffractiveDetectorShapeDtype:
     """Tests for _shape_dtype_single_time_step and related."""
 
-    def test_single_freq_single_order_shape(
-        self, simulation_config, plane_grid_slice, random_key
-    ):
+    def test_single_freq_single_order_shape(self, simulation_config, plane_grid_slice, random_key):
         """Single frequency, default order → shape (1, 1)."""
         det = DiffractiveDetector(frequencies=[3e14], direction="+")
         det = det.place_on_grid(plane_grid_slice, simulation_config, random_key)
@@ -114,9 +100,7 @@ class TestDiffractiveDetectorShapeDtype:
         assert "diffractive" in shape_dtype
         assert shape_dtype["diffractive"].shape == (1, 1)
 
-    def test_multi_freq_multi_order_shape(
-        self, simulation_config, plane_grid_slice, random_key
-    ):
+    def test_multi_freq_multi_order_shape(self, simulation_config, plane_grid_slice, random_key):
         """Multiple frequencies and orders → shape (num_freqs, num_orders)."""
         det = DiffractiveDetector(
             frequencies=[3e14, 2e14, 1e14],
@@ -128,9 +112,7 @@ class TestDiffractiveDetectorShapeDtype:
 
         assert shape_dtype["diffractive"].shape == (3, 3)
 
-    def test_output_dtype_is_complex64(
-        self, simulation_config, plane_grid_slice, random_key
-    ):
+    def test_output_dtype_is_complex64(self, simulation_config, plane_grid_slice, random_key):
         """Default dtype → output ShapeDtypeStruct dtype is complex64."""
         det = DiffractiveDetector(frequencies=[3e14], direction="+")
         det = det.place_on_grid(plane_grid_slice, simulation_config, random_key)
@@ -138,30 +120,22 @@ class TestDiffractiveDetectorShapeDtype:
 
         assert shape_dtype["diffractive"].dtype == jnp.complex64
 
-    def test_latent_time_steps_always_one(
-        self, simulation_config, plane_grid_slice, random_key
-    ):
+    def test_latent_time_steps_always_one(self, simulation_config, plane_grid_slice, random_key):
         """DiffractiveDetector always accumulates into 1 time slot."""
         det = DiffractiveDetector(frequencies=[3e14], direction="+")
         det = det.place_on_grid(plane_grid_slice, simulation_config, random_key)
         assert det._num_latent_time_steps() == 1
 
-    def test_init_state_shape(
-        self, simulation_config, plane_grid_slice, random_key
-    ):
+    def test_init_state_shape(self, simulation_config, plane_grid_slice, random_key):
         """init_state creates array with shape (1, num_freqs, num_orders)."""
-        det = DiffractiveDetector(
-            frequencies=[3e14, 2e14], direction="+", orders=((0, 0), (1, 0))
-        )
+        det = DiffractiveDetector(frequencies=[3e14, 2e14], direction="+", orders=((0, 0), (1, 0)))
         det = det.place_on_grid(plane_grid_slice, simulation_config, random_key)
         state = det.init_state()
 
         assert "diffractive" in state
         assert state["diffractive"].shape == (1, 2, 2)
 
-    def test_init_state_is_complex(
-        self, simulation_config, plane_grid_slice, random_key
-    ):
+    def test_init_state_is_complex(self, simulation_config, plane_grid_slice, random_key):
         """init_state creates complex-valued array."""
         det = DiffractiveDetector(frequencies=[3e14], direction="+")
         det = det.place_on_grid(plane_grid_slice, simulation_config, random_key)
@@ -238,9 +212,7 @@ class TestDiffractiveDetectorUpdate:
         inv_permeability,
     ):
         """update() output shape matches (1, num_freqs, num_orders)."""
-        det = DiffractiveDetector(
-            frequencies=[3e14, 2e14], direction="+", orders=((0, 0), (1, 0))
-        )
+        det = DiffractiveDetector(frequencies=[3e14, 2e14], direction="+", orders=((0, 0), (1, 0)))
         det = det.place_on_grid(plane_grid_slice, simulation_config, random_key)
         state = det.init_state()
 
@@ -267,15 +239,11 @@ class TestDiffractiveDetectorUpdate:
     ):
         """Negative direction negates the computed diffractive amplitude."""
         det_pos = DiffractiveDetector(frequencies=[3e14], direction="+")
-        det_pos = det_pos.place_on_grid(
-            plane_grid_slice, simulation_config, random_key
-        )
+        det_pos = det_pos.place_on_grid(plane_grid_slice, simulation_config, random_key)
         state_pos = det_pos.init_state()
 
         det_neg = DiffractiveDetector(frequencies=[3e14], direction="-")
-        det_neg = det_neg.place_on_grid(
-            plane_grid_slice, simulation_config, random_key
-        )
+        det_neg = det_neg.place_on_grid(plane_grid_slice, simulation_config, random_key)
         state_neg = det_neg.init_state()
 
         new_pos = det_pos.update(

@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx import constants
-from fdtdx.config import GradientConfig, SimulationConfig, DUMMY_SIMULATION_CONFIG
+from fdtdx.config import DUMMY_SIMULATION_CONFIG, GradientConfig, SimulationConfig
 
 
 class TestGradientConfigConstruction:
@@ -228,9 +228,7 @@ class TestSimulationConfigGradientProperties:
 
         mock_recorder = MagicMock()
         gradient_config = GradientConfig(method="reversible", recorder=mock_recorder)
-        config = SimulationConfig(
-            time=1e-12, resolution=1e-9, backend="cpu", gradient_config=gradient_config
-        )
+        config = SimulationConfig(time=1e-12, resolution=1e-9, backend="cpu", gradient_config=gradient_config)
         assert config.only_forward is False
         assert config.invertible_optimization is True
 
@@ -242,9 +240,7 @@ class TestSimulationConfigGradientProperties:
         mock_get_backend.return_value = _create_mock_backend("cpu")
 
         gradient_config = GradientConfig(method="checkpointed", num_checkpoints=10)
-        config = SimulationConfig(
-            time=1e-12, resolution=1e-9, backend="cpu", gradient_config=gradient_config
-        )
+        config = SimulationConfig(time=1e-12, resolution=1e-9, backend="cpu", gradient_config=gradient_config)
         assert config.only_forward is False
         assert config.invertible_optimization is False
 

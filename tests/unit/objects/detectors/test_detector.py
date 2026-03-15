@@ -29,9 +29,7 @@ def single_switch():
 class TestDrawPlotLinePlots:
     """Tests for draw_plot → 1D data branches."""
 
-    def test_1d_multiple_timesteps_returns_figure(
-        self, simulation_config, plane_grid_slice, random_key, small_switch
-    ):
+    def test_1d_multiple_timesteps_returns_figure(self, simulation_config, plane_grid_slice, random_key, small_switch):
         """PoyntingFlux (scalar/step) with T>1 → line plot over time."""
         detector = PoyntingFluxDetector(direction="+", switch=small_switch)
         detector = detector.place_on_grid(plane_grid_slice, simulation_config, random_key)
@@ -44,9 +42,7 @@ class TestDrawPlotLinePlots:
         assert isinstance(figs["poynting_flux"], Figure)
         plt.close(figs["poynting_flux"])
 
-    def test_1d_single_timestep_x_axis_label(
-        self, simulation_config, random_key, single_switch
-    ):
+    def test_1d_single_timestep_x_axis_label(self, simulation_config, random_key, single_switch):
         """1D on x-line with T==1 → spatial line plot with X axis label."""
         x_line_slice = ((0, 8), (0, 1), (0, 1))
         detector = FieldDetector(components=("Ex",), switch=single_switch)
@@ -60,9 +56,7 @@ class TestDrawPlotLinePlots:
         assert isinstance(figs["fields"], Figure)
         plt.close(figs["fields"])
 
-    def test_1d_single_timestep_y_axis_label(
-        self, simulation_config, random_key, single_switch
-    ):
+    def test_1d_single_timestep_y_axis_label(self, simulation_config, random_key, single_switch):
         """1D on y-line with T==1 → spatial line plot with Y axis label."""
         y_line_slice = ((0, 1), (0, 8), (0, 1))
         detector = FieldDetector(components=("Ex",), switch=single_switch)
@@ -75,9 +69,7 @@ class TestDrawPlotLinePlots:
         assert isinstance(figs["fields"], Figure)
         plt.close(figs["fields"])
 
-    def test_1d_single_timestep_z_axis_label(
-        self, simulation_config, random_key, single_switch
-    ):
+    def test_1d_single_timestep_z_axis_label(self, simulation_config, random_key, single_switch):
         """1D on z-line with T==1 → spatial line plot with Z axis label."""
         z_line_slice = ((0, 1), (0, 1), (0, 8))
         detector = FieldDetector(components=("Ex",), switch=single_switch)
@@ -94,9 +86,7 @@ class TestDrawPlotLinePlots:
 class TestDrawPlotWaterfallAndSlices:
     """Tests for draw_plot → 2D data branches."""
 
-    def test_2d_multiple_timesteps_waterfall(
-        self, simulation_config, random_key, small_switch
-    ):
+    def test_2d_multiple_timesteps_waterfall(self, simulation_config, random_key, small_switch):
         """1D spatial + T>1 time steps → waterfall plot."""
         x_line_slice = ((0, 8), (0, 1), (0, 1))
         detector = FieldDetector(components=("Ex",), switch=small_switch)
@@ -110,9 +100,7 @@ class TestDrawPlotWaterfallAndSlices:
         assert isinstance(figs["fields"], Figure)
         plt.close(figs["fields"])
 
-    def test_2d_single_timestep_slices_plot(
-        self, simulation_config, small_grid_slice, random_key, single_switch
-    ):
+    def test_2d_single_timestep_slices_plot(self, simulation_config, small_grid_slice, random_key, single_switch):
         """XY/XZ/YZ slices with T==1 → plot_2d_from_slices."""
         detector = EnergyDetector(as_slices=True, switch=single_switch)
         detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)
@@ -125,9 +113,7 @@ class TestDrawPlotWaterfallAndSlices:
         assert isinstance(figs["sliced_plot"], Figure)
         plt.close(figs["sliced_plot"])
 
-    def test_2d_single_timestep_wrong_keys_raises(
-        self, simulation_config, small_grid_slice, random_key, single_switch
-    ):
+    def test_2d_single_timestep_wrong_keys_raises(self, simulation_config, small_grid_slice, random_key, single_switch):
         """2D state with T==1 but wrong keys raises."""
         detector = EnergyDetector(as_slices=True, switch=single_switch)
         detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)
@@ -141,9 +127,7 @@ class TestDrawPlotWaterfallAndSlices:
 class TestDrawPlot3D:
     """Tests for draw_plot → 3D data branches."""
 
-    def test_3d_single_timestep_mean_slices(
-        self, simulation_config, small_grid_slice, random_key, single_switch
-    ):
+    def test_3d_single_timestep_mean_slices(self, simulation_config, small_grid_slice, random_key, single_switch):
         """3D volume with T==1 → 2D from mean."""
         detector = EnergyDetector(switch=single_switch)
         detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)
@@ -189,9 +173,7 @@ class TestDrawPlot3D:
 class TestDrawPlot4D:
     """Tests for draw_plot → 4D data branch."""
 
-    def test_4d_multiple_timesteps_video(
-        self, simulation_config, small_grid_slice, random_key, small_switch
-    ):
+    def test_4d_multiple_timesteps_video(self, simulation_config, small_grid_slice, random_key, small_switch):
         """3D spatial volume + T>1 → video with mean slices."""
         detector = FieldDetector(components=("Ex",), switch=small_switch)
         detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)
@@ -210,9 +192,7 @@ class TestDrawPlot4D:
 class TestDrawPlotErrors:
     """Tests for draw_plot error cases."""
 
-    def test_empty_state_raises(
-        self, simulation_config, plane_grid_slice, random_key, small_switch
-    ):
+    def test_empty_state_raises(self, simulation_config, plane_grid_slice, random_key, small_switch):
         """Empty state dict raises with 'empty state' message."""
         detector = PoyntingFluxDetector(direction="+", switch=small_switch)
         detector = detector.place_on_grid(plane_grid_slice, simulation_config, random_key)
@@ -220,9 +200,7 @@ class TestDrawPlotErrors:
         with pytest.raises(Exception, match="empty state"):
             detector.draw_plot({})
 
-    def test_different_ndim_arrays_raises(
-        self, simulation_config, plane_grid_slice, random_key, small_switch
-    ):
+    def test_different_ndim_arrays_raises(self, simulation_config, plane_grid_slice, random_key, small_switch):
         """State with inconsistent ndim across keys raises."""
         detector = PoyntingFluxDetector(direction="+", switch=small_switch)
         detector = detector.place_on_grid(plane_grid_slice, simulation_config, random_key)
@@ -235,9 +213,7 @@ class TestDrawPlotErrors:
         with pytest.raises(Exception, match="different ndim"):
             detector.draw_plot(state_np)
 
-    def test_5d_data_raises(
-        self, simulation_config, small_grid_slice, random_key, small_switch
-    ):
+    def test_5d_data_raises(self, simulation_config, small_grid_slice, random_key, small_switch):
         """5D squeezed data (T>1, 6 components, 3D grid) raises."""
         detector = FieldDetector(switch=small_switch)  # 6 default components
         detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)
@@ -251,13 +227,9 @@ class TestDrawPlotErrors:
 class TestDrawPlotInverse:
     """Tests for draw_plot with inverse detector."""
 
-    def test_inverse_line_plot_succeeds(
-        self, simulation_config, plane_grid_slice, random_key, small_switch
-    ):
+    def test_inverse_line_plot_succeeds(self, simulation_config, plane_grid_slice, random_key, small_switch):
         """inverse=True detector with T>1 still returns a figure."""
-        detector = PoyntingFluxDetector(
-            direction="+", inverse=True, switch=small_switch
-        )
+        detector = PoyntingFluxDetector(direction="+", inverse=True, switch=small_switch)
         detector = detector.place_on_grid(plane_grid_slice, simulation_config, random_key)
         state = detector.init_state()
         # Assign distinct values so reversal is meaningful

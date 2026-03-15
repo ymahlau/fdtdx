@@ -1,4 +1,4 @@
-from unittest.mock import Mock, patch, call
+from unittest.mock import Mock, patch
 
 import jax
 import jax.numpy as jnp
@@ -112,9 +112,7 @@ class TestForward:
             assert mock_E.call_args[1]["simulate_boundaries"] is True
             assert mock_H.call_args[1]["simulate_boundaries"] is True
 
-    def test_record_detectors_calls_update_detector_states(
-        self, arrays, updated_arrays, config, objects, key
-    ):
+    def test_record_detectors_calls_update_detector_states(self, arrays, updated_arrays, config, objects, key):
         """record_detectors=True triggers update_detector_states with inverse=False."""
         with (
             patch("fdtdx.fdtd.forward.update_E", return_value=updated_arrays),

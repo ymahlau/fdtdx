@@ -4,7 +4,6 @@ from unittest.mock import MagicMock, patch
 
 import jax
 import jax.numpy as jnp
-import pytest
 
 from fdtdx.interfaces.state import (
     RecordingState,
@@ -97,9 +96,7 @@ class TestInitShardedDict:
         spec = jax.ShapeDtypeStruct(shape=(3, 4), dtype=jnp.float32)
 
         with patch.object(jax, "devices", return_value=fake_devices):
-            with patch(
-                "fdtdx.interfaces.state.create_named_sharded_matrix"
-            ) as mock_mat:
+            with patch("fdtdx.interfaces.state.create_named_sharded_matrix") as mock_mat:
                 mock_mat.return_value = jnp.zeros((4, 4), dtype=jnp.float32)
                 init_sharded_dict({"field": spec}, backend=None)
 
@@ -118,13 +115,9 @@ class TestInitRecordingState:
 
     def test_basic_initialization(self):
         """Test basic RecordingState initialization."""
-        data_shapes = {
-            "field": jax.ShapeDtypeStruct(shape=(10, 5, 5), dtype=jnp.float32)
-        }
+        data_shapes = {"field": jax.ShapeDtypeStruct(shape=(10, 5, 5), dtype=jnp.float32)}
         # State shapes need at least one dimension > 1 for sharding
-        state_shapes = {
-            "counter": jax.ShapeDtypeStruct(shape=(2,), dtype=jnp.int32)
-        }
+        state_shapes = {"counter": jax.ShapeDtypeStruct(shape=(2,), dtype=jnp.int32)}
 
         result = init_recording_state(data_shapes, state_shapes, backend=None)
 
@@ -134,9 +127,7 @@ class TestInitRecordingState:
 
     def test_empty_state_shapes(self):
         """Test with empty state shapes."""
-        data_shapes = {
-            "field": jax.ShapeDtypeStruct(shape=(8, 4, 4), dtype=jnp.float32)
-        }
+        data_shapes = {"field": jax.ShapeDtypeStruct(shape=(8, 4, 4), dtype=jnp.float32)}
 
         result = init_recording_state(data_shapes, {}, backend=None)
 
@@ -158,28 +149,20 @@ class TestInitRecordingState:
 
     def test_data_zero_initialized(self):
         """Data arrays in RecordingState are initialized to zero."""
-        data_shapes = {
-            "field": jax.ShapeDtypeStruct(shape=(4, 5), dtype=jnp.float32)
-        }
+        data_shapes = {"field": jax.ShapeDtypeStruct(shape=(4, 5), dtype=jnp.float32)}
         result = init_recording_state(data_shapes, {}, backend=None)
         assert jnp.allclose(result.data["field"], 0.0)
 
     def test_data_dtype_preserved(self):
         """Dtype of data arrays matches the requested dtype spec."""
-        data_shapes = {
-            "field": jax.ShapeDtypeStruct(shape=(4, 4), dtype=jnp.float16)
-        }
+        data_shapes = {"field": jax.ShapeDtypeStruct(shape=(4, 4), dtype=jnp.float16)}
         result = init_recording_state(data_shapes, {}, backend=None)
         assert result.data["field"].dtype == jnp.float16
 
     def test_state_shapes_populated(self):
         """State arrays are created when state_shapes is non-empty."""
-        data_shapes = {
-            "field": jax.ShapeDtypeStruct(shape=(4, 4), dtype=jnp.float32)
-        }
-        state_shapes = {
-            "counter": jax.ShapeDtypeStruct(shape=(2,), dtype=jnp.int32)
-        }
+        data_shapes = {"field": jax.ShapeDtypeStruct(shape=(4, 4), dtype=jnp.float32)}
+        state_shapes = {"counter": jax.ShapeDtypeStruct(shape=(2,), dtype=jnp.int32)}
         result = init_recording_state(data_shapes, state_shapes, backend=None)
         assert "counter" in result.state
         assert jnp.allclose(result.state["counter"], 0)

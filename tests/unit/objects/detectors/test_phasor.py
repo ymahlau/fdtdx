@@ -1,6 +1,5 @@
 """Tests for objects/detectors/phasor.py - Phasor detector."""
 
-import jax
 import jax.numpy as jnp
 import pytest
 
@@ -27,9 +26,7 @@ def multiple_frequencies():
 class TestPhasorDetectorShapes:
     """Tests for PhasorDetector shape and initialization."""
 
-    def test_shape_dtype_single_frequency(
-        self, simulation_config, small_grid_slice, random_key, single_frequency
-    ):
+    def test_shape_dtype_single_frequency(self, simulation_config, small_grid_slice, random_key, single_frequency):
         """Test shape calculation for single frequency."""
         detector = PhasorDetector(wave_characters=single_frequency)
         detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)
@@ -53,13 +50,9 @@ class TestPhasorDetectorShapes:
         # 3 frequencies, 6 components, 8x8x8 grid
         assert shape_dtype["phasor"].shape == (3, 6, 8, 8, 8)
 
-    def test_shape_dtype_reduced_volume(
-        self, simulation_config, small_grid_slice, random_key, single_frequency
-    ):
+    def test_shape_dtype_reduced_volume(self, simulation_config, small_grid_slice, random_key, single_frequency):
         """Test shape calculation with reduced volume."""
-        detector = PhasorDetector(
-            wave_characters=single_frequency, reduce_volume=True
-        )
+        detector = PhasorDetector(wave_characters=single_frequency, reduce_volume=True)
         detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)
 
         shape_dtype = detector._shape_dtype_single_time_step()
@@ -67,13 +60,9 @@ class TestPhasorDetectorShapes:
         # 1 frequency, 6 components, no spatial dimensions
         assert shape_dtype["phasor"].shape == (1, 6)
 
-    def test_shape_dtype_subset_components(
-        self, simulation_config, small_grid_slice, random_key, single_frequency
-    ):
+    def test_shape_dtype_subset_components(self, simulation_config, small_grid_slice, random_key, single_frequency):
         """Test shape with subset of components."""
-        detector = PhasorDetector(
-            wave_characters=single_frequency, components=("Ex", "Ey")
-        )
+        detector = PhasorDetector(wave_characters=single_frequency, components=("Ex", "Ey"))
         detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)
 
         shape_dtype = detector._shape_dtype_single_time_step()
@@ -81,22 +70,16 @@ class TestPhasorDetectorShapes:
         # 1 frequency, 2 components, 8x8x8 grid
         assert shape_dtype["phasor"].shape == (1, 2, 8, 8, 8)
 
-    def test_shape_dtype_complex128(
-        self, simulation_config, small_grid_slice, random_key, single_frequency
-    ):
+    def test_shape_dtype_complex128(self, simulation_config, small_grid_slice, random_key, single_frequency):
         """Test with complex128 dtype."""
-        detector = PhasorDetector(
-            wave_characters=single_frequency, dtype=jnp.complex128
-        )
+        detector = PhasorDetector(wave_characters=single_frequency, dtype=jnp.complex128)
         detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)
 
         shape_dtype = detector._shape_dtype_single_time_step()
 
         assert shape_dtype["phasor"].dtype == jnp.complex128
 
-    def test_init_state(
-        self, simulation_config, small_grid_slice, random_key, single_frequency
-    ):
+    def test_init_state(self, simulation_config, small_grid_slice, random_key, single_frequency):
         """Test state initialization."""
         detector = PhasorDetector(wave_characters=single_frequency)
         detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)
@@ -195,9 +178,7 @@ class TestPhasorDetectorUpdate:
         inv_permeability,
     ):
         """Test update with volume reduction."""
-        detector = PhasorDetector(
-            wave_characters=single_frequency, reduce_volume=True
-        )
+        detector = PhasorDetector(wave_characters=single_frequency, reduce_volume=True)
         detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)
         state = detector.init_state()
 
@@ -225,9 +206,7 @@ class TestPhasorDetectorUpdate:
         inv_permeability,
     ):
         """Test update with multiple frequencies."""
-        detector = PhasorDetector(
-            wave_characters=multiple_frequencies, reduce_volume=True
-        )
+        detector = PhasorDetector(wave_characters=multiple_frequencies, reduce_volume=True)
         detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)
         state = detector.init_state()
 
@@ -253,9 +232,7 @@ class TestPhasorDetectorUpdate:
         inv_permeability,
     ):
         """Test that zero fields give zero phasor."""
-        detector = PhasorDetector(
-            wave_characters=single_frequency, reduce_volume=True
-        )
+        detector = PhasorDetector(wave_characters=single_frequency, reduce_volume=True)
         detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)
         state = detector.init_state()
 
@@ -280,9 +257,7 @@ class TestPhasorDetectorConfiguration:
     def test_invalid_dtype_raises(self, single_frequency):
         """Test that invalid dtype raises error."""
         with pytest.raises(Exception, match="Invalid dtype"):
-            PhasorDetector(
-                wave_characters=single_frequency, dtype=jnp.float32
-            )
+            PhasorDetector(wave_characters=single_frequency, dtype=jnp.float32)
 
     def test_default_components(self, single_frequency):
         """Test default component configuration."""
@@ -308,9 +283,7 @@ class TestPhasorDetectorConfiguration:
 class TestPhasorDetectorAngularFrequencies:
     """Tests for angular frequency calculation."""
 
-    def test_angular_frequencies_from_wavelength(
-        self, simulation_config, small_grid_slice, random_key
-    ):
+    def test_angular_frequencies_from_wavelength(self, simulation_config, small_grid_slice, random_key):
         """Test angular frequency calculation from wavelength."""
         wc = [WaveCharacter(wavelength=1e-6)]  # 1 micron = 3e14 Hz
         detector = PhasorDetector(wave_characters=wc)
@@ -321,9 +294,7 @@ class TestPhasorDetectorAngularFrequencies:
         expected = 2 * jnp.pi * 3e14  # approximately
         assert jnp.isclose(angular_freq[0], expected, rtol=0.01)
 
-    def test_angular_frequencies_from_frequency(
-        self, simulation_config, small_grid_slice, random_key
-    ):
+    def test_angular_frequencies_from_frequency(self, simulation_config, small_grid_slice, random_key):
         """Test angular frequency calculation from frequency."""
         freq = 1e14  # Hz
         wc = [WaveCharacter(frequency=freq)]
@@ -338,9 +309,7 @@ class TestPhasorDetectorAngularFrequencies:
 class TestPhasorDetectorLatentTimeSteps:
     """Tests for latent time step behavior."""
 
-    def test_num_latent_time_steps_always_one(
-        self, simulation_config, small_grid_slice, random_key, single_frequency
-    ):
+    def test_num_latent_time_steps_always_one(self, simulation_config, small_grid_slice, random_key, single_frequency):
         """Test that phasor detector always has 1 latent time step."""
         detector = PhasorDetector(wave_characters=single_frequency)
         detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)

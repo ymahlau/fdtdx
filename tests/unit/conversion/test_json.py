@@ -6,11 +6,11 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.conversion.json import (
+    _export_json,
+    _import_obj_from_json,
     export_json,
     export_json_str,
     import_from_json,
-    _export_json,
-    _import_obj_from_json,
 )
 from fdtdx.core.null import NULL
 from fdtdx.core.wavelength import WaveCharacter

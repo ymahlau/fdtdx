@@ -1,10 +1,12 @@
 import matplotlib
+
 matplotlib.use("Agg")
+
+from unittest.mock import patch
 
 import numpy as np
 import pytest
 from matplotlib import pyplot as plt
-from unittest.mock import patch
 
 from fdtdx.core.plotting.utils import plot_filled_std_curves
 
@@ -41,8 +43,13 @@ class TestPlotFilledStdCurvesValidation:
         mean = np.ones(5)
         with pytest.raises(ValueError, match="either std or upper/lower"):
             plot_filled_std_curves(
-                x, mean, "blue", "lightblue",
-                std=np.ones(5), upper=np.ones(5), lower=np.ones(5),
+                x,
+                mean,
+                "blue",
+                "lightblue",
+                std=np.ones(5),
+                upper=np.ones(5),
+                lower=np.ones(5),
             )
 
 
@@ -54,8 +61,7 @@ class TestPlotFilledStdCurvesStdMode:
         mean = np.array([1.0, 2.0, 3.0])
         std = np.array([0.1, 0.2, 0.3])
 
-        with patch.object(plt, "plot") as mock_plot, \
-             patch.object(plt, "fill_between") as mock_fill:
+        with patch.object(plt, "plot") as mock_plot, patch.object(plt, "fill_between") as mock_fill:
             plot_filled_std_curves(x, mean, "blue", "lightblue", std=std)
 
         expected_upper = mean + std
@@ -80,8 +86,7 @@ class TestPlotFilledStdCurvesBoundsMode:
         upper = np.array([1.5, 2.5, 3.5])
         lower = np.array([0.5, 1.5, 2.5])
 
-        with patch.object(plt, "plot") as mock_plot, \
-             patch.object(plt, "fill_between") as mock_fill:
+        with patch.object(plt, "plot") as mock_plot, patch.object(plt, "fill_between") as mock_fill:
             plot_filled_std_curves(x, mean, "green", "lightgreen", upper=upper, lower=lower)
 
         np.testing.assert_array_equal(mock_plot.call_args_list[0][0][1], upper)
@@ -99,8 +104,7 @@ class TestPlotFilledStdCurvesClipping:
         mean = np.array([0.5, -0.5])
         std = np.array([1.0, 1.0])
 
-        with patch.object(plt, "plot") as mock_plot, \
-             patch.object(plt, "fill_between"):
+        with patch.object(plt, "plot") as mock_plot, patch.object(plt, "fill_between"):
             plot_filled_std_curves(x, mean, "b", "lb", std=std, min_val=0.0)
 
         plotted_upper = mock_plot.call_args_list[0][0][1]
@@ -117,8 +121,7 @@ class TestPlotFilledStdCurvesClipping:
         mean = np.array([5.0, 10.0])
         std = np.array([1.0, 1.0])
 
-        with patch.object(plt, "plot") as mock_plot, \
-             patch.object(plt, "fill_between"):
+        with patch.object(plt, "plot") as mock_plot, patch.object(plt, "fill_between"):
             plot_filled_std_curves(x, mean, "b", "lb", std=std, max_val=8.0)
 
         plotted_upper = mock_plot.call_args_list[0][0][1]
@@ -139,8 +142,7 @@ class TestPlotFilledStdCurvesStyling:
         mean = np.ones(2)
         std = np.ones(2) * 0.1
 
-        with patch.object(plt, "plot") as mock_plot, \
-             patch.object(plt, "fill_between") as mock_fill:
+        with patch.object(plt, "plot") as mock_plot, patch.object(plt, "fill_between") as mock_fill:
             plot_filled_std_curves(x, mean, "red", "salmon", std=std, alpha=0.5)
 
         assert mock_plot.call_args_list[0][1]["color"] == "salmon"
@@ -155,11 +157,16 @@ class TestPlotFilledStdCurvesStyling:
         mean = np.ones(2)
         std = np.ones(2) * 0.1
 
-        with patch.object(plt, "plot") as mock_plot, \
-             patch.object(plt, "fill_between"):
+        with patch.object(plt, "plot") as mock_plot, patch.object(plt, "fill_between"):
             plot_filled_std_curves(
-                x, mean, "b", "lb", std=std,
-                label="test_label", linestyle="--", marker="o",
+                x,
+                mean,
+                "b",
+                "lb",
+                std=std,
+                label="test_label",
+                linestyle="--",
+                marker="o",
             )
 
         mean_call = mock_plot.call_args_list[2]

@@ -10,7 +10,6 @@ from fdtdx.core.plotting.debug import (
     generate_unique_filename,
 )
 
-
 # ── generate_unique_filename ──────────────────────────────────────────
 
 

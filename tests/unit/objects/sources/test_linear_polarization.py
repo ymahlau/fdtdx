@@ -4,18 +4,18 @@ Tests for GaussianPlaneSource and UniformPlaneSource classes.
 These are unit tests that use mocks where possible to avoid full simulation.
 """
 
+from unittest.mock import patch
+
 import jax
 import jax.numpy as jnp
 import pytest
-from unittest.mock import MagicMock, patch
 
+from fdtdx.config import SimulationConfig
+from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.sources.linear_polarization import (
     GaussianPlaneSource,
     UniformPlaneSource,
-    LinearlyPolarizedPlaneSource,
 )
-from fdtdx.core.wavelength import WaveCharacter
-from fdtdx.config import SimulationConfig
 
 
 @pytest.fixture
@@ -284,9 +284,7 @@ class TestLinearlyPolarizedPlaneSourceApply:
 
     @patch("fdtdx.objects.sources.linear_polarization.compute_energy")
     @patch("fdtdx.objects.sources.linear_polarization.calculate_time_offset_yee")
-    def test_get_EH_variation_with_normalization(
-        self, mock_time_offset, mock_compute_energy, micro_config, jax_key
-    ):
+    def test_get_EH_variation_with_normalization(self, mock_time_offset, mock_compute_energy, micro_config, jax_key):
         """Test get_EH_variation with energy normalization."""
         # Setup mocks
         mock_time_offset.return_value = (
@@ -325,9 +323,7 @@ class TestLinearlyPolarizedPlaneSourceApply:
         mock_compute_energy.assert_called()
 
     @patch("fdtdx.objects.sources.linear_polarization.calculate_time_offset_yee")
-    def test_get_EH_variation_without_normalization(
-        self, mock_time_offset, micro_config, jax_key
-    ):
+    def test_get_EH_variation_without_normalization(self, mock_time_offset, micro_config, jax_key):
         """Test get_EH_variation without energy normalization."""
         mock_time_offset.return_value = (
             jnp.zeros((3, 8, 8, 1)),
@@ -387,9 +383,7 @@ class TestAnisotropicPermeability:
     """Tests for anisotropic permeability handling."""
 
     @patch("fdtdx.objects.sources.linear_polarization.calculate_time_offset_yee")
-    def test_anisotropic_inv_permeability_slicing(
-        self, mock_time_offset, micro_config, jax_key
-    ):
+    def test_anisotropic_inv_permeability_slicing(self, mock_time_offset, micro_config, jax_key):
         """Test that anisotropic inv_permeability is sliced correctly."""
         mock_time_offset.return_value = (
             jnp.zeros((3, 8, 8, 1)),

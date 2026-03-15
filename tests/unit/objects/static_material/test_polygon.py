@@ -12,7 +12,6 @@ from fdtdx.config import SimulationConfig
 from fdtdx.materials import Material
 from fdtdx.objects.static_material.polygon import ExtrudedPolygon
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -45,12 +44,14 @@ def two_materials():
 def _square_vertices(half_side=100e-9):
     """Simple square polygon centered at origin."""
     h = half_side
-    return np.array([
-        [-h, -h],
-        [h, -h],
-        [h, h],
-        [-h, h],
-    ])
+    return np.array(
+        [
+            [-h, -h],
+            [h, -h],
+            [h, h],
+            [-h, h],
+        ]
+    )
 
 
 def _make_polygon(materials, axis=2, material_name="si", vertices=None):

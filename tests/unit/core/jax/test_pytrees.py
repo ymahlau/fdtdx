@@ -14,7 +14,6 @@ from fdtdx.core.jax.pytrees import (
 )
 from fdtdx.core.null import NULL
 
-
 # ---- safe_hasattr ----
 
 
@@ -351,7 +350,6 @@ class TestAset:
             obj.aset("items->[0]", 99)
 
 
-
 # ---- autoinit ----
 
 
@@ -365,4 +363,3 @@ class TestAutoinit:
 
         decorated = autoinit(CustomInit)
         assert decorated is CustomInit
-

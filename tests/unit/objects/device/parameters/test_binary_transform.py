@@ -1,9 +1,8 @@
 """Tests for objects/device/parameters/binary_transform.py - binary transformation utilities."""
 
 import jax.numpy as jnp
-import numpy as np
-import pytest
 
+from fdtdx.core.misc import PaddingConfig
 from fdtdx.objects.device.parameters.binary_transform import (
     binary_median_filter,
     compute_air_connection,
@@ -16,7 +15,6 @@ from fdtdx.objects.device.parameters.binary_transform import (
     remove_polymer_non_connected_to_x_max_middle,
     seperated_3d_dilation,
 )
-from fdtdx.core.misc import PaddingConfig
 
 
 class TestDilateJax:

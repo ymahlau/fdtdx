@@ -2,7 +2,6 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pytest
 
 from fdtdx.objects.detectors.plotting.plot2d import plot_2d_from_slices, plot_grads
 
@@ -69,9 +68,7 @@ class TestPlot2dFromSlices:
         resolutions = (1e-6, 1e-6, 1e-6)
 
         for interp in ["nearest", "bilinear", "gaussian"]:
-            fig = plot_2d_from_slices(
-                xy_slice, xz_slice, yz_slice, resolutions, plot_interpolation=interp
-            )
+            fig = plot_2d_from_slices(xy_slice, xz_slice, yz_slice, resolutions, plot_interpolation=interp)
             assert fig is not None
             plt.close(fig)
 
@@ -82,9 +79,7 @@ class TestPlot2dFromSlices:
         yz_slice = np.random.rand(10, 8)
         resolutions = (1e-6, 1e-6, 1e-6)
 
-        fig = plot_2d_from_slices(
-            xy_slice, xz_slice, yz_slice, resolutions, plot_dpi=150
-        )
+        fig = plot_2d_from_slices(xy_slice, xz_slice, yz_slice, resolutions, plot_dpi=150)
 
         assert fig is not None
         plt.close(fig)

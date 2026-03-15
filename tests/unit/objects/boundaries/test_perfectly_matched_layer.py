@@ -154,14 +154,17 @@ class TestPMLPlaceOnGrid:
 class TestPMLDescriptiveName:
     """Tests for PerfectlyMatchedLayer.descriptive_name."""
 
-    @pytest.mark.parametrize("axis,direction,expected", [
-        (0, "-", "min_x"),
-        (0, "+", "max_x"),
-        (1, "-", "min_y"),
-        (1, "+", "max_y"),
-        (2, "-", "min_z"),
-        (2, "+", "max_z"),
-    ])
+    @pytest.mark.parametrize(
+        "axis,direction,expected",
+        [
+            (0, "-", "min_x"),
+            (0, "+", "max_x"),
+            (1, "-", "min_y"),
+            (1, "+", "max_y"),
+            (2, "-", "min_z"),
+            (2, "+", "max_z"),
+        ],
+    )
     def test_descriptive_name(self, micro_config, jax_key, axis, direction, expected):
         pml = make_pml(axis=axis, direction=direction, thickness=8)
         placed = place_pml(pml, micro_config, jax_key, volume_shape=(30, 30, 30))

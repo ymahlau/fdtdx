@@ -20,9 +20,7 @@ class TestRecorder:
     def test_init_state_basic(self):
         """Test basic recorder initialization."""
         recorder = Recorder(modules=[LinearReconstructEveryK(k=5)])
-        input_shapes = {
-            "E": jax.ShapeDtypeStruct(shape=(10, 10, 10), dtype=jnp.float32)
-        }
+        input_shapes = {"E": jax.ShapeDtypeStruct(shape=(10, 10, 10), dtype=jnp.float32)}
 
         updated_recorder, state = recorder.init_state(
             input_shape_dtypes=input_shapes,
@@ -71,9 +69,7 @@ class TestRecorder:
     def test_compress_at_saved_step(self):
         """Test compression at a saved time step."""
         recorder = Recorder(modules=[LinearReconstructEveryK(k=10)])
-        input_shapes = {
-            "field": jax.ShapeDtypeStruct(shape=(5, 5), dtype=jnp.float32)
-        }
+        input_shapes = {"field": jax.ShapeDtypeStruct(shape=(5, 5), dtype=jnp.float32)}
 
         updated_recorder, state = recorder.init_state(
             input_shape_dtypes=input_shapes,
@@ -93,9 +89,7 @@ class TestRecorder:
     def test_compress_at_unsaved_step(self):
         """Test compression at unsaved time step."""
         recorder = Recorder(modules=[LinearReconstructEveryK(k=10)])
-        input_shapes = {
-            "field": jax.ShapeDtypeStruct(shape=(5, 5), dtype=jnp.float32)
-        }
+        input_shapes = {"field": jax.ShapeDtypeStruct(shape=(5, 5), dtype=jnp.float32)}
 
         updated_recorder, state = recorder.init_state(
             input_shape_dtypes=input_shapes,
@@ -116,9 +110,7 @@ class TestRecorder:
     def test_compress_updates_state_progressively(self):
         """Test that compress updates state at multiple time steps."""
         recorder = Recorder(modules=[LinearReconstructEveryK(k=10)])
-        input_shapes = {
-            "field": jax.ShapeDtypeStruct(shape=(3, 3), dtype=jnp.float32)
-        }
+        input_shapes = {"field": jax.ShapeDtypeStruct(shape=(3, 3), dtype=jnp.float32)}
 
         updated_recorder, state = recorder.init_state(
             input_shape_dtypes=input_shapes,
@@ -144,9 +136,7 @@ class TestRecorder:
     def test_decompress_at_saved_step(self):
         """Test decompression at a saved time step."""
         recorder = Recorder(modules=[LinearReconstructEveryK(k=10)])
-        input_shapes = {
-            "field": jax.ShapeDtypeStruct(shape=(3, 3), dtype=jnp.float32)
-        }
+        input_shapes = {"field": jax.ShapeDtypeStruct(shape=(3, 3), dtype=jnp.float32)}
 
         updated_recorder, state = recorder.init_state(
             input_shape_dtypes=input_shapes,
@@ -173,9 +163,7 @@ class TestRecorder:
     def test_decompress_with_interpolation(self):
         """Test decompression with linear interpolation."""
         recorder = Recorder(modules=[LinearReconstructEveryK(k=10)])
-        input_shapes = {
-            "field": jax.ShapeDtypeStruct(shape=(1,), dtype=jnp.float32)
-        }
+        input_shapes = {"field": jax.ShapeDtypeStruct(shape=(1,), dtype=jnp.float32)}
 
         updated_recorder, state = recorder.init_state(
             input_shape_dtypes=input_shapes,
@@ -186,15 +174,11 @@ class TestRecorder:
         key = jax.random.PRNGKey(0)
 
         # Store value 0 at step 0
-        state = updated_recorder.compress(
-            {"field": jnp.array([0.0])}, state, jnp.array(0), key
-        )
+        state = updated_recorder.compress({"field": jnp.array([0.0])}, state, jnp.array(0), key)
 
         # Store value 10 at step 10
         key, subkey = jax.random.split(key)
-        state = updated_recorder.compress(
-            {"field": jnp.array([10.0])}, state, jnp.array(10), subkey
-        )
+        state = updated_recorder.compress({"field": jnp.array([10.0])}, state, jnp.array(10), subkey)
 
         # Decompress at step 5 (midpoint)
         key, subkey = jax.random.split(key)
@@ -206,9 +190,7 @@ class TestRecorder:
     def test_empty_modules_list(self):
         """Test recorder with empty modules list."""
         recorder = Recorder(modules=[])
-        input_shapes = {
-            "field": jax.ShapeDtypeStruct(shape=(5, 5), dtype=jnp.float32)
-        }
+        input_shapes = {"field": jax.ShapeDtypeStruct(shape=(5, 5), dtype=jnp.float32)}
 
         updated_recorder, state = recorder.init_state(
             input_shape_dtypes=input_shapes,
@@ -232,9 +214,7 @@ class TestRecorder:
         key = jax.random.PRNGKey(0)
         state = updated_recorder.compress({"field": jnp.ones((3, 3))}, state, jnp.array(0), key)
         key, subkey = jax.random.split(key)
-        state = updated_recorder.compress(
-            {"field": jnp.ones((3, 3)) * 2.0}, state, jnp.array(10), subkey
-        )
+        state = updated_recorder.compress({"field": jnp.ones((3, 3)) * 2.0}, state, jnp.array(10), subkey)
 
         key, subkey = jax.random.split(key)
         result, returned_state = updated_recorder.decompress(state, jnp.array(0), subkey)
@@ -260,9 +240,7 @@ class TestRecorder:
 
     def test_recorder_with_dtype_conversion(self):
         """Recorder pipeline with DtypeConversion stores float16 and restores float32."""
-        recorder = Recorder(
-            modules=[DtypeConversion(dtype=jnp.float16), LinearReconstructEveryK(k=10)]
-        )
+        recorder = Recorder(modules=[DtypeConversion(dtype=jnp.float16), LinearReconstructEveryK(k=10)])
         input_shapes = {"field": jax.ShapeDtypeStruct(shape=(4, 4), dtype=jnp.float32)}
 
         updated_recorder, state = recorder.init_state(
@@ -278,9 +256,7 @@ class TestRecorder:
         original = jnp.ones((4, 4)) * 3.0
         state = updated_recorder.compress({"field": original}, state, jnp.array(0), key)
         key, subkey = jax.random.split(key)
-        state = updated_recorder.compress(
-            {"field": jnp.ones((4, 4)) * 6.0}, state, jnp.array(10), subkey
-        )
+        state = updated_recorder.compress({"field": jnp.ones((4, 4)) * 6.0}, state, jnp.array(10), subkey)
 
         key, subkey = jax.random.split(key)
         result, _ = updated_recorder.decompress(state, jnp.array(0), subkey)
@@ -316,9 +292,7 @@ class TestRecorderEdgeCases:
     def test_single_time_step(self):
         """Test with single time step."""
         recorder = Recorder(modules=[LinearReconstructEveryK(k=1)])
-        input_shapes = {
-            "field": jax.ShapeDtypeStruct(shape=(3,), dtype=jnp.float32)
-        }
+        input_shapes = {"field": jax.ShapeDtypeStruct(shape=(3,), dtype=jnp.float32)}
 
         updated_recorder, state = recorder.init_state(
             input_shape_dtypes=input_shapes,
@@ -331,9 +305,7 @@ class TestRecorderEdgeCases:
     def test_k_larger_than_time_steps(self):
         """Test with k larger than max time steps."""
         recorder = Recorder(modules=[LinearReconstructEveryK(k=100)])
-        input_shapes = {
-            "field": jax.ShapeDtypeStruct(shape=(3,), dtype=jnp.float32)
-        }
+        input_shapes = {"field": jax.ShapeDtypeStruct(shape=(3,), dtype=jnp.float32)}
 
         updated_recorder, state = recorder.init_state(
             input_shape_dtypes=input_shapes,

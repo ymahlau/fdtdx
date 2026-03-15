@@ -10,7 +10,6 @@ from fdtdx.core.plotting.device_permittivity_index_utils import (
 from fdtdx.materials import Material
 from fdtdx.typing import ParameterType
 
-
 # ──────────────────────────────────────────────
 # Fixtures
 # ──────────────────────────────────────────────
@@ -83,8 +82,8 @@ class TestDeviceMatrixIndexFigure:
         legend = ax.get_legend()
         assert legend is not None
         labels = [t.get_text() for t in legend.get_texts()]
-        assert any("Air" in l for l in labels)
-        assert any("Silicon" in l for l in labels)
+        assert any("Air" in i for i in labels)
+        assert any("Silicon" in i for i in labels)
         # Check axis properties
         assert ax.get_xlabel() == "X Axis"
         assert ax.get_ylabel() == "Y Axis"
@@ -107,16 +106,19 @@ class TestDeviceMatrixIndexFigure:
 
     def test_discrete_multi_channel(self, two_materials):
         """Multi-channel discrete path uses pipe-separated legend labels."""
-        indices = jnp.array([
-            [[0, 0], [0, 1]],
-            [[1, 0], [1, 1]],
-        ], dtype=jnp.int32)
+        indices = jnp.array(
+            [
+                [[0, 0], [0, 1]],
+                [[1, 0], [1, 1]],
+            ],
+            dtype=jnp.int32,
+        )
         fig = device_matrix_index_figure(indices, two_materials, ParameterType.DISCRETE)
         ax = fig.axes[0]
         legend = ax.get_legend()
         assert legend is not None
         labels = [t.get_text() for t in legend.get_texts()]
-        assert any("|" in l for l in labels)
+        assert any("|" in i for i in labels)
         import matplotlib.pyplot as plt
 
         plt.close(fig)

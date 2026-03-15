@@ -8,12 +8,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from unittest.mock import MagicMock, patch
 
-from fdtdx.objects.sources.tfsf import TFSFPlaneSource
-from fdtdx.objects.sources.linear_polarization import GaussianPlaneSource
-from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.config import SimulationConfig
+from fdtdx.core.wavelength import WaveCharacter
+from fdtdx.objects.sources.linear_polarization import GaussianPlaneSource
 
 
 @pytest.fixture
@@ -228,9 +226,7 @@ class TestTFSFPlaneSourceUpdateE:
         inv_perm = jnp.ones((1, 8, 8, 8), dtype=jnp.float32)
         time_step = jnp.array(10)
 
-        E_updated = placed_gaussian_source.update_E(
-            E, inv_perm, 1.0, time_step, inverse=False
-        )
+        E_updated = placed_gaussian_source.update_E(E, inv_perm, 1.0, time_step, inverse=False)
 
         # E should be modified at source location
         assert not jnp.allclose(E_updated, E)
@@ -241,12 +237,8 @@ class TestTFSFPlaneSourceUpdateE:
         inv_perm = jnp.ones((1, 8, 8, 8), dtype=jnp.float32)
         time_step = jnp.array(10)
 
-        E_forward = placed_gaussian_source.update_E(
-            E, inv_perm, 1.0, time_step, inverse=False
-        )
-        E_inverse = placed_gaussian_source.update_E(
-            E, inv_perm, 1.0, time_step, inverse=True
-        )
+        E_forward = placed_gaussian_source.update_E(E, inv_perm, 1.0, time_step, inverse=False)
+        E_inverse = placed_gaussian_source.update_E(E, inv_perm, 1.0, time_step, inverse=True)
 
         # Forward and inverse should have opposite signs at source location
         diff_forward = E_forward - E
@@ -308,9 +300,7 @@ class TestTFSFPlaneSourceUpdateE:
         inv_perm_anisotropic = jnp.ones((9, 8, 8, 8), dtype=jnp.float32)
         time_step = jnp.array(10)
 
-        E_updated = placed_gaussian_source.update_E(
-            E, inv_perm_anisotropic, 1.0, time_step, inverse=False
-        )
+        E_updated = placed_gaussian_source.update_E(E, inv_perm_anisotropic, 1.0, time_step, inverse=False)
 
         assert not jnp.allclose(E_updated, E)
 
@@ -320,12 +310,8 @@ class TestTFSFPlaneSourceUpdateE:
         inv_perm_anisotropic = jnp.ones((9, 8, 8, 8), dtype=jnp.float32)
         time_step = jnp.array(10)
 
-        E_forward = placed_gaussian_source.update_E(
-            E, inv_perm_anisotropic, 1.0, time_step, inverse=False
-        )
-        E_inverse = placed_gaussian_source.update_E(
-            E, inv_perm_anisotropic, 1.0, time_step, inverse=True
-        )
+        E_forward = placed_gaussian_source.update_E(E, inv_perm_anisotropic, 1.0, time_step, inverse=False)
+        E_inverse = placed_gaussian_source.update_E(E, inv_perm_anisotropic, 1.0, time_step, inverse=True)
 
         diff_forward = E_forward - E
         diff_inverse = E_inverse - E
@@ -341,9 +327,7 @@ class TestTFSFPlaneSourceUpdateH:
         inv_perm = jnp.ones((1, 8, 8, 8), dtype=jnp.float32)
         time_step = jnp.array(10)
 
-        H_updated = placed_gaussian_source.update_H(
-            H, inv_perm, 1.0, time_step, inverse=False
-        )
+        H_updated = placed_gaussian_source.update_H(H, inv_perm, 1.0, time_step, inverse=False)
 
         # H should be modified at source location
         assert not jnp.allclose(H_updated, H)
@@ -354,12 +338,8 @@ class TestTFSFPlaneSourceUpdateH:
         inv_perm = jnp.ones((1, 8, 8, 8), dtype=jnp.float32)
         time_step = jnp.array(10)
 
-        H_forward = placed_gaussian_source.update_H(
-            H, inv_perm, 1.0, time_step, inverse=False
-        )
-        H_inverse = placed_gaussian_source.update_H(
-            H, inv_perm, 1.0, time_step, inverse=True
-        )
+        H_forward = placed_gaussian_source.update_H(H, inv_perm, 1.0, time_step, inverse=False)
+        H_inverse = placed_gaussian_source.update_H(H, inv_perm, 1.0, time_step, inverse=True)
 
         diff_forward = H_forward - H
         diff_inverse = H_inverse - H
@@ -422,9 +402,7 @@ class TestTFSFPlaneSourceUpdateH:
         inv_perm_mu_anisotropic = jnp.ones((9, 8, 8, 8), dtype=jnp.float32)
         time_step = jnp.array(10)
 
-        H_updated = placed_gaussian_source.update_H(
-            H, inv_perm, inv_perm_mu_anisotropic, time_step, inverse=False
-        )
+        H_updated = placed_gaussian_source.update_H(H, inv_perm, inv_perm_mu_anisotropic, time_step, inverse=False)
 
         assert not jnp.allclose(H_updated, H)
 
@@ -435,12 +413,8 @@ class TestTFSFPlaneSourceUpdateH:
         inv_perm_mu_anisotropic = jnp.ones((9, 8, 8, 8), dtype=jnp.float32)
         time_step = jnp.array(10)
 
-        H_forward = placed_gaussian_source.update_H(
-            H, inv_perm, inv_perm_mu_anisotropic, time_step, inverse=False
-        )
-        H_inverse = placed_gaussian_source.update_H(
-            H, inv_perm, inv_perm_mu_anisotropic, time_step, inverse=True
-        )
+        H_forward = placed_gaussian_source.update_H(H, inv_perm, inv_perm_mu_anisotropic, time_step, inverse=False)
+        H_inverse = placed_gaussian_source.update_H(H, inv_perm, inv_perm_mu_anisotropic, time_step, inverse=True)
 
         diff_forward = H_forward - H
         diff_inverse = H_inverse - H

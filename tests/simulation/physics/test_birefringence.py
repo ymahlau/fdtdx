@@ -53,31 +53,32 @@ import numpy as np
 import fdtdx
 
 # ── Domain constants ──────────────────────────────────────────────────────────
-_WAVELENGTH = 1e-6       # free-space wavelength (m)
-_RESOLUTION = 50e-9      # 20 cells/λ in vacuum
+_WAVELENGTH = 1e-6  # free-space wavelength (m)
+_RESOLUTION = 50e-9  # 20 cells/λ in vacuum
 _PML_CELLS = 10
-_DOMAIN_XY = 3 * _RESOLUTION   # 3 cells, periodic
-_DOMAIN_Z = 4e-6         # 80 cells total
+_DOMAIN_XY = 3 * _RESOLUTION  # 3 cells, periodic
+_DOMAIN_Z = 4e-6  # 80 cells total
 _Z_CELLS = int(round(_DOMAIN_Z / _RESOLUTION))  # = 80
 
-_SOURCE_Z = _PML_CELLS + 2   # = 12  (2 cells into active region)
-_BIRE_START_Z = 14            # birefringent material starts here (2 cells after source)
-_BIRE_CELLS_Z = _Z_CELLS - _BIRE_START_Z   # = 66 cells (extends through right PML)
-_DET1_Z = _SOURCE_Z + 5      # = 17  (3 cells into birefringent region)
-_DET2_Z = _DET1_Z + 3        # = 20  (6 cells into birefringent region)
-_DET_SEP = 3 * _RESOLUTION   # = 150 nm
+_SOURCE_Z = _PML_CELLS + 2  # = 12  (2 cells into active region)
+_BIRE_START_Z = 14  # birefringent material starts here (2 cells after source)
+_BIRE_CELLS_Z = _Z_CELLS - _BIRE_START_Z  # = 66 cells (extends through right PML)
+_DET1_Z = _SOURCE_Z + 5  # = 17  (3 cells into birefringent region)
+_DET2_Z = _DET1_Z + 3  # = 20  (6 cells into birefringent region)
+_DET_SEP = 3 * _RESOLUTION  # = 150 nm
 
 # ── Material ──────────────────────────────────────────────────────────────────
-_EPS_ORDINARY = 2.25         # ordinary permittivity (x-axis)
-_EPS_EXTRAORDINARY = 4.0     # extraordinary permittivity (y-axis)
-_N_ORDINARY = float(np.sqrt(_EPS_ORDINARY))        # = 1.5
+_EPS_ORDINARY = 2.25  # ordinary permittivity (x-axis)
+_EPS_EXTRAORDINARY = 4.0  # extraordinary permittivity (y-axis)
+_N_ORDINARY = float(np.sqrt(_EPS_ORDINARY))  # = 1.5
 _N_EXTRAORDINARY = float(np.sqrt(_EPS_EXTRAORDINARY))  # = 2.0
 
-_SIM_TIME = 120e-15      # 120 fs ≈ 36 optical periods
-_TOLERANCE = 0.05        # 5 % relative error
+_SIM_TIME = 120e-15  # 120 fs ≈ 36 optical periods
+_TOLERANCE = 0.05  # 5 % relative error
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _build_base(polarization_vector):
     """Birefringent domain with +z source at given polarization.
@@ -118,11 +119,13 @@ def _build_base(polarization_vector):
             permittivity=(_EPS_ORDINARY, _EPS_EXTRAORDINARY, 1.0),
         ),
     )
-    constraints.extend([
-        diel.same_size(volume, axes=(0, 1)),
-        diel.place_at_center(volume, axes=(0, 1)),
-        diel.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(_BIRE_START_Z,)),
-    ])
+    constraints.extend(
+        [
+            diel.same_size(volume, axes=(0, 1)),
+            diel.place_at_center(volume, axes=(0, 1)),
+            diel.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(_BIRE_START_Z,)),
+        ]
+    )
     objects.append(diel)
 
     wave = fdtdx.WaveCharacter(wavelength=_WAVELENGTH)
@@ -132,11 +135,13 @@ def _build_base(polarization_vector):
         direction="+",
         fixed_E_polarization_vector=polarization_vector,
     )
-    constraints.extend([
-        source.same_size(volume, axes=(0, 1)),
-        source.place_at_center(volume, axes=(0, 1)),
-        source.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(_SOURCE_Z,)),
-    ])
+    constraints.extend(
+        [
+            source.same_size(volume, axes=(0, 1)),
+            source.place_at_center(volume, axes=(0, 1)),
+            source.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(_SOURCE_Z,)),
+        ]
+    )
     objects.append(source)
 
     return objects, constraints, config, volume, wave
@@ -153,11 +158,13 @@ def _add_phasor_det(name, z_idx, wave, volume, objects, constraints):
         exact_interpolation=True,
         plot=False,
     )
-    constraints.extend([
-        det.same_size(volume, axes=(0, 1)),
-        det.place_at_center(volume, axes=(0, 1)),
-        det.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(z_idx,)),
-    ])
+    constraints.extend(
+        [
+            det.same_size(volume, axes=(0, 1)),
+            det.place_at_center(volume, axes=(0, 1)),
+            det.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(z_idx,)),
+        ]
+    )
     objects.append(det)
 
 
@@ -206,6 +213,7 @@ def _measure_k(p_near: complex, p_far: complex, separation: float) -> float:
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
+
 
 def test_ordinary_wave_vector():
     """Ordinary-axis wave vector k_o = 2π n_o / λ within 5 %.
@@ -273,7 +281,7 @@ def test_ordinary_impedance():
     This gives a ~2.8 % systematic reduction in the measured impedance,
     within the 5 % tolerance.
     """
-    Z_analytic = 1.0 / _N_ORDINARY   # ≈ 0.6667 in fdtdx normalized units
+    Z_analytic = 1.0 / _N_ORDINARY  # ≈ 0.6667 in fdtdx normalized units
 
     objects, constraints, config, volume, wave = _build_base((1, 0, 0))
     _add_phasor_det("d1", _DET1_Z, wave, volume, objects, constraints)
@@ -304,7 +312,7 @@ def test_extraordinary_impedance():
     This matches the identical measurement in test_wave_impedance_dielectric
     from test_plane_wave.py (same parameters).
     """
-    Z_analytic = 1.0 / _N_EXTRAORDINARY   # = 0.500 in fdtdx normalized units
+    Z_analytic = 1.0 / _N_EXTRAORDINARY  # = 0.500 in fdtdx normalized units
 
     objects, constraints, config, volume, wave = _build_base((0, 1, 0))
     _add_phasor_det("d1", _DET1_Z, wave, volume, objects, constraints)

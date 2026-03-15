@@ -2,7 +2,6 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pytest
 
 from fdtdx.objects.detectors.plotting.line_plot import (
     plot_line_over_time,
@@ -38,9 +37,7 @@ class TestPlotLineOverTime:
         arr = np.array([1.0, 2.0, 3.0])
         time_steps = [0.0, 1.0, 2.0]
 
-        fig = plot_line_over_time(
-            arr, time_steps, metric_name="Power", xlabel="Time [ps]"
-        )
+        fig = plot_line_over_time(arr, time_steps, metric_name="Power", xlabel="Time [ps]")
 
         assert fig is not None
         plt.close(fig)
@@ -95,9 +92,7 @@ class TestPlotWaterfallOverTime:
         time_steps = np.linspace(0, 1e-12, 20)
         spatial_steps = np.linspace(0, 10e-6, 30)
 
-        fig = plot_waterfall_over_time(
-            arr, time_steps, spatial_steps, metric_name="Field Intensity"
-        )
+        fig = plot_waterfall_over_time(arr, time_steps, spatial_steps, metric_name="Field Intensity")
 
         assert fig is not None
         plt.close(fig)
@@ -130,9 +125,7 @@ class TestPlotWaterfallOverTime:
         time_steps = t
         spatial_steps = x
 
-        fig = plot_waterfall_over_time(
-            arr, time_steps, spatial_steps, metric_name="Wave"
-        )
+        fig = plot_waterfall_over_time(arr, time_steps, spatial_steps, metric_name="Wave")
 
         assert fig is not None
         plt.close(fig)
@@ -143,9 +136,7 @@ class TestPlotWaterfallOverTime:
         time_steps = np.linspace(0, 1, 20)
         spatial_steps = np.linspace(0, 1, 30)
 
-        fig = plot_waterfall_over_time(
-            arr, time_steps, spatial_steps, metric_name="Uniform"
-        )
+        fig = plot_waterfall_over_time(arr, time_steps, spatial_steps, metric_name="Uniform")
 
         assert fig is not None
         plt.close(fig)
@@ -156,9 +147,7 @@ class TestPlotWaterfallOverTime:
         time_steps = np.linspace(0, 1, 20)
         spatial_steps = np.linspace(0, 1, 30)
 
-        fig = plot_waterfall_over_time(
-            arr, time_steps, spatial_steps, metric_name="Bipolar"
-        )
+        fig = plot_waterfall_over_time(arr, time_steps, spatial_steps, metric_name="Bipolar")
 
         assert fig is not None
         plt.close(fig)
@@ -169,9 +158,7 @@ class TestPlotWaterfallOverTime:
         time_steps = [0, 1, 2]
         spatial_steps = [0, 1, 2]
 
-        fig = plot_waterfall_over_time(
-            arr, time_steps, spatial_steps, metric_name="Small"
-        )
+        fig = plot_waterfall_over_time(arr, time_steps, spatial_steps, metric_name="Small")
 
         assert fig is not None
         plt.close(fig)
@@ -182,9 +169,7 @@ class TestPlotWaterfallOverTime:
         time_steps = np.linspace(0, 1, 10)
         spatial_steps = np.linspace(0, 5, 50)
 
-        fig = plot_waterfall_over_time(
-            arr, time_steps, spatial_steps, metric_name="Rectangular"
-        )
+        fig = plot_waterfall_over_time(arr, time_steps, spatial_steps, metric_name="Rectangular")
 
         assert fig is not None
         plt.close(fig)
@@ -195,9 +180,7 @@ class TestPlotWaterfallOverTime:
         time_steps = [0.0, 0.1, 0.2, 0.3, 0.4]
         spatial_steps = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
-        fig = plot_waterfall_over_time(
-            arr, time_steps, spatial_steps, metric_name="List Input"
-        )
+        fig = plot_waterfall_over_time(arr, time_steps, spatial_steps, metric_name="List Input")
 
         assert fig is not None
         plt.close(fig)

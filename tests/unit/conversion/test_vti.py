@@ -14,7 +14,6 @@ from fdtdx.conversion.vti import (
     export_vti,
 )
 
-
 # ---- NUMPY_TO_VTK_DTYPE mapping ----
 
 
@@ -23,15 +22,22 @@ class TestNumpyToVtkDtype:
 
     def test_contains_all_expected_dtypes(self):
         expected = {
-            "int8", "uint8", "int16", "uint16", "int32", "uint32",
-            "int64", "uint64", "float32", "float64",
+            "int8",
+            "uint8",
+            "int16",
+            "uint16",
+            "int32",
+            "uint32",
+            "int64",
+            "uint64",
+            "float32",
+            "float64",
         }
         assert set(NUMPY_TO_VTK_DTYPE.keys()) == expected
 
     def test_vtk_type_names_are_capitalized(self):
         for numpy_dtype, vtk_name in NUMPY_TO_VTK_DTYPE.items():
             assert vtk_name[0].isupper(), f"VTK name for {numpy_dtype} should be capitalized"
-
 
 
 # ---- encode_array ----
@@ -225,10 +231,9 @@ class TestExportVti:
         marker = b"    _"
         marker_idx = raw.index(marker) + len(marker)
         footer = b"\n</AppendedData>\n</VTKFile>"
-        binary_data = raw[marker_idx:-len(footer)]
+        binary_data = raw[marker_idx : -len(footer)]
 
         # Parse header and decompress
-        header = struct.unpack("<4I", binary_data[:16])
         compressed = binary_data[16:]
         decompressed = zlib.decompress(compressed)
 
@@ -328,12 +333,12 @@ class TestExportArraysSnapshotToVti:
         marker = b"    _"
         marker_idx = raw.index(marker) + len(marker)
         footer = b"\n</AppendedData>\n</VTKFile>"
-        binary_section = raw[marker_idx:-len(footer)]
+        binary_section = raw[marker_idx : -len(footer)]
 
         # First encoded array is permittivity
         header = struct.unpack("<4I", binary_section[:16])
         compressed_size = header[3]
-        compressed = binary_section[16:16 + compressed_size]
+        compressed = binary_section[16 : 16 + compressed_size]
         decompressed = zlib.decompress(compressed)
         values = jnp.frombuffer(decompressed, dtype=jnp.float32)
         assert jnp.allclose(values, 4.0)

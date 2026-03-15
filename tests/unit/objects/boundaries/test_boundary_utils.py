@@ -178,65 +178,49 @@ class TestStandardSigmaFromDirectionAxis:
 
     def test_minus_direction_axis_0(self):
         """Test minus direction on x axis."""
-        sigma_E, sigma_H = standard_sigma_from_direction_axis(
-            thickness=10, direction="-", axis=0, dtype=jnp.float32
-        )
+        sigma_E, sigma_H = standard_sigma_from_direction_axis(thickness=10, direction="-", axis=0, dtype=jnp.float32)
         assert sigma_E.shape == (3, 10, 1, 1)
         assert sigma_H.shape == (3, 10, 1, 1)
 
     def test_plus_direction_axis_0(self):
         """Test plus direction on x axis."""
-        sigma_E, sigma_H = standard_sigma_from_direction_axis(
-            thickness=10, direction="+", axis=0, dtype=jnp.float32
-        )
+        sigma_E, sigma_H = standard_sigma_from_direction_axis(thickness=10, direction="+", axis=0, dtype=jnp.float32)
         assert sigma_E.shape == (3, 10, 1, 1)
         assert sigma_H.shape == (3, 10, 1, 1)
 
     def test_minus_direction_axis_1(self):
         """Test minus direction on y axis."""
-        sigma_E, sigma_H = standard_sigma_from_direction_axis(
-            thickness=8, direction="-", axis=1, dtype=jnp.float32
-        )
+        sigma_E, sigma_H = standard_sigma_from_direction_axis(thickness=8, direction="-", axis=1, dtype=jnp.float32)
         assert sigma_E.shape == (3, 1, 8, 1)
         assert sigma_H.shape == (3, 1, 8, 1)
 
     def test_plus_direction_axis_1(self):
         """Test plus direction on y axis."""
-        sigma_E, sigma_H = standard_sigma_from_direction_axis(
-            thickness=8, direction="+", axis=1, dtype=jnp.float32
-        )
+        sigma_E, sigma_H = standard_sigma_from_direction_axis(thickness=8, direction="+", axis=1, dtype=jnp.float32)
         assert sigma_E.shape == (3, 1, 8, 1)
         assert sigma_H.shape == (3, 1, 8, 1)
 
     def test_minus_direction_axis_2(self):
         """Test minus direction on z axis."""
-        sigma_E, sigma_H = standard_sigma_from_direction_axis(
-            thickness=6, direction="-", axis=2, dtype=jnp.float32
-        )
+        sigma_E, sigma_H = standard_sigma_from_direction_axis(thickness=6, direction="-", axis=2, dtype=jnp.float32)
         assert sigma_E.shape == (3, 1, 1, 6)
         assert sigma_H.shape == (3, 1, 1, 6)
 
     def test_plus_direction_axis_2(self):
         """Test plus direction on z axis."""
-        sigma_E, sigma_H = standard_sigma_from_direction_axis(
-            thickness=6, direction="+", axis=2, dtype=jnp.float32
-        )
+        sigma_E, sigma_H = standard_sigma_from_direction_axis(thickness=6, direction="+", axis=2, dtype=jnp.float32)
         assert sigma_E.shape == (3, 1, 1, 6)
         assert sigma_H.shape == (3, 1, 1, 6)
 
     def test_invalid_direction_raises(self):
         """Test that invalid direction raises exception."""
         with pytest.raises(Exception, match="Invalid Direction"):
-            standard_sigma_from_direction_axis(
-                thickness=10, direction="x", axis=0, dtype=jnp.float32
-            )
+            standard_sigma_from_direction_axis(thickness=10, direction="x", axis=0, dtype=jnp.float32)
 
     def test_invalid_axis_raises(self):
         """Test that invalid axis raises exception."""
         with pytest.raises(Exception, match="Invalid axis"):
-            standard_sigma_from_direction_axis(
-                thickness=10, direction="+", axis=3, dtype=jnp.float32
-            )
+            standard_sigma_from_direction_axis(thickness=10, direction="+", axis=3, dtype=jnp.float32)
 
 
 class TestKappaFromDirectionAxis:
@@ -245,8 +229,7 @@ class TestKappaFromDirectionAxis:
     def test_minus_direction_axis_0(self):
         """Test minus direction on x axis."""
         kappa = kappa_from_direction_axis(
-            kappa_start=1.0, kappa_end=2.0, thickness=10,
-            direction="-", axis=0, dtype=jnp.float32
+            kappa_start=1.0, kappa_end=2.0, thickness=10, direction="-", axis=0, dtype=jnp.float32
         )
         assert kappa.shape == (1, 10, 1, 1)
         # For minus direction, should go from end to start
@@ -256,8 +239,7 @@ class TestKappaFromDirectionAxis:
     def test_plus_direction_axis_0(self):
         """Test plus direction on x axis."""
         kappa = kappa_from_direction_axis(
-            kappa_start=1.0, kappa_end=2.0, thickness=10,
-            direction="+", axis=0, dtype=jnp.float32
+            kappa_start=1.0, kappa_end=2.0, thickness=10, direction="+", axis=0, dtype=jnp.float32
         )
         assert kappa.shape == (1, 10, 1, 1)
         # For plus direction, should go from start to end
@@ -267,16 +249,14 @@ class TestKappaFromDirectionAxis:
     def test_axis_1(self):
         """Test y axis."""
         kappa = kappa_from_direction_axis(
-            kappa_start=1.0, kappa_end=2.0, thickness=8,
-            direction="+", axis=1, dtype=jnp.float32
+            kappa_start=1.0, kappa_end=2.0, thickness=8, direction="+", axis=1, dtype=jnp.float32
         )
         assert kappa.shape == (1, 1, 8, 1)
 
     def test_axis_2(self):
         """Test z axis."""
         kappa = kappa_from_direction_axis(
-            kappa_start=1.0, kappa_end=2.0, thickness=6,
-            direction="+", axis=2, dtype=jnp.float32
+            kappa_start=1.0, kappa_end=2.0, thickness=6, direction="+", axis=2, dtype=jnp.float32
         )
         assert kappa.shape == (1, 1, 1, 6)
 
@@ -284,16 +264,14 @@ class TestKappaFromDirectionAxis:
         """Test that invalid direction raises exception."""
         with pytest.raises(Exception, match="Invalid direction"):
             kappa_from_direction_axis(
-                kappa_start=1.0, kappa_end=2.0, thickness=10,
-                direction="x", axis=0, dtype=jnp.float32
+                kappa_start=1.0, kappa_end=2.0, thickness=10, direction="x", axis=0, dtype=jnp.float32
             )
 
     def test_invalid_axis_raises(self):
         """Test that invalid axis raises exception."""
         with pytest.raises(Exception, match="Invalid axis"):
             kappa_from_direction_axis(
-                kappa_start=1.0, kappa_end=2.0, thickness=10,
-                direction="+", axis=3, dtype=jnp.float32
+                kappa_start=1.0, kappa_end=2.0, thickness=10, direction="+", axis=3, dtype=jnp.float32
             )
 
 
@@ -303,32 +281,28 @@ class TestAlphaFromDirectionAxis:
     def test_minus_direction_axis_0(self):
         """Test minus direction on x axis."""
         alpha = alpha_from_direction_axis(
-            alpha_start=0.0, alpha_end=1.0, thickness=10,
-            direction="-", axis=0, dtype=jnp.float32
+            alpha_start=0.0, alpha_end=1.0, thickness=10, direction="-", axis=0, dtype=jnp.float32
         )
         assert alpha.shape == (1, 10, 1, 1)
 
     def test_plus_direction_axis_0(self):
         """Test plus direction on x axis."""
         alpha = alpha_from_direction_axis(
-            alpha_start=0.0, alpha_end=1.0, thickness=10,
-            direction="+", axis=0, dtype=jnp.float32
+            alpha_start=0.0, alpha_end=1.0, thickness=10, direction="+", axis=0, dtype=jnp.float32
         )
         assert alpha.shape == (1, 10, 1, 1)
 
     def test_axis_1(self):
         """Test y axis."""
         alpha = alpha_from_direction_axis(
-            alpha_start=0.0, alpha_end=1.0, thickness=8,
-            direction="+", axis=1, dtype=jnp.float32
+            alpha_start=0.0, alpha_end=1.0, thickness=8, direction="+", axis=1, dtype=jnp.float32
         )
         assert alpha.shape == (1, 1, 8, 1)
 
     def test_axis_2(self):
         """Test z axis."""
         alpha = alpha_from_direction_axis(
-            alpha_start=0.0, alpha_end=1.0, thickness=6,
-            direction="+", axis=2, dtype=jnp.float32
+            alpha_start=0.0, alpha_end=1.0, thickness=6, direction="+", axis=2, dtype=jnp.float32
         )
         assert alpha.shape == (1, 1, 1, 6)
 
@@ -336,16 +310,14 @@ class TestAlphaFromDirectionAxis:
         """Test that invalid direction raises exception."""
         with pytest.raises(Exception, match="Invalid direction"):
             alpha_from_direction_axis(
-                alpha_start=0.0, alpha_end=1.0, thickness=10,
-                direction="x", axis=0, dtype=jnp.float32
+                alpha_start=0.0, alpha_end=1.0, thickness=10, direction="x", axis=0, dtype=jnp.float32
             )
 
     def test_invalid_axis_raises(self):
         """Test that invalid axis raises exception."""
         with pytest.raises(Exception, match="Invalid axis"):
             alpha_from_direction_axis(
-                alpha_start=0.0, alpha_end=1.0, thickness=10,
-                direction="+", axis=3, dtype=jnp.float32
+                alpha_start=0.0, alpha_end=1.0, thickness=10, direction="+", axis=3, dtype=jnp.float32
             )
 
 

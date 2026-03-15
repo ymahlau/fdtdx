@@ -1,7 +1,6 @@
 """Integration tests for fdtdx.conversion.vti module."""
 
 import jax
-import pytest
 
 import fdtdx
 from fdtdx import export_arrays_snapshot_to_vti

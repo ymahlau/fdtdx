@@ -4,14 +4,14 @@ import jax
 import jax.numpy as jnp
 import pytest
 
+from fdtdx.config import SimulationConfig
+from fdtdx.materials import Material
 from fdtdx.objects.device.parameters.discretization import (
     BrushConstraint2D,
     ClosestIndex,
     PillarDiscretization,
     circular_brush,
 )
-from fdtdx.materials import Material
-from fdtdx.config import SimulationConfig
 from fdtdx.typing import ParameterType
 
 

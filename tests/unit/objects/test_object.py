@@ -21,7 +21,6 @@ from fdtdx.objects.object import (
     UniqueName,
 )
 
-
 # ---------------------------------------------------------------------------
 # Minimal concrete implementations for testing
 # ---------------------------------------------------------------------------
@@ -126,9 +125,13 @@ class TestPositionConstraint:
 
     def test_frozen(self):
         pc = PositionConstraint(
-            object="o", other_object="p", axes=(0,),
-            object_positions=(0.0,), other_object_positions=(0.0,),
-            margins=(0.0,), grid_margins=(0,),
+            object="o",
+            other_object="p",
+            axes=(0,),
+            object_positions=(0.0,),
+            other_object_positions=(0.0,),
+            margins=(0.0,),
+            grid_margins=(0,),
         )
         with pytest.raises(Exception):
             pc.axes = (1,)  # type: ignore[misc]
@@ -313,7 +316,8 @@ class TestPlaceRelativeTo:
         a = _make(name="a")
         b = _make(name="b")
         c = a.place_relative_to(
-            other=b, axes=(0, 1),
+            other=b,
+            axes=(0, 1),
             own_positions=(0.0, 0.0),
             other_positions=(0.5, -0.5),
         )
@@ -324,8 +328,12 @@ class TestPlaceRelativeTo:
         a = _make(name="a")
         b = _make(name="b")
         c = a.place_relative_to(
-            other=b, axes=0, own_positions=0.0, other_positions=0.0,
-            margins=1e-9, grid_margins=3,
+            other=b,
+            axes=0,
+            own_positions=0.0,
+            other_positions=0.0,
+            margins=1e-9,
+            grid_margins=3,
         )
         assert c.margins == (1e-9,)
         assert c.grid_margins == (3,)
@@ -342,8 +350,10 @@ class TestPlaceRelativeTo:
         b = _make(name="b")
         with pytest.raises(Exception, match="same lengths"):
             a.place_relative_to(
-                other=b, axes=(0, 1),
-                own_positions=(0.0,), other_positions=(0.0, 0.0),
+                other=b,
+                axes=(0, 1),
+                own_positions=(0.0,),
+                other_positions=(0.0, 0.0),
             )
 
 

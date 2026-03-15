@@ -49,38 +49,39 @@ import numpy as np
 import fdtdx
 
 # ── Physical constants ────────────────────────────────────────────────────────
-_C0 = 3e8                    # speed of light (m/s)
-_EPS0 = 8.854187817e-12      # vacuum permittivity (F/m)
+_C0 = 3e8  # speed of light (m/s)
+_EPS0 = 8.854187817e-12  # vacuum permittivity (F/m)
 
 # ── Domain constants ──────────────────────────────────────────────────────────
-_WAVELENGTH = 1e-6           # free-space wavelength (m)
-_RESOLUTION = 50e-9          # grid resolution (m) → 20 cells/λ in vacuum
+_WAVELENGTH = 1e-6  # free-space wavelength (m)
+_RESOLUTION = 50e-9  # grid resolution (m) → 20 cells/λ in vacuum
 _PML_CELLS = 10
 _DOMAIN_XY = 3 * _RESOLUTION  # 3 cells, periodic
-_DOMAIN_Z = 4.5e-6           # 90 cells total
+_DOMAIN_Z = 4.5e-6  # 90 cells total
 _Z_CELLS = int(round(_DOMAIN_Z / _RESOLUTION))  # = 90
 
-_SOURCE_Z = _PML_CELLS + 2   # = 12 (2 cells into active region)
-_CONDUCTOR_START_Z = 30      # first conductor cell (18 vacuum cells from source)
+_SOURCE_Z = _PML_CELLS + 2  # = 12 (2 cells into active region)
+_CONDUCTOR_START_Z = 30  # first conductor cell (18 vacuum cells from source)
 _CONDUCTOR_CELLS_Z = _Z_CELLS - _PML_CELLS - _CONDUCTOR_START_Z  # = 50 cells
-_DET1_Z = 35                 # 5 cells (250 nm) into conductor
-_DET2_Z = 55                 # 25 cells (1250 nm) into conductor
-_DET_SEP = (_DET2_Z - _DET1_Z) * _RESOLUTION   # = 1.0 µm
+_DET1_Z = 35  # 5 cells (250 nm) into conductor
+_DET2_Z = 55  # 25 cells (1250 nm) into conductor
+_DET_SEP = (_DET2_Z - _DET1_Z) * _RESOLUTION  # = 1.0 µm
 
 # ── Conductor parameters ──────────────────────────────────────────────────────
-_EPS_R = 1.0                 # relative permittivity of conductor
-_SIGMA = 1.0e4               # electric conductivity (S/m)
+_EPS_R = 1.0  # relative permittivity of conductor
+_SIGMA = 1.0e4  # electric conductivity (S/m)
 
 # ── Simulation timing ─────────────────────────────────────────────────────────
-_SIM_TIME = 80e-15           # 80 fs ≈ 24 optical periods
-_DT_APPROX = 0.99 * _RESOLUTION / (_C0 * np.sqrt(3))   # ≈ 9.53e-17 s
+_SIM_TIME = 80e-15  # 80 fs ≈ 24 optical periods
+_DT_APPROX = 0.99 * _RESOLUTION / (_C0 * np.sqrt(3))  # ≈ 9.53e-17 s
 _STEPS_PER_PERIOD = int(round(_WAVELENGTH / (_C0 * _DT_APPROX)))  # ≈ 35
-_N_AVG_STEPS = 5 * _STEPS_PER_PERIOD   # last ~5 optical periods for steady state
+_N_AVG_STEPS = 5 * _STEPS_PER_PERIOD  # last ~5 optical periods for steady state
 
-_TOLERANCE = 0.10            # 10 % — generous for lossy-medium FDTD dispersion
+_TOLERANCE = 0.10  # 10 % — generous for lossy-medium FDTD dispersion
 
 
 # ── Analytic reference ────────────────────────────────────────────────────────
+
 
 def _analytic_alpha() -> float:
     """Exact attenuation coefficient from the complex dispersion relation.
@@ -94,6 +95,7 @@ def _analytic_alpha() -> float:
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _build_base():
     """Vacuum domain with periodic xy BCs, PML in z, and an x-polarized +z source."""
@@ -129,11 +131,13 @@ def _build_base():
         direction="+",
         fixed_E_polarization_vector=(1, 0, 0),
     )
-    constraints.extend([
-        source.same_size(volume, axes=(0, 1)),
-        source.place_at_center(volume, axes=(0, 1)),
-        source.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(_SOURCE_Z,)),
-    ])
+    constraints.extend(
+        [
+            source.same_size(volume, axes=(0, 1)),
+            source.place_at_center(volume, axes=(0, 1)),
+            source.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(_SOURCE_Z,)),
+        ]
+    )
     objects.append(source)
 
     return objects, constraints, config, volume, wave
@@ -148,11 +152,13 @@ def _add_conductor(volume, objects, constraints):
             electric_conductivity=_SIGMA,
         ),
     )
-    constraints.extend([
-        cond.same_size(volume, axes=(0, 1)),
-        cond.place_at_center(volume, axes=(0, 1)),
-        cond.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(_CONDUCTOR_START_Z,)),
-    ])
+    constraints.extend(
+        [
+            cond.same_size(volume, axes=(0, 1)),
+            cond.place_at_center(volume, axes=(0, 1)),
+            cond.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(_CONDUCTOR_START_Z,)),
+        ]
+    )
     objects.append(cond)
 
 
@@ -167,11 +173,13 @@ def _add_phasor_det(name, z_idx, wave, volume, objects, constraints):
         exact_interpolation=True,
         plot=False,
     )
-    constraints.extend([
-        det.same_size(volume, axes=(0, 1)),
-        det.place_at_center(volume, axes=(0, 1)),
-        det.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(z_idx,)),
-    ])
+    constraints.extend(
+        [
+            det.same_size(volume, axes=(0, 1)),
+            det.place_at_center(volume, axes=(0, 1)),
+            det.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(z_idx,)),
+        ]
+    )
     objects.append(det)
 
 
@@ -198,6 +206,7 @@ def _ex_phasor(arrays, name) -> complex:
 
 # ── Test ──────────────────────────────────────────────────────────────────────
 
+
 def test_skin_depth_attenuation():
     """Attenuation coefficient α matches Im(k) from exact dispersion within 10 %.
 
@@ -218,11 +227,9 @@ def test_skin_depth_attenuation():
     p1 = _ex_phasor(arrays, "d1")
     p2 = _ex_phasor(arrays, "d2")
 
-    assert abs(p1) > 0, f"Detector d1 measured zero Ex amplitude"
-    assert abs(p2) > 0, f"Detector d2 measured zero Ex amplitude"
-    assert abs(p2) < abs(p1), (
-        f"Wave is not attenuating: |p2|={abs(p2):.4e} >= |p1|={abs(p1):.4e}"
-    )
+    assert abs(p1) > 0, "Detector d1 measured zero Ex amplitude"
+    assert abs(p2) > 0, "Detector d2 measured zero Ex amplitude"
+    assert abs(p2) < abs(p1), f"Wave is not attenuating: |p2|={abs(p2):.4e} >= |p1|={abs(p1):.4e}"
 
     alpha_measured = -np.log(abs(p2) / abs(p1)) / _DET_SEP
     delta_measured = 1.0 / alpha_measured

@@ -1,19 +1,18 @@
 """Tests for objects/device/parameters/discrete.py - discrete parameter transformations."""
 
-import jax
 import jax.numpy as jnp
 import pytest
 
-from fdtdx.objects.device.parameters.discrete import (
-    RemoveFloatingMaterial,
-    ConnectHolesAndStructures,
-    BinaryMedianFilterModule,
-    BOTTOM_Z_PADDING_CONFIG,
-    BOTTOM_Z_PADDING_CONFIG_REPEAT,
-)
+from fdtdx.config import SimulationConfig
 from fdtdx.core.misc import PaddingConfig
 from fdtdx.materials import Material
-from fdtdx.config import SimulationConfig
+from fdtdx.objects.device.parameters.discrete import (
+    BOTTOM_Z_PADDING_CONFIG,
+    BOTTOM_Z_PADDING_CONFIG_REPEAT,
+    BinaryMedianFilterModule,
+    ConnectHolesAndStructures,
+    RemoveFloatingMaterial,
+)
 from fdtdx.typing import ParameterType
 
 

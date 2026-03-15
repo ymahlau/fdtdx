@@ -14,13 +14,9 @@ class TestLinearReconstructEveryK:
     def test_init_shapes_basic(self):
         """Test basic shape initialization."""
         filter_obj = LinearReconstructEveryK(k=5)
-        input_shapes = {
-            "field": jax.ShapeDtypeStruct(shape=(10, 10), dtype=jnp.float32)
-        }
+        input_shapes = {"field": jax.ShapeDtypeStruct(shape=(10, 10), dtype=jnp.float32)}
 
-        updated_filter, array_size, out_shapes, state_shapes = filter_obj.init_shapes(
-            input_shapes, time_steps_max=100
-        )
+        updated_filter, array_size, out_shapes, state_shapes = filter_obj.init_shapes(input_shapes, time_steps_max=100)
 
         assert array_size > 0
         assert array_size < 100  # Should be reduced
@@ -45,9 +41,7 @@ class TestLinearReconstructEveryK:
         filter_obj = LinearReconstructEveryK(k=7)
         input_shapes = {"field": jax.ShapeDtypeStruct(shape=(5,), dtype=jnp.float32)}
 
-        updated_filter, array_size, _, _ = filter_obj.init_shapes(
-            input_shapes, time_steps_max=50
-        )
+        updated_filter, array_size, _, _ = filter_obj.init_shapes(input_shapes, time_steps_max=50)
 
         # The last time step (49) should be included
         assert 49 in updated_filter._save_time_steps.tolist()
@@ -156,9 +150,7 @@ class TestLinearReconstructEveryK:
         """Test with k=1 (save every step)."""
         filter_obj = LinearReconstructEveryK(k=1)
         input_shapes = {"field": jax.ShapeDtypeStruct(shape=(5,), dtype=jnp.float32)}
-        updated_filter, array_size, _, _ = filter_obj.init_shapes(
-            input_shapes, time_steps_max=50
-        )
+        updated_filter, array_size, _, _ = filter_obj.init_shapes(input_shapes, time_steps_max=50)
 
         # Should save all 50 steps
         assert array_size == 50
@@ -167,9 +159,7 @@ class TestLinearReconstructEveryK:
         """Array size returned by init_shapes equals the number of saved time steps."""
         filter_obj = LinearReconstructEveryK(k=7)
         input_shapes = {"field": jax.ShapeDtypeStruct(shape=(3,), dtype=jnp.float32)}
-        updated_filter, array_size, _, _ = filter_obj.init_shapes(
-            input_shapes, time_steps_max=50
-        )
+        updated_filter, array_size, _, _ = filter_obj.init_shapes(input_shapes, time_steps_max=50)
         assert array_size == len(updated_filter._save_time_steps)
 
     def test_time_to_array_index_last_step(self):

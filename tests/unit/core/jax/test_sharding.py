@@ -64,12 +64,8 @@ class TestPrettyPrintSharding:
     def _patch_deprecated_shardings(self):
         """Patch deprecated sharding types so isinstance checks don't raise."""
         with (
-            mock.patch.object(
-                jax.sharding, "PositionalSharding", self._FakePositionalSharding, create=True
-            ),
-            mock.patch.object(
-                jax.sharding, "SingleDeviceSharding", self._FakeSingleDeviceSharding, create=True
-            ),
+            mock.patch.object(jax.sharding, "PositionalSharding", self._FakePositionalSharding, create=True),
+            mock.patch.object(jax.sharding, "SingleDeviceSharding", self._FakeSingleDeviceSharding, create=True),
         ):
             yield
 
@@ -148,28 +144,20 @@ class TestCreateNamedShardedMatrix:
             yield
 
     def test_returns_jax_array(self):
-        result = create_named_sharded_matrix(
-            shape=(4, 6), value=1.0, sharding_axis=0, dtype=jnp.float32, backend="cpu"
-        )
+        result = create_named_sharded_matrix(shape=(4, 6), value=1.0, sharding_axis=0, dtype=jnp.float32, backend="cpu")
         assert isinstance(result, jax.Array)
 
     def test_correct_shape(self):
         shape = (4, 8, 2)
-        result = create_named_sharded_matrix(
-            shape=shape, value=1.0, sharding_axis=0, dtype=jnp.float32, backend="cpu"
-        )
+        result = create_named_sharded_matrix(shape=shape, value=1.0, sharding_axis=0, dtype=jnp.float32, backend="cpu")
         assert result.shape == shape
 
     def test_correct_dtype(self):
-        result = create_named_sharded_matrix(
-            shape=(4, 6), value=1.0, sharding_axis=0, dtype=jnp.float32, backend="cpu"
-        )
+        result = create_named_sharded_matrix(shape=(4, 6), value=1.0, sharding_axis=0, dtype=jnp.float32, backend="cpu")
         assert result.dtype == jnp.float32
 
     def test_filled_with_value(self):
-        result = create_named_sharded_matrix(
-            shape=(4, 6), value=3.5, sharding_axis=0, dtype=jnp.float32, backend="cpu"
-        )
+        result = create_named_sharded_matrix(shape=(4, 6), value=3.5, sharding_axis=0, dtype=jnp.float32, backend="cpu")
         assert jnp.allclose(result, 3.5)
 
     def test_raises_on_indivisible_sharding_axis(self):
@@ -195,9 +183,7 @@ class TestCreateNamedShardedMatrix:
 
     def test_counter_increments(self):
         old_counter = sharding_module.counter
-        create_named_sharded_matrix(
-            shape=(2, 4), value=1.0, sharding_axis=0, dtype=jnp.float32, backend="cpu"
-        )
+        create_named_sharded_matrix(shape=(2, 4), value=1.0, sharding_axis=0, dtype=jnp.float32, backend="cpu")
         # 2*4 elements * 4 bytes (float32) = 32
         assert sharding_module.counter == old_counter + 32
 
@@ -210,7 +196,5 @@ class TestCreateNamedShardedMatrix:
         assert jnp.allclose(result, 2.0)
 
     def test_has_named_sharding(self):
-        result = create_named_sharded_matrix(
-            shape=(4, 6), value=1.0, sharding_axis=0, dtype=jnp.float32, backend="cpu"
-        )
+        result = create_named_sharded_matrix(shape=(4, 6), value=1.0, sharding_axis=0, dtype=jnp.float32, backend="cpu")
         assert isinstance(result.sharding, jax.sharding.NamedSharding)

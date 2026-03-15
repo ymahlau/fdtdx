@@ -1,7 +1,7 @@
 """Test cases for electromagnetic field metrics and normalization utilities."""
 
-import pytest
 import jax.numpy as jnp
+import pytest
 
 from fdtdx.core.physics.metrics import (
     compute_energy,
@@ -164,9 +164,9 @@ def test_compute_energy_full_tensor_diagonal():
     nx, ny, nz = 2, 2, 2
     # inv_eps diagonal = [2, 0.5, 1] -> eps diagonal = [0.5, 2, 1]
     inv_eps = jnp.zeros((9, nx, ny, nz))
-    inv_eps = inv_eps.at[0].set(2.0)   # inv_eps_xx
-    inv_eps = inv_eps.at[4].set(0.5)   # inv_eps_yy
-    inv_eps = inv_eps.at[8].set(1.0)   # inv_eps_zz
+    inv_eps = inv_eps.at[0].set(2.0)  # inv_eps_xx
+    inv_eps = inv_eps.at[4].set(0.5)  # inv_eps_yy
+    inv_eps = inv_eps.at[8].set(1.0)  # inv_eps_zz
 
     inv_mu = jnp.zeros((9, nx, ny, nz))
     inv_mu = inv_mu.at[0].set(1.0)
@@ -194,9 +194,9 @@ def test_compute_energy_full_tensor_with_9_inv_mu():
     inv_eps = inv_eps.at[8].set(1.0)
 
     inv_mu = jnp.zeros((9, nx, ny, nz))
-    inv_mu = inv_mu.at[0].set(2.0)   # inv_mu_xx
-    inv_mu = inv_mu.at[4].set(2.0)   # inv_mu_yy
-    inv_mu = inv_mu.at[8].set(2.0)   # inv_mu_zz
+    inv_mu = inv_mu.at[0].set(2.0)  # inv_mu_xx
+    inv_mu = inv_mu.at[4].set(2.0)  # inv_mu_yy
+    inv_mu = inv_mu.at[8].set(2.0)  # inv_mu_zz
 
     E = jnp.ones((3, nx, ny, nz))
     H = jnp.ones((3, nx, ny, nz))
@@ -213,23 +213,29 @@ def test_compute_energy_full_tensor_with_9_inv_mu():
 def test_compute_energy_full_tensor_agrees_with_diagonal():
     """Verify full 3x3 tensor path gives same result as diagonal path for diagonal materials."""
     nx, ny, nz = 3, 3, 3
-    E = jnp.array([
-        jnp.full((nx, ny, nz), 1.0),
-        jnp.full((nx, ny, nz), 2.0),
-        jnp.full((nx, ny, nz), 3.0),
-    ])
-    H = jnp.array([
-        jnp.full((nx, ny, nz), 0.5),
-        jnp.full((nx, ny, nz), 1.5),
-        jnp.full((nx, ny, nz), 2.5),
-    ])
+    E = jnp.array(
+        [
+            jnp.full((nx, ny, nz), 1.0),
+            jnp.full((nx, ny, nz), 2.0),
+            jnp.full((nx, ny, nz), 3.0),
+        ]
+    )
+    H = jnp.array(
+        [
+            jnp.full((nx, ny, nz), 0.5),
+            jnp.full((nx, ny, nz), 1.5),
+            jnp.full((nx, ny, nz), 2.5),
+        ]
+    )
 
     # Diagonal inv_eps = [2, 0.5, 1]
-    inv_eps_diag = jnp.stack([
-        jnp.full((nx, ny, nz), 2.0),
-        jnp.full((nx, ny, nz), 0.5),
-        jnp.full((nx, ny, nz), 1.0),
-    ])
+    inv_eps_diag = jnp.stack(
+        [
+            jnp.full((nx, ny, nz), 2.0),
+            jnp.full((nx, ny, nz), 0.5),
+            jnp.full((nx, ny, nz), 1.0),
+        ]
+    )
     inv_mu_scalar = 1.0
 
     # Same as 9-component tensor

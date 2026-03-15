@@ -8,57 +8,61 @@ from fdtdx.core.misc import pad_fields
 
 
 def interpolate_fields(
-      E_field: jax.Array,
-      H_field: jax.Array,
-      periodic_axes: tuple[bool, bool, bool] = (False, False, False),
-  ) -> tuple[jax.Array, jax.Array]:
-      """Interpolates E and H fields onto the E_z Yee grid point (i, j, k+½).
+    E_field: jax.Array,
+    H_field: jax.Array,
+    periodic_axes: tuple[bool, bool, bool] = (False, False, False),
+) -> tuple[jax.Array, jax.Array]:
+    """Interpolates E and H fields onto the E_z Yee grid point (i, j, k+½).
 
-      All six field components are co-located at (i·Δx, j·Δy, (k+½)·Δz) using
-      half-step averages. After pad_fields, slices [1:-1]/[:-2] produce a backward
-      half-step (e.g. i+½ → i) and [1:-1]/[2:] a forward half-step (k → k+½).
+    All six field components are co-located at (i·Δx, j·Δy, (k+½)·Δz) using
+    half-step averages. After pad_fields, slices [1:-1]/[:-2] produce a backward
+    half-step (e.g. i+½ → i) and [1:-1]/[2:] a forward half-step (k → k+½).
 
-      Natural positions (Taflove convention, axis 0=x, 1=y, 2=z):
-          E_x: (i+½, j,   k  )  →  shift x: −½, z: +½
-          E_y: (i,   j+½, k  )  →  shift y: −½, z: +½
-          E_z: (i,   j,   k+½)  →  already at target
-          H_x: (i,   j+½, k+½)  →  shift y: −½
-          H_y: (i+½, j,   k+½)  →  shift x: −½
-          H_z: (i+½, j+½, k  )  →  shift x: −½, y: −½, z: +½
-      """
-      E_field = pad_fields(E_field, periodic_axes)
-      H_field = pad_fields(H_field, periodic_axes)
+    Natural positions (Taflove convention, axis 0=x, 1=y, 2=z):
+        E_x: (i+½, j,   k  )  →  shift x: −½, z: +½
+        E_y: (i,   j+½, k  )  →  shift y: −½, z: +½
+        E_z: (i,   j,   k+½)  →  already at target
+        H_x: (i,   j+½, k+½)  →  shift y: −½
+        H_y: (i+½, j,   k+½)  →  shift x: −½
+        H_z: (i+½, j+½, k  )  →  shift x: −½, y: −½, z: +½
+    """
+    E_field = pad_fields(E_field, periodic_axes)
+    H_field = pad_fields(H_field, periodic_axes)
 
-      E_x, E_y, E_z = E_field[0], E_field[1], E_field[2]
-      H_x, H_y, H_z = H_field[0], H_field[1], H_field[2]
+    E_x, E_y, E_z = E_field[0], E_field[1], E_field[2]
+    H_x, H_y, H_z = H_field[0], H_field[1], H_field[2]
 
-      # E_x: (i+½, j, k) → (i, j, k+½): x backward, z forward
-      E_x = (E_x[1:-1, 1:-1, 1:-1] + E_x[:-2, 1:-1, 1:-1]
-           + E_x[1:-1, 1:-1, 2:]   + E_x[:-2, 1:-1, 2:]) / 4.0
+    # E_x: (i+½, j, k) → (i, j, k+½): x backward, z forward
+    E_x = (E_x[1:-1, 1:-1, 1:-1] + E_x[:-2, 1:-1, 1:-1] + E_x[1:-1, 1:-1, 2:] + E_x[:-2, 1:-1, 2:]) / 4.0
 
-      # E_y: (i, j+½, k) → (i, j, k+½): y backward, z forward
-      E_y = (E_y[1:-1, 1:-1, 1:-1] + E_y[1:-1, :-2, 1:-1]
-           + E_y[1:-1, 1:-1, 2:]   + E_y[1:-1, :-2, 2:]) / 4.0
+    # E_y: (i, j+½, k) → (i, j, k+½): y backward, z forward
+    E_y = (E_y[1:-1, 1:-1, 1:-1] + E_y[1:-1, :-2, 1:-1] + E_y[1:-1, 1:-1, 2:] + E_y[1:-1, :-2, 2:]) / 4.0
 
-      # E_z: (i, j, k+½) → already at target
-      E_z = E_z[1:-1, 1:-1, 1:-1]
+    # E_z: (i, j, k+½) → already at target
+    E_z = E_z[1:-1, 1:-1, 1:-1]
 
-      # H_x: (i, j+½, k+½) → (i, j, k+½): y backward only
-      H_x = (H_x[1:-1, 1:-1, 1:-1] + H_x[1:-1, :-2, 1:-1]) / 2.0
+    # H_x: (i, j+½, k+½) → (i, j, k+½): y backward only
+    H_x = (H_x[1:-1, 1:-1, 1:-1] + H_x[1:-1, :-2, 1:-1]) / 2.0
 
-      # H_y: (i+½, j, k+½) → (i, j, k+½): x backward only
-      H_y = (H_y[1:-1, 1:-1, 1:-1] + H_y[:-2, 1:-1, 1:-1]) / 2.0
+    # H_y: (i+½, j, k+½) → (i, j, k+½): x backward only
+    H_y = (H_y[1:-1, 1:-1, 1:-1] + H_y[:-2, 1:-1, 1:-1]) / 2.0
 
-      # H_z: (i+½, j+½, k) → (i, j, k+½): x backward, y backward, z forward
-      H_z = (H_z[1:-1, 1:-1, 1:-1] + H_z[:-2, 1:-1, 1:-1]
-           + H_z[1:-1, :-2, 1:-1] + H_z[:-2, :-2, 1:-1]
-           + H_z[1:-1, 1:-1, 2:]  + H_z[:-2, 1:-1, 2:]
-           + H_z[1:-1, :-2, 2:]   + H_z[:-2, :-2, 2:]) / 8.0
+    # H_z: (i+½, j+½, k) → (i, j, k+½): x backward, y backward, z forward
+    H_z = (
+        H_z[1:-1, 1:-1, 1:-1]
+        + H_z[:-2, 1:-1, 1:-1]
+        + H_z[1:-1, :-2, 1:-1]
+        + H_z[:-2, :-2, 1:-1]
+        + H_z[1:-1, 1:-1, 2:]
+        + H_z[:-2, 1:-1, 2:]
+        + H_z[1:-1, :-2, 2:]
+        + H_z[:-2, :-2, 2:]
+    ) / 8.0
 
-      E_interp = jnp.stack([E_x, E_y, E_z], axis=0)
-      H_interp = jnp.stack([H_x, H_y, H_z], axis=0)
+    E_interp = jnp.stack([E_x, E_y, E_z], axis=0)
+    H_interp = jnp.stack([H_x, H_y, H_z], axis=0)
 
-      return E_interp, H_interp
+    return E_interp, H_interp
 
 
 def curl_E(

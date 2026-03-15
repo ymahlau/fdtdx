@@ -1,6 +1,5 @@
 """Tests for objects/detectors/poynting_flux.py - Poynting flux detector."""
 
-import jax
 import jax.numpy as jnp
 import pytest
 
@@ -10,9 +9,7 @@ from fdtdx.objects.detectors.poynting_flux import PoyntingFluxDetector
 class TestPoyntingFluxDetectorShapes:
     """Tests for PoyntingFluxDetector shape and initialization."""
 
-    def test_shape_dtype_reduced_volume(
-        self, simulation_config, plane_grid_slice, random_key
-    ):
+    def test_shape_dtype_reduced_volume(self, simulation_config, plane_grid_slice, random_key):
         """Test shape calculation for reduced volume (default)."""
         detector = PoyntingFluxDetector(direction="+")
         detector = detector.place_on_grid(plane_grid_slice, simulation_config, random_key)
@@ -23,9 +20,7 @@ class TestPoyntingFluxDetectorShapes:
         assert shape_dtype["poynting_flux"].shape == (1,)
         assert shape_dtype["poynting_flux"].dtype == jnp.float32
 
-    def test_shape_dtype_full_spatial(
-        self, simulation_config, plane_grid_slice, random_key
-    ):
+    def test_shape_dtype_full_spatial(self, simulation_config, plane_grid_slice, random_key):
         """Test shape calculation with full spatial distribution."""
         detector = PoyntingFluxDetector(direction="+", reduce_volume=False)
         detector = detector.place_on_grid(plane_grid_slice, simulation_config, random_key)
@@ -34,26 +29,18 @@ class TestPoyntingFluxDetectorShapes:
 
         assert shape_dtype["poynting_flux"].shape == (8, 8, 1)
 
-    def test_shape_dtype_all_components_reduced(
-        self, simulation_config, plane_grid_slice, random_key
-    ):
+    def test_shape_dtype_all_components_reduced(self, simulation_config, plane_grid_slice, random_key):
         """Test shape with all components and reduced volume."""
-        detector = PoyntingFluxDetector(
-            direction="+", keep_all_components=True, reduce_volume=True
-        )
+        detector = PoyntingFluxDetector(direction="+", keep_all_components=True, reduce_volume=True)
         detector = detector.place_on_grid(plane_grid_slice, simulation_config, random_key)
 
         shape_dtype = detector._shape_dtype_single_time_step()
 
         assert shape_dtype["poynting_flux"].shape == (3,)
 
-    def test_shape_dtype_all_components_full(
-        self, simulation_config, plane_grid_slice, random_key
-    ):
+    def test_shape_dtype_all_components_full(self, simulation_config, plane_grid_slice, random_key):
         """Test shape with all components and full spatial."""
-        detector = PoyntingFluxDetector(
-            direction="+", keep_all_components=True, reduce_volume=False
-        )
+        detector = PoyntingFluxDetector(direction="+", keep_all_components=True, reduce_volume=False)
         detector = detector.place_on_grid(plane_grid_slice, simulation_config, random_key)
 
         shape_dtype = detector._shape_dtype_single_time_step()
@@ -75,9 +62,7 @@ class TestPoyntingFluxDetectorShapes:
 class TestPoyntingFluxDetectorPropagationAxis:
     """Tests for propagation axis detection."""
 
-    def test_propagation_axis_z(
-        self, simulation_config, plane_grid_slice, random_key
-    ):
+    def test_propagation_axis_z(self, simulation_config, plane_grid_slice, random_key):
         """Test propagation axis detection for z-normal plane."""
         # plane_grid_slice is (8, 8, 1) - z-axis has size 1
         detector = PoyntingFluxDetector(direction="+")
@@ -101,18 +86,14 @@ class TestPoyntingFluxDetectorPropagationAxis:
 
         assert detector.propagation_axis == 1
 
-    def test_fixed_propagation_axis(
-        self, simulation_config, small_grid_slice, random_key
-    ):
+    def test_fixed_propagation_axis(self, simulation_config, small_grid_slice, random_key):
         """Test fixed propagation axis override."""
         detector = PoyntingFluxDetector(direction="+", fixed_propagation_axis=1)
         detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)
 
         assert detector.propagation_axis == 1
 
-    def test_invalid_fixed_propagation_axis_raises(
-        self, simulation_config, small_grid_slice, random_key
-    ):
+    def test_invalid_fixed_propagation_axis_raises(self, simulation_config, small_grid_slice, random_key):
         """Test invalid fixed propagation axis raises error."""
         detector = PoyntingFluxDetector(direction="+", fixed_propagation_axis=5)
         detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)
@@ -120,9 +101,7 @@ class TestPoyntingFluxDetectorPropagationAxis:
         with pytest.raises(Exception, match="Invalid"):
             _ = detector.propagation_axis
 
-    def test_multiple_size_one_axes_raises(
-        self, simulation_config, line_grid_slice, random_key
-    ):
+    def test_multiple_size_one_axes_raises(self, simulation_config, line_grid_slice, random_key):
         """Test that multiple size-1 axes raises error without fixed axis."""
         # line_grid_slice is (8, 1, 1) - two axes have size 1
         detector = PoyntingFluxDetector(direction="+")
@@ -175,15 +154,11 @@ class TestPoyntingFluxDetectorUpdate:
     ):
         """Test that negative direction negates the flux."""
         detector_pos = PoyntingFluxDetector(direction="+")
-        detector_pos = detector_pos.place_on_grid(
-            plane_grid_slice, simulation_config, random_key
-        )
+        detector_pos = detector_pos.place_on_grid(plane_grid_slice, simulation_config, random_key)
         state_pos = detector_pos.init_state()
 
         detector_neg = PoyntingFluxDetector(direction="-")
-        detector_neg = detector_neg.place_on_grid(
-            plane_grid_slice, simulation_config, random_key
-        )
+        detector_neg = detector_neg.place_on_grid(plane_grid_slice, simulation_config, random_key)
         state_neg = detector_neg.init_state()
 
         new_state_pos = detector_pos.update(
@@ -247,9 +222,7 @@ class TestPoyntingFluxDetectorUpdate:
         inv_permeability,
     ):
         """Test update with all vector components."""
-        detector = PoyntingFluxDetector(
-            direction="+", keep_all_components=True, reduce_volume=True
-        )
+        detector = PoyntingFluxDetector(direction="+", keep_all_components=True, reduce_volume=True)
         detector = detector.place_on_grid(plane_grid_slice, simulation_config, random_key)
         state = detector.init_state()
 
@@ -281,16 +254,12 @@ class TestPoyntingFluxDetectorUpdate:
         # Time step 0
         E1 = jnp.ones((3, 8, 8, 8), dtype=jnp.float32)
         H1 = jnp.ones((3, 8, 8, 8), dtype=jnp.float32)
-        state = detector.update(
-            jnp.array(0), E1, H1, state, inv_permittivity, inv_permeability
-        )
+        state = detector.update(jnp.array(0), E1, H1, state, inv_permittivity, inv_permeability)
 
         # Time step 1: doubled fields
         E2 = jnp.ones((3, 8, 8, 8), dtype=jnp.float32) * 2.0
         H2 = jnp.ones((3, 8, 8, 8), dtype=jnp.float32) * 2.0
-        state = detector.update(
-            jnp.array(1), E2, H2, state, inv_permittivity, inv_permeability
-        )
+        state = detector.update(jnp.array(1), E2, H2, state, inv_permittivity, inv_permeability)
 
         # Both time steps should have values recorded
         # (Note: specific values depend on cross product implementation)
