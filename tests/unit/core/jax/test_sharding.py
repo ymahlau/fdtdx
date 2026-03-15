@@ -73,7 +73,8 @@ class TestPrettyPrintSharding:
         sharding = get_named_sharding_from_shape((10, 20), sharding_axis=0)
         result = pretty_print_sharding(sharding)
         assert result.startswith("NamedSharding(")
-        assert "PartitionSpec" in result
+        # JAX renders PartitionSpec as either "PartitionSpec(...)" or "P(...)"
+        assert "PartitionSpec" in result or "P(" in result
 
     def test_positional_sharding(self):
         obj = self._FakePositionalSharding()
