@@ -5,6 +5,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import GradientConfig, SimulationConfig
+from fdtdx.core.progress import SimulationProgressBar
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.fdtd import checkpointed_fdtd, custom_fdtd_forward, reversible_fdtd
 from fdtdx.fdtd.stop_conditions import TimeStepCondition
@@ -244,6 +245,95 @@ class TestCustomFdtdForward:
         t, arrs = custom_fdtd_forward(
             dummy_arrays, empty_objects, config_few_steps, key,
             reset_container=True, record_detectors=False, start_time=0, end_time=1,
+        )
+        assert isinstance(t, jax.Array)
+        assert isinstance(arrs, ArrayContainer)
+
+
+class TestShowProgressFlag:
+    """Verify that show_progress=True/False does not alter simulation outputs."""
+
+    def test_reversible_fdtd_with_progress(self, dummy_arrays, dummy_objects, config_few_steps):
+        key = jax.random.PRNGKey(0)
+        t, arrs = reversible_fdtd(dummy_arrays, dummy_objects, config_few_steps, key, show_progress=True)
+        assert isinstance(t, jax.Array)
+        assert isinstance(arrs, ArrayContainer)
+        assert arrs.E.shape == dummy_arrays.E.shape
+
+    def test_checkpointed_fdtd_with_progress(self, dummy_arrays, dummy_objects, config_checkpointed):
+        key = jax.random.PRNGKey(0)
+        t, arrs = checkpointed_fdtd(
+            dummy_arrays, dummy_objects, config_checkpointed, key, show_progress=True
+        )
+        assert isinstance(t, jax.Array)
+        assert isinstance(arrs, ArrayContainer)
+
+    def test_custom_fdtd_forward_with_progress(self, dummy_arrays, dummy_objects, config_few_steps):
+        key = jax.random.PRNGKey(0)
+        t, arrs = custom_fdtd_forward(
+            dummy_arrays,
+            dummy_objects,
+            config_few_steps,
+            key,
+            reset_container=True,
+            record_detectors=False,
+            start_time=0,
+            end_time=5,
+            show_progress=True,
+        )
+        assert isinstance(t, jax.Array)
+        assert isinstance(arrs, ArrayContainer)
+
+    def test_reversible_fdtd_without_progress(self, dummy_arrays, dummy_objects, config_few_steps):
+        key = jax.random.PRNGKey(0)
+        t, arrs = reversible_fdtd(dummy_arrays, dummy_objects, config_few_steps, key, show_progress=False)
+        assert isinstance(t, jax.Array)
+        assert isinstance(arrs, ArrayContainer)
+
+    def test_checkpointed_fdtd_without_progress(self, dummy_arrays, dummy_objects, config_checkpointed):
+        key = jax.random.PRNGKey(0)
+        t, arrs = checkpointed_fdtd(
+            dummy_arrays,
+            dummy_objects,
+            config_checkpointed,
+            key,
+            show_progress=False,
+        )
+        assert isinstance(t, jax.Array)
+        assert isinstance(arrs, ArrayContainer)
+
+    def test_custom_fdtd_no_steps_no_bar(self, dummy_arrays, dummy_objects, config_few_steps):
+        """When start_time == end_time no loop iterations run and no bar is created."""
+        key = jax.random.PRNGKey(0)
+        t, arrs = custom_fdtd_forward(
+            dummy_arrays,
+            dummy_objects,
+            config_few_steps,
+            key,
+            reset_container=False,
+            record_detectors=False,
+            start_time=3,
+            end_time=3,
+            show_progress=True,
+        )
+        assert int(t) == 3
+        assert isinstance(arrs, ArrayContainer)
+
+    def test_custom_fdtd_jax_array_times_disables_progress(self, dummy_arrays, dummy_objects, config_few_steps):
+        """Passing jax.Array start_time/end_time must not cause concretization errors."""
+        key = jax.random.PRNGKey(0)
+        start = jnp.asarray(0, dtype=jnp.int32)
+        end = jnp.asarray(2, dtype=jnp.int32)
+        t, arrs = custom_fdtd_forward(
+            dummy_arrays,
+            dummy_objects,
+            config_few_steps,
+            key,
+            reset_container=True,
+            record_detectors=False,
+            start_time=start,
+            end_time=end,
+            show_progress=True,
         )
         assert isinstance(t, jax.Array)
         assert isinstance(arrs, ArrayContainer)
