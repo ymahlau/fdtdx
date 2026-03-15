@@ -317,7 +317,7 @@ def test_plot_material_permeability(simple_material_setup):
 
 @pytest.mark.integration
 def test_plot_material_verify_values(simple_material_setup):
-    """Test that plot_material correctly displays material values."""
+    """Test that plot_material correctly displays material values and spans the full domain."""
     config, arrays = simple_material_setup
 
     fig, ax = plt.subplots(1, 1, figsize=(6, 5))
@@ -336,6 +336,20 @@ def test_plot_material_verify_values(simple_material_setup):
 
     assert data is not None
     assert data.size > 0
+
+    # Verify the plot spans the full simulation domain.
+    # Setup uses 40 grid cells at 50nm resolution = 2.0 µm in each direction.
+    # If the component axis bug is present, array_shape[0] == num_components (~3)
+    # instead of Nx (40), collapsing the x-extent to ~0.15 µm instead of 2.0 µm.
+    extent = im.get_extent()  # [xmin, xmax, ymin, ymax] in µm
+    expected_size_um = 2.0  # 40 cells * 50nm = 2µm
+    assert abs(extent[1] - expected_size_um) < 0.1, (
+        f"X-extent should be ~{expected_size_um} µm but got {extent[1]:.4f} µm. "
+        f"This likely means array_shape[0] is num_components instead of Nx."
+    )
+    assert abs(extent[3] - expected_size_um) < 0.1, (
+        f"Y-extent should be ~{expected_size_um} µm but got {extent[3]:.4f} µm."
+    )
 
     plt.close(fig)
 
@@ -477,3 +491,139 @@ def test_plot_material_with_external_figure(simple_material_setup):
     assert ax.get_title() != ""
 
     plt.close(fig)
+
+
+@pytest.mark.integration
+def test_plot_material_all_types_objects():
+    """Test plot_material with UniformMaterialObject, Cylinder, and Sphere."""
+    config = SimulationConfig(
+        resolution=40e-9,
+        time=100e-15,
+    )
+
+    volume = SimulationVolume(
+        partial_real_shape=(4e-6, 4e-6, 4e-6),
+        name="simulation_volume",
+    )
+
+    # Create different types of objects
+    cube = UniformMaterialObject(
+        name="cube",
+        material=Material(permittivity=2.25, permeability=1.0),
+    )
+
+    cylinder = Cylinder(
+        name="cylinder",
+        radius=0.5e-6,
+        axis=2,
+        materials={"silicon": Material(permittivity=11.7, permeability=1.0)},
+        material_name="silicon",
+    )
+
+    sphere = Sphere(
+        name="sphere",
+        radius=0.5e-6,
+        materials={"high_dielectric": Material(permittivity=9.0, permeability=1.0)},
+        material_name="high_dielectric",
+    )
+
+    object_list = [volume, cube, cylinder, sphere]
+
+    # Create constraints
+    constraints = [
+        # Volume
+        GridCoordinateConstraint(object="simulation_volume", axes=(0,), sides=("-",), coordinates=(0,)),
+        GridCoordinateConstraint(object="simulation_volume", axes=(0,), sides=("+",), coordinates=(100,)),
+        GridCoordinateConstraint(object="simulation_volume", axes=(1,), sides=("-",), coordinates=(0,)),
+        GridCoordinateConstraint(object="simulation_volume", axes=(1,), sides=("+",), coordinates=(100,)),
+        GridCoordinateConstraint(object="simulation_volume", axes=(2,), sides=("-",), coordinates=(0,)),
+        GridCoordinateConstraint(object="simulation_volume", axes=(2,), sides=("+",), coordinates=(100,)),
+        # Cube: at bottom left
+        GridCoordinateConstraint(object="cube", axes=(0,), sides=("-",), coordinates=(10,)),
+        GridCoordinateConstraint(object="cube", axes=(0,), sides=("+",), coordinates=(30,)),
+        GridCoordinateConstraint(object="cube", axes=(1,), sides=("-",), coordinates=(10,)),
+        GridCoordinateConstraint(object="cube", axes=(1,), sides=("+",), coordinates=(30,)),
+        GridCoordinateConstraint(object="cube", axes=(2,), sides=("-",), coordinates=(10,)),
+        GridCoordinateConstraint(object="cube", axes=(2,), sides=("+",), coordinates=(30,)),
+        # Cylinder: centered
+        GridCoordinateConstraint(object="cylinder", axes=(0,), sides=("-",), coordinates=(40,)),
+        GridCoordinateConstraint(object="cylinder", axes=(0,), sides=("+",), coordinates=(60,)),
+        GridCoordinateConstraint(object="cylinder", axes=(1,), sides=("-",), coordinates=(40,)),
+        GridCoordinateConstraint(object="cylinder", axes=(1,), sides=("+",), coordinates=(60,)),
+        GridCoordinateConstraint(object="cylinder", axes=(2,), sides=("-",), coordinates=(0,)),
+        GridCoordinateConstraint(object="cylinder", axes=(2,), sides=("+",), coordinates=(100,)),
+        # Sphere: at top right
+        GridCoordinateConstraint(object="sphere", axes=(0,), sides=("-",), coordinates=(70,)),
+        GridCoordinateConstraint(object="sphere", axes=(0,), sides=("+",), coordinates=(90,)),
+        GridCoordinateConstraint(object="sphere", axes=(1,), sides=("-",), coordinates=(70,)),
+        GridCoordinateConstraint(object="sphere", axes=(1,), sides=("+",), coordinates=(90,)),
+        GridCoordinateConstraint(object="sphere", axes=(2,), sides=("-",), coordinates=(70,)),
+        GridCoordinateConstraint(object="sphere", axes=(2,), sides=("+",), coordinates=(90,)),
+    ]
+
+    key = jax.random.PRNGKey(0)
+    objects, arrays, params, config, _ = fdtdx.place_objects(
+        object_list=object_list,
+        config=config,
+        constraints=constraints,
+        key=key,
+    )
+
+    # Test plotting
+    fig, ax = plt.subplots(1, 1, figsize=(6, 5))
+    result_fig = plot_material_from_side(
+        config=config,
+        arrays=arrays,
+        viewing_side="z",
+        ax=ax,
+        plot_legend=True,
+        position=0.0,
+        type="permittivity",
+        filename=TEST_OUTPUT_DIR / "test_plot_material_all_types.png",
+    )
+
+    assert result_fig is not None
+    assert (TEST_OUTPUT_DIR / "test_plot_material_all_types.png").exists()
+    plt.close(fig)
+
+
+@pytest.mark.integration
+def test_plot_material_material_axis(simple_material_setup):
+    """Test that material_axis is accepted by plot_material and forwarded to all subplots.
+
+    Before the fix, plot_material had no material_axis parameter and never forwarded
+    it to plot_material_from_side, so components 1 and 2 were silently unreachable.
+    """
+    config, arrays = simple_material_setup
+
+    for axis in [0, 1, 2]:
+        result_fig = plot_material(
+            config=config,
+            arrays=arrays,
+            plot_legend=False,
+            type="permittivity",
+            material_axis=axis,
+        )
+        assert result_fig is not None, f"plot_material returned None for material_axis={axis}"
+
+        # Verify all three subplots have image data
+        axs = result_fig.get_axes()
+        # Filter out colorbar axes (they have no images)
+        plot_axs = [a for a in axs if len(a.get_images()) > 0]
+        assert len(plot_axs) == 3, f"Expected 3 subplots with image data for material_axis={axis}, got {len(plot_axs)}"
+
+        # Verify each subplot spans the full 2µm domain on both axes
+        expected_size_um = 2.0  # 40 cells * 50nm
+        for ax in plot_axs:
+            im = ax.get_images()[0]
+            extent = im.get_extent()  # [xmin, xmax, ymin, ymax]
+            assert abs(extent[1] - expected_size_um) < 0.1, (
+                f"material_axis={axis}: x-extent should be ~{expected_size_um} µm "
+                f"but got {extent[1]:.4f} µm in subplot '{ax.get_title()}'"
+            )
+            assert abs(extent[3] - expected_size_um) < 0.1, (
+                f"material_axis={axis}: y-extent should be ~{expected_size_um} µm "
+                f"but got {extent[3]:.4f} µm in subplot '{ax.get_title()}'"
+            )
+
+        plt.close("all")
