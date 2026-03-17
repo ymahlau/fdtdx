@@ -73,5 +73,5 @@ rocm = [
 include = ["src", "examples", "checks", "test"]
 exclude = ["**/.venv"]
 
-[tool.ty]
+[tool.ty.src]
 exclude = ["tests"]

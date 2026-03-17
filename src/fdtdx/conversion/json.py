@@ -76,7 +76,7 @@ class JsonSetup:
 
         Formatting depends on `export_json_str` implementation.
         """
-        export_format = {
+        export_format : dict[str, Any] = {
             "__schema__": "fdtdx.place_objects.v1",
             "__fdtdx_version__": "0.6.0",
             "config": self.config,
