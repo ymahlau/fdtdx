@@ -1,6 +1,5 @@
 import math
 from functools import partial
-from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -111,8 +110,7 @@ def create_named_sharded_matrix(
             dtype=dtype,
             device=device,
         )
-        fn: Any = value_fn
-        device_matrix = fn(device_matrix, value)
+        device_matrix = value_fn(device_matrix, value) # type: ignore # ty: ignore[unused-ignore-comment]
         matrices.append(device_matrix)
     num_bytes = get_dtype_bytes(dtype)
     counter += math.prod(shape) * num_bytes
