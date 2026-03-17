@@ -110,6 +110,7 @@ def create_named_sharded_matrix(
             dtype=dtype,
             device=device,
         )
+        assert callable(value_fn)
         device_matrix = value_fn(device_matrix, value)
         matrices.append(device_matrix)
     num_bytes = get_dtype_bytes(dtype)
