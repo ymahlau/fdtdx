@@ -311,7 +311,9 @@ class TestModeOverlapDetectorComputeOverlap:
 class TestModeOverlapDetectorComputeOverlapPath:
     """Tests for compute_overlap() – the stored-mode path (via aset)."""
 
-    def test_compute_overlap_without_apply_raises(self, single_frequency, simulation_config, plane_grid_slice, random_key):
+    def test_compute_overlap_without_apply_raises(
+        self, single_frequency, simulation_config, plane_grid_slice, random_key
+    ):
         """compute_overlap() raises when mode fields were never set (no apply() call)."""
         det = ModeOverlapDetector(wave_characters=single_frequency, direction="+")
         det = det.place_on_grid(plane_grid_slice, simulation_config, random_key)

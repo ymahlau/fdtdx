@@ -5,8 +5,9 @@ Run only integration tests with: pytest -m integration
 Run all tests except integration tests with: pytest -m "not integration"
 """
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 
 def pytest_collection_modifyitems(items):

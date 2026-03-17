@@ -5,8 +5,9 @@ Run only simulation tests with: pytest -m simulation
 Run all tests except simulation tests with: pytest -m "not simulation"
 """
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 
 def pytest_collection_modifyitems(items):

@@ -5,8 +5,9 @@ Run only unit tests with: pytest -m unit
 Run all tests except unit tests with: pytest -m "not unit"
 """
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 
 def pytest_collection_modifyitems(items):

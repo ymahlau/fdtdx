@@ -138,9 +138,7 @@ class TestEnergyThresholdCondition:
             detector_states={},
             recording_state=None,
         )
-        cond = EnergyThresholdCondition(threshold=1e10, min_steps=min_steps).setup(
-            _make_state(0), config, None
-        )
+        cond = EnergyThresholdCondition(threshold=1e10, min_steps=min_steps).setup(_make_state(0), config, None)
         # Energy is near zero (below threshold=1e10), but time_step < min_steps → must continue
         state = _make_state(min_steps - 5, zero_arrays)
         assert bool(cond(state, config, None)) is True
