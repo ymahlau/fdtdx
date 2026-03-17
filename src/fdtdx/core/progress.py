@@ -5,6 +5,7 @@ import math
 import jax
 import jax.experimental
 
+
 def _auto_update_interval(total_steps: int, target_updates: int = 20) -> int:
     """Return a visually pleasing update interval for a progress bar.
 
