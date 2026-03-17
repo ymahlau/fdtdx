@@ -195,7 +195,7 @@ def test_object_container_json():
 
 
 def test_run_simulation_with_imported_json(setup_simulation_inputs):
-    """Ensures that a simulation can be executed from exported JSON settings and successfully executed."""
+    """Ensures that a simulation can be executed from exported JSON settings."""
     key = setup_simulation_inputs["key"]
     key, subkey = jax.random.split(key)
     config = setup_simulation_inputs["config"]
