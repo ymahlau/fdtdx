@@ -72,3 +72,6 @@ rocm = [
 [tool.pyright]
 include = ["src", "examples", "checks", "test"]
 exclude = ["**/.venv"]
+
+[tool.ty]
+exclude = ["tests"]
