@@ -120,11 +120,29 @@ class TestEnergyThresholdCondition:
         assert cond.min_steps == 7
 
     def test_continues_before_min_steps(self):
+        """Condition continues before min_steps even when energy is below threshold."""
         config = _CONFIG
         min_steps = 20
-        cond = EnergyThresholdCondition(threshold=1e-5, min_steps=min_steps).setup(_make_state(0), config, None)
-        # Well before min_steps; high energy (all ones → energy >> threshold)
-        state = _make_state(min_steps - 5)
+        # Use an extremely high threshold so energy would normally stop the simulation,
+        # but min_steps forces continuation regardless.
+        zero_arrays = ArrayContainer(
+            E=jnp.zeros((3, 4, 4, 4)),
+            H=jnp.zeros((3, 4, 4, 4)),
+            psi_E=jnp.zeros((6, 4, 4, 4)),
+            psi_H=jnp.zeros((6, 4, 4, 4)),
+            alpha=jnp.zeros((3, 4, 4, 4)),
+            kappa=jnp.ones((3, 4, 4, 4)),
+            sigma=jnp.zeros((3, 4, 4, 4)),
+            inv_permittivities=jnp.ones((4, 4, 4)),
+            inv_permeabilities=jnp.ones((4, 4, 4)),
+            detector_states={},
+            recording_state=None,
+        )
+        cond = EnergyThresholdCondition(threshold=1e10, min_steps=min_steps).setup(
+            _make_state(0), config, None
+        )
+        # Energy is near zero (below threshold=1e10), but time_step < min_steps → must continue
+        state = _make_state(min_steps - 5, zero_arrays)
         assert bool(cond(state, config, None)) is True
 
     def test_continues_when_above_threshold(self):

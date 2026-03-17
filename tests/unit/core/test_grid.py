@@ -235,27 +235,28 @@ def test_calculate_time_offset_yee_anisotropic_requires_polarization():
 
 
 def test_calculate_time_offset_yee_4d_permeability():
-    """Test calculate_time_offset_yee with 4D permeability array (anisotropic)."""
-    # Fail for now, until NotImplemented exception removed (grid.py line 119)
+    """Test calculate_time_offset_yee with 4D anisotropic permeability raises NotImplementedError."""
+    # This code path raises NotImplementedError until full anisotropic
+    # permeability support is added (grid.py line 119).
+    center = jnp.array([1.0, 1.0])
+    wave_vector = jnp.array([1.0, 0.0, 0.0])
+    resolution = 0.1
+    time_step_duration = 1e-15
+
+    # Isotropic permittivity (1D stack)
+    inv_permittivities = jnp.ones((1, 3, 3, 1))
+
+    # Anisotropic permeability: shape (3, Nx, Ny, Nz)
+    inv_perm_x = 1.0 * jnp.ones((3, 3, 1))
+    inv_perm_y = 0.5 * jnp.ones((3, 3, 1))
+    inv_perm_z = 0.25 * jnp.ones((3, 3, 1))
+    inv_permeabilities = jnp.stack([inv_perm_x, inv_perm_y, inv_perm_z], axis=0)
+
+    e_pol = jnp.array([0.0, 1.0, 0.0])
+    h_pol = jnp.array([0.0, 0.0, 1.0])
+
     with pytest.raises(Exception):
-        center = jnp.array([1.0, 1.0])
-        wave_vector = jnp.array([1.0, 0.0, 0.0])
-        resolution = 0.1
-        time_step_duration = 1e-15
-
-        # Isotropic permittivity (1D stack)
-        inv_permittivities = jnp.ones((1, 3, 3, 1))
-
-        # Anisotropic permeability: shape (3, Nx, Ny, Nz)
-        inv_perm_x = 1.0 * jnp.ones((3, 3, 1))
-        inv_perm_y = 0.5 * jnp.ones((3, 3, 1))
-        inv_perm_z = 0.25 * jnp.ones((3, 3, 1))
-        inv_permeabilities = jnp.stack([inv_perm_x, inv_perm_y, inv_perm_z], axis=0)
-
-        e_pol = jnp.array([0.0, 1.0, 0.0])
-        h_pol = jnp.array([0.0, 0.0, 1.0])
-
-        time_offset_E, time_offset_H = calculate_time_offset_yee(
+        calculate_time_offset_yee(
             center,
             wave_vector,
             inv_permittivities,
@@ -265,9 +266,6 @@ def test_calculate_time_offset_yee_4d_permeability():
             e_polarization=e_pol,
             h_polarization=h_pol,
         )
-
-        assert time_offset_E.shape == (3, 3, 3, 1)
-        assert jnp.all(jnp.isfinite(time_offset_E))
 
 
 def test_calculate_time_offset_yee_4d_permeability_without_h_polarization():

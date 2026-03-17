@@ -86,12 +86,15 @@ _TOLERANCE = 0.10  # 10 % — generous for lossy-medium FDTD dispersion
 def _analytic_alpha() -> float:
     """Exact attenuation coefficient from the complex dispersion relation.
 
-    k = (ω/c₀) × √(ε_r − iσ/(ωε₀)); α = Im(k) > 0 for +z attenuation.
+    k = (ω/c₀) × √(ε_r − iσ/(ωε₀))
+    For a passive lossy medium propagating in +z, numpy's principal sqrt gives
+    Im(k) < 0 (decaying wave). The physical attenuation coefficient is
+    α = −Im(k) = |Im(k)| > 0.
     """
     omega = 2 * np.pi * _C0 / _WAVELENGTH
     eps_complex = _EPS_R - 1j * _SIGMA / (omega * _EPS0)
     k_complex = (omega / _C0) * np.sqrt(eps_complex)
-    return float(np.imag(k_complex))
+    return abs(float(np.imag(k_complex)))
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -234,7 +237,7 @@ def test_skin_depth_attenuation():
     alpha_measured = -np.log(abs(p2) / abs(p1)) / _DET_SEP
     delta_measured = 1.0 / alpha_measured
 
-    rel_err = abs(alpha_measured - alpha_analytic) / alpha_analytic
+    rel_err = abs(alpha_measured - alpha_analytic) / abs(alpha_analytic)
     assert rel_err < _TOLERANCE, (
         f"α_measured={alpha_measured:.4e} m⁻¹, α_analytic={alpha_analytic:.4e} m⁻¹, "
         f"δ_measured={delta_measured * 1e9:.1f} nm, δ_analytic={delta_analytic * 1e9:.1f} nm, "

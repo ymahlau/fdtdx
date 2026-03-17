@@ -120,7 +120,7 @@ class TestForward:
             patch("fdtdx.fdtd.forward.update_detector_states", return_value=updated_arrays) as mock_det,
         ):
             time_step = jnp.array(3)
-            forward(
+            result = forward(
                 state=(time_step, arrays),
                 config=config,
                 objects=objects,
@@ -136,6 +136,8 @@ class TestForward:
             assert call_kwargs["arrays"] is updated_arrays
             assert call_kwargs["objects"] is objects
             assert call_kwargs["inverse"] is False
+            # The returned state must contain the detector-updated arrays.
+            assert result[1] is updated_arrays
 
     def test_h_prev_captured_before_update_e(self, arrays, config, objects, key):
         """H_prev is saved from original arrays.H before update_E modifies arrays."""

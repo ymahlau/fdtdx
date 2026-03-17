@@ -195,6 +195,12 @@ class TestCreateNamedShardedMatrix:
         )
         assert result.shape == (1, 4, 6)
         assert jnp.allclose(result, 2.0)
+        # Sharding should fall back to axis=1 (first axis with dim != 1)
+        assert isinstance(result.sharding, jax.sharding.NamedSharding)
+        spec = result.sharding.spec
+        # axis 0 is None (dim=1, not sharded), axis 1 is sharded (dim=4 != 1)
+        assert spec[0] is None
+        assert spec[1] is not None
 
     def test_has_named_sharding(self):
         result = create_named_sharded_matrix(shape=(4, 6), value=1.0, sharding_axis=0, dtype=jnp.float32, backend="cpu")

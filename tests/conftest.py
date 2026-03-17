@@ -13,4 +13,4 @@ list consistent across the entire test session.
 
 import os
 
-os.environ.setdefault("JAX_PLATFORMS", "cpu")
+os.environ["JAX_PLATFORMS"] = "cpu"

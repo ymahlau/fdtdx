@@ -347,7 +347,8 @@ class TestBoundaryObjectsFromConfig:
         assert isinstance(boundaries["max_x"], PeriodicBoundary)
         assert isinstance(boundaries["min_y"], PerfectlyMatchedLayer)
 
-    def test_unknown_type_is_skipped(self, volume):
+    def test_unknown_type_raises(self, volume):
+        """An unrecognised boundary_type string should raise ValueError."""
         cfg = BoundaryConfig(
             boundary_type_minx="unknown",
             boundary_type_maxx="pml",
@@ -356,10 +357,8 @@ class TestBoundaryObjectsFromConfig:
             boundary_type_minz="pml",
             boundary_type_maxz="pml",
         )
-        boundaries, constraints = boundary_objects_from_config(cfg, volume)
-        assert "min_x" not in boundaries
-        assert len(boundaries) == 5
-        assert len(constraints) == 5
+        with pytest.raises(ValueError, match="Unknown boundary type"):
+            boundary_objects_from_config(cfg, volume)
 
     def test_constraint_references_volume(self, volume):
         cfg = BoundaryConfig.from_uniform_bound()

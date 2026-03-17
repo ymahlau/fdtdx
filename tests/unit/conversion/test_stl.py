@@ -95,14 +95,23 @@ class TestExportStl:
         assert mesh.faces.shape[0] == 0
 
     def test_voxel_grid_size_scaling(self):
-        """Test that voxel_grid_size scales vertices correctly."""
+        """Test that voxel_grid_size scales vertices correctly per axis."""
         matrix = np.ones((1, 1, 1), dtype=bool)
 
         mesh_default = export_stl(matrix, voxel_grid_size=(1, 1, 1))
         mesh_scaled = export_stl(matrix, voxel_grid_size=(2, 3, 4))
 
-        # Scaled mesh should have larger vertex coordinates
+        # Scaled mesh should have larger vertex coordinates overall
         assert mesh_scaled.vertices.max() > mesh_default.vertices.max()
+        # Per-axis: each axis should scale by its factor
+        # vertices shape: (N, 3) where columns are x, y, z
+        default_max = mesh_default.vertices.max(axis=0)  # shape (3,)
+        scaled_max = mesh_scaled.vertices.max(axis=0)
+        assert scaled_max[0] > default_max[0], "x-axis scaling failed"
+        assert scaled_max[1] > default_max[1], "y-axis scaling failed"
+        assert scaled_max[2] > default_max[2], "z-axis scaling failed"
+        # z-axis scale factor (4) should produce larger extent than x-axis (2)
+        assert scaled_max[2] > scaled_max[0]
 
     def test_invalid_dimensions_raises(self):
         """Test that non-3D matrix raises exception."""

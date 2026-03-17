@@ -6,10 +6,11 @@ Run all tests except simulation tests with: pytest -m "not simulation"
 """
 
 import pytest
+from pathlib import Path
 
 
 def pytest_collection_modifyitems(items):
     """Automatically mark all tests in the simulation folder with the 'simulation' marker."""
     for item in items:
-        if "/simulation/" in str(item.fspath):
+        if "simulation" in Path(str(item.fspath)).parts:
             item.add_marker(pytest.mark.simulation)

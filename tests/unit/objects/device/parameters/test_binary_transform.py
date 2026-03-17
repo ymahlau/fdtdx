@@ -280,32 +280,38 @@ class TestRemoveFloatingPolymer:
 
 
 class TestRemovePolymerNonConnectedToXMaxMiddle:
-    """Tests for remove_polymer_non_connected_to_x_max_middle function."""
+    """Tests for remove_polymer_non_connected_to_x_max_middle function.
 
-    def test_keeps_connected_to_middle(self):
-        """Test polymer connected to x-max middle is kept."""
+    NOTE: The function name says 'x_max_middle' but the implementation starts
+    the flood fill from (x_middle, y_middle, None) — the spatial center of the
+    domain — not from the x-max face. Tests are written to match the actual code.
+    """
+
+    def test_keeps_polymer_at_center_seed(self):
+        """Polymer at the flood-fill seed (x_middle, y_middle, :) is kept."""
         matrix = jnp.zeros((5, 5, 5), dtype=bool)
-        # Put polymer in middle region
-        x_mid = 2
-        y_mid = 2
+        # Seed position: x_middle = round(5/2) = 2, y_middle = round(5/2) = 2
+        x_mid = round(5 / 2)
+        y_mid = round(5 / 2)
         matrix = matrix.at[x_mid, y_mid, :].set(True)
 
         result = remove_polymer_non_connected_to_x_max_middle(matrix)
 
-        # Connected polymer should remain
+        # Polymer at the seed location is connected and should remain
         assert jnp.any(result)
+        assert jnp.all(result[x_mid, y_mid, :])
 
     def test_removes_disconnected(self):
-        """Test disconnected polymer is removed."""
+        """Polymer not connected to the center seed is removed."""
         matrix = jnp.zeros((5, 5, 5), dtype=bool)
-        # Put polymer away from middle
+        # Put polymer at corner (0, 0, 0) — not connected to center seed
         matrix = matrix.at[0, 0, 0].set(True)
 
         result = remove_polymer_non_connected_to_x_max_middle(matrix)
 
         # Disconnected polymer at corner should be removed
-        # (depends on flood fill from middle)
         assert result.shape == matrix.shape
+        assert not result[0, 0, 0]
 
 
 class TestConnectSlice:

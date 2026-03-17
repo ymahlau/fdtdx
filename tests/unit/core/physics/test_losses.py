@@ -88,7 +88,7 @@ def test_array_values_are_meaned():
 def test_input_stop_gradient():
     """Input values use stop_gradient (verified via jax.grad)."""
 
-    def loss_fn(det_val):
+    def loss_fn_det(det_val):
         states = {
             "src": {"energy": jnp.array(4.0)},
             "det": {"energy": det_val},
@@ -96,6 +96,18 @@ def test_input_stop_gradient():
         obj, _ = metric_efficiency(states, ["src"], ["det"], "energy")
         return obj
 
-    grad = jax.grad(loss_fn)(jnp.array(2.0))
+    grad = jax.grad(loss_fn_det)(jnp.array(2.0))
     # gradient of (det/src) w.r.t. det = 1/src = 0.25
     assert jnp.allclose(grad, 0.25)
+
+    def loss_fn_src(src_val):
+        states = {
+            "src": {"energy": src_val},
+            "det": {"energy": jnp.array(2.0)},
+        }
+        obj, _ = metric_efficiency(states, ["src"], ["det"], "energy")
+        return obj
+
+    # stop_gradient applied to source values → gradient w.r.t. src must be 0
+    grad_src = jax.grad(loss_fn_src)(jnp.array(4.0))
+    assert jnp.allclose(grad_src, 0.0)

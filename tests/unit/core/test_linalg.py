@@ -234,3 +234,13 @@ def test_rotate_vector_different_axes_with_rotation():
 
     # Result should still have unit magnitude
     assert jnp.allclose(jnp.linalg.norm(result), 1.0, atol=1e-6)
+    # A pi/2 azimuth rotation maps [0,1,0] → [-1,0,0] for this axes_tuple
+    assert jnp.allclose(result, jnp.array([-1.0, 0.0, 0.0]), atol=1e-5)
+
+
+def test_rotate_vector_zero_angle_is_identity():
+    """Zero azimuth and elevation leaves the vector unchanged."""
+    vector = jnp.array([1.0, 0.0, 0.0])
+    axes_tuple = (0, 1, 2)
+    result = rotate_vector(vector, 0.0, 0.0, axes_tuple)
+    assert jnp.allclose(result, vector, atol=1e-6)

@@ -6,10 +6,11 @@ Run all tests except integration tests with: pytest -m "not integration"
 """
 
 import pytest
+from pathlib import Path
 
 
 def pytest_collection_modifyitems(items):
     """Automatically mark all tests in the integration folder with the 'integration' marker."""
     for item in items:
-        if "/integration/" in str(item.fspath):
+        if "integration" in Path(str(item.fspath)).parts:
             item.add_marker(pytest.mark.integration)

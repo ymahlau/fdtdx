@@ -439,6 +439,21 @@ class TestAnisotropicModeComputation:
         call_args = mock_tidy3d_wrapper.call_args
         perm_passed = call_args.kwargs["permittivity_cross_section"]
         assert perm_passed.shape[0] == 9
+        # Verify that the matrix inversion and axis rotation were applied correctly.
+        # Input inv_permittivities diagonal: [0]=1/2 (xx), [4]=1/3 (yy), [8]=1/4 (zz).
+        # After inversion: eps_xx=2, eps_yy=3, eps_zz=4.
+        # After axis rotation for propagation_axis=0 (perm_idx_full_anisotropy=[4,5,3,7,8,6,1,2,0]):
+        #   perm_passed[0] = eps_yy = 3.0
+        #   perm_passed[4] = eps_zz = 4.0
+        # perm_passed has shape (9, Ny, Nz) = (9, 5, 6)
+        perm_yy_after_rotation = float(np.mean(np.array(perm_passed[0])))
+        perm_zz_after_rotation = float(np.mean(np.array(perm_passed[4])))
+        assert abs(perm_yy_after_rotation - 3.0) < 0.1, (
+            f"Expected eps_yy≈3.0 after inversion+rotation, got {perm_yy_after_rotation:.3f}"
+        )
+        assert abs(perm_zz_after_rotation - 4.0) < 0.1, (
+            f"Expected eps_zz≈4.0 after inversion+rotation, got {perm_zz_after_rotation:.3f}"
+        )
 
     @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
     @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")

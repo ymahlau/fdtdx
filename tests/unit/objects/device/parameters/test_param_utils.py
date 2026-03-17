@@ -117,14 +117,10 @@ class TestNearestIndex:
 
     def test_with_3d_values_and_allowed_indices_axis0(self):
         """Test with 3D values and allowed_indices on axis 0."""
-        # Shape matches the expected usage pattern:
-        # - values has shape (size_along_axis, other1, other2)
-        # - allowed_values has shape (num_allowed, size_along_axis)
-        # - allowed_indices has shape (num_positions, num_allowed_per_position)
-        values = jnp.ones((4, 4, 4)) * 0.5
-        # allowed_values shape should be (num_allowed, layer_size)
+        # Values close to 0.0 → nearest index is 0 (allowed_values[0] = 0.0)
+        values = jnp.ones((4, 4, 4)) * 0.1
+        # allowed_values shape: (num_allowed, size_along_axis=4)
         allowed_values = jnp.array([[0.0, 0.0, 0.0, 0.0], [1.0, 1.0, 1.0, 1.0]])
-        # allowed_indices tells which of the allowed_values are valid at each position
         allowed_indices = jnp.array([[0, 1], [1, 0], [0, 1], [1, 0]])
 
         indices = nearest_index(
@@ -135,10 +131,15 @@ class TestNearestIndex:
         )
 
         assert indices is not None
+        # The default "permittivity_differences_plus_average_permittivity" metric
+        # uses jnp.diff along axis 0, reducing that dimension from 4 to 3.
+        assert indices.shape == (3, 4, 4)
+        # With values ≈ 0.1, every position should select the material with value 0.0
+        assert jnp.all(indices == 0)
 
-    def test_euclidean_distance_metric(self):
-        """Test with euclidean distance metric."""
-        values = jnp.ones((4, 4, 4)) * 0.5
+    def test_with_3d_values_selects_nearest(self):
+        """Euclidean metric returns shape (4,4,4) — no diff-based dimension reduction."""
+        values = jnp.ones((4, 4, 4)) * 0.9
         allowed_values = jnp.array([[0.0, 0.0, 0.0, 0.0], [1.0, 1.0, 1.0, 1.0]])
         allowed_indices = jnp.array([[0, 1], [1, 0], [0, 1], [1, 0]])
 
@@ -151,6 +152,26 @@ class TestNearestIndex:
         )
 
         assert indices is not None
+        # Euclidean metric does not use jnp.diff so the axis-0 dimension is preserved.
+        assert indices.shape == (4, 4, 4)
+
+    def test_euclidean_distance_metric(self):
+        """Test with euclidean distance metric - values near 0 select index 0."""
+        values = jnp.ones((4, 4, 4)) * 0.1
+        allowed_values = jnp.array([[0.0, 0.0, 0.0, 0.0], [1.0, 1.0, 1.0, 1.0]])
+        allowed_indices = jnp.array([[0, 1], [1, 0], [0, 1], [1, 0]])
+
+        indices = nearest_index(
+            values,
+            allowed_values,
+            axis=0,
+            allowed_indices=allowed_indices,
+            distance_metric="euclidean",
+        )
+
+        assert indices is not None
+        assert indices.shape == (4, 4, 4)
+        assert jnp.all(indices == 0)
 
     def test_error_no_axis_with_allowed_indices(self):
         """Test that missing axis with allowed_indices raises error."""

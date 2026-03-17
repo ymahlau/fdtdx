@@ -75,6 +75,8 @@ class TestRemoveFloatingMaterial:
         assert result["params"].shape == (8, 8, 8)
         # Bottom region should remain
         assert jnp.any(result["params"][:, :, 0:3] == 1)
+        # Floating region (z=5-7) should have been removed
+        assert jnp.all(result["params"][:, :, 5:8] == 0)
 
     def test_keeps_connected_region(self, two_materials, dummy_config):
         """Test that connected material is preserved."""

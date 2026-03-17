@@ -251,31 +251,57 @@ class TestPoyntingFluxDetectorUpdate:
         detector = detector.place_on_grid(plane_grid_slice, simulation_config, random_key)
         state = detector.init_state()
 
-        # Time step 0
-        E1 = jnp.ones((3, 8, 8, 8), dtype=jnp.float32)
-        H1 = jnp.ones((3, 8, 8, 8), dtype=jnp.float32)
+        # Time step 0: Ex=1, Hy=1 → E×H has non-zero z-component
+        E1 = jnp.zeros((3, 8, 8, 8), dtype=jnp.float32).at[0].set(1.0)
+        H1 = jnp.zeros((3, 8, 8, 8), dtype=jnp.float32).at[1].set(1.0)
         state = detector.update(jnp.array(0), E1, H1, state, inv_permittivity, inv_permeability)
+        flux_after_step0 = state["poynting_flux"]
 
-        # Time step 1: doubled fields
-        E2 = jnp.ones((3, 8, 8, 8), dtype=jnp.float32) * 2.0
-        H2 = jnp.ones((3, 8, 8, 8), dtype=jnp.float32) * 2.0
+        # Time step 1: doubled fields → flux should change (cross product scales with E*H)
+        E2 = jnp.zeros((3, 8, 8, 8), dtype=jnp.float32).at[0].set(2.0)
+        H2 = jnp.zeros((3, 8, 8, 8), dtype=jnp.float32).at[1].set(2.0)
         state = detector.update(jnp.array(1), E2, H2, state, inv_permittivity, inv_permeability)
+        flux_after_step1 = state["poynting_flux"]
 
-        # Both time steps should have values recorded
-        # (Note: specific values depend on cross product implementation)
+        # Flux values should be finite
+        assert jnp.all(jnp.isfinite(flux_after_step0))
+        assert jnp.all(jnp.isfinite(flux_after_step1))
+        # Doubled E and H should produce different (larger) flux than unit fields
+        assert not jnp.allclose(flux_after_step0, flux_after_step1)
 
 
 class TestPoyntingFluxDetectorConfiguration:
     """Tests for PoyntingFluxDetector configuration options."""
 
-    def test_direction_required(self):
-        """Test that direction is required."""
-        # This should work with direction specified
+    def test_direction_valid_values(self):
+        """Test that valid direction values are accepted."""
         detector = PoyntingFluxDetector(direction="+")
         assert detector.direction == "+"
 
         detector = PoyntingFluxDetector(direction="-")
         assert detector.direction == "-"
+
+    def test_opposite_directions_produce_opposite_sign(
+        self, simulation_config, plane_grid_slice, random_key, inv_permittivity, inv_permeability
+    ):
+        """'+' and '-' directions produce equal magnitude but opposite sign flux."""
+        E = jnp.ones((3, 8, 8, 8), dtype=jnp.float32)
+        H = jnp.ones((3, 8, 8, 8), dtype=jnp.float32)
+
+        det_pos = PoyntingFluxDetector(direction="+", reduce_volume=True)
+        det_pos = det_pos.place_on_grid(plane_grid_slice, simulation_config, random_key)
+        state_pos = det_pos.init_state()
+        state_pos = det_pos.update(jnp.array(0), E, H, state_pos, inv_permittivity, inv_permeability)
+
+        det_neg = PoyntingFluxDetector(direction="-", reduce_volume=True)
+        det_neg = det_neg.place_on_grid(plane_grid_slice, simulation_config, random_key)
+        state_neg = det_neg.init_state()
+        state_neg = det_neg.update(jnp.array(0), E, H, state_neg, inv_permittivity, inv_permeability)
+
+        flux_pos = state_pos["poynting_flux"]
+        flux_neg = state_neg["poynting_flux"]
+        # Opposite directions should give opposite sign
+        assert jnp.allclose(flux_pos, -flux_neg)
 
     def test_reduce_volume_default_true(self):
         """Test reduce_volume defaults to True."""

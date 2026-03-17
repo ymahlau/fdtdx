@@ -32,6 +32,12 @@ class DiffractiveDetector(Detector):
     def __post_init__(self):
         if self.dtype not in [jnp.complex64, jnp.complex128]:
             raise Exception(f"Invalid dtype in DiffractiveDetector: {self.dtype}")
+        if len(self.frequencies) == 0:
+            raise ValueError("DiffractiveDetector requires at least one frequency.")
+        if any(f <= 0 for f in self.frequencies):
+            raise ValueError(f"All frequencies must be positive, got: {list(self.frequencies)}")
+        if len(self.orders) == 0:
+            raise ValueError("DiffractiveDetector requires at least one diffraction order.")
 
     @property
     def propagation_axis(self) -> int:

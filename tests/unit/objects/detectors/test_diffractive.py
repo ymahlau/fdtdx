@@ -56,6 +56,26 @@ class TestDiffractiveDetectorInit:
         det = DiffractiveDetector(frequencies=freqs, direction="+")
         assert len(det.frequencies) == 3
 
+    def test_empty_frequencies_raises(self):
+        """Empty frequency list should raise ValueError."""
+        with pytest.raises(ValueError, match="at least one frequency"):
+            DiffractiveDetector(frequencies=[], direction="+")
+
+    def test_negative_frequency_raises(self):
+        """Negative frequency should raise ValueError."""
+        with pytest.raises(ValueError, match="positive"):
+            DiffractiveDetector(frequencies=[-3e14], direction="+")
+
+    def test_zero_frequency_raises(self):
+        """Zero frequency should raise ValueError."""
+        with pytest.raises(ValueError, match="positive"):
+            DiffractiveDetector(frequencies=[0.0], direction="+")
+
+    def test_empty_orders_raises(self):
+        """Empty orders list should raise ValueError."""
+        with pytest.raises(ValueError, match="at least one diffraction order"):
+            DiffractiveDetector(frequencies=[3e14], direction="+", orders=())
+
 
 class TestDiffractiveDetectorPropagationAxis:
     """Tests for the propagation_axis property."""

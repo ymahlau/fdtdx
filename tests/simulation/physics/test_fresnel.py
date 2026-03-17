@@ -228,11 +228,14 @@ def test_fresnel_power_conservation():
     assert S0 > 0, f"Reference flux zero: {S0}"
 
     T_measured = S_T / S0
-    R_measured = 1.0 - T_measured  # energy conservation
+    # R is derived from energy conservation; an independent reflection measurement
+    # is intentionally omitted due to standing-wave cross-term bias (see module docstring).
+    R_measured = 1.0 - T_measured
 
     T_err = abs(T_measured - T_analytic) / T_analytic
+    # R_err amplifies T error by T_analytic/R_analytic ≈ 8, providing a tighter
+    # constraint than T_err alone despite R being derived from T.
     R_err = abs(R_measured - R_analytic) / R_analytic
-    RT_sum = T_measured + R_measured
 
     assert T_err < _TOLERANCE, (
         f"T_measured={T_measured:.4f}, T_analytic={T_analytic:.4f}, relative error={T_err:.3f} > {_TOLERANCE}"
@@ -240,6 +243,5 @@ def test_fresnel_power_conservation():
     assert R_err < _TOLERANCE, (
         f"R_measured={R_measured:.4f}, R_analytic={R_analytic:.4f}, relative error={R_err:.3f} > {_TOLERANCE}"
     )
-    assert abs(RT_sum - 1.0) < _TOLERANCE, (
-        f"T+R={RT_sum:.4f} deviates from 1.0 by {abs(RT_sum - 1.0):.4f} > {_TOLERANCE}"
-    )
+    # Note: T_measured + R_measured = 1.0 is an algebraic identity (R = 1 - T),
+    # not an independent physics check, so the RT_sum assertion is omitted.

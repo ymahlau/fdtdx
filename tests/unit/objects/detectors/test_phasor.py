@@ -162,9 +162,47 @@ class TestPhasorDetectorUpdate:
         )
         second_value = state["phasor"]
 
-        # Values should be different after accumulation
-        # (phasor phase rotates with time)
+        # Phase-rotated accumulation: two updates produce a different value than one.
         assert not jnp.allclose(first_value, second_value)
+
+    def test_update_accumulates_same_time_step(
+        self,
+        simulation_config,
+        small_grid_slice,
+        random_key,
+        single_frequency,
+        constant_E_field,
+        constant_H_field,
+        inv_permittivity,
+        inv_permeability,
+    ):
+        """Two updates at the same time step exactly double the phasor magnitude."""
+        detector = PhasorDetector(wave_characters=single_frequency)
+        detector = detector.place_on_grid(small_grid_slice, simulation_config, random_key)
+        state = detector.init_state()
+
+        # Single update at t=0
+        state_after_one = detector.update(
+            time_step=jnp.array(0),
+            E=constant_E_field,
+            H=constant_H_field,
+            state=state,
+            inv_permittivity=inv_permittivity,
+            inv_permeability=inv_permeability,
+        )
+
+        # Second update at the same t=0
+        state_after_two = detector.update(
+            time_step=jnp.array(0),
+            E=constant_E_field,
+            H=constant_H_field,
+            state=state_after_one,
+            inv_permittivity=inv_permittivity,
+            inv_permeability=inv_permeability,
+        )
+
+        # True accumulation means the second call adds to the first, so value ≈ 2×
+        assert jnp.allclose(state_after_two["phasor"], 2 * state_after_one["phasor"], atol=1e-5)
 
     def test_update_with_reduce_volume(
         self,

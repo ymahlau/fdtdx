@@ -211,13 +211,12 @@ class TestObjectContainer:
         self.container["source1"] = new_source
         assert self.container["source1"] == new_source
 
-    def test_setitem_nonexistent_replaces_last(self):
-        """Test __setitem__ with nonexistent key replaces last element (missing raise)."""
+    def test_setitem_nonexistent_raises(self):
+        """Test __setitem__ with nonexistent key raises ValueError."""
         new_obj = Mock(spec=SimulationObject)
         new_obj.name = "nonexistent"
-        self.container["nonexistent"] = new_obj
-        # Bug: ValueError not raised, idx=-1 causes last element to be replaced
-        assert self.container.object_list[-1] == new_obj
+        with pytest.raises(ValueError, match="nonexistent"):
+            self.container["nonexistent"] = new_obj
 
     def test_copy(self):
         copied = self.container.copy()

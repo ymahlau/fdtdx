@@ -1,6 +1,7 @@
 """Integration tests for fdtdx.fdtd.initialization – place_objects and _init_arrays."""
 
 import jax
+import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import GradientConfig, SimulationConfig
@@ -93,6 +94,11 @@ def test_place_objects_initializes_arrays(simple_config, simple_volume, simple_m
     assert arrays.E is not None
     assert arrays.H is not None
     assert arrays.inv_permittivities is not None
+    # simple_material has permittivity=2.0 → inv_perm ≈ 0.5 in the material region.
+    # Verify at least one voxel was actually updated (differs from vacuum value 1.0).
+    assert jnp.any(arrays.inv_permittivities < 0.9), (
+        "Material with permittivity=2.0 not reflected in inv_permittivities"
+    )
 
 
 def test_place_objects_raises_on_unresolvable_constraint(simple_config, simple_volume, simple_material):
@@ -256,6 +262,8 @@ def test_recording_state_with_gradient_config(simple_volume, simple_material):
     obj_container, arrays, params, updated_config, info = place_objects([simple_volume, obj], config, [constraint], key)
     assert updated_config.gradient_config is not None
     assert updated_config.gradient_config.recorder is not None
+    # The recording state should be initialized (not None) when a Recorder is present.
+    assert arrays.recording_state is not None
 
 
 # ---------------------------------------------------------------------------

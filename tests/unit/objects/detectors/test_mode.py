@@ -306,3 +306,47 @@ class TestModeOverlapDetectorComputeOverlap:
         overlap = det.compute_overlap_to_mode(state=state, mode_E=mode_E, mode_H=mode_H)
 
         assert jnp.isclose(overlap, expected)
+
+
+class TestModeOverlapDetectorComputeOverlapPath:
+    """Tests for compute_overlap() – the stored-mode path (via aset)."""
+
+    def test_compute_overlap_without_apply_raises(self, single_frequency, simulation_config, plane_grid_slice, random_key):
+        """compute_overlap() raises when mode fields were never set (no apply() call)."""
+        det = ModeOverlapDetector(wave_characters=single_frequency, direction="+")
+        det = det.place_on_grid(plane_grid_slice, simulation_config, random_key)
+        state = det.init_state()
+
+        with pytest.raises(Exception, match="apply"):
+            det.compute_overlap(state=state)
+
+    def test_compute_overlap_with_stored_mode_fields(
+        self,
+        single_frequency,
+        simulation_config,
+        plane_grid_slice,
+        random_key,
+        constant_E_field,
+        constant_H_field,
+        inv_permittivity,
+        inv_permeability,
+    ):
+        """compute_overlap() uses stored _mode_E/_mode_H (the apply() success path)."""
+        det = ModeOverlapDetector(wave_characters=single_frequency, direction="+")
+        det = det.place_on_grid(plane_grid_slice, simulation_config, random_key)
+
+        # Manually set mode fields (simulating what apply() would do)
+        mode_E = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64) * 0.5
+        mode_H = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64) * 0.5
+        det = det.aset("_mode_E", mode_E, create_new_ok=True)
+        det = det.aset("_mode_H", mode_H, create_new_ok=True)
+
+        state = det.init_state()
+        state = det.update(jnp.array(0), constant_E_field, constant_H_field, state, inv_permittivity, inv_permeability)
+
+        # compute_overlap() should work and give same result as compute_overlap_to_mode()
+        result_stored = det.compute_overlap(state=state)
+        result_explicit = det.compute_overlap_to_mode(state=state, mode_E=mode_E, mode_H=mode_H)
+
+        assert jnp.iscomplexobj(result_stored)
+        assert jnp.isclose(result_stored, result_explicit)
