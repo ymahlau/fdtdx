@@ -495,9 +495,7 @@ class TestMakePbar:
         with warnings.catch_warnings(record=True):
             warnings.simplefilter("always")
             # Calling outside jit — show_progress works normally here
-            t, arrs = reversible_fdtd(
-                dummy_arrays, dummy_objects, dummy_config, jax.random.PRNGKey(0), show_progress=True
-            )
+            t, arrs = run(dummy_arrays.E, dummy_arrays.H)
 
         assert isinstance(t, jax.Array)
         assert isinstance(arrs, ArrayContainer)
