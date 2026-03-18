@@ -102,7 +102,7 @@ class SimulationProgressBar:
             self._bar.close()
             self._bar = None
 
-    # Host-side update (called by io_callback — never traced by JAX)
+    # Host-side update
 
     def _host_update(self, time_step: int) -> None:
         """Unconditionally update the bar.
@@ -175,6 +175,12 @@ def _make_pbar(
     * ``total_steps`` is zero or negative (nothing to show)
     * tqdm is not installed (checked here via a cheap import probe so the
       simulation functions never import tqdm themselves)
+    * the function is being called inside a JAX tracing context (e.g. wrapped
+      in ``jax.jit``).  In that case the progress bar context manager would
+      only execute at trace time — before any actual computation — and would
+      not fire on subsequent cached-compilation calls.  The simulation
+      functions use ``lax.while_loop`` which is already compiled; there is
+      no need to wrap them in an outer ``jit``.
 
     The tqdm probe only attempts ``import tqdm`` — it does **not** import
     ``tqdm.auto`` or instantiate anything, so its cost is a single
@@ -182,6 +188,27 @@ def _make_pbar(
     """
     if not show_progress or total_steps <= 0:
         return None
+
+    # Detect if we are inside a JAX tracing context (jit, grad, vmap, …).
+    # jax.core.trace_ctx.is_top_level() returns False when Python is executing
+    # as part of a JAX trace rather than as normal eager execution.
+    # In that case the `with pbar:` context manager would open and close during
+    # tracing, not during actual computation, so io_callbacks would fire at the
+    # wrong time (or not at all on subsequent cached calls).
+    if not jax.core.trace_ctx.is_top_level():
+        import warnings
+
+        warnings.warn(
+            "show_progress=True has no effect when the simulation function is "
+            "called inside a JAX tracing context (e.g. jax.jit, jax.grad). "
+            "The simulation functions use lax.while_loop which is already "
+            "compiled; wrapping them in jit is unnecessary. "
+            "Pass show_progress=False to silence this warning.",
+            UserWarning,
+            stacklevel=3,
+        )
+        return None
+
     try:
         import tqdm  # noqa: F401 — availability probe only
     except ImportError:
@@ -193,6 +220,7 @@ def _make_pbar(
             stacklevel=3,
         )
         return None
+
     return SimulationProgressBar(
         total_steps=total_steps,
         desc=desc,
