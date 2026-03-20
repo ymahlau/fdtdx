@@ -104,7 +104,7 @@ class DtypeConversion(CompressionModule):
     """
 
     #: Target data type for conversion.
-    dtype: jnp.dtype = frozen_field(kind="KW_ONLY")  # type: ignore
+    dtype: jnp.dtype = frozen_field(kind="KW_ONLY")
 
     #: List of field names to exclude from conversion.
     exclude_filter: Sequence[str] = frozen_field(default=tuple([]), kind="KW_ONLY")

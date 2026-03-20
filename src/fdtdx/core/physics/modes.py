@@ -6,6 +6,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import tidy3d
+from jax.typing import ArrayLike
 from tidy3d.components.mode.solver import compute_modes as _compute_modes
 
 from fdtdx.core.misc import expand_to_3x3
@@ -267,10 +268,10 @@ def compute_mode(
 
 def tidy3d_mode_computation_wrapper(
     frequency: float,
-    permittivity_cross_section: jax.Array,
+    permittivity_cross_section: ArrayLike,
     coords: List[np.ndarray],
     direction: Literal["+", "-"],
-    permeability_cross_section: jax.Array | float | None = None,
+    permeability_cross_section: ArrayLike | float | None = None,
     target_neff: float | None = None,
     angle_theta: float = 0.0,
     angle_phi: float = 0.0,
@@ -316,6 +317,7 @@ def tidy3d_mode_computation_wrapper(
         track_freq="central",
         group_index_step=False,
     )
+    permittivity_cross_section = jnp.asarray(permittivity_cross_section)
     permittivity_cross_section = expand_to_3x3(permittivity_cross_section)
     permittivity_cross_section = permittivity_cross_section.reshape(9, *permittivity_cross_section.shape[2:])
     eps_cross = [
@@ -331,6 +333,7 @@ def tidy3d_mode_computation_wrapper(
     ]
     mu_cross = None
     if permeability_cross_section is not None:
+        permeability_cross_section = jnp.asarray(permeability_cross_section)
         permeability_cross_section = expand_to_3x3(permeability_cross_section)
         permeability_cross_section = permeability_cross_section.reshape(9, *permeability_cross_section.shape[2:])
 

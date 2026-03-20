@@ -37,3 +37,12 @@ repos:
     rev: v1.5.2
     hooks:
       - id: zizmor
+  - repo: local
+    hooks:
+      - id: ty
+        name: ty (via uvx)
+        # This executes exactly what you run in the terminal
+        entry: uvx ty check --error-on-warning
+        language: system
+        types: [python]
+        pass_filenames: false  

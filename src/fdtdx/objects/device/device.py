@@ -1,5 +1,5 @@
 from abc import ABC
-from typing import Self, Sequence
+from typing import Self, Sequence, cast
 
 import jax
 import jax.numpy as jnp
@@ -153,7 +153,7 @@ class Device(OrderableObject, ABC):
                 materials=self.materials,
                 matrix_voxel_grid_shape=self.matrix_voxel_grid_shape,
                 single_voxel_size=self.single_voxel_real_shape,
-                output_shape=cur_shape,
+                output_shape=cast(dict[str, tuple[int, ...]], cur_shape),
             )
             new_t_list.append(t_new)
             cur_shape = t_new._input_shape
@@ -213,10 +213,13 @@ class Device(OrderableObject, ABC):
         # walk through modules
         for transform in self.param_transforms:
             check_specs(params, transform._input_shape)
-            params = transform(params, **transform_kwargs)
+            params_dict = cast(dict[str, jax.Array], params)
+            params = transform(params_dict, **transform_kwargs)
             check_specs(params, transform._output_shape)
         if len(params) == 1:
-            params = list(params.values())[0]
+            single_val = list(params.values())[0]
+            assert isinstance(single_val, jax.Array)
+            params = single_val
         else:
             raise Exception(
                 "The parameter mapping should return a single array of indices. If using a continuous device, please"
