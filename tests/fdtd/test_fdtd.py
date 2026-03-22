@@ -804,10 +804,13 @@ class TestProgressBarUnderJit:
             return final
 
         with patch.dict("sys.modules", {"tqdm.auto": fake_tqdm_auto}):
-            # Compilation happens here (trace time); is_executing is still False
-            # so any tqdm instantiation during tracing would be labelled "trace".
-            is_executing[0] = True  # from this point on, labels will be "execute"
-            run_loop(jnp.asarray(0, jnp.int32))
+            # Phase 1: trace + compile only — no execution, is_executing is False.
+            # Any tqdm construction here would be labelled "trace".
+            compiled = run_loop.lower(jnp.asarray(0, jnp.int32)).compile()
+
+            # Phase 2: execution — flip the sentinel, then run the compiled fn.
+            is_executing[0] = True
+            compiled(jnp.asarray(0, jnp.int32))
             jax.effects_barrier()
 
         assert len(bar_creation_times) > 0, "tqdm was never instantiated"
