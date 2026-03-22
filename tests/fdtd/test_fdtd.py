@@ -674,3 +674,144 @@ class TestShowProgressFlag:
         wrapped, close_fn = _wrap_body_with_progress(fake_body, None)
         assert wrapped is fake_body
         close_fn()  # must not raise
+
+
+# Progress bar behaviour under jax.jit
+
+
+class TestProgressBarUnderJit:
+    """Regression tests verifying that the progress bar works correctly when
+    simulation functions are wrapped in jax.jit.
+
+    The key property being tested: because the bar lifecycle is driven entirely
+    by io_callbacks (not by a Python context manager), the bar must open and
+    update at XLA *execution* time — not at trace time.  This means:
+
+    1. On the first jit call (trace + execute), callbacks fire during execution.
+    2. On subsequent jit calls (cached execution), the Python body is skipped
+       but the compiled io_callbacks still fire — so the bar still updates.
+
+    These tests build a minimal jax.lax.while_loop directly rather than going
+    through the simulation fixtures, so they are independent of the fixture
+    config's time_steps_total value.
+    """
+
+    TOTAL_STEPS = 20  # small enough to be fast; large enough for meaningful counts
+
+    def test_host_update_called_under_jit(self):
+        """_host_update must be invoked at execution time even inside jax.jit.
+
+        We spy on _host_update by wrapping it, then call the jitted function
+        twice.  Both calls must trigger updates — the second one especially,
+        since on a cached call the Python body is entirely skipped and only
+        the compiled XLA graph (including io_callbacks) runs.
+        """
+        total = self.TOTAL_STEPS
+        pbar = _make_pbar(show_progress=True, total_steps=total, desc="jit-test")
+        assert pbar is not None, "_make_pbar returned None — tqdm may not be installed or total_steps was not positive"
+
+        update_call_counts = []
+        original_host_update = pbar._host_update
+
+        def spy_host_update(time_step):
+            update_call_counts.append(int(time_step))
+            original_host_update(time_step)
+
+        pbar._host_update = spy_host_update
+
+        step_cb, close_cb = pbar.get_callbacks()
+
+        def body(step):
+            step_cb(step)
+            return step + 1
+
+        @jax.jit
+        def run_loop(init_step):
+            final = jax.lax.while_loop(
+                lambda s: s < total,
+                body,
+                init_step,
+            )
+            close_cb()
+            return final
+
+        # First call: trace + execute
+        update_call_counts.clear()
+        run_loop(jnp.asarray(0, jnp.int32))
+        jax.effects_barrier()
+        count_first = len(update_call_counts)
+        assert count_first > 0, (
+            "No _host_update calls on first jit execution — io_callbacks are not firing at execution time"
+        )
+
+        # Second call: cached execution (Python body is NOT re-run)
+        update_call_counts.clear()
+        run_loop(jnp.asarray(0, jnp.int32))
+        jax.effects_barrier()
+        count_second = len(update_call_counts)
+        assert count_second > 0, (
+            "No _host_update calls on second (cached) jit execution — "
+            "io_callbacks are not firing from the compiled XLA graph"
+        )
+
+        # Both executions must produce the same number of updates
+        assert count_first == count_second, (
+            f"First call fired {count_first} updates but second fired {count_second} — "
+            "callback count must be deterministic across calls"
+        )
+
+    def test_bar_opens_at_execution_not_trace_time(self):
+        """The tqdm bar must not exist during tracing — only after execution.
+
+        If the bar were created at trace time (inside __init__ or __enter__),
+        it would appear before any FDTD steps ran, then close at the end of
+        tracing with nothing displayed.  The bar must remain None until the
+        first io_callback fires at execution time.
+        """
+        import types
+
+        bar_creation_times = []  # records "trace" or "execute"
+        is_executing = [False]  # set to True after jit compilation completes
+
+        mock_bar = MagicMock()
+
+        def tracking_tqdm_cls(*args, **kwargs):
+            label = "execute" if is_executing[0] else "trace"
+            bar_creation_times.append(label)
+            return mock_bar
+
+        fake_tqdm_auto = types.ModuleType("tqdm.auto")
+        fake_tqdm_auto.tqdm = tracking_tqdm_cls
+
+        total = self.TOTAL_STEPS
+        pbar = _make_pbar(show_progress=True, total_steps=total, desc="jit-open-test")
+        assert pbar is not None, "_make_pbar returned None — tqdm may not be installed or total_steps was not positive"
+
+        step_cb, close_cb = pbar.get_callbacks()
+
+        def body(step):
+            step_cb(step)
+            return step + 1
+
+        @jax.jit
+        def run_loop(init_step):
+            final = jax.lax.while_loop(
+                lambda s: s < total,
+                body,
+                init_step,
+            )
+            close_cb()
+            return final
+
+        with patch.dict("sys.modules", {"tqdm.auto": fake_tqdm_auto}):
+            # Compilation happens here (trace time); is_executing is still False
+            # so any tqdm instantiation during tracing would be labelled "trace".
+            is_executing[0] = True  # from this point on, labels will be "execute"
+            run_loop(jnp.asarray(0, jnp.int32))
+            jax.effects_barrier()
+
+        assert len(bar_creation_times) > 0, "tqdm was never instantiated"
+        assert all(t == "execute" for t in bar_creation_times), (
+            f"tqdm bar was created at trace time: {bar_creation_times}. "
+            "The bar must only open inside _host_update at io_callback execution time."
+        )
