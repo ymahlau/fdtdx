@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from contextlib import nullcontext
 from functools import partial
 
 import equinox.internal as eqxi
@@ -49,6 +48,9 @@ def reversible_fdtd(
         show_progress (bool): Display a tqdm progress bar while the simulation runs.
             Set to False for a minor speed improvement; see the module-level
             benchmark note for overhead estimates. Defaults to True.
+            The bar is driven entirely by ``io_callback`` at XLA execution
+            time, so it works correctly whether the simulation is
+            wrapped in ``jax.jit``.
 
     Returns:
         SimulationState: Tuple containing:
@@ -82,7 +84,7 @@ def reversible_fdtd(
         record_boundaries=config.invertible_optimization,
         simulate_boundaries=True,
     )
-    _forward_body_with_progress = _wrap_body_with_progress(_forward_body, pbar)
+    _forward_body_with_progress, _close_pbar = _wrap_body_with_progress(_forward_body, pbar)
 
     def reversible_fdtd_base(
         arr: ArrayContainer,
@@ -307,33 +309,33 @@ def reversible_fdtd(
 
     reversible_fdtd_primal.defvjp(fdtd_fwd, fdtd_bwd)
 
-    with pbar if pbar is not None else nullcontext():
-        (
-            time_step,
-            E,
-            H,
-            psi_E,
-            psi_H,
-            alpha,
-            kappa,
-            sigma,
-            inv_permittivities,
-            inv_permeabilities,
-            detector_states,
-            recording_state,
-        ) = reversible_fdtd_primal(
-            E=arrays.E,
-            H=arrays.H,
-            psi_E=arrays.psi_E,
-            psi_H=arrays.psi_H,
-            alpha=arrays.alpha,
-            kappa=arrays.kappa,
-            sigma=arrays.sigma,
-            inv_permittivities=arrays.inv_permittivities,
-            inv_permeabilities=arrays.inv_permeabilities,
-            detector_states=arrays.detector_states,
-            recording_state=arrays.recording_state,
-        )
+    (
+        time_step,
+        E,
+        H,
+        psi_E,
+        psi_H,
+        alpha,
+        kappa,
+        sigma,
+        inv_permittivities,
+        inv_permeabilities,
+        detector_states,
+        recording_state,
+    ) = reversible_fdtd_primal(
+        E=arrays.E,
+        H=arrays.H,
+        psi_E=arrays.psi_E,
+        psi_H=arrays.psi_H,
+        alpha=arrays.alpha,
+        kappa=arrays.kappa,
+        sigma=arrays.sigma,
+        inv_permittivities=arrays.inv_permittivities,
+        inv_permeabilities=arrays.inv_permeabilities,
+        detector_states=arrays.detector_states,
+        recording_state=arrays.recording_state,
+    )
+    _close_pbar()
 
     out_arrs = ArrayContainer(
         E=E,
@@ -377,6 +379,9 @@ def checkpointed_fdtd(
         show_progress (bool): Display a tqdm progress bar while the simulation runs.
             Set to False for a minor speed improvement; see the module-level
             benchmark note for overhead estimates. Defaults to True.
+            The bar is driven entirely by ``io_callback`` at XLA execution
+            time, so it works correctly whether the simulation is
+            wrapped in ``jax.jit``.
 
     Returns:
         SimulationState: Tuple containing final time step and ArrayContainer with final state
@@ -407,21 +412,21 @@ def checkpointed_fdtd(
         record_boundaries=config.invertible_optimization,
         simulate_boundaries=True,
     )
-    _forward_body_with_progress = _wrap_body_with_progress(_forward_body, pbar)
+    _forward_body_with_progress, _close_pbar = _wrap_body_with_progress(_forward_body, pbar)
 
-    with pbar if pbar is not None else nullcontext():
-        state = eqxi.while_loop(
-            max_steps=config.time_steps_total,
-            cond_fun=partial(
-                stopping_condition,
-                config=config,
-                objects=objects,
-            ),
-            body_fun=_forward_body_with_progress,
-            init_val=state,
-            kind="lax" if config.only_forward is None else "checkpointed",
-            checkpoints=(None if config.gradient_config is None else config.gradient_config.num_checkpoints),
-        )
+    state = eqxi.while_loop(
+        max_steps=config.time_steps_total,
+        cond_fun=partial(
+            stopping_condition,
+            config=config,
+            objects=objects,
+        ),
+        body_fun=_forward_body_with_progress,
+        init_val=state,
+        kind="lax" if config.only_forward is None else "checkpointed",
+        checkpoints=(None if config.gradient_config is None else config.gradient_config.num_checkpoints),
+    )
+    _close_pbar()
 
     return state
 
@@ -454,6 +459,9 @@ def custom_fdtd_forward(
         show_progress (bool): Display a tqdm progress bar while the simulation runs.
             Set to False for a minor speed improvement; see the module-level
             benchmark note for overhead estimates. Defaults to True.
+            The bar is driven entirely by ``io_callback`` at XLA execution
+            time, so it works correctly whether the simulation is
+            wrapped in ``jax.jit``.
 
     Returns:
         SimulationState: Tuple containing final time step and ArrayContainer with final state
@@ -493,16 +501,16 @@ def custom_fdtd_forward(
         record_boundaries=False,
         simulate_boundaries=True,
     )
-    _forward_body_with_progress = _wrap_body_with_progress(_forward_body, pbar)
+    _forward_body_with_progress, _close_pbar = _wrap_body_with_progress(_forward_body, pbar)
 
-    with pbar if pbar is not None else nullcontext():
-        state = eqxi.while_loop(
-            max_steps=config.time_steps_total,
-            cond_fun=lambda s: end_time > s[0],
-            body_fun=_forward_body_with_progress,
-            init_val=state,
-            kind="lax",
-            checkpoints=None,
-        )
+    state = eqxi.while_loop(
+        max_steps=config.time_steps_total,
+        cond_fun=lambda s: end_time > s[0],
+        body_fun=_forward_body_with_progress,
+        init_val=state,
+        kind="lax",
+        checkpoints=None,
+    )
+    _close_pbar()
 
     return state

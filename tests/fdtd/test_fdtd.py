@@ -211,7 +211,7 @@ class TestSimulationProgressBar:
     def _mock_tqdm_modules(mock_bar):
         """Return a sys.modules patch that injects a fake tqdm.auto module.
 
-        This approach works whether tqdm is actually installed or not, because
+        This approach works if tqdm is actually installed, because
         it registers a fresh fake module object rather than patching an
         attribute on the real one.
         """
@@ -223,42 +223,35 @@ class TestSimulationProgressBar:
         fake_tqdm = types.ModuleType("tqdm")
         return mock_tqdm_cls, patch.dict("sys.modules", {"tqdm": fake_tqdm, "tqdm.auto": fake_tqdm_auto})
 
-    def test_context_manager_opens_and_closes_bar(self):
-        """Entering the context manager should create a tqdm bar; exiting should close it.
+    def test_bar_is_none_before_first_callback(self):
+        """_bar must be None immediately after construction.
 
-        Uses a sys.modules injection so the test does not require tqdm to be
-        installed in the test environment.
+        The tqdm bar is created lazily inside _host_update (the first
+        io_callback invocation at XLA execution time), not at construction.
+        This is what allows the bar to work correctly inside jax.jit.
         """
-        mock_bar = MagicMock()
-        mock_tqdm_cls, modules_patch = self._mock_tqdm_modules(mock_bar)
-
         pbar = SimulationProgressBar(total_steps=100, desc="Test")
-        with modules_patch:
-            with pbar:
-                assert pbar._bar is mock_bar
-
-        mock_bar.close.assert_called_once()
         assert pbar._bar is None
 
-    def test_exit_forces_bar_to_100_percent(self):
-        """__exit__ must set bar.n = total_steps before closing so the bar reaches 100 %.
+    def test_host_close_closes_bar_to_100_percent(self):
+        """_host_close must force bar.n = total_steps, refresh, and close the bar.
 
-        The in-loop callback fires with the pre-step counter, so without this
-        the bar would stop at total_steps - update_interval.
+        Because the step callback fires with the pre-step counter, the last
+        update lands at total_steps - update_interval.  _host_close corrects
+        this by setting n = total_steps unconditionally before closing.
         """
         mock_bar = MagicMock()
-        mock_tqdm_cls = MagicMock(return_value=mock_bar)
-
         pbar = SimulationProgressBar(total_steps=100, desc="Test", update_interval=10)
-        with patch("tqdm.auto.tqdm", mock_tqdm_cls):
-            with pbar:
-                # Simulate the last in-loop callback firing at step 90 (pre-step)
-                pbar._host_update(90)
+        pbar._bar = mock_bar
 
-        # __exit__ must have set n=100 before close
+        # Simulate the last step callback firing at step 90 (pre-step)
+        pbar._host_update(90)
+        pbar._host_close()
+
         assert mock_bar.n == 100
         mock_bar.refresh.assert_called()
         mock_bar.close.assert_called_once()
+        assert pbar._bar is None
 
     def test_default_attributes(self):
         pbar = SimulationProgressBar(total_steps=200, desc="Fwd", update_interval=5)
@@ -343,24 +336,38 @@ class TestSimulationProgressBar:
         pbar = SimulationProgressBar(total_steps=10)
         pbar._host_update(3)  # must not raise
 
-    def test_get_callback_returns_callable(self):
+    def test_get_callbacks_returns_two_callables(self):
+        """get_callbacks() must return (step_callback, close_callback), both callable."""
         pbar = SimulationProgressBar(total_steps=10)
-        cb = pbar.get_callback()
-        assert callable(cb)
+        step_cb, close_cb = pbar.get_callbacks()
+        assert callable(step_cb)
+        assert callable(close_cb)
 
-    def test_get_callback_uses_io_callback(self):
-        """The callback must invoke jax.experimental.io_callback with ordered=True."""
+    def test_step_callback_uses_io_callback_with_ordered(self):
+        """The step callback must invoke jax.experimental.io_callback with ordered=True."""
         pbar = SimulationProgressBar(total_steps=10)
         pbar._bar = MagicMock()
 
         with patch("jax.experimental.io_callback") as mock_io_cb:
-            cb = pbar.get_callback()
-            cb(jnp.asarray(3, dtype=jnp.int32))
+            step_cb, _ = pbar.get_callbacks()
+            step_cb(jnp.asarray(3, dtype=jnp.int32))
             mock_io_cb.assert_called_once()
             _, kwargs = mock_io_cb.call_args
             assert kwargs.get("ordered") is True
 
-    def test_get_callback_gates_io_callback_on_device(self):
+    def test_close_callback_uses_io_callback_with_ordered(self):
+        """The close callback must invoke jax.experimental.io_callback with ordered=True."""
+        pbar = SimulationProgressBar(total_steps=10)
+        pbar._bar = MagicMock()
+
+        with patch("jax.experimental.io_callback") as mock_io_cb:
+            _, close_cb = pbar.get_callbacks()
+            close_cb()
+            mock_io_cb.assert_called_once()
+            _, kwargs = mock_io_cb.call_args
+            assert kwargs.get("ordered") is True
+
+    def test_step_callback_gates_io_callback_on_device(self):
         """io_callback must only fire on steps satisfying step % update_interval == 0.
 
         The modulo check runs via jax.lax.cond on the device.
@@ -370,14 +377,81 @@ class TestSimulationProgressBar:
         """
         pbar = SimulationProgressBar(total_steps=20, update_interval=5)
         pbar._bar = MagicMock()
-        cb = pbar.get_callback()
+        step_cb, _ = pbar.get_callbacks()
 
         for step in range(20):
-            cb(jnp.asarray(step, dtype=jnp.int32))
+            step_cb(jnp.asarray(step, dtype=jnp.int32))
         jax.effects_barrier()
 
         # Only steps 0, 5, 10, 15 pass the device-side cond → exactly 4 host calls
         assert pbar._bar.refresh.call_count == 4
+
+    def test_bar_opens_lazily_on_first_host_update(self):
+        """_host_update must create the tqdm bar on first call, not in __init__.
+
+        This ensures the bar appears at XLA execution time regardless of
+        whether the simulation is wrapped in jax.jit.
+        """
+        import types
+
+        mock_bar = MagicMock()
+        mock_tqdm_cls = MagicMock(return_value=mock_bar)
+        fake_tqdm_auto = types.ModuleType("tqdm.auto")
+        fake_tqdm_auto.tqdm = mock_tqdm_cls
+
+        pbar = SimulationProgressBar(total_steps=10)
+        assert pbar._bar is None  # not yet open
+
+        with patch.dict("sys.modules", {"tqdm.auto": fake_tqdm_auto}):
+            pbar._host_update(0)
+
+        assert pbar._bar is mock_bar  # opened on first update
+        assert mock_bar.n == 0
+
+    def test_host_close_forces_100_percent_and_closes(self):
+        """_host_close must set bar.n = total_steps, refresh, and close."""
+        mock_bar = MagicMock()
+        pbar = SimulationProgressBar(total_steps=50)
+        pbar._bar = mock_bar
+
+        pbar._host_update(40)  # simulate last update at step 40
+        pbar._host_close()
+
+        assert mock_bar.n == 50
+        mock_bar.close.assert_called_once()
+        assert pbar._bar is None
+
+    def test_step_and_close_callbacks_work_outside_while_loop(self):
+        """Both callbacks must fire correctly when called outside a while_loop.
+
+        This also validates the jit case: io_callbacks embedded in a compiled
+        graph fire at execution time, and the bar is lazily created on first
+        update rather than at trace time.
+        """
+        import types
+
+        mock_bar = MagicMock()
+        mock_tqdm_cls = MagicMock(return_value=mock_bar)
+        fake_tqdm_auto = types.ModuleType("tqdm.auto")
+        fake_tqdm_auto.tqdm = mock_tqdm_cls
+
+        pbar = SimulationProgressBar(total_steps=20)
+        step_cb, close_cb = pbar.get_callbacks()
+
+        with patch.dict("sys.modules", {"tqdm.auto": fake_tqdm_auto}):
+            step_cb(jnp.asarray(0, dtype=jnp.int32))
+            jax.effects_barrier()
+            assert mock_bar.n == 0
+
+            step_cb(jnp.asarray(10, dtype=jnp.int32))
+            jax.effects_barrier()
+            assert mock_bar.n == 10
+
+            close_cb()
+            jax.effects_barrier()
+
+        assert mock_bar.n == 20
+        mock_bar.close.assert_called_once()
 
 
 class TestMakePbar:
@@ -429,9 +503,6 @@ class TestMakePbar:
         assert result is not None
         expected = _auto_update_interval(1000)
         assert result.update_interval == expected
-
-
-# Integration tests: show_progress flag wired into each simulation function
 
 
 class TestShowProgressFlag:
@@ -552,14 +623,16 @@ class TestShowProgressFlag:
         for abs_step in range(50, 100, 10):
             pbar._host_update(abs_step)
 
+        # bar.n values should be 0, 10, 20, 30, 40 — never > 50
+        [c.args[0] if c.args else c.kwargs.get("n") for c in mock_bar.method_calls if str(c).startswith("call.n")]
         # Just verify the last assignment via attribute tracking
         assert mock_bar.n == 40  # last callback: abs 90 - offset 50 = 40
         assert mock_bar.n <= 50  # must never exceed total_steps
 
-    # Callback wiring tests (outside lax.while_loop for determinism)
+    # Callback wiring tests
 
     def test_wrap_body_calls_callback_before_delegating(self):
-        """_wrap_body_with_progress must invoke the callback before body_fun."""
+        """_wrap_body_with_progress must invoke the step callback before body_fun."""
         call_log = []
 
         def fake_body(state):
@@ -569,45 +642,179 @@ class TestShowProgressFlag:
         pbar = SimulationProgressBar(total_steps=10)
         pbar._bar = MagicMock()
 
-        # Bypass io_callback for synchronous testing
-        def patched_get_callback():
-            def _cb(time_step):
+        # Bypass io_callback for synchronous testing by patching get_callbacks
+        def patched_get_callbacks():
+            def _step_cb(time_step):
                 call_log.append(("callback", int(time_step)))
 
-            return _cb
+            def _close_cb():
+                call_log.append(("close",))
 
-        pbar.get_callback = patched_get_callback
-        wrapped = _wrap_body_with_progress(fake_body, pbar)
+            return _step_cb, _close_cb
+
+        pbar.get_callbacks = patched_get_callbacks
+        wrapped, close_fn = _wrap_body_with_progress(fake_body, pbar)
 
         dummy_state = (jnp.asarray(3, dtype=jnp.int32), None)
         wrapped(dummy_state)
 
-        assert call_log[0] == ("callback", 3), "callback must fire before body_fun"
+        assert call_log[0] == ("callback", 3), "step callback must fire before body_fun"
         assert call_log[1] == ("body", 3), "body_fun must fire after callback"
         assert len(call_log) == 2
 
-    def test_wrap_body_with_none_pbar_is_identity(self):
-        """_wrap_body_with_progress(body, None) must return the original body unchanged."""
+        close_fn()
+        assert call_log[-1] == ("close",), "close_fn must invoke the close callback"
+
+    def test_wrap_body_with_none_pbar_returns_identity_and_noop(self):
+        """_wrap_body_with_progress(body, None) must return (body, noop_close)."""
 
         def fake_body(state):
             return state
 
-        wrapped = _wrap_body_with_progress(fake_body, None)
+        wrapped, close_fn = _wrap_body_with_progress(fake_body, None)
         assert wrapped is fake_body
+        close_fn()  # must not raise
 
-    def test_get_callback_fires_host_update_outside_while_loop(self):
-        """Calling the callback outside of while_loop triggers _host_update via io_callback.
 
-        Per the JAX documentation, jax.experimental.io_callback is fully
-        compatible with jax.lax.while_loop when ordered=True.
-        Reference: https://docs.jax.dev/en/latest/external-callbacks.html
+# Progress bar behaviour under jax.jit
+
+
+class TestProgressBarUnderJit:
+    """Regression tests verifying that the progress bar works correctly when
+    simulation functions are wrapped in jax.jit.
+
+    The key property being tested: because the bar lifecycle is driven entirely
+    by io_callbacks (not by a Python context manager), the bar must open and
+    update at XLA *execution* time — not at trace time.  This means:
+
+    1. On the first jit call (trace + execute), callbacks fire during execution.
+    2. On subsequent jit calls (cached execution), the Python body is skipped
+       but the compiled io_callbacks still fire — so the bar still updates.
+
+    These tests build a minimal jax.lax.while_loop directly rather than going
+    through the simulation fixtures, so they are independent of the fixture
+    config's time_steps_total value.
+    """
+
+    TOTAL_STEPS = 20  # small enough to be fast; large enough for meaningful counts
+
+    def test_host_update_called_under_jit(self):
+        """_host_update must be invoked at execution time even inside jax.jit.
+
+        We spy on _host_update by wrapping it, then call the jitted function
+        twice.  Both calls must trigger updates — the second one especially,
+        since on a cached call the Python body is entirely skipped and only
+        the compiled XLA graph (including io_callbacks) runs.
         """
-        pbar = SimulationProgressBar(total_steps=20)
-        pbar._bar = MagicMock()
-        cb = pbar.get_callback()
+        total = self.TOTAL_STEPS
+        pbar = _make_pbar(show_progress=True, total_steps=total, desc="jit-test")
+        assert pbar is not None, "_make_pbar returned None — tqdm may not be installed or total_steps was not positive"
 
-        cb(jnp.asarray(7, dtype=jnp.int32))
+        update_call_counts = []
+        original_host_update = pbar._host_update
+
+        def spy_host_update(time_step):
+            update_call_counts.append(int(time_step))
+            original_host_update(time_step)
+
+        pbar._host_update = spy_host_update
+
+        step_cb, close_cb = pbar.get_callbacks()
+
+        def body(step):
+            step_cb(step)
+            return step + 1
+
+        @jax.jit
+        def run_loop(init_step):
+            final = jax.lax.while_loop(
+                lambda s: s < total,
+                body,
+                init_step,
+            )
+            close_cb()
+            return final
+
+        # First call: trace + execute
+        update_call_counts.clear()
+        run_loop(jnp.asarray(0, jnp.int32))
         jax.effects_barrier()
+        count_first = len(update_call_counts)
+        assert count_first > 0, (
+            "No _host_update calls on first jit execution — io_callbacks are not firing at execution time"
+        )
 
-        assert pbar._bar.n == 7
-        assert pbar._bar.refresh.call_count == 1
+        # Second call: cached execution (Python body is NOT re-run)
+        update_call_counts.clear()
+        run_loop(jnp.asarray(0, jnp.int32))
+        jax.effects_barrier()
+        count_second = len(update_call_counts)
+        assert count_second > 0, (
+            "No _host_update calls on second (cached) jit execution — "
+            "io_callbacks are not firing from the compiled XLA graph"
+        )
+
+        # Both executions must produce the same number of updates
+        assert count_first == count_second, (
+            f"First call fired {count_first} updates but second fired {count_second} — "
+            "callback count must be deterministic across calls"
+        )
+
+    def test_bar_opens_at_execution_not_trace_time(self):
+        """The tqdm bar must not exist during tracing — only after execution.
+
+        If the bar were created at trace time (inside __init__ or __enter__),
+        it would appear before any FDTD steps ran, then close at the end of
+        tracing with nothing displayed.  The bar must remain None until the
+        first io_callback fires at execution time.
+        """
+        import types
+
+        bar_creation_times = []  # records "trace" or "execute"
+        is_executing = [False]  # set to True after jit compilation completes
+
+        mock_bar = MagicMock()
+
+        def tracking_tqdm_cls(*args, **kwargs):
+            label = "execute" if is_executing[0] else "trace"
+            bar_creation_times.append(label)
+            return mock_bar
+
+        fake_tqdm_auto = types.ModuleType("tqdm.auto")
+        fake_tqdm_auto.tqdm = tracking_tqdm_cls
+
+        total = self.TOTAL_STEPS
+        pbar = _make_pbar(show_progress=True, total_steps=total, desc="jit-open-test")
+        assert pbar is not None, "_make_pbar returned None — tqdm may not be installed or total_steps was not positive"
+
+        step_cb, close_cb = pbar.get_callbacks()
+
+        def body(step):
+            step_cb(step)
+            return step + 1
+
+        @jax.jit
+        def run_loop(init_step):
+            final = jax.lax.while_loop(
+                lambda s: s < total,
+                body,
+                init_step,
+            )
+            close_cb()
+            return final
+
+        with patch.dict("sys.modules", {"tqdm.auto": fake_tqdm_auto}):
+            # Phase 1: trace + compile only — no execution, is_executing is False.
+            # Any tqdm construction here would be labelled "trace".
+            compiled = run_loop.lower(jnp.asarray(0, jnp.int32)).compile()
+
+            # Phase 2: execution — flip the sentinel, then run the compiled fn.
+            is_executing[0] = True
+            compiled(jnp.asarray(0, jnp.int32))
+            jax.effects_barrier()
+
+        assert len(bar_creation_times) > 0, "tqdm was never instantiated"
+        assert all(t == "execute" for t in bar_creation_times), (
+            f"tqdm bar was created at trace time: {bar_creation_times}. "
+            "The bar must only open inside _host_update at io_callback execution time."
+        )
