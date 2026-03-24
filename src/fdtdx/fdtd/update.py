@@ -58,6 +58,34 @@ def apply_boundary_post_H_update(
     return H
 
 
+def pad_fields_for_boundaries(
+    fields: jax.Array,
+    objects: ObjectContainer,
+    config: SimulationConfig,
+) -> jax.Array:
+    """Pad fields and apply boundary-specific corrections.
+
+    Combines wrap/constant padding with boundary-specific corrections
+    (e.g. Bloch phase shifts) in a single call.
+
+    Args:
+        fields: Field array of shape (3, Nx, Ny, Nz)
+        objects: Container with simulation objects including boundaries
+        config: Simulation configuration (provides resolution)
+
+    Returns:
+        Padded fields of shape (3, Nx+2, Ny+2, Nz+2) with all corrections applied
+    """
+    periodic_axes = get_wrap_padding_axes(objects)
+    padded = pad_fields(fields, periodic_axes)
+    boundaries = objects.boundary_objects
+    if boundaries:
+        volume_shape = objects.volume.grid_shape
+        for boundary in boundaries:
+            padded = boundary.apply_pad_correction(padded, volume_shape, config.resolution)
+    return padded
+
+
 def update_E(
     time_step: jax.Array,
     arrays: ArrayContainer,
@@ -86,16 +114,15 @@ def update_E(
     inv_eps = arrays.inv_permittivities
     sigma_E = arrays.electric_conductivity
     c = config.courant_number
-    periodic_axes = get_wrap_padding_axes(objects)
+    H_pad = pad_fields_for_boundaries(arrays.H, objects, config)
     curl, psi_E = curl_H(
         config,
-        arrays.H,
+        H_pad,
         arrays.psi_E,
         arrays.alpha,
         arrays.kappa,
         arrays.sigma,
         simulate_boundaries,
-        periodic_axes,
     )
     arrays = arrays.aset("psi_E", psi_E)
 
@@ -132,8 +159,8 @@ def update_E(
         A, B = compute_anisotropic_update_matrices(inv_eps, sigma_E, c, eta0)
 
         # We need to pad the fields and curl to account for ghost cells when computing the averages
-        E_pad = pad_fields(arrays.E, periodic_axes)
-        curl_pad = pad_fields(curl, periodic_axes)
+        E_pad = pad_fields_for_boundaries(arrays.E, objects, config)
+        curl_pad = pad_fields_for_boundaries(curl, objects, config)
 
         # Compute the averages of the fields and curl
         Ex_y_avg = avg_anisotropic_E_component(E_pad, component=0, location=1)  # calc Ex at location of Ey
@@ -233,16 +260,15 @@ def update_E_reverse(
     inv_eps = arrays.inv_permittivities
     sigma_E = arrays.electric_conductivity
     c = config.courant_number
-    periodic_axes = get_wrap_padding_axes(objects)
+    H_pad = pad_fields_for_boundaries(arrays.H, objects, config)
     curl, _ = curl_H(
         config,
-        arrays.H,
+        H_pad,
         arrays.psi_E,
         arrays.alpha,
         arrays.kappa,
         arrays.sigma,
         False,
-        periodic_axes,
     )
 
     # Check if we have full anisotropic tensors (shape[0] == 9)
@@ -267,8 +293,8 @@ def update_E_reverse(
         A, B = compute_anisotropic_update_matrices_reverse(inv_eps, sigma_E, c, eta0)
 
         # We need to pad the fields and curl to account for ghost cells when computing the averages
-        E_pad = pad_fields(E, periodic_axes)
-        curl_pad = pad_fields(curl, periodic_axes)
+        E_pad = pad_fields_for_boundaries(E, objects, config)
+        curl_pad = pad_fields_for_boundaries(curl, objects, config)
 
         # Compute the averages of the fields and curl
         Ex_y_avg = avg_anisotropic_E_component(E_pad, component=0, location=1)  # calc Ex at location of Ey
@@ -339,16 +365,15 @@ def update_H(
     inv_mu = arrays.inv_permeabilities
     sigma_H = arrays.magnetic_conductivity
     c = config.courant_number
-    periodic_axes = get_wrap_padding_axes(objects)
+    E_pad = pad_fields_for_boundaries(arrays.E, objects, config)
     curl, psi_H = curl_E(
         config,
-        arrays.E,
+        E_pad,
         arrays.psi_H,
         arrays.alpha,
         arrays.kappa,
         arrays.sigma,
         simulate_boundaries,
-        periodic_axes,
     )
     arrays = arrays.aset("psi_H", psi_H)
 
@@ -384,8 +409,8 @@ def update_H(
         A, B = compute_anisotropic_update_matrices(inv_mu, sigma_H, c, 1 / eta0)
 
         # We need to pad the fields and curl to account for ghost cells when computing the averages
-        H_pad = pad_fields(arrays.H, periodic_axes)
-        curl_pad = pad_fields(curl, periodic_axes)
+        H_pad = pad_fields_for_boundaries(arrays.H, objects, config)
+        curl_pad = pad_fields_for_boundaries(curl, objects, config)
 
         # Compute the averages of the fields and curl
         Hx_y_avg = avg_anisotropic_H_component(H_pad, component=0, location=1)  # calc Hx at location of Hy
@@ -486,16 +511,15 @@ def update_H_reverse(
     inv_mu = arrays.inv_permeabilities
     sigma_H = arrays.magnetic_conductivity
     c = config.courant_number
-    periodic_axes = get_wrap_padding_axes(objects)
+    E_pad = pad_fields_for_boundaries(arrays.E, objects, config)
     curl, _ = curl_E(
         config,
-        arrays.E,
+        E_pad,
         arrays.psi_H,
         arrays.alpha,
         arrays.kappa,
         arrays.sigma,
         False,
-        periodic_axes,
     )
 
     # Check if we have full anisotropic tensors (shape[0] == 9)
@@ -523,8 +547,8 @@ def update_H_reverse(
         A, B = compute_anisotropic_update_matrices_reverse(inv_mu, sigma_H, c, 1 / eta0)
 
         # We need to pad the fields and curl to account for ghost cells when computing the averages
-        H_pad = pad_fields(H, periodic_axes)
-        curl_pad = pad_fields(curl, periodic_axes)
+        H_pad = pad_fields_for_boundaries(H, objects, config)
+        curl_pad = pad_fields_for_boundaries(curl, objects, config)
 
         # Compute the averages of the fields and curl
         Hx_y_avg = avg_anisotropic_H_component(H_pad, component=0, location=1)  # calc Hx at location of Hy
@@ -569,6 +593,7 @@ def update_detector_states(
     time_step: jax.Array,
     arrays: ArrayContainer,
     objects: ObjectContainer,
+    config: SimulationConfig,
     H_prev: jax.Array,
     inverse: bool,
 ) -> ArrayContainer:
@@ -589,11 +614,11 @@ def update_detector_states(
     Returns:
         ArrayContainer: Updated ArrayContainer with new detector states
     """
-    periodic_axes = get_wrap_padding_axes(objects)
+    E_pad = pad_fields_for_boundaries(arrays.E, objects, config)
+    H_avg_pad = pad_fields_for_boundaries((H_prev + arrays.H) / 2, objects, config)
     interpolated_E, interpolated_H = interpolate_fields(
-        E_field=arrays.E,
-        H_field=(H_prev + arrays.H) / 2,
-        periodic_axes=periodic_axes,
+        E_pad=E_pad,
+        H_pad=H_avg_pad,
     )
 
     def helper_fn(E_input, H_input, detector: Detector):

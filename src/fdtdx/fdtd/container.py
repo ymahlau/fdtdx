@@ -14,9 +14,10 @@ from fdtdx.interfaces.state import RecordingState
 from fdtdx.materials import Material
 from fdtdx.objects.boundaries.boundary import BaseBoundary
 from fdtdx.objects.boundaries.pec import PerfectElectricConductor
-from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.pmc import PerfectMagneticConductor
+from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
+from fdtdx.objects.boundaries.bloch import BlochBoundary
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 from fdtdx.objects.device.device import Device
 from fdtdx.objects.object import SimulationObject
@@ -89,6 +90,10 @@ class ObjectContainer(TreeClass):
     @property
     def pmc_objects(self) -> list[PerfectMagneticConductor]:
         return [o for o in self.objects if isinstance(o, PerfectMagneticConductor)]
+
+    @property
+    def bloch_objects(self) -> list[BlochBoundary]:
+        return [o for o in self.objects if isinstance(o, BlochBoundary)]
 
     @property
     def boundary_objects(self) -> list[BaseBoundary]:

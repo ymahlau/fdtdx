@@ -19,7 +19,6 @@ from fdtdx.fdtd.update import (
     update_H_reverse,
 )
 
-
 # ─── Shared helpers ───────────────────────────────────────────────────────────
 
 NX, NY, NZ = 4, 4, 4
@@ -62,12 +61,16 @@ def _make_objects(sources=None):
     obj = Mock()
     obj.boundary_objects = []
     obj.sources = sources or []
+    volume = Mock()
+    volume.grid_shape = (NX, NY, NZ)
+    obj.volume = volume
     return obj
 
 
 def _make_config(c=0.5):
     cfg = Mock()
     cfg.courant_number = c
+    cfg.resolution = 1.0
     return cfg
 
 
@@ -200,7 +203,7 @@ class TestUpdateE:
         assert jnp.allclose(result.psi_E, new_psi)
 
     def test_simulate_boundaries_flag_forwarded(self):
-        """simulate_boundaries=True is passed as 7th positional arg to curl_H."""
+        """simulate_boundaries=True is passed to curl_H."""
         with patch("fdtdx.fdtd.update.curl_H", return_value=(CURL_ZERO, PSI_ZERO)) as mock_curl:
             update_E(
                 time_step=jnp.array(0),
@@ -209,7 +212,7 @@ class TestUpdateE:
                 config=_make_config(),
                 simulate_boundaries=True,
             )
-        # simulate_boundaries is positional arg index 6
+        # simulate_boundaries is positional arg index 6 (config, H_pad, psi_E, alpha, kappa, sigma, simulate_boundaries)
         assert mock_curl.call_args[0][6] is True
 
     def test_anisotropic_full_tensor_correct_shape_and_finite(self):
@@ -565,12 +568,21 @@ class TestUpdateDetectorStates:
         d.update.return_value = {"value": jnp.zeros((1,))}
         return d
 
+    def _make_det_objects(self, **kwargs):
+        """Build a mock ObjectContainer for detector tests (includes volume)."""
+        obj = Mock()
+        obj.boundary_objects = []
+        volume = Mock()
+        volume.grid_shape = (NX, NY, NZ)
+        obj.volume = volume
+        for k, v in kwargs.items():
+            setattr(obj, k, v)
+        return obj
+
     def test_forward_uses_forward_detectors(self):
         """inverse=False iterates over objects.forward_detectors."""
         det = self._make_detector()
-        objects = Mock()
-        objects.boundary_objects = []
-        objects.forward_detectors = [det]
+        objects = self._make_det_objects(forward_detectors=[det])
         arrays = _make_arrays(detector_states={det.name: {}})
         H_prev = jnp.zeros(FIELD_SHAPE)
 
@@ -584,15 +596,13 @@ class TestUpdateDetectorStates:
                 side_effect=lambda cond, t, f, e, h, d: t(e, h, d),
             ) as mock_cond,
         ):
-            update_detector_states(jnp.array(0), arrays, objects, H_prev, inverse=False)
+            update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=False)
         mock_cond.assert_called_once()
 
     def test_backward_uses_backward_detectors(self):
         """inverse=True iterates over objects.backward_detectors."""
         det = self._make_detector()
-        objects = Mock()
-        objects.boundary_objects = []
-        objects.backward_detectors = [det]
+        objects = self._make_det_objects(backward_detectors=[det])
         arrays = _make_arrays(detector_states={det.name: {}})
         H_prev = jnp.zeros(FIELD_SHAPE)
 
@@ -606,14 +616,12 @@ class TestUpdateDetectorStates:
                 side_effect=lambda cond, t, f, e, h, d: t(e, h, d),
             ) as mock_cond,
         ):
-            update_detector_states(jnp.array(0), arrays, objects, H_prev, inverse=True)
+            update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=True)
         mock_cond.assert_called_once()
 
     def test_no_forward_detectors_skips_cond(self):
         """With no forward detectors, jax.lax.cond is never called."""
-        objects = Mock()
-        objects.boundary_objects = []
-        objects.forward_detectors = []
+        objects = self._make_det_objects(forward_detectors=[])
         arrays = _make_arrays(detector_states={})
         H_prev = jnp.zeros(FIELD_SHAPE)
 
@@ -624,15 +632,13 @@ class TestUpdateDetectorStates:
             ),
             patch("fdtdx.fdtd.update.jax.lax.cond") as mock_cond,
         ):
-            update_detector_states(jnp.array(0), arrays, objects, H_prev, inverse=False)
+            update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=False)
         mock_cond.assert_not_called()
 
     def test_exact_interpolation_passes_interpolated_fields(self):
         """exact_interpolation=True: helper_fn receives interpolated E and H."""
         det = self._make_detector(exact_interpolation=True)
-        objects = Mock()
-        objects.boundary_objects = []
-        objects.forward_detectors = [det]
+        objects = self._make_det_objects(forward_detectors=[det])
         arrays = _make_arrays(detector_states={det.name: {}})
         H_prev = jnp.zeros(FIELD_SHAPE)
         interp_E = jnp.ones(FIELD_SHAPE) * 42.0
@@ -648,7 +654,7 @@ class TestUpdateDetectorStates:
             patch("fdtdx.fdtd.update.interpolate_fields", return_value=(interp_E, interp_H)),
             patch("fdtdx.fdtd.update.jax.lax.cond", side_effect=fake_cond),
         ):
-            update_detector_states(jnp.array(0), arrays, objects, H_prev, inverse=False)
+            update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=False)
 
         assert jnp.allclose(captured["E"], interp_E)
         assert jnp.allclose(captured["H"], interp_H)
@@ -656,9 +662,7 @@ class TestUpdateDetectorStates:
     def test_no_interpolation_passes_raw_fields(self):
         """exact_interpolation=False: helper_fn receives raw arrays.E and arrays.H."""
         det = self._make_detector(exact_interpolation=False)
-        objects = Mock()
-        objects.boundary_objects = []
-        objects.forward_detectors = [det]
+        objects = self._make_det_objects(forward_detectors=[det])
         raw_E = jnp.ones(FIELD_SHAPE) * 5.0
         raw_H = jnp.ones(FIELD_SHAPE) * 6.0
         arrays = _make_arrays(E=raw_E, H=raw_H, detector_states={det.name: {}})
@@ -677,17 +681,15 @@ class TestUpdateDetectorStates:
             ),
             patch("fdtdx.fdtd.update.jax.lax.cond", side_effect=fake_cond),
         ):
-            update_detector_states(jnp.array(0), arrays, objects, H_prev, inverse=False)
+            update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=False)
 
         # Should receive the raw fields, not the interpolated ones
         assert jnp.allclose(captured["E"], raw_E)
         assert jnp.allclose(captured["H"], raw_H)
 
     def test_interpolate_fields_receives_h_avg(self):
-        """interpolate_fields receives (H_prev + arrays.H) / 2 as H_field."""
-        objects = Mock()
-        objects.boundary_objects = []
-        objects.forward_detectors = []
+        """interpolate_fields receives padded (H_prev + arrays.H) / 2 as H_pad."""
+        objects = self._make_det_objects(forward_detectors=[])
         H_field = jnp.ones(FIELD_SHAPE) * 4.0
         H_prev = jnp.ones(FIELD_SHAPE) * 2.0
         arrays = _make_arrays(H=H_field, detector_states={})
@@ -696,11 +698,15 @@ class TestUpdateDetectorStates:
             "fdtdx.fdtd.update.interpolate_fields",
             return_value=(jnp.zeros(FIELD_SHAPE), jnp.zeros(FIELD_SHAPE)),
         ) as mock_interp:
-            update_detector_states(jnp.array(0), arrays, objects, H_prev, inverse=False)
+            update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=False)
 
-        expected_H_avg = (H_prev + H_field) / 2
-        actual_H_arg = mock_interp.call_args[1]["H_field"]
-        assert jnp.allclose(actual_H_arg, expected_H_avg)
+        # H_pad is the padded version of (H_prev + H_field) / 2
+        # With no boundaries, padding is constant (zero-pad)
+        expected_H_avg = (H_prev + H_field) / 2  # all 3.0
+        actual_H_pad = mock_interp.call_args[1]["H_pad"]
+        # The padded array has shape (3, NX+2, NY+2, NZ+2), interior should match
+        assert actual_H_pad.shape == (3, NX + 2, NY + 2, NZ + 2)
+        assert jnp.allclose(actual_H_pad[:, 1:-1, 1:-1, 1:-1], expected_H_avg)
 
 
 # ─── TestCollectInterfaces ────────────────────────────────────────────────────

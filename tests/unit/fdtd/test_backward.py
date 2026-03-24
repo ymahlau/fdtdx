@@ -158,9 +158,7 @@ class TestBackward:
         b1.apply_field_reset.assert_called_once()
         b2.apply_field_reset.assert_called_once()
 
-    def test_reset_fields_passes_only_requested_field_names(
-        self, mock_arrays, mock_objects, key, patched_updates
-    ):
+    def test_reset_fields_passes_only_requested_field_names(self, mock_arrays, mock_objects, key, patched_updates):
         b = Mock()
         b.apply_field_reset.side_effect = lambda f: f
         mock_objects.boundary_objects = [b]

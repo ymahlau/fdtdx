@@ -44,6 +44,25 @@ class BaseBoundary(SimulationObject, ABC):
         """
         return False
 
+    def apply_pad_correction(
+        self, padded_fields: jax.Array, volume_shape: tuple[int, int, int], resolution: float
+    ) -> jax.Array:
+        """Apply boundary-specific correction to padded fields.
+
+        Called after basic wrap/constant padding. Default is a no-op.
+        Subclasses like BlochBoundary override this to apply phase shifts
+        to ghost cells.
+
+        Args:
+            padded_fields: Padded field array of shape (3, Nx+2, Ny+2, Nz+2)
+            volume_shape: Full simulation volume shape (Nx, Ny, Nz)
+            resolution: Grid resolution in meters
+
+        Returns:
+            Padded fields with boundary-specific corrections applied
+        """
+        return padded_fields
+
     def apply_post_H_update(self, H: jax.Array) -> jax.Array:
         """Apply boundary-specific enforcement after H field update.
 

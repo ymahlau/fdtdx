@@ -146,6 +146,7 @@ def forward(
             time_step=time_step,
             arrays=arrays,
             objects=objects,
+            config=config,
             H_prev=H_prev,
             inverse=False,
         )

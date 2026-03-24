@@ -13,6 +13,7 @@ from fdtdx.materials import (
     compute_allowed_permeabilities,
     compute_allowed_permittivities,
 )
+from fdtdx.objects.boundaries.bloch import BlochBoundary
 from fdtdx.objects.device.parameters.transform import ParameterType
 from fdtdx.objects.object import (
     GridCoordinateConstraint,
@@ -26,15 +27,11 @@ from fdtdx.objects.static_material.static import SimulationVolume, StaticMultiMa
 
 DEFAULT_MAX_ITER = 1000
 
-AnyConstraint = (
-    PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint | RealCoordinateConstraint
-)
-
 
 def place_objects(
-    object_list: Sequence[SimulationObject],
+    object_list: list[SimulationObject],
     config: SimulationConfig,
-    constraints: Sequence[AnyConstraint],
+    constraints: Sequence[(PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint)],
     key: jax.Array,
 ) -> tuple[
     ObjectContainer,
@@ -233,17 +230,36 @@ def _init_arrays(
     # create E/H fields
     volume_shape = objects.volume.grid_shape
     ext_shape = (3, *volume_shape)
+
+    # Determine whether to use complex-valued fields
+    has_bloch = any(isinstance(o, BlochBoundary) for o in objects.boundary_objects)
+    if config.use_complex_fields is None:
+        # Auto-detect: promote to complex if Bloch boundaries are present
+        use_complex = has_bloch
+    else:
+        use_complex = config.use_complex_fields
+        if has_bloch and not use_complex:
+            raise ValueError(
+                "use_complex_fields=False but Bloch boundaries are present. "
+                "Bloch boundaries require complex-valued fields."
+            )
+
+    if use_complex:
+        field_dtype = jnp.complex64 if config.dtype == jnp.float32 else jnp.complex128
+    else:
+        field_dtype = config.dtype
+
     E = create_named_sharded_matrix(
         ext_shape,
         sharding_axis=1,
         value=0.0,
-        dtype=config.dtype,
+        dtype=field_dtype,
         backend=config.backend,
     )
     H = create_named_sharded_matrix(
         ext_shape,
         value=0.0,
-        dtype=config.dtype,
+        dtype=field_dtype,
         sharding_axis=1,
         backend=config.backend,
     )
@@ -253,13 +269,13 @@ def _init_arrays(
         (6, *volume_shape),
         sharding_axis=1,
         value=0.0,
-        dtype=config.dtype,
+        dtype=field_dtype,
         backend=config.backend,
     )
     psi_H = create_named_sharded_matrix(
         (6, *volume_shape),
         value=0.0,
-        dtype=config.dtype,
+        dtype=field_dtype,
         sharding_axis=1,
         backend=config.backend,
     )
@@ -617,8 +633,8 @@ def _init_params(
 
 
 def resolve_object_constraints(
-    objects: Sequence[SimulationObject],
-    constraints: Sequence[AnyConstraint],
+    objects: list[SimulationObject],
+    constraints: Sequence[PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint],
     config: SimulationConfig,
     max_iter: int = DEFAULT_MAX_ITER,
 ) -> tuple[dict, dict]:
@@ -644,7 +660,7 @@ def resolve_object_constraints(
 
     # Apply constraints iteratively
     resolved, errors = _apply_constraints_iteratively(
-        objects=list(objects),
+        objects=objects,
         constraints=constraints,
         config=config,
         max_iter=max_iter,
@@ -762,7 +778,7 @@ def _resolve_static_positions_iterative(
 
 
 def _check_objects_names_from_constraints(
-    constraints: Sequence[AnyConstraint],
+    constraints: Sequence[PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint],
     object_names: list[str],
 ):
     """Collect object names mentioned in constraints and verify they exist."""
@@ -778,7 +794,7 @@ def _check_objects_names_from_constraints(
 
 def _apply_constraints_iteratively(
     objects: list[SimulationObject],
-    constraints: Sequence[AnyConstraint],
+    constraints: Sequence[PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint],
     config: SimulationConfig,
     max_iter: int = DEFAULT_MAX_ITER,
 ) -> tuple[dict, dict]:
@@ -1204,7 +1220,7 @@ def _apply_size_extension_constraint(
 
 
 def _extend_to_inf_if_possible(
-    constraints: Sequence[AnyConstraint],
+    constraints: Sequence[PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint],
     object_map: dict[str, SimulationObject],
     slice_dict: dict[str, list[list[int | None]]],
     shape_dict: dict[str, list[int | None]],
