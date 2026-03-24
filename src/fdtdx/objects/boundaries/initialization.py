@@ -1,6 +1,7 @@
 from typing import Literal, Union
 
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
+from fdtdx.objects.boundaries.pec import PerfectElectricConductor
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.boundaries.utils import axis_direction_from_kind
@@ -18,22 +19,22 @@ class BoundaryConfig(TreeClass):
     properties and physical size of the PML regions.
     """
 
-    #: Boundary type at minimum x ("pml" or "periodic"). Default "pml".
+    #: Boundary type at minimum x ("pml", "periodic", or "pec"). Default "pml".
     boundary_type_minx: str = frozen_field(default="pml")
 
-    #: Boundary type at maximum x ("pml" or "periodic"). Default "pml".
+    #: Boundary type at maximum x ("pml", "periodic", or "pec"). Default "pml".
     boundary_type_maxx: str = frozen_field(default="pml")
 
-    #: Boundary type at minimum y ("pml" or "periodic"). Default "pml".
+    #: Boundary type at minimum y ("pml", "periodic", or "pec"). Default "pml".
     boundary_type_miny: str = frozen_field(default="pml")
 
-    #: Boundary type at maximum y ("pml" or "periodic"). Default "pml".
+    #: Boundary type at maximum y ("pml", "periodic", or "pec"). Default "pml".
     boundary_type_maxy: str = frozen_field(default="pml")
 
-    #: Boundary type at minimum z ("pml" or "periodic"). Default "pml".
+    #: Boundary type at minimum z ("pml", "periodic", or "pec"). Default "pml".
     boundary_type_minz: str = frozen_field(default="pml")
 
-    #: Number of grid cells for PML at maximum z boundary. Default 10.
+    #: Boundary type at maximum z ("pml", "periodic", or "pec"). Default "pml".
     boundary_type_maxz: str = frozen_field(default="pml")
 
     #: Number of grid cells for PML at minimum x boundary. Default 10.
@@ -540,12 +541,13 @@ class BoundaryConfig(TreeClass):
 def boundary_objects_from_config(
     config: BoundaryConfig,
     volume: SimulationVolume,
-) -> tuple[dict[str, Union[PerfectlyMatchedLayer, PeriodicBoundary]], list[PositionConstraint]]:
+) -> tuple[dict[str, Union[PerfectlyMatchedLayer, PeriodicBoundary, PerfectElectricConductor]], list[PositionConstraint]]:
     """Creates boundary objects from a boundary configuration.
 
-    Creates PerfectlyMatchedLayer or PeriodicBoundary objects for all six boundaries
-    (min/max x/y/z) based on the provided configuration. Also generates position
-    constraints to properly place the boundary objects relative to the simulation volume.
+    Creates PerfectlyMatchedLayer, PeriodicBoundary, or PerfectElectricConductor objects
+    for all six boundaries (min/max x/y/z) based on the provided configuration. Also
+    generates position constraints to properly place the boundary objects relative to
+    the simulation volume.
 
     Args:
         config (BoundaryConfig): Configuration object containing boundary parameters
@@ -580,7 +582,7 @@ def boundary_objects_from_config(
         kappa_order = kappa_order_dict[kind]
 
         grid_shape_list: list[int | None] = [None, None, None]
-        grid_shape_list[axis] = thickness if boundary_type == "pml" else 1
+        grid_shape_list[axis] = thickness if boundary_type == "pml" else 1  # PEC and periodic use thickness 1
         grid_shape: PartialGridShape3D = tuple(grid_shape_list)  # type: ignore
 
         other_axes = [0, 1, 2]
@@ -607,9 +609,15 @@ def boundary_objects_from_config(
                 partial_grid_shape=grid_shape,
                 direction=direction,
             )
+        elif boundary_type == "pec":
+            cur_boundary = PerfectElectricConductor(
+                axis=axis,
+                partial_grid_shape=grid_shape,
+                direction=direction,
+            )
         else:
             raise ValueError(
-                f"Unknown boundary type '{boundary_type}' for '{kind}'. Supported types: 'pml', 'periodic'."
+                f"Unknown boundary type '{boundary_type}' for '{kind}'. Supported types: 'pml', 'periodic', 'pec'."
             )
 
         direction_int = -1 if direction == "-" else 1

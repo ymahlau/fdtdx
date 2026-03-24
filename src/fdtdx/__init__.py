@@ -32,6 +32,7 @@ from fdtdx.interfaces.recorder import Recorder, RecordingState
 from fdtdx.interfaces.time_filter import LinearReconstructEveryK
 from fdtdx.materials import Material
 from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
+from fdtdx.objects.boundaries.pec import PerfectElectricConductor
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.detectors.detector import Detector, DetectorState
@@ -137,6 +138,7 @@ __all__ = [
     "SizeExtensionConstraint",
     "GridCoordinateConstraint",
     # boundaries
+    "PerfectElectricConductor",
     "PerfectlyMatchedLayer",
     "PeriodicBoundary",
     "BoundaryConfig",

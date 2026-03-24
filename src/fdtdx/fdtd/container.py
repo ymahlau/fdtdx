@@ -13,6 +13,7 @@ from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.materials import Material
 from fdtdx.objects.boundaries.boundary import BaseBoundary
+from fdtdx.objects.boundaries.pec import PerfectElectricConductor
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.detectors.detector import Detector, DetectorState
@@ -81,8 +82,12 @@ class ObjectContainer(TreeClass):
         return [o for o in self.objects if isinstance(o, PeriodicBoundary)]
 
     @property
+    def pec_objects(self) -> list[PerfectElectricConductor]:
+        return [o for o in self.objects if isinstance(o, PerfectElectricConductor)]
+
+    @property
     def boundary_objects(self) -> list[BaseBoundary]:
-        return [o for o in self.objects if isinstance(o, (PerfectlyMatchedLayer, PeriodicBoundary))]
+        return [o for o in self.objects if isinstance(o, BaseBoundary)]
 
     @property
     def all_objects_non_magnetic(self) -> bool:
