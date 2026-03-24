@@ -156,3 +156,29 @@ class TestPeriodicOppositeSlice:
         oslice = placed.opposite_slice
         # Both cover the single cell at position 29
         assert bslice[0] == oslice[0]
+
+
+class TestPeriodicApplyFieldReset:
+    """Tests for PeriodicBoundary.apply_field_reset."""
+
+    def test_no_op_for_single_cell_boundary(self, micro_config, jax_key):
+        """For a 1-cell thick boundary, boundary_slice == grid_slice, so reset is a no-op."""
+        pb = make_periodic(axis=0, direction="+")
+        placed = place_periodic(pb, micro_config, jax_key, volume_shape=(10, 10, 10))
+        E = jnp.arange(3 * 10 * 10 * 10, dtype=jnp.float32).reshape(3, 10, 10, 10)
+        result = placed.apply_field_reset({"E": E})
+        assert jnp.allclose(result["E"], E)
+
+    def test_returns_only_provided_field_keys(self, micro_config, jax_key):
+        pb = make_periodic(axis=0, direction="-")
+        placed = place_periodic(pb, micro_config, jax_key, volume_shape=(10, 10, 10))
+        result = placed.apply_field_reset({"H": jnp.ones((3, 10, 10, 10))})
+        assert set(result.keys()) == {"H"}
+
+    def test_all_field_keys_passed_through(self, micro_config, jax_key):
+        pb = make_periodic(axis=1, direction="+")
+        placed = place_periodic(pb, micro_config, jax_key, volume_shape=(10, 10, 10))
+        E = jnp.ones((3, 10, 10, 10))
+        H = jnp.ones((3, 10, 10, 10))
+        result = placed.apply_field_reset({"E": E, "H": H})
+        assert set(result.keys()) == {"E", "H"}

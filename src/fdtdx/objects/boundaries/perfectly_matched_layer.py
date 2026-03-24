@@ -115,6 +115,11 @@ class PerfectlyMatchedLayer(BaseBoundary):
         """
         return self.grid_shape[self.axis]
 
+    @override
+    def apply_field_reset(self, fields: dict[str, jax.Array]) -> dict[str, jax.Array]:
+        """Zero all field components within the PML region."""
+        return {name: field.at[:, *self.grid_slice].set(0) for name, field in fields.items()}
+
     def _compute_pml_profile(
         self,
         value_start: float,

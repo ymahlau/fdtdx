@@ -11,14 +11,14 @@ from fdtdx.fdtd.container import ArrayContainer
 from fdtdx.fdtd.update import (
     add_interfaces,
     collect_interfaces,
-    get_periodic_axes,
+    get_wrap_padding_axes,
     update_detector_states,
     update_E,
     update_E_reverse,
     update_H,
     update_H_reverse,
 )
-from fdtdx.objects.boundaries.periodic import PeriodicBoundary
+
 
 # ─── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -58,7 +58,7 @@ def _make_arrays(
 
 
 def _make_objects(sources=None):
-    """Build a mock ObjectContainer with no periodic boundaries."""
+    """Build a mock ObjectContainer with no boundaries."""
     obj = Mock()
     obj.boundary_objects = []
     obj.sources = sources or []
@@ -82,60 +82,69 @@ def _diag_anisotropic_tensor(shape):
     return t
 
 
-# ─── TestGetPeriodicAxes ──────────────────────────────────────────────────────
+# ─── TestGetWrapPaddingAxes ───────────────────────────────────────────────────
 
 
-class TestGetPeriodicAxes:
-    def test_no_periodic_boundaries(self):
+class TestGetWrapPaddingAxes:
+    def test_no_boundaries(self):
         obj = Mock()
         obj.boundary_objects = []
-        assert get_periodic_axes(obj) == (False, False, False)
+        assert get_wrap_padding_axes(obj) == (False, False, False)
 
-    def test_x_axis_periodic(self):
-        b = Mock(spec=PeriodicBoundary)
+    def test_x_axis_wrap(self):
+        b = Mock()
         b.axis = 0
+        b.uses_wrap_padding = True
         obj = Mock()
         obj.boundary_objects = [b]
-        assert get_periodic_axes(obj) == (True, False, False)
+        assert get_wrap_padding_axes(obj) == (True, False, False)
 
-    def test_y_axis_periodic(self):
-        b = Mock(spec=PeriodicBoundary)
+    def test_y_axis_wrap(self):
+        b = Mock()
         b.axis = 1
+        b.uses_wrap_padding = True
         obj = Mock()
         obj.boundary_objects = [b]
-        assert get_periodic_axes(obj) == (False, True, False)
+        assert get_wrap_padding_axes(obj) == (False, True, False)
 
-    def test_z_axis_periodic(self):
-        b = Mock(spec=PeriodicBoundary)
+    def test_z_axis_wrap(self):
+        b = Mock()
         b.axis = 2
+        b.uses_wrap_padding = True
         obj = Mock()
         obj.boundary_objects = [b]
-        assert get_periodic_axes(obj) == (False, False, True)
+        assert get_wrap_padding_axes(obj) == (False, False, True)
 
-    def test_multiple_periodic_boundaries(self):
-        b1 = Mock(spec=PeriodicBoundary)
+    def test_multiple_wrap_boundaries(self):
+        b1 = Mock()
         b1.axis = 0
-        b2 = Mock(spec=PeriodicBoundary)
+        b1.uses_wrap_padding = True
+        b2 = Mock()
         b2.axis = 2
+        b2.uses_wrap_padding = True
         obj = Mock()
         obj.boundary_objects = [b1, b2]
-        assert get_periodic_axes(obj) == (True, False, True)
+        assert get_wrap_padding_axes(obj) == (True, False, True)
 
-    def test_all_axes_periodic(self):
-        boundaries = [Mock(spec=PeriodicBoundary) for _ in range(3)]
+    def test_all_axes_wrap(self):
+        boundaries = [Mock() for _ in range(3)]
         for i, b in enumerate(boundaries):
             b.axis = i
+            b.uses_wrap_padding = True
         obj = Mock()
         obj.boundary_objects = boundaries
-        assert get_periodic_axes(obj) == (True, True, True)
+        assert get_wrap_padding_axes(obj) == (True, True, True)
 
-    def test_non_periodic_boundary_ignored(self):
-        periodic = Mock(spec=PeriodicBoundary)
-        periodic.axis = 1
-        other = Mock()  # not a PeriodicBoundary
+    def test_non_wrap_boundary_ignored(self):
+        wrap = Mock()
+        wrap.axis = 1
+        wrap.uses_wrap_padding = True
+        other = Mock()
+        other.axis = 0
+        other.uses_wrap_padding = False
         obj = Mock()
-        obj.boundary_objects = [periodic, other]
-        assert get_periodic_axes(obj) == (False, True, False)
+        obj.boundary_objects = [wrap, other]
+        assert get_wrap_padding_axes(obj) == (False, True, False)
 
 
 # ─── TestUpdateE ──────────────────────────────────────────────────────────────

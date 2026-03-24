@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Literal
 
+import jax
+
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.objects.object import SimulationObject
 from fdtdx.typing import GridShape3D, Slice3D, SliceTuple3D
@@ -32,6 +34,44 @@ class BaseBoundary(SimulationObject, ABC):
     def thickness(self) -> int:
         """Gets the thickness of the boundary in grid points."""
         raise NotImplementedError()
+
+    @property
+    def uses_wrap_padding(self) -> bool:
+        """Whether this boundary's axis should use wrap (periodic) padding.
+
+        Returns True for boundaries that connect opposite sides of the domain
+        (periodic, Bloch). Returns False for terminating boundaries (PEC, PMC, PML).
+        """
+        return False
+
+    def apply_post_H_update(self, H: jax.Array) -> jax.Array:
+        """Apply boundary-specific enforcement after H field update.
+
+        Called after each H field update (forward and reverse). Default is a no-op.
+        Subclasses like PMC override this to zero tangential H components.
+
+        Args:
+            H: Magnetic field array of shape (3, Nx, Ny, Nz)
+
+        Returns:
+            H field with boundary conditions enforced
+        """
+        return H
+
+    def apply_field_reset(self, fields: dict[str, jax.Array]) -> dict[str, jax.Array]:
+        """Apply boundary-specific field reset during backward propagation.
+
+        Called during the backward pass to restore each boundary region to its
+        correct state. Default is a no-op. Subclasses like PML override this to
+        zero their region; PeriodicBoundary overrides to copy from the opposite face.
+
+        Args:
+            fields: Dict mapping field names (e.g. 'E', 'H') to their arrays
+
+        Returns:
+            Updated fields dict with this boundary's reset applied
+        """
+        return fields
 
     def interface_grid_shape(self) -> GridShape3D:
         if self.axis == 0:

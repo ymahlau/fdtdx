@@ -1,5 +1,6 @@
 import functools
 
+import jax
 from typing_extensions import override
 
 from fdtdx.colors import XKCD_LIGHT_BLUE, Color
@@ -32,6 +33,12 @@ class PeriodicBoundary(BaseBoundary):
 
     @property
     @override
+    def uses_wrap_padding(self) -> bool:
+        """Periodic boundaries use wrap padding to connect opposite sides."""
+        return True
+
+    @property
+    @override
     def thickness(self) -> int:
         """Gets the thickness of the periodic boundary layer in grid points.
 
@@ -39,6 +46,15 @@ class PeriodicBoundary(BaseBoundary):
             int: Number of grid points in the boundary layer (always 1 for periodic)
         """
         return 1
+
+    @override
+    def apply_field_reset(self, fields: dict[str, jax.Array]) -> dict[str, jax.Array]:
+        """Copy field values from this boundary face to maintain periodicity."""
+        result = {}
+        for name, field in fields.items():
+            field_values = field[..., *self.boundary_slice]
+            result[name] = field.at[..., *self.grid_slice].set(field_values)
+        return result
 
     @functools.cached_property
     def boundary_slice(self) -> tuple[slice, ...]:

@@ -14,24 +14,48 @@ from fdtdx.fdtd.misc import (
     compute_anisotropic_update_matrices,
     compute_anisotropic_update_matrices_reverse,
 )
-from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.detectors.detector import Detector
 
 
-def get_periodic_axes(objects: ObjectContainer) -> tuple[bool, bool, bool]:
-    """Determines which axes have periodic boundary conditions.
+def get_wrap_padding_axes(objects: ObjectContainer) -> tuple[bool, bool, bool]:
+    """Determines which axes should use wrap (periodic) padding.
+
+    Delegates to each boundary's `uses_wrap_padding` property, so no
+    boundary-type-specific logic lives in the update loop.
 
     Args:
         objects (ObjectContainer): Container with simulation objects including boundaries
 
     Returns:
-        tuple[bool, bool, bool]: Tuple indicating which axes (x,y,z) are periodic
+        tuple[bool, bool, bool]: Tuple indicating which axes (x,y,z) use wrap padding
     """
-    periodic_axes = [False, False, False]
+    wrap_axes = [False, False, False]
     for boundary in objects.boundary_objects:
-        if isinstance(boundary, PeriodicBoundary):
-            periodic_axes[boundary.axis] = True
-    return tuple(periodic_axes)  # type: ignore
+        if boundary.uses_wrap_padding:
+            wrap_axes[boundary.axis] = True
+    return tuple(wrap_axes)  # type: ignore
+
+
+def apply_boundary_post_H_update(
+    H: jax.Array,
+    objects: ObjectContainer,
+) -> jax.Array:
+    """Apply all boundary post-H-update enforcement.
+
+    Delegates to each boundary's `apply_post_H_update` method, so
+    boundary-specific logic (e.g. PMC tangential zeroing) lives in
+    the boundary class, not here.
+
+    Args:
+        H: Magnetic field array of shape (3, Nx, Ny, Nz)
+        objects: Container with simulation objects including boundaries
+
+    Returns:
+        H field with all boundary conditions enforced
+    """
+    for boundary in objects.boundary_objects:
+        H = boundary.apply_post_H_update(H)
+    return H
 
 
 def update_E(
@@ -62,7 +86,7 @@ def update_E(
     inv_eps = arrays.inv_permittivities
     sigma_E = arrays.electric_conductivity
     c = config.courant_number
-    periodic_axes = get_periodic_axes(objects)
+    periodic_axes = get_wrap_padding_axes(objects)
     curl, psi_E = curl_H(
         config,
         arrays.H,
@@ -209,7 +233,7 @@ def update_E_reverse(
     inv_eps = arrays.inv_permittivities
     sigma_E = arrays.electric_conductivity
     c = config.courant_number
-    periodic_axes = get_periodic_axes(objects)
+    periodic_axes = get_wrap_padding_axes(objects)
     curl, _ = curl_H(
         config,
         arrays.H,
@@ -315,7 +339,7 @@ def update_H(
     inv_mu = arrays.inv_permeabilities
     sigma_H = arrays.magnetic_conductivity
     c = config.courant_number
-    periodic_axes = get_periodic_axes(objects)
+    periodic_axes = get_wrap_padding_axes(objects)
     curl, psi_H = curl_E(
         config,
         arrays.E,
@@ -414,6 +438,7 @@ def update_H(
             lambda: H,
         )
 
+    H = apply_boundary_post_H_update(H, objects)
     arrays = arrays.at["H"].set(H)
     return arrays
 
@@ -461,7 +486,7 @@ def update_H_reverse(
     inv_mu = arrays.inv_permeabilities
     sigma_H = arrays.magnetic_conductivity
     c = config.courant_number
-    periodic_axes = get_periodic_axes(objects)
+    periodic_axes = get_wrap_padding_axes(objects)
     curl, _ = curl_E(
         config,
         arrays.E,
@@ -534,6 +559,7 @@ def update_H_reverse(
 
         H = jnp.stack((Hx, Hy, Hz), axis=0)
 
+    H = apply_boundary_post_H_update(H, objects)
     arrays = arrays.at["H"].set(H)
 
     return arrays
@@ -563,7 +589,7 @@ def update_detector_states(
     Returns:
         ArrayContainer: Updated ArrayContainer with new detector states
     """
-    periodic_axes = get_periodic_axes(objects)
+    periodic_axes = get_wrap_padding_axes(objects)
     interpolated_E, interpolated_H = interpolate_fields(
         E_field=arrays.E,
         H_field=(H_prev + arrays.H) / 2,
