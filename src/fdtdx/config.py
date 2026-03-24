@@ -98,9 +98,6 @@ class SimulationConfig(TreeClass):
         if self.backend == "cpu":
             jax.config.update("jax_platform_name", "cpu")
 
-        if self.dtype in (jnp.float64, jnp.complex128):
-            jax.config.update("jax_enable_x64", True)
-
     @property
     def courant_number(self) -> float:
         """Calculate the Courant number for the simulation.

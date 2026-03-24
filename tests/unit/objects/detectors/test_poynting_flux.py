@@ -285,8 +285,8 @@ class TestPoyntingFluxDetectorConfiguration:
         self, simulation_config, plane_grid_slice, random_key, inv_permittivity, inv_permeability
     ):
         """'+' and '-' directions produce equal magnitude but opposite sign flux."""
-        E = jnp.ones((3, 8, 8, 8), dtype=jnp.float32)
-        H = jnp.ones((3, 8, 8, 8), dtype=jnp.float32)
+        E = jnp.zeros((3, 8, 8, 8), dtype=jnp.float32).at[0].set(1.0)
+        H = jnp.zeros((3, 8, 8, 8), dtype=jnp.float32).at[1].set(1.0)
 
         det_pos = PoyntingFluxDetector(direction="+", reduce_volume=True)
         det_pos = det_pos.place_on_grid(plane_grid_slice, simulation_config, random_key)
