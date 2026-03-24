@@ -232,16 +232,19 @@ def _init_arrays(
     ext_shape = (3, *volume_shape)
 
     # Determine whether to use complex-valued fields
-    has_bloch = any(isinstance(o, BlochBoundary) for o in objects.boundary_objects)
+    needs_complex = any(
+        isinstance(o, BlochBoundary) and o.needs_complex_fields
+        for o in objects.boundary_objects
+    )
     if config.use_complex_fields is None:
-        # Auto-detect: promote to complex if Bloch boundaries are present
-        use_complex = has_bloch
+        # Auto-detect: promote to complex if any Bloch boundary has non-zero k
+        use_complex = needs_complex
     else:
         use_complex = config.use_complex_fields
-        if has_bloch and not use_complex:
+        if needs_complex and not use_complex:
             raise ValueError(
-                "use_complex_fields=False but Bloch boundaries are present. "
-                "Bloch boundaries require complex-valued fields."
+                "use_complex_fields=False but Bloch boundaries with non-zero "
+                "wave vector are present. These require complex-valued fields."
             )
 
     if use_complex:

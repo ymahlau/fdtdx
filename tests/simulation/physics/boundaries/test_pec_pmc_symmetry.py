@@ -35,7 +35,6 @@ Resolution: 25 nm = 40 cells/λ for accurate near-wall measurement.
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 
 import fdtdx
 

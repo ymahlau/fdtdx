@@ -82,7 +82,7 @@ class BaseBoundary(SimulationObject, ABC):
 
         Called during the backward pass to restore each boundary region to its
         correct state. Default is a no-op. Subclasses like PML override this to
-        zero their region; PeriodicBoundary overrides to copy from the opposite face.
+        zero their region; BlochBoundary overrides to copy from the opposite face.
 
         Args:
             fields: Dict mapping field names (e.g. 'E', 'H') to their arrays

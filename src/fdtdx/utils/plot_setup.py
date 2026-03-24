@@ -8,7 +8,7 @@ from matplotlib.patches import Patch, Rectangle
 from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.container import ObjectContainer
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
-from fdtdx.objects.boundaries.periodic import PeriodicBoundary
+from fdtdx.objects.boundaries.bloch import BlochBoundary
 from fdtdx.objects.object import SimulationObject
 
 
@@ -60,7 +60,7 @@ def plot_setup_from_side(
 
     # add boundaries to exclude lists
     for o in objects.objects:
-        if not isinstance(o, (PerfectlyMatchedLayer, PeriodicBoundary)):
+        if not isinstance(o, (PerfectlyMatchedLayer, BlochBoundary)):
             continue
         if o.axis == 0:
             exclude_yz_plane_object_list.append(o)
@@ -135,8 +135,7 @@ def plot_setup_from_side(
                     if not o.name.startswith("Object"):
                         print_single = True
             label = o.__class__.__name__ if o.name.startswith("Object") else o.name
-            color_val = o.color.to_mpl() if o.color is not None else "gray"
-            patch = Patch(color=color_val, label=label)
+            patch = Patch(color=o.color, label=label)
             if print_single:
                 handles.append(patch)
             else:
@@ -161,9 +160,9 @@ def plot_setup_from_side(
                 (slices[axis_indices[0]][0] * resolution, slices[axis_indices[1]][0] * resolution),
                 (slices[axis_indices[0]][1] - slices[axis_indices[0]][0]) * resolution,
                 (slices[axis_indices[1]][1] - slices[axis_indices[1]][0]) * resolution,
-                color=color.to_mpl() if color is not None else "gray",
+                color=color,
                 alpha=0.5,
-                linestyle="--" if isinstance(obj, PeriodicBoundary) else "-",
+                linestyle="--" if isinstance(obj, BlochBoundary) else "-",
             )
         )
 
@@ -171,8 +170,8 @@ def plot_setup_from_side(
     ax.set_xlabel(axis_labels[0])
     ax.set_ylabel(axis_labels[1])
     ax.set_title(title)
-    ax.set_xlim((0, plane_size[0] * resolution))
-    ax.set_ylim((0, plane_size[1] * resolution))
+    ax.set_xlim([0, plane_size[0] * resolution])
+    ax.set_ylim([0, plane_size[1] * resolution])
     ax.set_aspect("equal")
     ax.grid(True)
 

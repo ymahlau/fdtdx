@@ -203,9 +203,7 @@ def test_pec_pml_waveguide():
         "min_y": "periodic",
         "max_y": "periodic",
     }
-    objects, constraints, config, volume, wave = _build_domain(
-        _DOMAIN_XY_WIDE, _DOMAIN_XY_NARROW, overrides
-    )
+    objects, constraints, config, volume, wave = _build_domain(_DOMAIN_XY_WIDE, _DOMAIN_XY_NARROW, overrides)
     _add_phasor_det("d1", _DET1_Z, wave, volume, objects, constraints)
     _add_phasor_det("d2", _DET2_Z, wave, volume, objects, constraints)
 
@@ -220,8 +218,7 @@ def test_pec_pml_waveguide():
     k_analytic = 2 * np.pi / _WAVELENGTH
     rel_err = abs(k_measured - k_analytic) / k_analytic
     assert rel_err < _TOLERANCE, (
-        f"PEC+PML waveguide: k_measured={k_measured:.4e}, "
-        f"k_analytic={k_analytic:.4e}, relative error={rel_err:.3f}"
+        f"PEC+PML waveguide: k_measured={k_measured:.4e}, k_analytic={k_analytic:.4e}, relative error={rel_err:.3f}"
     )
 
 
@@ -239,9 +236,7 @@ def test_pmc_pml_waveguide():
         "min_y": "pmc",
         "max_y": "pmc",
     }
-    objects, constraints, config, volume, wave = _build_domain(
-        _DOMAIN_XY_NARROW, _DOMAIN_XY_WIDE, overrides
-    )
+    objects, constraints, config, volume, wave = _build_domain(_DOMAIN_XY_NARROW, _DOMAIN_XY_WIDE, overrides)
     _add_phasor_det("d1", _DET1_Z, wave, volume, objects, constraints)
     _add_phasor_det("d2", _DET2_Z, wave, volume, objects, constraints)
 
@@ -257,8 +252,7 @@ def test_pmc_pml_waveguide():
     k_analytic = 2 * np.pi / _WAVELENGTH
     rel_err_k = abs(k_measured - k_analytic) / k_analytic
     assert rel_err_k < _TOLERANCE, (
-        f"PMC+PML waveguide: k_measured={k_measured:.4e}, "
-        f"k_analytic={k_analytic:.4e}, relative error={rel_err_k:.3f}"
+        f"PMC+PML waveguide: k_measured={k_measured:.4e}, k_analytic={k_analytic:.4e}, relative error={rel_err_k:.3f}"
     )
 
     # Wave impedance
@@ -268,8 +262,7 @@ def test_pmc_pml_waveguide():
     Z_analytic = 1.0
     rel_err_z = abs(Z_measured - Z_analytic) / Z_analytic
     assert rel_err_z < _TOLERANCE, (
-        f"PMC+PML waveguide: Z_measured={Z_measured:.4f}, "
-        f"Z_analytic={Z_analytic:.4f}, relative error={rel_err_z:.3f}"
+        f"PMC+PML waveguide: Z_measured={Z_measured:.4f}, Z_analytic={Z_analytic:.4f}, relative error={rel_err_z:.3f}"
     )
 
 
@@ -294,16 +287,12 @@ def test_pec_periodic_channel():
     }
 
     # Reference vacuum run
-    obj0, con0, cfg0, vol0, _ = _build_domain(
-        _DOMAIN_XY_NARROW, _DOMAIN_XY_NARROW, ref_overrides
-    )
+    obj0, con0, cfg0, vol0, _ = _build_domain(_DOMAIN_XY_NARROW, _DOMAIN_XY_NARROW, ref_overrides)
     _add_flux_det("flux_t", _DET_T_Z, vol0, obj0, con0)
     S0_ref = _mean_flux(_run(obj0, con0, cfg0), "flux_t")
 
     # Reference Fresnel run
-    obj1, con1, cfg1, vol1, _ = _build_domain(
-        _DOMAIN_XY_NARROW, _DOMAIN_XY_NARROW, ref_overrides
-    )
+    obj1, con1, cfg1, vol1, _ = _build_domain(_DOMAIN_XY_NARROW, _DOMAIN_XY_NARROW, ref_overrides)
     _add_dielectric(epsilon_r, vol1, obj1, con1)
     _add_flux_det("flux_t", _DET_T_Z, vol1, obj1, con1)
     S_T_ref = _mean_flux(_run(obj1, con1, cfg1), "flux_t")
@@ -320,16 +309,12 @@ def test_pec_periodic_channel():
     }
 
     # Mixed vacuum run
-    obj2, con2, cfg2, vol2, _ = _build_domain(
-        _DOMAIN_XY_WIDE, _DOMAIN_XY_NARROW, mixed_overrides
-    )
+    obj2, con2, cfg2, vol2, _ = _build_domain(_DOMAIN_XY_WIDE, _DOMAIN_XY_NARROW, mixed_overrides)
     _add_flux_det("flux_t", _DET_T_Z, vol2, obj2, con2)
     S0_mixed = _mean_flux(_run(obj2, con2, cfg2), "flux_t")
 
     # Mixed Fresnel run
-    obj3, con3, cfg3, vol3, _ = _build_domain(
-        _DOMAIN_XY_WIDE, _DOMAIN_XY_NARROW, mixed_overrides
-    )
+    obj3, con3, cfg3, vol3, _ = _build_domain(_DOMAIN_XY_WIDE, _DOMAIN_XY_NARROW, mixed_overrides)
     _add_dielectric(epsilon_r, vol3, obj3, con3)
     _add_flux_det("flux_t", _DET_T_Z, vol3, obj3, con3)
     S_T_mixed = _mean_flux(_run(obj3, con3, cfg3), "flux_t")
@@ -347,8 +332,7 @@ def test_pec_periodic_channel():
     # Mixed and reference should agree closely
     rel_diff = abs(T_mixed - T_ref) / abs(T_ref)
     assert rel_diff < 0.02, (
-        f"PEC+periodic vs all-periodic: T_mixed={T_mixed:.4f}, "
-        f"T_ref={T_ref:.4f}, relative diff={rel_diff:.3f} > 0.02"
+        f"PEC+periodic vs all-periodic: T_mixed={T_mixed:.4f}, T_ref={T_ref:.4f}, relative diff={rel_diff:.3f} > 0.02"
     )
 
 
@@ -366,9 +350,7 @@ def test_bloch_pml_normal():
         "min_y": "periodic",
         "max_y": "periodic",
     }
-    obj_p, con_p, cfg_p, vol_p, wave_p = _build_domain(
-        _DOMAIN_XY_NARROW, _DOMAIN_XY_NARROW, periodic_overrides
-    )
+    obj_p, con_p, cfg_p, vol_p, wave_p = _build_domain(_DOMAIN_XY_NARROW, _DOMAIN_XY_NARROW, periodic_overrides)
     _add_flux_det("flux", _DET_T_Z, vol_p, obj_p, con_p)
     S_periodic = _mean_flux(_run(obj_p, con_p, cfg_p), "flux")
 
@@ -380,7 +362,9 @@ def test_bloch_pml_normal():
         "max_y": "bloch",
     }
     obj_b, con_b, cfg_b, vol_b, wave_b = _build_domain(
-        _DOMAIN_XY_NARROW, _DOMAIN_XY_NARROW, bloch_overrides,
+        _DOMAIN_XY_NARROW,
+        _DOMAIN_XY_NARROW,
+        bloch_overrides,
         bloch_vector=(0.0, 0.0, 0.0),
     )
     _add_flux_det("flux", _DET_T_Z, vol_b, obj_b, con_b)
@@ -411,9 +395,7 @@ def test_pec_x_pmc_y():
         "min_y": "pmc",
         "max_y": "pmc",
     }
-    objects, constraints, config, volume, wave = _build_domain(
-        _DOMAIN_XY_WIDE, _DOMAIN_XY_WIDE, overrides
-    )
+    objects, constraints, config, volume, wave = _build_domain(_DOMAIN_XY_WIDE, _DOMAIN_XY_WIDE, overrides)
     _add_phasor_det("d1", _DET1_Z, wave, volume, objects, constraints)
     _add_phasor_det("d2", _DET2_Z, wave, volume, objects, constraints)
 
@@ -429,8 +411,7 @@ def test_pec_x_pmc_y():
     k_analytic = 2 * np.pi / _WAVELENGTH
     rel_err_k = abs(k_measured - k_analytic) / k_analytic
     assert rel_err_k < _TOLERANCE, (
-        f"PEC(x)+PMC(y): k_measured={k_measured:.4e}, "
-        f"k_analytic={k_analytic:.4e}, relative error={rel_err_k:.3f}"
+        f"PEC(x)+PMC(y): k_measured={k_measured:.4e}, k_analytic={k_analytic:.4e}, relative error={rel_err_k:.3f}"
     )
 
     # Wave impedance
@@ -440,6 +421,5 @@ def test_pec_x_pmc_y():
     Z_analytic = 1.0
     rel_err_z = abs(Z_measured - Z_analytic) / Z_analytic
     assert rel_err_z < _TOLERANCE, (
-        f"PEC(x)+PMC(y): Z_measured={Z_measured:.4f}, "
-        f"Z_analytic={Z_analytic:.4f}, relative error={rel_err_z:.3f}"
+        f"PEC(x)+PMC(y): Z_measured={Z_measured:.4f}, Z_analytic={Z_analytic:.4f}, relative error={rel_err_z:.3f}"
     )

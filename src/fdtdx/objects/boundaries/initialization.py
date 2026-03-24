@@ -4,7 +4,6 @@ from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 from fdtdx.objects.boundaries.bloch import BlochBoundary
 from fdtdx.objects.boundaries.pec import PerfectElectricConductor
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
-from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.boundaries.pmc import PerfectMagneticConductor
 from fdtdx.objects.boundaries.utils import axis_direction_from_kind
 from fdtdx.objects.object import PositionConstraint
@@ -557,14 +556,14 @@ def boundary_objects_from_config(
     dict[
         str,
         Union[
-            PerfectlyMatchedLayer, PeriodicBoundary, PerfectElectricConductor, PerfectMagneticConductor, BlochBoundary
+            PerfectlyMatchedLayer, PerfectElectricConductor, PerfectMagneticConductor, BlochBoundary
         ],
     ],
     list[PositionConstraint],
 ]:
     """Creates boundary objects from a boundary configuration.
 
-    Creates PerfectlyMatchedLayer, PeriodicBoundary, PerfectElectricConductor, or
+    Creates PerfectlyMatchedLayer, BlochBoundary, PerfectElectricConductor, or
     PerfectMagneticConductor objects for all six boundaries (min/max x/y/z) based on
     the provided configuration. Also generates position constraints to properly place
     the boundary objects relative to the simulation volume.
@@ -574,7 +573,7 @@ def boundary_objects_from_config(
         volume (SimulationVolume): The main simulation volume object that the boundaries will surround
 
     Returns:
-        tuple[dict[str, Union[PerfectlyMatchedLayer, PeriodicBoundary]], list[PositionConstraint]]: tuple containing:
+        tuple[dict[str, Union[PerfectlyMatchedLayer, PerfectElectricConductor, PerfectMagneticConductor, BlochBoundary]], list[PositionConstraint]]: tuple containing:
             - dict mapping boundary names ('min_x', 'max_x', etc) to boundary objects
             - list of PositionConstraint objects for placing the boundaries
     """
@@ -622,10 +621,11 @@ def boundary_objects_from_config(
                 direction=direction,
             )
         elif boundary_type == "periodic":
-            cur_boundary = PeriodicBoundary(
+            cur_boundary = BlochBoundary(
                 axis=axis,
                 partial_grid_shape=grid_shape,
                 direction=direction,
+                bloch_vector=(0.0, 0.0, 0.0),
             )
         elif boundary_type == "pec":
             cur_boundary = PerfectElectricConductor(

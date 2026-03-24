@@ -1,6 +1,7 @@
-"""Unit tests for objects/boundaries/periodic.py.
+"""Unit tests for BlochBoundary used as periodic boundary (bloch_vector=0).
 
-Tests PeriodicBoundary initialization, properties, and slice computation.
+Tests BlochBoundary initialization, properties, and slice computation
+when used as a periodic boundary (zero Bloch vector).
 """
 
 import jax
@@ -8,7 +9,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.objects.boundaries.periodic import PeriodicBoundary
+from fdtdx.objects.boundaries.bloch import BlochBoundary
 
 
 @pytest.fixture
@@ -29,18 +30,19 @@ def jax_key():
 
 
 def make_periodic(axis=0, direction="-"):
-    """Create a PeriodicBoundary with given axis/direction."""
+    """Create a BlochBoundary with zero bloch_vector (periodic) for given axis/direction."""
     shape_list = [None, None, None]
     shape_list[axis] = 1
-    return PeriodicBoundary(
+    return BlochBoundary(
         axis=axis,
         partial_grid_shape=tuple(shape_list),
         direction=direction,
+        bloch_vector=(0.0, 0.0, 0.0),
     )
 
 
 def place_periodic(pb, micro_config, jax_key, volume_shape=(30, 20, 20)):
-    """Place a PeriodicBoundary on a grid matching the given volume shape."""
+    """Place a BlochBoundary on a grid matching the given volume shape."""
     axis = pb.axis
     direction = pb.direction
 
@@ -55,7 +57,7 @@ def place_periodic(pb, micro_config, jax_key, volume_shape=(30, 20, 20)):
 
 
 class TestPeriodicThickness:
-    """Tests for PeriodicBoundary.thickness."""
+    """Tests for BlochBoundary.thickness when used as periodic."""
 
     def test_thickness_always_one(self):
         pb = make_periodic(axis=0, direction="-")
@@ -69,7 +71,7 @@ class TestPeriodicThickness:
 
 
 class TestPeriodicDescriptiveName:
-    """Tests for PeriodicBoundary.descriptive_name."""
+    """Tests for BlochBoundary.descriptive_name when used as periodic."""
 
     @pytest.mark.parametrize(
         "axis,direction,expected",
@@ -89,7 +91,7 @@ class TestPeriodicDescriptiveName:
 
 
 class TestPeriodicBoundarySlice:
-    """Tests for PeriodicBoundary.boundary_slice property."""
+    """Tests for BlochBoundary.boundary_slice property."""
 
     def test_plus_direction_axis0_slice(self, micro_config, jax_key):
         """For + direction, boundary_slice should cover the first cell along axis."""
@@ -120,7 +122,7 @@ class TestPeriodicBoundarySlice:
 
 
 class TestPeriodicOppositeSlice:
-    """Tests for PeriodicBoundary.opposite_slice property."""
+    """Tests for BlochBoundary.opposite_slice property."""
 
     def test_plus_direction_opposite_is_last_cell(self, micro_config, jax_key):
         """For + direction, opposite_slice should be the last cell of the boundary volume."""
@@ -159,7 +161,7 @@ class TestPeriodicOppositeSlice:
 
 
 class TestPeriodicApplyFieldReset:
-    """Tests for PeriodicBoundary.apply_field_reset."""
+    """Tests for BlochBoundary.apply_field_reset when used as periodic."""
 
     def test_no_op_for_single_cell_boundary(self, micro_config, jax_key):
         """For a 1-cell thick boundary, boundary_slice == grid_slice, so reset is a no-op."""
@@ -182,3 +184,31 @@ class TestPeriodicApplyFieldReset:
         H = jnp.ones((3, 10, 10, 10))
         result = placed.apply_field_reset({"E": E, "H": H})
         assert set(result.keys()) == {"E", "H"}
+
+
+class TestNeedsComplexFields:
+    """Tests for BlochBoundary.needs_complex_fields property."""
+
+    def test_zero_vector_does_not_need_complex(self):
+        pb = make_periodic(axis=0, direction="-")
+        assert pb.needs_complex_fields is False
+
+    def test_nonzero_component_on_axis_needs_complex(self):
+        shape_list = [1, None, None]
+        pb = BlochBoundary(
+            axis=0,
+            partial_grid_shape=tuple(shape_list),
+            direction="-",
+            bloch_vector=(1.0, 0.0, 0.0),
+        )
+        assert pb.needs_complex_fields is True
+
+    def test_nonzero_component_off_axis_does_not_need_complex(self):
+        shape_list = [1, None, None]
+        pb = BlochBoundary(
+            axis=0,
+            partial_grid_shape=tuple(shape_list),
+            direction="-",
+            bloch_vector=(0.0, 1.0, 0.0),
+        )
+        assert pb.needs_complex_fields is False

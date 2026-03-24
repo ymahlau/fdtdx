@@ -141,8 +141,7 @@ def test_bloch_zero_matches_periodic_ex():
     # Amplitude comparison
     amp_diff = abs(abs(ex_bloch) - abs(ex_periodic)) / abs(ex_periodic)
     assert amp_diff < _REL_TOL, (
-        f"|Ex| mismatch: periodic={abs(ex_periodic):.6e}, bloch={abs(ex_bloch):.6e}, "
-        f"relative diff={amp_diff:.2e}"
+        f"|Ex| mismatch: periodic={abs(ex_periodic):.6e}, bloch={abs(ex_bloch):.6e}, relative diff={amp_diff:.2e}"
     )
 
     # Phase comparison
@@ -170,8 +169,7 @@ def test_bloch_zero_matches_periodic_hy():
 
     amp_diff = abs(abs(hy_bloch) - abs(hy_periodic)) / abs(hy_periodic)
     assert amp_diff < _REL_TOL, (
-        f"|Hy| mismatch: periodic={abs(hy_periodic):.6e}, bloch={abs(hy_bloch):.6e}, "
-        f"relative diff={amp_diff:.2e}"
+        f"|Hy| mismatch: periodic={abs(hy_periodic):.6e}, bloch={abs(hy_bloch):.6e}, relative diff={amp_diff:.2e}"
     )
 
     phase_diff = abs(np.angle(hy_bloch) - np.angle(hy_periodic))

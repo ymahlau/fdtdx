@@ -1,3 +1,5 @@
+import functools
+
 import jax
 import jax.numpy as jnp
 from typing_extensions import override
@@ -14,16 +16,25 @@ class BlochBoundary(BaseBoundary):
     Generalizes periodic boundary conditions with a phase shift:
         F(x + L) = F(x) * exp(i * k_bloch * L)
 
-    Requires complex-valued field arrays (complex64 or complex128).
-    When ``use_complex_fields`` is ``None`` (the default), the simulation
-    automatically promotes to complex dtype when Bloch boundaries are present.
+    When the Bloch vector is zero, this is equivalent to a standard periodic
+    boundary. Complex-valued field arrays are only required when the Bloch
+    vector has non-zero components.
     """
 
     #: Bloch wave vector components (k_x, k_y, k_z) in units of rad/m.
-    bloch_vector: tuple[float, float, float] = frozen_field()
+    bloch_vector: tuple[float, float, float] = frozen_field(default=(0.0, 0.0, 0.0))
 
     #: RGB color tuple for visualization. Defaults to warm purple.
     color: Color | None = frozen_field(default=XKCD_WARM_PURPLE)
+
+    @property
+    def needs_complex_fields(self) -> bool:
+        """Whether this boundary requires complex-valued fields.
+
+        Only True when the Bloch vector component along this boundary's axis
+        is non-zero.
+        """
+        return self.bloch_vector[self.axis] != 0.0
 
     @property
     @override
@@ -64,6 +75,8 @@ class BlochBoundary(BaseBoundary):
         Returns:
             Padded fields with Bloch phase corrections applied
         """
+        if not self.needs_complex_fields:
+            return padded_fields
         phase = self.get_bloch_phase(volume_shape, resolution)
         # padded axis index is self.axis + 1 (field arrays have leading component dim)
         ax = self.axis + 1
@@ -80,6 +93,43 @@ class BlochBoundary(BaseBoundary):
             idx_tuple = tuple(idx)
             padded_fields = padded_fields.at[idx_tuple].set(padded_fields[idx_tuple] * phase)
         return padded_fields
+
+    @override
+    def apply_field_reset(self, fields: dict[str, jax.Array]) -> dict[str, jax.Array]:
+        """Copy field values from this boundary face to maintain periodicity."""
+        result = {}
+        for name, field in fields.items():
+            field_values = field[..., *self.boundary_slice]
+            result[name] = field.at[..., *self.grid_slice].set(field_values)
+        return result
+
+    @functools.cached_property
+    def boundary_slice(self) -> tuple[slice, ...]:
+        """Get the slice for the current boundary."""
+        boundary_slice = list(self.grid_slice)
+        if self.direction == "+":
+            boundary_slice[self.axis] = slice(
+                self._grid_slice_tuple[self.axis][0], self._grid_slice_tuple[self.axis][0] + 1
+            )
+        else:
+            boundary_slice[self.axis] = slice(
+                self._grid_slice_tuple[self.axis][1] - 1, self._grid_slice_tuple[self.axis][1]
+            )
+        return tuple(boundary_slice)
+
+    @functools.cached_property
+    def opposite_slice(self) -> tuple[slice, ...]:
+        """Get the slice for the opposite boundary."""
+        opposite_slice = list(self.grid_slice)
+        if self.direction == "+":
+            opposite_slice[self.axis] = slice(
+                self._grid_slice_tuple[self.axis][1] - 1, self._grid_slice_tuple[self.axis][1]
+            )
+        else:
+            opposite_slice[self.axis] = slice(
+                self._grid_slice_tuple[self.axis][0], self._grid_slice_tuple[self.axis][0] + 1
+            )
+        return tuple(opposite_slice)
 
     def get_bloch_phase(self, volume_shape: tuple[int, int, int], resolution: float) -> jax.Array:
         """Compute the complex phase factor exp(i * k_bloch * L) for this axis.

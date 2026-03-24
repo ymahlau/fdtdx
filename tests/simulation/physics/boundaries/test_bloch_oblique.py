@@ -63,9 +63,7 @@ _N_AVG_STEPS = 10 * _STEPS_PER_PERIOD
 _N1, _N2 = 1.0, 2.0  # n = sqrt(ε_r=4)
 _THETA_T = np.arcsin(np.sin(_THETA) / _N2)
 _COS_I, _COS_T = np.cos(_THETA), np.cos(_THETA_T)
-_T_ANALYTIC = (_N2 * _COS_T) / (_N1 * _COS_I) * (
-    2 * _N1 * _COS_I / (_N1 * _COS_I + _N2 * _COS_T)
-) ** 2
+_T_ANALYTIC = (_N2 * _COS_T) / (_N1 * _COS_I) * (2 * _N1 * _COS_I / (_N1 * _COS_I + _N2 * _COS_T)) ** 2
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────

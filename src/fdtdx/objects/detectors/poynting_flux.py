@@ -77,7 +77,7 @@ class PoyntingFluxDetector(Detector):
         cur_E = E[:, *self.grid_slice]
         cur_H = H[:, *self.grid_slice]
 
-        pf = compute_poynting_flux(cur_E, cur_H)
+        pf = compute_poynting_flux(cur_E, cur_H).real
         if not self.keep_all_components:
             pf = pf[self.propagation_axis]
         if self.direction == "-":
