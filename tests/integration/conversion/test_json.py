@@ -28,12 +28,12 @@ def setup_simulation_inputs():
     object_list = []
     constraints = []
 
-    # Simulation config
-    config = SimulationConfig(time=100e-15, resolution=100e-9, dtype=jnp.float32, courant_factor=0.99)
+    # Simulation config — small domain to keep test runtime short
+    config = SimulationConfig(time=20e-15, resolution=100e-9, dtype=jnp.float32, courant_factor=0.99)
 
-    # Volume
+    # Volume: 3µm³ → 30×30×30 cells
     volume = SimulationVolume(
-        partial_real_shape=(12.0e-6, 12e-6, 12e-6),
+        partial_real_shape=(3.0e-6, 3e-6, 3e-6),
         material=Material(
             permittivity=1.0,
             permeability=1.0,
@@ -41,8 +41,8 @@ def setup_simulation_inputs():
     )
     object_list.append(volume)
 
-    # Boundaries
-    bound_cfg = BoundaryConfig.from_uniform_bound(thickness=10, boundary_type="pml")
+    # Boundaries: thin PML (3 cells = 0.3µm)
+    bound_cfg = BoundaryConfig.from_uniform_bound(thickness=3, boundary_type="pml")
     bound_dict, c_list = boundary_objects_from_config(bound_cfg, volume)
     constraints.extend(c_list)
     object_list.extend(bound_dict.values())
@@ -50,7 +50,7 @@ def setup_simulation_inputs():
     # Source
     source = UniformPlaneSource(
         partial_grid_shape=(None, None, 1),
-        partial_real_shape=(10e-6, 10e-6, None),
+        partial_real_shape=(2e-6, 2e-6, None),
         fixed_E_polarization_vector=(1, 0, 0),
         wave_character=WaveCharacter(wavelength=1.550e-6),
         direction="-",
@@ -64,14 +64,14 @@ def setup_simulation_inputs():
                 axes=(0, 1, 2),
                 own_positions=(0, 0, 1),
                 other_positions=(0, 0, 1),
-                margins=(0, 0, -1.5e-6),
+                margins=(0, 0, -0.5e-6),
             ),
         ]
     )
 
     # Cube
     cube = UniformMaterialObject(
-        partial_real_shape=(3e-6, 3e-6, 3e-6),
+        partial_real_shape=(0.5e-6, 0.5e-6, 0.5e-6),
         material=Material(permittivity=2.5, permeability=1.7),
         name="Cube",
         color=PINK,
@@ -118,10 +118,10 @@ def test_config_json(setup_simulation_inputs):
     """test JSON serialization and deserialization of the simulation config."""
     conf = setup_simulation_inputs["config"]
     c = export_json(conf)
-    assert c["time"] == 100e-15
+    assert c["time"] == 20e-15
     s = export_json_str(conf)
     rec = import_from_json(s)
-    assert rec.time == 100e-15
+    assert rec.time == 20e-15
     assert rec.resolution == 100e-9
 
 
@@ -129,10 +129,10 @@ def test_volume_json(setup_simulation_inputs):
     """test JSON serialization and deserialization of the volume."""
     vol = setup_simulation_inputs["volume"]
     c = export_json(vol)
-    assert c["partial_real_shape"]["__value__"] == [12.0e-6, 12e-6, 12e-6]
+    assert c["partial_real_shape"]["__value__"] == [3.0e-6, 3e-6, 3e-6]
     s = export_json_str(vol)
     rec = import_from_json(s)
-    assert rec.partial_real_shape == (12.0e-6, 12e-6, 12e-6)
+    assert rec.partial_real_shape == (3.0e-6, 3e-6, 3e-6)
 
     expected_eps = Material(permittivity=1.0).permittivity
     expected_mu = Material(permeability=1.0).permeability
@@ -144,11 +144,11 @@ def test_source_json(setup_simulation_inputs):
     """test JSON serialization and deserialization of the source."""
     sor = setup_simulation_inputs["source"]
     c = export_json(sor)
-    assert c["partial_real_shape"]["__value__"] == [10e-6, 10e-6, None]
+    assert c["partial_real_shape"]["__value__"] == [2e-6, 2e-6, None]
     assert c["fixed_E_polarization_vector"]["__value__"] == [1, 0, 0]
     s = export_json_str(sor)
     rec = import_from_json(s)
-    assert rec.partial_real_shape == (10e-6, 10e-6, None)
+    assert rec.partial_real_shape == (2e-6, 2e-6, None)
     assert rec.wave_character.wavelength == 1.550e-6
 
 
@@ -156,11 +156,11 @@ def test_object_json(setup_simulation_inputs):
     """test JSON serialization and deserialization of the object."""
     obj = setup_simulation_inputs["object"]
     c = export_json(obj)
-    assert c["partial_real_shape"]["__value__"] == [3e-6, 3e-6, 3e-6]
+    assert c["partial_real_shape"]["__value__"] == [0.5e-6, 0.5e-6, 0.5e-6]
     assert c["name"] == "Cube"
     s = export_json_str(obj)
     rec = import_from_json(s)
-    assert rec.partial_real_shape == (3e-6, 3e-6, 3e-6)
+    assert rec.partial_real_shape == (0.5e-6, 0.5e-6, 0.5e-6)
     assert rec.name == "Cube"
     assert rec.color == PINK
 

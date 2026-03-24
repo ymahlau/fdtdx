@@ -4,6 +4,7 @@ import struct
 import zlib
 from unittest.mock import MagicMock
 
+import jax
 import jax.numpy as jnp
 import pytest
 
@@ -90,11 +91,15 @@ class TestEncodeArray:
     def test_different_dtypes(self):
         """Test encoding with different numeric dtypes."""
         for dtype in [jnp.float32, jnp.float64, jnp.int32]:
+            if dtype == jnp.float64:
+                jax.config.update("jax_enable_x64", True)
             arr = jnp.ones((2, 2, 2), dtype=dtype)
             result = encode_array(arr)
             header = struct.unpack("<4I", result[:16])
             expected_size = arr.size * arr.dtype.itemsize
             assert header[1] == expected_size
+            if dtype == jnp.float64:
+                jax.config.update("jax_enable_x64", False)
 
 
 # ---- export_vti ----
