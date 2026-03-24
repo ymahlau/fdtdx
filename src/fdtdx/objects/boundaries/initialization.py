@@ -608,7 +608,9 @@ def boundary_objects_from_config(
                 direction=direction,
             )
         else:
-            continue
+            raise ValueError(
+                f"Unknown boundary type '{boundary_type}' for '{kind}'. Supported types: 'pml', 'periodic'."
+            )
 
         direction_int = -1 if direction == "-" else 1
         pos_constraint = cur_boundary.place_relative_to(

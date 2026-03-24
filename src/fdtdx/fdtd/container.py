@@ -215,7 +215,7 @@ class ObjectContainer(TreeClass):
                 idx = cur_idx
                 break
         if idx == -1:
-            ValueError(f"Key {key} does not exist in object list: {[o.name for o in self.objects]}")
+            raise ValueError(f"Key {key} does not exist in object list: {[o.name for o in self.objects]}")
         self.object_list[idx] = val
 
     def copy(

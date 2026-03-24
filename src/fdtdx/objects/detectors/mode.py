@@ -5,6 +5,7 @@ import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
+from fdtdx.core.null import Null
 from fdtdx.core.physics.modes import compute_mode
 from fdtdx.objects.detectors.detector import DetectorState
 from fdtdx.objects.detectors.phasor import PhasorDetector
@@ -132,7 +133,7 @@ class ModeOverlapDetector(PhasorDetector):
         self,
         state: DetectorState,
     ) -> jax.Array:
-        if self._mode_E is None or self._mode_H is None:
+        if isinstance(self._mode_E, Null) or isinstance(self._mode_H, Null):
             raise Exception("Need to call apply on ModeOverlapDetector before calling compute_mode_overlap!")
         return self.compute_overlap_to_mode(
             state=state,
