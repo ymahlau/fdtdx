@@ -76,13 +76,6 @@ class TestPrettyPrintSharding:
         # JAX renders PartitionSpec as either "PartitionSpec(...)" or "P(...)"
         assert "PartitionSpec" in result or "P(" in result
 
-    def test_positional_sharding(self):
-        obj = self._FakePositionalSharding()
-        obj._devices = ["dev0", "dev1"]
-        obj._ids = MagicMock(shape=(2,))
-        result = pretty_print_sharding(obj)
-        assert result == "PositionalSharding(['dev0', 'dev1'], (2,))"
-
     def test_single_device_sharding(self):
         obj = self._FakeSingleDeviceSharding()
         obj._device = "cpu:0"

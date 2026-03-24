@@ -13,12 +13,23 @@ import matplotlib.pyplot as plt
 from fdtdx.utils.plot_setup import plot_setup, plot_setup_from_side
 
 
+class _MockColor:
+    """Wraps a matplotlib color string to satisfy the .to_mpl() interface."""
+
+    def __init__(self, color_str: str):
+        self._color = color_str
+
+    def to_mpl(self) -> str:
+        return self._color
+
+
 class _MockObj:
     """Minimal simulation object for unit-testing the plot_setup functions."""
 
     def __init__(self, name: str, color, grid_slice):
         self.name = name
-        self.color = color  # matplotlib color string, or None to be excluded
+        # color can be a string (wrapped into _MockColor) or None to be excluded
+        self.color = _MockColor(color) if color is not None else None
         # grid_slice_tuple: ((x0,x1),(y0,y1),(z0,z1))
         self.grid_slice_tuple = grid_slice
 
