@@ -2,7 +2,7 @@
 # Unpublished
 ## Added
 - added progressbar for FDTD simulations and runs (@renaissancenerd)
-
+- added typechecking to the CI/CD pipeline (@elyes298)
 ## Changed
 
 ## Removed

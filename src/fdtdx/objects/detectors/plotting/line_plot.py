@@ -27,8 +27,8 @@ def plot_waterfall_over_time(
     fig, ax = plt.subplots(figsize=(12, 8))
 
     # Create a meshgrid for proper extent
-    t_min, t_max = min(time_steps), max(time_steps)  # type: ignore
-    s_min, s_max = min(spatial_steps), max(spatial_steps)  # type: ignore
+    t_min, t_max = min(time_steps), max(time_steps)
+    s_min, s_max = min(spatial_steps), max(spatial_steps)
 
     # Plot as a heatmap/waterfall
     cmap = sns.diverging_palette(220, 20, as_cmap=True)
