@@ -63,6 +63,7 @@ class PerfectMagneticConductor(BaseBoundary):
     def apply_post_H_update(self, H: jax.Array) -> jax.Array:
         """Zeros tangential H components at this PMC boundary face."""
         comp1, comp2 = self.tangential_components
-        H = H.at[comp1][self.grid_slice].set(0)
-        H = H.at[comp2][self.grid_slice].set(0)
+        sx, sy, sz = self.grid_slice
+        H = H.at[comp1, sx, sy, sz].set(0)
+        H = H.at[comp2, sx, sy, sz].set(0)
         return H

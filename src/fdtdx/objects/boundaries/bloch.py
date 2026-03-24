@@ -46,7 +46,9 @@ class BlochBoundary(BaseBoundary):
         return 1
 
     @override
-    def apply_pad_correction(self, padded_fields: jax.Array, volume_shape: tuple[int, int, int], resolution: float) -> jax.Array:
+    def apply_pad_correction(
+        self, padded_fields: jax.Array, volume_shape: tuple[int, int, int], resolution: float
+    ) -> jax.Array:
         """Apply Bloch phase shift to ghost cells of padded fields.
 
         For the '-' direction boundary: left ghost cell (index 0 on padded axis)
@@ -70,17 +72,13 @@ class BlochBoundary(BaseBoundary):
             idx = [slice(None)] * padded_fields.ndim
             idx[ax] = 0
             idx_tuple = tuple(idx)
-            padded_fields = padded_fields.at[idx_tuple].set(
-                padded_fields[idx_tuple] * jnp.conj(phase)
-            )
+            padded_fields = padded_fields.at[idx_tuple].set(padded_fields[idx_tuple] * jnp.conj(phase))
         else:
             # Right ghost wraps from the left end: multiply by phase
             idx = [slice(None)] * padded_fields.ndim
             idx[ax] = -1
             idx_tuple = tuple(idx)
-            padded_fields = padded_fields.at[idx_tuple].set(
-                padded_fields[idx_tuple] * phase
-            )
+            padded_fields = padded_fields.at[idx_tuple].set(padded_fields[idx_tuple] * phase)
         return padded_fields
 
     def get_bloch_phase(self, volume_shape: tuple[int, int, int], resolution: float) -> jax.Array:
