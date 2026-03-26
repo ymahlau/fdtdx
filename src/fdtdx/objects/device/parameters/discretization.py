@@ -409,7 +409,11 @@ class PillarDiscretization(ParameterTransformation):
                 self._materials, isotropic=is_isotropic, diagonally_anisotropic=is_diagonally_anisotropic
             )
         )
-        if is_isotropic or is_diagonally_anisotropic:
+        if is_isotropic:
+            # squeeze component dim (n_materials, 1) → (n_materials,) so
+            # nearest_index can broadcast correctly against (nx, ny, nz)
+            allowed_inv_perms = (1 / allowed_perm_array).squeeze(-1)
+        elif is_diagonally_anisotropic:
             allowed_inv_perms = 1 / allowed_perm_array
         else:
             # Fully anisotropic: reshape to 3x3 matrix, invert, and flatten back to 9 elements

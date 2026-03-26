@@ -36,6 +36,28 @@ def get_wrap_padding_axes(objects: ObjectContainer) -> tuple[bool, bool, bool]:
     return tuple(wrap_axes)  # type: ignore
 
 
+def apply_boundary_post_E_update(
+    E: jax.Array,
+    objects: ObjectContainer,
+) -> jax.Array:
+    """Apply all boundary post-E-update enforcement.
+
+    Delegates to each boundary's `apply_post_E_update` method, so
+    boundary-specific logic (e.g. PEC tangential zeroing) lives in
+    the boundary class, not here.
+
+    Args:
+        E: Electric field array of shape (3, Nx, Ny, Nz)
+        objects: Container with simulation objects including boundaries
+
+    Returns:
+        E field with all boundary conditions enforced
+    """
+    for boundary in objects.boundary_objects:
+        E = boundary.apply_post_E_update(E)
+    return E
+
+
 def apply_boundary_post_H_update(
     H: jax.Array,
     objects: ObjectContainer,
@@ -213,6 +235,7 @@ def update_E(
             lambda: E,
         )
 
+    E = apply_boundary_post_E_update(E, objects)
     arrays = arrays.at["E"].set(E)
     return arrays
 
@@ -329,6 +352,7 @@ def update_E_reverse(
 
         E = jnp.stack((Ex, Ey, Ez), axis=0)
 
+    E = apply_boundary_post_E_update(E, objects)
     arrays = arrays.at["E"].set(E)
 
     return arrays

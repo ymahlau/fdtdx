@@ -63,6 +63,20 @@ class BaseBoundary(SimulationObject, ABC):
         """
         return padded_fields
 
+    def apply_post_E_update(self, E: jax.Array) -> jax.Array:
+        """Apply boundary-specific enforcement after E field update.
+
+        Called after each E field update (forward and reverse). Default is a no-op.
+        Subclasses like PEC override this to zero tangential E components.
+
+        Args:
+            E: Electric field array of shape (3, Nx, Ny, Nz)
+
+        Returns:
+            E field with boundary conditions enforced
+        """
+        return E
+
     def apply_post_H_update(self, H: jax.Array) -> jax.Array:
         """Apply boundary-specific enforcement after H field update.
 

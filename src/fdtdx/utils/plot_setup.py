@@ -135,7 +135,8 @@ def plot_setup_from_side(
                     if not o.name.startswith("Object"):
                         print_single = True
             label = o.__class__.__name__ if o.name.startswith("Object") else o.name
-            patch = Patch(color=o.color, label=label)
+            color_val = o.color.to_mpl() if o.color is not None else "gray"
+            patch = Patch(color=color_val, label=label)
             if print_single:
                 handles.append(patch)
             else:
@@ -160,7 +161,7 @@ def plot_setup_from_side(
                 (slices[axis_indices[0]][0] * resolution, slices[axis_indices[1]][0] * resolution),
                 (slices[axis_indices[0]][1] - slices[axis_indices[0]][0]) * resolution,
                 (slices[axis_indices[1]][1] - slices[axis_indices[1]][0]) * resolution,
-                color=color,
+                color=color.to_mpl() if color is not None else "gray",
                 alpha=0.5,
                 linestyle="--" if isinstance(obj, BlochBoundary) else "-",
             )

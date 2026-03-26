@@ -168,19 +168,20 @@ def apply_params(
             )
         )  # shape: (num_materials, num_components)
         if isotropic or diagonally_anisotropic:
-            inv_allowed = (1.0 / allowed_perm_array)[:, :, None, None, None]
+            inv_allowed = 1.0 / allowed_perm_array  # (num_materials, num_components)
         else:
             # Fully anisotropic: reshape to 3x3 matrix, invert, and flatten back to 9 elements
             inv_allowed = jnp.array([jnp.linalg.inv(perm.reshape(3, 3)).flatten() for perm in allowed_perm_array])
-            inv_allowed = inv_allowed[:, :, None, None, None]
 
         if device.output_type == ParameterType.CONTINUOUS:
             # Linear interpolation between two materials
+            # Add spatial broadcast dims for element-wise multiplication
+            inv_allowed_bc = inv_allowed[:, :, None, None, None]
             # cur_material_indices: (*grid_shape) broadcasts with (num_components, 1, 1, 1)
-            new_perm_slice = (1 - cur_material_indices) * inv_allowed[0] + cur_material_indices * inv_allowed[1]
+            new_perm_slice = (1 - cur_material_indices) * inv_allowed_bc[0] + cur_material_indices * inv_allowed_bc[1]
         else:
             # Discrete material selection
-            # allowed_perm_array[indices] -> (*grid_shape, num_components), then moveaxis -> (num_components, *grid_shape)
+            # inv_allowed[indices] -> (*grid_shape, num_components), then moveaxis -> (num_components, *grid_shape)
             component_values = jnp.moveaxis(inv_allowed[cur_material_indices.astype(jnp.int32)], -1, 0)
             component_values = straight_through_estimator(cur_material_indices, component_values)
             new_perm_slice = component_values

@@ -293,7 +293,7 @@ def mask_1d_from_slice(
     """
     start, stop, step = s.indices(axis_size)
     mask = jnp.zeros(shape=(axis_size,), dtype=jnp.bool)
-    mask = mask.at[start:stop:step].set(1)
+    mask = mask.at[start:stop:step].set(True)
     return mask
 
 
