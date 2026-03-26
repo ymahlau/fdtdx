@@ -24,7 +24,7 @@ Test strategy:
   2. test_quarter_domain_vs_full_domain:
      Compare Ey phasor amplitude in a quarter domain (PEC min_y, PMC min_z)
      to a full domain (periodic y, periodic z).  Amplitudes should match
-     within 10%, confirming the boundaries act as perfect mirrors.
+     within 1%, confirming the boundaries act as perfect mirrors.
 
   3. test_quarter_domain_field_enforcement:
      Verify tangential E = 0 at PEC and tangential H = 0 at PMC by
@@ -43,10 +43,10 @@ import fdtdx
 _WAVELENGTH = 1e-6
 _RESOLUTION = 25e-9  # 40 cells/λ for accurate boundary measurement
 _PML_CELLS = 10
-_DOMAIN_YZ = 2e-6  # transverse extent (quarter domain)
+_DOMAIN_YZ = 1e-6  # transverse extent (quarter domain)
+_FULL_DOMAIN_YZ = 2 * _DOMAIN_YZ  # transverse extent (full domain, doubled in Y and Z)
 _DOMAIN_X = 5e-6  # propagation direction
 
-_X_CELLS = int(round(_DOMAIN_X / _RESOLUTION))
 _SOURCE_X = _PML_CELLS + 2
 _DET1_X = _SOURCE_X + 20  # well past source
 _DET2_X = _DET1_X + 10  # 10 cells further
@@ -79,7 +79,9 @@ def _build_quarter_domain():
         thickness=_PML_CELLS,
         override_types={
             "min_y": "pec",
+            "max_y": "periodic",
             "min_z": "pmc",
+            "max_z": "periodic",
         },
     )
     bound_dict, c_list = fdtdx.boundary_objects_from_config(bound_cfg, volume)
@@ -95,19 +97,26 @@ def _build_quarter_domain():
         wave_character=wave,
         direction="+",
         fixed_E_polarization_vector=(0, 1, 0),
+        normalize_by_energy=False,
     )
-    constraints.extend([
-        source.same_size(volume, axes=(1, 2)),
-        source.place_at_center(volume, axes=(1, 2)),
-        source.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_SOURCE_X,)),
-    ])
+    constraints.extend(
+        [
+            source.same_size(volume, axes=(1, 2)),
+            source.place_at_center(volume, axes=(1, 2)),
+            source.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_SOURCE_X,)),
+        ]
+    )
     objects.append(source)
 
     return objects, constraints, config, volume, wave
 
 
 def _build_full_domain():
-    """Build full-domain reference sim with periodic y and z."""
+    """Build full-domain reference sim with periodic y and z.
+
+    Domain is twice as large in Y and Z as the quarter domain, representing
+    the true full domain that the quarter domain (with PEC/PMC mirrors) models.
+    """
     config = fdtdx.SimulationConfig(
         resolution=_RESOLUTION,
         time=_SIM_TIME,
@@ -116,7 +125,7 @@ def _build_full_domain():
     objects, constraints = [], []
 
     volume = fdtdx.SimulationVolume(
-        partial_real_shape=(_DOMAIN_X, _DOMAIN_YZ, _DOMAIN_YZ),
+        partial_real_shape=(_DOMAIN_X, _FULL_DOMAIN_YZ, _FULL_DOMAIN_YZ),
     )
     objects.append(volume)
 
@@ -139,12 +148,15 @@ def _build_full_domain():
         wave_character=wave,
         direction="+",
         fixed_E_polarization_vector=(0, 1, 0),
+        normalize_by_energy=False,
     )
-    constraints.extend([
-        source.same_size(volume, axes=(1, 2)),
-        source.place_at_center(volume, axes=(1, 2)),
-        source.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_SOURCE_X,)),
-    ])
+    constraints.extend(
+        [
+            source.same_size(volume, axes=(1, 2)),
+            source.place_at_center(volume, axes=(1, 2)),
+            source.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_SOURCE_X,)),
+        ]
+    )
     objects.append(source)
 
     return objects, constraints, config, volume, wave
@@ -184,11 +196,13 @@ def test_quarter_domain_propagation():
             reduce_volume=True,
             plot=False,
         )
-        constraints.extend([
-            det.same_size(volume, axes=(1, 2)),
-            det.place_at_center(volume, axes=(1, 2)),
-            det.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(x_coord,)),
-        ])
+        constraints.extend(
+            [
+                det.same_size(volume, axes=(1, 2)),
+                det.place_at_center(volume, axes=(1, 2)),
+                det.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(x_coord,)),
+            ]
+        )
         objects.append(det)
 
     arrays = _run(objects, constraints, config)
@@ -209,35 +223,42 @@ def test_quarter_domain_propagation():
 
     rel_err = abs(k_measured - k_expected) / k_expected
     assert rel_err < 0.05, (
-        f"Phase velocity error: k_measured/k₀ = {k_measured/k_expected:.4f} "
-        f"(rel_err={rel_err:.3f}, expected < 0.05)"
+        f"Phase velocity error: k_measured/k₀ = {k_measured / k_expected:.4f} (rel_err={rel_err:.3f}, expected < 0.05)"
     )
 
 
 def test_quarter_domain_vs_full_domain():
-    """Quarter-domain amplitude matches full-domain (periodic) reference.
+    """Quarter-domain Ey phasor field, when unfolded, matches the full-domain reference.
 
-    PEC and PMC act as perfect mirrors for this polarization, so the
-    Ey amplitude should be the same as in a full periodic domain.
+    The full domain is twice as large in Y and Z as the quarter domain.
+    PEC at min_y and PMC at min_z act as perfect mirrors for this polarization:
+      - Ey has even symmetry about y=0 (PEC mirror: normal E unchanged)
+      - Ey has even symmetry about z=0 (PMC mirror: tangential E unchanged)
+
+    The quarter-domain spatial phasor is mirrored in Y then Z to reconstruct
+    the full 2D slice, which is then compared element-wise to the full-domain field.
     """
-    # --- Full domain (periodic y, z) ---
+    # --- Full domain (periodic y, z) — doubled in Y and Z ---
     objects_full, con_full, cfg_full, vol_full, wave = _build_full_domain()
     det_full = fdtdx.PhasorDetector(
         name="det_full",
         partial_grid_shape=(1, None, None),
         wave_characters=(wave,),
         components=("Ey",),
-        reduce_volume=True,
+        reduce_volume=False,
         plot=False,
     )
-    con_full.extend([
-        det_full.same_size(vol_full, axes=(1, 2)),
-        det_full.place_at_center(vol_full, axes=(1, 2)),
-        det_full.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_DET1_X,)),
-    ])
+    con_full.extend(
+        [
+            det_full.same_size(vol_full, axes=(1, 2)),
+            det_full.place_at_center(vol_full, axes=(1, 2)),
+            det_full.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_DET1_X,)),
+        ]
+    )
     objects_full.append(det_full)
     arrays_full = _run(objects_full, con_full, cfg_full)
-    amp_full = float(jnp.abs(arrays_full.detector_states["det_full"]["phasor"][0, 0, 0]))
+    # phasor shape: (1, n_freqs, n_components, nx=1, ny_full, nz_full)
+    full_ey = arrays_full.detector_states["det_full"]["phasor"][0, 0, 0, 0, :, :]
 
     # --- Quarter domain (PEC min_y, PMC min_z) ---
     objects_qtr, con_qtr, cfg_qtr, vol_qtr, wave = _build_quarter_domain()
@@ -246,26 +267,45 @@ def test_quarter_domain_vs_full_domain():
         partial_grid_shape=(1, None, None),
         wave_characters=(wave,),
         components=("Ey",),
-        reduce_volume=True,
+        reduce_volume=False,
         plot=False,
     )
-    con_qtr.extend([
-        det_qtr.same_size(vol_qtr, axes=(1, 2)),
-        det_qtr.place_at_center(vol_qtr, axes=(1, 2)),
-        det_qtr.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_DET1_X,)),
-    ])
+    con_qtr.extend(
+        [
+            det_qtr.same_size(vol_qtr, axes=(1, 2)),
+            det_qtr.place_at_center(vol_qtr, axes=(1, 2)),
+            det_qtr.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_DET1_X,)),
+        ]
+    )
     objects_qtr.append(det_qtr)
     arrays_qtr = _run(objects_qtr, con_qtr, cfg_qtr)
-    amp_qtr = float(jnp.abs(arrays_qtr.detector_states["det_qtr"]["phasor"][0, 0, 0]))
+    # phasor shape: (1, n_freqs, n_components, nx=1, ny_qtr, nz_qtr)
+    qtr_ey = arrays_qtr.detector_states["det_qtr"]["phasor"][0, 0, 0, 0, :, :]
 
-    assert amp_full > 0, "Full-domain Ey amplitude is zero"
-    assert amp_qtr > 0, "Quarter-domain Ey amplitude is zero"
+    assert jnp.max(jnp.abs(full_ey)) > 1e-30, "Full-domain Ey phasor is zero — wave not launched"
+    assert jnp.max(jnp.abs(qtr_ey)) > 1e-30, "Quarter-domain Ey phasor is zero — wave not launched"
 
-    rel_diff = abs(amp_qtr - amp_full) / amp_full
-    assert rel_diff < 0.10, (
-        f"Quarter vs full domain amplitude mismatch: "
-        f"|amp_qtr - amp_full| / amp_full = {rel_diff:.3f} (expected < 0.10). "
-        f"amp_full={amp_full:.4e}, amp_qtr={amp_qtr:.4e}"
+    # Unfold the quarter-domain field by mirroring:
+    #   PEC at min_y → Ey even about y=0: prepend reversed copy along Y
+    #   PMC at min_z → Ey even about z=0: prepend reversed copy along Z
+    unfolded_y = jnp.concatenate([qtr_ey[::-1, :], qtr_ey], axis=0)  # (2*ny_qtr, nz_qtr)
+    unfolded_ey = jnp.concatenate([unfolded_y[:, ::-1], unfolded_y], axis=1)  # (2*ny_qtr, 2*nz_qtr)
+
+    assert unfolded_ey.shape == full_ey.shape, (
+        f"Unfolded quarter shape {unfolded_ey.shape} != full domain shape {full_ey.shape}. "
+        f"Check that _FULL_DOMAIN_YZ == 2 * _DOMAIN_YZ."
+    )
+
+    # Compare complex fields element-wise: |unfolded - full| captures both amplitude and phase.
+    # Normalize by mean amplitude of the full-domain field.
+    ref_amp = float(jnp.mean(jnp.abs(full_ey)))
+    mean_complex_err = float(jnp.mean(jnp.abs(unfolded_ey - full_ey)))
+    rel_err = mean_complex_err / ref_amp
+
+    assert rel_err < 0.01, (
+        f"Unfolded quarter vs full domain complex field mismatch: "
+        f"mean |Δ| / mean|full| = {rel_err:.3f} (expected < 0.01). "
+        f"mean|full|={ref_amp:.4e}, mean|unfolded|={float(jnp.mean(jnp.abs(unfolded_ey))):.4e}"
     )
 
 
@@ -289,13 +329,15 @@ def test_quarter_domain_field_enforcement():
         reduce_volume=True,
         plot=False,
     )
-    constraints.extend([
-        det_pec.same_size(volume, axes=(2,)),
-        det_pec.place_at_center(volume, axes=(2,)),
-        det_pec.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_DET1_X,)),
-        # Place at min_y: 1 cell from boundary (grid index 1)
-        det_pec.set_grid_coordinates(axes=(1,), sides=("-",), coordinates=(1,)),
-    ])
+    constraints.extend(
+        [
+            det_pec.same_size(volume, axes=(2,)),
+            det_pec.place_at_center(volume, axes=(2,)),
+            det_pec.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_DET1_X,)),
+            # Place at min_y: 1 cell from boundary (grid index 1)
+            det_pec.set_grid_coordinates(axes=(1,), sides=("-",), coordinates=(1,)),
+        ]
+    )
     objects.append(det_pec)
 
     # Detector near PMC boundary (min_z, 1 cell from boundary)
@@ -307,13 +349,15 @@ def test_quarter_domain_field_enforcement():
         reduce_volume=True,
         plot=False,
     )
-    constraints.extend([
-        det_pmc.same_size(volume, axes=(1,)),
-        det_pmc.place_at_center(volume, axes=(1,)),
-        det_pmc.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_DET1_X,)),
-        # Place at min_z: 1 cell from boundary (grid index 1)
-        det_pmc.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(1,)),
-    ])
+    constraints.extend(
+        [
+            det_pmc.same_size(volume, axes=(1,)),
+            det_pmc.place_at_center(volume, axes=(1,)),
+            det_pmc.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_DET1_X,)),
+            # Place at min_z: 1 cell from boundary (grid index 1)
+            det_pmc.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(1,)),
+        ]
+    )
     objects.append(det_pmc)
 
     # Reference detector in the interior
@@ -325,11 +369,13 @@ def test_quarter_domain_field_enforcement():
         reduce_volume=True,
         plot=False,
     )
-    constraints.extend([
-        det_ref.same_size(volume, axes=(1, 2)),
-        det_ref.place_at_center(volume, axes=(1, 2)),
-        det_ref.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_DET1_X,)),
-    ])
+    constraints.extend(
+        [
+            det_ref.same_size(volume, axes=(1, 2)),
+            det_ref.place_at_center(volume, axes=(1, 2)),
+            det_ref.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_DET1_X,)),
+        ]
+    )
     objects.append(det_ref)
 
     arrays = _run(objects, constraints, config)
@@ -347,12 +393,10 @@ def test_quarter_domain_field_enforcement():
         ratio_ex = amp_ex_pec / amp_ey_pec
         ratio_ez = amp_ez_pec / amp_ey_pec
         assert ratio_ex < 0.15, (
-            f"PEC: |Ex|/|Ey| = {ratio_ex:.3f} at boundary (expected < 0.15). "
-            f"Tangential Ex not properly enforced."
+            f"PEC: |Ex|/|Ey| = {ratio_ex:.3f} at boundary (expected < 0.15). Tangential Ex not properly enforced."
         )
         assert ratio_ez < 0.15, (
-            f"PEC: |Ez|/|Ey| = {ratio_ez:.3f} at boundary (expected < 0.15). "
-            f"Tangential Ez not properly enforced."
+            f"PEC: |Ez|/|Ey| = {ratio_ez:.3f} at boundary (expected < 0.15). Tangential Ez not properly enforced."
         )
 
     # --- PMC boundary check: tangential H should be ~0, normal H should be nonzero ---
@@ -367,10 +411,8 @@ def test_quarter_domain_field_enforcement():
         ratio_hx = amp_hx_pmc / amp_hz_pmc
         ratio_hy = amp_hy_pmc / amp_hz_pmc
         assert ratio_hx < 0.15, (
-            f"PMC: |Hx|/|Hz| = {ratio_hx:.3f} at boundary (expected < 0.15). "
-            f"Tangential Hx not properly enforced."
+            f"PMC: |Hx|/|Hz| = {ratio_hx:.3f} at boundary (expected < 0.15). Tangential Hx not properly enforced."
         )
         assert ratio_hy < 0.15, (
-            f"PMC: |Hy|/|Hz| = {ratio_hy:.3f} at boundary (expected < 0.15). "
-            f"Tangential Hy not properly enforced."
+            f"PMC: |Hy|/|Hz| = {ratio_hy:.3f} at boundary (expected < 0.15). Tangential Hy not properly enforced."
         )

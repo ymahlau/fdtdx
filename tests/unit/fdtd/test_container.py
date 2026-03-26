@@ -6,8 +6,8 @@ import pytest
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, reset_array_container
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.materials import Material
-from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.boundaries.bloch import BlochBoundary
+from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 from fdtdx.objects.device.device import Device
 from fdtdx.objects.object import SimulationObject

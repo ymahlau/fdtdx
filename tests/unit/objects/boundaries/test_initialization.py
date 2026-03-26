@@ -5,11 +5,11 @@ Tests BoundaryConfig methods and boundary_objects_from_config factory function.
 
 import pytest
 
+from fdtdx.objects.boundaries.bloch import BlochBoundary
 from fdtdx.objects.boundaries.initialization import (
     BoundaryConfig,
     boundary_objects_from_config,
 )
-from fdtdx.objects.boundaries.bloch import BlochBoundary
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.static_material.static import SimulationVolume
 

@@ -1,4 +1,4 @@
-from typing import Literal, Union
+from typing import Literal
 
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 from fdtdx.objects.boundaries.bloch import BlochBoundary
@@ -9,6 +9,8 @@ from fdtdx.objects.boundaries.utils import axis_direction_from_kind
 from fdtdx.objects.object import PositionConstraint
 from fdtdx.objects.static_material.static import SimulationVolume
 from fdtdx.typing import PartialGridShape3D
+
+AnyBoundary = BlochBoundary | PerfectElectricConductor | PerfectMagneticConductor | PerfectlyMatchedLayer
 
 
 @autoinit
@@ -553,12 +555,7 @@ def boundary_objects_from_config(
     config: BoundaryConfig,
     volume: SimulationVolume,
 ) -> tuple[
-    dict[
-        str,
-        Union[
-            PerfectlyMatchedLayer, PerfectElectricConductor, PerfectMagneticConductor, BlochBoundary
-        ],
-    ],
+    dict[str, AnyBoundary],
     list[PositionConstraint],
 ]:
     """Creates boundary objects from a boundary configuration.
@@ -573,7 +570,7 @@ def boundary_objects_from_config(
         volume (SimulationVolume): The main simulation volume object that the boundaries will surround
 
     Returns:
-        tuple[dict[str, Union[PerfectlyMatchedLayer, PerfectElectricConductor, PerfectMagneticConductor, BlochBoundary]], list[PositionConstraint]]: tuple containing:
+        tuple[dict[str, AnyBoundary], list[PositionConstraint]]: tuple containing:
             - dict mapping boundary names ('min_x', 'max_x', etc) to boundary objects
             - list of PositionConstraint objects for placing the boundaries
     """

@@ -1,4 +1,5 @@
 import functools
+from typing import cast
 
 import jax
 import jax.numpy as jnp
@@ -82,13 +83,13 @@ class BlochBoundary(BaseBoundary):
         ax = self.axis + 1
         if self.direction == "-":
             # Left ghost wraps from the right end: multiply by conj(phase)
-            idx = [slice(None)] * padded_fields.ndim
+            idx = cast(list[slice | int], [slice(None)] * padded_fields.ndim)
             idx[ax] = 0
             idx_tuple = tuple(idx)
             padded_fields = padded_fields.at[idx_tuple].set(padded_fields[idx_tuple] * jnp.conj(phase))
         else:
             # Right ghost wraps from the left end: multiply by phase
-            idx = [slice(None)] * padded_fields.ndim
+            idx = cast(list[slice | int], [slice(None)] * padded_fields.ndim)
             idx[ax] = -1
             idx_tuple = tuple(idx)
             padded_fields = padded_fields.at[idx_tuple].set(padded_fields[idx_tuple] * phase)

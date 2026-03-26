@@ -35,8 +35,6 @@ from fdtdx.objects.boundaries.bloch import BlochBoundary
 from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.boundaries.pec import PerfectElectricConductor
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
-# PeriodicBoundary is now an alias for BlochBoundary with bloch_vector=(0,0,0)
-PeriodicBoundary = BlochBoundary
 from fdtdx.objects.boundaries.pmc import PerfectMagneticConductor
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 from fdtdx.objects.detectors.energy import EnergyDetector
@@ -93,6 +91,9 @@ from fdtdx.utils.logger import Logger
 from fdtdx.utils.plot_field_slice import plot_field_slice, plot_field_slice_component
 from fdtdx.utils.plot_material import plot_material, plot_material_from_side
 from fdtdx.utils.plot_setup import plot_setup, plot_setup_from_side
+
+# PeriodicBoundary is now an alias for BlochBoundary with bloch_vector=(0,0,0)
+PeriodicBoundary = BlochBoundary
 
 __all__ = [
     "Detector",

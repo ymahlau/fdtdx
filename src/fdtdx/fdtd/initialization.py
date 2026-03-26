@@ -27,6 +27,10 @@ from fdtdx.objects.static_material.static import SimulationVolume, StaticMultiMa
 
 DEFAULT_MAX_ITER = 1000
 
+AnyConstraint = (
+    PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint | RealCoordinateConstraint
+)
+
 
 def place_objects(
     object_list: list[SimulationObject],
@@ -233,10 +237,7 @@ def _init_arrays(
     ext_shape = (3, *volume_shape)
 
     # Determine whether to use complex-valued fields
-    needs_complex = any(
-        isinstance(o, BlochBoundary) and o.needs_complex_fields
-        for o in objects.boundary_objects
-    )
+    needs_complex = any(isinstance(o, BlochBoundary) and o.needs_complex_fields for o in objects.boundary_objects)
     if config.use_complex_fields is None:
         # Auto-detect: promote to complex if any Bloch boundary has non-zero k
         use_complex = needs_complex
@@ -637,8 +638,8 @@ def _init_params(
 
 
 def resolve_object_constraints(
-    objects: list[SimulationObject],
-    constraints: Sequence[PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint],
+    objects: Sequence[SimulationObject],
+    constraints: Sequence[AnyConstraint],
     config: SimulationConfig,
     max_iter: int = DEFAULT_MAX_ITER,
 ) -> tuple[dict, dict]:
@@ -664,7 +665,7 @@ def resolve_object_constraints(
 
     # Apply constraints iteratively
     resolved, errors = _apply_constraints_iteratively(
-        objects=objects,
+        objects=list(objects),
         constraints=constraints,
         config=config,
         max_iter=max_iter,
@@ -782,7 +783,7 @@ def _resolve_static_positions_iterative(
 
 
 def _check_objects_names_from_constraints(
-    constraints: Sequence[PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint],
+    constraints: Sequence[AnyConstraint],
     object_names: list[str],
 ):
     """Collect object names mentioned in constraints and verify they exist."""
@@ -798,7 +799,7 @@ def _check_objects_names_from_constraints(
 
 def _apply_constraints_iteratively(
     objects: list[SimulationObject],
-    constraints: Sequence[PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint],
+    constraints: Sequence[AnyConstraint],
     config: SimulationConfig,
     max_iter: int = DEFAULT_MAX_ITER,
 ) -> tuple[dict, dict]:
@@ -1224,7 +1225,7 @@ def _apply_size_extension_constraint(
 
 
 def _extend_to_inf_if_possible(
-    constraints: Sequence[PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint],
+    constraints: Sequence[AnyConstraint],
     object_map: dict[str, SimulationObject],
     slice_dict: dict[str, list[list[int | None]]],
     shape_dict: dict[str, list[int | None]],
