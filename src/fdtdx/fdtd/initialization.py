@@ -35,7 +35,7 @@ AnyConstraint = (
 def place_objects(
     object_list: list[SimulationObject],
     config: SimulationConfig,
-    constraints: Sequence[(PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint)],
+    constraints: Sequence[AnyConstraint],
     key: jax.Array,
 ) -> tuple[
     ObjectContainer,
