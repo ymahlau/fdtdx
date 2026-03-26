@@ -3,8 +3,15 @@
 ## Added
 - added progressbar for FDTD simulations and runs (@renaissancenerd)
 - added typechecking to the CI/CD pipeline (@elyes298)
+- Implemented PEC and PMC boundary conditions with field enforcement (@bruxillensis, #264)
+- Implemented Bloch boundary conditions with configurable phase vector for band structure simulations (@bruxillensis, #264)
+- `PeriodicBoundary` is now an alias for `BlochBoundary` with zero Bloch vector, eliminating redundant code (@bruxillensis, #264)
+- Automated complex field detection via `SimulationConfig.use_complex_fields` when non-zero Bloch vector is present (@bruxillensis, #264)
+- Added 1D photonic crystal band-structure example demonstrating Bloch boundary conditions (@bruxillensis, #264)
+- Reorganized test suite into unit, integration, and simulation tiers with pytest markers for selective execution (@bruxillensis, #257)
+- Significantly increased code coverage across all source files (@bruxillensis, #257)
 ## Changed
-
+- Bug fixes in `curl.py`, `diffractive.py`, `mode.py`, and `continuous.py` (@bruxillensis, #257)
 ## Removed
 
 
