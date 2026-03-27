@@ -2,22 +2,21 @@ from typing import Literal, Sequence
 
 import jax
 import jax.numpy as jnp
+from drinx import static_field
 
-from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 
-@autoinit
 class FieldDetector(Detector):
     """Detector for measuring field components of electromagnetic fields in the time domain."""
 
     #: If True, reduces the volume of recorded data. Defaults to False.
-    reduce_volume: bool = frozen_field(default=False)
+    reduce_volume: bool = static_field(default=False)
 
     #: Sequence of field components to
     #: measure. Can include any of: "Ex", "Ey", "Ez", "Hx", "Hy", "Hz".
     #: Defaults to ("Ex", "Ey", "Ez", "Hx", "Hy", "Hz").
-    components: Sequence[Literal["Ex", "Ey", "Ez", "Hx", "Hy", "Hz"]] = frozen_field(
+    components: Sequence[Literal["Ex", "Ey", "Ez", "Hx", "Hy", "Hz"]] = static_field(
         default=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"),
     )
 

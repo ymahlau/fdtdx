@@ -1,11 +1,10 @@
 import jax
+from drinx import static_field
 
-from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 
-@autoinit
 class EnergyDetector(Detector):
     """Detector for measuring electromagnetic energy distribution.
 
@@ -16,27 +15,27 @@ class EnergyDetector(Detector):
 
     #: If True, returns energy measurements as 2D slices through the volume.
     #: Defaults to False.
-    as_slices: bool = frozen_field(default=False)
+    as_slices: bool = static_field(default=False)
 
     #: If True, reduces the volume data to a single energy value.
     #: Defaults to False.
-    reduce_volume: bool = frozen_field(default=False)
+    reduce_volume: bool = static_field(default=False)
 
     #: real-world positions for slice extraction.
     #: Defaults to None.
-    x_slice: float | None = frozen_field(default=None)
+    x_slice: float | None = static_field(default=None)
 
     #: real-world positions for slice extraction.
     #: Defaults to None.
-    y_slice: float | None = frozen_field(default=None)
+    y_slice: float | None = static_field(default=None)
 
     #: real-world positions for slice extraction.
     #: Defaults to None.
-    z_slice: float | None = frozen_field(default=None)
+    z_slice: float | None = static_field(default=None)
 
     #: If "mean", aggregates slices by averaging instead of using position.
     #: If None, mean is used. Defaults to None.
-    aggregate: str | None = frozen_field(default=None)  # e.g., "mean"
+    aggregate: str | None = static_field(default=None)  # e.g., "mean"
 
     def _shape_dtype_single_time_step(
         self,

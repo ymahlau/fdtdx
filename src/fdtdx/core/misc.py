@@ -5,8 +5,8 @@ from typing import Literal, Sequence, overload
 import jax
 import jax.numpy as jnp
 import numpy as np
+from drinx import DataClass, static_field
 
-from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 from fdtdx.core.linalg import get_orthogonal_vector
 from fdtdx.materials import Material
 
@@ -393,11 +393,10 @@ def get_background_material_name(materials: dict[str, Material]) -> str:
     return result_name
 
 
-@autoinit
-class PaddingConfig(TreeClass):
-    widths: Sequence[int] = frozen_field()
-    modes: Sequence[str] = frozen_field()
-    values: Sequence[float] = frozen_field(default=None)  # type: ignore
+class PaddingConfig(DataClass):
+    widths: Sequence[int] = static_field()
+    modes: Sequence[str] = static_field()
+    values: Sequence[float] = static_field(default=None)  # type: ignore
 
 
 def advanced_padding(

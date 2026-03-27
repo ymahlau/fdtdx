@@ -2,8 +2,8 @@ from typing import Self, Sequence
 
 import jax
 import jax.numpy as jnp
+from drinx import DataClass, static_private_field
 
-from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_private_field
 from fdtdx.core.jax.utils import check_shape_dtype
 from fdtdx.interfaces.modules import CompressionModule
 from fdtdx.interfaces.state import RecordingState, init_recording_state
@@ -11,8 +11,7 @@ from fdtdx.interfaces.time_filter import TimeStepFilter
 from fdtdx.typing import BackendOption
 
 
-@autoinit
-class Recorder(TreeClass):
+class Recorder(DataClass):
     """Records and compresses simulation data over time using a sequence of processing modules.
 
     The Recorder manages a pipeline of modules that process simulation data at each timestep.
@@ -24,10 +23,10 @@ class Recorder(TreeClass):
     #: Sequence of processing modules to apply to the simulation data. Can be either CompressionModule for data reduction
     #: or TimeStepFilter for controlling recording frequency.
     modules: Sequence[CompressionModule | TimeStepFilter]
-    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field(default=None)  # type:ignore
-    _output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field(default=None)  # type:ignore
-    _max_time_steps: int = frozen_private_field()
-    _latent_array_size: int = frozen_private_field()
+    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = static_private_field(default=None)  # type:ignore
+    _output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = static_private_field(default=None)  # type:ignore
+    _max_time_steps: int = static_private_field()
+    _latent_array_size: int = static_private_field()
 
     def init_state(
         self: Self,

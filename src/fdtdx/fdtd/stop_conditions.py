@@ -3,16 +3,15 @@ from typing import Self
 
 import jax
 import jax.numpy as jnp
+from drinx import DataClass, static_field, static_private_field
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field, frozen_private_field
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.container import DetectorState, ObjectContainer, SimulationState
 
 
-@autoinit
-class StoppingCondition(TreeClass, ABC):
+class StoppingCondition(DataClass, ABC):
     """Abstract base class for defining custom stopping conditions in simulations.
 
     This class provides the interface for implementing custom termination criteria
@@ -47,7 +46,6 @@ class StoppingCondition(TreeClass, ABC):
         raise NotImplementedError()
 
 
-@autoinit
 class TimeStepCondition(StoppingCondition):
     """Default stopping condition based on maximum time steps.
 
@@ -77,7 +75,6 @@ class TimeStepCondition(StoppingCondition):
         return config.time_steps_total > curr_time_step
 
 
-@autoinit
 class EnergyThresholdCondition(StoppingCondition):
     """This condition stops a simulation when the total energy in the simulation volume
     falls below a specified threshold. A minimum number of steps can be enforced
@@ -97,9 +94,9 @@ class EnergyThresholdCondition(StoppingCondition):
             ``SimulationConfig.time_steps_total``.
     """
 
-    threshold: float = frozen_field(default=1e-6)
-    min_steps: int | None = frozen_field(default=None)
-    max_steps: int | None = frozen_field(default=None)
+    threshold: float = static_field(default=1e-6)
+    min_steps: int | None = static_field(default=None)
+    max_steps: int | None = static_field(default=None)
 
     def setup(self, state: SimulationState, config: SimulationConfig, objects: ObjectContainer) -> Self:
         self = self.aset(
@@ -144,7 +141,6 @@ class EnergyThresholdCondition(StoppingCondition):
         return time_condition & (min_steps_condition | ~converged)
 
 
-@autoinit
 class DetectorConvergenceCondition(StoppingCondition):
     """Stopping condition based on convergence of values read off by a
     Detector with ``reduce_volume=True`` and number of readings equal to
@@ -186,13 +182,13 @@ class DetectorConvergenceCondition(StoppingCondition):
             Defaults to ``SimulationConfig.time_steps_total``.
     """
 
-    detector_name: str = frozen_field()
-    wave_character: WaveCharacter = frozen_field()
-    prev_periods: int = frozen_field(default=4)
-    threshold: float = frozen_field(default=1e-6)
-    min_steps: int | None = frozen_field(default=None)
-    max_steps: int | None = frozen_field(default=None)
-    _spp: int | None = frozen_private_field(default=None)
+    detector_name: str = static_field()
+    wave_character: WaveCharacter = static_field()
+    prev_periods: int = static_field(default=4)
+    threshold: float = static_field(default=1e-6)
+    min_steps: int | None = static_field(default=None)
+    max_steps: int | None = static_field(default=None)
+    _spp: int | None = static_private_field(default=None)  # type: ignore
 
     def setup(self, state: SimulationState, config: SimulationConfig, objects: ObjectContainer) -> Self:
         """Setting up internal attributes and validating inputs."""

@@ -3,10 +3,10 @@ from typing import Literal, Self
 
 import jax
 import jax.numpy as jnp
+from drinx import private_field, static_field
 
 from fdtdx.colors import XKCD_DARK_ORANGE, Color
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.misc import linear_interpolated_indexing, normalize_polarization_for_source
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
@@ -15,22 +15,21 @@ from fdtdx.objects.sources.profile import SingleFrequencyProfile, TemporalProfil
 from fdtdx.typing import SliceTuple3D
 
 
-@autoinit
 class Source(SimulationObject, ABC):
     #: the wave-character
-    wave_character: WaveCharacter = frozen_field()
+    wave_character: WaveCharacter = static_field()
 
     #: the temporal profile, uses single frequency
     temporal_profile: TemporalProfile = SingleFrequencyProfile()
 
     #: the static amplitude factor
-    static_amplitude_factor: float = frozen_field(default=1.0)
+    static_amplitude_factor: float = static_field(default=1.0)
 
     #: the on-off switch
-    switch: OnOffSwitch = frozen_field(default=OnOffSwitch())
+    switch: OnOffSwitch = static_field(default=OnOffSwitch())
 
     #: color of the object
-    color: Color | None = frozen_field(default=XKCD_DARK_ORANGE)
+    color: Color | None = static_field(default=XKCD_DARK_ORANGE)
 
     _is_on_at_time_step_arr: jax.Array = private_field()
     _time_step_to_on_idx: jax.Array = private_field()
@@ -119,7 +118,6 @@ class Source(SimulationObject, ABC):
         raise NotImplementedError()
 
 
-@autoinit
 class DirectionalPlaneSourceBase(Source, ABC):
     """Base class for directional plane wave sources.
 
@@ -129,7 +127,7 @@ class DirectionalPlaneSourceBase(Source, ABC):
     """
 
     #: Direction of propagation ('+' or '-' along propagation axis).
-    direction: Literal["+", "-"] = frozen_field()
+    direction: Literal["+", "-"] = static_field()
 
     @property
     def propagation_axis(self) -> int:
@@ -144,11 +142,10 @@ class DirectionalPlaneSourceBase(Source, ABC):
         return (self.propagation_axis + 2) % 3
 
 
-@autoinit
 class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
-    amplitude: float = frozen_field(default=1.0)
-    fixed_E_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
-    fixed_H_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
+    amplitude: float = static_field(default=1.0)
+    fixed_E_polarization_vector: tuple[float, float, float] | None = static_field(default=None)
+    fixed_H_polarization_vector: tuple[float, float, float] | None = static_field(default=None)
 
     def update_E(
         self,

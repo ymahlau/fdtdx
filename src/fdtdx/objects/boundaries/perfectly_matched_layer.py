@@ -1,15 +1,14 @@
 import jax
 import jax.numpy as jnp
+from drinx import static_field
 from typing_extensions import override
 
 from fdtdx import Color
 from fdtdx.colors import XKCD_DARK_GREY
 from fdtdx.constants import c, eps0, eta0
-from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.objects.boundaries.boundary import BaseBoundary
 
 
-@autoinit
 class PerfectlyMatchedLayer(BaseBoundary):
     """Implements a Convolutional Perfectly Matched Layer (CPML) boundary condition.
 
@@ -19,34 +18,34 @@ class PerfectlyMatchedLayer(BaseBoundary):
     """
 
     #: Initial loss parameter for complex frequency shifting. Defaults to 0.01 * 2 * jnp.pi * c / wavelength * eps0 if not provided.
-    alpha_start: float | None = frozen_field(default=None)
+    alpha_start: float | None = static_field(default=None)
 
     #: Final loss parameter for complex frequency shifting. Defaults to 0.0 if not provided.
-    alpha_end: float | None = frozen_field(default=None)
+    alpha_end: float | None = static_field(default=None)
 
     #: Polynomial order for alpha grading. Defaults to 1.0 if not provided.
-    alpha_order: float | None = frozen_field(default=None)
+    alpha_order: float | None = static_field(default=None)
 
     #: Initial kappa stretching coefficient. Defaults to 0.0 if not provided.
-    kappa_start: float | None = frozen_field(default=None)
+    kappa_start: float | None = static_field(default=None)
 
     #: Final kappa stretching coefficient. Defaults to 0.0 if not provided.
-    kappa_end: float | None = frozen_field(default=None)
+    kappa_end: float | None = static_field(default=None)
 
     #: Polynomial order for kappa grading. Defaults to 1.0 if not provided.
-    kappa_order: float | None = frozen_field(default=None)
+    kappa_order: float | None = static_field(default=None)
 
     #: Initial sigma value. Defaults to 0.0 if not provided.
-    sigma_start: float | None = frozen_field(default=None)
+    sigma_start: float | None = static_field(default=None)
 
     #: Final sigma value. Defaults to 1.0 if not provided.
-    sigma_end: float | None = frozen_field(default=None)
+    sigma_end: float | None = static_field(default=None)
 
     #: Polynomial order for sigma grading. Defaults to 3.0 if not provided.
-    sigma_order: float | None = frozen_field(default=None)
+    sigma_order: float | None = static_field(default=None)
 
     #: RGB color tuple for visualization. defaults to dark grey.
-    color: Color | None = frozen_field(default=XKCD_DARK_GREY)
+    color: Color | None = static_field(default=XKCD_DARK_GREY)
 
     def __post_init__(self):
         """Sets default PML parameters if not provided."""

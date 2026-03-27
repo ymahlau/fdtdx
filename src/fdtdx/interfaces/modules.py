@@ -3,13 +3,12 @@ from typing import Self, Sequence
 
 import jax
 import jax.numpy as jnp
+from drinx import DataClass, static_field, static_private_field
 
-from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field, frozen_private_field
 from fdtdx.interfaces.state import RecordingState
 
 
-@autoinit
-class CompressionModule(TreeClass, ABC):
+class CompressionModule(DataClass, ABC):
     """Abstract base class for compression modules that process simulation data.
 
     This class provides an interface for modules that compress and decompress field data
@@ -18,8 +17,8 @@ class CompressionModule(TreeClass, ABC):
 
     """
 
-    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field(default=None)  # type: ignore
-    _output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field(default=None)  # type: ignore
+    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = static_private_field(default=None)  # type: ignore
+    _output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = static_private_field(default=None)  # type: ignore
 
     @abstractmethod
     def init_shapes(
@@ -95,7 +94,6 @@ class CompressionModule(TreeClass, ABC):
         raise NotImplementedError()
 
 
-@autoinit
 class DtypeConversion(CompressionModule):
     """Compression module that converts data types of field values.
 
@@ -104,10 +102,10 @@ class DtypeConversion(CompressionModule):
     """
 
     #: Target data type for conversion.
-    dtype: jnp.dtype = frozen_field(kind="KW_ONLY")
+    dtype: jnp.dtype = static_field(kind="KW_ONLY")
 
     #: List of field names to exclude from conversion.
-    exclude_filter: Sequence[str] = frozen_field(default=tuple([]), kind="KW_ONLY")
+    exclude_filter: Sequence[str] = static_field(default=tuple([]), kind="KW_ONLY")
 
     def init_shapes(
         self,

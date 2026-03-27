@@ -10,7 +10,7 @@ authors = [
 requires-python = ">=3.11, <3.14"
 dependencies = [
     "loguru>=0.7.3",
-    "pytreeclass>=0.11",
+    "drinx>=1.0.0",
     "jax>=0.4.36",
     "moviepy>=2.1.1",
     "optax>=0.2.4",

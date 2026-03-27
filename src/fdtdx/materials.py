@@ -1,7 +1,7 @@
 import math
 from typing import cast
 
-from fdtdx.core.jax.pytrees import TreeClass, frozen_field
+from drinx import DataClass, static_field
 
 
 def _normalize_material_property(
@@ -67,7 +67,7 @@ def _normalize_material_property(
         return (value, 0.0, 0.0, 0.0, value, 0.0, 0.0, 0.0, value)
 
 
-class Material(TreeClass):
+class Material(DataClass):
     """
     Represents an electromagnetic material with specific electrical and magnetic properties.
 
@@ -90,9 +90,9 @@ class Material(TreeClass):
     #:   - A nested tuple ((εxx, εxy, εxz), (εyx, εyy, εyz), (εzx, εzy, εzz))
     #:
     #: Stored internally as a 9-tuple. Defaults to (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0).
-    permittivity: tuple[float, float, float, float, float, float, float, float, float] = frozen_field(
+    permittivity: tuple[float, float, float, float, float, float, float, float, float] = static_field(
         default=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-        on_setattr=[_normalize_material_property],
+        on_setattr=(_normalize_material_property),
     )
 
     #: The relative permeability of the material, which describes how the magnetic field is affected by the material.
@@ -105,9 +105,9 @@ class Material(TreeClass):
     #:   - A nested tuple ((μxx, μxy, μxz), (μyx, μyy, μyz), (μzx, μzy, μzz))
     #:
     #: Stored internally as a 9-tuple. Defaults to (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0).
-    permeability: tuple[float, float, float, float, float, float, float, float, float] = frozen_field(
+    permeability: tuple[float, float, float, float, float, float, float, float, float] = static_field(
         default=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-        on_setattr=[_normalize_material_property],
+        on_setattr=(_normalize_material_property),
     )
 
     #: The electrical conductivity of the material in siemens per meter (S/m), which describes how easily electric current can flow through it.
@@ -120,9 +120,9 @@ class Material(TreeClass):
     #:   - A nested tuple ((σxx, σxy, σxz), (σyx, σyy, σyz), (σzx, σzy, σzz))
     #:
     #: Stored internally as a 9-tuple. Defaults to (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0).
-    electric_conductivity: tuple[float, float, float, float, float, float, float, float, float] = frozen_field(
+    electric_conductivity: tuple[float, float, float, float, float, float, float, float, float] = static_field(
         default=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
-        on_setattr=[_normalize_material_property],
+        on_setattr=(_normalize_material_property),
     )
 
     #: The magnetic conductivity, or magnetic loss of the material.
@@ -137,9 +137,9 @@ class Material(TreeClass):
     #:   - A nested tuple ((σxx, σxy, σxz), (σyx, σyy, σyz), (σzx, σzy, σzz))
     #:
     #: Stored internally as a 9-tuple. Defaults to (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0).
-    magnetic_conductivity: tuple[float, float, float, float, float, float, float, float, float] = frozen_field(
+    magnetic_conductivity: tuple[float, float, float, float, float, float, float, float, float] = static_field(
         default=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
-        on_setattr=[_normalize_material_property],
+        on_setattr=(_normalize_material_property),
     )
 
     def __init__(

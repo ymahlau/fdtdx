@@ -3,13 +3,12 @@ from abc import ABC, abstractmethod
 
 import jax
 import jax.numpy as jnp
+from drinx import DataClass, static_field
 
-from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 from fdtdx.core.wavelength import WaveCharacter
 
 
-@autoinit
-class TemporalProfile(TreeClass, ABC):
+class TemporalProfile(DataClass, ABC):
     """Base class for temporal profiles of sources.
 
     This class defines how the source amplitude varies in time.
@@ -35,12 +34,11 @@ class TemporalProfile(TreeClass, ABC):
         raise NotImplementedError()
 
 
-@autoinit
 class SingleFrequencyProfile(TemporalProfile):
     """Simple sinusoidal temporal profile at a single frequency."""
 
     #: Phase shift of the carrier wave
-    phase_shift: float = frozen_field(default=math.pi)
+    phase_shift: float = static_field(default=math.pi)
 
     #: number of periods between start
     num_startup_periods: int = 4
@@ -58,7 +56,6 @@ class SingleFrequencyProfile(TemporalProfile):
         return factor * raw_amplitude
 
 
-@autoinit
 class GaussianPulseProfile(TemporalProfile):
     """Gaussian pulse temporal profile with carrier wave.
 
@@ -68,10 +65,10 @@ class GaussianPulseProfile(TemporalProfile):
     """
 
     #: Spectral width of the Gaussian envelope (can specify via wavelength, frequency, or period)
-    spectral_width: WaveCharacter = frozen_field()
+    spectral_width: WaveCharacter = static_field()
 
     #: Center frequency/wavelength of the carrier wave
-    center_wave: WaveCharacter = frozen_field()
+    center_wave: WaveCharacter = static_field()
 
     def __post_init__(self):
         if self.spectral_width.phase_shift != 0.0:

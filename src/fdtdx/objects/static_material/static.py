@@ -1,29 +1,27 @@
 from abc import ABC, abstractmethod
 
 import jax
+from drinx import field, static_field
 
 from fdtdx.colors import XKCD_LIGHT_GREY, Color
-from fdtdx.core.jax.pytrees import autoinit, field, frozen_field
 from fdtdx.materials import Material
 from fdtdx.objects.object import OrderableObject
 
 
-@autoinit
 class UniformMaterialObject(OrderableObject):
     #: the material object
     material: Material = field()
 
     #: the color object
-    color: Color | None = frozen_field(default=XKCD_LIGHT_GREY)
+    color: Color | None = static_field(default=XKCD_LIGHT_GREY)
 
 
-@autoinit
 class StaticMultiMaterialObject(OrderableObject, ABC):
     #: the static material
     materials: dict[str, Material] = field()
 
     #: the color of the material
-    color: Color | None = frozen_field(default=XKCD_LIGHT_GREY)
+    color: Color | None = static_field(default=XKCD_LIGHT_GREY)
 
     @abstractmethod
     def get_voxel_mask_for_shape(self) -> jax.Array:
@@ -49,7 +47,6 @@ class StaticMultiMaterialObject(OrderableObject, ABC):
         raise NotImplementedError()
 
 
-@autoinit
 class SimulationVolume(UniformMaterialObject):
     """Background material for the entire simulation volume.
 
@@ -58,7 +55,7 @@ class SimulationVolume(UniformMaterialObject):
     """
 
     #: an integer values of the placement order
-    placement_order: int = frozen_field(default=-1000)
+    placement_order: int = static_field(default=-1000)
 
     #: the static material
     material: Material = field(

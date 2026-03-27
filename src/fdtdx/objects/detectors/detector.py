@@ -4,12 +4,12 @@ from typing import Self
 import jax
 import jax.numpy as jnp
 import numpy as np
+from drinx import private_field, static_field, static_private_field
 from matplotlib.figure import Figure
 from rich.progress import Progress
 
 from fdtdx.colors import XKCD_LIGHT_GREEN, Color
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import autoinit, frozen_field, frozen_private_field, private_field
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.objects.detectors.plotting.line_plot import plot_line_over_time, plot_waterfall_over_time
 from fdtdx.objects.detectors.plotting.plot2d import plot_2d_from_slices
@@ -20,7 +20,6 @@ from fdtdx.typing import SliceTuple3D
 DetectorState = dict[str, jax.Array]
 
 
-@autoinit
 class Detector(SimulationObject, ABC):
     """Base class for electromagnetic field detectors in FDTD simulations.
 
@@ -30,39 +29,39 @@ class Detector(SimulationObject, ABC):
     """
 
     #: Data type for detector arrays, defaults to float32.
-    dtype: jnp.dtype = frozen_field(default=jnp.float32)
+    dtype: jnp.dtype = static_field(default=jnp.float32)
 
     #: Whether to use exact field interpolation. Defaults to True.
-    exact_interpolation: bool = frozen_field(default=True)
+    exact_interpolation: bool = static_field(default=True)
 
     #: Whether to record fields in inverse time order. Defaults to false.
-    inverse: bool = frozen_field(default=False)
+    inverse: bool = static_field(default=False)
 
     #: This switch controls the time steps that the detector is on, i.e. records data.
     #: Defaults to all time steps.
-    switch: OnOffSwitch = frozen_field(default=OnOffSwitch())
+    switch: OnOffSwitch = static_field(default=OnOffSwitch())
 
     #: Whether to generate plots of recorded data. Defaults to true.
-    plot: bool = frozen_field(default=True)
+    plot: bool = static_field(default=True)
 
     #: Plot inverse data in reverse time order.
-    if_inverse_plot_backwards: bool = frozen_field(default=True)
+    if_inverse_plot_backwards: bool = static_field(default=True)
 
     #: Number of workers for video generation. If None (default), then no
     #: multiprocessing is used. Note that the combination of multiprocessing and matplotlib is known to produce
     #: problems and can cause the entire system to freeze. It does make the video generation much faster though.
-    num_video_workers: int | None = frozen_field(default=None)  # only used when generating video
+    num_video_workers: int | None = static_field(default=None)  # only used when generating video
 
     #: RGB color for plotting. Defaults to light green.
-    color: Color | None = frozen_field(default=XKCD_LIGHT_GREEN)
+    color: Color | None = static_field(default=XKCD_LIGHT_GREEN)
 
     #: Interpolation method for plots. Defualts to "gaussian".
-    plot_interpolation: str = frozen_field(default="gaussian")
+    plot_interpolation: str = static_field(default="gaussian")
 
     #: DPI resolution for plots. Defaults to None.
-    plot_dpi: int | None = frozen_field(default=None)
+    plot_dpi: int | None = static_field(default=None)
 
-    _num_time_steps_on: int = frozen_private_field()
+    _num_time_steps_on: int = static_private_field()
     _is_on_at_time_step_arr: jax.Array = private_field()
     _time_step_to_arr_idx: jax.Array = private_field()
 
