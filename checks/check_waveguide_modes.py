@@ -197,7 +197,7 @@ def main():
     
     key, subkey = jax.random.split(key)
     objects, arrays, params, config, _ = place_objects(
-        volume=volume,
+        object_list=[volume],
         config=config,
         constraints=placement_constraints,
         key=subkey,

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import jax
 
 from fdtdx.config import SimulationConfig
@@ -12,6 +14,7 @@ def run_fdtd(
     config: SimulationConfig,
     key: jax.Array,
     stopping_condition: StoppingCondition | None = None,
+    show_progress: bool = True,
 ) -> SimulationState:
     if stopping_condition is not None:
         if config.gradient_config is not None:
@@ -29,6 +32,7 @@ def run_fdtd(
             config=config,
             key=key,
             stopping_condition=stopping_condition,
+            show_progress=show_progress,
         )
     if config.gradient_config.method == "reversible":
         return reversible_fdtd(
@@ -36,6 +40,7 @@ def run_fdtd(
             objects=objects,
             config=config,
             key=key,
+            show_progress=show_progress,
         )
     elif config.gradient_config.method == "checkpointed":
         return checkpointed_fdtd(
@@ -44,6 +49,7 @@ def run_fdtd(
             config=config,
             key=key,
             stopping_condition=stopping_condition,
+            show_progress=show_progress,
         )
     else:
         raise Exception(f"Unknown gradient computation method: {config.gradient_config.method}")
