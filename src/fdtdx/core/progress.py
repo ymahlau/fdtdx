@@ -41,12 +41,18 @@ class SimulationProgressBar:
     ``update_interval`` steps — steps that do not satisfy
     ``step % update_interval == 0`` incur **zero** sync overhead.
 
-    This class is intended to be used as a context manager; it is created,
-    opened, and closed automatically by the simulation functions via
-    :func:`_make_pbar`.  Users do not need to instantiate it directly.
+    The bar's entire lifetime — open, update, close — is managed through
+    ``io_callback`` invocations that fire at **XLA execution time**, not at
+    Python trace time.  This means the bar works correctly whether the
+    simulation function is wrapped in ``jax.jit``:
 
-    The tqdm import is deferred to :meth:`__enter__` so that constructing this
-    object never raises or warns — only opening the context manager does.
+    * On the first ``io_callback`` (step == step_offset) the bar is created.
+    * Subsequent callbacks update ``bar.n``.
+    * A dedicated close callback fires after the loop body exits for the last
+      time, forcing the bar to 100 % and calling ``bar.close()``.
+
+    This class is managed automatically by the simulation functions via
+    :func:`_make_pbar`.  Users do not need to instantiate it directly.
 
     Args:
         total_steps: Total number of simulation time steps (length of this segment).
@@ -74,11 +80,24 @@ class SimulationProgressBar:
         self.step_offset = step_offset
         self._bar = None
 
-    # Context manager
+    # Host-side callbacks
 
-    def __enter__(self) -> SimulationProgressBar:
-        # Defer the tqdm import to here so __init__ never raises.
-        try:
+    def _host_update(self, time_step: int) -> None:
+        """Open the bar lazily on the first call, then update its position.
+
+        Opening here rather than in ``__init__`` means the bar appears at
+        XLA execution time, not at Python trace time.  This makes the bar
+        work correctly even when the simulation is wrapped in ``jax.jit``.
+
+        The device-side ``lax.cond`` in :meth:`get_callbacks` ensures this
+        is only called when ``step % update_interval == 0``, so no modulo
+        check is needed here.
+
+        ``step_offset`` is subtracted so the bar position stays relative to
+        the start of this particular simulation segment.
+        """
+        if self._bar is None:
+            # Lazy import: only reached at XLA execution time.
             from tqdm.auto import tqdm
 
             self._bar = tqdm(
@@ -87,55 +106,48 @@ class SimulationProgressBar:
                 unit="step",
                 dynamic_ncols=True,
             )
-        except ImportError:
-            # tqdm not installed — bar stays None, no callbacks will fire
-            # because _make_pbar already returned None in this case.
-            pass
-        return self
+        self._bar.n = int(time_step) - self.step_offset
+        self._bar.refresh()
 
-    def __exit__(self, *_) -> None:
+    def _host_close(self) -> None:
+        """Force the bar to 100 % and close it.
+
+        Called via a dedicated ``io_callback`` injected *after* the
+        ``while_loop`` body exits for the final time.  This guarantees
+        completion regardless of whether the last step landed on an
+        update-interval boundary.
+        """
         if self._bar is not None:
-            # Force the bar to 100 % before closing.  The in-loop callback
-            # fires with the *pre-step* counter, so the last update lands at
-            # total_steps - update_interval rather than total_steps.
             self._bar.n = self.total_steps
             self._bar.refresh()
             self._bar.close()
             self._bar = None
 
-    # Host-side update (called by io_callback — never traced by JAX)
-
-    def _host_update(self, time_step: int) -> None:
-        """Unconditionally update the bar.
-
-        The device-side ``lax.cond`` in :meth:`get_callback` ensures this is
-        only ever called when ``step % update_interval == 0``, so no further
-        filtering is needed here.
-
-        ``step_offset`` is subtracted so the bar position stays relative to
-        the start of this particular simulation segment rather than showing
-        the absolute time step.  For full simulations ``step_offset`` is 0.
-        """
-        if self._bar is None:
-            return
-        self._bar.n = int(time_step) - self.step_offset
-        self._bar.refresh()
-
     # JAX-side callback factory
 
-    def get_callback(self):
-        """Return a JAX-traceable function that updates the bar on the host.
+    def get_callbacks(self):
+        """Return ``(step_callback, close_callback)`` for use inside JAX code.
 
-        The ``update_interval`` check runs **on the device** via
-        ``jax.lax.cond``, so steps that do not satisfy the condition never
-        issue an ``io_callback`` and incur no device→host sync cost.
+        ``step_callback(time_step)``
+            JAX-traceable function.  The ``update_interval`` check runs on
+            the device via ``jax.lax.cond`` so that only matching steps issue
+            an ``io_callback`` (and thus a device→host sync).
+
+        ``close_callback()``
+            JAX-traceable no-argument function.  Should be called exactly once
+            after the ``while_loop`` completes.  Forces the bar to 100 % and
+            closes it.
+
+        Both callbacks use ``ordered=True`` so that updates arrive in the
+        correct sequence and the close always follows the last update.
         """
-        host_fn = self._host_update
+        host_update = self._host_update
+        host_close = self._host_close
         update_interval = self.update_interval
 
         def _do_update(time_step: jax.Array) -> None:
             jax.experimental.io_callback(
-                host_fn,
+                host_update,
                 result_shape_dtypes=(),
                 time_step=time_step,
                 ordered=True,
@@ -144,7 +156,7 @@ class SimulationProgressBar:
         def _noop(_time_step: jax.Array) -> None:
             pass
 
-        def _callback(time_step: jax.Array) -> None:
+        def step_callback(time_step: jax.Array) -> None:
             jax.lax.cond(
                 time_step % update_interval == 0,
                 _do_update,
@@ -152,7 +164,14 @@ class SimulationProgressBar:
                 time_step,
             )
 
-        return _callback
+        def close_callback() -> None:
+            jax.experimental.io_callback(
+                host_close,
+                result_shape_dtypes=(),
+                ordered=True,
+            )
+
+        return step_callback, close_callback
 
 
 # Internal helpers used by the simulation functions
@@ -183,6 +202,7 @@ def _make_pbar(
     """
     if not show_progress or total_steps <= 0:
         return None
+
     try:
         import tqdm  # noqa: F401 — availability probe only
     except ImportError:
@@ -194,6 +214,7 @@ def _make_pbar(
             stacklevel=3,
         )
         return None
+
     return SimulationProgressBar(
         total_steps=total_steps,
         desc=desc,
@@ -203,19 +224,23 @@ def _make_pbar(
 
 
 def _wrap_body_with_progress(body_fun, progress_bar: SimulationProgressBar | None):
-    """Wrap *body_fun* so that it fires the progress-bar callback each step.
+    """Wrap *body_fun* so that it fires the progress-bar step callback each step.
 
     Returns *body_fun* unchanged when *progress_bar* is ``None``, adding
     zero JAX overhead.
+
+    Also returns a ``close_fn`` that must be called once after the loop
+    completes to force the bar to 100 % and close it.  When *progress_bar*
+    is ``None`` the returned ``close_fn`` is a no-op.
     """
     if progress_bar is None:
-        return body_fun
+        return body_fun, lambda: None
 
-    callback = progress_bar.get_callback()
+    step_callback, close_callback = progress_bar.get_callbacks()
 
     def wrapped(state):
         # Fire callback before the step so step 0 appears immediately.
-        callback(state[0])
+        step_callback(state[0])
         return body_fun(state)
 
-    return wrapped
+    return wrapped, close_callback
