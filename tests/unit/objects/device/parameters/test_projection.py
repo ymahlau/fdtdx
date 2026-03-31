@@ -87,6 +87,44 @@ class TestTanhProjection:
 
         assert high_beta_extreme > low_beta_extreme
 
+    def test_gradient_beta_inf_no_nan(self):
+        """Gradient of tanh_projection at beta=inf must not produce NaN.
+
+        On GPU, XLA evaluates ALL branches of a lax.switch for SIMD execution, so
+        the tanh formula branch runs with beta=inf, computing tanh(inf*(x-eta)) which
+        is NaN when x==eta (0*inf in IEEE). The fix uses jnp.where + safe_beta so
+        the non-selected branch never evaluates with inf or 0 as beta.
+
+        Since the fix switches to jnp.where (which always evaluates both branches
+        during AD, same as GPU), this test exercises that code path on all platforms.
+        x=0.5 is exactly at eta — the pathological input.
+        """
+        import jax
+
+        x = jnp.array([0.3, 0.5, 0.7])
+        grad = jax.grad(lambda v: tanh_projection(v, beta=jnp.inf, eta=0.5).sum())(x)
+        assert not jnp.any(jnp.isnan(grad)), f"NaN in gradient: {grad}"
+
+    def test_gradient_beta_zero_no_nan(self):
+        """Gradient of tanh_projection at beta=0 must not produce NaN.
+
+        Without safe_beta, the tanh formula evaluates 0/0 = NaN when beta=0.
+        The fix substitutes safe_beta=1 for the non-selected branch.
+        """
+        import jax
+
+        x = jnp.array([0.3, 0.5, 0.7])
+        grad = jax.grad(lambda v: tanh_projection(v, beta=0.0, eta=0.5).sum())(x)
+        assert not jnp.any(jnp.isnan(grad)), f"NaN in gradient: {grad}"
+
+    def test_gradient_smoothed_projection_beta_inf_no_nan(self):
+        """Gradient of smoothed_projection at beta=inf must not produce NaN (end-to-end)."""
+        import jax
+
+        rho = jnp.linspace(0, 1, 100).reshape(10, 10)
+        grad = jax.grad(lambda v: smoothed_projection(v, beta=jnp.inf, eta=0.5, resolution=10.0).sum())(rho)
+        assert not jnp.any(jnp.isnan(grad)), f"NaN in gradient: {grad}"
+
 
 class TestSmoothedProjection:
     """Tests for smoothed_projection function."""

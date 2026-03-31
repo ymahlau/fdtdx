@@ -28,22 +28,22 @@ def tanh_projection(x: jax.Array, beta: float, eta: float) -> jax.Array:
         jax.Array: The filtered design weights.
     """
 
-    def beta_inf_case():
-        # Note that backpropagating through here can produce NaNs. So we
-        # manually specify the step function to keep the gradient clean.
-        return jnp.where(x > eta, 1.0, 0.0)
+    is_inf = jnp.isinf(beta)
+    is_zero = beta == 0
 
-    def beta_zero_case():
-        # this is mathematically not really accurate, but makes sense for optimization
-        return jnp.clip(x, 0, 1)
+    # Double-where trick: substitute a safe finite beta before computing the tanh
+    # formula so that no branch ever evaluates tanh(inf * x) or 0/0 — both of which
+    # produce NaN. On GPU, XLA evaluates ALL branches of a conditional (SIMD), so
+    # even the non-selected branch must be NaN-free. jnp.where zeros out the gradient
+    # of the non-selected branch, giving clean gradients as long as no branch is NaN.
+    safe_beta = jnp.where(is_inf | is_zero, 1.0, beta)
+    dividend = jnp.tanh(safe_beta * eta) + jnp.tanh(safe_beta * (x - eta))
+    divisor = jnp.tanh(safe_beta * eta) + jnp.tanh(safe_beta * (1 - eta))
+    tanh_result = dividend / divisor
 
-    def other_case():
-        dividend = jnp.tanh(beta * eta) + jnp.tanh(beta * (x - eta))
-        divisor = jnp.tanh(beta * eta) + jnp.tanh(beta * (1 - eta))
-        return dividend / divisor
-
-    index = (beta == 0) + 2 * ((beta != 0) & ~jnp.isinf(beta))
-    result = jax.lax.switch(index, (beta_inf_case, beta_zero_case, other_case))
+    inf_result = jnp.where(x > eta, 1.0, 0.0)
+    zero_result = jnp.clip(x, 0, 1)
+    result = jnp.where(is_zero, zero_result, jnp.where(is_inf, inf_result, tanh_result))
     return result
 
 
