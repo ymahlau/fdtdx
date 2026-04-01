@@ -32,7 +32,12 @@ class TestRunFdtd:
             result = run_fdtd(arrays, objects, config, key, stopping_condition=None)
 
         mock_ckpt.assert_called_once_with(
-            arrays=arrays, objects=objects, config=config, key=key, stopping_condition=None
+            arrays=arrays,
+            objects=objects,
+            config=config,
+            key=key,
+            stopping_condition=None,
+            show_progress=True,
         )
         assert result is mock_result
 
@@ -46,7 +51,13 @@ class TestRunFdtd:
         with patch("fdtdx.fdtd.wrapper.reversible_fdtd", return_value=mock_result) as mock_rev:
             result = run_fdtd(arrays, objects, config, key)
 
-        mock_rev.assert_called_once_with(arrays=arrays, objects=objects, config=config, key=key)
+        mock_rev.assert_called_once_with(
+            arrays=arrays,
+            objects=objects,
+            config=config,
+            key=key,
+            show_progress=True,
+        )
         assert result is mock_result
 
     def test_checkpointed_gradient_method_uses_checkpointed(self, setup):
@@ -60,7 +71,12 @@ class TestRunFdtd:
             result = run_fdtd(arrays, objects, config, key, stopping_condition=None)
 
         mock_ckpt.assert_called_once_with(
-            arrays=arrays, objects=objects, config=config, key=key, stopping_condition=None
+            arrays=arrays,
+            objects=objects,
+            config=config,
+            key=key,
+            stopping_condition=None,
+            show_progress=True,
         )
         assert result is mock_result
 
@@ -113,3 +129,53 @@ class TestRunFdtd:
             run_fdtd(arrays, objects, config, key, stopping_condition=stopping)
 
         assert mock_ckpt.call_args[1]["stopping_condition"] is stopping
+
+    # ------------------------------------------------------------------ #
+    # show_progress propagation                                            #
+    # ------------------------------------------------------------------ #
+
+    def test_show_progress_false_forwarded_to_checkpointed_no_gradient(self, setup):
+        """show_progress=False is passed to checkpointed_fdtd (no gradient_config)."""
+        arrays, objects, config, key = setup
+        config.gradient_config = None
+        mock_result = Mock(spec=SimulationState)
+
+        with patch("fdtdx.fdtd.wrapper.checkpointed_fdtd", return_value=mock_result) as mock_ckpt:
+            run_fdtd(arrays, objects, config, key, show_progress=False)
+
+        assert mock_ckpt.call_args[1]["show_progress"] is False
+
+    def test_show_progress_false_forwarded_to_reversible(self, setup):
+        """show_progress=False is passed to reversible_fdtd."""
+        arrays, objects, config, key = setup
+        config.gradient_config = Mock()
+        config.gradient_config.method = "reversible"
+        mock_result = Mock(spec=SimulationState)
+
+        with patch("fdtdx.fdtd.wrapper.reversible_fdtd", return_value=mock_result) as mock_rev:
+            run_fdtd(arrays, objects, config, key, show_progress=False)
+
+        assert mock_rev.call_args[1]["show_progress"] is False
+
+    def test_show_progress_false_forwarded_to_checkpointed_gradient(self, setup):
+        """show_progress=False is passed to checkpointed_fdtd (checkpointed gradient)."""
+        arrays, objects, config, key = setup
+        config.gradient_config = Mock()
+        config.gradient_config.method = "checkpointed"
+        mock_result = Mock(spec=SimulationState)
+
+        with patch("fdtdx.fdtd.wrapper.checkpointed_fdtd", return_value=mock_result) as mock_ckpt:
+            run_fdtd(arrays, objects, config, key, show_progress=False)
+
+        assert mock_ckpt.call_args[1]["show_progress"] is False
+
+    def test_show_progress_defaults_to_true(self, setup):
+        """show_progress defaults to True when not supplied."""
+        arrays, objects, config, key = setup
+        config.gradient_config = None
+        mock_result = Mock(spec=SimulationState)
+
+        with patch("fdtdx.fdtd.wrapper.checkpointed_fdtd", return_value=mock_result) as mock_ckpt:
+            run_fdtd(arrays, objects, config, key)
+
+        assert mock_ckpt.call_args[1]["show_progress"] is True
