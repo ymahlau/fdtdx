@@ -33,7 +33,7 @@ AnyConstraint = (
 
 
 def place_objects(
-    object_list: list[SimulationObject],
+    object_list: Sequence[SimulationObject],
     config: SimulationConfig,
     constraints: Sequence[AnyConstraint],
     key: jax.Array,
@@ -584,8 +584,8 @@ def _init_arrays(
         for boundary in objects.pml_objects:
             cur_shape = boundary.interface_grid_shape()
             extended_shape = (3, *cur_shape)
-            input_shape_dtypes[f"{boundary.name}_E"] = jax.ShapeDtypeStruct(shape=extended_shape, dtype=config.dtype)
-            input_shape_dtypes[f"{boundary.name}_H"] = jax.ShapeDtypeStruct(shape=extended_shape, dtype=config.dtype)
+            input_shape_dtypes[f"{boundary.name}_E"] = jax.ShapeDtypeStruct(shape=extended_shape, dtype=field_dtype)
+            input_shape_dtypes[f"{boundary.name}_H"] = jax.ShapeDtypeStruct(shape=extended_shape, dtype=field_dtype)
         recorder = config.gradient_config.recorder
         recorder, recording_state = recorder.init_state(
             input_shape_dtypes=input_shape_dtypes,

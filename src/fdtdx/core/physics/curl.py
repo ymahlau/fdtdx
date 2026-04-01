@@ -32,11 +32,8 @@ def interpolate_fields(
     Returns:
         Tuple of (E_interp, H_interp), each of shape (3, Nx, Ny, Nz)
     """
-    E_field = E_pad
-    H_field = H_pad
-
-    E_x, E_y, E_z = E_field[0], E_field[1], E_field[2]
-    H_x, H_y, H_z = H_field[0], H_field[1], H_field[2]
+    E_x, E_y, E_z = E_pad[0], E_pad[1], E_pad[2]
+    H_x, H_y, H_z = H_pad[0], H_pad[1], H_pad[2]
 
     # E_x: (i+½, j, k) → (i, j, k+½): x backward, z forward
     E_x = (E_x[1:-1, 1:-1, 1:-1] + E_x[:-2, 1:-1, 1:-1] + E_x[1:-1, 1:-1, 2:] + E_x[:-2, 1:-1, 2:]) / 4.0

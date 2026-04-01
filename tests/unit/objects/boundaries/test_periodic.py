@@ -41,18 +41,19 @@ def make_periodic(axis=0, direction="-"):
     )
 
 
-def place_periodic(pb, micro_config, jax_key, volume_shape=(30, 20, 20)):
+def place_periodic(pb, micro_config, jax_key, volume_shape=(30, 20, 20), grid_slice_tuple=None):
     """Place a BlochBoundary on a grid matching the given volume shape."""
-    axis = pb.axis
-    direction = pb.direction
+    if grid_slice_tuple is None:
+        axis = pb.axis
+        direction = pb.direction
 
-    slices = [[0, volume_shape[i]] for i in range(3)]
-    if direction == "-":
-        slices[axis] = [0, 1]
-    else:
-        slices[axis] = [volume_shape[axis] - 1, volume_shape[axis]]
+        slices = [[0, volume_shape[i]] for i in range(3)]
+        if direction == "-":
+            slices[axis] = [0, 1]
+        else:
+            slices[axis] = [volume_shape[axis] - 1, volume_shape[axis]]
 
-    grid_slice_tuple = tuple(tuple(s) for s in slices)
+        grid_slice_tuple = tuple(tuple(s) for s in slices)
     return pb.place_on_grid(grid_slice_tuple=grid_slice_tuple, config=micro_config, key=jax_key)
 
 
@@ -184,6 +185,56 @@ class TestPeriodicApplyFieldReset:
         H = jnp.ones((3, 10, 10, 10))
         result = placed.apply_field_reset({"E": E, "H": H})
         assert set(result.keys()) == {"E", "H"}
+
+    def test_positive_direction_copies_first_cell_across_region(self, micro_config, jax_key):
+        """For + direction with a multi-cell grid_slice, boundary_slice is the first
+        cell of grid_slice. apply_field_reset should broadcast that cell's values
+        across the entire grid_slice region."""
+        pb = make_periodic(axis=0, direction="+")
+        # Place with a 2-cell grid_slice: x=0:2
+        placed = place_periodic(
+            pb,
+            micro_config,
+            jax_key,
+            grid_slice_tuple=((0, 2), (0, 10), (0, 10)),
+        )
+        # Non-uniform E field so we can verify the copy direction
+        E = jnp.ones((3, 10, 10, 10))
+        E = E.at[:, 0, :, :].set(1.0)
+        E = E.at[:, 1, :, :].set(5.0)
+        H = jnp.full((3, 10, 10, 10), 2.0)
+        result = placed.apply_field_reset({"E": E, "H": H})
+        # boundary_slice is x=0 (first cell of grid_slice for + direction).
+        # That value (1.0) should be broadcast across x=0:2, overwriting x=1.
+        assert jnp.allclose(result["E"][:, 0:2, :, :], 1.0)
+        assert jnp.allclose(result["H"][:, 0:2, :, :], 2.0)
+        # Region outside grid_slice should be unchanged
+        assert jnp.allclose(result["E"][:, 2:, :, :], 1.0)
+
+    def test_negative_direction_copies_last_cell_across_region(self, micro_config, jax_key):
+        """For - direction with a multi-cell grid_slice, boundary_slice is the last
+        cell of grid_slice. apply_field_reset should broadcast that cell's values
+        across the entire grid_slice region."""
+        pb = make_periodic(axis=1, direction="-")
+        # Place with a 2-cell grid_slice: y=8:10
+        placed = place_periodic(
+            pb,
+            micro_config,
+            jax_key,
+            grid_slice_tuple=((0, 10), (8, 10), (0, 10)),
+        )
+        # Non-uniform E field so we can verify the copy direction
+        E = jnp.ones((3, 10, 10, 10))
+        E = E.at[:, :, 8, :].set(7.0)
+        E = E.at[:, :, 9, :].set(3.0)
+        H = jnp.full((3, 10, 10, 10), 2.0)
+        result = placed.apply_field_reset({"E": E, "H": H})
+        # boundary_slice is y=9 (last cell of grid_slice for - direction).
+        # That value (3.0) should be broadcast across y=8:10, overwriting y=8.
+        assert jnp.allclose(result["E"][:, :, 8:10, :], 3.0)
+        assert jnp.allclose(result["H"][:, :, 8:10, :], 2.0)
+        # Region outside grid_slice should be unchanged
+        assert jnp.allclose(result["E"][:, :, :8, :], 1.0)
 
 
 class TestNeedsComplexFields:

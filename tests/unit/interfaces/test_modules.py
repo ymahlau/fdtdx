@@ -309,3 +309,55 @@ class TestDtypeConversionDecompress:
         compressed = {"E": jnp.ones((3,), dtype=jnp.float16)}
         out_vals = module.decompress(compressed, _make_state(), jax.random.PRNGKey(0))
         assert out_vals["E"].dtype == jnp.bfloat16
+
+
+# ─── TestDtypeConversionComplexValidation ────────────────────────────────────
+
+
+class TestDtypeConversionComplexValidation:
+    """Tests for DtypeConversion validation of complex-to-real conversions."""
+
+    def test_complex_input_to_real_target_raises(self):
+        """Converting complex64 input to float16 target raises ValueError."""
+        module = DtypeConversion(dtype=jnp.float16)
+        input_shapes = _make_input_shapes(E=((3, 4, 4), jnp.complex64))
+        with pytest.raises(ValueError, match="silently discard the imaginary"):
+            module.init_shapes(input_shapes)
+
+    def test_complex128_input_to_float64_target_raises(self):
+        """Converting complex128 input to float64 target raises ValueError."""
+        module = DtypeConversion(dtype=jnp.float64)
+        input_shapes = _make_input_shapes(E=((3, 4, 4), jnp.complex128))
+        with pytest.raises(ValueError, match="silently discard the imaginary"):
+            module.init_shapes(input_shapes)
+
+    def test_complex_input_to_complex_target_allowed(self):
+        """Converting complex64 to complex128 is allowed."""
+        module = DtypeConversion(dtype=jnp.complex128)
+        input_shapes = _make_input_shapes(E=((3, 4, 4), jnp.complex64))
+        _, out_shapes, _ = module.init_shapes(input_shapes)
+        assert out_shapes["E"].dtype == jnp.complex128
+
+    def test_complex_input_excluded_field_allowed(self):
+        """Complex input with a real target is allowed when the field is excluded."""
+        module = DtypeConversion(dtype=jnp.float16, exclude_filter=["E"])
+        input_shapes = _make_input_shapes(E=((3, 4, 4), jnp.complex64))
+        _, out_shapes, _ = module.init_shapes(input_shapes)
+        assert out_shapes["E"].dtype == jnp.complex64
+
+    def test_mixed_real_and_complex_raises_for_complex_field(self):
+        """With mixed inputs, only the complex field triggers the error."""
+        module = DtypeConversion(dtype=jnp.float16)
+        input_shapes = _make_input_shapes(
+            E=((3, 4, 4), jnp.complex64),
+            sigma=((3, 4, 4), jnp.float32),
+        )
+        with pytest.raises(ValueError, match="E"):
+            module.init_shapes(input_shapes)
+
+    def test_real_input_to_real_target_allowed(self):
+        """Standard real-to-real conversion is unaffected by the validation."""
+        module = DtypeConversion(dtype=jnp.float16)
+        input_shapes = _make_input_shapes(E=((3, 4, 4), jnp.float32))
+        _, out_shapes, _ = module.init_shapes(input_shapes)
+        assert out_shapes["E"].dtype == jnp.float16
