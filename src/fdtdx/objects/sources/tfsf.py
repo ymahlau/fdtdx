@@ -4,12 +4,11 @@ from typing import Self
 import jax
 import jax.numpy as jnp
 import numpy as np
+from drinx import private_field, static_field
 
-from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.objects.sources.source import DirectionalPlaneSourceBase
 
 
-@autoinit
 class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
     """
     Total-Field/Scattered-Field (TFSF) implementation of a source.
@@ -18,19 +17,19 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
     """
 
     #: the azimuth angle
-    azimuth_angle: float = frozen_field(default=0.0)
+    azimuth_angle: float = static_field(default=0.0)
 
     #: the elevation angle
-    elevation_angle: float = frozen_field(default=0.0)
+    elevation_angle: float = static_field(default=0.0)
 
     #: the max angle random offset
-    max_angle_random_offset: float = frozen_field(default=0.0)
+    max_angle_random_offset: float = static_field(default=0.0)
 
     #: the max vertical offset
-    max_vertical_offset: float = frozen_field(default=0.0)
+    max_vertical_offset: float = static_field(default=0.0)
 
     #: the max horizontal offset
-    max_horizontal_offset: float = frozen_field(default=0.0)
+    max_horizontal_offset: float = static_field(default=0.0)
 
     _E: jax.Array = private_field()
     _H: jax.Array = private_field()

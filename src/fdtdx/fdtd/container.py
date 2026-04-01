@@ -8,8 +8,8 @@ like sources, detectors, PML boundaries, periodic boundaries, and devices.
 from typing import Callable, Self
 
 import jax
+from drinx import DataClass, static_field
 
-from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.materials import Material
 from fdtdx.objects.boundaries.boundary import BaseBoundary
@@ -25,8 +25,7 @@ from fdtdx.objects.static_material.static import StaticMultiMaterialObject, Unif
 ParameterContainer = dict[str, dict[str, jax.Array] | jax.Array]
 
 
-@autoinit
-class ObjectContainer(TreeClass):
+class ObjectContainer(DataClass):
     """Container for managing simulation objects and their relationships.
 
     This class provides a structured way to organize and access different types of simulation
@@ -38,7 +37,7 @@ class ObjectContainer(TreeClass):
     object_list: list[SimulationObject]
 
     #: Index of the volume object in the object list.
-    volume_idx: int = frozen_field()
+    volume_idx: int = static_field()
 
     @property
     def volume(self) -> SimulationObject:
@@ -236,8 +235,7 @@ class ObjectContainer(TreeClass):
         return self
 
 
-@autoinit
-class ArrayContainer(TreeClass):
+class ArrayContainer(DataClass):
     """Container for simulation field arrays and states.
 
     This class holds the electromagnetic field arrays and various state information

@@ -1,14 +1,13 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
+from drinx import static_field
 
 from fdtdx.core.grid import polygon_to_mask
-from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
 
 
-@autoinit
 class ExtrudedPolygon(StaticMultiMaterialObject):
     """A polygon object specified by a list of vertices. The coordinate system has its origin at the lower left of the
     bounding box of the polygon.
@@ -16,13 +15,13 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
     """
 
     #: Name of the material in the materials dictionary to be used for the object
-    material_name: str = frozen_field()
+    material_name: str = static_field()
 
     #: The extrusion axis.
-    axis: int = frozen_field()
+    axis: int = static_field()
 
     #: numpy array of shape (N, 2) specifying the position of vertices in metrical units (meter).
-    vertices: np.ndarray = frozen_field()
+    vertices: np.ndarray = static_field()
 
     @property
     def horizontal_axis(self) -> int:

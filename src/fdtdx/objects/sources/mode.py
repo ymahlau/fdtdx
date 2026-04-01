@@ -3,23 +3,22 @@ from typing import Literal, Self
 
 import jax
 import jax.numpy as jnp
+from drinx import private_field, static_field
 from matplotlib import pyplot as plt
 
 from fdtdx.core.grid import calculate_time_offset_yee
-from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.linalg import get_wave_vector_raw
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.core.physics.modes import compute_mode
 from fdtdx.objects.sources.tfsf import TFSFPlaneSource
 
 
-@autoinit
 class ModePlaneSource(TFSFPlaneSource):
     #: index of the mode
-    mode_index: int = frozen_field(default=0)
+    mode_index: int = static_field(default=0)
 
     #: a literal value 'te', 'tm' to filter
-    filter_pol: Literal["te", "tm"] | None = frozen_field(default=None)
+    filter_pol: Literal["te", "tm"] | None = static_field(default=None)
 
     _inv_permittivity: jax.Array = private_field()
     _inv_permeability: jax.Array | float = private_field()
