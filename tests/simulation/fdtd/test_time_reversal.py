@@ -11,6 +11,7 @@ complex dtypes.
 
 import jax
 import jax.numpy as jnp
+
 import fdtdx
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.fdtd.backward import backward
@@ -84,10 +85,12 @@ def _add_gradient_config(arrays, config, obj_container):
         cur_shape = boundary.interface_grid_shape()
         extended_shape = (3, *cur_shape)
         input_shape_dtypes[f"{boundary.name}_E"] = jax.ShapeDtypeStruct(
-            shape=extended_shape, dtype=field_dtype,
+            shape=extended_shape,
+            dtype=field_dtype,
         )
         input_shape_dtypes[f"{boundary.name}_H"] = jax.ShapeDtypeStruct(
-            shape=extended_shape, dtype=field_dtype,
+            shape=extended_shape,
+            dtype=field_dtype,
         )
     recorder = Recorder(modules=[])
     recorder, recording_state = recorder.init_state(
@@ -175,14 +178,13 @@ class TestTimeReversalPeriodicBoundary:
     def test_fields_reconstructed_exactly(self):
         obj, arrays, config = _build_simulation(_uniform_boundaries("periodic"))
         E_orig, H_orig, E_rec, H_rec = _forward_backward_roundtrip(
-            obj, arrays, config, has_pml=False,
+            obj,
+            arrays,
+            config,
+            has_pml=False,
         )
-        assert jnp.allclose(E_rec, E_orig, atol=1e-5), (
-            f"E max error: {jnp.max(jnp.abs(E_rec - E_orig))}"
-        )
-        assert jnp.allclose(H_rec, H_orig, atol=1e-5), (
-            f"H max error: {jnp.max(jnp.abs(H_rec - H_orig))}"
-        )
+        assert jnp.allclose(E_rec, E_orig, atol=1e-5), f"E max error: {jnp.max(jnp.abs(E_rec - E_orig))}"
+        assert jnp.allclose(H_rec, H_orig, atol=1e-5), f"H max error: {jnp.max(jnp.abs(H_rec - H_orig))}"
 
 
 class TestTimeReversalPECBoundary:
@@ -191,14 +193,13 @@ class TestTimeReversalPECBoundary:
     def test_fields_reconstructed_exactly(self):
         obj, arrays, config = _build_simulation(_uniform_boundaries("pec"))
         E_orig, H_orig, E_rec, H_rec = _forward_backward_roundtrip(
-            obj, arrays, config, has_pml=False,
+            obj,
+            arrays,
+            config,
+            has_pml=False,
         )
-        assert jnp.allclose(E_rec, E_orig, atol=1e-5), (
-            f"E max error: {jnp.max(jnp.abs(E_rec - E_orig))}"
-        )
-        assert jnp.allclose(H_rec, H_orig, atol=1e-5), (
-            f"H max error: {jnp.max(jnp.abs(H_rec - H_orig))}"
-        )
+        assert jnp.allclose(E_rec, E_orig, atol=1e-5), f"E max error: {jnp.max(jnp.abs(E_rec - E_orig))}"
+        assert jnp.allclose(H_rec, H_orig, atol=1e-5), f"H max error: {jnp.max(jnp.abs(H_rec - H_orig))}"
 
 
 class TestTimeReversalPMCBoundary:
@@ -207,14 +208,13 @@ class TestTimeReversalPMCBoundary:
     def test_fields_reconstructed_exactly(self):
         obj, arrays, config = _build_simulation(_uniform_boundaries("pmc"))
         E_orig, H_orig, E_rec, H_rec = _forward_backward_roundtrip(
-            obj, arrays, config, has_pml=False,
+            obj,
+            arrays,
+            config,
+            has_pml=False,
         )
-        assert jnp.allclose(E_rec, E_orig, atol=1e-5), (
-            f"E max error: {jnp.max(jnp.abs(E_rec - E_orig))}"
-        )
-        assert jnp.allclose(H_rec, H_orig, atol=1e-5), (
-            f"H max error: {jnp.max(jnp.abs(H_rec - H_orig))}"
-        )
+        assert jnp.allclose(E_rec, E_orig, atol=1e-5), f"E max error: {jnp.max(jnp.abs(E_rec - E_orig))}"
+        assert jnp.allclose(H_rec, H_orig, atol=1e-5), f"H max error: {jnp.max(jnp.abs(H_rec - H_orig))}"
 
 
 class TestTimeReversalPMLBoundary:
@@ -223,14 +223,13 @@ class TestTimeReversalPMLBoundary:
     def test_fields_reconstructed_with_recording(self):
         obj, arrays, config = _build_simulation(_uniform_boundaries("pml"))
         E_orig, H_orig, E_rec, H_rec = _forward_backward_roundtrip(
-            obj, arrays, config, has_pml=True,
+            obj,
+            arrays,
+            config,
+            has_pml=True,
         )
-        assert jnp.allclose(E_rec, E_orig, atol=1e-5), (
-            f"E max error: {jnp.max(jnp.abs(E_rec - E_orig))}"
-        )
-        assert jnp.allclose(H_rec, H_orig, atol=1e-5), (
-            f"H max error: {jnp.max(jnp.abs(H_rec - H_orig))}"
-        )
+        assert jnp.allclose(E_rec, E_orig, atol=1e-5), f"E max error: {jnp.max(jnp.abs(E_rec - E_orig))}"
+        assert jnp.allclose(H_rec, H_orig, atol=1e-5), f"H max error: {jnp.max(jnp.abs(H_rec - H_orig))}"
 
 
 class TestTimeReversalBlochBoundary:
@@ -239,17 +238,17 @@ class TestTimeReversalBlochBoundary:
     def test_fields_reconstructed_exactly(self):
         k_bloch = (1e6, 0.0, 0.0)  # non-zero → complex fields
         obj, arrays, config = _build_simulation(
-            _uniform_boundaries("bloch"), bloch_vector=k_bloch,
+            _uniform_boundaries("bloch"),
+            bloch_vector=k_bloch,
         )
         E_orig, H_orig, E_rec, H_rec = _forward_backward_roundtrip(
-            obj, arrays, config, has_pml=False,
+            obj,
+            arrays,
+            config,
+            has_pml=False,
         )
-        assert jnp.allclose(E_rec, E_orig, atol=1e-5), (
-            f"E max error: {jnp.max(jnp.abs(E_rec - E_orig))}"
-        )
-        assert jnp.allclose(H_rec, H_orig, atol=1e-5), (
-            f"H max error: {jnp.max(jnp.abs(H_rec - H_orig))}"
-        )
+        assert jnp.allclose(E_rec, E_orig, atol=1e-5), f"E max error: {jnp.max(jnp.abs(E_rec - E_orig))}"
+        assert jnp.allclose(H_rec, H_orig, atol=1e-5), f"H max error: {jnp.max(jnp.abs(H_rec - H_orig))}"
 
 
 class TestTimeReversalMixedPMLPeriodic:
@@ -257,20 +256,22 @@ class TestTimeReversalMixedPMLPeriodic:
 
     def test_fields_reconstructed_with_recording(self):
         boundary_types = {
-            "min_x": "periodic", "max_x": "periodic",
-            "min_y": "periodic", "max_y": "periodic",
-            "min_z": "pml", "max_z": "pml",
+            "min_x": "periodic",
+            "max_x": "periodic",
+            "min_y": "periodic",
+            "max_y": "periodic",
+            "min_z": "pml",
+            "max_z": "pml",
         }
         obj, arrays, config = _build_simulation(boundary_types)
         E_orig, H_orig, E_rec, H_rec = _forward_backward_roundtrip(
-            obj, arrays, config, has_pml=True,
+            obj,
+            arrays,
+            config,
+            has_pml=True,
         )
-        assert jnp.allclose(E_rec, E_orig, atol=1e-5), (
-            f"E max error: {jnp.max(jnp.abs(E_rec - E_orig))}"
-        )
-        assert jnp.allclose(H_rec, H_orig, atol=1e-5), (
-            f"H max error: {jnp.max(jnp.abs(H_rec - H_orig))}"
-        )
+        assert jnp.allclose(E_rec, E_orig, atol=1e-5), f"E max error: {jnp.max(jnp.abs(E_rec - E_orig))}"
+        assert jnp.allclose(H_rec, H_orig, atol=1e-5), f"H max error: {jnp.max(jnp.abs(H_rec - H_orig))}"
 
 
 class TestTimeReversalMixedPMLBloch:
@@ -278,28 +279,33 @@ class TestTimeReversalMixedPMLBloch:
 
     def test_fields_reconstructed_with_recording(self):
         boundary_types = {
-            "min_x": "bloch", "max_x": "bloch",
-            "min_y": "bloch", "max_y": "bloch",
-            "min_z": "pml", "max_z": "pml",
+            "min_x": "bloch",
+            "max_x": "bloch",
+            "min_y": "bloch",
+            "max_y": "bloch",
+            "min_z": "pml",
+            "max_z": "pml",
         }
         k_bloch = (1e6, 1e6, 0.0)
         obj, arrays, config = _build_simulation(boundary_types, bloch_vector=k_bloch)
         E_orig, H_orig, E_rec, H_rec = _forward_backward_roundtrip(
-            obj, arrays, config, has_pml=True,
+            obj,
+            arrays,
+            config,
+            has_pml=True,
         )
-        assert jnp.allclose(E_rec, E_orig, atol=1e-5), (
-            f"E max error: {jnp.max(jnp.abs(E_rec - E_orig))}"
-        )
-        assert jnp.allclose(H_rec, H_orig, atol=1e-5), (
-            f"H max error: {jnp.max(jnp.abs(H_rec - H_orig))}"
-        )
+        assert jnp.allclose(E_rec, E_orig, atol=1e-5), f"E max error: {jnp.max(jnp.abs(E_rec - E_orig))}"
+        assert jnp.allclose(H_rec, H_orig, atol=1e-5), f"H max error: {jnp.max(jnp.abs(H_rec - H_orig))}"
 
     def test_recorded_interfaces_are_complex(self):
         """Verify the recorder stores complex-valued interface data."""
         boundary_types = {
-            "min_x": "bloch", "max_x": "bloch",
-            "min_y": "bloch", "max_y": "bloch",
-            "min_z": "pml", "max_z": "pml",
+            "min_x": "bloch",
+            "max_x": "bloch",
+            "min_y": "bloch",
+            "max_y": "bloch",
+            "min_z": "pml",
+            "max_z": "pml",
         }
         k_bloch = (1e6, 1e6, 0.0)
         obj, arrays, config = _build_simulation(boundary_types, bloch_vector=k_bloch)
@@ -339,9 +345,12 @@ class TestGradientPMLBlochComplex:
     def _build():
         """Build a small PML+Bloch simulation with gradient support."""
         boundary_types = {
-            "min_x": "bloch", "max_x": "bloch",
-            "min_y": "bloch", "max_y": "bloch",
-            "min_z": "pml", "max_z": "pml",
+            "min_x": "bloch",
+            "max_x": "bloch",
+            "min_y": "bloch",
+            "max_y": "bloch",
+            "min_z": "pml",
+            "max_z": "pml",
         }
         k_bloch = (1e6, 1e6, 0.0)
         obj, arrays, config = _build_simulation(boundary_types, bloch_vector=k_bloch)
@@ -377,7 +386,11 @@ class TestGradientPMLBlochComplex:
         obj, arrays, config = self._build()
         key = jax.random.PRNGKey(99)
         loss, grads = jax.value_and_grad(self._loss_fn)(
-            arrays.inv_permittivities, arrays, obj, config, key,
+            arrays.inv_permittivities,
+            arrays,
+            obj,
+            config,
+            key,
         )
         assert jnp.isfinite(loss), f"Loss is not finite: {loss}"
         assert jnp.all(jnp.isfinite(grads)), "Gradients contain NaN or Inf"
