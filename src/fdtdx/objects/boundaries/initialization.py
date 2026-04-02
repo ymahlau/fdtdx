@@ -1,12 +1,16 @@
-from typing import Literal, Union
+from typing import Literal
 
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
+from fdtdx.objects.boundaries.bloch import BlochBoundary
+from fdtdx.objects.boundaries.pec import PerfectElectricConductor
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
-from fdtdx.objects.boundaries.periodic import PeriodicBoundary
+from fdtdx.objects.boundaries.pmc import PerfectMagneticConductor
 from fdtdx.objects.boundaries.utils import axis_direction_from_kind
 from fdtdx.objects.object import PositionConstraint
 from fdtdx.objects.static_material.static import SimulationVolume
 from fdtdx.typing import PartialGridShape3D
+
+AnyBoundary = BlochBoundary | PerfectElectricConductor | PerfectMagneticConductor | PerfectlyMatchedLayer
 
 
 @autoinit
@@ -18,22 +22,22 @@ class BoundaryConfig(TreeClass):
     properties and physical size of the PML regions.
     """
 
-    #: Boundary type at minimum x ("pml" or "periodic"). Default "pml".
+    #: Boundary type at minimum x ("pml", "periodic", "pec", "pmc", or "bloch"). Default "pml".
     boundary_type_minx: str = frozen_field(default="pml")
 
-    #: Boundary type at maximum x ("pml" or "periodic"). Default "pml".
+    #: Boundary type at maximum x ("pml", "periodic", "pec", "pmc", or "bloch"). Default "pml".
     boundary_type_maxx: str = frozen_field(default="pml")
 
-    #: Boundary type at minimum y ("pml" or "periodic"). Default "pml".
+    #: Boundary type at minimum y ("pml", "periodic", "pec", "pmc", or "bloch"). Default "pml".
     boundary_type_miny: str = frozen_field(default="pml")
 
-    #: Boundary type at maximum y ("pml" or "periodic"). Default "pml".
+    #: Boundary type at maximum y ("pml", "periodic", "pec", "pmc", or "bloch"). Default "pml".
     boundary_type_maxy: str = frozen_field(default="pml")
 
-    #: Boundary type at minimum z ("pml" or "periodic"). Default "pml".
+    #: Boundary type at minimum z ("pml", "periodic", "pec", "pmc", or "bloch"). Default "pml".
     boundary_type_minz: str = frozen_field(default="pml")
 
-    #: Number of grid cells for PML at maximum z boundary. Default 10.
+    #: Boundary type at maximum z ("pml", "periodic", "pec", "pmc", or "bloch"). Default "pml".
     boundary_type_maxz: str = frozen_field(default="pml")
 
     #: Number of grid cells for PML at minimum x boundary. Default 10.
@@ -215,6 +219,12 @@ class BoundaryConfig(TreeClass):
 
     #: Polynomial order for sigma grading at max z boundary. Default 3.0.
     sigma_order_maxz: float | None = frozen_field(default=None)
+
+    #: Bloch wave vector (k_x, k_y, k_z) in rad/m. Each component provides the
+    #: phase shift for the corresponding axis when that axis uses "bloch" boundaries.
+    #: The full 3D vector is stored on every BlochBoundary; each boundary extracts
+    #: the component along its own axis to compute exp(i * k_axis * L_axis).
+    bloch_vector: tuple[float, float, float] = frozen_field(default=(0.0, 0.0, 0.0))
 
     def get_dict(self) -> dict[str, int]:
         """Gets a dictionary mapping boundary names to their grid thicknesses.
@@ -445,6 +455,7 @@ class BoundaryConfig(TreeClass):
         sigma_end: float | None = None,
         sigma_order: float | None = None,
         override_types: dict[str, str] | None = None,
+        bloch_vector: tuple[float, float, float] = (0.0, 0.0, 0.0),
     ) -> "BoundaryConfig":
         """Creates a BoundaryConfig with uniform parameters for all boundaries.
 
@@ -463,6 +474,8 @@ class BoundaryConfig(TreeClass):
             override_types (dict[str, str], optional): Dictionary mapping specific boundaries
                 ("min_x", "max_x", "min_y", "max_y", "min_z", "max_z") to their boundary types ("pml", "periodic"),
                 overriding the global boundary_type. Defaults to None.
+            bloch_vector (tuple[float, float, float], optional): Bloch wave vector (k_x, k_y, k_z)
+                in rad/m. Each component sets the phase shift for the corresponding axis. Defaults to (0, 0, 0).
         Returns:
             BoundaryConfig: New config object with uniform parameters
         """
@@ -534,25 +547,30 @@ class BoundaryConfig(TreeClass):
             sigma_order_maxy=sigma_order,
             sigma_order_minz=sigma_order,
             sigma_order_maxz=sigma_order,
+            bloch_vector=bloch_vector,
         )
 
 
 def boundary_objects_from_config(
     config: BoundaryConfig,
     volume: SimulationVolume,
-) -> tuple[dict[str, Union[PerfectlyMatchedLayer, PeriodicBoundary]], list[PositionConstraint]]:
+) -> tuple[
+    dict[str, AnyBoundary],
+    list[PositionConstraint],
+]:
     """Creates boundary objects from a boundary configuration.
 
-    Creates PerfectlyMatchedLayer or PeriodicBoundary objects for all six boundaries
-    (min/max x/y/z) based on the provided configuration. Also generates position
-    constraints to properly place the boundary objects relative to the simulation volume.
+    Creates PerfectlyMatchedLayer, BlochBoundary, PerfectElectricConductor, or
+    PerfectMagneticConductor objects for all six boundaries (min/max x/y/z) based on
+    the provided configuration. Also generates position constraints to properly place
+    the boundary objects relative to the simulation volume.
 
     Args:
         config (BoundaryConfig): Configuration object containing boundary parameters
         volume (SimulationVolume): The main simulation volume object that the boundaries will surround
 
     Returns:
-        tuple[dict[str, Union[PerfectlyMatchedLayer, PeriodicBoundary]], list[PositionConstraint]]: tuple containing:
+        tuple[dict[str, AnyBoundary], list[PositionConstraint]]: tuple containing:
             - dict mapping boundary names ('min_x', 'max_x', etc) to boundary objects
             - list of PositionConstraint objects for placing the boundaries
     """
@@ -568,7 +586,6 @@ def boundary_objects_from_config(
     sigma_start_dict = config.get_sigma_dict("sigma_start")
     sigma_end_dict = config.get_sigma_dict("sigma_end")
     sigma_order_dict = config.get_order_dict("sigma_order")
-
     for kind, thickness in thickness_dict.items():
         axis, direction = axis_direction_from_kind(kind)
         boundary_type = type_dict[kind]
@@ -578,9 +595,8 @@ def boundary_objects_from_config(
         sigma_order = sigma_order_dict[kind]
         alpha_order = alpha_order_dict[kind]
         kappa_order = kappa_order_dict[kind]
-
         grid_shape_list: list[int | None] = [None, None, None]
-        grid_shape_list[axis] = thickness if boundary_type == "pml" else 1
+        grid_shape_list[axis] = thickness if boundary_type == "pml" else 1  # PEC, PMC, periodic, bloch use thickness 1
         grid_shape: PartialGridShape3D = tuple(grid_shape_list)  # type: ignore
 
         other_axes = [0, 1, 2]
@@ -602,14 +618,35 @@ def boundary_objects_from_config(
                 direction=direction,
             )
         elif boundary_type == "periodic":
-            cur_boundary = PeriodicBoundary(
+            cur_boundary = BlochBoundary(
+                axis=axis,
+                partial_grid_shape=grid_shape,
+                direction=direction,
+                bloch_vector=(0.0, 0.0, 0.0),
+            )
+        elif boundary_type == "pec":
+            cur_boundary = PerfectElectricConductor(
                 axis=axis,
                 partial_grid_shape=grid_shape,
                 direction=direction,
             )
+        elif boundary_type == "pmc":
+            cur_boundary = PerfectMagneticConductor(
+                axis=axis,
+                partial_grid_shape=grid_shape,
+                direction=direction,
+            )
+        elif boundary_type == "bloch":
+            cur_boundary = BlochBoundary(
+                axis=axis,
+                partial_grid_shape=grid_shape,
+                direction=direction,
+                bloch_vector=config.bloch_vector,
+            )
         else:
             raise ValueError(
-                f"Unknown boundary type '{boundary_type}' for '{kind}'. Supported types: 'pml', 'periodic'."
+                f"Unknown boundary type '{boundary_type}' for '{kind}'. "
+                f"Supported types: 'pml', 'periodic', 'pec', 'pmc', 'bloch'."
             )
 
         direction_int = -1 if direction == "-" else 1

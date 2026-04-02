@@ -5,12 +5,12 @@ Tests BoundaryConfig methods and boundary_objects_from_config factory function.
 
 import pytest
 
+from fdtdx.objects.boundaries.bloch import BlochBoundary
 from fdtdx.objects.boundaries.initialization import (
     BoundaryConfig,
     boundary_objects_from_config,
 )
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
-from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.static_material.static import SimulationVolume
 
 
@@ -330,7 +330,8 @@ class TestBoundaryObjectsFromConfig:
         cfg = BoundaryConfig.from_uniform_bound(boundary_type="periodic")
         boundaries, _ = boundary_objects_from_config(cfg, volume)
         for b in boundaries.values():
-            assert isinstance(b, PeriodicBoundary)
+            assert isinstance(b, BlochBoundary)
+            assert b.bloch_vector == (0.0, 0.0, 0.0)
 
     def test_six_constraints_created(self, volume):
         cfg = BoundaryConfig.from_uniform_bound()
@@ -343,8 +344,8 @@ class TestBoundaryObjectsFromConfig:
             override_types={"min_x": "periodic", "max_x": "periodic"},
         )
         boundaries, _ = boundary_objects_from_config(cfg, volume)
-        assert isinstance(boundaries["min_x"], PeriodicBoundary)
-        assert isinstance(boundaries["max_x"], PeriodicBoundary)
+        assert isinstance(boundaries["min_x"], BlochBoundary)
+        assert isinstance(boundaries["max_x"], BlochBoundary)
         assert isinstance(boundaries["min_y"], PerfectlyMatchedLayer)
 
     def test_unknown_type_raises(self, volume):

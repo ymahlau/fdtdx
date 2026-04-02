@@ -13,6 +13,7 @@ from fdtdx.materials import (
     compute_allowed_permeabilities,
     compute_allowed_permittivities,
 )
+from fdtdx.objects.boundaries.bloch import BlochBoundary
 from fdtdx.objects.device.parameters.transform import ParameterType
 from fdtdx.objects.object import (
     GridCoordinateConstraint,
@@ -171,19 +172,20 @@ def apply_params(
             )
         )  # shape: (num_materials, num_components)
         if isotropic or diagonally_anisotropic:
-            inv_allowed = (1.0 / allowed_perm_array)[:, :, None, None, None]
+            inv_allowed = 1.0 / allowed_perm_array  # (num_materials, num_components)
         else:
             # Fully anisotropic: reshape to 3x3 matrix, invert, and flatten back to 9 elements
             inv_allowed = jnp.array([jnp.linalg.inv(perm.reshape(3, 3)).flatten() for perm in allowed_perm_array])
-            inv_allowed = inv_allowed[:, :, None, None, None]
 
         if device.output_type == ParameterType.CONTINUOUS:
             # Linear interpolation between two materials
+            # Add spatial broadcast dims for element-wise multiplication
+            inv_allowed_bc = inv_allowed[:, :, None, None, None]
             # cur_material_indices: (*grid_shape) broadcasts with (num_components, 1, 1, 1)
-            new_perm_slice = (1 - cur_material_indices) * inv_allowed[0] + cur_material_indices * inv_allowed[1]
+            new_perm_slice = (1 - cur_material_indices) * inv_allowed_bc[0] + cur_material_indices * inv_allowed_bc[1]
         else:
             # Discrete material selection
-            # allowed_perm_array[indices] -> (*grid_shape, num_components), then moveaxis -> (num_components, *grid_shape)
+            # inv_allowed[indices] -> (*grid_shape, num_components), then moveaxis -> (num_components, *grid_shape)
             component_values = jnp.moveaxis(inv_allowed[cur_material_indices.astype(jnp.int32)], -1, 0)
             component_values = straight_through_estimator(cur_material_indices, component_values)
             new_perm_slice = component_values
@@ -233,17 +235,36 @@ def _init_arrays(
     # create E/H fields
     volume_shape = objects.volume.grid_shape
     ext_shape = (3, *volume_shape)
+
+    # Determine whether to use complex-valued fields
+    needs_complex = any(isinstance(o, BlochBoundary) and o.needs_complex_fields for o in objects.boundary_objects)
+    if config.use_complex_fields is None:
+        # Auto-detect: promote to complex if any Bloch boundary has non-zero k
+        use_complex = needs_complex
+    else:
+        use_complex = config.use_complex_fields
+        if needs_complex and not use_complex:
+            raise ValueError(
+                "use_complex_fields=False but Bloch boundaries with non-zero "
+                "wave vector are present. These require complex-valued fields."
+            )
+
+    if use_complex:
+        field_dtype = jnp.complex64 if config.dtype == jnp.float32 else jnp.complex128
+    else:
+        field_dtype = config.dtype
+
     E = create_named_sharded_matrix(
         ext_shape,
         sharding_axis=1,
         value=0.0,
-        dtype=config.dtype,
+        dtype=field_dtype,
         backend=config.backend,
     )
     H = create_named_sharded_matrix(
         ext_shape,
         value=0.0,
-        dtype=config.dtype,
+        dtype=field_dtype,
         sharding_axis=1,
         backend=config.backend,
     )
@@ -253,13 +274,13 @@ def _init_arrays(
         (6, *volume_shape),
         sharding_axis=1,
         value=0.0,
-        dtype=config.dtype,
+        dtype=field_dtype,
         backend=config.backend,
     )
     psi_H = create_named_sharded_matrix(
         (6, *volume_shape),
         value=0.0,
-        dtype=config.dtype,
+        dtype=field_dtype,
         sharding_axis=1,
         backend=config.backend,
     )
@@ -563,8 +584,8 @@ def _init_arrays(
         for boundary in objects.pml_objects:
             cur_shape = boundary.interface_grid_shape()
             extended_shape = (3, *cur_shape)
-            input_shape_dtypes[f"{boundary.name}_E"] = jax.ShapeDtypeStruct(shape=extended_shape, dtype=config.dtype)
-            input_shape_dtypes[f"{boundary.name}_H"] = jax.ShapeDtypeStruct(shape=extended_shape, dtype=config.dtype)
+            input_shape_dtypes[f"{boundary.name}_E"] = jax.ShapeDtypeStruct(shape=extended_shape, dtype=field_dtype)
+            input_shape_dtypes[f"{boundary.name}_H"] = jax.ShapeDtypeStruct(shape=extended_shape, dtype=field_dtype)
         recorder = config.gradient_config.recorder
         recorder, recording_state = recorder.init_state(
             input_shape_dtypes=input_shape_dtypes,

@@ -4,19 +4,18 @@ import jax.numpy as jnp
 from fdtdx.config import SimulationConfig
 from fdtdx.constants import c as c0
 from fdtdx.constants import eps0
-from fdtdx.core.misc import pad_fields
 
 
 def interpolate_fields(
-    E_field: jax.Array,
-    H_field: jax.Array,
-    periodic_axes: tuple[bool, bool, bool] = (False, False, False),
+    E_pad: jax.Array,
+    H_pad: jax.Array,
 ) -> tuple[jax.Array, jax.Array]:
     """Interpolates E and H fields onto the E_z Yee grid point (i, j, k+½).
 
     All six field components are co-located at (i·Δx, j·Δy, (k+½)·Δz) using
-    half-step averages. After pad_fields, slices [1:-1]/[:-2] produce a backward
-    half-step (e.g. i+½ → i) and [1:-1]/[2:] a forward half-step (k → k+½).
+    half-step averages. Expects pre-padded fields. Slices [1:-1]/[:-2] produce
+    a backward half-step (e.g. i+½ → i) and [1:-1]/[2:] a forward half-step
+    (k → k+½).
 
     Natural positions (Taflove convention, axis 0=x, 1=y, 2=z):
         E_x: (i+½, j,   k  )  →  shift x: −½, z: +½
@@ -25,12 +24,16 @@ def interpolate_fields(
         H_x: (i,   j+½, k+½)  →  shift y: −½
         H_y: (i+½, j,   k+½)  →  shift x: −½
         H_z: (i+½, j+½, k  )  →  shift x: −½, y: −½, z: +½
-    """
-    E_field = pad_fields(E_field, periodic_axes)
-    H_field = pad_fields(H_field, periodic_axes)
 
-    E_x, E_y, E_z = E_field[0], E_field[1], E_field[2]
-    H_x, H_y, H_z = H_field[0], H_field[1], H_field[2]
+    Args:
+        E_pad: Pre-padded electric field array of shape (3, Nx+2, Ny+2, Nz+2)
+        H_pad: Pre-padded magnetic field array of shape (3, Nx+2, Ny+2, Nz+2)
+
+    Returns:
+        Tuple of (E_interp, H_interp), each of shape (3, Nx, Ny, Nz)
+    """
+    E_x, E_y, E_z = E_pad[0], E_pad[1], E_pad[2]
+    H_x, H_y, H_z = H_pad[0], H_pad[1], H_pad[2]
 
     # E_x: (i+½, j, k) → (i, j, k+½): x backward, z forward
     E_x = (E_x[1:-1, 1:-1, 1:-1] + E_x[:-2, 1:-1, 1:-1] + E_x[1:-1, 1:-1, 2:] + E_x[:-2, 1:-1, 2:]) / 4.0
@@ -67,13 +70,12 @@ def interpolate_fields(
 
 def curl_E(
     config: SimulationConfig,
-    E: jax.Array,
+    E_pad: jax.Array,
     psi_H: jax.Array,
     alpha: jax.Array,
     kappa: jax.Array,
     sigma: jax.Array,
     simulate_boundaries: bool,
-    periodic_axes: tuple[bool, bool, bool] = (False, False, False),
 ) -> tuple[jax.Array, jax.Array]:
     """Transforms an E-type field into an H-type field by performing a curl operation.
 
@@ -84,9 +86,7 @@ def curl_E(
 
     Args:
         config (SimulationConfig): Simulation configuration parameters.
-        E (jax.Array): Electric field to take the curl of. A 4D tensor representing the E-type field
-            located on the edges of the grid cell (integer gridpoints).
-            Shape is (3, nx, ny, nz) for the 3 field components.
+        E_pad (jax.Array): Pre-padded electric field of shape (3, nx+2, ny+2, nz+2).
         psi_H (jax.Array): Auxiliary field for the magnetic field.
             Shape is (6, nx, ny, nz) for the 6 auxiliary fields.
         alpha (jax.Array): Alpha parameter for the PML.
@@ -96,14 +96,11 @@ def curl_E(
         sigma (jax.Array): Sigma parameter for the PML.
             Shape is (6, nx, ny, nz).
         simulate_boundaries (bool): Whether to simulate boundaries.
-        periodic_axes (tuple[bool, bool, bool], optional): Tuple of booleans indicating which axes use periodic
-            boundaries (periodic_x, periodic_y, periodic_z). Defaults to (False, False, False).
 
     Returns:
         jax.Array: The curl of E - an H-type field located on the faces of the grid
                   (half-integer grid points). Has same shape as input (3, nx, ny, nz).
     """
-    E_pad = pad_fields(E, periodic_axes)
 
     dyEz = (jnp.roll(E_pad[2], -1, axis=1) - E_pad[2])[1:-1, 1:-1, 1:-1]
     dzEy = (jnp.roll(E_pad[1], -1, axis=2) - E_pad[1])[1:-1, 1:-1, 1:-1]
@@ -140,13 +137,12 @@ def curl_E(
 
 def curl_H(
     config: SimulationConfig,
-    H: jax.Array,
+    H_pad: jax.Array,
     psi_E: jax.Array,
     alpha: jax.Array,
     kappa: jax.Array,
     sigma: jax.Array,
     simulate_boundaries: bool,
-    periodic_axes: tuple[bool, bool, bool] = (False, False, False),
 ) -> tuple[jax.Array, jax.Array]:
     """Transforms an H-type field into an E-type field by performing a curl operation.
 
@@ -157,9 +153,7 @@ def curl_H(
 
     Args:
         config (SimulationConfig): Simulation configuration parameters.
-        H (jax.Array): Magnetic field to take the curl of. A 4D tensor representing the H-type field
-            located on the faces of the grid (half-integer grid points).
-            Shape is (3, nx, ny, nz) for the 3 field components.
+        H_pad (jax.Array): Pre-padded magnetic field of shape (3, nx+2, ny+2, nz+2).
         psi_E (jax.Array): Auxiliary field for the electric field.
             Shape is (6, nx, ny, nz) for the 6 auxiliary fields.
         alpha (jax.Array): Alpha parameter for the PML.
@@ -169,14 +163,11 @@ def curl_H(
         sigma (jax.Array): Sigma parameter for the PML.
             Shape is (6, nx, ny, nz).
         simulate_boundaries (bool): Whether to simulate boundaries.
-        periodic_axes (tuple[bool, bool, bool], optional): Tuple of booleans indicating which axes use periodic
-            boundaries (periodic_x, periodic_y, periodic_z). Defaults to (False, False, False).
 
     Returns:
         jax.Array: The curl of H - an E-type field located on the edges of the grid
                   (integer grid points). Has same shape as input (3, nx, ny, nz).
     """
-    H_pad = pad_fields(H, periodic_axes)
 
     dyHz = (H_pad[2] - jnp.roll(H_pad[2], 1, axis=1))[1:-1, 1:-1, 1:-1]
     dzHy = (H_pad[1] - jnp.roll(H_pad[1], 1, axis=2))[1:-1, 1:-1, 1:-1]

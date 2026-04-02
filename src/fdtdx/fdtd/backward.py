@@ -7,7 +7,6 @@ import jax
 from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.container import ObjectContainer, SimulationState
 from fdtdx.fdtd.update import add_interfaces, update_detector_states, update_E_reverse, update_H_reverse
-from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 
 
 def cond_fn(state, start_time_step: int) -> bool:
@@ -112,39 +111,8 @@ def backward(
 
     if reset_fields:
         new_fields = {f: getattr(arrays, f) for f in fields_to_reset}
-        # Reset PML boundaries
-        for pml in objects.pml_objects:
-            for name in fields_to_reset:
-                new_fields[name] = new_fields[name].at[:, *pml.grid_slice].set(0)
-        # Handle periodic boundaries by copying values from opposite sides
         for boundary in objects.boundary_objects:
-            if isinstance(boundary, PeriodicBoundary):
-                for name in fields_to_reset:
-                    field = new_fields[name]
-                    # Get field values from opposite boundary
-                    opposite_slice = list(boundary.grid_slice)
-                    if boundary.direction == "+":
-                        opposite_slice[boundary.axis] = slice(
-                            boundary._grid_slice_tuple[boundary.axis][1] - 1,
-                            boundary._grid_slice_tuple[boundary.axis][1],
-                        )
-                        boundary_slice = slice(
-                            boundary._grid_slice_tuple[boundary.axis][0],
-                            boundary._grid_slice_tuple[boundary.axis][0] + 1,
-                        )
-                    else:
-                        opposite_slice[boundary.axis] = slice(
-                            boundary._grid_slice_tuple[boundary.axis][0],
-                            boundary._grid_slice_tuple[boundary.axis][0] + 1,
-                        )
-                        boundary_slice = slice(
-                            boundary._grid_slice_tuple[boundary.axis][1] - 1,
-                            boundary._grid_slice_tuple[boundary.axis][1],
-                        )
-                    opposite_slice[boundary.axis] = boundary_slice
-                    field_values = field[..., opposite_slice[0], opposite_slice[1], opposite_slice[2]]
-                    new_fields[name] = field.at[..., *boundary.grid_slice].set(field_values)
-
+            new_fields = boundary.apply_field_reset(new_fields)
         for name, f in new_fields.items():
             arrays = arrays.aset(name, f)
 
@@ -153,6 +121,7 @@ def backward(
             time_step=time_step,
             arrays=arrays,
             objects=objects,
+            config=config,
             H_prev=H,
             inverse=True,
         )

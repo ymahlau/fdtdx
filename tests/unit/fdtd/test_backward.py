@@ -7,7 +7,6 @@ import pytest
 from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.backward import backward, cond_fn, full_backward
 from fdtdx.fdtd.container import ObjectContainer
-from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 
 
 class TestCondFn:
@@ -138,10 +137,14 @@ class TestBackward:
         assert call_kwargs["inverse"] is True
         assert jnp.array_equal(call_kwargs["H_prev"], mock_arrays.H)
 
-    def test_pml_regions_zeroed(self, mock_arrays, mock_objects, key, patched_updates):
-        pml = Mock()
-        pml.grid_slice = (slice(0, 3), slice(0, 3), slice(0, 3))
-        mock_objects.pml_objects = [pml]
+    def test_reset_fields_calls_apply_field_reset_on_all_boundaries(
+        self, mock_arrays, mock_objects, key, patched_updates
+    ):
+        b1 = Mock()
+        b2 = Mock()
+        b1.apply_field_reset.side_effect = lambda f: f
+        b2.apply_field_reset.side_effect = lambda f: f
+        mock_objects.boundary_objects = [b1, b2]
 
         backward(
             state=(5, mock_arrays),
@@ -152,119 +155,26 @@ class TestBackward:
             reset_fields=True,
         )
 
-        # E was ones, PML region should now be zeros
-        e_field = mock_arrays._aset_log["E"]
-        assert jnp.allclose(e_field[:, 0:3, 0:3, 0:3], 0.0)
-        # Non-PML region should remain unchanged
-        assert jnp.allclose(e_field[:, 3:, :, :], 1.0)
+        b1.apply_field_reset.assert_called_once()
+        b2.apply_field_reset.assert_called_once()
 
-        # H was 2.0, PML region should now be zeros
-        h_field = mock_arrays._aset_log["H"]
-        assert jnp.allclose(h_field[:, 0:3, 0:3, 0:3], 0.0)
-        assert jnp.allclose(h_field[:, 3:, :, :], 2.0)
+    def test_reset_fields_passes_only_requested_field_names(self, mock_arrays, mock_objects, key, patched_updates):
+        b = Mock()
+        b.apply_field_reset.side_effect = lambda f: f
+        mock_objects.boundary_objects = [b]
 
-    def test_periodic_boundary_positive_direction(self, mock_objects, key):
-        # Use a non-uniform E field so we can verify the copy direction.
-        arrays = Mock()
-        # x=0 slice is 1.0, x=1 slice is 5.0; rest is 3.0
-        e = jnp.ones((3, 10, 10, 10))
-        e = e.at[:, 0, :, :].set(1.0)
-        e = e.at[:, 1, :, :].set(5.0)
-        arrays.E = e
-        arrays.H = jnp.full((3, 10, 10, 10), 2.0)
-        aset_log = {}
+        backward(
+            state=(5, mock_arrays),
+            config=Mock(spec=SimulationConfig),
+            objects=mock_objects,
+            key=key,
+            record_detectors=False,
+            reset_fields=True,
+            fields_to_reset=("E",),
+        )
 
-        def aset(field_name, value):
-            aset_log[field_name] = value
-            new = Mock()
-            new.E = value if field_name == "E" else arrays.E
-            new.H = value if field_name == "H" else arrays.H
-            new.aset = aset
-            return new
-
-        arrays.aset = aset
-        arrays._aset_log = aset_log
-
-        boundary = Mock(spec=PeriodicBoundary)
-        boundary.axis = 0
-        boundary.direction = "+"
-        # destination: x=0:2; source end is x=1 (idx 1)
-        boundary.grid_slice = (slice(0, 2), slice(0, 10), slice(0, 10))
-        boundary._grid_slice_tuple = ((0, 2), (0, 10), (0, 10))
-        mock_objects.boundary_objects = [boundary]
-
-        with (
-            patch("fdtdx.fdtd.backward.add_interfaces", return_value=arrays),
-            patch("fdtdx.fdtd.backward.update_H_reverse", return_value=arrays),
-            patch("fdtdx.fdtd.backward.update_E_reverse", return_value=arrays),
-            patch("fdtdx.fdtd.backward.update_detector_states", return_value=arrays),
-        ):
-            backward(
-                state=(5, arrays),
-                config=Mock(spec=SimulationConfig),
-                objects=mock_objects,
-                key=key,
-                record_detectors=False,
-                reset_fields=True,
-            )
-
-        assert "E" in aset_log
-        assert "H" in aset_log
-        # The boundary region (x=0:2) should be overwritten with values from
-        # the opposite edge (x=0:1 per the copy logic); both should equal 1.0.
-        e_result = aset_log["E"]
-        assert jnp.allclose(e_result[:, 0:2, :, :], e_result[:, 0:1, :, :])
-
-    def test_periodic_boundary_negative_direction(self, mock_objects, key):
-        # Use a non-uniform E field so we can verify the copy direction.
-        arrays = Mock()
-        e = jnp.ones((3, 10, 10, 10))
-        e = e.at[:, :, 8, :].set(7.0)
-        e = e.at[:, :, 9, :].set(3.0)
-        arrays.E = e
-        arrays.H = jnp.full((3, 10, 10, 10), 2.0)
-        aset_log = {}
-
-        def aset(field_name, value):
-            aset_log[field_name] = value
-            new = Mock()
-            new.E = value if field_name == "E" else arrays.E
-            new.H = value if field_name == "H" else arrays.H
-            new.aset = aset
-            return new
-
-        arrays.aset = aset
-        arrays._aset_log = aset_log
-
-        boundary = Mock(spec=PeriodicBoundary)
-        boundary.axis = 1
-        boundary.direction = "-"
-        # destination: y=8:10; source is y=9:10 per copy logic
-        boundary.grid_slice = (slice(0, 10), slice(8, 10), slice(0, 10))
-        boundary._grid_slice_tuple = ((0, 10), (8, 10), (0, 10))
-        mock_objects.boundary_objects = [boundary]
-
-        with (
-            patch("fdtdx.fdtd.backward.add_interfaces", return_value=arrays),
-            patch("fdtdx.fdtd.backward.update_H_reverse", return_value=arrays),
-            patch("fdtdx.fdtd.backward.update_E_reverse", return_value=arrays),
-            patch("fdtdx.fdtd.backward.update_detector_states", return_value=arrays),
-        ):
-            backward(
-                state=(5, arrays),
-                config=Mock(spec=SimulationConfig),
-                objects=mock_objects,
-                key=key,
-                record_detectors=False,
-                reset_fields=True,
-            )
-
-        assert "E" in aset_log
-        assert "H" in aset_log
-        # The destination region (y=8:10) should be overwritten with values
-        # from y=9:10, so both rows should equal the original y=9 values (3.0).
-        e_result = aset_log["E"]
-        assert jnp.allclose(e_result[:, :, 8:10, :], e_result[:, :, 9:10, :])
+        called_fields = b.apply_field_reset.call_args[0][0]
+        assert set(called_fields.keys()) == {"E"}
 
     def test_custom_fields_to_reset(self, mock_arrays, mock_objects, key, patched_updates):
         backward(

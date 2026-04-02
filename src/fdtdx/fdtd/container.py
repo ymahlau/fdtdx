@@ -2,7 +2,7 @@
 
 This module provides container classes for organizing and managing simulation objects
 and array data within FDTD simulations. It includes support for different object types
-like sources, detectors, PML boundaries, periodic boundaries, and devices.
+like sources, detectors, PML boundaries, Bloch/periodic boundaries, and devices.
 """
 
 from typing import Callable, Self
@@ -12,9 +12,11 @@ import jax
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.materials import Material
+from fdtdx.objects.boundaries.bloch import BlochBoundary
 from fdtdx.objects.boundaries.boundary import BaseBoundary
+from fdtdx.objects.boundaries.pec import PerfectElectricConductor
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
-from fdtdx.objects.boundaries.periodic import PeriodicBoundary
+from fdtdx.objects.boundaries.pmc import PerfectMagneticConductor
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 from fdtdx.objects.device.device import Device
 from fdtdx.objects.object import SimulationObject
@@ -77,12 +79,24 @@ class ObjectContainer(TreeClass):
         return [o for o in self.objects if isinstance(o, PerfectlyMatchedLayer)]
 
     @property
-    def periodic_objects(self) -> list[PeriodicBoundary]:
-        return [o for o in self.objects if isinstance(o, PeriodicBoundary)]
+    def periodic_objects(self) -> list[BlochBoundary]:
+        return [o for o in self.objects if isinstance(o, BlochBoundary) and not o.needs_complex_fields]
+
+    @property
+    def pec_objects(self) -> list[PerfectElectricConductor]:
+        return [o for o in self.objects if isinstance(o, PerfectElectricConductor)]
+
+    @property
+    def pmc_objects(self) -> list[PerfectMagneticConductor]:
+        return [o for o in self.objects if isinstance(o, PerfectMagneticConductor)]
+
+    @property
+    def bloch_objects(self) -> list[BlochBoundary]:
+        return [o for o in self.objects if isinstance(o, BlochBoundary)]
 
     @property
     def boundary_objects(self) -> list[BaseBoundary]:
-        return [o for o in self.objects if isinstance(o, (PerfectlyMatchedLayer, PeriodicBoundary))]
+        return [o for o in self.objects if isinstance(o, BaseBoundary)]
 
     @property
     def all_objects_non_magnetic(self) -> bool:

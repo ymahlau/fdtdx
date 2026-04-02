@@ -291,3 +291,37 @@ class TestPMLModifyArrays:
         result = placed.modify_arrays(alpha, kappa, sigma, ec, mc)
         assert jnp.allclose(result["electric_conductivity"], ec)
         assert jnp.allclose(result["magnetic_conductivity"], mc)
+
+
+class TestPmlApplyFieldReset:
+    """Tests for PerfectlyMatchedLayer.apply_field_reset."""
+
+    def test_zeros_pml_region_in_all_fields(self, micro_config, jax_key):
+        pml = make_pml(axis=0, direction="-", thickness=3)
+        placed = place_pml(pml, micro_config, jax_key, volume_shape=(10, 10, 10))
+        E = jnp.ones((3, 10, 10, 10))
+        H = jnp.full((3, 10, 10, 10), 2.0)
+        result = placed.apply_field_reset({"E": E, "H": H})
+        assert jnp.allclose(result["E"][:, 0:3, :, :], 0.0)
+        assert jnp.allclose(result["H"][:, 0:3, :, :], 0.0)
+
+    def test_non_pml_region_unchanged(self, micro_config, jax_key):
+        pml = make_pml(axis=0, direction="-", thickness=3)
+        placed = place_pml(pml, micro_config, jax_key, volume_shape=(10, 10, 10))
+        E = jnp.ones((3, 10, 10, 10))
+        result = placed.apply_field_reset({"E": E})
+        assert jnp.allclose(result["E"][:, 3:, :, :], 1.0)
+
+    def test_max_direction_zeros_correct_region(self, micro_config, jax_key):
+        pml = make_pml(axis=2, direction="+", thickness=4)
+        placed = place_pml(pml, micro_config, jax_key, volume_shape=(10, 10, 10))
+        E = jnp.ones((3, 10, 10, 10))
+        result = placed.apply_field_reset({"E": E})
+        assert jnp.allclose(result["E"][:, :, :, 6:], 0.0)
+        assert jnp.allclose(result["E"][:, :, :, :6], 1.0)
+
+    def test_returns_only_provided_field_keys(self, micro_config, jax_key):
+        pml = make_pml(axis=0, direction="-", thickness=3)
+        placed = place_pml(pml, micro_config, jax_key, volume_shape=(10, 10, 10))
+        result = placed.apply_field_reset({"E": jnp.ones((3, 10, 10, 10))})
+        assert set(result.keys()) == {"E"}

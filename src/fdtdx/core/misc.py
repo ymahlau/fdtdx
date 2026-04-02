@@ -550,7 +550,7 @@ def pad_fields(
         periodic_axes (tuple[bool, bool, bool]): Tuple of booleans indicating which axes use periodic boundaries
 
     Returns:
-        jax.Array: Padded fields (3, Nx, Ny, Nz) for each field component
+        jax.Array: Padded fields (3, Nx+2, Ny+2, Nz+2) with boundary conditions applied
     """
     padded_fields = fields
 

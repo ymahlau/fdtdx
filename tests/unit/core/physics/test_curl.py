@@ -1,6 +1,7 @@
 import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.misc import pad_fields
 from fdtdx.core.physics.curl import curl_E, curl_H, interpolate_fields
 
 
@@ -22,7 +23,9 @@ def test_interpolate_fields_basic():
     E_field = jnp.ones((3, 5, 5, 5))
     H_field = jnp.ones((3, 5, 5, 5)) * 0.5
 
-    E_interp, H_interp = interpolate_fields(E_field, H_field)
+    E_pad = pad_fields(E_field, (False, False, False))
+    H_pad = pad_fields(H_field, (False, False, False))
+    E_interp, H_interp = interpolate_fields(E_pad, H_pad)
 
     assert E_interp.shape == (3, 5, 5, 5)
     assert H_interp.shape == (3, 5, 5, 5)
@@ -42,7 +45,9 @@ def test_interpolate_fields_periodic_boundaries():
     E_field = jnp.stack([jnp.sin(X), jnp.cos(Y), jnp.sin(Z)], axis=0)
     H_field = jnp.stack([jnp.cos(X), jnp.sin(Y), jnp.cos(Z)], axis=0)
 
-    E_interp, H_interp = interpolate_fields(E_field, H_field, periodic_axes=(True, True, True))
+    E_pad = pad_fields(E_field, (True, True, True))
+    H_pad = pad_fields(H_field, (True, True, True))
+    E_interp, H_interp = interpolate_fields(E_pad, H_pad)
 
     assert E_interp.shape == (3, 6, 6, 6)
     assert H_interp.shape == (3, 6, 6, 6)
@@ -55,7 +60,9 @@ def test_interpolate_fields_mixed_boundaries():
     E_field = jnp.ones((3, 6, 6, 6))
     H_field = jnp.ones((3, 6, 6, 6)) * 2.0
 
-    E_interp, H_interp = interpolate_fields(E_field, H_field, periodic_axes=(True, False, False))
+    E_pad = pad_fields(E_field, (True, False, False))
+    H_pad = pad_fields(H_field, (True, False, False))
+    E_interp, H_interp = interpolate_fields(E_pad, H_pad)
 
     assert E_interp.shape == (3, 6, 6, 6)
     assert H_interp.shape == (3, 6, 6, 6)
@@ -68,7 +75,9 @@ def test_interpolate_fields_zero_fields():
     E_field = jnp.zeros((3, 4, 4, 4))
     H_field = jnp.zeros((3, 4, 4, 4))
 
-    E_interp, H_interp = interpolate_fields(E_field, H_field)
+    E_pad = pad_fields(E_field, (False, False, False))
+    H_pad = pad_fields(H_field, (False, False, False))
+    E_interp, H_interp = interpolate_fields(E_pad, H_pad)
 
     assert E_interp.shape == (3, 4, 4, 4)
     assert H_interp.shape == (3, 4, 4, 4)
@@ -90,17 +99,17 @@ def test_curl_E_linear_field():
     X, Y, Z = jnp.meshgrid(x, y, z, indexing="ij")
 
     E = jnp.stack([Y.astype(float), -X.astype(float), jnp.zeros_like(X, dtype=float)], axis=0)
+    E_pad = pad_fields(E, (True, True, True))
     psi_H = jnp.zeros((6, 6, 6, 6))
 
     curl_result, _ = curl_E(
         _make_config(),
-        E,
+        E_pad,
         psi_H,
         alpha=jnp.zeros((6, 6, 6, 6)),
         kappa=jnp.ones((6, 6, 6, 6)),
         sigma=jnp.zeros((6, 6, 6, 6)),
         simulate_boundaries=True,
-        periodic_axes=(True, True, True),
     )
 
     assert curl_result.shape == (3, 6, 6, 6)
@@ -110,11 +119,12 @@ def test_curl_E_linear_field():
 def test_curl_E_zero_field():
     """Test curl_E with zero field and non-periodic boundaries."""
     E = jnp.zeros((3, 4, 4, 4))
+    E_pad = pad_fields(E, (False, False, False))
     psi_H = jnp.zeros((6, 4, 4, 4))
 
     curl_result, _ = curl_E(
         _make_config(),
-        E,
+        E_pad,
         psi_H,
         alpha=jnp.zeros((6, 4, 4, 4)),
         kappa=jnp.ones((6, 4, 4, 4)),
@@ -130,19 +140,19 @@ def test_curl_E_no_boundaries():
     """Test curl_E with simulate_boundaries=False preserves psi unchanged."""
     n = 5
     E = jnp.ones((3, n, n, n)) * 0.5
+    E_pad = pad_fields(E, (True, True, True))
     psi_H_init = jnp.ones((6, n, n, n)) * 0.3
     kappa = jnp.ones((6, n, n, n))
     sigma = jnp.ones((6, n, n, n)) * 0.1
 
     curl_result, psi_updated = curl_E(
         _make_config(),
-        E,
+        E_pad,
         psi_H_init,
         alpha=jnp.ones((6, n, n, n)) * 0.05,
         kappa=kappa,
         sigma=sigma,
         simulate_boundaries=False,
-        periodic_axes=(True, True, True),
     )
 
     assert curl_result.shape == (3, n, n, n)
@@ -160,19 +170,19 @@ def test_curl_E_pml_updates():
     E = jnp.zeros((3, n, n, n))
     E = E.at[0].set(ramp.reshape(1, -1, 1))  # E_x varies in y
     E = E.at[2].set(ramp.reshape(1, -1, 1))  # E_z varies in y
+    E_pad = pad_fields(E, (True, True, True))
     psi_H_init = jnp.zeros((6, n, n, n))
     sigma = jnp.ones((6, n, n, n)) * 0.5
     alpha = jnp.ones((6, n, n, n)) * 0.1
 
     curl_result, psi_updated = curl_E(
         _make_config(),
-        E,
+        E_pad,
         psi_H_init,
         alpha=alpha,
         kappa=jnp.ones((6, n, n, n)),
         sigma=sigma,
         simulate_boundaries=True,
-        periodic_axes=(True, True, True),
     )
 
     assert curl_result.shape == (3, n, n, n)
@@ -189,17 +199,17 @@ def test_curl_E_mixed_periodic():
     x = jnp.arange(n, dtype=float)
     X, Y, Z = jnp.meshgrid(x, x, x, indexing="ij")
     E = jnp.stack([Y, -X, jnp.zeros_like(X)], axis=0)
+    E_pad = pad_fields(E, (True, False, True))
     psi_H = jnp.zeros((6, n, n, n))
 
     curl_result, _ = curl_E(
         _make_config(),
-        E,
+        E_pad,
         psi_H,
         alpha=jnp.zeros((6, n, n, n)),
         kappa=jnp.ones((6, n, n, n)),
         sigma=jnp.zeros((6, n, n, n)),
         simulate_boundaries=True,
-        periodic_axes=(True, False, True),
     )
 
     assert curl_result.shape == (3, n, n, n)
@@ -222,17 +232,17 @@ def test_curl_H_linear_field():
     X, Y, Z = jnp.meshgrid(x, y, z, indexing="ij")
 
     H = jnp.stack([Z.astype(float), jnp.zeros_like(Y, dtype=float), -X.astype(float)], axis=0)
+    H_pad = pad_fields(H, (True, True, True))
     psi_E = jnp.zeros((6, 6, 6, 6))
 
     curl_result, _ = curl_H(
         _make_config(),
-        H,
+        H_pad,
         psi_E,
         alpha=jnp.zeros((6, 6, 6, 6)),
         kappa=jnp.ones((6, 6, 6, 6)),
         sigma=jnp.zeros((6, 6, 6, 6)),
         simulate_boundaries=True,
-        periodic_axes=(True, True, True),
     )
 
     assert curl_result.shape == (3, 6, 6, 6)
@@ -242,11 +252,12 @@ def test_curl_H_linear_field():
 def test_curl_H_zero_field():
     """Test curl_H with zero field and non-periodic boundaries."""
     H = jnp.zeros((3, 4, 4, 4))
+    H_pad = pad_fields(H, (False, False, False))
     psi_E = jnp.zeros((6, 4, 4, 4))
 
     curl_result, _ = curl_H(
         _make_config(),
-        H,
+        H_pad,
         psi_E,
         alpha=jnp.zeros((6, 4, 4, 4)),
         kappa=jnp.ones((6, 4, 4, 4)),
@@ -262,18 +273,18 @@ def test_curl_H_no_boundaries():
     """Test curl_H with simulate_boundaries=False preserves psi unchanged."""
     n = 5
     H = jnp.ones((3, n, n, n)) * 0.5
+    H_pad = pad_fields(H, (True, True, True))
     psi_E_init = jnp.ones((6, n, n, n)) * 0.3
     sigma = jnp.ones((6, n, n, n)) * 0.1
 
     curl_result, psi_updated = curl_H(
         _make_config(),
-        H,
+        H_pad,
         psi_E_init,
         alpha=jnp.ones((6, n, n, n)) * 0.05,
         kappa=jnp.ones((6, n, n, n)),
         sigma=sigma,
         simulate_boundaries=False,
-        periodic_axes=(True, True, True),
     )
 
     assert curl_result.shape == (3, n, n, n)
@@ -287,19 +298,19 @@ def test_curl_H_pml_updates():
     n = 5
     H = jnp.ones((3, n, n, n))
     H = H.at[2].set(jnp.linspace(0, 1, n).reshape(1, -1, 1))  # gradient in y
+    H_pad = pad_fields(H, (True, True, True))
     psi_E_init = jnp.zeros((6, n, n, n))
     sigma = jnp.ones((6, n, n, n)) * 0.5
     alpha = jnp.ones((6, n, n, n)) * 0.1
 
     curl_result, psi_updated = curl_H(
         _make_config(),
-        H,
+        H_pad,
         psi_E_init,
         alpha=alpha,
         kappa=jnp.ones((6, n, n, n)),
         sigma=sigma,
         simulate_boundaries=True,
-        periodic_axes=(True, True, True),
     )
 
     assert curl_result.shape == (3, n, n, n)
@@ -316,17 +327,17 @@ def test_curl_H_mixed_periodic():
     x = jnp.arange(n, dtype=float)
     X, Y, Z = jnp.meshgrid(x, x, x, indexing="ij")
     H = jnp.stack([Z, jnp.zeros_like(Y), -X], axis=0)
+    H_pad = pad_fields(H, (False, True, False))
     psi_E = jnp.zeros((6, n, n, n))
 
     curl_result, _ = curl_H(
         _make_config(),
-        H,
+        H_pad,
         psi_E,
         alpha=jnp.zeros((6, n, n, n)),
         kappa=jnp.ones((6, n, n, n)),
         sigma=jnp.zeros((6, n, n, n)),
         simulate_boundaries=True,
-        periodic_axes=(False, True, False),
     )
 
     assert curl_result.shape == (3, n, n, n)

@@ -11,14 +11,13 @@ from fdtdx.fdtd.container import ArrayContainer
 from fdtdx.fdtd.update import (
     add_interfaces,
     collect_interfaces,
-    get_periodic_axes,
+    get_wrap_padding_axes,
     update_detector_states,
     update_E,
     update_E_reverse,
     update_H,
     update_H_reverse,
 )
-from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 
 # ─── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -58,16 +57,20 @@ def _make_arrays(
 
 
 def _make_objects(sources=None):
-    """Build a mock ObjectContainer with no periodic boundaries."""
+    """Build a mock ObjectContainer with no boundaries."""
     obj = Mock()
     obj.boundary_objects = []
     obj.sources = sources or []
+    volume = Mock()
+    volume.grid_shape = (NX, NY, NZ)
+    obj.volume = volume
     return obj
 
 
 def _make_config(c=0.5):
     cfg = Mock()
     cfg.courant_number = c
+    cfg.resolution = 1.0
     return cfg
 
 
@@ -82,60 +85,69 @@ def _diag_anisotropic_tensor(shape):
     return t
 
 
-# ─── TestGetPeriodicAxes ──────────────────────────────────────────────────────
+# ─── TestGetWrapPaddingAxes ───────────────────────────────────────────────────
 
 
-class TestGetPeriodicAxes:
-    def test_no_periodic_boundaries(self):
+class TestGetWrapPaddingAxes:
+    def test_no_boundaries(self):
         obj = Mock()
         obj.boundary_objects = []
-        assert get_periodic_axes(obj) == (False, False, False)
+        assert get_wrap_padding_axes(obj) == (False, False, False)
 
-    def test_x_axis_periodic(self):
-        b = Mock(spec=PeriodicBoundary)
+    def test_x_axis_wrap(self):
+        b = Mock()
         b.axis = 0
+        b.uses_wrap_padding = True
         obj = Mock()
         obj.boundary_objects = [b]
-        assert get_periodic_axes(obj) == (True, False, False)
+        assert get_wrap_padding_axes(obj) == (True, False, False)
 
-    def test_y_axis_periodic(self):
-        b = Mock(spec=PeriodicBoundary)
+    def test_y_axis_wrap(self):
+        b = Mock()
         b.axis = 1
+        b.uses_wrap_padding = True
         obj = Mock()
         obj.boundary_objects = [b]
-        assert get_periodic_axes(obj) == (False, True, False)
+        assert get_wrap_padding_axes(obj) == (False, True, False)
 
-    def test_z_axis_periodic(self):
-        b = Mock(spec=PeriodicBoundary)
+    def test_z_axis_wrap(self):
+        b = Mock()
         b.axis = 2
+        b.uses_wrap_padding = True
         obj = Mock()
         obj.boundary_objects = [b]
-        assert get_periodic_axes(obj) == (False, False, True)
+        assert get_wrap_padding_axes(obj) == (False, False, True)
 
-    def test_multiple_periodic_boundaries(self):
-        b1 = Mock(spec=PeriodicBoundary)
+    def test_multiple_wrap_boundaries(self):
+        b1 = Mock()
         b1.axis = 0
-        b2 = Mock(spec=PeriodicBoundary)
+        b1.uses_wrap_padding = True
+        b2 = Mock()
         b2.axis = 2
+        b2.uses_wrap_padding = True
         obj = Mock()
         obj.boundary_objects = [b1, b2]
-        assert get_periodic_axes(obj) == (True, False, True)
+        assert get_wrap_padding_axes(obj) == (True, False, True)
 
-    def test_all_axes_periodic(self):
-        boundaries = [Mock(spec=PeriodicBoundary) for _ in range(3)]
+    def test_all_axes_wrap(self):
+        boundaries = [Mock() for _ in range(3)]
         for i, b in enumerate(boundaries):
             b.axis = i
+            b.uses_wrap_padding = True
         obj = Mock()
         obj.boundary_objects = boundaries
-        assert get_periodic_axes(obj) == (True, True, True)
+        assert get_wrap_padding_axes(obj) == (True, True, True)
 
-    def test_non_periodic_boundary_ignored(self):
-        periodic = Mock(spec=PeriodicBoundary)
-        periodic.axis = 1
-        other = Mock()  # not a PeriodicBoundary
+    def test_non_wrap_boundary_ignored(self):
+        wrap = Mock()
+        wrap.axis = 1
+        wrap.uses_wrap_padding = True
+        other = Mock()
+        other.axis = 0
+        other.uses_wrap_padding = False
         obj = Mock()
-        obj.boundary_objects = [periodic, other]
-        assert get_periodic_axes(obj) == (False, True, False)
+        obj.boundary_objects = [wrap, other]
+        assert get_wrap_padding_axes(obj) == (False, True, False)
 
 
 # ─── TestUpdateE ──────────────────────────────────────────────────────────────
@@ -191,7 +203,7 @@ class TestUpdateE:
         assert jnp.allclose(result.psi_E, new_psi)
 
     def test_simulate_boundaries_flag_forwarded(self):
-        """simulate_boundaries=True is passed as 7th positional arg to curl_H."""
+        """simulate_boundaries=True is passed to curl_H."""
         with patch("fdtdx.fdtd.update.curl_H", return_value=(CURL_ZERO, PSI_ZERO)) as mock_curl:
             update_E(
                 time_step=jnp.array(0),
@@ -200,7 +212,7 @@ class TestUpdateE:
                 config=_make_config(),
                 simulate_boundaries=True,
             )
-        # simulate_boundaries is positional arg index 6
+        # simulate_boundaries is positional arg index 6 (config, H_pad, psi_E, alpha, kappa, sigma, simulate_boundaries)
         assert mock_curl.call_args[0][6] is True
 
     def test_anisotropic_full_tensor_correct_shape_and_finite(self):
@@ -556,12 +568,21 @@ class TestUpdateDetectorStates:
         d.update.return_value = {"value": jnp.zeros((1,))}
         return d
 
+    def _make_det_objects(self, **kwargs):
+        """Build a mock ObjectContainer for detector tests (includes volume)."""
+        obj = Mock()
+        obj.boundary_objects = []
+        volume = Mock()
+        volume.grid_shape = (NX, NY, NZ)
+        obj.volume = volume
+        for k, v in kwargs.items():
+            setattr(obj, k, v)
+        return obj
+
     def test_forward_uses_forward_detectors(self):
         """inverse=False iterates over objects.forward_detectors."""
         det = self._make_detector()
-        objects = Mock()
-        objects.boundary_objects = []
-        objects.forward_detectors = [det]
+        objects = self._make_det_objects(forward_detectors=[det])
         arrays = _make_arrays(detector_states={det.name: {}})
         H_prev = jnp.zeros(FIELD_SHAPE)
 
@@ -575,15 +596,13 @@ class TestUpdateDetectorStates:
                 side_effect=lambda cond, t, f, e, h, d: t(e, h, d),
             ) as mock_cond,
         ):
-            update_detector_states(jnp.array(0), arrays, objects, H_prev, inverse=False)
+            update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=False)
         mock_cond.assert_called_once()
 
     def test_backward_uses_backward_detectors(self):
         """inverse=True iterates over objects.backward_detectors."""
         det = self._make_detector()
-        objects = Mock()
-        objects.boundary_objects = []
-        objects.backward_detectors = [det]
+        objects = self._make_det_objects(backward_detectors=[det])
         arrays = _make_arrays(detector_states={det.name: {}})
         H_prev = jnp.zeros(FIELD_SHAPE)
 
@@ -597,14 +616,12 @@ class TestUpdateDetectorStates:
                 side_effect=lambda cond, t, f, e, h, d: t(e, h, d),
             ) as mock_cond,
         ):
-            update_detector_states(jnp.array(0), arrays, objects, H_prev, inverse=True)
+            update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=True)
         mock_cond.assert_called_once()
 
     def test_no_forward_detectors_skips_cond(self):
         """With no forward detectors, jax.lax.cond is never called."""
-        objects = Mock()
-        objects.boundary_objects = []
-        objects.forward_detectors = []
+        objects = self._make_det_objects(forward_detectors=[])
         arrays = _make_arrays(detector_states={})
         H_prev = jnp.zeros(FIELD_SHAPE)
 
@@ -615,15 +632,13 @@ class TestUpdateDetectorStates:
             ),
             patch("fdtdx.fdtd.update.jax.lax.cond") as mock_cond,
         ):
-            update_detector_states(jnp.array(0), arrays, objects, H_prev, inverse=False)
+            update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=False)
         mock_cond.assert_not_called()
 
     def test_exact_interpolation_passes_interpolated_fields(self):
         """exact_interpolation=True: helper_fn receives interpolated E and H."""
         det = self._make_detector(exact_interpolation=True)
-        objects = Mock()
-        objects.boundary_objects = []
-        objects.forward_detectors = [det]
+        objects = self._make_det_objects(forward_detectors=[det])
         arrays = _make_arrays(detector_states={det.name: {}})
         H_prev = jnp.zeros(FIELD_SHAPE)
         interp_E = jnp.ones(FIELD_SHAPE) * 42.0
@@ -639,7 +654,7 @@ class TestUpdateDetectorStates:
             patch("fdtdx.fdtd.update.interpolate_fields", return_value=(interp_E, interp_H)),
             patch("fdtdx.fdtd.update.jax.lax.cond", side_effect=fake_cond),
         ):
-            update_detector_states(jnp.array(0), arrays, objects, H_prev, inverse=False)
+            update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=False)
 
         assert jnp.allclose(captured["E"], interp_E)
         assert jnp.allclose(captured["H"], interp_H)
@@ -647,9 +662,7 @@ class TestUpdateDetectorStates:
     def test_no_interpolation_passes_raw_fields(self):
         """exact_interpolation=False: helper_fn receives raw arrays.E and arrays.H."""
         det = self._make_detector(exact_interpolation=False)
-        objects = Mock()
-        objects.boundary_objects = []
-        objects.forward_detectors = [det]
+        objects = self._make_det_objects(forward_detectors=[det])
         raw_E = jnp.ones(FIELD_SHAPE) * 5.0
         raw_H = jnp.ones(FIELD_SHAPE) * 6.0
         arrays = _make_arrays(E=raw_E, H=raw_H, detector_states={det.name: {}})
@@ -668,17 +681,15 @@ class TestUpdateDetectorStates:
             ),
             patch("fdtdx.fdtd.update.jax.lax.cond", side_effect=fake_cond),
         ):
-            update_detector_states(jnp.array(0), arrays, objects, H_prev, inverse=False)
+            update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=False)
 
         # Should receive the raw fields, not the interpolated ones
         assert jnp.allclose(captured["E"], raw_E)
         assert jnp.allclose(captured["H"], raw_H)
 
     def test_interpolate_fields_receives_h_avg(self):
-        """interpolate_fields receives (H_prev + arrays.H) / 2 as H_field."""
-        objects = Mock()
-        objects.boundary_objects = []
-        objects.forward_detectors = []
+        """interpolate_fields receives padded (H_prev + arrays.H) / 2 as H_pad."""
+        objects = self._make_det_objects(forward_detectors=[])
         H_field = jnp.ones(FIELD_SHAPE) * 4.0
         H_prev = jnp.ones(FIELD_SHAPE) * 2.0
         arrays = _make_arrays(H=H_field, detector_states={})
@@ -687,11 +698,15 @@ class TestUpdateDetectorStates:
             "fdtdx.fdtd.update.interpolate_fields",
             return_value=(jnp.zeros(FIELD_SHAPE), jnp.zeros(FIELD_SHAPE)),
         ) as mock_interp:
-            update_detector_states(jnp.array(0), arrays, objects, H_prev, inverse=False)
+            update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=False)
 
-        expected_H_avg = (H_prev + H_field) / 2
-        actual_H_arg = mock_interp.call_args[1]["H_field"]
-        assert jnp.allclose(actual_H_arg, expected_H_avg)
+        # H_pad is the padded version of (H_prev + H_field) / 2
+        # With no boundaries, padding is constant (zero-pad)
+        expected_H_avg = (H_prev + H_field) / 2  # all 3.0
+        actual_H_pad = mock_interp.call_args[1]["H_pad"]
+        # The padded array has shape (3, NX+2, NY+2, NZ+2), interior should match
+        assert actual_H_pad.shape == (3, NX + 2, NY + 2, NZ + 2)
+        assert jnp.allclose(actual_H_pad[:, 1:-1, 1:-1, 1:-1], expected_H_avg)
 
 
 # ─── TestCollectInterfaces ────────────────────────────────────────────────────

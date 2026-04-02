@@ -6,8 +6,8 @@ import pytest
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, reset_array_container
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.materials import Material
+from fdtdx.objects.boundaries.bloch import BlochBoundary
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
-from fdtdx.objects.boundaries.periodic import PeriodicBoundary
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 from fdtdx.objects.device.device import Device
 from fdtdx.objects.object import SimulationObject
@@ -31,8 +31,9 @@ class TestObjectContainer:
         self.mock_pml = Mock(spec=PerfectlyMatchedLayer)
         self.mock_pml.name = "pml1"
 
-        self.mock_periodic = Mock(spec=PeriodicBoundary)
+        self.mock_periodic = Mock(spec=BlochBoundary)
         self.mock_periodic.name = "periodic1"
+        self.mock_periodic.needs_complex_fields = False
 
         self.mock_device = Mock(spec=Device)
         self.mock_device.name = "device1"
