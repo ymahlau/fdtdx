@@ -3,6 +3,7 @@
 Tests that the PointDipoleSource radiates correctly:
   1a. Total radiated power is positive and steady-state.
   1b. Radiation pattern has correct symmetry for a z-polarized dipole.
+  1d. Tilted dipole (azimuth_angle) rotates the radiation pattern.
   1c. Rotating polarization axis rotates the radiation pattern.
 
 Domain layout (50 nm resolution, PML on all 6 faces):
@@ -42,7 +43,7 @@ _N_AVG_STEPS = 10 * _STEPS_PER_PERIOD
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 
-def _build_dipole_domain(polarization=2):
+def _build_dipole_domain(polarization=2, azimuth_angle=0.0, elevation_angle=0.0):
     """Build domain with a point dipole at center and PML on all faces."""
     config = fdtdx.SimulationConfig(
         resolution=_RESOLUTION,
@@ -65,6 +66,8 @@ def _build_dipole_domain(polarization=2):
         partial_grid_shape=(1, 1, 1),
         wave_character=fdtdx.WaveCharacter(wavelength=_WAVELENGTH),
         polarization=polarization,
+        azimuth_angle=azimuth_angle,
+        elevation_angle=elevation_angle,
         amplitude=1.0,
     )
     constraints.extend(
@@ -247,3 +250,61 @@ def test_dipole_polarization_axes():
     # Minimum flux face should be along the dipole axis
     for pol in range(3):
         assert min_flux_axis[pol] == pol, f"Polarization {pol}: min flux on axis {min_flux_axis[pol]}, expected {pol}"
+
+
+def test_dipole_tilted_radiation_pattern():
+    """A z-polarized dipole tilted 45° via azimuth rotates the radiation pattern.
+
+    With polarization=2 and azimuth_angle=45°, the dipole orientation lies in
+    the xz-plane at 45° from both axes.  Physics predictions:
+      - ±y faces see the highest flux (fully in the equatorial plane).
+      - ±x and ±z faces see equal flux (both at 45° from the dipole axis).
+      - Total radiated power matches an axis-aligned dipole.
+    """
+    # ── Tilted dipole ────────────────────────────────────────────────────────
+    objects, constraints, config, volume = _build_dipole_domain(
+        polarization=2,
+        azimuth_angle=45.0,
+    )
+    for axis in range(3):
+        for side in ("+", "-"):
+            name = f"flux_{['x', 'y', 'z'][axis]}_{side}"
+            _add_flux_det(name, volume, objects, constraints, axis, side)
+
+    arrays_tilted = _run(objects, constraints, config)
+
+    tilted_fluxes = {}
+    for axis in range(3):
+        for side in ("+", "-"):
+            name = f"flux_{['x', 'y', 'z'][axis]}_{side}"
+            tilted_fluxes[name] = _mean_flux(arrays_tilted, name)
+
+    # Sum flux per axis pair (|+| + |-|)
+    flux_x = abs(tilted_fluxes["flux_x_+"]) + abs(tilted_fluxes["flux_x_-"])
+    flux_y = abs(tilted_fluxes["flux_y_+"]) + abs(tilted_fluxes["flux_y_-"])
+    flux_z = abs(tilted_fluxes["flux_z_+"]) + abs(tilted_fluxes["flux_z_-"])
+
+    # ±x and ±z faces should receive roughly equal flux (both at 45° from dipole)
+    assert abs(flux_x - flux_z) / max(flux_x, 1e-30) < _TOLERANCE, (
+        f"Tilted dipole: x/z symmetry broken: flux_x={flux_x:.4e}, flux_z={flux_z:.4e}"
+    )
+
+    # ±y faces should see more flux than ±x (y is equatorial, x is at 45°)
+    assert flux_y > flux_x, f"Tilted dipole: expected flux_y > flux_x, got flux_y={flux_y:.4e}, flux_x={flux_x:.4e}"
+
+    # ── Compare total power to axis-aligned dipole ───────────────────────────
+    objects_ref, constraints_ref, config_ref, volume_ref = _build_dipole_domain(polarization=2)
+    for axis in range(3):
+        for side in ("+", "-"):
+            name = f"flux_{['x', 'y', 'z'][axis]}_{side}"
+            _add_flux_det(name, volume_ref, objects_ref, constraints_ref, axis, side)
+
+    arrays_ref = _run(objects_ref, constraints_ref, config_ref)
+
+    total_tilted = sum(tilted_fluxes.values())
+    total_ref = sum(_mean_flux(arrays_ref, f"flux_{['x', 'y', 'z'][a]}_{s}") for a in range(3) for s in ("+", "-"))
+
+    rel_err = abs(total_tilted - total_ref) / max(abs(total_ref), 1e-30)
+    assert rel_err < _TOLERANCE, (
+        f"Total power differs: tilted={total_tilted:.4e}, ref={total_ref:.4e}, rel_err={rel_err:.2%}"
+    )
