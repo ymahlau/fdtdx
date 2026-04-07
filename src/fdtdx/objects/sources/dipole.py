@@ -32,19 +32,6 @@ class PointDipoleSource(Source):
 
     For a magnetic dipole, the dual applies during the H update with
     inv_permeability replacing inv_permittivity.
-
-    Args:
-        polarization: Base axis along which the dipole is oriented
-            (0=x, 1=y, 2=z) before angle rotations are applied.
-        azimuth_angle: Rotation around the vertical axis in degrees
-            (default 0).
-        elevation_angle: Rotation around the horizontal axis in degrees
-            (default 0).
-        source_type: ``"electric"`` injects current into the E update,
-            ``"magnetic"`` injects into the H update.
-        amplitude: Source strength (default 1.0). Combined with
-            ``static_amplitude_factor`` and the temporal profile to compute the
-            injected current at each time step.
     """
 
     #: Polarization axis (0=x, 1=y, 2=z).

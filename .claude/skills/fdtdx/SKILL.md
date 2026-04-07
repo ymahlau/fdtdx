@@ -224,12 +224,38 @@ All detectors use `OnOffSwitch` for temporal gating. State is stored as `Detecto
 - `EnergyDetector` — records electromagnetic energy density
 - `PoyntingFluxDetector` — records directional power flow (key for transmission/reflection)
 - `PhasorDetector` — records complex phasor amplitudes at specific frequencies
-- `ModeOverlapDetector` — computes overlap integral with a guided mode
+- `DiffractiveDetector` — records complex diffraction efficiencies per order
+- `ModeOverlapDetector` — computes overlap integral with a guided mode (inherits from PhasorDetector)
 
-**Accessing results:**
-```python
-flux = arrays.detector_states["my_detector"]["poynting_flux"]  # shape: (time_steps, components)
-```
+**Accessing results:** `arrays.detector_states["name"]["key"]`
+
+All state arrays have a leading time dimension: `(num_time_steps_on, ...)`. Use index `-1` for the final accumulated value.
+
+**FieldDetector** — key: `"fields"`
+- `reduce_volume=False`: `(T, num_components, nx, ny, nz)`
+- `reduce_volume=True`: `(T, num_components)`
+
+**EnergyDetector** — key: `"energy"` or slice keys
+- `as_slices=False, reduce_volume=False`: `(T, nx, ny, nz)`
+- `as_slices=False, reduce_volume=True`: `(T, 1)` (scalar)
+- `as_slices=True`: three keys `"XY Plane"` `(T, nx, ny)`, `"XZ Plane"` `(T, nx, nz)`, `"YZ Plane"` `(T, ny, nz)` — cannot combine with `reduce_volume=True`
+
+**PoyntingFluxDetector** — key: `"poynting_flux"`
+- Default (`reduce_volume=True`, scalar): `(T, 1)` — total flux through surface
+- `keep_all_components=True, reduce_volume=True`: `(T, 3)`
+- `reduce_volume=False`: `(T, nx, ny, nz)` or `(T, 3, nx, ny, nz)` with `keep_all_components`
+
+**PhasorDetector** — key: `"phasor"`, dtype: complex
+- Time dim is always 1 (frequency-domain accumulation)
+- `reduce_volume=False`: `(1, num_wavelengths, num_components, nx, ny, nz)`
+- `reduce_volume=True`: `(1, num_wavelengths, num_components)`
+- Component index matches order of the `components` tuple
+
+**DiffractiveDetector** — key: `"diffractive"`, dtype: complex
+- Time dim is always 1
+- Shape: `(1, num_frequencies, num_orders)`
+
+**ModeOverlapDetector** — inherits PhasorDetector, always uses all 6 field components. Use `compute_overlap_to_mode()` to get the scalar overlap.
 
 ## Testing Patterns
 
