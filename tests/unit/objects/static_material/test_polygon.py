@@ -3,6 +3,7 @@
 Tests ExtrudedPolygon shape generation, material mapping, and axis properties.
 """
 
+import gdstk
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -10,7 +11,7 @@ import pytest
 
 from fdtdx.config import SimulationConfig
 from fdtdx.materials import Material
-from fdtdx.objects.static_material.polygon import ExtrudedPolygon
+from fdtdx.objects.static_material.polygon import ExtrudedPolygon, extruded_polygon_from_gds
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -218,3 +219,66 @@ class TestGetMaterialMapping:
         placed = _place(poly, config, key)
         mapping = placed.get_material_mapping()
         assert bool(jnp.all(mapping == mapping[0, 0, 0]))
+
+
+# ---------------------------------------------------------------------------
+# extruded_polygon_from_gds
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def square_gds(tmp_path):
+    """Write a GDS file with a 200nm square on layer 1 and return its path."""
+    half = 0.1  # 0.1 µm = 100 nm in GDS library units (1e-6 m)
+    lib = gdstk.Library(unit=1e-6, precision=1e-9)
+    cell = lib.new_cell("TOP")
+    cell.add(
+        gdstk.Polygon(
+            [(-half, -half), (half, -half), (half, half), (-half, half)],
+            layer=1,
+            datatype=0,
+        )
+    )
+    path = tmp_path / "test.gds"
+    lib.write_gds(str(path))
+    return path
+
+
+@pytest.mark.unit
+class TestExtrudedPolygonFromGds:
+    def test_returns_extruded_polygon(self, square_gds, two_materials):
+        result = extruded_polygon_from_gds(
+            square_gds, "TOP", layer=1, axis=2, material_name="si", materials=two_materials
+        )
+        assert isinstance(result, ExtrudedPolygon)
+
+    def test_vertices_shape(self, square_gds, two_materials):
+        result = extruded_polygon_from_gds(
+            square_gds, "TOP", layer=1, axis=2, material_name="si", materials=two_materials
+        )
+        assert result.vertices.shape == (4, 2)
+
+    def test_vertices_centred_around_origin(self, square_gds, two_materials):
+        """Vertices should be symmetric: max ≈ +100 nm, min ≈ -100 nm."""
+        result = extruded_polygon_from_gds(
+            square_gds, "TOP", layer=1, axis=2, material_name="si", materials=two_materials
+        )
+        expected_half = 100e-9
+        assert np.allclose(result.vertices.max(axis=0), [expected_half, expected_half])
+        assert np.allclose(result.vertices.min(axis=0), [-expected_half, -expected_half])
+
+    def test_bad_cell_name_raises(self, square_gds, two_materials):
+        with pytest.raises(ValueError, match="Cell 'MISSING'"):
+            extruded_polygon_from_gds(
+                square_gds, "MISSING", layer=1, axis=2, material_name="si", materials=two_materials
+            )
+
+    def test_bad_layer_raises(self, square_gds, two_materials):
+        with pytest.raises(ValueError, match="layer=99"):
+            extruded_polygon_from_gds(square_gds, "TOP", layer=99, axis=2, material_name="si", materials=two_materials)
+
+    def test_polygon_index_out_of_range_raises(self, square_gds, two_materials):
+        with pytest.raises(IndexError, match="polygon_index=5"):
+            extruded_polygon_from_gds(
+                square_gds, "TOP", layer=1, polygon_index=5, axis=2, material_name="si", materials=two_materials
+            )
