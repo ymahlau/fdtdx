@@ -11,7 +11,11 @@ import pytest
 
 from fdtdx.config import SimulationConfig
 from fdtdx.materials import Material
-from fdtdx.objects.static_material.polygon import ExtrudedPolygon, extruded_polygon_from_gds
+from fdtdx.objects.static_material.polygon import (
+    ExtrudedPolygon,
+    extruded_polygon_from_gds,
+    extruded_polygon_from_gds_path,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -222,14 +226,14 @@ class TestGetMaterialMapping:
 
 
 # ---------------------------------------------------------------------------
-# extruded_polygon_from_gds
+# extruded_polygon_from_gds / extruded_polygon_from_gds_path
 # ---------------------------------------------------------------------------
 
 
 @pytest.fixture
-def square_gds(tmp_path):
-    """Write a GDS file with a 200nm square on layer 1 and return its path."""
-    half = 0.1  # 0.1 µm = 100 nm in GDS library units (1e-6 m)
+def square_lib():
+    """In-memory gdstk Library with a 200nm square on layer 1."""
+    half = 0.1  # 0.1 µm = 100 nm
     lib = gdstk.Library(unit=1e-6, precision=1e-9)
     cell = lib.new_cell("TOP")
     cell.add(
@@ -239,46 +243,78 @@ def square_gds(tmp_path):
             datatype=0,
         )
     )
+    return lib
+
+
+@pytest.fixture
+def square_gds(square_lib, tmp_path):
+    """Write the square library to a .gds file and return its path."""
     path = tmp_path / "test.gds"
-    lib.write_gds(str(path))
+    square_lib.write_gds(str(path))
     return path
 
 
 @pytest.mark.unit
 class TestExtrudedPolygonFromGds:
-    def test_returns_extruded_polygon(self, square_gds, two_materials):
+    """Tests for extruded_polygon_from_gds (accepts a gdstk.Library)."""
+
+    def test_returns_extruded_polygon(self, square_lib, two_materials):
         result = extruded_polygon_from_gds(
-            square_gds, "TOP", layer=1, axis=2, material_name="si", materials=two_materials
+            square_lib, "TOP", layer=1, axis=2, material_name="si", materials=two_materials
         )
         assert isinstance(result, ExtrudedPolygon)
 
-    def test_vertices_shape(self, square_gds, two_materials):
+    def test_vertices_shape(self, square_lib, two_materials):
         result = extruded_polygon_from_gds(
-            square_gds, "TOP", layer=1, axis=2, material_name="si", materials=two_materials
+            square_lib, "TOP", layer=1, axis=2, material_name="si", materials=two_materials
         )
         assert result.vertices.shape == (4, 2)
 
-    def test_vertices_centred_around_origin(self, square_gds, two_materials):
+    def test_vertices_centred_around_origin(self, square_lib, two_materials):
         """Vertices should be symmetric: max ≈ +100 nm, min ≈ -100 nm."""
         result = extruded_polygon_from_gds(
-            square_gds, "TOP", layer=1, axis=2, material_name="si", materials=two_materials
+            square_lib, "TOP", layer=1, axis=2, material_name="si", materials=two_materials
         )
         expected_half = 100e-9
         assert np.allclose(result.vertices.max(axis=0), [expected_half, expected_half])
         assert np.allclose(result.vertices.min(axis=0), [-expected_half, -expected_half])
 
-    def test_bad_cell_name_raises(self, square_gds, two_materials):
+    def test_bad_cell_name_raises(self, square_lib, two_materials):
         with pytest.raises(ValueError, match="Cell 'MISSING'"):
             extruded_polygon_from_gds(
-                square_gds, "MISSING", layer=1, axis=2, material_name="si", materials=two_materials
+                square_lib, "MISSING", layer=1, axis=2, material_name="si", materials=two_materials
             )
 
-    def test_bad_layer_raises(self, square_gds, two_materials):
+    def test_bad_layer_raises(self, square_lib, two_materials):
         with pytest.raises(ValueError, match="layer=99"):
-            extruded_polygon_from_gds(square_gds, "TOP", layer=99, axis=2, material_name="si", materials=two_materials)
+            extruded_polygon_from_gds(square_lib, "TOP", layer=99, axis=2, material_name="si", materials=two_materials)
 
-    def test_polygon_index_out_of_range_raises(self, square_gds, two_materials):
+    def test_polygon_index_out_of_range_raises(self, square_lib, two_materials):
         with pytest.raises(IndexError, match="polygon_index=5"):
             extruded_polygon_from_gds(
-                square_gds, "TOP", layer=1, polygon_index=5, axis=2, material_name="si", materials=two_materials
+                square_lib, "TOP", layer=1, polygon_index=5, axis=2, material_name="si", materials=two_materials
+            )
+
+
+@pytest.mark.unit
+class TestExtrudedPolygonFromGdsPath:
+    """Tests for extruded_polygon_from_gds_path (accepts a file path)."""
+
+    def test_returns_extruded_polygon(self, square_gds, two_materials):
+        result = extruded_polygon_from_gds_path(
+            square_gds, "TOP", layer=1, axis=2, material_name="si", materials=two_materials
+        )
+        assert isinstance(result, ExtrudedPolygon)
+
+    def test_vertices_match_library_function(self, square_lib, square_gds, two_materials):
+        """Path variant must produce the same vertices as the library variant."""
+        kwargs = {"layer": 1, "axis": 2, "material_name": "si", "materials": two_materials}
+        from_lib = extruded_polygon_from_gds(square_lib, "TOP", **kwargs)
+        from_path = extruded_polygon_from_gds_path(square_gds, "TOP", **kwargs)
+        assert np.allclose(from_lib.vertices, from_path.vertices)
+
+    def test_bad_cell_name_raises(self, square_gds, two_materials):
+        with pytest.raises(ValueError, match="Cell 'MISSING'"):
+            extruded_polygon_from_gds_path(
+                square_gds, "MISSING", layer=1, axis=2, material_name="si", materials=two_materials
             )
