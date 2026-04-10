@@ -3,16 +3,10 @@ from dataclasses import dataclass
 from typing import Literal, Self
 
 import jax
+from drinx import DataClass, private_field, static_field, static_private_field
 
 from fdtdx.colors import Color
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import (
-    TreeClass,
-    autoinit,
-    frozen_field,
-    frozen_private_field,
-    private_field,
-)
 from fdtdx.core.misc import ensure_slice_tuple
 from fdtdx.typing import (
     INVALID_SLICE_TUPLE_3D,
@@ -28,8 +22,7 @@ from fdtdx.typing import (
 _GLOBAL_COUNTER = 0
 
 
-@autoinit
-class UniqueName(TreeClass):
+class UniqueName(DataClass):
     """Generates unique names for simulation objects.
 
     A utility class that ensures each simulation object gets a unique name by
@@ -194,8 +187,7 @@ class RealCoordinateConstraint:
     coordinates: tuple[float, ...]
 
 
-@autoinit
-class SimulationObject(TreeClass, ABC):
+class SimulationObject(DataClass, ABC):
     """Abstract base class for objects in a 3D simulation environment.
 
     This class provides the foundation for simulation objects with spatial properties and positioning capabilities
@@ -205,41 +197,41 @@ class SimulationObject(TreeClass, ABC):
         This is an abstract base class and cannot be instantiated directly.
     """
 
+    _config: SimulationConfig = private_field(default=None)
     #: The object's shape in real-world coordinates.
     #: Defaults to UNDEFINED_SHAPE_3D if not specified.
-    partial_real_shape: PartialRealShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
+    partial_real_shape: PartialRealShape3D = static_field(default=UNDEFINED_SHAPE_3D)
 
     #: The object's position in real-world coordinates.
     #: Defaults to UNDEFINED_SHAPE_3D if not specified.
-    partial_real_position: PartialRealShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
+    partial_real_position: PartialRealShape3D = static_field(default=UNDEFINED_SHAPE_3D)
 
     #: The object's shape in grid coordinates.
     #: Defaults to UNDEFINED_SHAPE_3D if not specified.
-    partial_grid_shape: PartialGridShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
+    partial_grid_shape: PartialGridShape3D = static_field(default=UNDEFINED_SHAPE_3D)
 
     #: RGB color values for the object, where each component is in the interval [0, 1]. None indicates no color
     #: is specified. Defaults to None.
-    color: Color | None = frozen_field(default=None)
+    color: Color | None = static_field(default=None)
 
     #: Unique identifier for the object. Automatically enforced to be unique through the UniqueName validator.
     #: The user can also set a name manually.
-    name: str = frozen_field(  # type: ignore
+    name: str = static_field(
         default=None,
-        on_setattr=[UniqueName()],
+        on_setattr=[UniqueName()],  # type: ignore
     )
 
     #: Maximum random offset values that can be applied to the object's position in real coordinates
     #: for each axis (x, y, z). Defaults to (0, 0, 0) for no random offset.
-    max_random_real_offsets: tuple[float, float, float] = frozen_field(default=(0, 0, 0))
+    max_random_real_offsets: tuple[float, float, float] = static_field(default=(0, 0, 0))
 
     #: Maximum random offset values that can be applied to the object's position in grid coordinates for each
     #: axis (x, y, z). Defaults to (0, 0, 0) for no random offset.
-    max_random_grid_offsets: tuple[int, int, int] = frozen_field(default=(0, 0, 0))
+    max_random_grid_offsets: tuple[int, int, int] = static_field(default=(0, 0, 0))
 
-    _grid_slice_tuple: SliceTuple3D = frozen_private_field(
+    _grid_slice_tuple: SliceTuple3D = static_private_field(
         default=INVALID_SLICE_TUPLE_3D,
     )
-    _config: SimulationConfig = private_field()
 
     @property
     def grid_slice_tuple(self) -> SliceTuple3D:
@@ -786,9 +778,8 @@ class SimulationObject(TreeClass, ABC):
         return hash(self.name)
 
 
-@autoinit
 class OrderableObject(SimulationObject):
-    placement_order: int = frozen_field(default=0)
+    placement_order: int = static_field(default=0)
 
     class EmptySimulationObject(SimulationObject):
         # Add a large background object (covers most of the volume)

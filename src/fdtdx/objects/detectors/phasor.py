@@ -2,13 +2,12 @@ from typing import Literal, Sequence
 
 import jax
 import jax.numpy as jnp
+from drinx import field, static_field
 
-from fdtdx.core.jax.pytrees import autoinit, field, frozen_field
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 
-@autoinit
 class PhasorDetector(Detector):
     """Detector for measuring frequency components of electromagnetic fields using an efficient Phasor Implementation.
 
@@ -22,19 +21,19 @@ class PhasorDetector(Detector):
     wave_characters: Sequence[WaveCharacter] = field()
 
     #: If True, reduces the volume of recorded data. Defaults to False.
-    reduce_volume: bool = frozen_field(default=False)
+    reduce_volume: bool = static_field(default=False)
 
     #: Sequence of field components to measure.
     #: Can include any of: "Ex", "Ey", "Ez", "Hx", "Hy", "Hz".
-    components: Sequence[Literal["Ex", "Ey", "Ez", "Hx", "Hy", "Hz"]] = frozen_field(
+    components: Sequence[Literal["Ex", "Ey", "Ez", "Hx", "Hy", "Hz"]] = static_field(
         default=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"),
     )
-    dtype: jnp.dtype = frozen_field(
+    dtype: jnp.dtype = static_field(
         default=jnp.complex64,
     )
 
     #: Whether to plot the measured data. Defaults to False.
-    plot: bool = frozen_field(default=False)
+    plot: bool = static_field(default=False)
 
     def __post_init__(
         self,

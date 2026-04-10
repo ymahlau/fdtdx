@@ -1,12 +1,11 @@
 import jax
 import jax.numpy as jnp
+from drinx import static_field
 
-from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
 
 
-@autoinit
 class Cylinder(StaticMultiMaterialObject):
     """A cylindrical optical fiber with configurable properties.
 
@@ -16,13 +15,13 @@ class Cylinder(StaticMultiMaterialObject):
     """
 
     #: The radius of the fiber in meter.
-    radius: float = frozen_field()
+    radius: float = static_field()
 
     #: The principal axis along which the fiber extends (0=x, 1=y, 2=z).
-    axis: int = frozen_field()
+    axis: int = static_field()
 
     #: Name of the material in the materials dictionary to be used for the object.
-    material_name: str = frozen_field()
+    material_name: str = static_field()
 
     @property
     def horizontal_axis(self) -> int:

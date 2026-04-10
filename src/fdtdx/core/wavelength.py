@@ -1,26 +1,26 @@
+from drinx import DataClass, static_field
+
 from fdtdx import constants
-from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 
 
-@autoinit
-class WaveCharacter(TreeClass):
+class WaveCharacter(DataClass):
     """Class describing a wavelength/period/frequency in free space. Importantly, the wave characteristic conversion is
     based on a free space wave when using the wavelength (For conversion, a refractive index of 1 is used).
     """
 
     #: Phase shift in radians. Defaults to 0.
-    phase_shift: float = frozen_field(default=0.0)
+    phase_shift: float = static_field(default=0.0)
 
     #: Optional period in seconds. Mutually exclusive with wavelength and frequency.
     #: Defaults to None.
-    period: float | None = frozen_field(default=None)
+    period: float | None = static_field(default=None)
 
     #: Optional wavelength in meters for free space propagation.
     #: Mutually exclusive with period and frequency. Defaults to None.
-    wavelength: float | None = frozen_field(default=None)
+    wavelength: float | None = static_field(default=None)
 
     #: Optional frequency in Hz. Mutually exclusive with period and wavelength.
-    frequency: float | None = frozen_field(default=None)
+    frequency: float | None = static_field(default=None)
 
     def __post_init__(
         self,

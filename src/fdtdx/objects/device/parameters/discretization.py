@@ -4,10 +4,10 @@ from typing import Literal, Self, Sequence
 import equinox.internal as eqxi
 import jax
 import jax.numpy as jnp
+from drinx import static_field, static_private_field
 from loguru import logger
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import autoinit, frozen_field, frozen_private_field
 from fdtdx.core.jax.ste import straight_through_estimator
 from fdtdx.core.misc import get_background_material_name
 from fdtdx.materials import Material, compute_allowed_permittivities, compute_ordered_names
@@ -17,7 +17,6 @@ from fdtdx.objects.device.parameters.utils import compute_allowed_indices, neare
 from fdtdx.typing import ParameterType
 
 
-@autoinit
 class ClosestIndex(ParameterTransformation):
     """
     Maps continuous latent values to nearest allowed material indices.
@@ -29,8 +28,8 @@ class ClosestIndex(ParameterTransformation):
     """
 
     #: a boolean value set for inverse_permittivities
-    mapping_from_inverse_permittivities: bool = frozen_field(default=False)
-    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
+    mapping_from_inverse_permittivities: bool = static_field(default=False)
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = static_private_field(
         default=ParameterType.CONTINUOUS
     )
 
@@ -90,7 +89,6 @@ class ClosestIndex(ParameterTransformation):
         return result
 
 
-@autoinit
 class BrushConstraint2D(ParameterTransformation):
     """Applies 2D brush-based constraints to ensure minimum feature sizes.
 
@@ -102,20 +100,20 @@ class BrushConstraint2D(ParameterTransformation):
     """
 
     #: Array defining the brush kernel for morphological operations.
-    brush: jax.Array = frozen_field()
+    brush: jax.Array = static_field()
 
     #: Axis along which to apply the 2D constraint (perpendicular plane).
-    axis: int = frozen_field()
+    axis: int = static_field()
 
     #: Name of the background material in the material
     #: dictionary of the device. If None, the material with the lowest permittivity is used. Defaults to None.
-    background_material: str | None = frozen_field(default=None)
+    background_material: str | None = static_field(default=None)
 
-    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = static_private_field(
         default=ParameterType.CONTINUOUS
     )
-    _check_single_array: bool = frozen_private_field(default=True)
-    _all_arrays_2d: bool = frozen_private_field(default=True)
+    _check_single_array: bool = static_private_field(default=True)
+    _all_arrays_2d: bool = static_private_field(default=True)
 
     def _get_input_shape_impl(
         self,
@@ -305,7 +303,6 @@ def circular_brush(
     return mask
 
 
-@autoinit
 class PillarDiscretization(ParameterTransformation):
     """Constraint module for mapping pillar structures to allowed configurations.
 
@@ -315,10 +312,10 @@ class PillarDiscretization(ParameterTransformation):
     """
 
     #: Axis along which to enforce pillar constraints (0=x, 1=y, 2=z).
-    axis: int = frozen_field()
+    axis: int = static_field()
 
     #: If True, restrict to single polymer columns.
-    single_polymer_columns: bool = frozen_field()
+    single_polymer_columns: bool = static_field()
 
     #: Method to compute distances between material distributions:
     #:
@@ -326,17 +323,17 @@ class PillarDiscretization(ParameterTransformation):
     #: - "permittivity_differences_plus_average_permittivity": Weighted combination of permittivity differences and average permittivity values, optimized for material distribution comparisons.
     #:
     #: Defaults to "permittivity_differences_plus_average_permittivity".
-    distance_metric: Literal["euclidean", "permittivity_differences_plus_average_permittivity"] = frozen_field(
+    distance_metric: Literal["euclidean", "permittivity_differences_plus_average_permittivity"] = static_field(
         default="permittivity_differences_plus_average_permittivity",
     )
 
     #: Name of the background material in the materials dictionary of the corresponding device.
     #: If None, the material with lowest permittivity is used. Defaults to None.
-    background_material: str | None = frozen_field(default=None)
+    background_material: str | None = static_field(default=None)
 
-    _allowed_indices: jax.Array = frozen_private_field()
-    _check_single_array: bool = frozen_private_field(default=True)
-    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
+    _allowed_indices: jax.Array = static_private_field(default=None)
+    _check_single_array: bool = static_private_field(default=True)
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = static_private_field(
         default=ParameterType.CONTINUOUS
     )
 

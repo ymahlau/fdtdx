@@ -2,9 +2,9 @@ from typing import Literal, Self, Sequence
 
 import jax
 import jax.numpy as jnp
+from drinx import private_field, static_field
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.null import Null
 from fdtdx.core.physics.modes import compute_mode
 from fdtdx.objects.detectors.detector import DetectorState
@@ -12,7 +12,6 @@ from fdtdx.objects.detectors.phasor import PhasorDetector
 from fdtdx.typing import SliceTuple3D
 
 
-@autoinit
 class ModeOverlapDetector(PhasorDetector):
     """
     Detector for measuring the overlap of a waveguide mode with the simulation fields.
@@ -28,28 +27,28 @@ class ModeOverlapDetector(PhasorDetector):
 
     #: Direction of mode propagation, either "+" (forward) or "-" (backward).
     #: Determines which direction along the waveguide axis the mode is assumed to propagate.
-    direction: Literal["+", "-"] = frozen_field()
+    direction: Literal["+", "-"] | None = static_field(default=None)
 
     #: Index of the waveguide mode to use for overlap calculation.
     #: Defaults to 0 (fundamental mode). Higher indices correspond to higher-order modes.
-    mode_index: int = frozen_field(default=0)
+    mode_index: int = static_field(default=0)
 
     #: Optional polarization filter for the mode calculation.
     #: Can be "te" (transverse electric), "tm" (transverse magnetic), or None (no filtering).
     #: When specified, only modes of the given polarization type are considered. Defaults to None.
-    filter_pol: Literal["te", "tm"] | None = frozen_field(default=None)
+    filter_pol: Literal["te", "tm"] | None = static_field(default=None)
 
     #: Cannot be specified here since the detector needs all components.
-    components: Sequence[Literal["Ex", "Ey", "Ez", "Hx", "Hy", "Hz"]] = frozen_field(
+    components: Sequence[Literal["Ex", "Ey", "Ez", "Hx", "Hy", "Hz"]] = static_field(
         default=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"),
         init=False,  # in this detector, we always want all components. Do not give user a choice
     )  # noqa: DOC603, DOC601
 
     #: Cannot be specified here since plotting a single scalar is useless.
-    plot: bool = frozen_field(default=False, init=False)  # noqa: DOC603, DOC601 # single scalar is useless for plotting
-    _mode_E: jax.Array = private_field()
-    _mode_H: jax.Array = private_field()
-    _mode_neff: jax.Array = private_field()  # not required for detection, used for inspection
+    plot: bool = static_field(default=False, init=False)  # noqa: DOC603, DOC601 # single scalar is useless for plotting
+    _mode_E: jax.Array = private_field(default=None)
+    _mode_H: jax.Array = private_field(default=None)
+    _mode_neff: jax.Array = private_field(default=None)  # not required for detection, used for inspection
 
     @property
     def propagation_axis(self) -> int:
@@ -79,6 +78,7 @@ class ModeOverlapDetector(PhasorDetector):
         inv_permeabilities: jax.Array | float,
     ) -> Self:
         del key
+        assert self.direction is not None
 
         inv_permittivity_slice = inv_permittivities[:, *self.grid_slice]
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:

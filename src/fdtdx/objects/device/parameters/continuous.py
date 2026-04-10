@@ -3,14 +3,13 @@ from typing import Sequence
 
 import jax
 import jax.numpy as jnp
+from drinx import static_field, static_private_field
 
-from fdtdx.core.jax.pytrees import autoinit, frozen_field, frozen_private_field
 from fdtdx.core.misc import PaddingConfig, advanced_padding
 from fdtdx.objects.device.parameters.transform import ParameterTransformation, SameShapeTypeParameterTransform
 from fdtdx.typing import ParameterType
 
 
-@autoinit
 class StandardToInversePermittivityRange(ParameterTransformation):
     """Maps standard [0,1] range to inverse permittivity range.
 
@@ -21,7 +20,7 @@ class StandardToInversePermittivityRange(ParameterTransformation):
     within its own min/max range, producing output with shape ``(3, *input_shape)``.
     """
 
-    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = static_private_field(
         default=ParameterType.CONTINUOUS
     )
 
@@ -127,7 +126,6 @@ class StandardToInversePermittivityRange(ParameterTransformation):
             return result
 
 
-@autoinit
 class StandardToCustomRange(SameShapeTypeParameterTransform):
     """Maps standard [0,1] range to custom range [min_value, max_value].
 
@@ -136,11 +134,11 @@ class StandardToCustomRange(SameShapeTypeParameterTransform):
     """
 
     #: Minimum value of target range. Defaults to zero.
-    min_value: float = frozen_field(default=0)
+    min_value: float = static_field(default=0)
 
     #: Maximum value of target range. Defaults to one.
-    max_value: float = frozen_field(default=1)
-    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
+    max_value: float = static_field(default=1)
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = static_private_field(
         default=ParameterType.CONTINUOUS
     )
 
@@ -157,7 +155,6 @@ class StandardToCustomRange(SameShapeTypeParameterTransform):
         return result
 
 
-@autoinit
 class StandardToPlusOneMinusOneRange(StandardToCustomRange):
     """Maps standard [0,1] range to [-1,1] range.
 
@@ -165,11 +162,10 @@ class StandardToPlusOneMinusOneRange(StandardToCustomRange):
     Used for symmetric value ranges around zero.
     """
 
-    min_value: float = frozen_private_field(default=-1)
-    max_value: float = frozen_private_field(default=1)
+    min_value: float = static_private_field(default=-1)
+    max_value: float = static_private_field(default=1)
 
 
-@autoinit
 class GaussianSmoothing2D(SameShapeTypeParameterTransform):
     """
     Applies Gaussian smoothing to 2D parameter arrays.
@@ -179,12 +175,12 @@ class GaussianSmoothing2D(SameShapeTypeParameterTransform):
     """
 
     #: Integer specifying the standard deviation of the Gaussian kernel in discrete units.
-    std_discrete: int = frozen_field()
+    std_discrete: int | None = static_field(default=None)
 
-    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = static_private_field(
         default=ParameterType.CONTINUOUS
     )
-    _all_arrays_2d: bool = frozen_private_field(default=True)
+    _all_arrays_2d: bool = static_private_field(default=True)
 
     def __call__(
         self,
@@ -192,6 +188,7 @@ class GaussianSmoothing2D(SameShapeTypeParameterTransform):
         **kwargs,
     ) -> dict[str, jax.Array]:
         del kwargs
+        assert self.std_discrete is not None
         return {k: self._apply_smoothing(v) for k, v in params.items()}
 
     def _apply_smoothing(self, x: jax.Array) -> jax.Array:
@@ -202,6 +199,7 @@ class GaussianSmoothing2D(SameShapeTypeParameterTransform):
             raise ValueError(f"Expected 2D array, got shape {x_squeezed.shape}")
 
         # Create Gaussian kernel
+        assert self.std_discrete is not None
         kernel_size = 6 * self.std_discrete + 1  # Ensure kernel covers 3 std on each side
         kernel = self._create_gaussian_kernel(kernel_size, self.std_discrete)
 

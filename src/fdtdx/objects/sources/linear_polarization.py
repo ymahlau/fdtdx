@@ -3,25 +3,24 @@ from typing import Self
 
 import jax
 import jax.numpy as jnp
+from drinx import static_field
 
 from fdtdx.core.grid import calculate_time_offset_yee
-from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.linalg import get_wave_vector_raw, rotate_vector
 from fdtdx.core.misc import expand_to_3x3, linear_interpolated_indexing, normalize_polarization_for_source
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.objects.sources.tfsf import TFSFPlaneSource
 
 
-@autoinit
 class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
     #: the electric polarization vector
-    fixed_E_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
+    fixed_E_polarization_vector: tuple[float, float, float] | None = static_field(default=None)
 
     #: the magnetic polarization vector
-    fixed_H_polarization_vector: tuple[float, float, float] | None = frozen_field(default=None)
+    fixed_H_polarization_vector: tuple[float, float, float] | None = static_field(default=None)
 
     #: whether to normalize the polarization vector
-    normalize_by_energy: bool = frozen_field(default=True)
+    normalize_by_energy: bool = static_field(default=True)
 
     def apply(
         self: Self,
@@ -36,14 +35,17 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
             inv_permeabilities = inv_permeabilities[:, *self.grid_slice]
 
         # determine E/H polarization
+        direction = self.direction
+        assert direction is not None
+        assert self.wave_character is not None
         e_pol_raw, h_pol_raw = normalize_polarization_for_source(
-            direction=self.direction,
+            direction=direction,
             propagation_axis=self.propagation_axis,
             fixed_E_polarization_vector=self.fixed_E_polarization_vector,
             fixed_H_polarization_vector=self.fixed_H_polarization_vector,
         )
         wave_vector_raw = get_wave_vector_raw(
-            direction=self.direction,
+            direction=direction,
             propagation_axis=self.propagation_axis,
         )
 
@@ -164,13 +166,12 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         raise NotImplementedError()
 
 
-@autoinit
 class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
     #: the radius of the gaussian source
-    radius: float = frozen_field()
+    radius: float = static_field(default=None)
 
     #:  the standard deviation of the gaussian source
-    std: float = frozen_field(default=1 / 3)  # relative to radius
+    std: float = static_field(default=1 / 3)  # relative to radius
 
     @staticmethod
     def _gauss_profile(
@@ -213,10 +214,9 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
         return profile
 
 
-@autoinit
 class UniformPlaneSource(LinearlyPolarizedPlaneSource):
     #: the amplitude of the uniform source
-    amplitude: float = frozen_field(default=1.0)
+    amplitude: float = static_field(default=1.0)
 
     def _get_amplitude_raw(
         self,

@@ -3,13 +3,12 @@ from typing import Self, Sequence
 
 import jax
 import jax.numpy as jnp
+from drinx import DataClass, static_field, static_private_field
 
-from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field, frozen_private_field
 from fdtdx.interfaces.state import RecordingState
 
 
-@autoinit
-class CompressionModule(TreeClass, ABC):
+class CompressionModule(DataClass, ABC):
     """Abstract base class for compression modules that process simulation data.
 
     This class provides an interface for modules that compress and decompress field data
@@ -18,8 +17,8 @@ class CompressionModule(TreeClass, ABC):
 
     """
 
-    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field(default=None)  # type: ignore
-    _output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field(default=None)  # type: ignore
+    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = static_private_field(default=None)
+    _output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = static_private_field(default=None)
 
     @abstractmethod
     def init_shapes(
@@ -95,7 +94,6 @@ class CompressionModule(TreeClass, ABC):
         raise NotImplementedError()
 
 
-@autoinit
 class DtypeConversion(CompressionModule):
     """Compression module that converts data types of field values.
 
@@ -104,10 +102,10 @@ class DtypeConversion(CompressionModule):
     """
 
     #: Target data type for conversion.
-    dtype: jnp.dtype = frozen_field(kind="KW_ONLY")
+    dtype: jnp.dtype | None = static_field(default=None)
 
     #: List of field names to exclude from conversion.
-    exclude_filter: Sequence[str] = frozen_field(default=tuple([]), kind="KW_ONLY")
+    exclude_filter: Sequence[str] = static_field(default=tuple([]))
 
     def init_shapes(
         self,
@@ -119,15 +117,6 @@ class DtypeConversion(CompressionModule):
     ]:
         self = self.aset("_input_shape_dtypes", input_shape_dtypes)
         exclude = [] if self.exclude_filter is None else self.exclude_filter
-        for k, v in input_shape_dtypes.items():
-            if any(e in k for e in exclude):
-                continue
-            if jnp.issubdtype(v.dtype, jnp.complexfloating) and not jnp.issubdtype(self.dtype, jnp.complexfloating):
-                raise ValueError(
-                    f"DtypeConversion target dtype {self.dtype} is real but input '{k}' "
-                    f"has complex dtype {v.dtype}. This would silently discard the imaginary "
-                    f"component. Use a complex target dtype or add '{k}' to exclude_filter."
-                )
         out_shape_dtypes = {
             k: (jax.ShapeDtypeStruct(v.shape, self.dtype) if not any(e in k for e in exclude) else v)
             for k, v in input_shape_dtypes.items()
@@ -145,6 +134,7 @@ class DtypeConversion(CompressionModule):
         RecordingState,
     ]:
         del key
+        assert self.dtype is not None
         out_vals = {
             k: (v.astype(self.dtype) if not any(e in k for e in self.exclude_filter) else v) for k, v in values.items()
         }
@@ -157,5 +147,6 @@ class DtypeConversion(CompressionModule):
         key: jax.Array,
     ) -> dict[str, jax.Array]:
         del key, state
+        assert self._input_shape_dtypes is not None
         out_vals = {k: v.astype(self._input_shape_dtypes[k].dtype) for k, v in values.items()}
         return out_vals

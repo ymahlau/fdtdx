@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
 import jax
+from drinx import DataClass
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import TreeClass
 from fdtdx.core.null import NULL
 from fdtdx.objects.object import (
     GridCoordinateConstraint,
@@ -213,7 +213,7 @@ def _export_json(obj: Any) -> dict | float | int | str | bool | None:
         }
     result_dict: dict = {"__module__": f"{type(obj).__module__}", "__name__": f"{type(obj).__name__}"}
     # tree classes
-    if isinstance(obj, TreeClass):
+    if isinstance(obj, DataClass):
         public_fields = obj.get_public_fields()
         for field in public_fields:
             name, val = field.name, field.value

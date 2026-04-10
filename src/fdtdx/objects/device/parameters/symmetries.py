@@ -1,11 +1,10 @@
 import jax
 import jax.numpy as jnp
+from drinx import static_field, static_private_field
 
-from fdtdx.core.jax.pytrees import autoinit, frozen_field, frozen_private_field
 from fdtdx.objects.device.parameters.transform import SameShapeTypeParameterTransform
 
 
-@autoinit
 class DiagonalSymmetry2D(SameShapeTypeParameterTransform):
     """
     Enforce diagonal symmetry by effectively halving the parameter space.
@@ -17,9 +16,9 @@ class DiagonalSymmetry2D(SameShapeTypeParameterTransform):
 
     #: If true, the symmetry axis is from (x_min, y_min) to (x_max, y_max).
     #: If false, the other diagonal (from (x_min, y_max) to (x_max, y_min)) is used.
-    min_min_to_max_max: bool = frozen_field()
+    min_min_to_max_max: bool = static_field()
 
-    _all_arrays_2d: bool = frozen_private_field(default=True)
+    _all_arrays_2d: bool = static_private_field(default=True)
 
     def __call__(
         self,
@@ -45,7 +44,6 @@ class DiagonalSymmetry2D(SameShapeTypeParameterTransform):
         return result
 
 
-@autoinit
 class HorizontalSymmetry2D(SameShapeTypeParameterTransform):
     """
     Enforce horizontal (x-axis) mirror symmetry.
@@ -56,7 +54,7 @@ class HorizontalSymmetry2D(SameShapeTypeParameterTransform):
     flipped version.
     """
 
-    _all_arrays_2d: bool = frozen_private_field(default=True)
+    _all_arrays_2d: bool = static_private_field(default=True)
 
     def __call__(
         self,
@@ -79,7 +77,6 @@ class HorizontalSymmetry2D(SameShapeTypeParameterTransform):
         return result
 
 
-@autoinit
 class VerticalSymmetry2D(SameShapeTypeParameterTransform):
     """
     Enforce vertical (y-axis) mirror symmetry.
@@ -90,7 +87,7 @@ class VerticalSymmetry2D(SameShapeTypeParameterTransform):
     flipped version.
     """
 
-    _all_arrays_2d: bool = frozen_private_field(default=True)
+    _all_arrays_2d: bool = static_private_field(default=True)
 
     def __call__(
         self,
@@ -113,7 +110,6 @@ class VerticalSymmetry2D(SameShapeTypeParameterTransform):
         return result
 
 
-@autoinit
 class PointSymmetry2D(SameShapeTypeParameterTransform):
     """
     Enforce 180-degree rotational (point) symmetry.
@@ -123,7 +119,7 @@ class PointSymmetry2D(SameShapeTypeParameterTransform):
     180-degree rotated version.
     """
 
-    _all_arrays_2d: bool = frozen_private_field(default=True)
+    _all_arrays_2d: bool = static_private_field(default=True)
 
     def __call__(
         self,
@@ -151,7 +147,6 @@ class PointSymmetry2D(SameShapeTypeParameterTransform):
 # =============================================================================
 
 
-@autoinit
 class HorizontalSymmetry3D(SameShapeTypeParameterTransform):
     """
     Enforce horizontal mirror symmetry in 3D along the x or y axis.
@@ -163,7 +158,7 @@ class HorizontalSymmetry3D(SameShapeTypeParameterTransform):
 
     #: The axis to mirror across. Can be 'x' (axis 0) or 'y' (axis 1).
     #: Defaults to 'x'.
-    mirror_axis: str = frozen_field(default="x")
+    mirror_axis: str = static_field(default="x")
 
     def __call__(
         self,
@@ -188,7 +183,6 @@ class HorizontalSymmetry3D(SameShapeTypeParameterTransform):
         return result
 
 
-@autoinit
 class VerticalSymmetry3D(SameShapeTypeParameterTransform):
     """
     Enforce vertical (z-axis) mirror symmetry in 3D.
@@ -214,7 +208,6 @@ class VerticalSymmetry3D(SameShapeTypeParameterTransform):
         return result
 
 
-@autoinit
 class PointSymmetry3D(SameShapeTypeParameterTransform):
     """
     Enforce 180-degree rotational (point) symmetry in 3D.
@@ -239,7 +232,6 @@ class PointSymmetry3D(SameShapeTypeParameterTransform):
         return result
 
 
-@autoinit
 class DiagonalSymmetry3D(SameShapeTypeParameterTransform):
     """
     Enforce diagonal symmetry in 3D across one of six possible diagonal planes.
@@ -258,11 +250,11 @@ class DiagonalSymmetry3D(SameShapeTypeParameterTransform):
 
     #: The plane in which the diagonal lies. One of 'xy', 'xz', or 'yz'.
     #: Defaults to 'xy' for backwards compatibility.
-    diagonal_plane: str = frozen_field(default="xy")
+    diagonal_plane: str = static_field(default="xy")
 
     #: If true, the symmetry is across the main diagonal (min,min → max,max).
     #: If false, the anti-diagonal (min,max → max,min) is used.
-    min_min_to_max_max: bool = frozen_field(default=True)
+    min_min_to_max_max: bool = static_field(default=True)
 
     def __call__(
         self,

@@ -3,14 +3,13 @@ from typing import cast
 
 import jax
 import jax.numpy as jnp
+from drinx import static_field
 from typing_extensions import override
 
 from fdtdx.colors import XKCD_WARM_PURPLE, Color
-from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.objects.boundaries.boundary import BaseBoundary
 
 
-@autoinit
 class BlochBoundary(BaseBoundary):
     """Implements Bloch periodic boundary conditions.
 
@@ -23,10 +22,10 @@ class BlochBoundary(BaseBoundary):
     """
 
     #: Bloch wave vector components (k_x, k_y, k_z) in units of rad/m.
-    bloch_vector: tuple[float, float, float] = frozen_field(default=(0.0, 0.0, 0.0))
+    bloch_vector: tuple[float, float, float] = static_field(default=(0.0, 0.0, 0.0))
 
     #: RGB color tuple for visualization. Defaults to warm purple.
-    color: Color | None = frozen_field(default=XKCD_WARM_PURPLE)
+    color: Color | None = static_field(default=XKCD_WARM_PURPLE)
 
     @property
     def needs_complex_fields(self) -> bool:
