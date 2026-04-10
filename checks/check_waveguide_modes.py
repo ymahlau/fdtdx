@@ -1,6 +1,5 @@
 import jax
 import jax.numpy as jnp
-import pytreeclass as tc
 from loguru import logger
 
 from fdtdx import (
@@ -202,10 +201,6 @@ def main():
         constraints=placement_constraints,
         key=subkey,
     )
-
-    logger.info(tc.tree_summary(arrays, depth=2))
-    print(tc.tree_diagram(config, depth=1))
-    print(tc.tree_diagram(objects, depth=2))
     
     exp_logger.savefig(
         exp_logger.cwd,

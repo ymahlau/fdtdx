@@ -61,7 +61,7 @@ class Detector(SimulationObject, ABC):
     #: DPI resolution for plots. Defaults to None.
     plot_dpi: int | None = static_field(default=None)
 
-    _num_time_steps_on: int = static_private_field(default=0)
+    _num_time_steps_on: int | None = static_private_field(default=None)
     _is_on_at_time_step_arr: jax.Array = private_field(default=None)
     _time_step_to_arr_idx: jax.Array = private_field(default=None)
 

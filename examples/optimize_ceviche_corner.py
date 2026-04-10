@@ -17,7 +17,6 @@ import chex
 import jax
 import jax.numpy as jnp
 import optax
-import pytreeclass as tc
 from loguru import logger
 import fdtdx
 
@@ -282,10 +281,6 @@ def main(
     # saved_params = jnp.load("...")
     # params[device.name] = saved_params
     start_idx = 0
-
-    # Log summary of arrays and print configuration diagram
-    logger.info(tc.tree_summary(arrays, depth=2))
-    print(tc.tree_diagram(config, depth=4))
 
     # Set number of optimization epochs
     epochs = 501

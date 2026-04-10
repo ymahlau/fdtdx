@@ -115,6 +115,7 @@ class DtypeConversion(CompressionModule):
         dict[str, jax.ShapeDtypeStruct],  # data
         dict[str, jax.ShapeDtypeStruct],  # state shapes/dtypes
     ]:
+        assert self.dtype is not None, "DtypeConversion.dtype must be set before calling init_shapes"
         self = self.aset("_input_shape_dtypes", input_shape_dtypes)
         exclude = [] if self.exclude_filter is None else self.exclude_filter
         out_shape_dtypes = {
