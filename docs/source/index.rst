@@ -70,7 +70,7 @@ If you find this repository helpful for your work, please consider citing:
 
 .. toctree::
    :maxdepth: 1
-   :caption: Contents:
+   :hidden:
    
    01_quickstart
    02_components
