@@ -1,3 +1,6 @@
+import pathlib
+
+import gdstk
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -79,3 +82,79 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
         idx = all_names.index(self.material_name)
         arr = jnp.ones(self.grid_shape, dtype=jnp.int32) * idx
         return arr
+
+
+def extruded_polygon_from_gds(
+    lib: gdstk.Library,
+    cell_name: str,
+    layer: int,
+    datatype: int = 0,
+    polygon_index: int = 0,
+    **kwargs,
+) -> ExtrudedPolygon:
+    """Create an ExtrudedPolygon from a polygon in an already-loaded gdstk Library.
+
+    Args:
+        lib: An already-loaded gdstk Library.
+        cell_name: Name of the GDS cell containing the polygon.
+        layer: GDS layer number to read.
+        datatype: GDS datatype (default 0).
+        polygon_index: Which polygon to use when multiple exist on the layer (default 0).
+        **kwargs: Forwarded to ExtrudedPolygon (axis, material_name, materials, …).
+
+    Returns:
+        ExtrudedPolygon with vertices centered around the origin in metres.
+
+    Raises:
+        ValueError: If the cell or layer/datatype combination is not found.
+        IndexError: If polygon_index is out of range.
+    """
+    cell = next((c for c in lib.cells if isinstance(c, gdstk.Cell) and c.name == cell_name), None)
+    if cell is None:
+        raise ValueError(f"Cell '{cell_name}' not found in library")
+
+    matching = [p for p in cell.polygons if p.layer == layer and p.datatype == datatype]
+    if not matching:
+        raise ValueError(f"No polygons on layer={layer}, datatype={datatype} in cell '{cell_name}'")
+    if polygon_index >= len(matching):
+        raise IndexError(
+            f"polygon_index={polygon_index} out of range; found {len(matching)} polygon(s) on layer={layer}"
+        )
+
+    polygon = matching[polygon_index]
+    vertices_m = np.array(polygon.points) * lib.unit  # library units → metres
+
+    # centre vertices around origin (ExtrudedPolygon convention)
+    centre = 0.5 * (vertices_m.min(axis=0) + vertices_m.max(axis=0))
+    centred = vertices_m - centre
+
+    return ExtrudedPolygon(vertices=centred, **kwargs)
+
+
+def extruded_polygon_from_gds_path(
+    gds_file: str | pathlib.Path,
+    cell_name: str,
+    layer: int,
+    datatype: int = 0,
+    polygon_index: int = 0,
+    **kwargs,
+) -> ExtrudedPolygon:
+    """Create an ExtrudedPolygon from a polygon in a GDS file.
+
+    Args:
+        gds_file: Path to the .gds file.
+        cell_name: Name of the GDS cell containing the polygon.
+        layer: GDS layer number to read.
+        datatype: GDS datatype (default 0).
+        polygon_index: Which polygon to use when multiple exist on the layer (default 0).
+        **kwargs: Forwarded to ExtrudedPolygon (axis, material_name, materials, …).
+
+    Returns:
+        ExtrudedPolygon with vertices centered around the origin in metres.
+
+    Raises:
+        ValueError: If the cell or layer/datatype combination is not found.
+        IndexError: If polygon_index is out of range.
+    """
+    lib = gdstk.read_gds(str(gds_file))
+    return extruded_polygon_from_gds(lib, cell_name, layer, datatype, polygon_index, **kwargs)
