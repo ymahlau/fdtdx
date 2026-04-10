@@ -26,7 +26,7 @@ Welcome to the Quickstart Guide! These interactive Jupyter notebooks are designe
       :link: notebooks/quickstart/02_basic_materials
       :link-type: doc
 
-      Discover how to define physical materials. Learn to about different material types and their differences.
+      Discover how to define physical materials. Learn about different material types and their differences.
 
    .. grid-item-card:: 🏗️ 3. Object Placement Guide
       :link: notebooks/quickstart/03_object_placement_guide
