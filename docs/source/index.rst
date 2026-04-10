@@ -72,10 +72,10 @@ If you find this repository helpful for your work, please consider citing:
    :maxdepth: 1
    :caption: Contents:
    
-   quickstart
-   examples
-   advanced
-   api
-   contributing
-   faq
+   01_quickstart
+   02_components
+   03_advanced
+   04_api
+   05_contributing
+   06_faq
 
