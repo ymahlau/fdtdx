@@ -68,6 +68,7 @@ dev = [
     "myst_nb>=1.3.0",
     "sphinx-copybutton>=0.5.2",
     "chex",
+    "sphinx-design",
 ]
 cuda12 = [
     "jax[cuda12]>=0.4.36",
