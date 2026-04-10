@@ -244,6 +244,6 @@ def test_pulsed_vs_cw_transmission():
     for i, wl in enumerate(_TEST_WAVELENGTHS):
         rel_err = abs(T_pulsed[i] - T_cw[i]) / T_pulsed[i]
         assert rel_err < _TOLERANCE, (
-            f"wl={wl*1e6:.2f} µm: T_pulsed={T_pulsed[i]:.4f}, T_CW={T_cw[i]:.4f}, "
+            f"wl={wl * 1e6:.2f} µm: T_pulsed={T_pulsed[i]:.4f}, T_CW={T_cw[i]:.4f}, "
             f"relative error={rel_err:.3f} > {_TOLERANCE}"
         )
