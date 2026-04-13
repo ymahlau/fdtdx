@@ -15,13 +15,22 @@ class Cylinder(StaticMultiMaterialObject):
     """
 
     #: The radius of the fiber in meter.
-    radius: float = static_field()
+    radius: float = static_field(default=None)
 
     #: The principal axis along which the fiber extends (0=x, 1=y, 2=z).
-    axis: int = static_field()
+    axis: int = static_field(default=None)
 
     #: Name of the material in the materials dictionary to be used for the object.
-    material_name: str = static_field()
+    material_name: str = static_field(default=None)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.radius is None:
+            raise ValueError("Cylinder requires 'radius' to be set")
+        if self.axis is None:
+            raise ValueError("Cylinder requires 'axis' to be set (0=x, 1=y, 2=z)")
+        if self.material_name is None:
+            raise ValueError("Cylinder requires 'material_name' to be set")
 
     @property
     def horizontal_axis(self) -> int:

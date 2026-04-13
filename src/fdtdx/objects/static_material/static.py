@@ -10,18 +10,28 @@ from fdtdx.objects.object import OrderableObject
 
 class UniformMaterialObject(OrderableObject):
     #: the material object
-    material: Material = field()
+    material: Material = field(default=None)
 
     #: the color object
     color: Color | None = static_field(default=XKCD_LIGHT_GREY)
 
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.material is None:
+            raise ValueError("UniformMaterialObject requires 'material' to be set")
+
 
 class StaticMultiMaterialObject(OrderableObject, ABC):
     #: the static material
-    materials: dict[str, Material] = field()
+    materials: dict[str, Material] = field(default=None)
 
     #: the color of the material
     color: Color | None = static_field(default=XKCD_LIGHT_GREY)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.materials is None:
+            raise ValueError("StaticMultiMaterialObject requires 'materials' to be set")
 
     @abstractmethod
     def get_voxel_mask_for_shape(self) -> jax.Array:

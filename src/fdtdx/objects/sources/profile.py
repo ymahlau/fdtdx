@@ -65,12 +65,16 @@ class GaussianPulseProfile(TemporalProfile):
     """
 
     #: Spectral width of the Gaussian envelope (can specify via wavelength, frequency, or period)
-    spectral_width: WaveCharacter = static_field()
+    spectral_width: WaveCharacter = static_field(default=None)
 
     #: Center frequency/wavelength of the carrier wave
-    center_wave: WaveCharacter = static_field()
+    center_wave: WaveCharacter = static_field(default=None)
 
     def __post_init__(self):
+        if self.spectral_width is None:
+            raise ValueError("GaussianPulseProfile requires 'spectral_width' to be set")
+        if self.center_wave is None:
+            raise ValueError("GaussianPulseProfile requires 'center_wave' to be set")
         if self.spectral_width.phase_shift != 0.0:
             raise ValueError(
                 "spectral_width should not have a phase_shift. Phase shifts should only be applied to center_wave."

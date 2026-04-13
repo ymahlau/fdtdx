@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Literal, Self
 
 import jax
-from drinx import DataClass, private_field, static_field, static_private_field
+from drinx import DataClass, private_field, static_field
 
 from fdtdx.colors import Color
 from fdtdx.config import SimulationConfig
@@ -216,10 +216,7 @@ class SimulationObject(DataClass, ABC):
 
     #: Unique identifier for the object. Automatically enforced to be unique through the UniqueName validator.
     #: The user can also set a name manually.
-    name: str = static_field(
-        default=None,
-        on_setattr=[UniqueName()],  # type: ignore
-    )
+    name: str = static_field(default=None)
 
     #: Maximum random offset values that can be applied to the object's position in real coordinates
     #: for each axis (x, y, z). Defaults to (0, 0, 0) for no random offset.
@@ -229,9 +226,12 @@ class SimulationObject(DataClass, ABC):
     #: axis (x, y, z). Defaults to (0, 0, 0) for no random offset.
     max_random_grid_offsets: tuple[int, int, int] = static_field(default=(0, 0, 0))
 
-    _grid_slice_tuple: SliceTuple3D = static_private_field(
+    _grid_slice_tuple: SliceTuple3D = private_field(
         default=INVALID_SLICE_TUPLE_3D,
     )
+
+    def __post_init__(self) -> None:
+        self.aset_inplace("name", UniqueName()(self.name))
 
     @property
     def grid_slice_tuple(self) -> SliceTuple3D:
@@ -790,7 +790,7 @@ class OrderableObject(SimulationObject):
                     partial_grid_shape=(10, 10, 10),
                     name="large_background",
                 )
-                self.color = Color.from_rgb(216, 220, 214)
+                self.aset_inplace("color", Color.from_rgb(216, 220, 214))
 
         # Add a smaller centered object
         class CenterObject(SimulationObject):
@@ -800,7 +800,7 @@ class OrderableObject(SimulationObject):
                     partial_grid_shape=(200, 200, 200),
                     name="center_object",
                 )
-                self.color = Color.from_rgb(249, 115, 6)
+                self.aset_inplace("color", Color.from_rgb(249, 115, 6))
 
         # Add a thin vertical object
         class VerticalObject(SimulationObject):
@@ -810,7 +810,7 @@ class OrderableObject(SimulationObject):
                     partial_grid_shape=(350, 350, 150),
                     name="vertical_object",
                 )
-                self.color = Color.from_rgb(1, 101, 252)
+                self.aset_inplace("color", Color.from_rgb(1, 101, 252))
 
         # Add a horizontal slab
         class HorizontalSlab(SimulationObject):
@@ -820,4 +820,4 @@ class OrderableObject(SimulationObject):
                     partial_grid_shape=(100, 100, 400),
                     name="horizontal_slab",
                 )
-                self.color = Color.from_rgb(6, 71, 12)
+                self.aset_inplace("color", Color.from_rgb(6, 71, 12))

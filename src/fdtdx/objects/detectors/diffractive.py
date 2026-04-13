@@ -17,10 +17,10 @@ class DiffractiveDetector(Detector):
     """
 
     #: List of frequencies to analyze (in Hz)
-    frequencies: Sequence[float] = static_field()
+    frequencies: Sequence[float] = static_field(default=None)
 
     #: Either "+" or "-" for positive or negative direction.
-    direction: Literal["+", "-"] = static_field()
+    direction: Literal["+", "-"] = static_field(default=None)
 
     #: Tuple of (nx, ny) pairs specifying diffraction orders to compute
     orders: Sequence[Tuple[int, int]] = static_field(default=((0, 0),))
@@ -29,6 +29,11 @@ class DiffractiveDetector(Detector):
     dtype: jnp.dtype = static_field(default=jnp.complex64)
 
     def __post_init__(self):
+        super().__post_init__()
+        if self.frequencies is None:
+            raise ValueError("DiffractiveDetector requires 'frequencies' to be set")
+        if self.direction is None:
+            raise ValueError("DiffractiveDetector requires 'direction' to be set")
         if self.dtype not in [jnp.complex64, jnp.complex128]:
             raise Exception(f"Invalid dtype in DiffractiveDetector: {self.dtype}")
         if len(self.frequencies) == 0:

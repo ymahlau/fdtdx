@@ -100,10 +100,16 @@ class BrushConstraint2D(ParameterTransformation):
     """
 
     #: Array defining the brush kernel for morphological operations.
-    brush: jax.Array = static_field()
+    brush: jax.Array = static_field(default=None)
 
     #: Axis along which to apply the 2D constraint (perpendicular plane).
-    axis: int = static_field()
+    axis: int = static_field(default=None)
+
+    def __post_init__(self) -> None:
+        if self.brush is None:
+            raise ValueError("BrushConstraint2D requires 'brush' to be set")
+        if self.axis is None:
+            raise ValueError("BrushConstraint2D requires 'axis' to be set (0=x, 1=y, 2=z)")
 
     #: Name of the background material in the material
     #: dictionary of the device. If None, the material with the lowest permittivity is used. Defaults to None.
@@ -312,10 +318,16 @@ class PillarDiscretization(ParameterTransformation):
     """
 
     #: Axis along which to enforce pillar constraints (0=x, 1=y, 2=z).
-    axis: int = static_field()
+    axis: int = static_field(default=None)
 
     #: If True, restrict to single polymer columns.
-    single_polymer_columns: bool = static_field()
+    single_polymer_columns: bool = static_field(default=None)
+
+    def __post_init__(self) -> None:
+        if self.axis is None:
+            raise ValueError("PillarDiscretization requires 'axis' to be set (0=x, 1=y, 2=z)")
+        if self.single_polymer_columns is None:
+            raise ValueError("PillarDiscretization requires 'single_polymer_columns' to be set")
 
     #: Method to compute distances between material distributions:
     #:

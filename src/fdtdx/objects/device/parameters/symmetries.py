@@ -16,7 +16,11 @@ class DiagonalSymmetry2D(SameShapeTypeParameterTransform):
 
     #: If true, the symmetry axis is from (x_min, y_min) to (x_max, y_max).
     #: If false, the other diagonal (from (x_min, y_max) to (x_max, y_min)) is used.
-    min_min_to_max_max: bool = static_field()
+    min_min_to_max_max: bool = static_field(default=None)
+
+    def __post_init__(self) -> None:
+        if self.min_min_to_max_max is None:
+            raise ValueError("DiagonalSymmetry2D requires 'min_min_to_max_max' to be set")
 
     _all_arrays_2d: bool = static_private_field(default=True)
 

@@ -17,10 +17,17 @@ class BaseBoundary(SimulationObject, ABC):
     """
 
     #: Principal axis for boundary (0=x, 1=y, 2=z)
-    axis: int = static_field()
+    axis: int = static_field(default=None)
 
     #: Direction along axis ("+" or "-")
-    direction: Literal["+", "-"] = static_field()
+    direction: Literal["+", "-"] = static_field(default=None)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.axis is None:
+            raise ValueError("BaseBoundary requires 'axis' to be set (0=x, 1=y, 2=z)")
+        if self.direction is None:
+            raise ValueError("BaseBoundary requires 'direction' to be set ('+' or '-')")
 
     @property
     @abstractmethod

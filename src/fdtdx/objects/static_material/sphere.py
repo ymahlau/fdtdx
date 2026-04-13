@@ -15,10 +15,18 @@ class Sphere(StaticMultiMaterialObject):
     """
 
     #: The default radius of the sphere in meter (used if specific axis radii are not provided).
-    radius: float = static_field()
+    radius: float = static_field(default=None)
 
     #: Name of the sphere material in the materials dictionary to be used for the object.
-    material_name: str = static_field()
+    material_name: str = static_field(default=None)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.radius is None:
+            raise ValueError("Sphere requires 'radius' to be set")
+        if self.material_name is None:
+            raise ValueError("Sphere requires 'material_name' to be set")
+
     # Optional parameters for ellipsoid shape
 
     #: The radius along the x-axis in meter. If none, use radius. Defaults to None.

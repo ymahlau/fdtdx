@@ -78,7 +78,7 @@ class SimulationConfig(DataClass):
         current_platform = extend.backend.get_backend().platform
 
         if current_platform == "METAL" and self.backend == "gpu":
-            self.backend = "METAL"
+            self.aset_inplace("backend", "METAL")
 
         if self.backend == "METAL":
             try:
@@ -89,7 +89,7 @@ class SimulationConfig(DataClass):
             except RuntimeError:
                 if __name__ == "__main__":
                     logger.warning("METAL initialization failed, falling back to CPU!")
-                self.backend = "cpu"
+                self.aset_inplace("backend", "cpu")
         elif self.backend in ["gpu", "tpu"]:
             try:
                 jax.devices(self.backend)
@@ -99,7 +99,7 @@ class SimulationConfig(DataClass):
             except RuntimeError:
                 if __name__ == "__main__":
                     logger.warning(f"{str.upper(self.backend)} not found, falling back to CPU!")
-                self.backend = "cpu"
+                self.aset_inplace("backend", "cpu")
 
         if self.backend == "cpu":
             jax.config.update("jax_platform_name", "cpu")

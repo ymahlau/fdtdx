@@ -18,7 +18,7 @@ class PhasorDetector(Detector):
     """
 
     #: WaveCharacters to analyze.
-    wave_characters: Sequence[WaveCharacter] = field()
+    wave_characters: Sequence[WaveCharacter] = field(default=None)
 
     #: If True, reduces the volume of recorded data. Defaults to False.
     reduce_volume: bool = static_field(default=False)
@@ -38,6 +38,9 @@ class PhasorDetector(Detector):
     def __post_init__(
         self,
     ):
+        super().__post_init__()
+        if self.wave_characters is None:
+            raise ValueError("PhasorDetector requires 'wave_characters' to be set")
         if self.dtype not in [jnp.complex64, jnp.complex128]:
             raise Exception(f"Invalid dtype in PhasorDetector: {self.dtype}")
 

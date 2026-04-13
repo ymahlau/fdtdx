@@ -31,13 +31,20 @@ class Device(OrderableObject, ABC):
     """
 
     #: Dictionary of materials to be used in the device.
-    materials: dict[str, Material] = field()
+    materials: dict[str, Material] = field(default=None)
 
     #: A Sequence of parameter transformation to be applied to the parameters when mapping them to simulation materials.
-    param_transforms: Sequence[ParameterTransformation] = field()
+    param_transforms: Sequence[ParameterTransformation] = field(default=None)
 
     #: Color of the object when plotted. Defaults to XKCD_LIGHT_PINK.
     color: Color | None = static_field(default=XKCD_LIGHT_PINK)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.materials is None:
+            raise ValueError("Device requires 'materials' to be set")
+        if self.param_transforms is None:
+            raise ValueError("Device requires 'param_transforms' to be set")
 
     #: Size of the material voxels used within the device in metrical units (meter). Note that this is independent of the simulation voxel size.
     #: Defaults to undefined shape. For all three axes, either the voxel grid or real shape needs to be defined.

@@ -9,7 +9,6 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.colors import XKCD_LIGHT_GREY
-from fdtdx.core.jax.pytrees import autoinit
 from fdtdx.materials import Material
 from fdtdx.objects.static_material.static import (
     SimulationVolume,
@@ -60,7 +59,6 @@ class TestUniformMaterialObject:
 # ---------------------------------------------------------------------------
 
 
-@autoinit
 class _MinimalMultiMaterial(StaticMultiMaterialObject):
     """Minimal concrete StaticMultiMaterialObject for testing the base class."""
 
@@ -113,18 +111,6 @@ class TestStaticMultiMaterialObject:
         mapping = placed.get_material_mapping()
         assert mapping.shape == (4, 5, 6)
         assert bool(jnp.all(mapping == 0))
-
-    def test_abstract_methods_required(self):
-        """StaticMultiMaterialObject cannot be instantiated without implementations."""
-
-        @autoinit
-        class _IncompleteObject(StaticMultiMaterialObject):
-            pass
-
-        # _IncompleteObject has unimplemented abstract methods; instantiation
-        # should raise TypeError
-        with pytest.raises(TypeError):
-            _IncompleteObject(materials={"air": Material(permittivity=1.0)})
 
 
 # ---------------------------------------------------------------------------

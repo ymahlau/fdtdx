@@ -17,7 +17,12 @@ class PoyntingFluxDetector(Detector):
     """
 
     #: Direction of flux measurement, either "+" for positive or "-" for negative along the propagation axis.
-    direction: Literal["+", "-"] = static_field()
+    direction: Literal["+", "-"] = static_field(default=None)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.direction is None:
+            raise ValueError("PoyntingFluxDetector requires 'direction' to be set ('+' or '-')")
 
     #: If True, reduces measurements to a single value by summing over the detection surface.
     #: If False, maintains spatial distribution. Defaults to True.

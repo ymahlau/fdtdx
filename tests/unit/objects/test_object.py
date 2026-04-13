@@ -9,7 +9,6 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import autoinit
 from fdtdx.objects.object import (
     GridCoordinateConstraint,
     OrderableObject,
@@ -26,12 +25,10 @@ from fdtdx.objects.object import (
 # ---------------------------------------------------------------------------
 
 
-@autoinit
 class _ConcreteObject(SimulationObject):
     """Minimal concrete SimulationObject for testing."""
 
 
-@autoinit
 class _ConcreteOrderable(OrderableObject):
     """Minimal concrete OrderableObject for testing."""
 

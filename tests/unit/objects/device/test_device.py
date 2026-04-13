@@ -10,7 +10,6 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import autoinit
 from fdtdx.materials import Material
 from fdtdx.objects.device.device import Device
 from fdtdx.objects.device.parameters.discretization import ClosestIndex
@@ -21,7 +20,6 @@ from fdtdx.typing import ParameterType
 # ---------------------------------------------------------------------------
 
 
-@autoinit
 class _ConcreteDevice(Device):
     """Minimal concrete Device subclass for unit testing."""
 
