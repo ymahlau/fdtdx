@@ -69,7 +69,7 @@ _, arrays = fdtdx.full_backward(state=state, objects=objects, config=config, key
 Axis mapping: 0=x, 1=y, 2=z. Field arrays have shape `(3, Nx, Ny, Nz)` where index 0 is the component index.
 
 **Staggered field positions (Taflove convention):**
-```
+```python
 E_x: (i+1/2, j,     k    )     H_x: (i,     j+1/2, k+1/2)
 E_y: (i,     j+1/2, k    )     H_y: (i+1/2, j,     k+1/2)
 E_z: (i,     j,     k+1/2)     H_z: (i+1/2, j+1/2, k    )
@@ -78,7 +78,7 @@ E_z: (i,     j,     k+1/2)     H_z: (i+1/2, j+1/2, k    )
 **Leapfrog time stepping:** E at integer steps, H at half-steps. Single time step order:
 1. Update E fields (curl of H)
 2. Update H fields (curl of E)
-3. Inject sources (TFSF)
+3. Inject sources
 4. Record detectors
 
 **Detector interpolation:** E and H are co-located at the E_z grid point `(i, j, k+1/2)` via multi-point averaging before recording.

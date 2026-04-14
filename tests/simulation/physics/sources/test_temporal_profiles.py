@@ -143,8 +143,8 @@ def test_gaussian_pulse_broadband():
     _SIGMA_F = 1e14  # Hz — spectral standard deviation
     _F_CENTER = _C / _WAVELENGTH  # 3e14 Hz
 
-    sigma_t = 1.0 / (2 * np.pi * _SIGMA_F)  # ~1.59 ps
-    sim_time = 12 * sigma_t  # t0=6σ_t peak + 6σ_t tail ≈ 19 ps
+    sigma_t = 1.0 / (2 * np.pi * _SIGMA_F)  # ~1.59 fs
+    sim_time = 12 * sigma_t  # t0=6σ_t peak + 6σ_t tail ≈ 19 fs
 
     config = fdtdx.SimulationConfig(
         resolution=_RESOLUTION,

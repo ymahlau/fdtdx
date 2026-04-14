@@ -66,6 +66,15 @@ class TestPointDipoleSourceInitialization:
         )
         assert source.amplitude == 5.0
 
+    def test_invalid_source_type(self):
+        with pytest.raises(ValueError, match="source_type must be electric or magnetic"):
+            PointDipoleSource(
+                partial_grid_shape=(1, 1, 1),
+                wave_character=WaveCharacter(wavelength=1e-6),
+                source_type="test",
+                polarization=0
+            )
+
     def test_invalid_polarization(self):
         with pytest.raises(ValueError, match="polarization must be 0, 1, or 2"):
             PointDipoleSource(

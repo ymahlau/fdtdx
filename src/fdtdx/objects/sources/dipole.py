@@ -50,6 +50,8 @@ class PointDipoleSource(Source):
     amplitude: float = frozen_field(default=1.0)
 
     def __post_init__(self):
+        if self.source_type not in ("electric", "magnetic"):
+            raise ValueError(f"source_type must be electric or magnetic, got {self.source_type}")
         if self.polarization not in (0, 1, 2):
             raise ValueError(f"polarization must be 0, 1, or 2, got {self.polarization}")
 
