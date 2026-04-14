@@ -30,7 +30,7 @@ _SIM_TIME = 120e-15
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 
-def _build_and_run(amplitude_factor=1.0):
+def _build_and_run(amplitude_factor=1.0, reduce_volume=True):
     config = fdtdx.SimulationConfig(
         resolution=_RESOLUTION,
         time=_SIM_TIME,
@@ -78,7 +78,7 @@ def _build_and_run(amplitude_factor=1.0):
         partial_grid_shape=(None, None, 1),
         wave_characters=(wave,),
         components=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"),
-        reduce_volume=True,
+        reduce_volume=reduce_volume,
         plot=False,
     )
     constraints.extend(
@@ -120,81 +120,9 @@ def test_uniform_plane_source_amplitude_consistency():
     assert abs(ratio - 2.0) / 2.0 < 0.05, f"Amplitude ratio: {ratio:.3f}, expected 2.0"
 
 
-def _build_and_run_spatial():
-    """Run simulation returning full spatial phasor (no reduce_volume)."""
-    config = fdtdx.SimulationConfig(
-        resolution=_RESOLUTION,
-        time=_SIM_TIME,
-        dtype=jnp.float32,
-    )
-    objects, constraints = [], []
-
-    volume = fdtdx.SimulationVolume(
-        partial_real_shape=(_DOMAIN_XY, _DOMAIN_XY, _DOMAIN_Z),
-    )
-    objects.append(volume)
-
-    bound_cfg = fdtdx.BoundaryConfig.from_uniform_bound(
-        thickness=_PML_CELLS,
-        override_types={
-            "min_x": "periodic",
-            "max_x": "periodic",
-            "min_y": "periodic",
-            "max_y": "periodic",
-        },
-    )
-    bound_dict, c_list = fdtdx.boundary_objects_from_config(bound_cfg, volume)
-    constraints.extend(c_list)
-    objects.extend(bound_dict.values())
-
-    wave = fdtdx.WaveCharacter(wavelength=_WAVELENGTH)
-    source = fdtdx.UniformPlaneSource(
-        partial_grid_shape=(None, None, 1),
-        wave_character=wave,
-        direction="+",
-        fixed_E_polarization_vector=(1, 0, 0),
-    )
-    constraints.extend(
-        [
-            source.same_size(volume, axes=(0, 1)),
-            source.place_at_center(volume, axes=(0, 1)),
-            source.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(_SOURCE_Z,)),
-        ]
-    )
-    objects.append(source)
-
-    det = fdtdx.PhasorDetector(
-        name="phasor",
-        partial_grid_shape=(None, None, 1),
-        wave_characters=(wave,),
-        components=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"),
-        reduce_volume=False,
-        plot=False,
-    )
-    constraints.extend(
-        [
-            det.same_size(volume, axes=(0, 1)),
-            det.place_at_center(volume, axes=(0, 1)),
-            det.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(_DET_Z,)),
-        ]
-    )
-    objects.append(det)
-
-    key = jax.random.PRNGKey(0)
-    obj_container, arrays, params, config, _ = fdtdx.place_objects(
-        object_list=objects,
-        config=config,
-        constraints=constraints,
-        key=key,
-    )
-    arrays, obj_container, _ = fdtdx.apply_params(arrays, obj_container, params, key)
-    _, arrays = fdtdx.run_fdtd(arrays=arrays, objects=obj_container, config=config, key=key)
-    return arrays
-
-
 def test_uniform_plane_source_xy_uniformity():
     """Output amplitude and phase should be constant across the xy-plane."""
-    arrays = _build_and_run_spatial()
+    arrays = _build_and_run(reduce_volume=False)
 
     # phasor shape: (num_time_steps, num_wavelengths, num_components, nx, ny, nz)
     phasor = arrays.detector_states["phasor"]["phasor"]
