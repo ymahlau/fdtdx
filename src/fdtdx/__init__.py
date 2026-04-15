@@ -80,6 +80,7 @@ from fdtdx.objects.object import (
     SizeConstraint,
     SizeExtensionConstraint,
 )
+from fdtdx.objects.sources.dipole import PointDipoleSource
 from fdtdx.objects.sources.linear_polarization import GaussianPlaneSource, UniformPlaneSource
 from fdtdx.objects.sources.mode import ModePlaneSource
 from fdtdx.objects.sources.profile import GaussianPulseProfile, SingleFrequencyProfile
@@ -185,6 +186,7 @@ __all__ = [
     "ParameterTransformation",
     "circular_brush",
     # sources
+    "PointDipoleSource",
     "GaussianPlaneSource",
     "UniformPlaneSource",
     "ModePlaneSource",
