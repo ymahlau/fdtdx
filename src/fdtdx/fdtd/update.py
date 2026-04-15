@@ -164,7 +164,26 @@ def update_E(
         # standard update formula using lossless material
         # Component-wise multiplication for diagonally anisotropic materials:
         # E[i, x, y, z] = factor * E[i, x, y, z] + c * curl[i, x, y, z] * inv_eps[i, x, y, z]
-        E = factor * arrays.E + c * curl * inv_eps
+        E_old = arrays.E
+        E = factor * E_old + c * curl * inv_eps
+
+        # Dispersive (ADE) correction. Non-dispersive cells have c3 = 0, so P_new =
+        # c1*P_curr + c2*P_prev and (P_curr - P_new) reduces to a purely historical
+        # term that is also zero when P_curr and P_prev start at zero — so it's a
+        # no-op outside dispersive regions. Only active when arrays are allocated.
+        if arrays.dispersive_P_curr is not None:
+            P_curr = arrays.dispersive_P_curr
+            P_prev = arrays.dispersive_P_prev
+            disp_c1 = arrays.dispersive_c1
+            disp_c2 = arrays.dispersive_c2
+            disp_c3 = arrays.dispersive_c3
+            assert P_prev is not None and disp_c1 is not None and disp_c2 is not None and disp_c3 is not None
+            Eb = E_old[None, ...]  # (1, 3, Nx, Ny, Nz)
+            P_new = disp_c1 * P_curr + disp_c2 * P_prev + disp_c3 * Eb
+            delta_sum = jnp.sum(P_curr - P_new, axis=0)
+            E = E + inv_eps * delta_sum
+            arrays = arrays.aset("dispersive_P_prev", P_curr)
+            arrays = arrays.aset("dispersive_P_curr", P_new)
 
         if sigma_E is not None:
             # update formula for lossy material. Simplifies to Noop for conductivity = 0
@@ -172,6 +191,11 @@ def update_E(
             E = E / (1 + c * sigma_E * eta0 * inv_eps / 2)
 
     else:
+        if arrays.dispersive_P_curr is not None:
+            raise NotImplementedError(
+                "Dispersive materials cannot be combined with fully anisotropic "
+                "(off-diagonal) permittivity tensors in v1."
+            )
         # Full anisotropic case: expand inv_eps and sigma_E to (3, 3, Nx, Ny, Nz)
         inv_eps = expand_to_3x3(inv_eps)
         sigma_E = expand_to_3x3(sigma_E)
@@ -304,9 +328,44 @@ def update_E_reverse(
         if sigma_E is not None:
             E = E * (1 + c * sigma_E * eta0 * inv_eps / 2)
             factor = 1 - c * sigma_E * eta0 * inv_eps / 2
-        E = E / factor - c * curl * inv_eps
+
+        # Dispersive (ADE) reverse correction. At reverse time, arrays.dispersive_P_curr
+        # holds P^(n+1) and arrays.dispersive_P_prev holds P^n. The forward update added
+        # inv_eps * sum(P^n - P^(n+1)) inside the lossy factor; subtract it here to
+        # recover E^n. Non-dispersive cells (all zero arrays) contribute zero.
+        if arrays.dispersive_P_curr is not None:
+            P_curr_r = arrays.dispersive_P_curr
+            P_prev_r = arrays.dispersive_P_prev
+            disp_c1_r = arrays.dispersive_c1
+            disp_c2_r = arrays.dispersive_c2
+            disp_c3_r = arrays.dispersive_c3
+            assert P_prev_r is not None and disp_c1_r is not None and disp_c2_r is not None and disp_c3_r is not None
+            delta_sum = jnp.sum(P_prev_r - P_curr_r, axis=0)
+            E = (E / factor) - c * curl * inv_eps - inv_eps * delta_sum
+            # Invert the polarization recurrence:
+            # P^(n+1) = c1 * P^n + c2 * P^(n-1) + c3 * E^n
+            # =>  P^(n-1) = (P^(n+1) - c1 * P^n - c3 * E^n) / c2
+            # For the physically meaningful regime (gamma*dt << 1), c2 ~ -1,
+            # far from the singular case c2 = 0. Non-dispersive cells have
+            # c2 = 0 and P_curr = P_prev = 0, so safe division yields zeros.
+            Eb = E[None, ...]
+            c2_safe = jnp.where(disp_c2_r == 0, 1.0, disp_c2_r)
+            P_prev_new = jnp.where(
+                disp_c2_r == 0,
+                0.0,
+                (P_curr_r - disp_c1_r * P_prev_r - disp_c3_r * Eb) / c2_safe,
+            )
+            arrays = arrays.aset("dispersive_P_curr", P_prev_r)
+            arrays = arrays.aset("dispersive_P_prev", P_prev_new)
+        else:
+            E = E / factor - c * curl * inv_eps
 
     else:
+        if arrays.dispersive_P_curr is not None:
+            raise NotImplementedError(
+                "Dispersive materials cannot be combined with fully anisotropic "
+                "(off-diagonal) permittivity tensors in v1."
+            )
         # Full anisotropic case: expand inv_eps and sigma_E to (3, 3, Nx, Ny, Nz)
         inv_eps = expand_to_3x3(inv_eps)
         sigma_E = expand_to_3x3(sigma_E)

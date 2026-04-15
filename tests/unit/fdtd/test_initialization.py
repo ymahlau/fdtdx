@@ -542,6 +542,11 @@ def _make_arrays_mock(shape=(10, 10, 10)):
     arrays = Mock(spec=ArrayContainer)
     arrays.inv_permittivities = inv_perm
     arrays.inv_permeabilities = inv_permeab
+    arrays.dispersive_c1 = None
+    arrays.dispersive_c2 = None
+    arrays.dispersive_c3 = None
+    arrays.dispersive_P_curr = None
+    arrays.dispersive_P_prev = None
     at_accessor = MagicMock()
 
     def at_getitem(key):
@@ -643,6 +648,11 @@ def test_apply_params_isotropic_components(mock_compute_perm):
     arrays = Mock(spec=ArrayContainer)
     arrays.inv_permittivities = inv_perm
     arrays.inv_permeabilities = inv_permeab
+    arrays.dispersive_c1 = None
+    arrays.dispersive_c2 = None
+    arrays.dispersive_c3 = None
+    arrays.dispersive_P_curr = None
+    arrays.dispersive_P_prev = None
     at_accessor = MagicMock()
 
     def at_getitem(key):
@@ -690,6 +700,11 @@ def test_apply_params_fully_anisotropic_continuous(mock_compute_perm):
     arrays = Mock(spec=ArrayContainer)
     arrays.inv_permittivities = inv_perm
     arrays.inv_permeabilities = inv_permeab
+    arrays.dispersive_c1 = None
+    arrays.dispersive_c2 = None
+    arrays.dispersive_c3 = None
+    arrays.dispersive_P_curr = None
+    arrays.dispersive_P_prev = None
     at_accessor = MagicMock()
 
     def at_getitem(key):
@@ -738,6 +753,11 @@ def test_apply_params_fully_anisotropic_discrete(mock_ste, mock_compute_perm):
     arrays = Mock(spec=ArrayContainer)
     arrays.inv_permittivities = inv_perm
     arrays.inv_permeabilities = inv_permeab
+    arrays.dispersive_c1 = None
+    arrays.dispersive_c2 = None
+    arrays.dispersive_c3 = None
+    arrays.dispersive_P_curr = None
+    arrays.dispersive_P_prev = None
     at_accessor = MagicMock()
 
     def at_getitem(key):
@@ -1104,6 +1124,7 @@ def test_init_arrays_unknown_static_material_type_raises(mock_create_matrix):
     objects.all_objects_non_magnetic = True
     objects.all_objects_non_electrically_conductive = True
     objects.all_objects_non_magnetically_conductive = True
+    objects.max_num_dispersive_poles = 0
     objects.static_material_objects = [fake_obj]
     objects.detectors = []
     objects.boundary_objects = []

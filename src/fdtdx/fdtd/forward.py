@@ -18,6 +18,8 @@ def forward_single_args_wrapper(
     sigma: jax.Array,
     inv_permittivities: jax.Array,
     inv_permeabilities: jax.Array,
+    dispersive_P_curr: jax.Array | None,
+    dispersive_P_prev: jax.Array | None,
     detector_states: dict[str, DetectorState],
     recording_state: RecordingState | None,
     config: SimulationConfig,
@@ -26,6 +28,7 @@ def forward_single_args_wrapper(
     record_detectors: bool,
     record_boundaries: bool,
     simulate_boundaries: bool,
+    arrays_template: ArrayContainer | None = None,
 ) -> tuple[
     jax.Array,
     jax.Array,
@@ -37,10 +40,28 @@ def forward_single_args_wrapper(
     jax.Array,
     jax.Array,
     jax.Array | float,
+    jax.Array | None,
+    jax.Array | None,
     dict[str, DetectorState],
     RecordingState | None,
 ]:
     # Wrapper function that unpacks ArrayContainer into individual arrays for JAX transformations.
+    # ``arrays_template`` carries the static (non-differentiated) fields that should be
+    # closure-captured from the outer simulation state: electric/magnetic conductivity
+    # and the dispersive coefficient arrays (c1, c2, c3). They are never primal
+    # arguments to the VJP.
+    if arrays_template is None:
+        electric_conductivity = None
+        magnetic_conductivity = None
+        dispersive_c1 = None
+        dispersive_c2 = None
+        dispersive_c3 = None
+    else:
+        electric_conductivity = arrays_template.electric_conductivity
+        magnetic_conductivity = arrays_template.magnetic_conductivity
+        dispersive_c1 = arrays_template.dispersive_c1
+        dispersive_c2 = arrays_template.dispersive_c2
+        dispersive_c3 = arrays_template.dispersive_c3
     arr = ArrayContainer(
         E=E,
         H=H,
@@ -53,6 +74,13 @@ def forward_single_args_wrapper(
         inv_permeabilities=inv_permeabilities,
         detector_states=detector_states,
         recording_state=recording_state,
+        electric_conductivity=electric_conductivity,
+        magnetic_conductivity=magnetic_conductivity,
+        dispersive_P_curr=dispersive_P_curr,
+        dispersive_P_prev=dispersive_P_prev,
+        dispersive_c1=dispersive_c1,
+        dispersive_c2=dispersive_c2,
+        dispersive_c3=dispersive_c3,
     )
     state = forward(
         state=(time_step, arr),
@@ -74,6 +102,8 @@ def forward_single_args_wrapper(
         state[1].sigma,
         state[1].inv_permittivities,
         state[1].inv_permeabilities,
+        state[1].dispersive_P_curr,
+        state[1].dispersive_P_prev,
         state[1].detector_states,
         state[1].recording_state,
     )
