@@ -34,7 +34,7 @@ repos:
   #         --skip-checking-raises=True,
         # ]
   - repo: https://github.com/woodruffw/zizmor-pre-commit
-    rev: v1.5.2
+    rev: v1.24.1
     hooks:
       - id: zizmor
   - repo: local
