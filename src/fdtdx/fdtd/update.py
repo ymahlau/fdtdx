@@ -191,11 +191,6 @@ def update_E(
             E = E / (1 + c * sigma_E * eta0 * inv_eps / 2)
 
     else:
-        if arrays.dispersive_P_curr is not None:
-            raise NotImplementedError(
-                "Dispersive materials cannot be combined with fully anisotropic "
-                "(off-diagonal) permittivity tensors in v1."
-            )
         # Full anisotropic case: expand inv_eps and sigma_E to (3, 3, Nx, Ny, Nz)
         inv_eps = expand_to_3x3(inv_eps)
         sigma_E = expand_to_3x3(sigma_E)
@@ -361,11 +356,6 @@ def update_E_reverse(
             E = E / factor - c * curl * inv_eps
 
     else:
-        if arrays.dispersive_P_curr is not None:
-            raise NotImplementedError(
-                "Dispersive materials cannot be combined with fully anisotropic "
-                "(off-diagonal) permittivity tensors in v1."
-            )
         # Full anisotropic case: expand inv_eps and sigma_E to (3, 3, Nx, Ny, Nz)
         inv_eps = expand_to_3x3(inv_eps)
         sigma_E = expand_to_3x3(sigma_E)

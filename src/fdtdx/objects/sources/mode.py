@@ -60,11 +60,6 @@ class ModePlaneSource(TFSFPlaneSource):
         # mode profiles computed inside a dispersive medium reflect the true
         # epsilon at the carrier frequency, not epsilon_infinity.
         if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
-            if inv_permittivity_slice.ndim >= 1 and inv_permittivity_slice.shape[0] == 9:
-                raise NotImplementedError(
-                    "Dispersive materials cannot be combined with fully anisotropic "
-                    "(off-diagonal) permittivity tensors in v1."
-                )
             c1_slice = dispersive_c1[:, :, *self.grid_slice]
             c2_slice = dispersive_c2[:, :, *self.grid_slice]
             c3_slice = dispersive_c3[:, :, *self.grid_slice]

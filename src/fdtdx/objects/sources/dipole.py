@@ -102,11 +102,6 @@ class PointDipoleSource(Source):
         inv_eps_slice = inv_permittivities[:, *self.grid_slice]
 
         if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
-            if inv_eps_slice.ndim >= 1 and inv_eps_slice.shape[0] == 9:
-                raise NotImplementedError(
-                    "Dispersive materials cannot be combined with fully anisotropic "
-                    "(off-diagonal) permittivity tensors in v1."
-                )
             c1_slice = dispersive_c1[:, :, *self.grid_slice]
             c2_slice = dispersive_c2[:, :, *self.grid_slice]
             c3_slice = dispersive_c3[:, :, *self.grid_slice]

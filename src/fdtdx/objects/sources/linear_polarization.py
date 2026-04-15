@@ -46,15 +46,6 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         # energy normalization reflect the true medium the source sits in,
         # not just the high-frequency permittivity epsilon_infinity.
         if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
-            if (
-                isinstance(inv_permittivities, jax.Array)
-                and inv_permittivities.ndim >= 1
-                and inv_permittivities.shape[0] == 9
-            ):
-                raise NotImplementedError(
-                    "Dispersive materials cannot be combined with fully anisotropic "
-                    "(off-diagonal) permittivity tensors in v1."
-                )
             # dispersive_c* shape: (num_poles, 1, Nx, Ny, Nz) → slice spatial axes
             c1_slice = dispersive_c1[:, :, *self.grid_slice]
             c2_slice = dispersive_c2[:, :, *self.grid_slice]
