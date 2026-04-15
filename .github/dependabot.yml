@@ -5,7 +5,7 @@ updates:
     schedule:
       interval: "weekly"
     cooldown:
-      minimum-interval-days: 7
+      default-days: 7
     open-pull-requests-limit: 5
     ignore:
       - dependency-name: "*"
@@ -20,7 +20,7 @@ updates:
     schedule:
       interval: "weekly"
     cooldown:
-      minimum-interval-days: 7
+      default-days: 7
     open-pull-requests-limit: 5
     ignore:
       - dependency-name: "*"
@@ -35,7 +35,7 @@ updates:
     schedule:
       interval: "weekly"
     cooldown:
-      minimum-interval-days: 7
+      default-days: 7
     open-pull-requests-limit: 5
     ignore:
       - dependency-name: "*"
