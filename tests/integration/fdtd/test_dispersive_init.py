@@ -100,7 +100,8 @@ def test_dispersive_arrays_allocated(simple_config, simple_volume):
 
     # Coefficient values inside the slab should match compute_pole_coefficients.
     c1_ref, c2_ref, c3_ref = compute_pole_coefficients(
-        material.dispersion.poles, config.time_step_duration  # type: ignore[union-attr]
+        material.dispersion.poles,
+        config.time_step_duration,  # type: ignore[union-attr]
     )
     xs, ys, zs = placed.grid_slice
     assert jnp.allclose(arrays.dispersive_c1[0, 0, xs, ys, zs], c1_ref[0])
@@ -137,9 +138,7 @@ def test_pole_padding_mixed_pole_counts(simple_config, simple_volume):
     obj1 = UniformMaterialObject(name="one_pole_slab", partial_grid_shape=(6, 6, 6), material=one_pole)
     obj2 = UniformMaterialObject(name="three_pole_slab", partial_grid_shape=(6, 6, 6), material=three_pole)
     constraints = [
-        GridCoordinateConstraint(
-            object="one_pole_slab", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[2, 2, 2]
-        ),
+        GridCoordinateConstraint(object="one_pole_slab", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[2, 2, 2]),
         GridCoordinateConstraint(
             object="three_pole_slab", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[15, 15, 15]
         ),
@@ -219,9 +218,7 @@ def test_static_multi_material_dispersive(simple_config, simple_volume):
         material_name="drude",
         radius=5.0 * simple_config.resolution,
     )
-    constraint = GridCoordinateConstraint(
-        object="sphere", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[8, 8, 8]
-    )
+    constraint = GridCoordinateConstraint(object="sphere", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[8, 8, 8])
     key = jax.random.PRNGKey(0)
     objects, arrays, _, _, _ = place_objects([simple_volume, sphere], simple_config, [constraint], key)
     placed = _placed(objects, "sphere")
@@ -266,9 +263,7 @@ def test_device_dispersive_continuous(simple_config, simple_volume):
         object="device", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
     )
     key = jax.random.PRNGKey(0)
-    objects, arrays, params, config, _ = place_objects(
-        [simple_volume, device], simple_config, [constraint], key
-    )
+    objects, arrays, params, config, _ = place_objects([simple_volume, device], simple_config, [constraint], key)
     placed_device = _placed(objects, "device")
     xs, ys, zs = placed_device.grid_slice
 
@@ -319,9 +314,7 @@ def test_device_dispersive_discrete(simple_config, simple_volume):
         object="device", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
     )
     key = jax.random.PRNGKey(0)
-    objects, arrays, params, config, _ = place_objects(
-        [simple_volume, device], simple_config, [constraint], key
-    )
+    objects, arrays, params, config, _ = place_objects([simple_volume, device], simple_config, [constraint], key)
     placed_device = _placed(objects, "device")
     xs, ys, zs = placed_device.grid_slice
 
