@@ -251,6 +251,151 @@ class TestTimeReversalBlochBoundary:
         assert jnp.allclose(H_rec, H_orig, atol=1e-5), f"H max error: {jnp.max(jnp.abs(H_rec - H_orig))}"
 
 
+class TestTimeReversalDispersiveLorentz:
+    """Dispersive (Lorentz) material round-trip reconstructs both E/H and
+    the ADE polarization state.
+
+    Periodic boundaries + a Lorentz slab filling the middle of the z axis.
+    P_curr and P_prev are seeded with non-zero random values masked to the
+    dispersive slab (vacuum cells have c1=c2=c3=0, and information in those
+    cells would be lost through the zero-valued recurrence). One forward step
+    followed by one reverse step must exactly reconstruct E, H, P_curr and
+    P_prev — the reverse is the algebraic inverse of the ADE recurrence.
+    """
+
+    @staticmethod
+    def _build():
+        config = SimulationConfig(
+            time=_SIM_TIME,
+            resolution=_RESOLUTION,
+            backend="cpu",
+            dtype=jnp.float32,
+            courant_factor=0.99,
+            gradient_config=None,
+        )
+        objects, constraints = [], []
+        volume = fdtdx.SimulationVolume(
+            partial_grid_shape=(_VOLUME_CELLS, _VOLUME_CELLS, _VOLUME_CELLS),
+        )
+        objects.append(volume)
+
+        bound_cfg = fdtdx.BoundaryConfig.from_uniform_bound(
+            thickness=_PML_CELLS,
+            override_types=_uniform_boundaries("periodic"),
+        )
+        bound_dict, c_list = fdtdx.boundary_objects_from_config(bound_cfg, volume)
+        objects.extend(bound_dict.values())
+        constraints.extend(c_list)
+
+        material = fdtdx.Material(
+            permittivity=2.0,
+            dispersion=fdtdx.DispersionModel(
+                poles=(fdtdx.LorentzPole(resonance_frequency=2e15, damping=1e13, delta_epsilon=1.5),),
+            ),
+        )
+        slab_cells = _VOLUME_CELLS // 2
+        slab = fdtdx.UniformMaterialObject(
+            partial_grid_shape=(None, None, slab_cells),
+            material=material,
+        )
+        constraints.extend(
+            [
+                slab.same_size(volume, axes=(0, 1)),
+                slab.place_at_center(volume, axes=(0, 1)),
+                slab.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(_VOLUME_CELLS // 4,)),
+            ]
+        )
+        objects.append(slab)
+
+        key = jax.random.PRNGKey(0)
+        obj_container, arrays, params, config, _ = fdtdx.place_objects(
+            object_list=objects,
+            config=config,
+            constraints=constraints,
+            key=key,
+        )
+        arrays, obj_container, _ = fdtdx.apply_params(arrays, obj_container, params, key)
+        return obj_container, arrays, config
+
+    def test_fields_and_polarization_reconstructed_exactly(self):
+        obj, arrays, config = self._build()
+        # Allocation sanity: the slab should have triggered allocation.
+        assert arrays.dispersive_P_curr is not None
+        assert arrays.dispersive_P_prev is not None
+        assert arrays.dispersive_c3 is not None
+
+        key = jax.random.PRNGKey(42)
+        k_E, k_H, k_Pc, k_Pp = jax.random.split(key, 4)
+
+        E = jax.random.normal(k_E, arrays.E.shape, dtype=arrays.E.dtype) * 1e-3
+        H = jax.random.normal(k_H, arrays.H.shape, dtype=arrays.H.dtype) * 1e-3
+        for b in obj.boundary_objects:
+            E = b.apply_post_E_update(E)
+            H = b.apply_post_H_update(H)
+
+        # Mask polarization seeds to dispersive cells only. In vacuum cells the
+        # recurrence coefficients are zero, so any nonzero P there gets dropped
+        # by the forward step and the reverse cannot recover it. Keeping P=0 in
+        # those cells is consistent with both directions.
+        disp_mask = (arrays.dispersive_c3 != 0).astype(arrays.dispersive_P_curr.dtype)
+        P_curr = (
+            jax.random.normal(k_Pc, arrays.dispersive_P_curr.shape, dtype=arrays.dispersive_P_curr.dtype)
+            * 1e-3
+            * disp_mask
+        )
+        P_prev = (
+            jax.random.normal(k_Pp, arrays.dispersive_P_prev.shape, dtype=arrays.dispersive_P_prev.dtype)
+            * 1e-3
+            * disp_mask
+        )
+
+        arrays = arrays.aset("E", E)
+        arrays = arrays.aset("H", H)
+        arrays = arrays.aset("dispersive_P_curr", P_curr)
+        arrays = arrays.aset("dispersive_P_prev", P_prev)
+
+        # Recorder setup: there are no PML objects, so the recorder ends up
+        # with an empty interface dict — but backward() still needs a
+        # gradient_config and recording_state to be present.
+        arrays, config = _add_gradient_config(arrays, config, obj)
+
+        E_orig = E
+        H_orig = H
+        Pc_orig = P_curr
+        Pp_orig = P_prev
+
+        state_fwd = forward(
+            state=(jnp.asarray(0, dtype=jnp.int32), arrays),
+            config=config,
+            objects=obj,
+            key=key,
+            record_detectors=False,
+            record_boundaries=False,
+            simulate_boundaries=True,
+        )
+        state_bwd = backward(
+            state=state_fwd,
+            config=config,
+            objects=obj,
+            key=key,
+            record_detectors=False,
+            reset_fields=False,
+        )
+        _, arrays_bwd = state_bwd
+
+        assert arrays_bwd.dispersive_P_curr is not None
+        assert arrays_bwd.dispersive_P_prev is not None
+
+        assert jnp.allclose(arrays_bwd.E, E_orig, atol=1e-5), f"E max err: {jnp.max(jnp.abs(arrays_bwd.E - E_orig))}"
+        assert jnp.allclose(arrays_bwd.H, H_orig, atol=1e-5), f"H max err: {jnp.max(jnp.abs(arrays_bwd.H - H_orig))}"
+        assert jnp.allclose(arrays_bwd.dispersive_P_curr, Pc_orig, atol=1e-5), (
+            f"P_curr max err: {jnp.max(jnp.abs(arrays_bwd.dispersive_P_curr - Pc_orig))}"
+        )
+        assert jnp.allclose(arrays_bwd.dispersive_P_prev, Pp_orig, atol=1e-5), (
+            f"P_prev max err: {jnp.max(jnp.abs(arrays_bwd.dispersive_P_prev - Pp_orig))}"
+        )
+
+
 class TestTimeReversalMixedPMLPeriodic:
     """Mixed PML (z) + periodic (x, y) — the most common real-world config."""
 
@@ -325,6 +470,7 @@ class TestTimeReversalMixedPMLBloch:
         )
         _, arrays_fwd = state_fwd
         # Check that the recorder's stored data has complex dtype
+        assert arrays_fwd.recording_state is not None
         for k, v in arrays_fwd.recording_state.data.items():
             assert jnp.issubdtype(v.dtype, jnp.complexfloating), (
                 f"Recorded interface '{k}' has dtype {v.dtype}, expected complex"
@@ -332,6 +478,69 @@ class TestTimeReversalMixedPMLBloch:
 
 
 # ── Test: gradient with PML + Bloch (complex fields) ───────────────────────────
+
+
+class TestGradientDispersiveLorentz:
+    """End-to-end gradient test through a full reversible FDTD run with a
+    Lorentz dispersive slab.
+
+    Exercises the custom VJP with the dispersive polarization state threaded
+    through forward and backward passes, verifying that ``reversible_fdtd``
+    produces finite gradients w.r.t. ``inv_permittivities`` when the ADE
+    update path is active.
+    """
+
+    @staticmethod
+    def _build():
+        obj, arrays, config = TestTimeReversalDispersiveLorentz._build()
+        arrays, config = _add_gradient_config(arrays, config, obj)
+        key = jax.random.PRNGKey(7)
+        arrays = _seed_fields(arrays, key, obj)
+        return obj, arrays, config
+
+    @staticmethod
+    def _loss_fn(inv_permittivities, arrays, objects, config, key):
+        arrays = ArrayContainer(
+            E=arrays.E,
+            H=arrays.H,
+            psi_E=arrays.psi_E,
+            psi_H=arrays.psi_H,
+            alpha=arrays.alpha,
+            kappa=arrays.kappa,
+            sigma=arrays.sigma,
+            inv_permittivities=inv_permittivities,
+            inv_permeabilities=arrays.inv_permeabilities,
+            detector_states=arrays.detector_states,
+            recording_state=arrays.recording_state,
+            electric_conductivity=arrays.electric_conductivity,
+            magnetic_conductivity=arrays.magnetic_conductivity,
+            dispersive_P_curr=arrays.dispersive_P_curr,
+            dispersive_P_prev=arrays.dispersive_P_prev,
+            dispersive_c1=arrays.dispersive_c1,
+            dispersive_c2=arrays.dispersive_c2,
+            dispersive_c3=arrays.dispersive_c3,
+        )
+        _, out = reversible_fdtd(arrays, objects, config, key, show_progress=False)
+        return jnp.sum(jnp.real(out.E) ** 2)
+
+    def test_dispersive_arrays_allocated(self):
+        _, arrays, _ = self._build()
+        assert arrays.dispersive_P_curr is not None
+        assert arrays.dispersive_P_prev is not None
+        assert arrays.dispersive_c1 is not None
+
+    def test_gradients_are_finite(self):
+        obj, arrays, config = self._build()
+        key = jax.random.PRNGKey(99)
+        loss, grads = jax.value_and_grad(self._loss_fn)(
+            arrays.inv_permittivities,
+            arrays,
+            obj,
+            config,
+            key,
+        )
+        assert jnp.isfinite(loss), f"Loss is not finite: {loss}"
+        assert jnp.all(jnp.isfinite(grads)), "Gradients contain NaN or Inf"
 
 
 class TestGradientPMLBlochComplex:

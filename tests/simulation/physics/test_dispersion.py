@@ -249,7 +249,7 @@ def test_drude_metal_is_highly_reflective():
     eps_omega = eps_inf + complex(model.susceptibility(_OMEGA))
     T_analytic = _fresnel_transmission_semi_infinite(eps_omega)
     # Sanity: Drude above plasma limit should reflect strongly → T small
-    assert T_analytic < 0.2, f"Test premise wrong: Drude T_analytic={T_analytic:.3f} not small"
+    assert T_analytic < 0.05, f"Test premise wrong: Drude T_analytic={T_analytic:.3f} not small"
 
     obj0, con0, cfg0, vol0 = _build_base()
     _add_flux_det("flux_t", _DET_T_Z, vol0, obj0, con0)
@@ -269,34 +269,3 @@ def test_drude_metal_is_highly_reflective():
         f"Drude T_measured={T_measured:.4f}, T_analytic={T_analytic:.4f}, "
         f"|diff|={abs(T_measured - T_analytic):.3f} > {_TOLERANCE}"
     )
-
-
-# ---------------------------------------------------------------------------
-# Reversible-gradient sanity: the algebraically-inverted polarization
-# recurrence in update_E_reverse must produce a finite gradient for a loss
-# that depends on a dispersive simulation run.
-# ---------------------------------------------------------------------------
-
-
-def _build_lorentz_scene_for_grad():
-    """Same Lorentz half-space scene, returning objects/constraints/config
-    (without the Recorder wiring, which the caller sets per test)."""
-    obj, con, cfg, vol = _build_base()
-    material = fdtdx.Material(permittivity=1.0, dispersion=_lorentz_model())
-    _add_half_space(material, vol, obj, con)
-    _add_flux_det("flux_t", _DET_T_Z, vol, obj, con)
-    return obj, con, cfg
-
-
-def test_lorentz_reversible_forward_runs():
-    """Reversible gradient config forward-only run works with dispersive
-    materials — exercises the per-step primal plumbing in reversible_fdtd.
-    """
-    recorder = fdtdx.Recorder(modules=[fdtdx.DtypeConversion(dtype=jnp.bfloat16)])
-    gradient_config = fdtdx.GradientConfig(method="reversible", recorder=recorder)
-
-    objects, constraints, config = _build_lorentz_scene_for_grad()
-    config = config.aset("gradient_config", gradient_config)
-    S_T = _mean_flux(_run(objects, constraints, config), "flux_t")
-    assert S_T > 0, f"Reversible Lorentz flux zero: {S_T}"
-    assert np.isfinite(S_T)

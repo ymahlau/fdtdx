@@ -164,8 +164,8 @@ def update_E(
         # standard update formula using lossless material
         # Component-wise multiplication for diagonally anisotropic materials:
         # E[i, x, y, z] = factor * E[i, x, y, z] + c * curl[i, x, y, z] * inv_eps[i, x, y, z]
-        E_old = arrays.E
-        E = factor * E_old + c * curl * inv_eps
+        E_prev = arrays.E
+        E = factor * E_prev + c * curl * inv_eps
 
         # Dispersive (ADE) correction. Non-dispersive cells have c3 = 0, so P_new =
         # c1*P_curr + c2*P_prev and (P_curr - P_new) reduces to a purely historical
@@ -178,7 +178,7 @@ def update_E(
             disp_c2 = arrays.dispersive_c2
             disp_c3 = arrays.dispersive_c3
             assert P_prev is not None and disp_c1 is not None and disp_c2 is not None and disp_c3 is not None
-            Eb = E_old[None, ...]  # (1, 3, Nx, Ny, Nz)
+            Eb = E_prev[None, ...]  # (1, 3, Nx, Ny, Nz)
             P_new = disp_c1 * P_curr + disp_c2 * P_prev + disp_c3 * Eb
             delta_sum = jnp.sum(P_curr - P_new, axis=0)
             E = E + inv_eps * delta_sum
