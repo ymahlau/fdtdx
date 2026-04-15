@@ -52,7 +52,9 @@ def _lorentz_model():
     # At ω = omega_0/2, Re(χ) = Δε·ω₀²/(ω₀² - ω²) = Δε · 4/3
     # For ε_inf=1 and target ε=4, we want Re(χ) = 3 → Δε = 9/4 = 2.25
     delta_eps = 2.25
-    return fdtdx.DispersionModel(poles=(fdtdx.lorentz_pole(omega_0, gamma, delta_eps),))
+    return fdtdx.DispersionModel(
+        poles=(fdtdx.LorentzPole(resonance_frequency=omega_0, damping=gamma, delta_epsilon=delta_eps),)
+    )
 
 
 def _drude_model():
@@ -60,7 +62,7 @@ def _drude_model():
     a large negative real part, i.e. a highly reflective metallic response."""
     omega_p = 5.0 * _OMEGA
     gamma = 0.05 * _OMEGA
-    return fdtdx.DispersionModel(poles=(fdtdx.drude_pole(omega_p, gamma),))
+    return fdtdx.DispersionModel(poles=(fdtdx.DrudePole(plasma_frequency=omega_p, damping=gamma),))
 
 
 def _fresnel_transmission_semi_infinite(eps_complex: complex) -> float:

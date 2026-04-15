@@ -23,7 +23,7 @@ from fdtdx.core.physics.metrics import (
 from fdtdx.core.physics.modes import compute_mode
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
-from fdtdx.dispersion import DispersionModel, Pole, compute_pole_coefficients, drude_pole, lorentz_pole
+from fdtdx.dispersion import DispersionModel, DrudePole, LorentzPole, Pole, compute_pole_coefficients
 from fdtdx.fdtd.backward import full_backward
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, ParameterContainer, SimulationState
 from fdtdx.fdtd.initialization import apply_params, place_objects, resolve_object_constraints
@@ -217,8 +217,8 @@ __all__ = [
     "Material",
     "DispersionModel",
     "Pole",
-    "drude_pole",
-    "lorentz_pole",
+    "LorentzPole",
+    "DrudePole",
     "compute_pole_coefficients",
     "Color",
     "constants",

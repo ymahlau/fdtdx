@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.dispersion import DispersionModel, compute_pole_coefficients, drude_pole, lorentz_pole
+from fdtdx.dispersion import DispersionModel, DrudePole, LorentzPole, compute_pole_coefficients
 from fdtdx.fdtd.initialization import apply_params, place_objects
 from fdtdx.materials import Material
 from fdtdx.objects.device.device import Device
@@ -41,14 +41,14 @@ def simple_volume():
 def _lorentz_material(eps_inf=2.0):
     return Material(
         permittivity=eps_inf,
-        dispersion=DispersionModel(poles=(lorentz_pole(omega_0=2e15, gamma=1e13, delta_epsilon=1.5),)),
+        dispersion=DispersionModel(poles=(LorentzPole(resonance_frequency=2e15, damping=1e13, delta_epsilon=1.5),)),
     )
 
 
 def _drude_material(eps_inf=1.0):
     return Material(
         permittivity=eps_inf,
-        dispersion=DispersionModel(poles=(drude_pole(omega_p=1.37e16, gamma=1e14),)),
+        dispersion=DispersionModel(poles=(DrudePole(plasma_frequency=1.37e16, damping=1e14),)),
     )
 
 
@@ -57,9 +57,9 @@ def _three_pole_material(eps_inf=2.0):
         permittivity=eps_inf,
         dispersion=DispersionModel(
             poles=(
-                lorentz_pole(omega_0=1e15, gamma=1e13, delta_epsilon=1.0),
-                lorentz_pole(omega_0=2e15, gamma=2e13, delta_epsilon=0.5),
-                drude_pole(omega_p=5e15, gamma=5e13),
+                LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=1.0),
+                LorentzPole(resonance_frequency=2e15, damping=2e13, delta_epsilon=0.5),
+                DrudePole(plasma_frequency=5e15, damping=5e13),
             )
         ),
     )

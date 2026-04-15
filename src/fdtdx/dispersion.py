@@ -52,73 +52,110 @@ after algebraic inversion.
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
+
 import numpy as np
 
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 
 
 @autoinit
-class Pole(TreeClass):
-    """Single 2nd-order ADE pole.
+class Pole(TreeClass, ABC):
+    """Abstract base class for a single 2nd-order ADE pole.
 
-    Models Lorentz and Drude poles through a unified
-    ``(omega_0, gamma, coupling_sq)`` parameterization.
+    Concrete subclasses store physically-meaningful parameters
+    (e.g. ``delta_epsilon`` for Lorentz, ``omega_p`` for Drude) and
+    expose the unified ``(omega_0, gamma, coupling_sq)`` triplet the
+    FDTD loop needs via abstract properties. New pole types can
+    subclass :class:`Pole` as long as they fit the 2nd-order
+    ODE form.
     """
 
-    #: Resonance angular frequency omega_0 (rad/s). Set to 0 for a pure Drude pole.
-    omega_0: float = frozen_field(default=0.0)
+    @property
+    @abstractmethod
+    def omega_0(self) -> float:
+        """Resonance angular frequency (rad/s). Zero for pure Drude poles."""
+        raise NotImplementedError
 
-    #: Damping rate gamma (rad/s).
-    gamma: float = frozen_field(default=0.0)
+    @property
+    @abstractmethod
+    def gamma(self) -> float:
+        """Damping rate (rad/s)."""
+        raise NotImplementedError
 
-    #: Effective squared coupling frequency K (rad^2/s^2):
-    #: ``delta_epsilon * omega_0**2`` for a Lorentz pole,
-    #: ``omega_p**2`` for a Drude pole.
-    coupling_sq: float = frozen_field(default=0.0)
+    @property
+    @abstractmethod
+    def coupling_sq(self) -> float:
+        """Effective squared coupling frequency ``K`` (rad^2/s^2).
+
+        ``delta_epsilon * omega_0**2`` for a Lorentz pole and
+        ``omega_p**2`` for a Drude pole.
+        """
+        raise NotImplementedError
 
 
-def lorentz_pole(omega_0: float, gamma: float, delta_epsilon: float) -> Pole:
-    """Build a Lorentz pole.
+@autoinit
+class LorentzPole(Pole):
+    """Lorentz pole parameterised by its physical constants.
 
-    Args:
-        omega_0: Resonance angular frequency (rad/s). Must be > 0.
-        gamma: Damping rate (rad/s). Must be >= 0.
-        delta_epsilon: Oscillator strength (dimensionless). The zero-frequency
-            contribution to susceptibility is ``delta_epsilon``.
+    The contribution to the susceptibility is
 
-    Returns:
-        Pole: A pole with ``coupling_sq = delta_epsilon * omega_0**2``.
+    .. math::
+        \\chi(\\omega) = \\frac{\\Delta\\varepsilon \\cdot \\omega_0^2}{\\omega_0^2 - \\omega^2 - i\\gamma\\omega}.
     """
-    if omega_0 <= 0.0:
-        raise ValueError(f"Lorentz pole requires omega_0 > 0, got {omega_0}")
-    if gamma < 0.0:
-        raise ValueError(f"Lorentz pole requires gamma >= 0, got {gamma}")
-    return Pole(
-        omega_0=float(omega_0),
-        gamma=float(gamma),
-        coupling_sq=float(delta_epsilon) * float(omega_0) ** 2,
-    )
+
+    #: Resonance angular frequency (rad/s). Must be > 0.
+    resonance_frequency: float = frozen_field()
+
+    #: Damping rate (rad/s). Must be >= 0.
+    damping: float = frozen_field()
+
+    #: Oscillator strength (dimensionless); the zero-frequency
+    #: contribution to the susceptibility.
+    delta_epsilon: float = frozen_field()
+
+    @property
+    def omega_0(self) -> float:
+        return float(self.resonance_frequency)
+
+    @property
+    def gamma(self) -> float:
+        return float(self.damping)
+
+    @property
+    def coupling_sq(self) -> float:
+        return float(self.delta_epsilon) * float(self.resonance_frequency) ** 2
 
 
-def drude_pole(omega_p: float, gamma: float) -> Pole:
-    """Build a Drude pole.
+@autoinit
+class DrudePole(Pole):
+    """Drude pole parameterised by its physical constants.
 
-    Args:
-        omega_p: Plasma angular frequency (rad/s). Must be > 0.
-        gamma: Damping rate (rad/s). Must be >= 0.
+    The contribution to the susceptibility is
 
-    Returns:
-        Pole: A pole with ``omega_0 = 0`` and ``coupling_sq = omega_p**2``.
+    .. math::
+        \\chi(\\omega) = -\\frac{\\omega_p^2}{\\omega^2 + i\\gamma\\omega},
+
+    equivalent to a Lorentz pole with ``omega_0 = 0``.
     """
-    if omega_p <= 0.0:
-        raise ValueError(f"Drude pole requires omega_p > 0, got {omega_p}")
-    if gamma < 0.0:
-        raise ValueError(f"Drude pole requires gamma >= 0, got {gamma}")
-    return Pole(
-        omega_0=0.0,
-        gamma=float(gamma),
-        coupling_sq=float(omega_p) ** 2,
-    )
+
+    #: Plasma angular frequency (rad/s). Must be > 0.
+    plasma_frequency: float = frozen_field()
+
+    #: Damping rate (rad/s). Must be >= 0.
+    damping: float = frozen_field()
+
+    @property
+    def omega_0(self) -> float:
+        return 0.0
+
+    @property
+    def gamma(self) -> float:
+        return float(self.damping)
+
+    @property
+    def coupling_sq(self) -> float:
+        return float(self.plasma_frequency) ** 2
 
 
 @autoinit

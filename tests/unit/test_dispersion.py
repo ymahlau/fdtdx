@@ -5,10 +5,10 @@ import pytest
 
 from fdtdx.dispersion import (
     DispersionModel,
+    DrudePole,
+    LorentzPole,
     Pole,
     compute_pole_coefficients,
-    drude_pole,
-    lorentz_pole,
 )
 from fdtdx.materials import (
     Material,
@@ -17,33 +17,20 @@ from fdtdx.materials import (
 )
 
 
-class TestPoleFactories:
-    def test_lorentz_pole_factory(self):
-        p = lorentz_pole(omega_0=1e15, gamma=1e13, delta_epsilon=2.0)
+class TestPoleSubclasses:
+    def test_lorentz_pole_parameters(self):
+        p = LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0)
         assert isinstance(p, Pole)
         assert p.omega_0 == 1e15
         assert p.gamma == 1e13
         assert p.coupling_sq == pytest.approx(2.0 * 1e15**2)
 
-    def test_drude_pole_factory(self):
-        p = drude_pole(omega_p=1e16, gamma=1e14)
+    def test_drude_pole_parameters(self):
+        p = DrudePole(plasma_frequency=1e16, damping=1e14)
+        assert isinstance(p, Pole)
         assert p.omega_0 == 0.0
         assert p.gamma == 1e14
         assert p.coupling_sq == pytest.approx(1e16**2)
-
-    def test_lorentz_rejects_nonpositive_omega_0(self):
-        with pytest.raises(ValueError):
-            lorentz_pole(omega_0=0.0, gamma=1e13, delta_epsilon=1.0)
-        with pytest.raises(ValueError):
-            lorentz_pole(omega_0=-1e15, gamma=1e13, delta_epsilon=1.0)
-
-    def test_drude_rejects_nonpositive_omega_p(self):
-        with pytest.raises(ValueError):
-            drude_pole(omega_p=0.0, gamma=1e14)
-
-    def test_lorentz_rejects_negative_gamma(self):
-        with pytest.raises(ValueError):
-            lorentz_pole(omega_0=1e15, gamma=-1.0, delta_epsilon=1.0)
 
 
 class TestDispersionModel:
@@ -58,7 +45,7 @@ class TestDispersionModel:
         delta_eps = 3.5
         omega_0 = 2e15
         gamma = 1e13
-        m = DispersionModel(poles=(lorentz_pole(omega_0, gamma, delta_eps),))
+        m = DispersionModel(poles=(LorentzPole(resonance_frequency=omega_0, damping=gamma, delta_epsilon=delta_eps),))
         chi = m.susceptibility(0.0)
         assert chi.imag == pytest.approx(0.0, abs=1e-18)
         assert chi.real == pytest.approx(delta_eps)
@@ -69,7 +56,7 @@ class TestDispersionModel:
         delta_eps = 1.7
         omega_0 = 1.5e15
         gamma = 5e13
-        m = DispersionModel(poles=(lorentz_pole(omega_0, gamma, delta_eps),))
+        m = DispersionModel(poles=(LorentzPole(resonance_frequency=omega_0, damping=gamma, delta_epsilon=delta_eps),))
         for omega in (0.3e15, 0.9e15, 1.4e15, 2.5e15):
             expected = (delta_eps * omega_0**2) / (omega_0**2 - omega**2 - 1j * gamma * omega)
             assert m.susceptibility(omega) == pytest.approx(expected, rel=1e-12)
@@ -77,13 +64,13 @@ class TestDispersionModel:
     def test_drude_susceptibility_closed_form(self):
         omega_p = 9e15
         gamma = 1.5e13
-        m = DispersionModel(poles=(drude_pole(omega_p, gamma),))
+        m = DispersionModel(poles=(DrudePole(plasma_frequency=omega_p, damping=gamma),))
         for omega in (0.5e15, 2e15, 5e15):
             expected = -(omega_p**2) / (omega**2 + 1j * gamma * omega)
             assert m.susceptibility(omega) == pytest.approx(expected, rel=1e-12)
 
     def test_permittivity_includes_eps_inf(self):
-        m = DispersionModel(poles=(lorentz_pole(1e15, 1e13, 2.0),))
+        m = DispersionModel(poles=(LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0),))
         eps_inf = 2.25
         omega = 0.0
         eps = m.permittivity(omega, eps_inf=eps_inf)
@@ -100,7 +87,7 @@ class TestComputePoleCoefficients:
         assert c3.shape == (0,)
 
     def test_lorentz_coefficients_closed_form(self):
-        p = lorentz_pole(omega_0=2e15, gamma=3e13, delta_epsilon=1.5)
+        p = LorentzPole(resonance_frequency=2e15, damping=3e13, delta_epsilon=1.5)
         dt = 5e-18
         c1, c2, c3 = compute_pole_coefficients((p,), dt=dt)
         denom = 1.0 + 0.5 * p.gamma * dt
@@ -112,7 +99,7 @@ class TestComputePoleCoefficients:
         assert c3[0] == pytest.approx(exp_c3, rel=1e-12)
 
     def test_drude_coefficients_closed_form(self):
-        p = drude_pole(omega_p=1e16, gamma=1e14)
+        p = DrudePole(plasma_frequency=1e16, damping=1e14)
         dt = 2e-18
         c1, c2, c3 = compute_pole_coefficients((p,), dt=dt)
         denom = 1.0 + 0.5 * p.gamma * dt
@@ -124,14 +111,14 @@ class TestComputePoleCoefficients:
     def test_coefficients_physical_regime_c2_near_minus_one(self):
         # For gamma*dt << 1, c2 should be very close to -1 (makes reverse
         # recurrence numerically well-conditioned).
-        p = lorentz_pole(omega_0=1e15, gamma=1e13, delta_epsilon=2.0)
+        p = LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0)
         c1, c2, c3 = compute_pole_coefficients((p,), dt=1e-17)
         assert abs(c2[0] + 1.0) < 2e-4
 
     def test_multiple_poles(self):
         poles = (
-            lorentz_pole(omega_0=1e15, gamma=1e13, delta_epsilon=2.0),
-            drude_pole(omega_p=5e15, gamma=1e14),
+            LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0),
+            DrudePole(plasma_frequency=5e15, damping=1e14),
         )
         c1, c2, c3 = compute_pole_coefficients(poles, dt=5e-18)
         assert c1.shape == (2,)
@@ -150,7 +137,7 @@ class TestMaterialIsDispersive:
         assert m.is_dispersive is False
 
     def test_material_with_one_pole_is_dispersive(self):
-        disp = DispersionModel(poles=(lorentz_pole(1e15, 1e13, 2.0),))
+        disp = DispersionModel(poles=(LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0),))
         m = Material(permittivity=2.25, dispersion=disp)
         assert m.is_dispersive is True
         assert m.dispersion.num_poles == 1
@@ -174,8 +161,8 @@ class TestAllowedDispersiveCoefficients:
                 permittivity=1.0,
                 dispersion=DispersionModel(
                     poles=(
-                        drude_pole(omega_p=1.37e16, gamma=1e14),
-                        lorentz_pole(omega_0=4.1e15, gamma=7e14, delta_epsilon=1.0),
+                        DrudePole(plasma_frequency=1.37e16, damping=1e14),
+                        LorentzPole(resonance_frequency=4.1e15, damping=7e14, delta_epsilon=1.0),
                     )
                 ),
             ),
@@ -187,14 +174,16 @@ class TestAllowedDispersiveCoefficients:
             "air": Material(permittivity=1.0),  # non-dispersive, 0 poles
             "one_pole": Material(
                 permittivity=2.0,
-                dispersion=DispersionModel(poles=(lorentz_pole(1e15, 1e13, 1.0),)),
+                dispersion=DispersionModel(
+                    poles=(LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=1.0),)
+                ),
             ),
             "two_pole": Material(
                 permittivity=2.0,
                 dispersion=DispersionModel(
                     poles=(
-                        lorentz_pole(1e15, 1e13, 1.0),
-                        drude_pole(2e15, 1e14),
+                        LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=1.0),
+                        DrudePole(plasma_frequency=2e15, damping=1e14),
                     )
                 ),
             ),
