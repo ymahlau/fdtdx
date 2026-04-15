@@ -1,11 +1,13 @@
-from typing import Literal
+from typing import Literal, Self
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 
-from fdtdx.core.jax.pytrees import autoinit, frozen_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.linalg import rotate_vector
+from fdtdx.core.null import Null
+from fdtdx.dispersion import effective_inv_permittivity
 from fdtdx.objects.sources.source import Source
 
 
@@ -32,6 +34,11 @@ class PointDipoleSource(Source):
 
     For a magnetic dipole, the dual applies during the H update with
     inv_permeability replacing inv_permittivity.
+
+    The medium permittivity/permeability at the source cell is sampled once
+    during :meth:`apply` — at the carrier angular frequency when a dispersive
+    coefficient arrays is provided — so dispersive media are handled correctly
+    without runtime overhead.
     """
 
     #: Polarization axis (0=x, 1=y, 2=z).
@@ -48,6 +55,9 @@ class PointDipoleSource(Source):
 
     #: Source amplitude.
     amplitude: float = frozen_field(default=1.0)
+
+    _inv_eps_local: jax.Array = private_field()
+    _inv_mu_local: jax.Array | float = private_field()
 
     def __post_init__(self):
         if self.source_type not in ("electric", "magnetic"):
@@ -76,6 +86,48 @@ class PointDipoleSource(Source):
             axes_tuple=axes_tuple,
         )
 
+    def apply(
+        self: Self,
+        key: jax.Array,
+        inv_permittivities: jax.Array,
+        inv_permeabilities: jax.Array | float,
+        *,
+        dispersive_c1: jax.Array | None = None,
+        dispersive_c2: jax.Array | None = None,
+        dispersive_c3: jax.Array | None = None,
+    ) -> Self:
+        del key
+
+        # inv_permittivities shape: (num_components, Nx, Ny, Nz)
+        inv_eps_slice = inv_permittivities[:, *self.grid_slice]
+
+        if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
+            if inv_eps_slice.ndim >= 1 and inv_eps_slice.shape[0] == 9:
+                raise NotImplementedError(
+                    "Dispersive materials cannot be combined with fully anisotropic "
+                    "(off-diagonal) permittivity tensors in v1."
+                )
+            c1_slice = dispersive_c1[:, :, *self.grid_slice]
+            c2_slice = dispersive_c2[:, :, *self.grid_slice]
+            c3_slice = dispersive_c3[:, :, *self.grid_slice]
+            inv_eps_slice = effective_inv_permittivity(
+                inv_eps=inv_eps_slice,
+                c1=c1_slice,
+                c2=c2_slice,
+                c3=c3_slice,
+                omega=2.0 * np.pi * self.wave_character.get_frequency(),
+                dt=self._config.time_step_duration,
+            )
+
+        if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
+            inv_mu_slice: jax.Array | float = inv_permeabilities[:, *self.grid_slice]
+        else:
+            inv_mu_slice = inv_permeabilities
+
+        self = self.aset("_inv_eps_local", inv_eps_slice, create_new_ok=True)
+        self = self.aset("_inv_mu_local", inv_mu_slice, create_new_ok=True)
+        return self
+
     def update_E(
         self,
         E: jax.Array,
@@ -100,9 +152,14 @@ class PointDipoleSource(Source):
         orientation = self._orientation
         sign = -1.0 if not inverse else 1.0
 
+        if isinstance(self._inv_eps_local, Null):
+            inv_eps_source = inv_permittivities[:, *self.grid_slice]
+        else:
+            inv_eps_source = self._inv_eps_local
+
         for axis in range(3):
             weight = orientation[axis]
-            inv_eps_local = inv_permittivities[axis, *self.grid_slice]
+            inv_eps_local = inv_eps_source[axis]
             injection = c * inv_eps_local * weight * self.amplitude * self.static_amplitude_factor * amplitude
             E = E.at[axis, *self.grid_slice].add(sign * injection.astype(E.dtype))
 
@@ -132,12 +189,19 @@ class PointDipoleSource(Source):
         orientation = self._orientation
         sign = -1.0 if not inverse else 1.0
 
+        if isinstance(self._inv_mu_local, Null):
+            inv_mu_source: jax.Array | float = inv_permeabilities
+            if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
+                inv_mu_source = inv_permeabilities[:, *self.grid_slice]
+        else:
+            inv_mu_source = self._inv_mu_local
+
         for axis in range(3):
             weight = orientation[axis]
-            if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
-                inv_mu_local = inv_permeabilities[axis, *self.grid_slice]
+            if isinstance(inv_mu_source, jax.Array) and inv_mu_source.ndim > 0:
+                inv_mu_local = inv_mu_source[axis]
             else:
-                inv_mu_local = inv_permeabilities
+                inv_mu_local = inv_mu_source
             injection = c * inv_mu_local * weight * self.amplitude * self.static_amplitude_factor * amplitude
             H = H.at[axis, *self.grid_slice].add(sign * injection.astype(H.dtype))
 

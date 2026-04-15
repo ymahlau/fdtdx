@@ -206,6 +206,11 @@ def apply_params(
             new_perm_slice = (1 - cur_material_indices) * inv_allowed_bc[0] + cur_material_indices * inv_allowed_bc[1]
             if device_is_dispersive:
                 # Linear interpolation of dispersive coefficients between the two bracketing materials.
+                # Note: this follows the same straight-through-estimator convention as the
+                # permittivity path above — it is *not* equivalent to a material whose
+                # epsilon and poles are linearly interpolated, but it is the same
+                # continuous relaxation used for inv_permittivities, so gradients still
+                # flow smoothly through the device parameters during inverse design.
                 # allowed_cN_arr: (num_materials, num_poles) — here num_materials == 2.
                 # reshape to (num_poles, 1, 1, 1, 1) for broadcast over (num_poles, 1, Nx, Ny, Nz)
                 w0 = (1 - cur_material_indices)[None, None, ...]  # (1, 1, Nx, Ny, Nz)
@@ -251,12 +256,18 @@ def apply_params(
 
     # apply random key to sources
     new_objects = []
+    disp_c1 = None if arrays.dispersive_c1 is None else jax.lax.stop_gradient(arrays.dispersive_c1)
+    disp_c2 = None if arrays.dispersive_c2 is None else jax.lax.stop_gradient(arrays.dispersive_c2)
+    disp_c3 = None if arrays.dispersive_c3 is None else jax.lax.stop_gradient(arrays.dispersive_c3)
     for obj in objects.object_list:
         key, subkey = jax.random.split(key)
         new_obj = obj.apply(
             key=subkey,
             inv_permittivities=jax.lax.stop_gradient(arrays.inv_permittivities),
             inv_permeabilities=jax.lax.stop_gradient(arrays.inv_permeabilities),
+            dispersive_c1=disp_c1,
+            dispersive_c2=disp_c2,
+            dispersive_c3=disp_c3,
         )
         new_objects.append(new_obj)
     new_objects = ObjectContainer(

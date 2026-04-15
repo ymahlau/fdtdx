@@ -54,6 +54,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+import jax
+import jax.numpy as jnp
 import numpy as np
 
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
@@ -242,3 +244,108 @@ def compute_pole_coefficients(
         c2[i] = -(1.0 - 0.5 * p.gamma * dt) / denom
         c3[i] = (p.coupling_sq * dt**2) / denom
     return c1, c2, c3
+
+
+def susceptibility_from_coefficients(
+    c1: jax.Array,
+    c2: jax.Array,
+    c3: jax.Array,
+    omega: float,
+    dt: float,
+) -> jax.Array:
+    """Evaluate the per-cell complex susceptibility :math:`\\chi(\\omega)` from
+    the stored ADE recurrence coefficients.
+
+    The coefficient arrays have shape ``(num_poles, ...)`` where the trailing
+    axes are the spatial (and optional component) dimensions. The inversion
+
+    .. math::
+        \\gamma \\Delta t        &= \\frac{2 (1 + c_2)}{1 - c_2},\\\\
+        \\omega_0^2 \\Delta t^2 &= 2 - c_1 (1 + \\gamma \\Delta t / 2),\\\\
+        K \\Delta t^2            &= c_3 (1 + \\gamma \\Delta t / 2)
+
+    is applied pointwise, then each pole contributes
+
+    .. math::
+        \\chi_p(\\omega) = \\frac{K}{\\omega_0^2 - \\omega^2 - i \\gamma \\omega}
+
+    and the result is summed over the leading pole axis. Cells where
+    ``(c1, c2, c3)`` are all zero (no pole) contribute exactly zero.
+
+    Args:
+        c1: ADE coefficient array of shape ``(num_poles, ...)``.
+        c2: ADE coefficient array of shape ``(num_poles, ...)``.
+        c3: ADE coefficient array of shape ``(num_poles, ...)``.
+        omega: Angular frequency (rad/s) at which to evaluate the
+            susceptibility.
+        dt: Simulation time step (seconds) used to derive the coefficients.
+
+    Returns:
+        Complex ``jax.Array`` with shape ``c1.shape[1:]`` — the total
+        :math:`\\chi(\\omega)` summed over all poles, in every cell.
+    """
+    c1 = jnp.asarray(c1)
+    c2 = jnp.asarray(c2)
+    c3 = jnp.asarray(c3)
+
+    pole_mask = (c1 != 0.0) | (c3 != 0.0)
+
+    one_minus_c2 = 1.0 - c2
+    safe_denom = jnp.where(one_minus_c2 == 0.0, 1.0, one_minus_c2)
+    gamma_dt = 2.0 * (1.0 + c2) / safe_denom
+    gamma_dt = jnp.where(pole_mask, gamma_dt, 0.0)
+
+    half_factor = 1.0 + 0.5 * gamma_dt
+    omega0_sq_dt2 = 2.0 - c1 * half_factor
+    omega0_sq_dt2 = jnp.where(pole_mask, omega0_sq_dt2, 0.0)
+    K_dt2 = c3 * half_factor
+    K_dt2 = jnp.where(pole_mask, K_dt2, 0.0)
+
+    omega_dt = omega * dt
+    denom = omega0_sq_dt2 - omega_dt * omega_dt - 1j * gamma_dt * omega_dt
+    safe_denom_cplx = jnp.where(pole_mask, denom, 1.0 + 0.0j)
+    chi_per_pole = jnp.where(pole_mask, K_dt2 / safe_denom_cplx, 0.0 + 0.0j)
+
+    return jnp.sum(chi_per_pole, axis=0)
+
+
+def effective_inv_permittivity(
+    inv_eps: jax.Array,
+    c1: jax.Array | None,
+    c2: jax.Array | None,
+    c3: jax.Array | None,
+    omega: float,
+    dt: float,
+) -> jax.Array:
+    """Per-cell real inverse permittivity :math:`1/\\text{Re}(\\varepsilon_\\infty + \\chi(\\omega))`.
+
+    Sources in FDTDX use a real wave impedance, so only the real part of
+    ``ε∞ + χ(ω)`` enters the injected amplitude. The imaginary part describes
+    absorption, which is already handled by the ADE update loop (injecting it
+    into the source amplitude would double-count).
+
+    Cells with no pole (``c1 = c2 = c3 = 0``) contribute :math:`\\chi = 0` so
+    their ``inv_eps`` is returned unchanged.
+
+    Args:
+        inv_eps: Per-cell :math:`1/\\varepsilon_\\infty` array. Typically
+            has shape ``(num_components, ...)``; any shape broadcast-compatible
+            with ``c1.shape[1:]`` works.
+        c1: ADE coefficient array of shape ``(num_poles, ...)`` or ``None``.
+        c2: ADE coefficient array of shape ``(num_poles, ...)`` or ``None``.
+        c3: ADE coefficient array of shape ``(num_poles, ...)`` or ``None``.
+        omega: Angular frequency (rad/s) at which to evaluate.
+        dt: Simulation time step (seconds).
+
+    Returns:
+        Real-valued ``jax.Array`` with the same shape and dtype as
+        ``inv_eps``. If any of ``c1``/``c2``/``c3`` is ``None``, returns
+        ``inv_eps`` unchanged.
+    """
+    if c1 is None or c2 is None or c3 is None:
+        return inv_eps
+
+    chi = susceptibility_from_coefficients(c1=c1, c2=c2, c3=c3, omega=omega, dt=dt)
+    eps_inf = 1.0 / jnp.asarray(inv_eps)
+    eps_eff = eps_inf + jnp.real(chi)
+    return (1.0 / eps_eff).astype(jnp.asarray(inv_eps).dtype)

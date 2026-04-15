@@ -296,8 +296,13 @@ class SimulationObject(TreeClass, ABC):
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
+        *,
+        dispersive_c1: jax.Array | None = None,
+        dispersive_c2: jax.Array | None = None,
+        dispersive_c3: jax.Array | None = None,
     ) -> Self:
         del key, inv_permittivities, inv_permeabilities
+        del dispersive_c1, dispersive_c2, dispersive_c3
         return self
 
     def place_relative_to(

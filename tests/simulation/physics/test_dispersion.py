@@ -28,6 +28,11 @@ _SOURCE_Z = _PML_CELLS + 2  # = 12
 _INTERFACE_Z = 100
 _DET_T_Z = 140
 
+# Layout for tests with a source fully embedded in a uniform dispersive medium.
+_UNIFORM_SOURCE_Z = 60
+_UNIFORM_FWD_Z = 90
+_UNIFORM_BWD_Z = 30
+
 _DIEL_CELLS_Z = _Z_CELLS - _INTERFACE_Z  # = 100 cells
 
 _SIM_TIME = 120e-15
@@ -160,6 +165,22 @@ def _add_half_space(material, volume, objects, constraints):
     objects.append(slab)
 
 
+def _fill_domain(material, volume, objects, constraints):
+    """Fill the entire z-extent of the domain with ``material``."""
+    slab = fdtdx.UniformMaterialObject(
+        partial_grid_shape=(None, None, _Z_CELLS),
+        material=material,
+    )
+    constraints.extend(
+        [
+            slab.same_size(volume, axes=(0, 1)),
+            slab.place_at_center(volume, axes=(0, 1)),
+            slab.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(0,)),
+        ]
+    )
+    objects.append(slab)
+
+
 def _run(objects, constraints, config):
     key = jax.random.PRNGKey(0)
     obj_container, arrays, params, config, _ = fdtdx.place_objects(
@@ -235,6 +256,87 @@ def test_lorentz_permittivity_sanity():
 # ---------------------------------------------------------------------------
 # Drude test
 # ---------------------------------------------------------------------------
+
+
+def _build_embedded_source(source_z: int):
+    """Same as ``_build_base`` but with the plane source placed at an arbitrary
+    z-coordinate so it can be embedded inside a uniform medium."""
+    config = fdtdx.SimulationConfig(
+        resolution=_RESOLUTION,
+        time=_SIM_TIME,
+        dtype=jnp.float32,
+    )
+    objects, constraints = [], []
+
+    volume = fdtdx.SimulationVolume(
+        partial_real_shape=(_DOMAIN_XY, _DOMAIN_XY, _DOMAIN_Z),
+    )
+    objects.append(volume)
+
+    bound_cfg = fdtdx.BoundaryConfig.from_uniform_bound(
+        thickness=_PML_CELLS,
+        override_types={
+            "min_x": "periodic",
+            "max_x": "periodic",
+            "min_y": "periodic",
+            "max_y": "periodic",
+        },
+    )
+    bound_dict, c_list = fdtdx.boundary_objects_from_config(bound_cfg, volume)
+    constraints.extend(c_list)
+    objects.extend(bound_dict.values())
+
+    wave = fdtdx.WaveCharacter(wavelength=_WAVELENGTH)
+    source = fdtdx.UniformPlaneSource(
+        partial_grid_shape=(None, None, 1),
+        wave_character=wave,
+        direction="+",
+        fixed_E_polarization_vector=(1, 0, 0),
+    )
+    constraints.extend(
+        [
+            source.same_size(volume, axes=(0, 1)),
+            source.place_at_center(volume, axes=(0, 1)),
+            source.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(source_z,)),
+        ]
+    )
+    objects.append(source)
+
+    return objects, constraints, config, volume
+
+
+def test_plane_source_inside_lorentz_medium_has_correct_impedance():
+    """A TFSF source embedded in a uniform Lorentz medium must inject the
+    impedance of the medium at the carrier frequency, not of vacuum. If the
+    impedance is matched, the backward-scattered flux is close to zero; if
+    the source used ``eps_inf`` (the pre-fix behavior) the impedance
+    mismatch would reflect ~10 % of the injected power into the backward
+    half-space.
+    """
+    model = _lorentz_model()
+    eps_inf = 1.0
+    eps_omega = eps_inf + complex(model.susceptibility(_OMEGA))
+    # Sanity: the medium must be a meaningfully different impedance from vacuum
+    assert abs(np.sqrt(eps_omega.real) - 1.0) > 0.5, "Test premise weak: Lorentz is too close to vacuum"
+
+    obj, con, cfg, vol = _build_embedded_source(_UNIFORM_SOURCE_Z)
+    material = fdtdx.Material(permittivity=eps_inf, dispersion=model)
+    _fill_domain(material, vol, obj, con)
+    _add_flux_det("flux_fwd", _UNIFORM_FWD_Z, vol, obj, con)
+    _add_flux_det("flux_bwd", _UNIFORM_BWD_Z, vol, obj, con)
+
+    arrays = _run(obj, con, cfg)
+    S_fwd = _mean_flux(arrays, "flux_fwd")
+    S_bwd = _mean_flux(arrays, "flux_bwd")
+
+    assert S_fwd > 0, f"Forward flux should be positive, got {S_fwd}"
+    # Both detectors have direction='+'; a backward wave registers as a
+    # negative flux on the '-' side of the source. Take the magnitude.
+    ratio = abs(S_bwd) / abs(S_fwd)
+    assert ratio < 0.02, (
+        f"Backward/forward flux ratio {ratio:.4f} exceeds 2% — the source "
+        "impedance is not matched to the dispersive medium."
+    )
 
 
 def test_drude_metal_is_highly_reflective():

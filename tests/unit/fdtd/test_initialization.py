@@ -556,6 +556,11 @@ def _make_arrays_mock(shape=(10, 10, 10)):
             result = Mock(spec=ArrayContainer)
             result.inv_permittivities = value if key == "inv_permittivities" else inv_perm
             result.inv_permeabilities = inv_permeab
+            result.dispersive_c1 = None
+            result.dispersive_c2 = None
+            result.dispersive_c3 = None
+            result.dispersive_P_curr = None
+            result.dispersive_P_prev = None
             result.at = at_accessor
             return result
 
@@ -661,6 +666,11 @@ def test_apply_params_isotropic_components(mock_compute_perm):
             spec=ArrayContainer,
             inv_permittivities=v,
             inv_permeabilities=inv_permeab,
+            dispersive_c1=None,
+            dispersive_c2=None,
+            dispersive_c3=None,
+            dispersive_P_curr=None,
+            dispersive_P_prev=None,
             at=at_accessor,
         )
         return at_result
@@ -713,6 +723,11 @@ def test_apply_params_fully_anisotropic_continuous(mock_compute_perm):
             spec=ArrayContainer,
             inv_permittivities=v,
             inv_permeabilities=inv_permeab,
+            dispersive_c1=None,
+            dispersive_c2=None,
+            dispersive_c3=None,
+            dispersive_P_curr=None,
+            dispersive_P_prev=None,
             at=at_accessor,
         )
         return at_result
@@ -766,6 +781,11 @@ def test_apply_params_fully_anisotropic_discrete(mock_ste, mock_compute_perm):
             spec=ArrayContainer,
             inv_permittivities=v,
             inv_permeabilities=inv_permeab,
+            dispersive_c1=None,
+            dispersive_c2=None,
+            dispersive_c3=None,
+            dispersive_P_curr=None,
+            dispersive_P_prev=None,
             at=at_accessor,
         )
         return at_result

@@ -3,6 +3,7 @@ from typing import Literal, Self
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 from matplotlib import pyplot as plt
 
 from fdtdx.core.grid import calculate_time_offset_yee
@@ -10,6 +11,7 @@ from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.linalg import get_wave_vector_raw
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.core.physics.modes import compute_mode
+from fdtdx.dispersion import effective_inv_permittivity
 from fdtdx.objects.sources.tfsf import TFSFPlaneSource
 
 
@@ -31,6 +33,10 @@ class ModePlaneSource(TFSFPlaneSource):
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
+        *,
+        dispersive_c1: jax.Array | None = None,
+        dispersive_c2: jax.Array | None = None,
+        dispersive_c3: jax.Array | None = None,
     ) -> Self:
         del key
         if (
@@ -49,6 +55,27 @@ class ModePlaneSource(TFSFPlaneSource):
             inv_permeability_slice = inv_permeabilities[:, *self.grid_slice]
         else:
             inv_permeability_slice = inv_permeabilities
+
+        # Frequency-correct the permittivity seen by the mode solver so that
+        # mode profiles computed inside a dispersive medium reflect the true
+        # epsilon at the carrier frequency, not epsilon_infinity.
+        if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
+            if inv_permittivity_slice.ndim >= 1 and inv_permittivity_slice.shape[0] == 9:
+                raise NotImplementedError(
+                    "Dispersive materials cannot be combined with fully anisotropic "
+                    "(off-diagonal) permittivity tensors in v1."
+                )
+            c1_slice = dispersive_c1[:, :, *self.grid_slice]
+            c2_slice = dispersive_c2[:, :, *self.grid_slice]
+            c3_slice = dispersive_c3[:, :, *self.grid_slice]
+            inv_permittivity_slice = effective_inv_permittivity(
+                inv_eps=inv_permittivity_slice,
+                c1=c1_slice,
+                c2=c2_slice,
+                c3=c3_slice,
+                omega=2.0 * np.pi * self.wave_character.get_frequency(),
+                dt=self._config.time_step_duration,
+            )
 
         self = self.aset("_inv_permittivity", inv_permittivity_slice, create_new_ok=True)
         self = self.aset("_inv_permeability", inv_permeability_slice, create_new_ok=True)

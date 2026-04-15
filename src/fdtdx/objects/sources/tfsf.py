@@ -149,8 +149,16 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
+        *,
+        dispersive_c1: jax.Array | None = None,
+        dispersive_c2: jax.Array | None = None,
+        dispersive_c3: jax.Array | None = None,
     ) -> Self:
-        # Must populate self._E, self._H, self._time_offset_E, and self._time_offset_H
+        # Must populate self._E, self._H, self._time_offset_E, and self._time_offset_H.
+        # When dispersive_* are provided, the concrete implementation is expected
+        # to use them to compute a frequency-corrected inverse permittivity at
+        # the source carrier frequency so that the injected E/H ratio matches
+        # the real impedance of the local medium.
         raise NotImplementedError()
 
     def update_E(

@@ -3,12 +3,14 @@ from typing import Self
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from fdtdx.core.grid import calculate_time_offset_yee
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.linalg import get_wave_vector_raw, rotate_vector
 from fdtdx.core.misc import expand_to_3x3, linear_interpolated_indexing, normalize_polarization_for_source
 from fdtdx.core.physics.metrics import compute_energy
+from fdtdx.dispersion import effective_inv_permittivity
 from fdtdx.objects.sources.tfsf import TFSFPlaneSource
 
 
@@ -28,12 +30,43 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
+        *,
+        dispersive_c1: jax.Array | None = None,
+        dispersive_c2: jax.Array | None = None,
+        dispersive_c3: jax.Array | None = None,
     ):
         # inv_permittivities shape: (3, Nx, Ny, Nz) - slice with component dimension
         inv_permittivities = inv_permittivities[:, *self.grid_slice]
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
             # inv_permeabilities shape: (3, Nx, Ny, Nz) - slice with component dimension
             inv_permeabilities = inv_permeabilities[:, *self.grid_slice]
+
+        # If the simulation is dispersive, evaluate the real effective inverse
+        # permittivity at the source carrier frequency so that the impedance and
+        # energy normalization reflect the true medium the source sits in,
+        # not just the high-frequency permittivity epsilon_infinity.
+        if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
+            if (
+                isinstance(inv_permittivities, jax.Array)
+                and inv_permittivities.ndim >= 1
+                and inv_permittivities.shape[0] == 9
+            ):
+                raise NotImplementedError(
+                    "Dispersive materials cannot be combined with fully anisotropic "
+                    "(off-diagonal) permittivity tensors in v1."
+                )
+            # dispersive_c* shape: (num_poles, 1, Nx, Ny, Nz) → slice spatial axes
+            c1_slice = dispersive_c1[:, :, *self.grid_slice]
+            c2_slice = dispersive_c2[:, :, *self.grid_slice]
+            c3_slice = dispersive_c3[:, :, *self.grid_slice]
+            inv_permittivities = effective_inv_permittivity(
+                inv_eps=inv_permittivities,
+                c1=c1_slice,
+                c2=c2_slice,
+                c3=c3_slice,
+                omega=2.0 * np.pi * self.wave_character.get_frequency(),
+                dt=self._config.time_step_duration,
+            )
 
         # determine E/H polarization
         e_pol_raw, h_pol_raw = normalize_polarization_for_source(

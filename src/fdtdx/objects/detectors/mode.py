@@ -77,8 +77,16 @@ class ModeOverlapDetector(PhasorDetector):
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
+        *,
+        dispersive_c1: jax.Array | None = None,
+        dispersive_c2: jax.Array | None = None,
+        dispersive_c3: jax.Array | None = None,
     ) -> Self:
         del key
+        # The mode overlap detector computes the reference mode profile from
+        # the static high-frequency permittivity; frequency-corrected sampling
+        # is not implemented for it yet.
+        del dispersive_c1, dispersive_c2, dispersive_c3
 
         inv_permittivity_slice = inv_permittivities[:, *self.grid_slice]
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:

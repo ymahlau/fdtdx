@@ -360,3 +360,141 @@ def test_non_dispersive_unused_import_guard():
     assert mat.is_dispersive is False
     # numpy is imported above; touch it so the linter doesn't complain about unused imports
     assert np.asarray(0.0).item() == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Source-path dispersion plumbing
+# ---------------------------------------------------------------------------
+
+
+def test_device_continuous_half_interpolation(simple_config, simple_volume):
+    """Device CONTINUOUS output with ``cur_material_indices == 0.5`` should
+    linearly blend the two material coefficient arrays — the current STE-
+    consistent convention. This regression-tests the interpolation branch
+    explicitly at a non-trivial midpoint value."""
+    materials = {
+        "air": Material(permittivity=1.0),
+        "drude": _drude_material(eps_inf=1.0),
+    }
+    device = Device(
+        name="device",
+        partial_grid_shape=(10, 10, 10),
+        partial_voxel_grid_shape=(5, 5, 5),
+        materials=materials,
+        param_transforms=[],
+    )
+    constraint = GridCoordinateConstraint(
+        object="device", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+    key = jax.random.PRNGKey(0)
+    objects, arrays, params, config, _ = place_objects([simple_volume, device], simple_config, [constraint], key)
+    placed_device = _placed(objects, "device")
+    xs, ys, zs = placed_device.grid_slice
+
+    half_params = {name: 0.5 * jnp.ones_like(p) for name, p in params.items()}
+    arrays_half, _, _ = apply_params(arrays, objects, half_params, key)
+
+    c1_ref, _, c3_ref = compute_pole_coefficients(
+        materials["drude"].dispersion.poles,  # type: ignore[union-attr]
+        config.time_step_duration,
+    )
+    # 0.5 * (air_coeffs = 0) + 0.5 * (drude_coeffs)
+    assert jnp.allclose(arrays_half.dispersive_c1[0, 0, xs, ys, zs], 0.5 * c1_ref[0])
+    assert jnp.allclose(arrays_half.dispersive_c3[0, 0, xs, ys, zs], 0.5 * c3_ref[0])
+    # All coefficients outside the device slice remain zero
+    mask = jnp.zeros(simple_volume.partial_grid_shape, dtype=bool).at[xs, ys, zs].set(True)  # type: ignore[misc]
+    assert jnp.all(arrays_half.dispersive_c1[0, 0][~mask] == 0.0)
+
+
+def test_dipole_source_samples_frequency_corrected_permittivity(simple_config, simple_volume):
+    """A ``PointDipoleSource`` embedded in a dispersive medium should sample
+    the real part of ``eps(omega)`` at its cell during ``apply_params``,
+    not the high-frequency ``eps_inf``. This verifies the core of the
+    dipole fix without depending on simulation-level physics."""
+    from fdtdx.core.wavelength import WaveCharacter
+    from fdtdx.objects.sources.dipole import PointDipoleSource
+
+    # Lorentz pole such that at omega = resonance/2, eps_eff = eps_inf + 3
+    eps_inf = 1.0
+    resonance = 4.0e15  # rad/s
+    target_omega = resonance / 2.0
+    model = DispersionModel(poles=(LorentzPole(resonance_frequency=resonance, damping=1e11, delta_epsilon=2.25),))
+    eps_full = eps_inf + complex(model.susceptibility(target_omega))
+    # sanity — the pole must produce a meaningful correction
+    assert eps_full.real > 3.5, f"premise broken: eps_full.real = {eps_full.real}"
+
+    material = Material(permittivity=eps_inf, dispersion=model)
+    slab = UniformMaterialObject(name="bg", partial_grid_shape=(30, 30, 30), material=material)
+    dipole = PointDipoleSource(
+        name="dip",
+        partial_grid_shape=(1, 1, 1),
+        wave_character=WaveCharacter(frequency=target_omega / (2.0 * np.pi)),
+        polarization=0,
+    )
+    constraints = [
+        GridCoordinateConstraint(object="bg", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[0, 0, 0]),
+        GridCoordinateConstraint(object="dip", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[15, 15, 15]),
+    ]
+    key = jax.random.PRNGKey(0)
+    objects, arrays, params, _, _ = place_objects([simple_volume, slab, dipole], simple_config, constraints, key)
+    arrays, objects, _ = apply_params(arrays, objects, params, key)
+    placed_dip = _placed(objects, "dip")
+
+    # apply() should have stashed the frequency-corrected inv_eps at the source cell
+    inv_eps_local = placed_dip._inv_eps_local
+    # shape is (num_components, 1, 1, 1) for an isotropic, 1-cell source
+    expected_inv_eps = 1.0 / eps_full.real
+    assert jnp.allclose(inv_eps_local, expected_inv_eps, atol=5e-3), (
+        f"dipole _inv_eps_local={np.array(inv_eps_local).ravel()}, expected ≈ {expected_inv_eps:.4f} (1/Re(eps))"
+    )
+
+
+def test_plane_source_apply_changes_with_dispersion(simple_config, simple_volume):
+    """A ``UniformPlaneSource`` placed inside a dispersive slab should see a
+    different ``_H`` buffer in ``apply()`` than the same source in a vacuum
+    scene. This proves ``apply_params`` actually propagates the dispersive
+    coefficient arrays into the source's ``apply()`` call."""
+    from fdtdx.core.wavelength import WaveCharacter
+    from fdtdx.objects.sources.linear_polarization import UniformPlaneSource
+
+    eps_inf = 1.0
+    wavelength = 0.8e-6
+    omega = 2.0 * np.pi * 3e8 / wavelength
+    # Pick a resonance above omega for a low-loss, high-eps medium
+    model = DispersionModel(poles=(LorentzPole(resonance_frequency=4.0e15, damping=1e11, delta_epsilon=3.0),))
+
+    def _build(material):
+        plain_slab = UniformMaterialObject(name="bg", partial_grid_shape=(30, 30, 30), material=material)
+        source = UniformPlaneSource(
+            name="src",
+            partial_grid_shape=(None, None, 1),
+            wave_character=WaveCharacter(frequency=omega / (2.0 * np.pi)),
+            direction="+",
+            fixed_E_polarization_vector=(1, 0, 0),
+        )
+        constraints = [
+            GridCoordinateConstraint(object="bg", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[0, 0, 0]),
+            source.same_size(simple_volume, axes=(0, 1)),
+            source.place_at_center(simple_volume, axes=(0, 1)),
+            source.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(15,)),
+        ]
+        key = jax.random.PRNGKey(0)
+        objects, arrays, params, _, _ = place_objects(
+            [simple_volume, plain_slab, source], simple_config, constraints, key
+        )
+        arrays, objects, _ = apply_params(arrays, objects, params, key)
+        return _placed(objects, "src")
+
+    src_vacuum = _build(Material(permittivity=eps_inf))
+    src_disp = _build(Material(permittivity=eps_inf, dispersion=model))
+
+    H_vac = np.asarray(src_vacuum._H)
+    H_disp = np.asarray(src_disp._H)
+    # The H buffer is the polarization vector scaled by 1/impedance, and
+    # impedance in the dispersive case is sqrt(1/Re(eps_eff)) != vacuum.
+    # A non-zero fractional change proves the dispersive coefficients
+    # actually reached apply().
+    diff = np.max(np.abs(H_disp - H_vac)) / (np.max(np.abs(H_vac)) + 1e-30)
+    assert diff > 0.1, (
+        f"|H_disp - H_vac| / |H_vac| = {diff:.3f} — source apply() did not see the dispersive coefficients"
+    )
