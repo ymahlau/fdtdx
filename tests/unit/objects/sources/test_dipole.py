@@ -72,7 +72,7 @@ class TestPointDipoleSourceInitialization:
                 partial_grid_shape=(1, 1, 1),
                 wave_character=WaveCharacter(wavelength=1e-6),
                 source_type="test",
-                polarization=0
+                polarization=0,
             )
 
     def test_invalid_polarization(self):
