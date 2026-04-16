@@ -336,7 +336,7 @@ def update_E_reverse(
             disp_c3_r = arrays.dispersive_c3
             assert P_prev_r is not None and disp_c1_r is not None and disp_c2_r is not None and disp_c3_r is not None
             delta_sum = jnp.sum(P_prev_r - P_curr_r, axis=0)
-            E = (E / factor) - c * curl * inv_eps - inv_eps * delta_sum
+            E = (E - c * curl * inv_eps - inv_eps * delta_sum) / factor
             # Invert the polarization recurrence:
             # P^(n+1) = c1 * P^n + c2 * P^(n-1) + c3 * E^n
             # =>  P^(n-1) = (P^(n+1) - c1 * P^n - c3 * E^n) / c2
@@ -353,7 +353,7 @@ def update_E_reverse(
             arrays = arrays.aset("dispersive_P_curr", P_prev_r)
             arrays = arrays.aset("dispersive_P_prev", P_prev_new)
         else:
-            E = E / factor - c * curl * inv_eps
+            E = (E - c * curl * inv_eps) / factor
 
     else:
         # Full anisotropic case: expand inv_eps and sigma_E to (3, 3, Nx, Ny, Nz)
@@ -608,7 +608,7 @@ def update_H_reverse(
             # lossy materials get gain when simulating backwards
             H = H * (1 + c * sigma_H / eta0 * inv_mu / 2)
             factor = 1 - c * sigma_H / eta0 * inv_mu / 2
-        H = H / factor + c * curl * inv_mu
+        H = (H + c * curl * inv_mu) / factor
 
     else:
         # Full anisotropic case: expand inv_mu and sigma_H to (3, 3, Nx, Ny, Nz)

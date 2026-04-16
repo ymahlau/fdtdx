@@ -174,6 +174,56 @@ def test_pole_padding_mixed_pole_counts(simple_config, simple_volume):
         assert jnp.all(c3_slot > 0.0)
 
 
+def test_non_dispersive_overlap_clears_dispersive_coefficients(simple_config, simple_volume):
+    """A non-dispersive ``UniformMaterialObject`` placed *on top of* a
+    dispersive one must zero out the pole coefficients in the overlap.
+
+    Motivation: object placement uses last-write-wins for material properties,
+    so a plain slab stacked over a dispersive slab overwrites ε/μ in the
+    overlap. The dispersive coefficients must follow the same rule — otherwise
+    the overlap cells would have plain ε but still drive the ADE recurrence
+    with stale pole coefficients, yielding unphysical dynamics.
+    """
+    disp_mat = _lorentz_material(eps_inf=2.0)
+    plain_mat = Material(permittivity=4.0)
+    # disp occupies [5..15] on each axis; plain occupies [10..20]; overlap: [10..15]
+    disp = UniformMaterialObject(name="disp", partial_grid_shape=(10, 10, 10), material=disp_mat)
+    plain = UniformMaterialObject(name="plain", partial_grid_shape=(10, 10, 10), material=plain_mat)
+    constraints = [
+        GridCoordinateConstraint(object="disp", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[5, 5, 5]),
+        GridCoordinateConstraint(object="plain", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]),
+    ]
+    key = jax.random.PRNGKey(0)
+    # Object order matters: plain is placed second, so it overwrites in the overlap.
+    objects, arrays, _, _, _ = place_objects([simple_volume, disp, plain], simple_config, constraints, key)
+    placed_disp = _placed(objects, "disp")
+    placed_plain = _placed(objects, "plain")
+
+    assert arrays.dispersive_c1 is not None
+    assert arrays.dispersive_c3 is not None
+
+    Nx, Ny, Nz = simple_volume.partial_grid_shape  # type: ignore[misc]
+    disp_mask = jnp.zeros((Nx, Ny, Nz), dtype=bool).at[placed_disp.grid_slice].set(True)
+    plain_mask = jnp.zeros((Nx, Ny, Nz), dtype=bool).at[placed_plain.grid_slice].set(True)
+    overlap_mask = disp_mask & plain_mask
+    disp_only_mask = disp_mask & ~plain_mask
+
+    # Sanity: the scene actually has an overlap region and a disp-only region.
+    assert jnp.any(overlap_mask), "test setup: expected a disp/plain overlap region"
+    assert jnp.any(disp_only_mask), "test setup: expected a disp-only region"
+
+    # Overlap: coefficients must be zero (plain slab cleared them).
+    assert jnp.all(arrays.dispersive_c1[0, 0][overlap_mask] == 0.0), (
+        "Non-dispersive overlap failed to clear c1 — stale pole coefficients remain"
+    )
+    assert jnp.all(arrays.dispersive_c3[0, 0][overlap_mask] == 0.0), (
+        "Non-dispersive overlap failed to clear c3 — ADE recurrence would fire on plain cells"
+    )
+
+    # Disp-only region: coefficients must still be populated.
+    assert jnp.all(arrays.dispersive_c3[0, 0][disp_only_mask] > 0.0)
+
+
 def test_dispersive_with_non_dispersive_object(simple_config, simple_volume):
     """A dispersive slab plus a non-dispersive slab: dispersive cells have
     populated coefficients while non-dispersive cells see all zeros."""

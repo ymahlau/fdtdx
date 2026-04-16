@@ -598,22 +598,32 @@ def _init_arrays(
                 ]
                 magnetic_conductivity = magnetic_conductivity.at[:, *o.grid_slice].set(obj_magnetic_conductivity)
 
-            if o.material.dispersion is not None and num_dispersive_poles > 0:
+            if num_dispersive_poles > 0:
+                # Always write the full pole-coefficient stack — zero-padded for
+                # non-dispersive materials — so later placements deterministically
+                # overwrite earlier coefficients across the object's grid_slice.
+                # Without this, a non-dispersive UniformMaterialObject stacked over
+                # a dispersive one would leave stale pole coefficients in the overlap
+                # and drive an ADE update on cells that shouldn't have one.
                 assert dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None
-                c1_vals, c2_vals, c3_vals = compute_pole_coefficients(
-                    o.material.dispersion.poles,
-                    config.time_step_duration,
-                )
-                for p_idx in range(len(c1_vals)):
-                    dispersive_c1 = dispersive_c1.at[p_idx, 0, *o.grid_slice].set(
-                        jnp.asarray(c1_vals[p_idx], dtype=config.dtype)
-                    )
-                    dispersive_c2 = dispersive_c2.at[p_idx, 0, *o.grid_slice].set(
-                        jnp.asarray(c2_vals[p_idx], dtype=config.dtype)
-                    )
-                    dispersive_c3 = dispersive_c3.at[p_idx, 0, *o.grid_slice].set(
-                        jnp.asarray(c3_vals[p_idx], dtype=config.dtype)
-                    )
+                poles = o.material.dispersion.poles if o.material.dispersion is not None else ()
+                c1_vals, c2_vals, c3_vals = compute_pole_coefficients(poles, config.time_step_duration)
+                n = len(poles)
+                c1_padded = jnp.zeros(num_dispersive_poles, dtype=config.dtype)
+                c2_padded = jnp.zeros(num_dispersive_poles, dtype=config.dtype)
+                c3_padded = jnp.zeros(num_dispersive_poles, dtype=config.dtype)
+                if n > 0:
+                    c1_padded = c1_padded.at[:n].set(jnp.asarray(c1_vals, dtype=config.dtype))
+                    c2_padded = c2_padded.at[:n].set(jnp.asarray(c2_vals, dtype=config.dtype))
+                    c3_padded = c3_padded.at[:n].set(jnp.asarray(c3_vals, dtype=config.dtype))
+                # Broadcast (num_poles,) → (num_poles, 1, Nx, Ny, Nz) over grid_slice
+                slice_shape = dispersive_c1[:, :, *o.grid_slice].shape
+                c1_block = jnp.broadcast_to(c1_padded[:, None, None, None, None], slice_shape)
+                c2_block = jnp.broadcast_to(c2_padded[:, None, None, None, None], slice_shape)
+                c3_block = jnp.broadcast_to(c3_padded[:, None, None, None, None], slice_shape)
+                dispersive_c1 = dispersive_c1.at[:, :, *o.grid_slice].set(c1_block)
+                dispersive_c2 = dispersive_c2.at[:, :, *o.grid_slice].set(c2_block)
+                dispersive_c3 = dispersive_c3.at[:, :, *o.grid_slice].set(c3_block)
 
         elif isinstance(o, (StaticMultiMaterialObject)):
             indices = o.get_material_mapping()
