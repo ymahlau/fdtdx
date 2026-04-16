@@ -22,6 +22,10 @@ def forward_single_args_wrapper(
     dispersive_P_prev: jax.Array | None,
     detector_states: dict[str, DetectorState],
     recording_state: RecordingState | None,
+    dispersive_c1: jax.Array | None = None,
+    dispersive_c2: jax.Array | None = None,
+    dispersive_c3: jax.Array | None = None,
+    *,
     config: SimulationConfig,
     objects: ObjectContainer,
     key: jax.Array,
@@ -45,20 +49,21 @@ def forward_single_args_wrapper(
     dict[str, DetectorState],
     RecordingState | None,
 ]:
-    # Wrapper function that unpacks ArrayContainer into individual arrays for JAX transformations.
-    # ``arrays_template`` carries the static (non-differentiated) fields that should be
-    # closure-captured from the outer simulation state: electric/magnetic conductivity
-    # and the dispersive coefficient arrays (c1, c2, c3). They are never primal
-    # arguments to the VJP.
+    # ``arrays_template`` carries non-differentiated fields (electric/magnetic
+    # conductivity) that are closure-captured from the outer simulation state.
+    # The dispersive coefficient arrays (c1, c2, c3) may be passed either as
+    # primal positional arguments (so the outer ``jax.vjp`` treats them as
+    # differentiable primals — this is the code path enabled by
+    # ``GradientConfig.differentiate_dispersion=True``) or left as ``None`` to
+    # fall back to the template (non-differentiated closure capture).
     if arrays_template is None:
         electric_conductivity = None
         magnetic_conductivity = None
-        dispersive_c1 = None
-        dispersive_c2 = None
-        dispersive_c3 = None
     else:
         electric_conductivity = arrays_template.electric_conductivity
         magnetic_conductivity = arrays_template.magnetic_conductivity
+
+    if dispersive_c1 is None and arrays_template is not None:
         dispersive_c1 = arrays_template.dispersive_c1
         dispersive_c2 = arrays_template.dispersive_c2
         dispersive_c3 = arrays_template.dispersive_c3

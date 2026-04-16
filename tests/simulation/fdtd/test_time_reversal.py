@@ -16,7 +16,7 @@ import fdtdx
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.fdtd.backward import backward
 from fdtdx.fdtd.container import ArrayContainer
-from fdtdx.fdtd.fdtd import reversible_fdtd
+from fdtdx.fdtd.fdtd import checkpointed_fdtd, reversible_fdtd
 from fdtdx.fdtd.forward import forward
 from fdtdx.interfaces.recorder import Recorder
 
@@ -987,3 +987,180 @@ class TestGradientPMLBlochComplex:
         _, arrays, _ = self._build()
         assert jnp.issubdtype(arrays.E.dtype, jnp.complexfloating)
         assert jnp.issubdtype(arrays.H.dtype, jnp.complexfloating)
+
+
+# ── Tests: differentiate_dispersion flag ───────────────────────────────────────
+
+
+class TestDifferentiateDispersionReversible:
+    """`GradientConfig.differentiate_dispersion` exposes `dispersive_c1/c2/c3`
+    as primal VJP inputs in the reversible path.
+
+    Two checks:
+    (a) Flag ON — the AD gradient w.r.t. ``dispersive_c3`` at an interior
+        dispersive voxel matches a central finite-difference estimate.
+    (b) Flag OFF (default) — the cotangent w.r.t. ``dispersive_c3`` is
+        exactly zero because the coefficients are closure-captured through
+        ``arrays_template`` and stop_gradient'd into source apply.
+    """
+
+    @staticmethod
+    def _build(differentiate_dispersion: bool):
+        obj, arrays, config = TestGradientDispersiveLossy._build()
+        grad_cfg = GradientConfig(
+            method="reversible",
+            recorder=config.gradient_config.recorder,
+            differentiate_dispersion=differentiate_dispersion,
+        )
+        config = config.aset("gradient_config", grad_cfg)
+        return obj, arrays, config
+
+    @staticmethod
+    def _loss_fn(dispersive_c3, arrays, objects, config, key):
+        arrays = ArrayContainer(
+            E=arrays.E,
+            H=arrays.H,
+            psi_E=arrays.psi_E,
+            psi_H=arrays.psi_H,
+            alpha=arrays.alpha,
+            kappa=arrays.kappa,
+            sigma=arrays.sigma,
+            inv_permittivities=arrays.inv_permittivities,
+            inv_permeabilities=arrays.inv_permeabilities,
+            detector_states=arrays.detector_states,
+            recording_state=arrays.recording_state,
+            electric_conductivity=arrays.electric_conductivity,
+            magnetic_conductivity=arrays.magnetic_conductivity,
+            dispersive_P_curr=arrays.dispersive_P_curr,
+            dispersive_P_prev=arrays.dispersive_P_prev,
+            dispersive_c1=arrays.dispersive_c1,
+            dispersive_c2=arrays.dispersive_c2,
+            dispersive_c3=dispersive_c3,
+        )
+        _, out = reversible_fdtd(arrays, objects, config, key, show_progress=False)
+        return jnp.sum(jnp.real(out.E) ** 2)
+
+    def test_gradient_through_c3_matches_finite_difference(self):
+        obj, arrays, config = self._build(differentiate_dispersion=True)
+        key = jax.random.PRNGKey(99)
+        c3 = arrays.dispersive_c3
+        assert c3 is not None
+
+        _, grads = jax.value_and_grad(self._loss_fn)(c3, arrays, obj, config, key)
+
+        c3_mid = c3[0, 0]
+        xs, ys, zs = jnp.where(c3_mid != 0, size=1, fill_value=0)
+        idx = (0, 0, int(xs[0]), int(ys[0]), int(zs[0]))
+
+        # c3 ~ K * dt^2 is small (O(1e-2) here). Scale FD step to magnitude so
+        # float32 round-off doesn't dominate the numerator.
+        h = 1e-2 * float(jnp.abs(c3[idx])) + 1e-6
+        c3_plus = c3.at[idx].add(h)
+        c3_minus = c3.at[idx].add(-h)
+        loss_plus = self._loss_fn(c3_plus, arrays, obj, config, key)
+        loss_minus = self._loss_fn(c3_minus, arrays, obj, config, key)
+        fd = (loss_plus - loss_minus) / (2.0 * h)
+
+        ad = grads[idx]
+        diff = jnp.abs(ad - fd)
+        scale = jnp.abs(fd) + jnp.abs(ad) + 1e-12
+        rel_err = diff / scale
+        assert rel_err < 0.1 or diff < 1e-5, (
+            f"AD vs FD mismatch at {idx}: AD={float(ad):.6e}, FD={float(fd):.6e}, rel_err={float(rel_err):.3e}"
+        )
+
+    def test_flag_off_produces_zero_c3_grad(self):
+        obj, arrays, config = self._build(differentiate_dispersion=False)
+        key = jax.random.PRNGKey(99)
+        c3 = arrays.dispersive_c3
+        assert c3 is not None
+        _, grads = jax.value_and_grad(self._loss_fn)(c3, arrays, obj, config, key)
+        max_abs = float(jnp.max(jnp.abs(grads)))
+        assert max_abs == 0.0, (
+            f"c3 gradient must be exactly zero when differentiate_dispersion=False, got max |grad|={max_abs:.3e}"
+        )
+
+
+class TestDifferentiateDispersionCheckpointed:
+    """Same verification as ``TestDifferentiateDispersionReversible`` but for
+    the checkpointed path.
+
+    The checkpointed branch uses standard autodiff through ``eqxi.while_loop``,
+    so gradient would flow through ``dispersive_c1/c2/c3`` naturally. The flag
+    gates a ``stop_gradient`` wrapper at the top of ``checkpointed_fdtd`` that
+    preserves the default "coefficients are not differentiated" behavior.
+    """
+
+    @staticmethod
+    def _build(differentiate_dispersion: bool):
+        obj, arrays, config = TestGradientDispersiveLossy._build()
+        grad_cfg = GradientConfig(
+            method="checkpointed",
+            num_checkpoints=8,
+            differentiate_dispersion=differentiate_dispersion,
+        )
+        config = config.aset("gradient_config", grad_cfg)
+        return obj, arrays, config
+
+    @staticmethod
+    def _loss_fn(dispersive_c3, arrays, objects, config, key):
+        arrays = ArrayContainer(
+            E=arrays.E,
+            H=arrays.H,
+            psi_E=arrays.psi_E,
+            psi_H=arrays.psi_H,
+            alpha=arrays.alpha,
+            kappa=arrays.kappa,
+            sigma=arrays.sigma,
+            inv_permittivities=arrays.inv_permittivities,
+            inv_permeabilities=arrays.inv_permeabilities,
+            detector_states=arrays.detector_states,
+            recording_state=arrays.recording_state,
+            electric_conductivity=arrays.electric_conductivity,
+            magnetic_conductivity=arrays.magnetic_conductivity,
+            dispersive_P_curr=arrays.dispersive_P_curr,
+            dispersive_P_prev=arrays.dispersive_P_prev,
+            dispersive_c1=arrays.dispersive_c1,
+            dispersive_c2=arrays.dispersive_c2,
+            dispersive_c3=dispersive_c3,
+        )
+        _, out = checkpointed_fdtd(arrays, objects, config, key, show_progress=False)
+        return jnp.sum(jnp.real(out.E) ** 2)
+
+    def test_gradient_through_c3_matches_finite_difference(self):
+        obj, arrays, config = self._build(differentiate_dispersion=True)
+        key = jax.random.PRNGKey(99)
+        c3 = arrays.dispersive_c3
+        assert c3 is not None
+
+        _, grads = jax.value_and_grad(self._loss_fn)(c3, arrays, obj, config, key)
+
+        c3_mid = c3[0, 0]
+        xs, ys, zs = jnp.where(c3_mid != 0, size=1, fill_value=0)
+        idx = (0, 0, int(xs[0]), int(ys[0]), int(zs[0]))
+
+        h = 1e-2 * float(jnp.abs(c3[idx])) + 1e-6
+        c3_plus = c3.at[idx].add(h)
+        c3_minus = c3.at[idx].add(-h)
+        loss_plus = self._loss_fn(c3_plus, arrays, obj, config, key)
+        loss_minus = self._loss_fn(c3_minus, arrays, obj, config, key)
+        fd = (loss_plus - loss_minus) / (2.0 * h)
+
+        ad = grads[idx]
+        diff = jnp.abs(ad - fd)
+        scale = jnp.abs(fd) + jnp.abs(ad) + 1e-12
+        rel_err = diff / scale
+        assert rel_err < 0.1 or diff < 1e-5, (
+            f"AD vs FD mismatch at {idx}: AD={float(ad):.6e}, FD={float(fd):.6e}, rel_err={float(rel_err):.3e}"
+        )
+
+    def test_flag_off_produces_zero_c3_grad(self):
+        obj, arrays, config = self._build(differentiate_dispersion=False)
+        key = jax.random.PRNGKey(99)
+        c3 = arrays.dispersive_c3
+        assert c3 is not None
+        _, grads = jax.value_and_grad(self._loss_fn)(c3, arrays, obj, config, key)
+        max_abs = float(jnp.max(jnp.abs(grads)))
+        assert max_abs == 0.0, (
+            f"c3 gradient must be exactly zero when differentiate_dispersion=False, got max |grad|={max_abs:.3e}"
+        )

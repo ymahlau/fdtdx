@@ -256,9 +256,21 @@ def apply_params(
 
     # apply random key to sources
     new_objects = []
-    disp_c1 = None if arrays.dispersive_c1 is None else jax.lax.stop_gradient(arrays.dispersive_c1)
-    disp_c2 = None if arrays.dispersive_c2 is None else jax.lax.stop_gradient(arrays.dispersive_c2)
-    disp_c3 = None if arrays.dispersive_c3 is None else jax.lax.stop_gradient(arrays.dispersive_c3)
+    # Sources only sample the dispersion coefficients for impedance/energy
+    # normalization at their carrier frequency. By default we cut that gradient
+    # path — it's noise for topology optimization. When the user opts in via
+    # GradientConfig.differentiate_dispersion, we let gradients flow through
+    # source sampling too for consistency with the FDTD VJP.
+    first_config = objects.object_list[0]._config if objects.object_list else None
+    differentiate_dispersion = first_config is not None and first_config.differentiate_dispersion
+    if differentiate_dispersion:
+        disp_c1 = arrays.dispersive_c1
+        disp_c2 = arrays.dispersive_c2
+        disp_c3 = arrays.dispersive_c3
+    else:
+        disp_c1 = None if arrays.dispersive_c1 is None else jax.lax.stop_gradient(arrays.dispersive_c1)
+        disp_c2 = None if arrays.dispersive_c2 is None else jax.lax.stop_gradient(arrays.dispersive_c2)
+        disp_c3 = None if arrays.dispersive_c3 is None else jax.lax.stop_gradient(arrays.dispersive_c3)
     for obj in objects.object_list:
         key, subkey = jax.random.split(key)
         new_obj = obj.apply(
