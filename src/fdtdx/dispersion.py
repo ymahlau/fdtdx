@@ -309,6 +309,171 @@ def susceptibility_from_coefficients(
     return jnp.sum(chi_per_pole, axis=0)
 
 
+def compute_eps_spectrum_from_coefficients(
+    c1: jax.Array | np.ndarray,
+    c2: jax.Array | np.ndarray,
+    c3: jax.Array | np.ndarray,
+    inv_eps_inf: jax.Array | np.ndarray,
+    omegas: np.ndarray,
+    dt: float,
+    weights: np.ndarray | None = None,
+) -> np.ndarray:
+    """Spatially-averaged complex permittivity spectrum for a block of cells.
+
+    For each angular frequency in ``omegas``, evaluates the per-cell
+    complex permittivity :math:`\\varepsilon(\\omega) = \\varepsilon_\\infty + \\chi(\\omega)`
+    where :math:`\\chi` is reconstructed from the ADE recurrence coefficients,
+    and averages over the spatial axes (uniformly or with supplied weights).
+
+    This is the broadband generalization of the single-frequency
+    :func:`effective_inv_permittivity` used for carrier-frequency impedance
+    matching — callers that need a frequency-dependent impedance (e.g. for
+    a convolution-based broadband source correction) use this to build the
+    :math:`\\varepsilon(\\omega)` spectrum that feeds
+    :func:`compute_impedance_corrected_temporal_profile`.
+
+    Args:
+        c1: ADE coefficient array of shape ``(num_poles, 1, *spatial)`` as
+            stored on :class:`~fdtdx.fdtd.container.ArrayContainer` (the
+            middle size-1 axis is the material-component broadcast axis).
+        c2: ADE coefficient array, same shape as ``c1``.
+        c3: ADE coefficient array, same shape as ``c1``.
+        inv_eps_inf: Per-cell inverse of the high-frequency permittivity,
+            shape ``(num_components, *spatial)`` with
+            ``num_components in (1, 3, 9)``. For anisotropic tensors
+            (9 components) only the diagonal entries are used.
+        omegas: 1D array of angular frequencies (rad/s) to evaluate at.
+        dt: Simulation time step (seconds) used to derive the coefficients.
+        weights: Optional spatial weights with the same shape as the
+            trailing axes of ``c1``. If ``None``, uniform averaging.
+
+    Returns:
+        Complex numpy array of shape ``(len(omegas),)`` — the volume-averaged
+        :math:`\\varepsilon(\\omega)` at each requested frequency.
+    """
+    c1_np = np.asarray(c1)
+    c2_np = np.asarray(c2)
+    c3_np = np.asarray(c3)
+    inv_eps_np = np.asarray(inv_eps_inf)
+    omegas_np = np.asarray(omegas, dtype=np.float64)
+
+    # Reverse-engineer pole parameters from the ADE coefficients (same inversion
+    # as susceptibility_from_coefficients, duplicated in numpy for setup-time use).
+    pole_mask = (c1_np != 0.0) | (c3_np != 0.0)
+    one_minus_c2 = 1.0 - c2_np
+    safe_one_minus_c2 = np.where(one_minus_c2 == 0.0, 1.0, one_minus_c2)
+    gamma_dt = np.where(pole_mask, 2.0 * (1.0 + c2_np) / safe_one_minus_c2, 0.0)
+    half_factor = 1.0 + 0.5 * gamma_dt
+    omega0_sq_dt2 = np.where(pole_mask, 2.0 - c1_np * half_factor, 0.0)
+    K_dt2 = np.where(pole_mask, c3_np * half_factor, 0.0)
+
+    # Reduce inv_eps_inf → scalar eps_inf per spatial cell.
+    num_components = inv_eps_np.shape[0]
+    if num_components == 9:
+        diag = np.stack([inv_eps_np[0], inv_eps_np[4], inv_eps_np[8]], axis=0)
+        eps_inf_per_cell = np.mean(1.0 / diag, axis=0)
+    elif num_components in (1, 3):
+        eps_inf_per_cell = np.mean(1.0 / inv_eps_np, axis=0)
+    else:
+        raise ValueError(f"Unexpected inv_eps_inf leading dimension {num_components}; expected 1, 3, or 9.")
+
+    # Broadcast: omegas over (M,); coefficient arrays have shape (P, 1, *spatial).
+    # After [None, ...] prepend: (M, P, 1, *spatial).
+    omega_dt = (omegas_np * dt).reshape((-1,) + (1,) * c1_np.ndim)
+    denom = omega0_sq_dt2[None, ...] - omega_dt**2 - 1j * gamma_dt[None, ...] * omega_dt
+    safe_denom = np.where(pole_mask[None, ...], denom, 1.0 + 0.0j)
+    chi_per_pole = np.where(pole_mask[None, ...], K_dt2[None, ...] / safe_denom, 0.0 + 0.0j)
+    chi_per_cell = chi_per_pole.sum(axis=1)  # sum over pole axis → (M, 1, *spatial)
+    chi_per_cell = chi_per_cell[:, 0]  # drop component broadcast axis → (M, *spatial)
+
+    eps_per_cell = eps_inf_per_cell[None, ...] + chi_per_cell  # (M, *spatial)
+
+    if weights is None:
+        flat = eps_per_cell.reshape(eps_per_cell.shape[0], -1)
+        return flat.mean(axis=1)
+
+    weights_np = np.asarray(weights, dtype=np.float64).reshape(-1)
+    flat = eps_per_cell.reshape(eps_per_cell.shape[0], -1)
+    weight_sum = weights_np.sum()
+    if weight_sum == 0.0:
+        return flat.mean(axis=1)
+    return (flat * weights_np).sum(axis=1) / weight_sum
+
+
+def compute_impedance_corrected_temporal_profile(
+    raw_samples: np.ndarray,
+    dt: float,
+    eps_spectrum: np.ndarray,
+    eps_center: complex,
+) -> np.ndarray:
+    """FIR-filter a raw source temporal profile for broadband impedance matching.
+
+    Given the unfiltered E-side temporal profile ``s(n·dt)`` and the complex
+    permittivity spectrum ``eps_spectrum = ε(ω_k)`` at the rFFT frequencies
+    of a zero-padded version of ``s``, returns the H-side temporal profile
+    ``s_H(n·dt)`` whose spectrum satisfies
+    :math:`\\tilde{s}_H(\\omega) = \\tilde{s}(\\omega) \\cdot G(\\omega)` with
+
+    .. math::
+        G(\\omega) = \\frac{\\eta(\\omega_c)}{\\eta(\\omega)}
+                   = \\sqrt{\\frac{\\varepsilon(\\omega)}{\\varepsilon(\\omega_c)}}
+
+    (assuming a non-dispersive permeability). Injecting the prescribed E and
+    H fields as ``E(x,t) = E_spatial(x)·s(t)`` and
+    ``H(x,t) = (H_spatial(x)/η(ω_c))·s_H(t)`` then reproduces a physical
+    plane wave at every frequency in the pulse bandwidth, not just at
+    ``ω_c``. In the non-dispersive limit ``ε(ω) ≡ ε_c`` and ``G`` is the
+    identity so ``s_H == s``.
+
+    Implementation: zero-pads to ``M = 2·(len(eps_spectrum) - 1)`` for
+    linear convolution, takes a real FFT, multiplies by ``G``, and transforms
+    back with :func:`numpy.fft.irfft` (which enforces a real output via
+    Hermitian symmetry of the positive-frequency spectrum).
+
+    Args:
+        raw_samples: Real 1-D array of the unfiltered temporal profile
+            sampled at integer time steps, ``s[n] = s(n·dt)``.
+        dt: Simulation time step (seconds). Present for API symmetry; the
+            actual time step is encoded in ``eps_spectrum``.
+        eps_spectrum: Complex 1-D array of length ``M/2 + 1`` giving
+            :math:`\\varepsilon(\\omega)` at
+            :math:`\\omega_k = 2\\pi \\cdot k / (M \\cdot \\Delta t)` for
+            ``k = 0, ..., M/2``.
+        eps_center: Scalar complex :math:`\\varepsilon(\\omega_c)` at the
+            source carrier frequency.
+
+    Returns:
+        Real 1-D array of length ``len(raw_samples)`` containing ``s_H[n]``.
+    """
+    del dt
+    raw = np.asarray(raw_samples, dtype=np.float64)
+    n = raw.shape[0]
+    m = (eps_spectrum.shape[0] - 1) * 2
+    if m < n:
+        raise ValueError(
+            f"eps_spectrum of length {eps_spectrum.shape[0]} corresponds to "
+            f"M={m} FFT points, which is smaller than the raw profile length {n}."
+        )
+
+    padded = np.zeros(m, dtype=np.float64)
+    padded[:n] = raw
+    spectrum = np.fft.rfft(padded)
+
+    ratio = np.asarray(eps_spectrum, dtype=np.complex128) / complex(eps_center)
+    filter_response = np.sqrt(ratio)
+    # DC bin: eps(0) can be ill-defined for Drude poles (1/0 in the physical
+    # continuum). A real s(t) has a real S(0) anyway, and a real-valued
+    # correction there is enough — use G(0)=1 so the filter is the identity
+    # at DC. The Nyquist bin must also be real for irfft to produce a real
+    # output; take the real part to be safe.
+    filter_response[0] = 1.0 + 0.0j
+    filter_response[-1] = complex(np.real(filter_response[-1]), 0.0)
+
+    filtered_spectrum = spectrum * filter_response
+    filtered = np.fft.irfft(filtered_spectrum, n=m)
+    return filtered[:n].astype(np.float64)
+
+
 def effective_inv_permittivity(
     inv_eps: jax.Array,
     c1: jax.Array | None,

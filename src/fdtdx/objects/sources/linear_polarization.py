@@ -11,7 +11,7 @@ from fdtdx.core.linalg import get_wave_vector_raw, rotate_vector
 from fdtdx.core.misc import expand_to_3x3, linear_interpolated_indexing, normalize_polarization_for_source
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.dispersion import effective_inv_permittivity
-from fdtdx.objects.sources.tfsf import TFSFPlaneSource
+from fdtdx.objects.sources.tfsf import TFSFPlaneSource, _build_dispersive_H_filter
 
 
 @autoinit
@@ -41,10 +41,16 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
             # inv_permeabilities shape: (3, Nx, Ny, Nz) - slice with component dimension
             inv_permeabilities = inv_permeabilities[:, *self.grid_slice]
 
+        # Keep a handle to the raw (ε∞) inverse permittivity before any
+        # carrier-frequency correction — the broadband impedance filter
+        # computed below needs ε∞ to reconstruct the full ε(ω) spectrum.
+        inv_eps_inf_slice = inv_permittivities
+
         # If the simulation is dispersive, evaluate the real effective inverse
         # permittivity at the source carrier frequency so that the impedance and
         # energy normalization reflect the true medium the source sits in,
         # not just the high-frequency permittivity epsilon_infinity.
+        c1_slice = c2_slice = c3_slice = None
         if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
             # dispersive_c* shape: (num_poles, 1, Nx, Ny, Nz) → slice spatial axes
             c1_slice = dispersive_c1[:, :, *self.grid_slice]
@@ -175,6 +181,26 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         self = self.aset("_H", H, create_new_ok=True)
         self = self.aset("_time_offset_E", time_offset_E, create_new_ok=True)
         self = self.aset("_time_offset_H", time_offset_H, create_new_ok=True)
+
+        # Broadband impedance correction. The carrier-frequency rescale above
+        # only matches η at ω_c; a wide-bandwidth pulse (e.g. GaussianPulseProfile)
+        # sees a frequency-dependent impedance in a dispersive medium and the
+        # TFSF boundary leaks unphysical reflections for frequencies away from
+        # ω_c. Precompute a filtered H-side temporal profile s_H(t) whose
+        # spectrum is S(ω)·√(ε(ω)/ε(ω_c)) so that the injected H field has
+        # the frequency-dependent impedance correction baked in.
+        if c1_slice is not None and c2_slice is not None and c3_slice is not None:
+            filtered = _build_dispersive_H_filter(
+                temporal_profile=self.temporal_profile,
+                wave_character=self.wave_character,
+                dt=self._config.time_step_duration,
+                num_time_steps=self._config.time_steps_total,
+                c1_slice=c1_slice,
+                c2_slice=c2_slice,
+                c3_slice=c3_slice,
+                inv_eps_inf_slice=inv_eps_inf_slice,
+            )
+            self = self.aset("_temporal_H_filter", filtered, create_new_ok=True)
 
         return self
 
