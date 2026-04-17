@@ -16,6 +16,77 @@ from fdtdx.interfaces.state import RecordingState
 from fdtdx.objects.detectors.detector import DetectorState
 
 
+def _state_to_primal_tuple(state: SimulationState) -> tuple:
+    """Flatten a ``SimulationState`` into the 14-tuple order used by the
+    reversible custom VJP — ``time_step`` plus the 13 differentiable / state
+    leaves of ``ArrayContainer`` (conductivities and dispersion coefficients
+    are handled separately as closure state or extra primals)."""
+    _, arr = state
+    return (
+        state[0],
+        arr.E,
+        arr.H,
+        arr.psi_E,
+        arr.psi_H,
+        arr.alpha,
+        arr.kappa,
+        arr.sigma,
+        arr.inv_permittivities,
+        arr.inv_permeabilities,
+        arr.dispersive_P_curr,
+        arr.dispersive_P_prev,
+        arr.detector_states,
+        arr.recording_state,
+    )
+
+
+def _arr_from_primals(
+    E: jax.Array,
+    H: jax.Array,
+    psi_E: jax.Array,
+    psi_H: jax.Array,
+    alpha: jax.Array,
+    kappa: jax.Array,
+    sigma: jax.Array,
+    inv_permittivities: jax.Array,
+    inv_permeabilities: jax.Array,
+    dispersive_P_curr: jax.Array | None,
+    dispersive_P_prev: jax.Array | None,
+    detector_states: dict[str, DetectorState],
+    recording_state: RecordingState | None,
+    *,
+    electric_conductivity: jax.Array | None,
+    magnetic_conductivity: jax.Array | None,
+    dispersive_c1: jax.Array | None,
+    dispersive_c2: jax.Array | None,
+    dispersive_c3: jax.Array | None,
+) -> ArrayContainer:
+    """Build an ``ArrayContainer`` from the 13 state-like primal leaves plus
+    the keyword-only non-primal fields. The two reversible-VJP branches pass
+    ``dispersive_c*`` either from closure (flag off) or from primal args
+    (flag on)."""
+    return ArrayContainer(
+        E=E,
+        H=H,
+        psi_E=psi_E,
+        psi_H=psi_H,
+        alpha=alpha,
+        kappa=kappa,
+        sigma=sigma,
+        inv_permittivities=inv_permittivities,
+        inv_permeabilities=inv_permeabilities,
+        detector_states=detector_states,
+        recording_state=recording_state,
+        electric_conductivity=electric_conductivity,
+        magnetic_conductivity=magnetic_conductivity,
+        dispersive_P_curr=dispersive_P_curr,
+        dispersive_P_prev=dispersive_P_prev,
+        dispersive_c1=dispersive_c1,
+        dispersive_c2=dispersive_c2,
+        dispersive_c3=dispersive_c3,
+    )
+
+
 def reversible_fdtd(
     arrays: ArrayContainer,
     objects: ObjectContainer,
@@ -119,65 +190,40 @@ def reversible_fdtd(
         time_step = s_k[0]
         return time_step >= start_time_step
 
+    # Shared closure fields — constant across both branches.
+    closure_kwargs = {
+        "electric_conductivity": arrays.electric_conductivity,
+        "magnetic_conductivity": arrays.magnetic_conductivity,
+        "dispersive_c1": arrays.dispersive_c1,
+        "dispersive_c2": arrays.dispersive_c2,
+        "dispersive_c3": arrays.dispersive_c3,
+    }
+    forward_wrapper = partial(
+        forward_single_args_wrapper,
+        config=config,
+        objects=objects,
+        key=key,
+        record_detectors=True,
+        record_boundaries=False,
+        simulate_boundaries=True,
+        arrays_template=arrays,
+    )
+
+    # The two branches share the shape of fdtd_fwd / fdtd_bwd / body_fn; the
+    # only real difference is whether dispersive_c1/c2/c3 are threaded through
+    # as primal VJP inputs (flag on) or closure-captured (flag off). Keeping
+    # two ``jax.vjp`` call shapes is what preserves the perf savings — if the
+    # coefficients were always passed as primals, JAX would compute their
+    # transposes even when the flag is off.
+
     if not differentiate_dispersion:
 
         @jax.custom_vjp
-        def reversible_fdtd_primal(
-            E: jax.Array,
-            H: jax.Array,
-            psi_E: jax.Array,
-            psi_H: jax.Array,
-            alpha: jax.Array,
-            kappa: jax.Array,
-            sigma: jax.Array,
-            inv_permittivities: jax.Array,
-            inv_permeabilities: jax.Array,
-            dispersive_P_curr: jax.Array | None,
-            dispersive_P_prev: jax.Array | None,
-            detector_states: dict[str, DetectorState],
-            recording_state: RecordingState | None,
-        ):
-            arr = ArrayContainer(
-                E=E,
-                H=H,
-                psi_E=psi_E,
-                psi_H=psi_H,
-                alpha=alpha,
-                kappa=kappa,
-                sigma=sigma,
-                inv_permittivities=inv_permittivities,
-                inv_permeabilities=inv_permeabilities,
-                detector_states=detector_states,
-                recording_state=recording_state,
-                electric_conductivity=arrays.electric_conductivity,
-                magnetic_conductivity=arrays.magnetic_conductivity,
-                dispersive_P_curr=dispersive_P_curr,
-                dispersive_P_prev=dispersive_P_prev,
-                dispersive_c1=arrays.dispersive_c1,
-                dispersive_c2=arrays.dispersive_c2,
-                dispersive_c3=arrays.dispersive_c3,
-            )
-            state = reversible_fdtd_base(arr)
-            return (
-                state[0],
-                state[1].E,
-                state[1].H,
-                state[1].psi_E,
-                state[1].psi_H,
-                state[1].alpha,
-                state[1].kappa,
-                state[1].sigma,
-                state[1].inv_permittivities,
-                state[1].inv_permeabilities,
-                state[1].dispersive_P_curr,
-                state[1].dispersive_P_prev,
-                state[1].detector_states,
-                state[1].recording_state,
-            )
+        def reversible_fdtd_primal(*state_primals):
+            arr = _arr_from_primals(*state_primals[1:], **closure_kwargs)
+            return _state_to_primal_tuple(reversible_fdtd_base(arr))
 
-        def body_fn(
-            sr_tuple,
-        ):
+        def body_fn(sr_tuple):
             state, cot = sr_tuple
             state = backward(
                 state=state,
@@ -187,92 +233,29 @@ def reversible_fdtd(
                 record_detectors=False,
                 reset_fields=False,
             )
-            _, update_vjp = jax.vjp(
-                partial(
-                    forward_single_args_wrapper,
-                    config=config,
-                    objects=objects,
-                    key=key,
-                    record_detectors=True,
-                    record_boundaries=False,
-                    simulate_boundaries=True,
-                    arrays_template=arrays,
-                ),
-                state[0],
-                state[1].E,
-                state[1].H,
-                state[1].psi_E,
-                state[1].psi_H,
-                state[1].alpha,
-                state[1].kappa,
-                state[1].sigma,
-                state[1].inv_permittivities,
-                state[1].inv_permeabilities,
-                state[1].dispersive_P_curr,
-                state[1].dispersive_P_prev,
-                state[1].detector_states,
-                state[1].recording_state,
-            )
+            _, update_vjp = jax.vjp(forward_wrapper, *_state_to_primal_tuple(state))
+            return state, update_vjp(cot)
 
-            cot = update_vjp(cot)
-            return state, cot
+        def fdtd_fwd(*state_primals):
+            arr = _arr_from_primals(*state_primals[1:], **closure_kwargs)
+            primal_out = _state_to_primal_tuple(reversible_fdtd_base(arr))
+            return primal_out, primal_out
 
-        def fdtd_bwd(
-            residual,
-            cot,
-        ):
-            (
-                res_time_step,
-                res_E,
-                res_H,
-                res_psi_E,
-                res_psi_H,
-                res_alpha,
-                res_kappa,
-                res_sigma,
-                res_inv_permittivities,
-                res_inv_permeabilities,
-                res_dispersive_P_curr,
-                res_dispersive_P_prev,
-                res_detector_states,
-                res_recording_state,
-            ) = residual
-
-            s_k = ArrayContainer(
-                E=res_E,
-                H=res_H,
-                psi_E=res_psi_E,
-                psi_H=res_psi_H,
-                alpha=res_alpha,
-                kappa=res_kappa,
-                sigma=res_sigma,
-                inv_permittivities=res_inv_permittivities,
-                inv_permeabilities=res_inv_permeabilities,
-                detector_states=res_detector_states,
-                recording_state=res_recording_state,
-                electric_conductivity=arrays.electric_conductivity,
-                magnetic_conductivity=arrays.magnetic_conductivity,
-                dispersive_P_curr=res_dispersive_P_curr,
-                dispersive_P_prev=res_dispersive_P_prev,
-                dispersive_c1=arrays.dispersive_c1,
-                dispersive_c2=arrays.dispersive_c2,
-                dispersive_c3=arrays.dispersive_c3,
-            )
-
-            _, cot = eqxi.while_loop(
+        def fdtd_bwd(residual, cot):
+            s_k = _arr_from_primals(*residual[1:], **closure_kwargs)
+            _, final_cot = eqxi.while_loop(
                 cond_fun=partial(cond_fun, start_time_step=0),
                 body_fun=body_fn,
-                init_val=((res_time_step, s_k), cot),
+                init_val=((residual[0], s_k), cot),
                 kind="lax",
             )
-            # Cotangent order matches reversible_fdtd_primal's primal-argument order:
-            # (E, H, psi_E, psi_H, alpha, kappa, sigma, inv_permittivities,
-            #  inv_permeabilities, dispersive_P_curr, dispersive_P_prev,
-            #  detector_states, recording_state). Only inv_permittivities and
-            # inv_permeabilities carry gradients for optimization; polarization
-            # state is non-trainable. Dispersion coefficients do not appear
-            # here because differentiate_dispersion is off.
+            # Only inv_permittivities (idx 8) and inv_permeabilities (idx 9)
+            # propagate gradients; all other state leaves are non-trainable.
+            # Indices refer to the 14-tuple primal-argument order: time_step,
+            # E, H, psi_E, psi_H, alpha, kappa, sigma, inv_permittivities,
+            # inv_permeabilities, P_curr, P_prev, detector_states, recording_state.
             return (
+                None,  # time_step
                 None,  # E
                 None,  # H
                 None,  # psi_E
@@ -280,178 +263,38 @@ def reversible_fdtd(
                 None,  # alpha
                 None,  # kappa
                 None,  # sigma
-                cot[8],  # inv_permittivities
-                cot[9],  # inv_permeabilities
+                final_cot[8],  # inv_permittivities
+                final_cot[9],  # inv_permeabilities
                 None,  # dispersive_P_curr
                 None,  # dispersive_P_prev
                 None,  # detector_states
                 None,  # recording_state
             )
 
-        def fdtd_fwd(
-            E: jax.Array,
-            H: jax.Array,
-            psi_E: jax.Array,
-            psi_H: jax.Array,
-            alpha: jax.Array,
-            kappa: jax.Array,
-            sigma: jax.Array,
-            inv_permittivities: jax.Array,
-            inv_permeabilities: jax.Array,
-            dispersive_P_curr: jax.Array | None,
-            dispersive_P_prev: jax.Array | None,
-            detector_states: dict[str, DetectorState],
-            recording_state: RecordingState | None,
-        ):
-            arr = ArrayContainer(
-                E=E,
-                H=H,
-                psi_E=psi_E,
-                psi_H=psi_H,
-                alpha=alpha,
-                kappa=kappa,
-                sigma=sigma,
-                inv_permittivities=inv_permittivities,
-                inv_permeabilities=inv_permeabilities,
-                detector_states=detector_states,
-                recording_state=recording_state,
-                electric_conductivity=arrays.electric_conductivity,
-                magnetic_conductivity=arrays.magnetic_conductivity,
-                dispersive_P_curr=dispersive_P_curr,
-                dispersive_P_prev=dispersive_P_prev,
-                dispersive_c1=arrays.dispersive_c1,
-                dispersive_c2=arrays.dispersive_c2,
-                dispersive_c3=arrays.dispersive_c3,
-            )
-            s_k = reversible_fdtd_base(arr)
-
-            primal_out = (
-                s_k[0],
-                s_k[1].E,
-                s_k[1].H,
-                s_k[1].psi_E,
-                s_k[1].psi_H,
-                s_k[1].alpha,
-                s_k[1].kappa,
-                s_k[1].sigma,
-                s_k[1].inv_permittivities,
-                s_k[1].inv_permeabilities,
-                s_k[1].dispersive_P_curr,
-                s_k[1].dispersive_P_prev,
-                s_k[1].detector_states,
-                s_k[1].recording_state,  # None
-            )
-            residual = primal_out
-            return primal_out, residual
-
         reversible_fdtd_primal.defvjp(fdtd_fwd, fdtd_bwd)
-
-        (
-            time_step,
-            E,
-            H,
-            psi_E,
-            psi_H,
-            alpha,
-            kappa,
-            sigma,
-            inv_permittivities,
-            inv_permeabilities,
-            dispersive_P_curr,
-            dispersive_P_prev,
-            detector_states,
-            recording_state,
-        ) = reversible_fdtd_primal(
-            E=arrays.E,
-            H=arrays.H,
-            psi_E=arrays.psi_E,
-            psi_H=arrays.psi_H,
-            alpha=arrays.alpha,
-            kappa=arrays.kappa,
-            sigma=arrays.sigma,
-            inv_permittivities=arrays.inv_permittivities,
-            inv_permeabilities=arrays.inv_permeabilities,
-            dispersive_P_curr=arrays.dispersive_P_curr,
-            dispersive_P_prev=arrays.dispersive_P_prev,
-            detector_states=arrays.detector_states,
-            recording_state=arrays.recording_state,
-        )
+        primal_out = reversible_fdtd_primal(*_state_to_primal_tuple((jnp.asarray(0, dtype=jnp.int32), arrays)))
     else:
-        # differentiate_dispersion == True: promote the three dispersion
-        # coefficient arrays to primal inputs of the custom VJP. The forward
-        # physics is unchanged — only VJP plumbing differs.
-        #
-        # The per-step ``update_vjp`` returns cotangents for all 17 primal
-        # inputs of ``forward_single_args_wrapper`` (14 state-like + 3
-        # coefficients). The state-like cotangents (first 14) chain through
-        # time because inv_permittivities / inv_permeabilities are both inputs
-        # and outputs (identity passthrough captures temporal accumulation
-        # automatically). The three coefficient cotangents are NOT outputs, so
-        # their per-step values are only the local contribution. We accumulate
-        # them manually into ``c1_acc`` / ``c2_acc`` / ``c3_acc`` across the
-        # reverse loop, carried as the last three entries of a 17-tuple cot
-        # inside ``body_fn``.
+        # Flag on: c1/c2/c3 become primal inputs, so the VJP machinery
+        # accumulates cotangents for them naturally through ``update_vjp``'s
+        # output. But because they are inputs-only (not outputs of
+        # ``forward_single_args_wrapper``), their per-step cotangent is a
+        # local contribution; we carry a 17-tuple cot so the three extra
+        # entries accumulate over the reverse loop.
+        coef_kwargs_closure = {k: v for k, v in closure_kwargs.items() if not k.startswith("dispersive_c")}
 
         @jax.custom_vjp
-        def reversible_fdtd_primal(
-            E: jax.Array,
-            H: jax.Array,
-            psi_E: jax.Array,
-            psi_H: jax.Array,
-            alpha: jax.Array,
-            kappa: jax.Array,
-            sigma: jax.Array,
-            inv_permittivities: jax.Array,
-            inv_permeabilities: jax.Array,
-            dispersive_P_curr: jax.Array | None,
-            dispersive_P_prev: jax.Array | None,
-            detector_states: dict[str, DetectorState],
-            recording_state: RecordingState | None,
-            dispersive_c1: jax.Array,
-            dispersive_c2: jax.Array,
-            dispersive_c3: jax.Array,
-        ):
-            arr = ArrayContainer(
-                E=E,
-                H=H,
-                psi_E=psi_E,
-                psi_H=psi_H,
-                alpha=alpha,
-                kappa=kappa,
-                sigma=sigma,
-                inv_permittivities=inv_permittivities,
-                inv_permeabilities=inv_permeabilities,
-                detector_states=detector_states,
-                recording_state=recording_state,
-                electric_conductivity=arrays.electric_conductivity,
-                magnetic_conductivity=arrays.magnetic_conductivity,
-                dispersive_P_curr=dispersive_P_curr,
-                dispersive_P_prev=dispersive_P_prev,
-                dispersive_c1=dispersive_c1,
-                dispersive_c2=dispersive_c2,
-                dispersive_c3=dispersive_c3,
+        def reversible_fdtd_primal(*primals):
+            state_primals, c1, c2, c3 = primals[:14], primals[14], primals[15], primals[16]
+            arr = _arr_from_primals(
+                *state_primals[1:],
+                **coef_kwargs_closure,
+                dispersive_c1=c1,
+                dispersive_c2=c2,
+                dispersive_c3=c3,
             )
-            state = reversible_fdtd_base(arr)
-            return (
-                state[0],
-                state[1].E,
-                state[1].H,
-                state[1].psi_E,
-                state[1].psi_H,
-                state[1].alpha,
-                state[1].kappa,
-                state[1].sigma,
-                state[1].inv_permittivities,
-                state[1].inv_permeabilities,
-                state[1].dispersive_P_curr,
-                state[1].dispersive_P_prev,
-                state[1].detector_states,
-                state[1].recording_state,
-            )
+            return _state_to_primal_tuple(reversible_fdtd_base(arr))
 
-        def body_fn(
-            sr_tuple,
-        ):
+        def body_fn(sr_tuple):
             state, cot17 = sr_tuple
             state = backward(
                 state=state,
@@ -462,102 +305,55 @@ def reversible_fdtd(
                 reset_fields=False,
             )
             _, update_vjp = jax.vjp(
-                partial(
-                    forward_single_args_wrapper,
-                    config=config,
-                    objects=objects,
-                    key=key,
-                    record_detectors=True,
-                    record_boundaries=False,
-                    simulate_boundaries=True,
-                    arrays_template=arrays,
-                ),
-                state[0],
-                state[1].E,
-                state[1].H,
-                state[1].psi_E,
-                state[1].psi_H,
-                state[1].alpha,
-                state[1].kappa,
-                state[1].sigma,
-                state[1].inv_permittivities,
-                state[1].inv_permeabilities,
-                state[1].dispersive_P_curr,
-                state[1].dispersive_P_prev,
-                state[1].detector_states,
-                state[1].recording_state,
+                forward_wrapper,
+                *_state_to_primal_tuple(state),
                 state[1].dispersive_c1,
                 state[1].dispersive_c2,
                 state[1].dispersive_c3,
             )
-            # update_vjp expects the 14-tuple cot on outputs; returns 17-tuple cot on inputs.
+            # update_vjp output cot is 14-tuple (wrapper's outputs); input cot is 17-tuple.
             input_cot = update_vjp(cot17[:14])
-            new_cot17 = (
+            return state, (
                 *input_cot[:14],
                 cot17[14] + input_cot[14],
                 cot17[15] + input_cot[15],
                 cot17[16] + input_cot[16],
             )
-            return state, new_cot17
 
-        def fdtd_bwd(
-            residual,
-            cot,
-        ):
-            (
-                res_time_step,
-                res_E,
-                res_H,
-                res_psi_E,
-                res_psi_H,
-                res_alpha,
-                res_kappa,
-                res_sigma,
-                res_inv_permittivities,
-                res_inv_permeabilities,
-                res_dispersive_P_curr,
-                res_dispersive_P_prev,
-                res_detector_states,
-                res_recording_state,
-                res_dispersive_c1,
-                res_dispersive_c2,
-                res_dispersive_c3,
-            ) = residual
-
-            s_k = ArrayContainer(
-                E=res_E,
-                H=res_H,
-                psi_E=res_psi_E,
-                psi_H=res_psi_H,
-                alpha=res_alpha,
-                kappa=res_kappa,
-                sigma=res_sigma,
-                inv_permittivities=res_inv_permittivities,
-                inv_permeabilities=res_inv_permeabilities,
-                detector_states=res_detector_states,
-                recording_state=res_recording_state,
-                electric_conductivity=arrays.electric_conductivity,
-                magnetic_conductivity=arrays.magnetic_conductivity,
-                dispersive_P_curr=res_dispersive_P_curr,
-                dispersive_P_prev=res_dispersive_P_prev,
-                dispersive_c1=res_dispersive_c1,
-                dispersive_c2=res_dispersive_c2,
-                dispersive_c3=res_dispersive_c3,
+        def fdtd_fwd(*primals):
+            state_primals, c1, c2, c3 = primals[:14], primals[14], primals[15], primals[16]
+            arr = _arr_from_primals(
+                *state_primals[1:],
+                **coef_kwargs_closure,
+                dispersive_c1=c1,
+                dispersive_c2=c2,
+                dispersive_c3=c3,
             )
+            s_k = reversible_fdtd_base(arr)
+            primal_out = _state_to_primal_tuple(s_k)
+            residual = (*primal_out, s_k[1].dispersive_c1, s_k[1].dispersive_c2, s_k[1].dispersive_c3)
+            return primal_out, residual
 
-            # Extend upstream 14-tuple cot with 3 zero accumulators for c1/c2/c3.
-            c1_acc_init = jnp.zeros_like(res_dispersive_c1)
-            c2_acc_init = jnp.zeros_like(res_dispersive_c2)
-            c3_acc_init = jnp.zeros_like(res_dispersive_c3)
-            cot17 = (*cot, c1_acc_init, c2_acc_init, c3_acc_init)
-
+        def fdtd_bwd(residual, cot):
+            state_residual = residual[:14]
+            c1_res, c2_res, c3_res = residual[14], residual[15], residual[16]
+            s_k = _arr_from_primals(
+                *state_residual[1:],
+                **coef_kwargs_closure,
+                dispersive_c1=c1_res,
+                dispersive_c2=c2_res,
+                dispersive_c3=c3_res,
+            )
+            # Seed the extra 3 cotangents as zero — they accumulate per step.
+            cot17 = (*cot, jnp.zeros_like(c1_res), jnp.zeros_like(c2_res), jnp.zeros_like(c3_res))
             _, final_cot17 = eqxi.while_loop(
                 cond_fun=partial(cond_fun, start_time_step=0),
                 body_fun=body_fn,
-                init_val=((res_time_step, s_k), cot17),
+                init_val=((state_residual[0], s_k), cot17),
                 kind="lax",
             )
             return (
+                None,  # time_step
                 None,  # E
                 None,  # H
                 None,  # psi_E
@@ -576,105 +372,30 @@ def reversible_fdtd(
                 final_cot17[16],  # dispersive_c3
             )
 
-        def fdtd_fwd(
-            E: jax.Array,
-            H: jax.Array,
-            psi_E: jax.Array,
-            psi_H: jax.Array,
-            alpha: jax.Array,
-            kappa: jax.Array,
-            sigma: jax.Array,
-            inv_permittivities: jax.Array,
-            inv_permeabilities: jax.Array,
-            dispersive_P_curr: jax.Array | None,
-            dispersive_P_prev: jax.Array | None,
-            detector_states: dict[str, DetectorState],
-            recording_state: RecordingState | None,
-            dispersive_c1: jax.Array,
-            dispersive_c2: jax.Array,
-            dispersive_c3: jax.Array,
-        ):
-            arr = ArrayContainer(
-                E=E,
-                H=H,
-                psi_E=psi_E,
-                psi_H=psi_H,
-                alpha=alpha,
-                kappa=kappa,
-                sigma=sigma,
-                inv_permittivities=inv_permittivities,
-                inv_permeabilities=inv_permeabilities,
-                detector_states=detector_states,
-                recording_state=recording_state,
-                electric_conductivity=arrays.electric_conductivity,
-                magnetic_conductivity=arrays.magnetic_conductivity,
-                dispersive_P_curr=dispersive_P_curr,
-                dispersive_P_prev=dispersive_P_prev,
-                dispersive_c1=dispersive_c1,
-                dispersive_c2=dispersive_c2,
-                dispersive_c3=dispersive_c3,
-            )
-            s_k = reversible_fdtd_base(arr)
-
-            primal_out = (
-                s_k[0],
-                s_k[1].E,
-                s_k[1].H,
-                s_k[1].psi_E,
-                s_k[1].psi_H,
-                s_k[1].alpha,
-                s_k[1].kappa,
-                s_k[1].sigma,
-                s_k[1].inv_permittivities,
-                s_k[1].inv_permeabilities,
-                s_k[1].dispersive_P_curr,
-                s_k[1].dispersive_P_prev,
-                s_k[1].detector_states,
-                s_k[1].recording_state,
-            )
-            residual = (
-                *primal_out,
-                s_k[1].dispersive_c1,
-                s_k[1].dispersive_c2,
-                s_k[1].dispersive_c3,
-            )
-            return primal_out, residual
-
         reversible_fdtd_primal.defvjp(fdtd_fwd, fdtd_bwd)
-
-        (
-            time_step,
-            E,
-            H,
-            psi_E,
-            psi_H,
-            alpha,
-            kappa,
-            sigma,
-            inv_permittivities,
-            inv_permeabilities,
-            dispersive_P_curr,
-            dispersive_P_prev,
-            detector_states,
-            recording_state,
-        ) = reversible_fdtd_primal(
-            E=arrays.E,
-            H=arrays.H,
-            psi_E=arrays.psi_E,
-            psi_H=arrays.psi_H,
-            alpha=arrays.alpha,
-            kappa=arrays.kappa,
-            sigma=arrays.sigma,
-            inv_permittivities=arrays.inv_permittivities,
-            inv_permeabilities=arrays.inv_permeabilities,
-            dispersive_P_curr=arrays.dispersive_P_curr,
-            dispersive_P_prev=arrays.dispersive_P_prev,
-            detector_states=arrays.detector_states,
-            recording_state=arrays.recording_state,
-            dispersive_c1=arrays.dispersive_c1,
-            dispersive_c2=arrays.dispersive_c2,
-            dispersive_c3=arrays.dispersive_c3,
+        primal_out = reversible_fdtd_primal(
+            *_state_to_primal_tuple((jnp.asarray(0, dtype=jnp.int32), arrays)),
+            arrays.dispersive_c1,
+            arrays.dispersive_c2,
+            arrays.dispersive_c3,
         )
+
+    (
+        time_step,
+        E,
+        H,
+        psi_E,
+        psi_H,
+        alpha,
+        kappa,
+        sigma,
+        inv_permittivities,
+        inv_permeabilities,
+        dispersive_P_curr,
+        dispersive_P_prev,
+        detector_states,
+        recording_state,
+    ) = primal_out
     _close_pbar()
 
     out_arrs = ArrayContainer(
