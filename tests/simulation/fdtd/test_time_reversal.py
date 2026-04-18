@@ -656,6 +656,7 @@ class TestGradientDispersiveLorentz:
             dispersive_c1=arrays.dispersive_c1,
             dispersive_c2=arrays.dispersive_c2,
             dispersive_c3=arrays.dispersive_c3,
+            dispersive_inv_c2=arrays.dispersive_inv_c2,
         )
         _, out = reversible_fdtd(arrays, objects, config, key, show_progress=False)
         return jnp.sum(jnp.real(out.E) ** 2)
@@ -789,6 +790,7 @@ class TestGradientDispersiveLossy:
             dispersive_c1=arrays.dispersive_c1,
             dispersive_c2=arrays.dispersive_c2,
             dispersive_c3=arrays.dispersive_c3,
+            dispersive_inv_c2=arrays.dispersive_inv_c2,
         )
         _, out = reversible_fdtd(arrays, objects, config, key, show_progress=False)
         return jnp.sum(jnp.real(out.E) ** 2)
@@ -1036,6 +1038,7 @@ class TestDifferentiateDispersionReversible:
             dispersive_c1=arrays.dispersive_c1,
             dispersive_c2=arrays.dispersive_c2,
             dispersive_c3=dispersive_c3,
+            dispersive_inv_c2=arrays.dispersive_inv_c2,
         )
         _, out = reversible_fdtd(arrays, objects, config, key, show_progress=False)
         return jnp.sum(jnp.real(out.E) ** 2)
@@ -1123,6 +1126,7 @@ class TestDifferentiateDispersionCheckpointed:
             dispersive_c1=arrays.dispersive_c1,
             dispersive_c2=arrays.dispersive_c2,
             dispersive_c3=dispersive_c3,
+            dispersive_inv_c2=arrays.dispersive_inv_c2,
         )
         _, out = checkpointed_fdtd(arrays, objects, config, key, show_progress=False)
         return jnp.sum(jnp.real(out.E) ** 2)

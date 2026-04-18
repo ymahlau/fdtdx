@@ -250,9 +250,14 @@ def apply_params(
             new_c1 = arrays.dispersive_c1.at[:, :, *device.grid_slice].set(new_c1_slice)
             new_c2 = arrays.dispersive_c2.at[:, :, *device.grid_slice].set(new_c2_slice)
             new_c3 = arrays.dispersive_c3.at[:, :, *device.grid_slice].set(new_c3_slice)
+            # Recompute inv_c2 from the post-interpolation c2. Do NOT interpolate
+            # inv_c2 directly: 1/avg(c2) != avg(1/c2), and the reverse-time ADE
+            # relies on inv_c2 being the exact reciprocal of the stored c2.
+            new_inv_c2 = jnp.where(new_c2 == 0, 0.0, 1.0 / new_c2)
             arrays = arrays.at["dispersive_c1"].set(new_c1)
             arrays = arrays.at["dispersive_c2"].set(new_c2)
             arrays = arrays.at["dispersive_c3"].set(new_c3)
+            arrays = arrays.at["dispersive_inv_c2"].set(new_inv_c2)
 
     # apply random key to sources
     new_objects = []
@@ -777,6 +782,12 @@ def _init_arrays(
         )
         config = config.aset("gradient_config", grad_cfg)
 
+    # Cache 1/c2 with non-dispersive cells zeroed so update_E_reverse can replace
+    # its ``jnp.where(c2 == 0, ..., / c2)`` pair with a single multiply.
+    dispersive_inv_c2 = None
+    if dispersive_c2 is not None:
+        dispersive_inv_c2 = jnp.where(dispersive_c2 == 0, 0.0, 1.0 / dispersive_c2)
+
     arrays = ArrayContainer(
         E=E,
         H=H,
@@ -796,6 +807,7 @@ def _init_arrays(
         dispersive_c1=dispersive_c1,
         dispersive_c2=dispersive_c2,
         dispersive_c3=dispersive_c3,
+        dispersive_inv_c2=dispersive_inv_c2,
     )
     return arrays, config, info
 

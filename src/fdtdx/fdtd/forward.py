@@ -59,9 +59,13 @@ def forward_single_args_wrapper(
     if arrays_template is None:
         electric_conductivity = None
         magnetic_conductivity = None
+        dispersive_inv_c2 = None
     else:
         electric_conductivity = arrays_template.electric_conductivity
         magnetic_conductivity = arrays_template.magnetic_conductivity
+        # ``dispersive_inv_c2`` is always pulled from the template — it's a cached
+        # reciprocal of c2, never a primal VJP arg.
+        dispersive_inv_c2 = arrays_template.dispersive_inv_c2
 
     if dispersive_c1 is None and arrays_template is not None:
         dispersive_c1 = arrays_template.dispersive_c1
@@ -86,6 +90,7 @@ def forward_single_args_wrapper(
         dispersive_c1=dispersive_c1,
         dispersive_c2=dispersive_c2,
         dispersive_c3=dispersive_c3,
+        dispersive_inv_c2=dispersive_inv_c2,
     )
     state = forward(
         state=(time_step, arr),

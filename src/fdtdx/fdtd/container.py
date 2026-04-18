@@ -8,6 +8,7 @@ like sources, detectors, PML boundaries, Bloch/periodic boundaries, and devices.
 from typing import Callable, Self
 
 import jax
+import jax.numpy as jnp
 
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 from fdtdx.interfaces.state import RecordingState
@@ -351,6 +352,12 @@ class ArrayContainer(TreeClass):
     #: ``(num_poles, 1, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
     dispersive_c3: jax.Array | None = None
 
+    #: Per-cell cached ``1 / c2`` with non-dispersive cells set to 0. Lets the
+    #: reverse-time ADE update avoid a ``jnp.where`` + division per step.
+    #: Derived from ``dispersive_c2``; never differentiated independently.
+    #: Shape ``(num_poles, 1, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
+    dispersive_inv_c2: jax.Array | None = None
+
 
 # time step and arrays
 SimulationState = tuple[jax.Array, ArrayContainer]
@@ -376,15 +383,13 @@ def reset_array_container(
     Returns:
         ArrayContainer: A new ArrayContainer with reset fields and optionally reset states.
     """
-    E = arrays.E * 0
-    arrays = arrays.aset("E", E)
-    H = arrays.H * 0
-    arrays = arrays.aset("H", H)
+    arrays = arrays.aset("E", jnp.zeros_like(arrays.E))
+    arrays = arrays.aset("H", jnp.zeros_like(arrays.H))
 
     if arrays.dispersive_P_curr is not None:
-        arrays = arrays.aset("dispersive_P_curr", arrays.dispersive_P_curr * 0)
+        arrays = arrays.aset("dispersive_P_curr", jnp.zeros_like(arrays.dispersive_P_curr))
     if arrays.dispersive_P_prev is not None:
-        arrays = arrays.aset("dispersive_P_prev", arrays.dispersive_P_prev * 0)
+        arrays = arrays.aset("dispersive_P_prev", jnp.zeros_like(arrays.dispersive_P_prev))
 
     detector_states = arrays.detector_states
     if reset_detector_states:

@@ -60,11 +60,13 @@ def _arr_from_primals(
     dispersive_c1: jax.Array | None,
     dispersive_c2: jax.Array | None,
     dispersive_c3: jax.Array | None,
+    dispersive_inv_c2: jax.Array | None,
 ) -> ArrayContainer:
     """Build an ``ArrayContainer`` from the 13 state-like primal leaves plus
     the keyword-only non-primal fields. The two reversible-VJP branches pass
     ``dispersive_c*`` either from closure (flag off) or from primal args
-    (flag on)."""
+    (flag on). ``dispersive_inv_c2`` is always closure-captured — it's a
+    cache of ``1/c2`` and would double-count if added as an independent primal."""
     return ArrayContainer(
         E=E,
         H=H,
@@ -84,6 +86,7 @@ def _arr_from_primals(
         dispersive_c1=dispersive_c1,
         dispersive_c2=dispersive_c2,
         dispersive_c3=dispersive_c3,
+        dispersive_inv_c2=dispersive_inv_c2,
     )
 
 
@@ -148,6 +151,11 @@ def reversible_fdtd(
         arrays = arrays.at["dispersive_c1"].set(jax.lax.stop_gradient(arrays.dispersive_c1))
         arrays = arrays.at["dispersive_c2"].set(jax.lax.stop_gradient(arrays.dispersive_c2))
         arrays = arrays.at["dispersive_c3"].set(jax.lax.stop_gradient(arrays.dispersive_c3))
+    # ``dispersive_inv_c2`` is a derived cache of ``1/c2``; stop_gradient it
+    # unconditionally (even when differentiate_dispersion=True) so gradients
+    # flow through ``dispersive_c2`` only and don't double-count.
+    if arrays.dispersive_inv_c2 is not None:
+        arrays = arrays.at["dispersive_inv_c2"].set(jax.lax.stop_gradient(arrays.dispersive_inv_c2))
 
     pbar = _make_pbar(
         show_progress=show_progress,
@@ -190,13 +198,16 @@ def reversible_fdtd(
         time_step = s_k[0]
         return time_step >= start_time_step
 
-    # Shared closure fields — constant across both branches.
+    # Shared closure fields — constant across both branches. ``dispersive_inv_c2``
+    # is always closure-captured (never a primal arg), regardless of the
+    # ``differentiate_dispersion`` flag, since it's a cached reciprocal of c2.
     closure_kwargs = {
         "electric_conductivity": arrays.electric_conductivity,
         "magnetic_conductivity": arrays.magnetic_conductivity,
         "dispersive_c1": arrays.dispersive_c1,
         "dispersive_c2": arrays.dispersive_c2,
         "dispersive_c3": arrays.dispersive_c3,
+        "dispersive_inv_c2": arrays.dispersive_inv_c2,
     }
     forward_wrapper = partial(
         forward_single_args_wrapper,
@@ -417,6 +428,7 @@ def reversible_fdtd(
         dispersive_c1=arrays.dispersive_c1,
         dispersive_c2=arrays.dispersive_c2,
         dispersive_c3=arrays.dispersive_c3,
+        dispersive_inv_c2=arrays.dispersive_inv_c2,
     )
     return time_step, out_arrs
 
@@ -467,6 +479,10 @@ def checkpointed_fdtd(
         arrays = arrays.at["dispersive_c1"].set(jax.lax.stop_gradient(arrays.dispersive_c1))
         arrays = arrays.at["dispersive_c2"].set(jax.lax.stop_gradient(arrays.dispersive_c2))
         arrays = arrays.at["dispersive_c3"].set(jax.lax.stop_gradient(arrays.dispersive_c3))
+    # ``dispersive_inv_c2`` is a derived cache — always stop_gradient here (gradients
+    # flow through ``dispersive_c2`` instead, preventing double-counting).
+    if arrays.dispersive_inv_c2 is not None:
+        arrays = arrays.at["dispersive_inv_c2"].set(jax.lax.stop_gradient(arrays.dispersive_inv_c2))
 
     state = (jnp.asarray(0, dtype=jnp.int32), arrays)
     if stopping_condition is not None:

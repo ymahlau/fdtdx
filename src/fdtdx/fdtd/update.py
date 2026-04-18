@@ -178,8 +178,10 @@ def update_E(
             disp_c2 = arrays.dispersive_c2
             disp_c3 = arrays.dispersive_c3
             assert P_prev is not None and disp_c1 is not None and disp_c2 is not None and disp_c3 is not None
-            Eb = E_prev[None, ...]  # (1, 3, Nx, Ny, Nz)
-            P_new = disp_c1 * P_curr + disp_c2 * P_prev + disp_c3 * Eb
+            # disp_c* are (num_poles, 1, Nx, Ny, Nz); E_prev is (3, Nx, Ny, Nz).
+            # Right-aligned broadcasting produces (num_poles, 3, Nx, Ny, Nz) without
+            # an explicit newaxis — skip the reshape so the HLO stays flat.
+            P_new = disp_c1 * P_curr + disp_c2 * P_prev + disp_c3 * E_prev
             delta_sum = jnp.sum(P_curr - P_new, axis=0)
             E = E + inv_eps * delta_sum
             arrays = arrays.aset("dispersive_P_prev", P_curr)
@@ -332,24 +334,20 @@ def update_E_reverse(
             P_curr_r = arrays.dispersive_P_curr
             P_prev_r = arrays.dispersive_P_prev
             disp_c1_r = arrays.dispersive_c1
-            disp_c2_r = arrays.dispersive_c2
             disp_c3_r = arrays.dispersive_c3
-            assert P_prev_r is not None and disp_c1_r is not None and disp_c2_r is not None and disp_c3_r is not None
+            disp_inv_c2_r = arrays.dispersive_inv_c2
+            assert (
+                P_prev_r is not None and disp_c1_r is not None and disp_c3_r is not None and disp_inv_c2_r is not None
+            )
             delta_sum = jnp.sum(P_prev_r - P_curr_r, axis=0)
             E = (E - c * curl * inv_eps - inv_eps * delta_sum) / factor
             # Invert the polarization recurrence:
             # P^(n+1) = c1 * P^n + c2 * P^(n-1) + c3 * E^n
             # =>  P^(n-1) = (P^(n+1) - c1 * P^n - c3 * E^n) / c2
-            # For the physically meaningful regime (gamma*dt << 1), c2 ~ -1,
-            # far from the singular case c2 = 0. Non-dispersive cells have
-            # c2 = 0 and P_curr = P_prev = 0, so safe division yields zeros.
-            Eb = E[None, ...]
-            c2_safe = jnp.where(disp_c2_r == 0, 1.0, disp_c2_r)
-            P_prev_new = jnp.where(
-                disp_c2_r == 0,
-                0.0,
-                (P_curr_r - disp_c1_r * P_prev_r - disp_c3_r * Eb) / c2_safe,
-            )
+            # Using precomputed inv_c2 (with non-dispersive cells zeroed) replaces
+            # a per-step jnp.where + division with a single multiply. Non-dispersive
+            # cells have inv_c2 = 0 and P_curr = P_prev = 0, so the product is zero.
+            P_prev_new = (P_curr_r - disp_c1_r * P_prev_r - disp_c3_r * E) * disp_inv_c2_r
             arrays = arrays.aset("dispersive_P_curr", P_prev_r)
             arrays = arrays.aset("dispersive_P_prev", P_prev_new)
         else:

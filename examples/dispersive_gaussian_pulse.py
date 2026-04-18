@@ -330,17 +330,19 @@ def main():
     t_ax_fs = t_ax * 1e15
 
     fig, (ax_a, ax_b) = plt.subplots(2, 1, figsize=(9, 6), sharex=True)
-    ax_a.plot(t_ax_fs, nd_trace_a**2, color="tab:blue", label=f"non-disp (sigma={sigma_a_nd * 1e15:.2f} fs)")
-    ax_a.plot(t_ax_fs, d_trace_a**2, color="tab:red", label=f"dispersive (sigma={sigma_a_d * 1e15:.2f} fs)")
-    ax_a.set_ylabel("|E_x|^2  [a.u.]")
+    ax_a.plot(t_ax_fs, nd_trace_a, color="tab:blue", label=f"non-disp (sigma={sigma_a_nd * 1e15:.2f} fs)")
+    ax_a.plot(t_ax_fs, d_trace_a, color="tab:red", label=f"dispersive (sigma={sigma_a_d * 1e15:.2f} fs)")
+    ax_a.axhline(0.0, color="black", linewidth=0.5, alpha=0.5)
+    ax_a.set_ylabel("E_x  [a.u.]")
     ax_a.set_title(f"Detector A (z cell = {DET_A_Z}) — upstream reference")
     ax_a.legend(loc="upper right")
     ax_a.grid(True, alpha=0.3)
 
-    ax_b.plot(t_ax_fs, nd_trace_b**2, color="tab:blue", label=f"non-disp (sigma={sigma_b_nd * 1e15:.2f} fs)")
-    ax_b.plot(t_ax_fs, d_trace_b**2, color="tab:red", label=f"dispersive (sigma={sigma_b_d * 1e15:.2f} fs)")
+    ax_b.plot(t_ax_fs, nd_trace_b, color="tab:blue", label=f"non-disp (sigma={sigma_b_nd * 1e15:.2f} fs)")
+    ax_b.plot(t_ax_fs, d_trace_b, color="tab:red", label=f"dispersive (sigma={sigma_b_d * 1e15:.2f} fs)")
+    ax_b.axhline(0.0, color="black", linewidth=0.5, alpha=0.5)
     ax_b.set_xlabel("time [fs]")
-    ax_b.set_ylabel("|E_x|^2  [a.u.]")
+    ax_b.set_ylabel("E_x  [a.u.]")
     ax_b.set_title(
         f"Detector B (z cell = {DET_B_Z}) — after {PROPAGATION_LENGTH * 1e6:.1f} um propagation. "
         f"measured t/t0 = {measured_ratio:.3f}, analytic = {analytic_ratio:.3f} (err {rel_err * 100:.1f}%)"
