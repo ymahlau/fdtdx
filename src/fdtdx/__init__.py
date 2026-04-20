@@ -92,6 +92,7 @@ from fdtdx.objects.static_material.polygon import (
 )
 from fdtdx.objects.static_material.sphere import Sphere
 from fdtdx.objects.static_material.static import SimulationVolume, UniformMaterialObject
+from fdtdx.utils.extend_pml import extend_material_to_pml
 from fdtdx.utils.logger import Logger
 from fdtdx.utils.plot_field_slice import plot_field_slice, plot_field_slice_component
 from fdtdx.utils.plot_material import plot_material, plot_material_from_side
@@ -202,6 +203,7 @@ __all__ = [
     "UniformMaterialObject",
     "SimulationVolume",
     # utils
+    "extend_material_to_pml",
     "Logger",
     "PortSpec",
     "setup_sparams_simulation",
