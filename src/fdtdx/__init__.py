@@ -96,6 +96,7 @@ from fdtdx.utils.logger import Logger
 from fdtdx.utils.plot_field_slice import plot_field_slice, plot_field_slice_component
 from fdtdx.utils.plot_material import plot_material, plot_material_from_side
 from fdtdx.utils.plot_setup import plot_setup, plot_setup_from_side
+from fdtdx.utils.sparams import PortSpec, setup_sparams_simulation
 
 # PeriodicBoundary is now an alias for BlochBoundary with bloch_vector=(0,0,0)
 PeriodicBoundary = BlochBoundary
@@ -202,6 +203,8 @@ __all__ = [
     "SimulationVolume",
     # utils
     "Logger",
+    "PortSpec",
+    "setup_sparams_simulation",
     "plot_setup",
     "plot_setup_from_side",
     "plot_material_from_side",
