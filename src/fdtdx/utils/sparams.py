@@ -5,6 +5,7 @@ from typing import Literal
 
 import jax
 
+from fdtdx import extend_material_to_pml
 from fdtdx.config import SimulationConfig
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
@@ -103,7 +104,8 @@ def setup_sparams_simulation(
             to air (``Material()``).
         pml_layers: Number of PML grid cells added to every face.
         key: JAX random key used by :func:`~fdtdx.fdtd.initialization.place_objects`.
-            Defaults to ``PRNGKey(0)`` when ``None``.
+            Defaults to ``PRNGKey(0)`` when ``None``. Usually not necessary to specify
+            since simulation is deterministic.
 
     Returns:
         A 5-tuple ``(objects, arrays, params, config, info)`` as returned by
@@ -198,4 +200,9 @@ def setup_sparams_simulation(
         constraints=constraints,
         key=key,
     )
+    arrays = extend_material_to_pml(
+        objects=objects,
+        arrays=arrays,
+    )
+
     return objects, arrays, config
