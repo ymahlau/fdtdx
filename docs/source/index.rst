@@ -73,9 +73,10 @@ If you find this repository helpful for your work, please consider citing:
    :hidden:
    
    01_quickstart
-   02_components
-   03_advanced
-   04_api
+   02_physics
+   03_components
+   04_advanced
    05_contributing
    06_faq
+   07_api
 
