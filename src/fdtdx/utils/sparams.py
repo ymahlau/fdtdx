@@ -242,18 +242,28 @@ def calculate_sparam(
     """
     if key is None:
         key = jax.random.PRNGKey(0)
-    key, subkey = jax.random.split(key)
+
+    # turn off all sources except for input port source
+    found_input = False
+    for source in objects.sources:
+        if source.name == input_port_name:
+            found_input = True
+            continue
+        source_idx = objects.index(source.name)
+        objects = objects.aset(f"object_list[{source_idx}].switch.is_always_off", True)
+    if not found_input:
+        raise ValueError(f"{input_port_name=} does not exist")
 
     # apply_params (with no device params) calls obj.apply() on every object, which triggers mode-profile computation
     # inside ModeOverlapDetector and ModePlaneSource.
+    key, subkey = jax.random.split(key)
     arrays, objects, _ = apply_params(arrays, objects, {}, subkey)
 
-    key, subkey = jax.random.split(key)
     _, final_arrays = run_fdtd(
         arrays=arrays,
         objects=objects,
         config=config,
-        key=subkey,
+        key=key,
         show_progress=show_progress,
     )
 
