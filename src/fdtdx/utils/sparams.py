@@ -9,7 +9,8 @@ from fdtdx import extend_material_to_pml
 from fdtdx.config import SimulationConfig
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
-from fdtdx.fdtd.initialization import place_objects
+from fdtdx.fdtd.initialization import apply_params, place_objects
+from fdtdx.fdtd.wrapper import run_fdtd
 from fdtdx.materials import Material
 from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.detectors.mode import ModeOverlapDetector
@@ -108,9 +109,8 @@ def setup_sparams_simulation(
             since simulation is deterministic.
 
     Returns:
-        A 5-tuple ``(objects, arrays, params, config, info)`` as returned by
-        :func:`~fdtdx.fdtd.initialization.place_objects`, ready to pass to
-        :func:`~fdtdx.fdtd.wrapper.run_fdtd`.
+        A 3-tuple ``(objects, arrays, config)``, ready to pass to
+        :func:`calculate_sparam`.
     """
     if key is None:
         key = jax.random.PRNGKey(0)
@@ -206,3 +206,60 @@ def setup_sparams_simulation(
     )
 
     return objects, arrays, config
+
+
+def calculate_sparam(
+    objects: ObjectContainer,
+    arrays: ArrayContainer,
+    config: SimulationConfig,
+    input_port_name: str,
+    key: jax.Array | None = None,
+    show_progress: bool = True,
+) -> dict[tuple[str, str], jax.Array]:
+    """Run the FDTD simulation and extract S-parameters from mode-overlap detectors.
+
+    Intended to be called with the outputs of :func:`setup_sparams_simulation`.
+    Each :class:`~fdtdx.objects.detectors.mode.ModeOverlapDetector` in *objects*
+    contributes one entry to the returned dictionary.  Because a single simulation
+    (with one active input port) measures the transmission to **all** output ports
+    simultaneously, the dictionary keys are ``(detector_name, input_port_name)``
+    tuples so that results from multiple calls can be merged into a full S-matrix.
+
+    Args:
+        objects: ObjectContainer from :func:`setup_sparams_simulation`.
+        arrays: ArrayContainer from :func:`setup_sparams_simulation`.
+        config: SimulationConfig from :func:`setup_sparams_simulation`.
+        input_port_name: Name of the active input port.  Should match the
+            ``name`` field of the corresponding :class:`PortSpec`, or the
+            auto-generated name ``"Source_<i>"`` when no name was supplied.
+        key: JAX random key.  Defaults to ``PRNGKey(0)``.
+        show_progress: Whether to display the simulation progress bar.
+
+    Returns:
+        Dictionary mapping ``(detector_name, input_port_name)`` to a complex
+        scattering amplitude.  Results from multiple calls (one per input port)
+        can be merged to build the full S-matrix.
+    """
+    if key is None:
+        key = jax.random.PRNGKey(0)
+    key, subkey = jax.random.split(key)
+
+    # apply_params (with no device params) calls obj.apply() on every object, which triggers mode-profile computation
+    # inside ModeOverlapDetector and ModePlaneSource.
+    arrays, objects, _ = apply_params(arrays, objects, {}, subkey)
+
+    key, subkey = jax.random.split(key)
+    _, final_arrays = run_fdtd(
+        arrays=arrays,
+        objects=objects,
+        config=config,
+        key=subkey,
+        show_progress=show_progress,
+    )
+
+    result: dict[tuple[str, str], jax.Array] = {}
+    for obj in objects.object_list:
+        if isinstance(obj, ModeOverlapDetector):
+            state = final_arrays.detector_states[obj.name]
+            result[(obj.name, input_port_name)] = obj.compute_overlap(state)
+    return result
