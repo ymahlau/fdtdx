@@ -45,17 +45,7 @@ class Source(SimulationObject, ABC):
         )
         return time_step
 
-    def place_on_grid(
-        self: Self,
-        grid_slice_tuple: SliceTuple3D,
-        config: SimulationConfig,
-        key: jax.Array,
-    ) -> Self:
-        self = super().place_on_grid(
-            grid_slice_tuple=grid_slice_tuple,
-            config=config,
-            key=key,
-        )
+    def _update_on_arrays(self) -> Self:
         # determine number of time steps on
         on_list = self.switch.calculate_on_list(
             time_step_duration=self._config.time_step_duration,
@@ -70,6 +60,34 @@ class Source(SimulationObject, ABC):
         )
         time_to_arr_idx_arr = jnp.asarray(time_to_arr_idx_list, dtype=jnp.int32)
         self = self.aset("_time_step_to_on_idx", time_to_arr_idx_arr, create_new_ok=True)
+        return self
+
+    def apply(
+        self,
+        key: jax.Array,
+        inv_permittivities: jax.Array,
+        inv_permeabilities: jax.Array | float,
+    ) -> Self:
+        self = super().apply(
+            key=key,
+            inv_permittivities=inv_permittivities,
+            inv_permeabilities=inv_permeabilities,
+        )
+        self = self._update_on_arrays()
+        return self
+
+    def place_on_grid(
+        self: Self,
+        grid_slice_tuple: SliceTuple3D,
+        config: SimulationConfig,
+        key: jax.Array,
+    ) -> Self:
+        self = super().place_on_grid(
+            grid_slice_tuple=grid_slice_tuple,
+            config=config,
+            key=key,
+        )
+        self = self._update_on_arrays()
         return self
 
     @abstractmethod
