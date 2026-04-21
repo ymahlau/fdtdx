@@ -223,14 +223,14 @@ class ObjectContainer(TreeClass):
         key: str,
         val: SimulationObject,
     ):
-        idx = -1
-        for cur_idx, o in enumerate(self.objects):
-            if o.name == key:
-                idx = cur_idx
-                break
-        if idx == -1:
-            raise ValueError(f"Key {key} does not exist in object list: {[o.name for o in self.objects]}")
+        idx = self.index(key)
         self.object_list[idx] = val
+
+    def index(self, name: str) -> int:
+        for idx, o in enumerate(self.object_list):
+            if o.name == name:
+                return idx
+        raise ValueError(f"Object '{name}' does not exist in object list: {[o.name for o in self.objects]}")
 
     def copy(
         self,
