@@ -3,10 +3,10 @@ from typing import Self, Sequence, cast
 
 import jax
 import jax.numpy as jnp
+from drinx import field, static_field, static_private_field
 
 from fdtdx.colors import XKCD_LIGHT_PINK, Color
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import autoinit, field, frozen_field, frozen_private_field
 from fdtdx.core.jax.utils import check_specs
 from fdtdx.core.misc import expand_matrix, is_float_divisible
 from fdtdx.materials import Material
@@ -22,7 +22,6 @@ from fdtdx.typing import (
 )
 
 
-@autoinit
 class Device(OrderableObject, ABC):
     """Abstract base class for devices with optimizable permittivity distributions.
 
@@ -32,23 +31,30 @@ class Device(OrderableObject, ABC):
     """
 
     #: Dictionary of materials to be used in the device.
-    materials: dict[str, Material] = field()
+    materials: dict[str, Material] = field(default=None)
 
     #: A Sequence of parameter transformation to be applied to the parameters when mapping them to simulation materials.
-    param_transforms: Sequence[ParameterTransformation] = field()
+    param_transforms: Sequence[ParameterTransformation] = field(default=None)
 
     #: Color of the object when plotted. Defaults to XKCD_LIGHT_PINK.
-    color: Color | None = frozen_field(default=XKCD_LIGHT_PINK)
+    color: Color | None = static_field(default=XKCD_LIGHT_PINK)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.materials is None:
+            raise ValueError("Device requires 'materials' to be set")
+        if self.param_transforms is None:
+            raise ValueError("Device requires 'param_transforms' to be set")
 
     #: Size of the material voxels used within the device in metrical units (meter). Note that this is independent of the simulation voxel size.
     #: Defaults to undefined shape. For all three axes, either the voxel grid or real shape needs to be defined.
-    partial_voxel_grid_shape: PartialGridShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
+    partial_voxel_grid_shape: PartialGridShape3D = static_field(default=UNDEFINED_SHAPE_3D)
 
     #: Size of the material voxels used within the device in simulation voxels. Defaults to undefined shape.
     #: For all three axes, either the voxel grid or real shape needs to be defined.
-    partial_voxel_real_shape: PartialRealShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
+    partial_voxel_real_shape: PartialRealShape3D = static_field(default=UNDEFINED_SHAPE_3D)
 
-    _single_voxel_grid_shape: tuple[int, int, int] = frozen_private_field(default=INVALID_SHAPE_3D)
+    _single_voxel_grid_shape: tuple[int, int, int] = static_private_field(default=INVALID_SHAPE_3D)
 
     @property
     def matrix_voxel_grid_shape(self) -> tuple[int, int, int]:

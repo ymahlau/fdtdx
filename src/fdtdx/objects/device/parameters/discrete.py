@@ -2,8 +2,8 @@ from typing import Sequence
 
 import jax
 import jax.numpy as jnp
+from drinx import static_field, static_private_field
 
-from fdtdx.core.jax.pytrees import autoinit, frozen_field, frozen_private_field
 from fdtdx.core.jax.ste import straight_through_estimator
 from fdtdx.core.misc import PaddingConfig, get_background_material_name
 from fdtdx.materials import compute_ordered_names
@@ -18,7 +18,6 @@ from fdtdx.objects.device.parameters.transform import (
 from fdtdx.typing import ParameterType
 
 
-@autoinit
 class RemoveFloatingMaterial(SameShapeTypeParameterTransform):
     """Finds all material that floats in the air and sets their permittivity to air.
 
@@ -32,12 +31,12 @@ class RemoveFloatingMaterial(SameShapeTypeParameterTransform):
 
     #: Name of the background material. If none, the material with the
     #: lowest permittivity is used. Defaults to None.
-    background_material: str | None = frozen_field(default=None)
+    background_material: str | None = static_field(default=None)
 
-    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = static_private_field(
         default=(ParameterType.DISCRETE, ParameterType.BINARY),
     )
-    _check_single_array: bool = frozen_private_field(default=True)
+    _check_single_array: bool = static_private_field(default=True)
 
     def __call__(
         self,
@@ -61,7 +60,6 @@ class RemoveFloatingMaterial(SameShapeTypeParameterTransform):
         return {single_key: result}
 
 
-@autoinit
 class ConnectHolesAndStructures(SameShapeTypeParameterTransform):
     """Connects floating polymer regions and ensures air holes connect to outside.
 
@@ -74,15 +72,15 @@ class ConnectHolesAndStructures(SameShapeTypeParameterTransform):
 
     #: Name of material to use for filling gaps when connecting regions.
     #: Required when working with more than 2 materials. Defaults to None.
-    fill_material: str | None = frozen_field(default=None)
+    fill_material: str | None = static_field(default=None)
 
     #: Name of the background material. If none, the material with the
     #: lowest permittivity is used. Defaults to None.
-    background_material: str | None = frozen_field(default=None)
-    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
+    background_material: str | None = static_field(default=None)
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = static_private_field(
         default=(ParameterType.DISCRETE, ParameterType.BINARY),
     )
-    _check_single_array: bool = frozen_private_field(default=True)
+    _check_single_array: bool = static_private_field(default=True)
 
     def __call__(
         self,
@@ -141,7 +139,6 @@ BOTTOM_Z_PADDING_CONFIG = PaddingConfig(
 )
 
 
-@autoinit
 class BinaryMedianFilterModule(SameShapeTypeParameterTransform):
     """Performs 3D binary median filtering on the design.
 
@@ -150,18 +147,24 @@ class BinaryMedianFilterModule(SameShapeTypeParameterTransform):
     """
 
     #: Configuration for padding behavior at boundaries.
-    padding_cfg: PaddingConfig = frozen_field()
+    padding_cfg: PaddingConfig = static_field(default=None)
 
     #:  3-tuple of kernel sizes for each dimension.
-    kernel_sizes: tuple[int, int, int] = frozen_field()
+    kernel_sizes: tuple[int, int, int] = static_field(default=None)
+
+    def __post_init__(self) -> None:
+        if self.padding_cfg is None:
+            raise ValueError("BinaryMedianFilterModule requires 'padding_cfg' to be set")
+        if self.kernel_sizes is None:
+            raise ValueError("BinaryMedianFilterModule requires 'kernel_sizes' to be set")
 
     #: Number of times to apply the filter consecutively. Defaults to one.
-    num_repeats: int = frozen_field(default=1)
+    num_repeats: int = static_field(default=1)
 
-    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = static_private_field(
         default=ParameterType.BINARY,
     )
-    _check_single_array: bool = frozen_private_field(default=True)
+    _check_single_array: bool = static_private_field(default=True)
 
     def __call__(
         self,

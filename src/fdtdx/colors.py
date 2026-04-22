@@ -24,11 +24,10 @@ Example:
     >>> c1.to_rgb_255()  # (255, 0, 0)
 """
 
-from fdtdx.core.jax.pytrees import TreeClass, autoinit
+from drinx import DataClass
 
 
-@autoinit
-class Color(TreeClass):
+class Color(DataClass):
     """Color representation with multiple format support.
 
     The class contains colors which are from the XKCD color survey: https://xkcd.com/color/rgb.txt

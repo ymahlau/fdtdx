@@ -3,28 +3,27 @@ from typing import Literal, Self
 
 import jax
 import jax.numpy as jnp
+from drinx import private_field, static_field
 from matplotlib import pyplot as plt
 
 from fdtdx.core.grid import calculate_time_offset_yee
-from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.linalg import get_wave_vector_raw
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.core.physics.modes import compute_mode
 from fdtdx.objects.sources.tfsf import TFSFPlaneSource
 
 
-@autoinit
 class ModePlaneSource(TFSFPlaneSource):
     #: index of the mode
-    mode_index: int = frozen_field(default=0)
+    mode_index: int = static_field(default=0)
 
     #: a literal value 'te', 'tm' to filter
-    filter_pol: Literal["te", "tm"] | None = frozen_field(default=None)
+    filter_pol: Literal["te", "tm"] | None = static_field(default=None)
 
-    _inv_permittivity: jax.Array = private_field()
-    _inv_permeability: jax.Array | float = private_field()
+    _inv_permittivity: jax.Array = private_field(default=None)
+    _inv_permeability: jax.Array | float = private_field(default=None)
 
-    _neff: jax.Array = private_field()  # not required for sim, used for inspection
+    _neff: jax.Array = private_field(default=None)  # not required for sim, used for inspection
 
     def apply(
         self: Self,
@@ -54,12 +53,16 @@ class ModePlaneSource(TFSFPlaneSource):
         self = self.aset("_inv_permeability", inv_permeability_slice, create_new_ok=True)
 
         # compute mode
+        wave_character = self.wave_character
+        direction = self.direction
+        assert wave_character is not None
+        assert direction is not None
         mode_E, mode_H, eff_index = compute_mode(
-            frequency=self.wave_character.get_frequency(),
+            frequency=wave_character.get_frequency(),
             inv_permittivities=inv_permittivity_slice,
             inv_permeabilities=inv_permeability_slice,
             resolution=self._config.resolution,
-            direction=self.direction,
+            direction=direction,
             mode_index=self.mode_index,
             filter_pol=self.filter_pol,
         )
@@ -73,7 +76,7 @@ class ModePlaneSource(TFSFPlaneSource):
             [round(self.grid_shape[self.horizontal_axis]), round(self.grid_shape[self.vertical_axis])], dtype=jnp.int32
         )
         raw_wave_vector = get_wave_vector_raw(
-            direction=self.direction,
+            direction=direction,
             propagation_axis=self.propagation_axis,
         )
         time_offset_E, time_offset_H = calculate_time_offset_yee(

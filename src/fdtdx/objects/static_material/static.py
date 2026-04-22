@@ -1,29 +1,37 @@
 from abc import ABC, abstractmethod
 
 import jax
+from drinx import field, static_field
 
 from fdtdx.colors import XKCD_LIGHT_GREY, Color
-from fdtdx.core.jax.pytrees import autoinit, field, frozen_field
 from fdtdx.materials import Material
 from fdtdx.objects.object import OrderableObject
 
 
-@autoinit
 class UniformMaterialObject(OrderableObject):
     #: the material object
-    material: Material = field()
+    material: Material = field(default=None)
 
     #: the color object
-    color: Color | None = frozen_field(default=XKCD_LIGHT_GREY)
+    color: Color | None = static_field(default=XKCD_LIGHT_GREY)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.material is None:
+            raise ValueError("UniformMaterialObject requires 'material' to be set")
 
 
-@autoinit
 class StaticMultiMaterialObject(OrderableObject, ABC):
     #: the static material
-    materials: dict[str, Material] = field()
+    materials: dict[str, Material] = field(default=None)
 
     #: the color of the material
-    color: Color | None = frozen_field(default=XKCD_LIGHT_GREY)
+    color: Color | None = static_field(default=XKCD_LIGHT_GREY)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.materials is None:
+            raise ValueError("StaticMultiMaterialObject requires 'materials' to be set")
 
     @abstractmethod
     def get_voxel_mask_for_shape(self) -> jax.Array:
@@ -49,7 +57,6 @@ class StaticMultiMaterialObject(OrderableObject, ABC):
         raise NotImplementedError()
 
 
-@autoinit
 class SimulationVolume(UniformMaterialObject):
     """Background material for the entire simulation volume.
 
@@ -58,7 +65,7 @@ class SimulationVolume(UniformMaterialObject):
     """
 
     #: an integer values of the placement order
-    placement_order: int = frozen_field(default=-1000)
+    placement_order: int = static_field(default=-1000)
 
     #: the static material
     material: Material = field(

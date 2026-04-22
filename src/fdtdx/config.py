@@ -1,18 +1,19 @@
 import math
 from typing import Literal
 
+import drinx
 import jax
 import jax.numpy as jnp
+from drinx import DataClass, field, static_field
 from loguru import logger
 
 from fdtdx import constants
-from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field
 from fdtdx.interfaces.recorder import Recorder
 from fdtdx.typing import BackendOption
 
 
-@autoinit
-class GradientConfig(TreeClass):
+@drinx.dataclass
+class GradientConfig(DataClass):
     """Configuration for gradient computation in simulations.
 
     This class handles settings for automatic differentiation, supporting either
@@ -22,14 +23,14 @@ class GradientConfig(TreeClass):
 
     #: Method for gradient computation.
     #: Can be either "reversible" when using the time reversible autodiff, or "checkpointed" for the exact checkpointing algorithm.
-    method: Literal["reversible", "checkpointed"] = frozen_field(default="reversible")
+    method: Literal["reversible", "checkpointed"] = static_field(default="reversible")
 
     #: Optional recorder for invertible differentiation. Needs to be provided for reversible autodiff. Defaults to None
     recorder: Recorder | None = field(default=None)
 
     #: Optional number of checkpoints for checkpointing-based differentiation.
     #: Needs to be provided for checkpointing gradient computation. Defaults to None.
-    num_checkpoints: int | None = frozen_field(default=None)
+    num_checkpoints: int | None = static_field(default=None)
 
     def __post_init__(self):
         if self.method == "reversible" and self.recorder is None:
@@ -38,8 +39,7 @@ class GradientConfig(TreeClass):
             raise Exception("Need Checkpoint Number in gradient config to compute checkpointed gradients")
 
 
-@autoinit
-class SimulationConfig(TreeClass):
+class SimulationConfig(DataClass):
     """Configuration settings for FDTD simulations.
 
     This class contains all the parameters needed to configure and run an FDTD
@@ -49,25 +49,25 @@ class SimulationConfig(TreeClass):
     """
 
     #: Total simulation time in seconds.
-    time: float = frozen_field()
+    time: float = static_field()
 
     #: Spatial resolution of the simulation grid in meters.
-    resolution: float = frozen_field()
+    resolution: float = static_field()
 
     #: Computation backend ('gpu', 'tpu', 'cpu' or 'METAL'). Defaults to "gpu".
-    backend: BackendOption = frozen_field(default="gpu")
+    backend: BackendOption = static_field(default="gpu")
 
     #:  Data type for numerical computations. Defaults to jnp.float32.
-    dtype: jnp.dtype = frozen_field(default=jnp.float32)
+    dtype: jnp.dtype = static_field(default=jnp.float32)
 
     #: Whether to use complex-valued field arrays.
     #: None (default): auto-detect based on boundary conditions (e.g. Bloch).
     #: True: force complex fields (complex64 if dtype=float32, complex128 if dtype=float64).
     #: False: force real fields (raises error if Bloch boundaries are present).
-    use_complex_fields: bool | None = frozen_field(default=None)
+    use_complex_fields: bool | None = static_field(default=None)
 
     #: Safety factor for the Courant condition (default: 0.99).
-    courant_factor: float = frozen_field(default=0.99)
+    courant_factor: float = static_field(default=0.99)
 
     #: Optional configuration for gradient computation.
     gradient_config: GradientConfig | None = field(default=None)
@@ -78,7 +78,7 @@ class SimulationConfig(TreeClass):
         current_platform = extend.backend.get_backend().platform
 
         if current_platform == "METAL" and self.backend == "gpu":
-            self.backend = "METAL"
+            self.aset_inplace("backend", "METAL")
 
         if self.backend == "METAL":
             try:
@@ -89,7 +89,7 @@ class SimulationConfig(TreeClass):
             except RuntimeError:
                 if __name__ == "__main__":
                     logger.warning("METAL initialization failed, falling back to CPU!")
-                self.backend = "cpu"
+                self.aset_inplace("backend", "cpu")
         elif self.backend in ["gpu", "tpu"]:
             try:
                 jax.devices(self.backend)
@@ -99,7 +99,7 @@ class SimulationConfig(TreeClass):
             except RuntimeError:
                 if __name__ == "__main__":
                     logger.warning(f"{str.upper(self.backend)} not found, falling back to CPU!")
-                self.backend = "cpu"
+                self.aset_inplace("backend", "cpu")
 
         if self.backend == "cpu":
             jax.config.update("jax_platform_name", "cpu")

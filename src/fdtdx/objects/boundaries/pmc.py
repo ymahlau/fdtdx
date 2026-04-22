@@ -1,12 +1,11 @@
 import jax
+from drinx import static_field
 from typing_extensions import override
 
 from fdtdx.colors import XKCD_ORANGE, Color
-from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.objects.boundaries.boundary import BaseBoundary
 
 
-@autoinit
 class PerfectMagneticConductor(BaseBoundary):
     """Implements perfect magnetic conductor (PMC) boundary conditions.
 
@@ -21,7 +20,7 @@ class PerfectMagneticConductor(BaseBoundary):
     """
 
     #: RGB color tuple for visualization. Defaults to orange.
-    color: Color | None = frozen_field(default=XKCD_ORANGE)
+    color: Color | None = static_field(default=XKCD_ORANGE)
 
     @property
     @override

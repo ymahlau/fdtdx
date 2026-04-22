@@ -1,6 +1,7 @@
 from typing import Literal
 
-from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
+from drinx import DataClass, static_field
+
 from fdtdx.objects.boundaries.bloch import BlochBoundary
 from fdtdx.objects.boundaries.pec import PerfectElectricConductor
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
@@ -13,8 +14,7 @@ from fdtdx.typing import PartialGridShape3D
 AnyBoundary = BlochBoundary | PerfectElectricConductor | PerfectMagneticConductor | PerfectlyMatchedLayer
 
 
-@autoinit
-class BoundaryConfig(TreeClass):
+class BoundaryConfig(DataClass):
     """Configuration class for boundary conditions.
 
     This class stores parameters for boundary conditions in all six directions (min/max x/y/z).
@@ -23,208 +23,208 @@ class BoundaryConfig(TreeClass):
     """
 
     #: Boundary type at minimum x ("pml", "periodic", "pec", "pmc", or "bloch"). Default "pml".
-    boundary_type_minx: str = frozen_field(default="pml")
+    boundary_type_minx: str = static_field(default="pml")
 
     #: Boundary type at maximum x ("pml", "periodic", "pec", "pmc", or "bloch"). Default "pml".
-    boundary_type_maxx: str = frozen_field(default="pml")
+    boundary_type_maxx: str = static_field(default="pml")
 
     #: Boundary type at minimum y ("pml", "periodic", "pec", "pmc", or "bloch"). Default "pml".
-    boundary_type_miny: str = frozen_field(default="pml")
+    boundary_type_miny: str = static_field(default="pml")
 
     #: Boundary type at maximum y ("pml", "periodic", "pec", "pmc", or "bloch"). Default "pml".
-    boundary_type_maxy: str = frozen_field(default="pml")
+    boundary_type_maxy: str = static_field(default="pml")
 
     #: Boundary type at minimum z ("pml", "periodic", "pec", "pmc", or "bloch"). Default "pml".
-    boundary_type_minz: str = frozen_field(default="pml")
+    boundary_type_minz: str = static_field(default="pml")
 
     #: Boundary type at maximum z ("pml", "periodic", "pec", "pmc", or "bloch"). Default "pml".
-    boundary_type_maxz: str = frozen_field(default="pml")
+    boundary_type_maxz: str = static_field(default="pml")
 
     #: Number of grid cells for PML at minimum x boundary. Default 10.
-    thickness_grid_minx: int = frozen_field(default=10)
+    thickness_grid_minx: int = static_field(default=10)
 
     #: Number of grid cells for PML at maximum x boundary. Default 10.
-    thickness_grid_maxx: int = frozen_field(default=10)
+    thickness_grid_maxx: int = static_field(default=10)
 
     #: Boundary type at minimum y ("pml" or "periodic"). Default "pml".
-    thickness_grid_miny: int = frozen_field(default=10)
+    thickness_grid_miny: int = static_field(default=10)
 
     #: Number of grid cells for PML at maximum y boundary. Default 10.
-    thickness_grid_maxy: int = frozen_field(default=10)
+    thickness_grid_maxy: int = static_field(default=10)
 
     #: Number of grid cells for PML at minimum z boundary. Default 10.
-    thickness_grid_minz: int = frozen_field(default=10)
+    thickness_grid_minz: int = static_field(default=10)
 
     #: Number of grid cells for PML at maximum z boundary. Default 10.
-    thickness_grid_maxz: int = frozen_field(default=10)
+    thickness_grid_maxz: int = static_field(default=10)
 
     #: Initial kappa value at min x boundary. Default 1.0.
-    kappa_start_minx: float | None = frozen_field(default=None)
+    kappa_start_minx: float | None = static_field(default=None)
 
     #: Final kappa value at min x boundary. Default 1.0.
-    kappa_end_minx: float | None = frozen_field(default=None)
+    kappa_end_minx: float | None = static_field(default=None)
 
     #: Initial kappa value at max x boundary. Default 1.0.
-    kappa_start_maxx: float | None = frozen_field(default=None)
+    kappa_start_maxx: float | None = static_field(default=None)
 
     #: Final kappa value at max x boundary. Default 1.0.
-    kappa_end_maxx: float | None = frozen_field(default=None)
+    kappa_end_maxx: float | None = static_field(default=None)
 
     #: Initial kappa value at min y boundary. Default 1.0.
-    kappa_start_miny: float | None = frozen_field(default=None)
+    kappa_start_miny: float | None = static_field(default=None)
 
     #: Final kappa value at min y boundary. Default 1.0.
-    kappa_end_miny: float | None = frozen_field(default=None)
+    kappa_end_miny: float | None = static_field(default=None)
 
     #: Initial kappa value at max y boundary. Default 1.0.
-    kappa_start_maxy: float | None = frozen_field(default=None)
+    kappa_start_maxy: float | None = static_field(default=None)
 
     #: Final kappa value at max y boundary. Default 1.0.
-    kappa_end_maxy: float | None = frozen_field(default=None)
+    kappa_end_maxy: float | None = static_field(default=None)
 
     #: Initial kappa value at min z boundary. Default 1.0.
-    kappa_start_minz: float | None = frozen_field(default=None)
+    kappa_start_minz: float | None = static_field(default=None)
 
     #: Final kappa value at min z boundary. Default 1.0.
-    kappa_end_minz: float | None = frozen_field(default=None)
+    kappa_end_minz: float | None = static_field(default=None)
 
     #: Initial kappa value at max z boundary. Default 1.0.
-    kappa_start_maxz: float | None = frozen_field(default=None)
+    kappa_start_maxz: float | None = static_field(default=None)
 
     #: Final kappa value at max z boundary. Default 1.0.
-    kappa_end_maxz: float | None = frozen_field(default=None)
+    kappa_end_maxz: float | None = static_field(default=None)
 
     #: Polynomial order for kappa grading at min x boundary. Default 1.0.
-    kappa_order_minx: float | None = frozen_field(default=None)
+    kappa_order_minx: float | None = static_field(default=None)
 
     #: Polynomial order for kappa grading at max x boundary. Default 1.0.
-    kappa_order_maxx: float | None = frozen_field(default=None)
+    kappa_order_maxx: float | None = static_field(default=None)
 
     #: Polynomial order for kappa grading at min y boundary. Default 1.0.
-    kappa_order_miny: float | None = frozen_field(default=None)
+    kappa_order_miny: float | None = static_field(default=None)
 
     #: Polynomial order for kappa grading at max y boundary. Default 1.0.
-    kappa_order_maxy: float | None = frozen_field(default=None)
+    kappa_order_maxy: float | None = static_field(default=None)
 
     #: Polynomial order for kappa grading at min z boundary. Default 1.0.
-    kappa_order_minz: float | None = frozen_field(default=None)
+    kappa_order_minz: float | None = static_field(default=None)
 
     #: Polynomial order for kappa grading at max z boundary. Default 1.0.
-    kappa_order_maxz: float | None = frozen_field(default=None)
+    kappa_order_maxz: float | None = static_field(default=None)
 
     #: Initial alpha value at min x boundary. Default 0.01 * 2 * jnp.pi * c / wavelength * eps0.
-    alpha_start_minx: float | None = frozen_field(default=None)
+    alpha_start_minx: float | None = static_field(default=None)
 
     #: Final alpha value at min x boundary. Default 0.0.
-    alpha_end_minx: float | None = frozen_field(default=None)
+    alpha_end_minx: float | None = static_field(default=None)
 
     #: Initial alpha value at max x boundary. Default 0.01 * 2 * jnp.pi * c / wavelength * eps0.
-    alpha_start_maxx: float | None = frozen_field(default=None)
+    alpha_start_maxx: float | None = static_field(default=None)
 
     #: Final alpha value at max x boundary. Default 0.0.
-    alpha_end_maxx: float | None = frozen_field(default=None)
+    alpha_end_maxx: float | None = static_field(default=None)
 
     #: Initial alpha value at min y boundary. Default 0.01 * 2 * jnp.pi * c / wavelength * eps0.
-    alpha_start_miny: float | None = frozen_field(default=None)
+    alpha_start_miny: float | None = static_field(default=None)
 
     #: Final alpha value at min y boundary. Default 0.0.
-    alpha_end_miny: float | None = frozen_field(default=None)
+    alpha_end_miny: float | None = static_field(default=None)
 
     #: Initial alpha value at max y boundary. Default 0.01 * 2 * jnp.pi * c / wavelength * eps0.
-    alpha_start_maxy: float | None = frozen_field(default=None)
+    alpha_start_maxy: float | None = static_field(default=None)
 
     #: Final alpha value at max y boundary. Default 0.0.
-    alpha_end_maxy: float | None = frozen_field(default=None)
+    alpha_end_maxy: float | None = static_field(default=None)
 
     #: Initial alpha value at min z boundary. Default 0.01 * 2 * jnp.pi * c / wavelength * eps0.
-    alpha_start_minz: float | None = frozen_field(default=None)
+    alpha_start_minz: float | None = static_field(default=None)
 
     #: Final alpha value at min z boundary. Default 0.0.
-    alpha_end_minz: float | None = frozen_field(default=None)
+    alpha_end_minz: float | None = static_field(default=None)
 
     #: Initial alpha value at max z boundary. Default 0.01 * 2 * jnp.pi * c / wavelength * eps0.
-    alpha_start_maxz: float | None = frozen_field(default=None)
+    alpha_start_maxz: float | None = static_field(default=None)
 
     #: Final alpha value at max z boundary. Default 0.0.
-    alpha_end_maxz: float | None = frozen_field(default=None)
+    alpha_end_maxz: float | None = static_field(default=None)
 
     #: Polynomial order for alpha grading at min x boundary. Default 1.0.
-    alpha_order_minx: float | None = frozen_field(default=None)
+    alpha_order_minx: float | None = static_field(default=None)
 
     #: Polynomial order for alpha grading at max x boundary. Default 1.0.
-    alpha_order_maxx: float | None = frozen_field(default=None)
+    alpha_order_maxx: float | None = static_field(default=None)
 
     #: Polynomial order for alpha grading at min y boundary. Default 1.0.
-    alpha_order_miny: float | None = frozen_field(default=None)
+    alpha_order_miny: float | None = static_field(default=None)
 
     #: Polynomial order for alpha grading at max y boundary. Default 1.0.
-    alpha_order_maxy: float | None = frozen_field(default=None)
+    alpha_order_maxy: float | None = static_field(default=None)
 
     #: Polynomial order for alpha grading at min z boundary. Default 1.0.
-    alpha_order_minz: float | None = frozen_field(default=None)
+    alpha_order_minz: float | None = static_field(default=None)
 
     #: Polynomial order for alpha grading at max z boundary. Default 1.0.
-    alpha_order_maxz: float | None = frozen_field(default=None)
+    alpha_order_maxz: float | None = static_field(default=None)
 
     #: Initial sigma value at min x boundary. Default 0.0.
-    sigma_start_minx: float | None = frozen_field(default=None)
+    sigma_start_minx: float | None = static_field(default=None)
 
     #: Final sigma value at min x boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.resolution)).
-    sigma_end_minx: float | None = frozen_field(default=None)
+    sigma_end_minx: float | None = static_field(default=None)
 
     #: Initial sigma value at max x boundary. Default 0.0.
-    sigma_start_maxx: float | None = frozen_field(default=None)
+    sigma_start_maxx: float | None = static_field(default=None)
 
     #: Final sigma value at max x boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.resolution)).
-    sigma_end_maxx: float | None = frozen_field(default=None)
+    sigma_end_maxx: float | None = static_field(default=None)
 
     #: Initial sigma value at min y boundary. Default 0.0.
-    sigma_start_miny: float | None = frozen_field(default=None)
+    sigma_start_miny: float | None = static_field(default=None)
 
     #: Final sigma value at min y boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.resolution)).
-    sigma_end_miny: float | None = frozen_field(default=None)
+    sigma_end_miny: float | None = static_field(default=None)
 
     #: Initial sigma value at max y boundary. Default 0.0.
-    sigma_start_maxy: float | None = frozen_field(default=None)
+    sigma_start_maxy: float | None = static_field(default=None)
 
     #: Final sigma value at max y boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.resolution)).
-    sigma_end_maxy: float | None = frozen_field(default=None)
+    sigma_end_maxy: float | None = static_field(default=None)
 
     #: Initial sigma value at min z boundary. Default 0.0.
-    sigma_start_minz: float | None = frozen_field(default=None)
+    sigma_start_minz: float | None = static_field(default=None)
 
     #: Final sigma value at min z boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.resolution)).
-    sigma_end_minz: float | None = frozen_field(default=None)
+    sigma_end_minz: float | None = static_field(default=None)
 
     #: Initial sigma value at max z boundary. Default 0.0.
-    sigma_start_maxz: float | None = frozen_field(default=None)
+    sigma_start_maxz: float | None = static_field(default=None)
 
     #: Final sigma value at max z boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.resolution)).
-    sigma_end_maxz: float | None = frozen_field(default=None)
+    sigma_end_maxz: float | None = static_field(default=None)
 
     #: Polynomial order for sigma grading at min x boundary. Default 3.0.
-    sigma_order_minx: float | None = frozen_field(default=None)
+    sigma_order_minx: float | None = static_field(default=None)
 
     #: Polynomial order for sigma grading at max x boundary. Default 3.0.
-    sigma_order_maxx: float | None = frozen_field(default=None)
+    sigma_order_maxx: float | None = static_field(default=None)
 
     #: Polynomial order for sigma grading at min y boundary. Default 3.0.
-    sigma_order_miny: float | None = frozen_field(default=None)
+    sigma_order_miny: float | None = static_field(default=None)
 
     #: Polynomial order for sigma grading at max y boundary. Default 3.0.
-    sigma_order_maxy: float | None = frozen_field(default=None)
+    sigma_order_maxy: float | None = static_field(default=None)
 
     #: Polynomial order for sigma grading at min z boundary. Default 3.0.
-    sigma_order_minz: float | None = frozen_field(default=None)
+    sigma_order_minz: float | None = static_field(default=None)
 
     #: Polynomial order for sigma grading at max z boundary. Default 3.0.
-    sigma_order_maxz: float | None = frozen_field(default=None)
+    sigma_order_maxz: float | None = static_field(default=None)
 
     #: Bloch wave vector (k_x, k_y, k_z) in rad/m. Each component provides the
     #: phase shift for the corresponding axis when that axis uses "bloch" boundaries.
     #: The full 3D vector is stored on every BlochBoundary; each boundary extracts
     #: the component along its own axis to compute exp(i * k_axis * L_axis).
-    bloch_vector: tuple[float, float, float] = frozen_field(default=(0.0, 0.0, 0.0))
+    bloch_vector: tuple[float, float, float] = static_field(default=(0.0, 0.0, 0.0))
 
     def get_dict(self) -> dict[str, int]:
         """Gets a dictionary mapping boundary names to their grid thicknesses.

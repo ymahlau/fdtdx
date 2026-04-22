@@ -12,7 +12,6 @@ import time
 
 import jax
 import jax.numpy as jnp
-import pytreeclass as tc
 from loguru import logger
 import fdtdx
 
@@ -144,9 +143,6 @@ def main():
         constraints=constraints,
         key=subkey,
     )
-    # Log summary of arrays and print configuration diagram
-    logger.info(tc.tree_summary(arrays, depth=1))
-    print(tc.tree_diagram(config, depth=4))
 
     # Save initial setup figure for experiment documentation
     exp_logger.savefig(

@@ -1,12 +1,11 @@
 import jax
 import jax.numpy as jnp
+from drinx import static_field
 
-from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
 
 
-@autoinit
 class Sphere(StaticMultiMaterialObject):
     """A sphere or ellipsoid object with configurable properties.
 
@@ -16,20 +15,28 @@ class Sphere(StaticMultiMaterialObject):
     """
 
     #: The default radius of the sphere in meter (used if specific axis radii are not provided).
-    radius: float = frozen_field()
+    radius: float = static_field(default=None)
 
     #: Name of the sphere material in the materials dictionary to be used for the object.
-    material_name: str = frozen_field()
+    material_name: str = static_field(default=None)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.radius is None:
+            raise ValueError("Sphere requires 'radius' to be set")
+        if self.material_name is None:
+            raise ValueError("Sphere requires 'material_name' to be set")
+
     # Optional parameters for ellipsoid shape
 
     #: The radius along the x-axis in meter. If none, use radius. Defaults to None.
-    radius_x: float | None = frozen_field(default=None)
+    radius_x: float | None = static_field(default=None)
 
     #: The radius along the y-axis in meter. If none, use radius. Defaults to None.
-    radius_y: float | None = frozen_field(default=None)
+    radius_y: float | None = static_field(default=None)
 
     #: The radius along the z-axis in meter. If none, use radius. Defaults to None.
-    radius_z: float | None = frozen_field(default=None)
+    radius_z: float | None = static_field(default=None)
 
     def get_voxel_mask_for_shape(self) -> jax.Array:
         """Generates a voxel mask for a sphere or ellipsoid shape.

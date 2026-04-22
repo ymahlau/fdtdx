@@ -1,39 +1,38 @@
 import math
 
-from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
+from drinx import DataClass, static_field
 
 
-@autoinit
-class OnOffSwitch(TreeClass):
+class OnOffSwitch(DataClass):
     #: start time of the switch
-    start_time: float | None = frozen_field(default=None)
+    start_time: float | None = static_field(default=None)
 
     #: start time after the period
-    start_after_periods: float | None = frozen_field(default=None)
+    start_after_periods: float | None = static_field(default=None)
 
     #: end time of the switch
-    end_time: float | None = frozen_field(default=None)
+    end_time: float | None = static_field(default=None)
 
     #: end time after the period
-    end_after_periods: float | None = frozen_field(default=None)
+    end_after_periods: float | None = static_field(default=None)
 
     #: time when the switch is active
-    on_for_time: float | None = frozen_field(default=None)
+    on_for_time: float | None = static_field(default=None)
 
     #: period when the switch is active
-    on_for_periods: float | None = frozen_field(default=None)
+    on_for_periods: float | None = static_field(default=None)
 
     #:  period of the switch
-    period: float | None = frozen_field(default=None)
+    period: float | None = static_field(default=None)
 
     #: list of fixed time steps
-    fixed_on_time_steps: list[int] | None = frozen_field(default=None)
+    fixed_on_time_steps: list[int] | None = static_field(default=None)
 
     #: whether switch is always off
-    is_always_off: bool = frozen_field(default=False)
+    is_always_off: bool = static_field(default=False)
 
     #: interval of the switch
-    interval: int = frozen_field(default=1)
+    interval: int = static_field(default=1)
 
     def calculate_on_list(
         self,

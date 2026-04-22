@@ -2,13 +2,12 @@ from abc import ABC, abstractmethod
 from typing import Literal
 
 import jax
+from drinx import static_field
 
-from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.objects.object import SimulationObject
 from fdtdx.typing import GridShape3D, Slice3D, SliceTuple3D
 
 
-@autoinit
 class BaseBoundary(SimulationObject, ABC):
     """Base class for all boundary conditions in FDTD simulations.
 
@@ -18,10 +17,17 @@ class BaseBoundary(SimulationObject, ABC):
     """
 
     #: Principal axis for boundary (0=x, 1=y, 2=z)
-    axis: int = frozen_field()
+    axis: int = static_field(default=None)
 
     #: Direction along axis ("+" or "-")
-    direction: Literal["+", "-"] = frozen_field()
+    direction: Literal["+", "-"] = static_field(default=None)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.axis is None:
+            raise ValueError("BaseBoundary requires 'axis' to be set (0=x, 1=y, 2=z)")
+        if self.direction is None:
+            raise ValueError("BaseBoundary requires 'direction' to be set ('+' or '-')")
 
     @property
     @abstractmethod

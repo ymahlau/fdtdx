@@ -4,14 +4,13 @@ import gdstk
 import jax
 import jax.numpy as jnp
 import numpy as np
+from drinx import static_field
 
 from fdtdx.core.grid import polygon_to_mask
-from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
 
 
-@autoinit
 class ExtrudedPolygon(StaticMultiMaterialObject):
     """A polygon object specified by a list of vertices. The coordinate system has its origin at the lower left of the
     bounding box of the polygon.
@@ -19,13 +18,22 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
     """
 
     #: Name of the material in the materials dictionary to be used for the object
-    material_name: str = frozen_field()
+    material_name: str = static_field(default=None)
 
     #: The extrusion axis.
-    axis: int = frozen_field()
+    axis: int = static_field(default=None)
 
     #: numpy array of shape (N, 2) specifying the position of vertices in metrical units (meter).
-    vertices: np.ndarray = frozen_field()
+    vertices: np.ndarray = static_field(default=None)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.material_name is None:
+            raise ValueError("ExtrudedPolygon requires 'material_name' to be set")
+        if self.axis is None:
+            raise ValueError("ExtrudedPolygon requires 'axis' to be set (0=x, 1=y, 2=z)")
+        if self.vertices is None:
+            raise ValueError("ExtrudedPolygon requires 'vertices' to be set")
 
     @property
     def horizontal_axis(self) -> int:

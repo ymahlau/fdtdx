@@ -1,12 +1,11 @@
 import jax
+from drinx import static_field
 from typing_extensions import override
 
 from fdtdx.colors import XKCD_RED, Color
-from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.objects.boundaries.boundary import BaseBoundary
 
 
-@autoinit
 class PerfectElectricConductor(BaseBoundary):
     """Implements perfect electric conductor (PEC) boundary conditions.
 
@@ -22,7 +21,7 @@ class PerfectElectricConductor(BaseBoundary):
     """
 
     #: RGB color tuple for visualization. Defaults to red.
-    color: Color | None = frozen_field(default=XKCD_RED)
+    color: Color | None = static_field(default=XKCD_RED)
 
     @property
     @override

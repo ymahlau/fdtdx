@@ -2,28 +2,27 @@ from abc import ABC, abstractmethod
 from typing import Self, Sequence
 
 import jax
+from drinx import DataClass, static_private_field
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_private_field
 from fdtdx.materials import Material
 from fdtdx.typing import ParameterType
 
 
-@autoinit
-class ParameterTransformation(TreeClass, ABC):
-    _input_type: dict[str, ParameterType] = frozen_private_field()
-    _input_shape: dict[str, tuple[int, ...]] = frozen_private_field()
-    _output_type: dict[str, ParameterType] = frozen_private_field()
-    _output_shape: dict[str, tuple[int, ...]] = frozen_private_field()
-    _materials: dict[str, Material] = frozen_private_field()
-    _config: SimulationConfig = frozen_private_field()
-    _matrix_voxel_grid_shape: tuple[int, int, int] = frozen_private_field()
-    _single_voxel_size: tuple[float, float, float] = frozen_private_field()
+class ParameterTransformation(DataClass, ABC):
+    _input_type: dict[str, ParameterType] = static_private_field(default=None)
+    _input_shape: dict[str, tuple[int, ...]] = static_private_field(default=None)
+    _output_type: dict[str, ParameterType] = static_private_field(default=None)
+    _output_shape: dict[str, tuple[int, ...]] = static_private_field(default=None)
+    _materials: dict[str, Material] = static_private_field(default=None)
+    _config: SimulationConfig = static_private_field(default=None)
+    _matrix_voxel_grid_shape: tuple[int, int, int] = static_private_field(default=None)
+    _single_voxel_size: tuple[float, float, float] = static_private_field(default=None)
 
     # settings
-    _check_single_array: bool = frozen_private_field(default=False)
-    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(default=None)
-    _all_arrays_2d: bool = frozen_private_field(default=False)
+    _check_single_array: bool = static_private_field(default=False)
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = static_private_field(default=None)
+    _all_arrays_2d: bool = static_private_field(default=False)
 
     def init_module(
         self: Self,
@@ -121,7 +120,6 @@ class ParameterTransformation(TreeClass, ABC):
         raise NotImplementedError()
 
 
-@autoinit
 class SameShapeTypeParameterTransform(ParameterTransformation, ABC):
     def _get_input_shape_impl(
         self,

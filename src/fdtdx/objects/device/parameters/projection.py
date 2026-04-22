@@ -2,8 +2,8 @@ from typing import Sequence
 
 import jax
 import jax.numpy as jnp
+from drinx import static_field, static_private_field
 
-from fdtdx.core.jax.pytrees import autoinit, frozen_field, frozen_private_field
 from fdtdx.objects.device.parameters.transform import SameShapeTypeParameterTransform
 from fdtdx.typing import ParameterType
 
@@ -172,7 +172,6 @@ def smoothed_projection(
     )
 
 
-@autoinit
 class TanhProjection(SameShapeTypeParameterTransform):
     """
     Tanh projection filter.
@@ -189,9 +188,9 @@ class TanhProjection(SameShapeTypeParameterTransform):
     """
 
     #: Midpoint of the TanhProjection. Defaults to 0.5.
-    projection_midpoint: float = frozen_field(default=0.5)
+    projection_midpoint: float = static_field(default=0.5)
 
-    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = static_private_field(
         default=ParameterType.CONTINUOUS
     )
 
@@ -211,7 +210,6 @@ class TanhProjection(SameShapeTypeParameterTransform):
         return result
 
 
-@autoinit
 class SubpixelSmoothedProjection(SameShapeTypeParameterTransform):
     """
     This function is adapted from the Meep repository:
@@ -250,13 +248,13 @@ class SubpixelSmoothedProjection(SameShapeTypeParameterTransform):
     """
 
     #: midpoint of the tanh projection. Defaults to 0.5
-    projection_midpoint: float = frozen_field(default=0.5)
+    projection_midpoint: float = static_field(default=0.5)
 
-    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
+    _fixed_input_type: ParameterType | Sequence[ParameterType] | None = static_private_field(
         default=ParameterType.CONTINUOUS
     )
-    _check_single_array: bool = frozen_private_field(default=True)
-    _all_arrays_2d: bool = frozen_private_field(default=True)
+    _check_single_array: bool = static_private_field(default=True)
+    _all_arrays_2d: bool = static_private_field(default=True)
 
     def __call__(
         self,

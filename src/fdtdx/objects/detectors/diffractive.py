@@ -2,13 +2,12 @@ from typing import Literal, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
+from drinx import static_field
 
 from fdtdx import constants
-from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 
-@autoinit
 class DiffractiveDetector(Detector):
     """Detector for computing Fourier transforms of fields at specific frequencies and diffraction orders.
 
@@ -18,18 +17,23 @@ class DiffractiveDetector(Detector):
     """
 
     #: List of frequencies to analyze (in Hz)
-    frequencies: Sequence[float] = frozen_field()
+    frequencies: Sequence[float] = static_field(default=None)
 
     #: Either "+" or "-" for positive or negative direction.
-    direction: Literal["+", "-"] = frozen_field()
+    direction: Literal["+", "-"] = static_field(default=None)
 
     #: Tuple of (nx, ny) pairs specifying diffraction orders to compute
-    orders: Sequence[Tuple[int, int]] = frozen_field(default=((0, 0),))
+    orders: Sequence[Tuple[int, int]] = static_field(default=((0, 0),))
 
     #: Data type of the saved data.
-    dtype: jnp.dtype = frozen_field(default=jnp.complex64)
+    dtype: jnp.dtype = static_field(default=jnp.complex64)
 
     def __post_init__(self):
+        super().__post_init__()
+        if self.frequencies is None:
+            raise ValueError("DiffractiveDetector requires 'frequencies' to be set")
+        if self.direction is None:
+            raise ValueError("DiffractiveDetector requires 'direction' to be set")
         if self.dtype not in [jnp.complex64, jnp.complex128]:
             raise Exception(f"Invalid dtype in DiffractiveDetector: {self.dtype}")
         if len(self.frequencies) == 0:

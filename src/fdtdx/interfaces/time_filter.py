@@ -3,14 +3,13 @@ from typing import Self
 
 import jax
 import jax.numpy as jnp
+from drinx import DataClass, static_field, static_private_field
 
-from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field, frozen_private_field
 from fdtdx.core.misc import index_1d_array
 from fdtdx.interfaces.state import RecordingState
 
 
-@autoinit
-class TimeStepFilter(TreeClass, ABC):
+class TimeStepFilter(DataClass, ABC):
     """Abstract base class for filtering and processing time steps in FDTD simulations.
 
     This class provides an interface for filters that process simulation data at specific
@@ -18,10 +17,10 @@ class TimeStepFilter(TreeClass, ABC):
     other temporal processing of field data.
     """
 
-    _time_steps_max: int = frozen_private_field()
-    _array_size: int = frozen_private_field()
-    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field()
-    _output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = frozen_private_field()
+    _time_steps_max: int = static_private_field(default=0)
+    _array_size: int = static_private_field(default=0)
+    _input_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = static_private_field(default=None)
+    _output_shape_dtypes: dict[str, jax.ShapeDtypeStruct] = static_private_field(default=None)
 
     @abstractmethod
     def init_shapes(
@@ -136,7 +135,6 @@ class TimeStepFilter(TreeClass, ABC):
         raise NotImplementedError()
 
 
-@autoinit
 class LinearReconstructEveryK(TimeStepFilter):
     """Time step filter that performs linear reconstruction between sampled steps.
 
@@ -145,12 +143,12 @@ class LinearReconstructEveryK(TimeStepFilter):
     """
 
     #: Number of time steps between saved values.
-    k: int = frozen_field()
+    k: int = static_field()
 
     #: Time step to start recording from. Defaults to zero.
-    start_recording_after: int = frozen_field(default=0)
-    _save_time_steps: jax.Array = frozen_private_field(default=None)  # type: ignore
-    _time_to_arr_idx: jax.Array = frozen_private_field(default=None)  # type: ignore
+    start_recording_after: int = static_field(default=0)
+    _save_time_steps: jax.Array = static_private_field(default=None)
+    _time_to_arr_idx: jax.Array = static_private_field(default=None)
 
     def init_shapes(
         self,

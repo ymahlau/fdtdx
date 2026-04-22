@@ -1,13 +1,12 @@
 from typing import Literal
 
 import jax
+from drinx import static_field
 
-from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.physics.metrics import compute_poynting_flux
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 
-@autoinit
 class PoyntingFluxDetector(Detector):
     """Detector for measuring Poynting flux in electromagnetic simulations.
 
@@ -18,20 +17,25 @@ class PoyntingFluxDetector(Detector):
     """
 
     #: Direction of flux measurement, either "+" for positive or "-" for negative along the propagation axis.
-    direction: Literal["+", "-"] = frozen_field()
+    direction: Literal["+", "-"] = static_field(default=None)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.direction is None:
+            raise ValueError("PoyntingFluxDetector requires 'direction' to be set ('+' or '-')")
 
     #: If True, reduces measurements to a single value by summing over the detection surface.
     #: If False, maintains spatial distribution. Defaults to True.
-    reduce_volume: bool = frozen_field(default=True)
+    reduce_volume: bool = static_field(default=True)
 
     #: By default, the propagation axis for calculating the poynting
     #: flux is the axis, where the detector has a grid shape of 1. If the detector has a shape of 1 in more than
     #: one axes or a different axis should be used, then this attribute can/has to be set. Defaults to None.
-    fixed_propagation_axis: int | None = frozen_field(default=None)
+    fixed_propagation_axis: int | None = static_field(default=None)
 
     #: By default, only the poynting flux component for the propagation axis
     #: is returned (scalar). If true, all three vector components are returned. Defaults to False.
-    keep_all_components: bool = frozen_field(default=False)
+    keep_all_components: bool = static_field(default=False)
 
     @property
     def propagation_axis(self) -> int:
