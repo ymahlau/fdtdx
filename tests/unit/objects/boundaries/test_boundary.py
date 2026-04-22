@@ -57,21 +57,21 @@ class TestInterfaceGridShape:
     """Tests for BaseBoundary.interface_grid_shape()."""
 
     def test_axis0_interface_shape(self, micro_config, jax_key):
-        """Axis 0: interface is 1 × Ny × Nz."""
+        """Axis 0: interface is 1 x Ny x Nz."""
         pml = make_pml(axis=0, direction="-", thickness=10)
         placed = place_pml(pml, micro_config, jax_key, volume_shape=(30, 20, 25))
         shape = placed.interface_grid_shape()
         assert shape == (1, 20, 25)
 
     def test_axis1_interface_shape(self, micro_config, jax_key):
-        """Axis 1: interface is Nx × 1 × Nz."""
+        """Axis 1: interface is Nx x 1 x Nz."""
         pml = make_pml(axis=1, direction="-", thickness=8)
         placed = place_pml(pml, micro_config, jax_key, volume_shape=(30, 20, 25))
         shape = placed.interface_grid_shape()
         assert shape == (30, 1, 25)
 
     def test_axis2_interface_shape(self, micro_config, jax_key):
-        """Axis 2: interface is Nx × Ny × 1."""
+        """Axis 2: interface is Nx x Ny x 1."""
         pml = make_pml(axis=2, direction="-", thickness=6)
         placed = place_pml(pml, micro_config, jax_key, volume_shape=(30, 20, 25))
         shape = placed.interface_grid_shape()

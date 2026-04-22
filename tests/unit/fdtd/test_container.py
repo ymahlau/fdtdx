@@ -219,6 +219,15 @@ class TestObjectContainer:
         with pytest.raises(ValueError, match="nonexistent"):
             self.container["nonexistent"] = new_obj
 
+    def test_index_returns_correct_index(self):
+        assert self.container.index("volume") == 0
+        assert self.container.index("source1") == 1
+        assert self.container.index("detector1") == 2
+
+    def test_index_nonexistent_raises(self):
+        with pytest.raises(ValueError, match="nonexistent"):
+            self.container.index("nonexistent")
+
     def test_copy(self):
         copied = self.container.copy()
         assert copied.object_list == self.container.object_list

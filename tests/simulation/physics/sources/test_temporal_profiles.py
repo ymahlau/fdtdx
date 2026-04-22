@@ -217,6 +217,6 @@ def test_gaussian_pulse_broadband():
         rel_err = abs(measured_ratio - expected_ratio) / expected_ratio
         assert rel_err < 0.05, (
             f"{name}: |A|/|A_center| = {measured_ratio:.4f}, "
-            f"expected {expected_ratio:.4f} (Gaussian at {log_ratio:+.1f} × σ_f²/2), "
+            f"expected {expected_ratio:.4f} (Gaussian at {log_ratio:+.1f} x σ_f²/2), "
             f"rel_err = {rel_err:.2%}"
         )

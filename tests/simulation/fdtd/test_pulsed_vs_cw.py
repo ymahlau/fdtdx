@@ -6,14 +6,14 @@ individual continuous-wave (CW) simulations at each wavelength.
 
 Domain layout (25 nm resolution, z is propagation axis):
   200 cells total in z (5 µm):
-    cells   0–  9 : PML (0.25 µm)
-    cells  10–189 : active region
-    cells 190–199 : PML (0.25 µm)
+    cells   0-  9 : PML (0.25 µm)
+    cells  10-189 : active region
+    cells 190-199 : PML (0.25 µm)
 
   Source      : z-index 12 (vacuum side, 2 cells into active region)
-  Layer 1     : z-index 80–100 (20 cells, ε=2.25, n=1.5)
-  Layer 2     : z-index 100–115 (15 cells, ε=6.25, n=2.5)
-  Layer 3     : z-index 115–135 (20 cells, ε=4.0, n=2.0)
+  Layer 1     : z-index 80-100 (20 cells, ε=2.25, n=1.5)
+  Layer 2     : z-index 100-115 (15 cells, ε=6.25, n=2.5)
+  Layer 3     : z-index 115-135 (20 cells, ε=4.0, n=2.0)
   Detector    : z-index 160 (past all layers)
 
 Transverse (x, y): 3 cells each with periodic boundaries.
@@ -60,7 +60,7 @@ _SIM_TIME = 200e-15  # 200 fs — enough for pulse transit and CW steady state
 # Pulsed source parameters
 _CENTER_WL = 1e-6
 # spectral_width as a WaveCharacter: get_frequency() gives the sigma in Hz.
-# WaveCharacter(wavelength=3e-6) → c/3e-6 ≈ 100 THz sigma → covers ~0.7–1.3 µm
+# WaveCharacter(wavelength=3e-6) → c/3e-6 ≈ 100 THz sigma → covers ~0.7-1.3 µm
 _SPECTRAL_WIDTH_WL = 3e-6
 
 # Test wavelengths (must lie well within the pulse bandwidth)

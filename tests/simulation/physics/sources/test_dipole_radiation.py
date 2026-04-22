@@ -7,9 +7,9 @@ Tests that the PointDipoleSource radiates correctly:
   1c. Rotating polarization axis rotates the radiation pattern.
 
 Domain layout (50 nm resolution, PML on all 6 faces):
-  60×60×60 cells total (3 µm cube):
-    cells  0–9  and 50–59 : PML (0.5 µm each side)
-    cells 10–49 : active region (2 µm)
+  60x60x60 cells total (3 µm cube):
+    cells  0-9  and 50-59 : PML (0.5 µm each side)
+    cells 10-49 : active region (2 µm)
     Dipole at center: cell (30, 30, 30)
 
 Detectors: PoyntingFluxDetectors on 6 faces of a box around the dipole,
@@ -36,7 +36,7 @@ _TOLERANCE = 0.10  # 10% for symmetry tests (grid dispersion + near-field effect
 
 # Time-averaging
 _DT_APPROX = 0.99 * _RESOLUTION / (3e8 * np.sqrt(3))
-_STEPS_PER_PERIOD = int(round(_WAVELENGTH / (3e8 * _DT_APPROX)))
+_STEPS_PER_PERIOD = round(_WAVELENGTH / (3e8 * _DT_APPROX))
 _N_AVG_STEPS = 10 * _STEPS_PER_PERIOD
 
 

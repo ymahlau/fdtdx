@@ -242,7 +242,7 @@ class TestCondition:
             ).setup(state, config, objects)
 
         # Test detector readings must be 2D (ndim == 2)
-        with pytest.raises(ValueError, match="must have two *dimensions*|must have reduce_volume"):
+        with pytest.raises(ValueError, match=r"must have two \*dimensions\*|must have reduce_volume"):
             arrays.detector_states["bad_detector"] = {"energy": jnp.zeros((config.time_steps_total,))}
             DetectorConvergenceCondition(
                 detector_name="bad_detector",

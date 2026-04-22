@@ -68,7 +68,7 @@ def simulation_setup():
     ]
 
     key = jax.random.PRNGKey(0)
-    objects, arrays, params, config, _ = fdtdx.place_objects(
+    objects, _arrays, _params, config, _ = fdtdx.place_objects(
         object_list=object_list,
         config=config,
         constraints=constraints,
@@ -166,7 +166,7 @@ def test_plot_setup_exclude_large_objects(simulation_setup):
     assert result_fig is not None
     assert (TEST_OUTPUT_DIR / "test_plot_setup_exclude_large.png").exists()
 
-    large_obj = [obj for obj in container.objects if obj.name == "large_background"][0]
+    large_obj = next(obj for obj in container.objects if obj.name == "large_background")
     volume = container.volume
     slices = large_obj.grid_slice_tuple
     xy_area = (slices[0][1] - slices[0][0]) * (slices[1][1] - slices[1][0])
@@ -182,8 +182,8 @@ def test_exclude_large_object_ratio_threshold(simulation_setup):
     """Test that exclude_large_object_ratio correctly filters objects at the threshold."""
     config, container, _ = simulation_setup
 
-    large_obj = [obj for obj in container.objects if obj.name == "large_background"][0]
-    center_obj = [obj for obj in container.objects if obj.name == "center_object"][0]
+    large_obj = next(obj for obj in container.objects if obj.name == "large_background")
+    center_obj = next(obj for obj in container.objects if obj.name == "center_object")
     volume = container.volume
 
     large_slices = large_obj.grid_slice_tuple
@@ -200,7 +200,7 @@ def test_exclude_large_object_ratio_threshold(simulation_setup):
 
     threshold = (large_coverage + center_coverage) / 2
 
-    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+    _fig, axs = plt.subplots(1, 3, figsize=(15, 5))
     result_fig = plot_setup(
         config=config,
         objects=container,

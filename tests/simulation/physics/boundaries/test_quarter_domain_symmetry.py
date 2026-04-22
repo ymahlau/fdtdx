@@ -55,7 +55,7 @@ _SIM_TIME = 150e-15
 
 # Time-averaging constants
 _DT_APPROX = 0.99 * _RESOLUTION / (3e8 * np.sqrt(3))
-_STEPS_PER_PERIOD = int(round(_WAVELENGTH / (3e8 * _DT_APPROX)))
+_STEPS_PER_PERIOD = round(_WAVELENGTH / (3e8 * _DT_APPROX))
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────

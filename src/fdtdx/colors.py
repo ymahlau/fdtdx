@@ -112,7 +112,7 @@ class Color(TreeClass):
         Returns:
             Tuple of (r, g, b) with integer values in [0, 255]
         """
-        return (int(round(self.r * 255)), int(round(self.g * 255)), int(round(self.b * 255)))
+        return (round(self.r * 255), round(self.g * 255), round(self.b * 255))
 
     def to_hex(self) -> str:
         """Return color as hexadecimal string.

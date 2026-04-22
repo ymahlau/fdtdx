@@ -43,10 +43,10 @@ class ModeOverlapDetector(PhasorDetector):
     components: Sequence[Literal["Ex", "Ey", "Ez", "Hx", "Hy", "Hz"]] = frozen_field(
         default=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"),
         init=False,  # in this detector, we always want all components. Do not give user a choice
-    )  # noqa: DOC603, DOC601
+    )
 
     #: Cannot be specified here since plotting a single scalar is useless.
-    plot: bool = frozen_field(default=False, init=False)  # noqa: DOC603, DOC601 # single scalar is useless for plotting
+    plot: bool = frozen_field(default=False, init=False)  # single scalar is useless for plotting
     _mode_E: jax.Array = private_field()
     _mode_H: jax.Array = private_field()
     _mode_neff: jax.Array = private_field()  # not required for detection, used for inspection
@@ -125,7 +125,10 @@ class ModeOverlapDetector(PhasorDetector):
         )[self.propagation_axis]
 
         alpha_coeff = jnp.sum(E_cross_H_star_sim + E_star_cross_H_sim)
-        alpha_coeff = alpha_coeff / 4.0
+
+        # in pulsed mode return unscaled coefficient
+        if self.scaling_mode != "pulse":
+            alpha_coeff = alpha_coeff / 4.0
 
         return alpha_coeff
 
