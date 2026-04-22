@@ -1,3 +1,14 @@
+import sys
+import warnings
+
+if sys.version_info >= (3, 14):
+    warnings.warn(
+        "Python 3.14+ is not supported by fdtdx. Expect crashes and unknown errors. "
+        "Support for Python 3.14 will be added in the coming months.",
+        UserWarning,
+        stacklevel=2,
+    )
+
 from fdtdx import constants
 from fdtdx.colors import Color
 from fdtdx.config import GradientConfig, SimulationConfig
