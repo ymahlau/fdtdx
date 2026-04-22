@@ -6,8 +6,8 @@ Periodic boundaries in x and y.
 
 Domain layout (50 nm resolution = 20 cells/λ, z is propagation axis):
   80 cells total in z (4 µm):
-    cells  0– 9 : PML (0.5 µm)
-    cells 10–79 : active region (3.5 µm), PEC terminates at z-max
+    cells  0- 9 : PML (0.5 µm)
+    cells 10-79 : active region (3.5 µm), PEC terminates at z-max
 
   Source      : z-index 12 (2 cells into active region)
   Detector    : z-index 40 (midway in active region)
@@ -17,7 +17,7 @@ Metric:
   The time-averaged Poynting flux in a standing wave is zero.
   Using two-run normalization (reference = PML everywhere):
     T = S_standing / S_reference ≈ 0
-    R = 1 − T ≈ 1.0
+    R = 1 - T ≈ 1.0
 
 Tolerance: 5 % relative error on R.
 """
@@ -142,7 +142,7 @@ def test_pec_total_reflection():
     Two-run normalization:
       Reference (PML everywhere): S₀ = forward flux through detector
       PEC run (PEC at z-max):     S  = net flux (≈ 0 due to standing wave)
-      T = S / S₀ ≈ 0  →  R = 1 − T ≈ 1.0
+      T = S / S₀ ≈ 0  →  R = 1 - T ≈ 1.0
     """
     # Reference: PML on all z-faces
     obj_ref, con_ref, cfg_ref, vol_ref, _ = _build_base(z_max_type="pml")

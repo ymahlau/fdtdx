@@ -17,9 +17,9 @@ fdtdx field normalization: E_stored = E_SI / η₀, H_stored = H_SI.
 
 Domain layout (50 nm resolution = 20 cells/λ in vacuum, z is propagation axis):
   80 cells total in z (4 µm):
-    cells  0– 9 : PML (0.5 µm)
-    cells 10–69 : active region (3 µm)
-    cells 70–79 : PML (0.5 µm)
+    cells  0- 9 : PML (0.5 µm)
+    cells 10-69 : active region (3 µm)
+    cells 70-79 : PML (0.5 µm)
 
   Source     : z-index 12 (x-pol or y-pol, +z direction)
   Detector D1: z-index 17
@@ -205,7 +205,7 @@ def _measure_k(p_near: complex, p_far: complex, separation: float) -> float:
     """Wave vector k from two phasors separated by `separation` in +z.
 
     Phase increases with z for a +z propagating wave, so the modulo maps
-    Δφ = (angle_far − angle_near) % 2π unambiguously into [0, 2π) provided
+    Δφ = (angle_far - angle_near) % 2π unambiguously into [0, 2π) provided
     k·separation < 2π.
     """
     delta_phi = (np.angle(p_far) - np.angle(p_near)) % (2 * np.pi)
@@ -219,7 +219,7 @@ def test_ordinary_wave_vector():
     """Ordinary-axis wave vector k_o = 2π n_o / λ within 5 %.
 
     x-polarized wave propagating in +z through the anisotropic medium.
-    n_o = √ε_o = 1.5; k_o = 2π·1.5/1 µm ≈ 9.42×10⁶ m⁻¹.
+    n_o = √ε_o = 1.5; k_o = 2π·1.5/1 µm ≈ 9.42x10⁶ m⁻¹.
     Detector separation 3 cells = 150 nm; Δφ ≈ 1.41 rad, well below 2π.
     """
     objects, constraints, config, volume, wave = _build_base((1, 0, 0))
@@ -246,7 +246,7 @@ def test_extraordinary_wave_vector():
     """Extraordinary-axis wave vector k_e = 2π n_e / λ within 5 %.
 
     y-polarized wave propagating in +z through the anisotropic medium.
-    n_e = √ε_e = 2.0; k_e = 2π·2.0/1 µm ≈ 12.57×10⁶ m⁻¹.
+    n_e = √ε_e = 2.0; k_e = 2π·2.0/1 µm ≈ 12.57x10⁶ m⁻¹.
     Detector separation 3 cells = 150 nm; Δφ ≈ 1.88 rad, well below 2π.
     """
     objects, constraints, config, volume, wave = _build_base((0, 1, 0))
@@ -304,7 +304,7 @@ def test_ordinary_impedance():
 def test_extraordinary_impedance():
     """Extraordinary-axis wave impedance |Ey|/|Hx| = 1/n_e = 0.500 (normalized) ± 5 %.
 
-    For a +z propagating y-polarized wave: H = (−H_x) x̂, so the impedance
+    For a +z propagating y-polarized wave: H = (-H_x) x̂, so the impedance
     ratio is |Ey| / |Hx| = Z_e_normalized = 1/n_e = 0.5.
 
     Residual bias: cos(k_e·Δz/2) ≈ cos(π/10) ≈ 0.951 for n_e = 2 at 50 nm

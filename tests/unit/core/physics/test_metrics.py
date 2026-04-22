@@ -290,7 +290,7 @@ def test_compute_poynting_flux_complex_fields():
 
     S = compute_poynting_flux(E, H)
 
-    # E × conj(H): z-component = (1+1j)*(1+1j) = 2j
+    # E x conj(H): z-component = (1+1j)*(1+1j) = 2j
     expected_z = (1 + 1j) * (1 + 1j)
     expected_S = jnp.array([[[0.0]], [[0.0]], [[expected_z]]])
     assert jnp.allclose(S, expected_S)

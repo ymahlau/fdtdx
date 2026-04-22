@@ -7,26 +7,26 @@ conductor, and compared to the analytic value from the exact complex dispersion
 relation for a lossy dielectric.
 
 Analytic complex wave vector (exact, no approximation):
-  k = (ω/c₀) × √(ε_r − iσ/(ωε₀))
+  k = (ω/c₀) x √(ε_r - iσ/(ωε₀))
   α = Im(k)   (attenuation coefficient; skin depth δ = 1/α)
   β = Re(k)   (phase constant)
 
 Domain layout (50 nm resolution, z is propagation axis):
   90 cells total in z (4.5 µm):
-    cells  0– 9 : PML (0.5 µm)
-    cells 10–89 : active region (4.0 µm)
-    cells 80–89 : PML (0.5 µm, right side)
+    cells  0- 9 : PML (0.5 µm)
+    cells 10-89 : active region (4.0 µm)
+    cells 80-89 : PML (0.5 µm, right side)
 
   Source       : z-index 12 (vacuum, x-polarized, +z direction)
-  Conductor    : z-index 30–79 (50 cells = 2.5 µm, σ = 1×10⁴ S/m, ε_r = 1)
+  Conductor    : z-index 30-79 (50 cells = 2.5 µm, σ = 1x10⁴ S/m, ε_r = 1)
   Detector D1  : z-index 35 (5 cells = 250 nm into conductor)
   Detector D2  : z-index 55 (25 cells = 1250 nm into conductor)
   Separation d : 20 cells = 1 µm
 
-At σ = 1×10⁴ S/m, λ = 1 µm (ε_r = 1):
+At σ = 1x10⁴ S/m, λ = 1 µm (ε_r = 1):
   σ/(ωε₀) ≈ 0.60  (moderate loss — exact formula used, not good-conductor approx.)
-  α_analytic ≈ 1.81×10⁶ m⁻¹  →  δ_analytic ≈ 552 nm ≈ 11 cells
-  |p₂|/|p₁| = exp(−d/δ) ≈ exp(−1.81) ≈ 0.163  (clearly measurable)
+  α_analytic ≈ 1.81x10⁶ m⁻¹  →  δ_analytic ≈ 552 nm ≈ 11 cells
+  |p₂|/|p₁| = exp(-d/δ) ≈ exp(-1.81) ≈ 0.163  (clearly measurable)
 
 The conductor extends to the right PML so there is no conductor→vacuum back-
 reflection that would corrupt the steady-state profile.
@@ -86,10 +86,10 @@ _TOLERANCE = 0.10  # 10 % — generous for lossy-medium FDTD dispersion
 def _analytic_alpha() -> float:
     """Exact attenuation coefficient from the complex dispersion relation.
 
-    k = (ω/c₀) × √(ε_r − iσ/(ωε₀))
+    k = (ω/c₀) x √(ε_r - iσ/(ωε₀))
     For a passive lossy medium propagating in +z, numpy's principal sqrt gives
     Im(k) < 0 (decaying wave). The physical attenuation coefficient is
-    α = −Im(k) = |Im(k)| > 0.
+    α = -Im(k) = |Im(k)| > 0.
     """
     omega = 2 * np.pi * _C0 / _WAVELENGTH
     eps_complex = _EPS_R - 1j * _SIGMA / (omega * _EPS0)
@@ -147,7 +147,7 @@ def _build_base():
 
 
 def _add_conductor(volume, objects, constraints):
-    """Fill cells [_CONDUCTOR_START_Z, _Z_CELLS − _PML_CELLS) with the lossy conductor."""
+    """Fill cells [_CONDUCTOR_START_Z, _Z_CELLS - _PML_CELLS) with the lossy conductor."""
     cond = fdtdx.UniformMaterialObject(
         partial_grid_shape=(None, None, _CONDUCTOR_CELLS_Z),
         material=fdtdx.Material(
@@ -213,7 +213,7 @@ def _ex_phasor(arrays, name) -> complex:
 def test_skin_depth_attenuation():
     """Attenuation coefficient α matches Im(k) from exact dispersion within 10 %.
 
-    Measurement: α_measured = −ln(|p₂|/|p₁|) / d, where d = 1 µm is the
+    Measurement: α_measured = -ln(|p₂|/|p₁|) / d, where d = 1 µm is the
     detector separation.  Both detectors are in the same lossy medium, so the
     interpolation bias factor |cos(k_z·Δz/2)| and the fdtdx η₀ normalization
     cancel exactly in the amplitude ratio.

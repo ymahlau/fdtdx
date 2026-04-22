@@ -62,7 +62,7 @@ def simple_material():
 
 
 # ---------------------------------------------------------------------------
-# resolve_object_constraints – error path tests
+# resolve_object_constraints - error path tests
 # ---------------------------------------------------------------------------
 
 
@@ -297,7 +297,7 @@ def test_resolve_constraints_extend_to_infinity(simple_config, simple_volume, si
 
 
 # ---------------------------------------------------------------------------
-# _resolve_volume_name – direct unit tests
+# _resolve_volume_name - direct unit tests
 # ---------------------------------------------------------------------------
 
 
@@ -321,7 +321,7 @@ def test_resolve_volume_name_multiple_volumes():
 
 
 # ---------------------------------------------------------------------------
-# _check_objects_names_from_constraints – direct unit tests
+# _check_objects_names_from_constraints - direct unit tests
 # ---------------------------------------------------------------------------
 
 
@@ -357,7 +357,7 @@ def test_check_objects_names_other_object_unknown():
 
 
 # ---------------------------------------------------------------------------
-# _resolve_static_shapes – direct unit tests
+# _resolve_static_shapes - direct unit tests
 # ---------------------------------------------------------------------------
 
 
@@ -392,7 +392,7 @@ def test_resolve_static_shapes_no_shape(simple_config, simple_material):
 
 
 # ---------------------------------------------------------------------------
-# _apply_grid_coordinate_constraint – direct unit tests
+# _apply_grid_coordinate_constraint - direct unit tests
 # ---------------------------------------------------------------------------
 
 
@@ -435,7 +435,7 @@ def test_apply_grid_coordinate_constraint_conflicting_raises(simple_volume, simp
 
 
 # ---------------------------------------------------------------------------
-# _apply_real_coordinate_constraint – direct unit tests
+# _apply_real_coordinate_constraint - direct unit tests
 # ---------------------------------------------------------------------------
 
 
@@ -473,7 +473,7 @@ def test_apply_real_coordinate_constraint_conflicting_raises(simple_config, simp
 
 
 # ---------------------------------------------------------------------------
-# _apply_size_extension_constraint – error path
+# _apply_size_extension_constraint - error path
 # ---------------------------------------------------------------------------
 
 
@@ -501,7 +501,7 @@ def test_apply_size_extension_constraint_other_not_placed_yet(simple_config, sim
 
 
 # ---------------------------------------------------------------------------
-# _handle_unresolved_objects – direct unit tests
+# _handle_unresolved_objects - direct unit tests
 # ---------------------------------------------------------------------------
 
 
@@ -532,7 +532,7 @@ def test_handle_unresolved_objects_no_errors_when_resolved(simple_volume, simple
 
 
 # ---------------------------------------------------------------------------
-# apply_params – unit tests (mocked)
+# apply_params - unit tests (mocked)
 # ---------------------------------------------------------------------------
 
 
@@ -766,7 +766,7 @@ def test_apply_params_fully_anisotropic_discrete(mock_ste, mock_compute_perm):
 
 
 # ---------------------------------------------------------------------------
-# _apply_position_constraint – edge cases
+# _apply_position_constraint - edge cases
 # ---------------------------------------------------------------------------
 
 
@@ -815,7 +815,7 @@ def test_apply_position_constraint_object_size_unknown(simple_config, simple_vol
 
 
 # ---------------------------------------------------------------------------
-# _apply_size_constraint – edge cases
+# _apply_size_constraint - edge cases
 # ---------------------------------------------------------------------------
 
 
@@ -857,7 +857,7 @@ def test_apply_size_constraint_conflicting_shape_raises(simple_config, simple_vo
 
 
 # ---------------------------------------------------------------------------
-# _update_grid_slices_from_shapes – direct unit tests
+# _update_grid_slices_from_shapes - direct unit tests
 # ---------------------------------------------------------------------------
 
 
@@ -907,7 +907,7 @@ def test_update_grid_slices_from_shapes_inconsistent_shape(simple_volume, simple
 
 
 # ---------------------------------------------------------------------------
-# _update_grid_shapes_from_slices – direct unit tests
+# _update_grid_shapes_from_slices - direct unit tests
 # ---------------------------------------------------------------------------
 
 
@@ -942,7 +942,7 @@ def test_update_grid_shapes_from_slices_inconsistent(simple_volume, simple_mater
 
 
 # ---------------------------------------------------------------------------
-# _apply_position_constraint – conflict paths
+# _apply_position_constraint - conflict paths
 # ---------------------------------------------------------------------------
 
 
@@ -995,7 +995,7 @@ def test_apply_position_constraint_conflicting_b1_raises(simple_config, simple_v
 
 
 # ---------------------------------------------------------------------------
-# resolve_object_constraints – unknown constraint type via iterative solver
+# resolve_object_constraints - unknown constraint type via iterative solver
 # ---------------------------------------------------------------------------
 
 
@@ -1044,7 +1044,7 @@ def test_apply_size_extension_constraint_volume_upper_bound_none_raises(simple_c
 
 
 # ---------------------------------------------------------------------------
-# resolve_object_constraints – unknown constraint type via iterative solver
+# resolve_object_constraints - unknown constraint type via iterative solver
 # ---------------------------------------------------------------------------
 
 
@@ -1064,7 +1064,7 @@ def test_resolve_constraints_unknown_constraint_type_sets_error(simple_config, s
 
 
 # ---------------------------------------------------------------------------
-# _init_arrays – unknown static material object type
+# _init_arrays - unknown static material object type
 # ---------------------------------------------------------------------------
 
 

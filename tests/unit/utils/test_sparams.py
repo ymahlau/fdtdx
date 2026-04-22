@@ -1,4 +1,4 @@
-"""Unit tests for fdtdx.utils.sparams – pure-logic, no JAX."""
+"""Unit tests for fdtdx.utils.sparams - pure-logic, no JAX."""
 
 from dataclasses import is_dataclass
 

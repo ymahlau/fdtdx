@@ -31,7 +31,7 @@ def setup_simulation_inputs():
     # Simulation config — small domain to keep test runtime short
     config = SimulationConfig(time=20e-15, resolution=100e-9, dtype=jnp.float32, courant_factor=0.99)
 
-    # Volume: 3µm³ → 30×30×30 cells
+    # Volume: 3µm³ → 30x30x30 cells
     volume = SimulationVolume(
         partial_real_shape=(3.0e-6, 3e-6, 3e-6),
         material=Material(

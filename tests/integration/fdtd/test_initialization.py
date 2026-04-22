@@ -1,4 +1,4 @@
-"""Integration tests for fdtdx.fdtd.initialization – place_objects and _init_arrays."""
+"""Integration tests for fdtdx.fdtd.initialization - place_objects and _init_arrays."""
 
 import jax
 import jax.numpy as jnp
@@ -118,7 +118,7 @@ def test_place_objects_raises_on_unresolvable_constraint(simple_config, simple_v
 
 
 # ---------------------------------------------------------------------------
-# Anisotropic material tests – covers component-count logic and update paths
+# Anisotropic material tests - covers component-count logic and update paths
 # ---------------------------------------------------------------------------
 
 
@@ -279,7 +279,7 @@ def test_recording_state_with_gradient_config(simple_volume, simple_material):
 
 
 # ---------------------------------------------------------------------------
-# Device test – _init_params
+# Device test - _init_params
 # ---------------------------------------------------------------------------
 
 

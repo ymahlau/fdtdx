@@ -8,14 +8,14 @@ compared to Z₀/n (Z₀ ≈ 376.73 Ω, n = √ε_r).
 
 Domain layout (50 nm resolution = 20 cells/λ, z is propagation axis):
   80 cells total in z (4 µm):
-    cells  0– 9 : PML (0.5 µm)
-    cells 10–69 : active region (3 µm)
-    cells 70–79 : PML (0.5 µm)
+    cells  0- 9 : PML (0.5 µm)
+    cells 10-69 : active region (3 µm)
+    cells 70-79 : PML (0.5 µm)
 
   Source     : 1 cell thick, left face at z-index 12
   Detector 1 : 1 cell thick, left face at z-index 17
   Detector 2 : 1 cell thick, left face at z-index 22 (vacuum, 5-cell = 0.25 µm gap)
-             or z-index 20 (dielectric, 3-cell = 0.15 µm gap – avoids 2π ambiguity)
+             or z-index 20 (dielectric, 3-cell = 0.15 µm gap - avoids 2π ambiguity)
 
 Transverse (x, y): 3 cells each with periodic boundaries.
 

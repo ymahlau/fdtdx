@@ -43,7 +43,7 @@ def _make_container(objects=None, volume_grid_shape=(50, 50, 50)):
     if objects is None:
         objects = []
     container = MagicMock()
-    # volume is NOT in objects list – simulates real behaviour where volume is
+    # volume is NOT in objects list - simulates real behaviour where volume is
     # accessed separately and then excluded
     mock_volume = MagicMock()
     mock_volume.grid_shape = volume_grid_shape

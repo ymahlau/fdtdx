@@ -7,9 +7,9 @@ Tests that the PointDipoleSource radiates correctly:
   1c. Rotating polarization axis rotates the radiation pattern.
 
 Domain layout (50 nm resolution, PML on all 6 faces):
-  60×60×60 cells total (3 µm cube):
-    cells  0–9  and 50–59 : PML (0.5 µm each side)
-    cells 10–49 : active region (2 µm)
+  60x60x60 cells total (3 µm cube):
+    cells  0-9  and 50-59 : PML (0.5 µm each side)
+    cells 10-49 : active region (2 µm)
     Dipole at center: cell (30, 30, 30)
 
 Detectors: PoyntingFluxDetectors on 6 faces of a box around the dipole,

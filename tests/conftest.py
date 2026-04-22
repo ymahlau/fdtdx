@@ -1,4 +1,4 @@
-"""Root conftest.py – force JAX to use CPU only for all test suites.
+"""Root conftest.py - force JAX to use CPU only for all test suites.
 
 Without this, ``jax.devices()`` (no backend argument) may return CUDA devices
 once the GPU backend is initialised by any ``jnp`` operation.

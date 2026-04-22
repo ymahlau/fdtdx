@@ -151,7 +151,7 @@ def test_gaussian_source_spatial_profile():
 
         |E(r)| ∝ exp(-r² / (2 σ₀²))  for r < radius,  0 outside
 
-    where σ₀ = std × radius = radius/3 = 500 nm (default std = 1/3).
+    where σ₀ = std x radius = radius/3 = 500 nm (default std = 1/3).
 
     With σ₀/λ = 0.5, only ~0.3 % of the source's k-space power is evanescent,
     so the paraxial Fresnel propagation formula is accurate::
@@ -193,7 +193,7 @@ def test_gaussian_source_spatial_profile():
     assert center_amp > 0, "Center amplitude should be positive"
 
     # --- RMS beam width vs. propagated Gaussian formula ---
-    # GaussianPlaneSource default: std = 1/3  →  σ₀ = std × radius = radius/3
+    # GaussianPlaneSource default: std = 1/3  →  σ₀ = std x radius = radius/3
     _GAUSS_STD = 1 / 3  # matches GaussianPlaneSource.std default
     sigma0 = _GAUSS_STD * _PROFILE_BEAM_RADIUS
 

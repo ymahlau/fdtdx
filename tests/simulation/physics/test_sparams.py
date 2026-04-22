@@ -5,7 +5,7 @@ fundamental-TE-mode light, measured at multiple ModeOverlapDetectors
 at increasing distances from the source.
 
 Geometry (propagation along x, periodic in y = infinite slab approximation):
-  Domain:  3 µm × 150 nm × 2 µm (including PML)
+  Domain:  3 µm x 150 nm x 2 µm (including PML)
   PML: 10 cells in x and z; periodic BC in y (no PML needed in y)
   Core: Si (ε=12.25), 250 nm slab centred in z (5 cells, divides evenly)
   Cladding: SiO₂ (ε=2.25), fills the volume

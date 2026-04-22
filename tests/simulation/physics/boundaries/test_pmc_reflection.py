@@ -134,7 +134,7 @@ def test_pmc_total_reflection():
     Two-run normalization:
       Reference (PML everywhere): S₀ = forward flux through detector
       PMC run (PMC at z-max):     S  = net flux (≈ 0 due to standing wave)
-      T = S / S₀ ≈ 0  →  R = 1 − T ≈ 1.0
+      T = S / S₀ ≈ 0  →  R = 1 - T ≈ 1.0
     """
     # Reference: PML on all z-faces
     obj_ref, con_ref, cfg_ref, vol_ref, _ = _build_base(z_max_type="pml")

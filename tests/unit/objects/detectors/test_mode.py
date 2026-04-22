@@ -309,7 +309,7 @@ class TestModeOverlapDetectorComputeOverlap:
 
 
 class TestModeOverlapDetectorComputeOverlapPath:
-    """Tests for compute_overlap() – the stored-mode path (via aset)."""
+    """Tests for compute_overlap() - the stored-mode path (via aset)."""
 
     def test_compute_overlap_without_apply_raises(
         self, single_frequency, simulation_config, plane_grid_slice, random_key

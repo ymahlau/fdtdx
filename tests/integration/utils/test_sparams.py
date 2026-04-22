@@ -24,12 +24,12 @@ from fdtdx.utils.sparams import (
 )
 
 # ---------------------------------------------------------------------------
-# Shared domain constants – tiny grid for speed
+# Shared domain constants - tiny grid for speed
 # ---------------------------------------------------------------------------
 
 _RESOLUTION = 200e-9  # 200 nm
-_DOMAIN_SIZE = (1e-6, 400e-9, 400e-9)  # 5 × 2 × 2 core cells
-_PML_LAYERS = 3  # total grid: 11 × 8 × 8 = 704 cells
+_DOMAIN_SIZE = (1e-6, 400e-9, 400e-9)  # 5 x 2 x 2 core cells
+_PML_LAYERS = 3  # total grid: 11 x 8 x 8 = 704 cells
 _WAVELENGTH = 1.55e-6
 _MAX_TIME = 100e-15
 
@@ -56,7 +56,7 @@ def _make_setup(**kwargs):
 
 
 # ---------------------------------------------------------------------------
-# Session-scoped fixtures – computed once per test session for speed
+# Session-scoped fixtures - computed once per test session for speed
 # ---------------------------------------------------------------------------
 
 
@@ -165,7 +165,7 @@ class TestSetupSparamsGridSizing:
         g3 = _grid(3)
         g5 = _grid(5)
         for i in range(3):
-            assert g5[i] - g3[i] == 4  # 2 extra cells per face × 2 faces
+            assert g5[i] - g3[i] == 4  # 2 extra cells per face x 2 faces
 
 
 # ---------------------------------------------------------------------------
@@ -363,7 +363,7 @@ class TestDetermineInputNormDetectorName:
 
 
 # ---------------------------------------------------------------------------
-# calculate_sparam – fast ValueError guard (no FDTD run)
+# calculate_sparam - fast ValueError guard (no FDTD run)
 # ---------------------------------------------------------------------------
 
 
@@ -386,23 +386,23 @@ class TestCalculateSparamValidation:
 
 
 # ---------------------------------------------------------------------------
-# calculate_sparam – multi-source path (exercises the aset line)
+# calculate_sparam - multi-source path (exercises the aset line)
 # ---------------------------------------------------------------------------
 
 # Dedicated constants for the multi-source FDTD fixture.
 # The domain must be large enough in the transverse plane for the tidy3d
-# ARPACK mode solver to converge (≥ 8×8 = 64 grid points per cross-section).
-# Using a cubic 2 µm core (10 cells/side) with 8 µm-wide ports gives 8×8
+# ARPACK mode solver to converge (≥ 8x8 = 64 grid points per cross-section).
+# Using a cubic 2 µm core (10 cells/side) with 8 µm-wide ports gives 8x8
 # cross-sections, well above the ARPACK minimum.
-_MC_RESOLUTION = 200e-9  # 200 nm – same resolution, larger domain
-_MC_DOMAIN = (2e-6, 2e-6, 2e-6)  # 10×10×10 core cells
-_MC_PML = 3  # total grid: 16×16×16 = 4096 cells
+_MC_RESOLUTION = 200e-9  # 200 nm - same resolution, larger domain
+_MC_DOMAIN = (2e-6, 2e-6, 2e-6)  # 10x10x10 core cells
+_MC_PML = 3  # total grid: 16x16x16 = 4096 cells
 _MC_PORT_W = 1.6e-6  # 8-cell cross-section in y
 _MC_PORT_H = 1.6e-6  # 8-cell cross-section in z
 # dt ≈ 0.385 fs → 5 fs gives ≈ 13 time steps
 _MC_MAX_TIME = 5e-15
 
-# pml_thickness = 3 × 200 nm = 600 nm; background total = 3.2 µm per axis
+# pml_thickness = 3 x 200 nm = 600 nm; background total = 3.2 µm per axis
 # Port centres placed at y/z midpoint of background (1.6 µm) and at
 # increasing x positions within the 3.2 µm background extent.
 _MC_CY = 1.6e-6
@@ -504,7 +504,7 @@ class TestCalculateSparamMultiSource:
 
 
 # ---------------------------------------------------------------------------
-# calculate_sparams – multi-port wrapper
+# calculate_sparams - multi-port wrapper
 # ---------------------------------------------------------------------------
 
 

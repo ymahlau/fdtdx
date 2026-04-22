@@ -10,9 +10,9 @@ Interface: vacuum (n₁=1) → dielectric ε_r=4 (n₂=2) at z = z_interface.
 
 Analytic Fresnel coefficients for TE at θ_i = 30°:
   θ_t = arcsin(sin(30°)/2) = 14.48°
-  r_s = (n₁ cos θ_i − n₂ cos θ_t) / (n₁ cos θ_i + n₂ cos θ_t) = −0.382
+  r_s = (n₁ cos θ_i - n₂ cos θ_t) / (n₁ cos θ_i + n₂ cos θ_t) = -0.382
   t_s = 2 n₁ cos θ_i / (n₁ cos θ_i + n₂ cos θ_t) = 0.618
-  T_power = (n₂ cos θ_t) / (n₁ cos θ_i) × |t_s|² = 0.854
+  T_power = (n₂ cos θ_t) / (n₁ cos θ_i) x |t_s|² = 0.854
 
 Two-run normalization:
   Reference: oblique wave in vacuum (no interface), flux detector at z_det

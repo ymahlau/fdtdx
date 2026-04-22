@@ -6,19 +6,19 @@ analytic Fresnel power coefficients.
 
 Domain layout (25 nm resolution = 40 cells/λ, z is propagation axis):
   200 cells total in z (5 µm):
-    cells   0–  9 : PML (0.25 µm)
-    cells  10–189 : active region (4.5 µm)
-    cells 190–199 : PML (0.25 µm)
+    cells   0-  9 : PML (0.25 µm)
+    cells  10-189 : active region (4.5 µm)
+    cells 190-199 : PML (0.25 µm)
 
   Source      : z-index 12 (vacuum side, 2 cells into active region)
-  Interface   : z-index 100 (ε_r=4 fills cells 100–199)
+  Interface   : z-index 100 (ε_r=4 fills cells 100-199)
   Detector T  : z-index 140 (dielectric side; transmitted flux)
 
 Transverse (x, y): 3 cells each with periodic boundaries.
 
 Analytic coefficients (n₁=1, n₂=2, normal incidence):
   T_power = 4n₁n₂/(n₁+n₂)² = 8/9 ≈ 0.889
-  R_power = ((n₁−n₂)/(n₁+n₂))² = 1/9 ≈ 0.111
+  R_power = ((n₁-n₂)/(n₁+n₂))² = 1/9 ≈ 0.111
 
 Note: PoyntingFluxDetector always uses raw Yee-grid fields. The E_x and H_y fields are spatially staggered by Δz/2
 on the Yee grid, so the time-averaged cross product acquires a medium-dependent
@@ -26,9 +26,9 @@ bias factor ∝ Δz². At 25 nm resolution this bias is ≲ 0.5 % in T, translat
 to ≲ 3 % relative error in R (well within the 5 % tolerance).
 
 The vacuum-side (reflection) detector is intentionally omitted because standing-
-wave cross-terms (E_inc×H_ref + E_ref×H_inc) are non-zero when the E/H temporal
+wave cross-terms (E_incxH_ref + E_refxH_inc) are non-zero when the E/H temporal
 staggering (ωΔt/2 ≈ 0.09 rad) biases the time-averaged flux. R is derived from
-energy conservation: R = 1 − T.
+energy conservation: R = 1 - T.
 
 Tolerance: 5 % relative error.
 """
@@ -206,7 +206,7 @@ def test_fresnel_power_conservation():
     """R + T = 1 within tolerance via energy conservation.
 
     T is measured from the transmission-side detector (pure forward wave,
-    no standing-wave artifacts).  R = 1 − T is derived from energy conservation.
+    no standing-wave artifacts).  R = 1 - T is derived from energy conservation.
     Both are compared to the analytic Fresnel coefficients.
     """
     epsilon_r = 4.0

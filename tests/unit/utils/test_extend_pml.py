@@ -88,7 +88,7 @@ class TestExtendMaterialToPmlMinus:
         return objects, arrays
 
     def test_minus_direction_basic(self):
-        """PML cells (indices 0–1) should be filled with the interior-edge value 0.5."""
+        """PML cells (indices 0-1) should be filled with the interior-edge value 0.5."""
         objects, arrays = self._make_setup()
         result = extend_material_to_pml(objects, arrays)
         pml_region = np.asarray(result.inv_permittivities[:, 0:2, :, :])
@@ -111,7 +111,7 @@ class TestExtendMaterialToPmlPlus:
     """PML on the positive (max) side of an axis."""
 
     def test_plus_direction_basic(self):
-        """PML cells (indices 8–9) should be filled with the interior-edge value 0.5."""
+        """PML cells (indices 8-9) should be filled with the interior-edge value 0.5."""
         grid_shape = (10, 5, 5)
         pml = _make_pml(axis=0, direction="+", thickness=2, grid_shape=grid_shape)
         objects = _make_objects([pml], grid_shape)
@@ -145,7 +145,7 @@ class TestExtendMaterialWarning:
         pml = _make_pml(axis=0, direction="-", thickness=2, grid_shape=grid_shape)
         objects = _make_objects([pml], grid_shape, background_permittivity=1.0)
 
-        # PML region (indices 0–1) filled with 0.3 — clearly not the default 1/1.0 = 1.0
+        # PML region (indices 0-1) filled with 0.3 — clearly not the default 1/1.0 = 1.0
         inv_perm = jnp.ones((1, 10, 5, 5))
         inv_perm = inv_perm.at[:, 0:2, :, :].set(0.3)
         arrays = SimpleContainer(

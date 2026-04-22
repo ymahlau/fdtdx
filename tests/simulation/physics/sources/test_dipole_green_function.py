@@ -131,9 +131,9 @@ def _hertzian_Ez_amplitude(r: float, k: float) -> float:
 
     From the exact Hertzian-dipole field in the equatorial plane::
 
-        E_θ ∝ (k²/r) · |1 − 1/(kr)² + i/(kr)|
+        E_θ ∝ (k²/r) · |1 - 1/(kr)² + i/(kr)|
 
-    At θ=π/2 the only non-zero Cartesian E-component is E_z = −E_θ, so its
+    At θ=π/2 the only non-zero Cartesian E-component is E_z = -E_θ, so its
     amplitude is the same expression (up to a global constant that cancels in
     ratios).
     """
@@ -216,7 +216,7 @@ def test_dipole_in_dielectric_field_decay():
         amplitude ratio amp_near / amp_far is compared with the prediction of the
         exact Hertzian-dipole formula:
 
-            |E_z(r)| ∝ (k²/r) · sqrt((1 − 1/(kr)²)² + (1/(kr))²)
+            |E_z(r)| ∝ (k²/r) · sqrt((1 - 1/(kr)²)² + (1/(kr))²)
     .
     """
     obj, con, cfg, vol = _build_dipole_in_medium(eps_r=_EPS_R)
