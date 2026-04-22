@@ -18,6 +18,7 @@ from fdtdx.utils.sparams import (
     PortSpec,
     _make_port_shape,
     calculate_sparam,
+    calculate_sparams,
     determine_input_norm_detector_name,
     setup_sparams_simulation,
 )
@@ -498,5 +499,116 @@ class TestCalculateSparamMultiSource:
         import jax.numpy as jnp
 
         result, states, objs = two_source_sparam_result
+        for (det_name, _), s_param in result.items():
+            assert jnp.isfinite(jnp.abs(s_param)), f"S-param for {det_name!r} is not finite"
+
+
+# ---------------------------------------------------------------------------
+# calculate_sparams – multi-port wrapper
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def sparams_wrapper_setup():
+    """Simulation scene with 2 input ports (P1, P2) and 2 output ports (P3, P4).
+
+    Reuses the same multi-source constants as two_source_sparam_result.
+    """
+    names = ["P1", "P2", "P3", "P4"]
+    ports = [
+        PortSpec(
+            center=(_MC_XS[i], _MC_CY, _MC_CZ),
+            axis=0,
+            direction="+",
+            width=_MC_PORT_W,
+            height=_MC_PORT_H,
+            name=n,
+        )
+        for i, n in enumerate(names)
+    ]
+    return setup_sparams_simulation(
+        polygons=[],
+        input_ports=ports[:2],
+        output_ports=ports[2:],
+        wavelength=_WAVELENGTH,
+        resolution=_MC_RESOLUTION,
+        max_time=_MC_MAX_TIME,
+        domain_size=_MC_DOMAIN,
+        pml_layers=_MC_PML,
+        key=jax.random.PRNGKey(0),
+    )
+
+
+@pytest.fixture(scope="session")
+def sparams_wrapper_result(sparams_wrapper_setup):
+    """Call calculate_sparams with both input ports and return_detector_states=True."""
+    objs, arrays, config = sparams_wrapper_setup
+    result, states = calculate_sparams(
+        objs,
+        arrays,
+        config,
+        input_port_names=["P1", "P2"],
+        show_progress=False,
+        return_detector_states=True,
+    )
+    return result, states, objs
+
+
+class TestCalculateSparamsWrapper:
+    def test_returns_tuple(self, sparams_wrapper_result):
+        result = sparams_wrapper_result[:2]
+        assert isinstance(result, tuple) and len(result) == 2
+
+    def test_merged_dict_contains_p1(self, sparams_wrapper_result):
+        result, states, objs = sparams_wrapper_result
+        src_names = {src_name for _, src_name in result}
+        assert "P1" in src_names
+
+    def test_merged_dict_contains_p2(self, sparams_wrapper_result):
+        result, states, objs = sparams_wrapper_result
+        src_names = {src_name for _, src_name in result}
+        assert "P2" in src_names
+
+    def test_merged_dict_key_count(self, sparams_wrapper_result):
+        result, states, objs = sparams_wrapper_result
+        n_detectors = len(objs.detectors)
+        n_ports = 2
+        assert len(result) == n_detectors * n_ports
+
+    def test_detector_states_list_length(self, sparams_wrapper_result):
+        result, states, objs = sparams_wrapper_result
+        assert len(states) == 2
+
+    def test_detector_states_are_dicts(self, sparams_wrapper_result):
+        result, states, objs = sparams_wrapper_result
+        for s in states:
+            assert isinstance(s, dict)
+
+    def test_no_detector_states_by_default(self, sparams_wrapper_setup):
+        objs, arrays, config = sparams_wrapper_setup
+        _, states = calculate_sparams(
+            objs,
+            arrays,
+            config,
+            input_port_names=["P1"],
+            show_progress=False,
+            return_detector_states=False,
+        )
+        assert states == []
+
+    def test_empty_input_returns_empty_dict(self, sparams_wrapper_setup):
+        objs, arrays, config = sparams_wrapper_setup
+        result, states = calculate_sparams(
+            objs,
+            arrays,
+            config,
+            input_port_names=[],
+            show_progress=False,
+        )
+        assert result == {}
+        assert states == []
+
+    def test_s_params_are_finite(self, sparams_wrapper_result):
+        result, states, objs = sparams_wrapper_result
         for (det_name, _), s_param in result.items():
             assert jnp.isfinite(jnp.abs(s_param)), f"S-param for {det_name!r} is not finite"

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -241,6 +242,8 @@ def calculate_sparam(
     simultaneously, the dictionary keys are ``(detector_name, input_port_name)``
     tuples so that results from multiple calls can be merged into a full S-matrix.
 
+    To simulate all input ports in one call (multiple simulations), use :func:`calculate_sparams`.
+
     Args:
         objects: ObjectContainer from :func:`setup_sparams_simulation`.
         arrays: ArrayContainer from :func:`setup_sparams_simulation`.
@@ -248,13 +251,17 @@ def calculate_sparam(
         input_port_name: Name of the active input port.  Should match the
             ``name`` field of the corresponding :class:`PortSpec`, or the
             auto-generated name ``"Source_<i>"`` when no name was supplied.
-        key: JAX random key.  Defaults to ``PRNGKey(0)``.
         show_progress: Whether to display the simulation progress bar.
+        input_normalization_detector_name: Name (or substring) of the detector
+            used to normalise the input power.  Defaults to a detector whose
+            name contains *input_port_name*.
+        key: JAX random key.  Defaults to ``PRNGKey(0)``.
 
     Returns:
-        Dictionary mapping ``(detector_name, input_port_name)`` to a complex
-        scattering amplitude.  Results from multiple calls (one per input port)
-        can be merged to build the full S-matrix.
+        A 2-tuple ``(sparams, detector_states)`` where *sparams* maps
+        ``(detector_name, input_port_name)`` to a complex scattering amplitude
+        and *detector_states* is the final :class:`~fdtdx.DetectorState` dict
+        for every detector in the simulation.
     """
     if key is None:
         key = jax.random.PRNGKey(0)
@@ -307,6 +314,57 @@ def calculate_sparam(
             raw_overlap = obj.compute_overlap(state)
             result[(obj.name, input_port_name)] = raw_overlap / input_overlap
     return result, final_arrays.detector_states
+
+
+def calculate_sparams(
+    objects: ObjectContainer,
+    arrays: ArrayContainer,
+    config: SimulationConfig,
+    input_port_names: Sequence[str],
+    show_progress: bool = True,
+    input_normalization_detector_name: str | None = None,
+    key: jax.Array | None = None,
+    return_detector_states: bool = False,
+) -> tuple[dict[tuple[str, str], jax.Array], list[dict[str, DetectorState]]]:
+    """Run FDTD simulations for multiple input ports and merge S-parameters.
+
+    Calls :func:`calculate_sparam` once per entry in *input_port_names* and
+    merges all results into a single S-parameter dictionary.
+
+    Args:
+        objects: ObjectContainer from :func:`setup_sparams_simulation`.
+        arrays: ArrayContainer from :func:`setup_sparams_simulation`.
+        config: SimulationConfig from :func:`setup_sparams_simulation`.
+        input_port_names: Names of the input ports to simulate.
+        show_progress: Whether to display the simulation progress bar.
+        input_normalization_detector_name: Passed through to :func:`calculate_sparam`.
+        key: JAX random key.  Defaults to ``PRNGKey(0)``.
+        return_detector_states: When ``True``, return the detector states from
+            each simulation run as a list (one entry per input port).  When
+            ``False`` an empty list is returned.
+
+    Returns:
+        A 2-tuple ``(sparams, detector_states_list)`` where *sparams* is the
+        merged ``dict[tuple[str, str], jax.Array]`` across all simulations and
+        *detector_states_list* is either a list of per-simulation detector
+        state dicts or an empty list.
+    """
+    merged: dict[tuple[str, str], jax.Array] = {}
+    all_states: list[dict[str, DetectorState]] = []
+    for name in input_port_names:
+        sparam_dict, states = calculate_sparam(
+            objects,
+            arrays,
+            config,
+            name,
+            show_progress,
+            input_normalization_detector_name,
+            key,
+        )
+        merged.update(sparam_dict)
+        if return_detector_states:
+            all_states.append(states)
+    return merged, all_states
 
 
 def determine_input_norm_detector_name(name_part: str, objects: ObjectContainer) -> str:
