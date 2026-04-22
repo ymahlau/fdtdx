@@ -195,7 +195,9 @@ def setup_sparams_simulation(
             name=f"{name}_input_normalization",
         )
         object_list.append(input_detector)
-        constraints.append(_center_at(input_detector, port.center))
+        detector_margins = [0, 0, 0]
+        detector_margins[port.axis] = 1 if port.direction == "+" else -1
+        constraints.append(input_detector.same_position(source, grid_margins=tuple(detector_margins)))
 
     for i, port in enumerate(output_ports):
         name = port.name if port.name else f"Detector_{i}"
