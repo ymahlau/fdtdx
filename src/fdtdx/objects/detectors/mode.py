@@ -125,7 +125,10 @@ class ModeOverlapDetector(PhasorDetector):
         )[self.propagation_axis]
 
         alpha_coeff = jnp.sum(E_cross_H_star_sim + E_star_cross_H_sim)
-        alpha_coeff = alpha_coeff / 4.0
+
+        # in pulsed mode return unscaled coefficient
+        if self.scaling_mode != "pulse":
+            alpha_coeff = alpha_coeff / 4.0
 
         return alpha_coeff
 
