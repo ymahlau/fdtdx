@@ -45,7 +45,7 @@ _SIM_TIME = 120e-15  # 120 fs ≈ 23 optical periods at λ = 1550 nm
 _EPS_SI = fdtdx.constants.relative_permittivity_silicon  # 12.25
 _EPS_SIO2 = fdtdx.constants.relative_permittivity_silica  # 2.25
 
-_TOLERANCE = 0.10  # 10% relative tolerance on |S|²
+_TOLERANCE = 0.01  # 1% relative tolerance on |S|²
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -197,8 +197,9 @@ def test_waveguide_sparam_transmission():
     for (det_name, src_name), s_param in result.items():
         assert src_name == "source", f"Unexpected source name in key: {src_name!r}"
         power = float(abs(np.array(s_param)) ** 2)
-        print(
-            f"|S({det_name!r}, 'source')|² = {power:.4f}, "
+        print(f"{power=}")
+        assert power > (1.0 - _TOLERANCE) and power <= 1.0001, (
+            f"|S({det_name!r}, 'source')|² = {power}, "
             f"expected > {1.0 - _TOLERANCE:.2f} "
-            f"(lossless Si/SiO2 slab waveguide should transmit ≥90% of TE mode power)"
+            f"(lossless Si/SiO2 slab waveguide should transmit large % of TE mode power)"
         )

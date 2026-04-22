@@ -287,9 +287,9 @@ def calculate_sparam(
     key, subkey = jax.random.split(key)
     arrays, objects, _ = apply_params(arrays, objects, {}, subkey)
 
-    # run the simulation for at least 10% of max time specified
+    # run the simulation for at least % of max time specified
     stopping_condition = EnergyThresholdCondition(
-        min_steps=round(config.time_steps_total / 10),
+        min_steps=round(config.time_steps_total / 5),
     )
 
     jitted_fdtd = jax.jit(run_fdtd, static_argnames=["show_progress"])
@@ -368,11 +368,17 @@ def calculate_sparams(
 
 
 def determine_input_norm_detector_name(name_part: str, objects: ObjectContainer) -> str:
+    exact_name = f"{name_part}_input_normalization"
+    exact_matches = []
     results = []
     for obj in objects.object_list:
         if isinstance(obj, ModeOverlapDetector):
+            if obj.name == exact_name:
+                exact_matches.append(obj.name)
             if name_part in obj.name:
                 results.append(obj.name)
+    if len(exact_matches) == 1:
+        return exact_matches[0]
     if len(results) == 1:
         return results[0]
     if not results:
