@@ -158,9 +158,9 @@ def setup_sparams_simulation(
             own_positions=(0.0, 0.0, 0.0),
             other_positions=(-1.0, -1.0, -1.0),
             margins=(
-                offset[0],
-                offset[1],
-                offset[2],
+                offset[0] + pml_thickness,
+                offset[1] + pml_thickness,
+                offset[2] + pml_thickness,
             ),
         )
 

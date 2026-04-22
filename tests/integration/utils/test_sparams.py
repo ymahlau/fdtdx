@@ -33,9 +33,10 @@ _PML_LAYERS = 3  # total grid: 11 x 8 x 8 = 704 cells
 _WAVELENGTH = 1.55e-6
 _MAX_TIME = 100e-15
 
-# Port positioned well inside the background volume (background-relative coords)
-_PORT_CENTER_IN = (1.1e-6, 0.8e-6, 0.8e-6)
-_PORT_CENTER_OUT = (1.65e-6, 0.8e-6, 0.8e-6)
+# Port positions in core-relative coords (origin = start of core region, PML excluded)
+# Core is 1 um x 400 nm x 400 nm; transverse centre is (200 nm, 200 nm).
+_PORT_CENTER_IN = (0.5e-6, 0.2e-6, 0.2e-6)
+_PORT_CENTER_OUT = (0.75e-6, 0.2e-6, 0.2e-6)
 _PORT_WIDTH = 0.8e-6
 _PORT_HEIGHT = 0.8e-6
 
@@ -90,8 +91,8 @@ def minimal_setup():
 @pytest.fixture(scope="session")
 def two_port_setup():
     """2 named input ports (P1, P2) + 2 named output ports (P3, P4)."""
-    xs = [0.88e-6, 1.1e-6, 1.32e-6, 1.54e-6]
-    cy, cz = 0.8e-6, 0.8e-6
+    xs = [0.28e-6, 0.5e-6, 0.72e-6, 0.94e-6]
+    cy, cz = 0.2e-6, 0.2e-6
     names = ["P1", "P2", "P3", "P4"]
     ports = [
         PortSpec(center=(x, cy, cz), axis=0, direction="+", width=_PORT_WIDTH, height=_PORT_HEIGHT, name=n)
@@ -402,12 +403,11 @@ _MC_PORT_H = 1.6e-6  # 8-cell cross-section in z
 # dt ≈ 0.385 fs → 5 fs gives ≈ 13 time steps
 _MC_MAX_TIME = 5e-15
 
-# pml_thickness = 3 x 200 nm = 600 nm; background total = 3.2 µm per axis
-# Port centres placed at y/z midpoint of background (1.6 µm) and at
-# increasing x positions within the 3.2 µm background extent.
-_MC_CY = 1.6e-6
-_MC_CZ = 1.6e-6
-_MC_XS = [1.1e-6, 1.6e-6, 2.1e-6, 2.6e-6]  # P1, P2, P3, P4
+# Port positions in core-relative coords (origin = start of core region, PML excluded)
+# Core is 2 um x 2 um x 2 um; transverse centre is (1.0 um, 1.0 um).
+_MC_CY = 1.0e-6
+_MC_CZ = 1.0e-6
+_MC_XS = [0.5e-6, 1.0e-6, 1.5e-6, 1.9e-6]  # P1, P2, P3, P4
 
 
 @pytest.fixture(scope="session")
