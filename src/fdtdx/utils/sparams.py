@@ -31,12 +31,12 @@ class PortSpec:
     Args:
         center: 3-D centre position ``(x, y, z)`` in metres, relative to the
             start of the core region.
-        axis: Propagation axis – ``0`` for x, ``1`` for y, ``2`` for z.
-        direction: Propagation direction along ``axis`` – ``'+'`` or ``'-'``.
+        axis: Propagation axis - ``0`` for x, ``1`` for y, ``2`` for z.
+        direction: Propagation direction along ``axis`` - ``'+'`` or ``'-'``.
         width: Cross-section extent (metres) along the first transverse axis.
         height: Cross-section extent (metres) along the second transverse axis.
         mode_index: Waveguide mode index (default 0 = fundamental mode).
-        filter_pol: Polarisation filter – ``'te'``, ``'tm'``, or ``None``.
+        filter_pol: Polarisation filter - ``'te'``, ``'tm'``, or ``None``.
         name: Optional name for the source/detector object.
     """
 

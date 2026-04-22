@@ -39,7 +39,7 @@ fix = true
 exclude = ["examples", "slurm", "checks", "docs"]
 
 [tool.ruff.lint]
-extend-select = ["I"]
+extend-select = ["I", "RUF"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

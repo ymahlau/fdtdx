@@ -113,11 +113,11 @@ class Material(TreeClass):
     #: The electrical conductivity of the material in siemens per meter (S/m), which describes how easily electric current can flow through it.
     #: Higher values indicate materials that conduct electricity more easily.
     #: For isotropic materials, provide a scalar float.
-    #: For diagonally anisotropic materials, provide a tuple of 3 floats (σx, σy, σz).
+    #: For diagonally anisotropic materials, provide a tuple of 3 floats (σx, σy, σz).  # noqa: RUF003
     #: For fully anisotropic materials, provide either:
     #:
-    #:   - A tuple of 9 floats (σxx, σxy, σxz, σyx, σyy, σyz, σzx, σzy, σzz), or
-    #:   - A nested tuple ((σxx, σxy, σxz), (σyx, σyy, σyz), (σzx, σzy, σzz))
+    #:   - A tuple of 9 floats (σxx, σxy, σxz, σyx, σyy, σyz, σzx, σzy, σzz), or  # noqa: RUF003
+    #:   - A nested tuple ((σxx, σxy, σxz), (σyx, σyy, σyz), (σzx, σzy, σzz))  # noqa: RUF003
     #:
     #: Stored internally as a 9-tuple. Defaults to (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0).
     electric_conductivity: tuple[float, float, float, float, float, float, float, float, float] = frozen_field(
@@ -130,11 +130,11 @@ class Material(TreeClass):
     #: even though often described in Ohm/m. The naming can be misleading, because it does not actually describe
     #: a conductivity, but rather an "equivalent magnetic loss parameter".
     #: For isotropic materials, provide a scalar float.
-    #: For diagonally anisotropic materials, provide a tuple of 3 floats (σx, σy, σz).
+    #: For diagonally anisotropic materials, provide a tuple of 3 floats (σx, σy, σz).  # noqa: RUF003
     #: For fully anisotropic materials, provide either:
     #:
-    #:   - A tuple of 9 floats (σxx, σxy, σxz, σyx, σyy, σyz, σzx, σzy, σzz), or
-    #:   - A nested tuple ((σxx, σxy, σxz), (σyx, σyy, σyz), (σzx, σzy, σzz))
+    #:   - A tuple of 9 floats (σxx, σxy, σxz, σyx, σyy, σyz, σzx, σzy, σzz), or  # noqa: RUF003
+    #:   - A nested tuple ((σxx, σxy, σxz), (σyx, σyy, σyz), (σzx, σzy, σzz))  # noqa: RUF003
     #:
     #: Stored internally as a 9-tuple. Defaults to (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0).
     magnetic_conductivity: tuple[float, float, float, float, float, float, float, float, float] = frozen_field(
@@ -485,8 +485,8 @@ def compute_allowed_electric_conductivities(
 
     Args:
         materials: Dictionary mapping material names to Material objects
-        isotropic: If True, return single-element tuples (σx,)
-        diagonally_anisotropic: If True, return 3-tuples (σx, σy, σz)
+        isotropic: If True, return single-element tuples (sigma_x,)
+        diagonally_anisotropic: If True, return 3-tuples (sigma_x, sigma_y, sigma_z)
 
     Returns:
         list[tuple[float, ...]]: List of electric conductivity tuples
@@ -512,8 +512,8 @@ def compute_allowed_magnetic_conductivities(
 
     Args:
         materials: Dictionary mapping material names to Material objects
-        isotropic: If True, return single-element tuples (σx,)
-        diagonally_anisotropic: If True, return 3-tuples (σx, σy, σz)
+        isotropic: If True, return single-element tuples (sigma_x,)
+        diagonally_anisotropic: If True, return 3-tuples (sigma_x, sigma_y, sigma_z)
 
     Returns:
         list[tuple[float, ...]]: List of magnetic conductivity tuples

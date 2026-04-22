@@ -98,7 +98,7 @@ def compute_extent_boundary(
 def sigma_fn(x: jax.Array, thickness: int) -> jax.Array:
     """Creates a cubically increasing conductivity profile for PML boundaries.
 
-    Implements σ(x) = 40x³/(thickness+1)⁴ profile for PML conductivity.
+    Implements sigma(x) = 40x^3/(thickness+1)^4 profile for PML conductivity.
 
     Args:
         x (jax.Array): Position values to compute conductivity for
