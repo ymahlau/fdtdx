@@ -247,7 +247,7 @@ def test_mode_source_confinement():
     # Find core region indices. The waveguide is centered.
     nz = ey_amp.shape[1]
     # Core spans WG_HEIGHT / RESOLUTION cells centered in z
-    wg_cells_z = int(round(_WG_HEIGHT / _RESOLUTION))
+    wg_cells_z = round(_WG_HEIGHT / _RESOLUTION)
     z_start = (nz - wg_cells_z) // 2
     z_end = z_start + wg_cells_z
 

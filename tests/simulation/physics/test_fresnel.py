@@ -45,7 +45,7 @@ _RESOLUTION = 25e-9  # 40 cells/λ in vacuum
 _PML_CELLS = 10
 _DOMAIN_XY = 3 * _RESOLUTION  # 3 cells, periodic
 _DOMAIN_Z = 5e-6  # 200 cells total
-_Z_CELLS = int(round(_DOMAIN_Z / _RESOLUTION))  # = 200
+_Z_CELLS = round(_DOMAIN_Z / _RESOLUTION)  # = 200
 
 _SOURCE_Z = _PML_CELLS + 2  # = 12
 _INTERFACE_Z = 100  # cell index of interface (2.5 µm from left)
@@ -58,7 +58,7 @@ _TOLERANCE = 0.05
 
 # Approximate time step and steps per optical period (3D Courant, factor 0.99)
 _DT_APPROX = 0.99 * _RESOLUTION / (3e8 * np.sqrt(3))  # ≈ 4.76e-17 s
-_STEPS_PER_PERIOD = int(round(_WAVELENGTH / (3e8 * _DT_APPROX)))  # ≈ 70
+_STEPS_PER_PERIOD = round(_WAVELENGTH / (3e8 * _DT_APPROX))  # ≈ 70
 _N_AVG_STEPS = 10 * _STEPS_PER_PERIOD  # average over last ~10 optical periods
 
 

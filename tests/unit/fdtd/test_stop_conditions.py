@@ -111,7 +111,7 @@ class TestEnergyThresholdCondition:
     def test_default_min_steps_is_10_percent(self):
         config = _CONFIG
         cond = EnergyThresholdCondition(threshold=1e-5).setup(_make_state(0), config, None)
-        expected = int(round(config.time_steps_total * 0.1))
+        expected = round(config.time_steps_total * 0.1)
         assert cond.min_steps == expected
 
     def test_explicit_min_steps_preserved(self):
@@ -284,7 +284,7 @@ class TestDetectorConvergenceCondition:
         # Detector state with an unexpected key (not energy/poynting_flux/fields)
         det_states = {"det": {"unknown_key": jnp.zeros((config.time_steps_total, 1))}}
         arrays = _make_arrays(detector_states=det_states)
-        with pytest.raises(KeyError, match="EnergyDetector|PoyntingFluxDetector|FieldDetector"):
+        with pytest.raises(KeyError, match=r"EnergyDetector|PoyntingFluxDetector|FieldDetector"):
             DetectorConvergenceCondition(
                 detector_name="det",
                 wave_character=WaveCharacter(period=spp * config.time_step_duration),

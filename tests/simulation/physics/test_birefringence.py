@@ -58,7 +58,7 @@ _RESOLUTION = 50e-9  # 20 cells/λ in vacuum
 _PML_CELLS = 10
 _DOMAIN_XY = 3 * _RESOLUTION  # 3 cells, periodic
 _DOMAIN_Z = 4e-6  # 80 cells total
-_Z_CELLS = int(round(_DOMAIN_Z / _RESOLUTION))  # = 80
+_Z_CELLS = round(_DOMAIN_Z / _RESOLUTION)  # = 80
 
 _SOURCE_Z = _PML_CELLS + 2  # = 12  (2 cells into active region)
 _BIRE_START_Z = 14  # birefringent material starts here (2 cells after source)

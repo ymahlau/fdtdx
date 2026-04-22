@@ -28,7 +28,7 @@ _DET_OFFSET = 10
 _TOLERANCE = 0.10  # 10% for decay tests (grid dispersion + near-field effects)
 
 _DT_APPROX = 0.99 * _RESOLUTION / (3e8 * np.sqrt(3))
-_STEPS_PER_PERIOD = int(round(_WAVELENGTH / (3e8 * _DT_APPROX)))
+_STEPS_PER_PERIOD = round(_WAVELENGTH / (3e8 * _DT_APPROX))
 _N_AVG_STEPS = 10 * _STEPS_PER_PERIOD
 
 _EPS_R = 2.25  # n = 1.5

@@ -372,7 +372,7 @@ def get_air_name(materials: dict[str, Material]) -> str:
     for k, v in materials.items():
         if v.permittivity == 1 and v.permeability == 1:
             return k
-    background_material_name = list(materials.keys())[0]
+    background_material_name = next(iter(materials.keys()))
     print(f"Warning: Could not find air in {materials}\n Choosing '{background_material_name=}' instead.")
     return background_material_name
 
@@ -536,7 +536,7 @@ def expand_to_3x3(arr: jax.Array | float | None) -> jax.Array | None:
         return jnp.stack([jnp.stack([a, zeros, zeros]), jnp.stack([zeros, b, zeros]), jnp.stack([zeros, zeros, c])])
     else:  # first_dim == 9
         # Full tensor: reshape to (3, 3, Nx, Ny, Nz)
-        return arr.reshape((3, 3) + spatial_shape)
+        return arr.reshape((3, 3, *spatial_shape))
 
 
 def pad_fields(

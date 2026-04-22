@@ -186,7 +186,7 @@ def test_waveguide_sparam_transmission():
     )
     arrays = fdtdx.extend_material_to_pml(objects=obj_container, arrays=arrays)
 
-    result, detector_states = fdtdx.calculate_sparam(
+    result, _detector_states = fdtdx.calculate_sparam(
         objects=obj_container,
         arrays=arrays,
         config=config,

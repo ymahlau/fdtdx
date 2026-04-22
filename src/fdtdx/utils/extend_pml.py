@@ -102,8 +102,8 @@ def extend_material_to_pml(
         interior_gs[axis] = edge_slice
         interior_gs = tuple(interior_gs)
 
-        pml_idx = (slice(None),) + gs  # (C, PML depth, cross...)
-        interior_idx = (slice(None),) + interior_gs  # (C, 1, cross...)
+        pml_idx = (slice(None), *gs)  # (C, PML depth, cross...)
+        interior_idx = (slice(None), *interior_gs)  # (C, 1, cross...)
 
         arrays = _check_and_extend(
             arrays,

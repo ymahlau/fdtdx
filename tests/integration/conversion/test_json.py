@@ -212,7 +212,7 @@ def test_run_simulation_with_imported_json(setup_simulation_inputs):
     json_export_str = export_json_str(export_data)
     setting = import_from_json(json_export_str)
 
-    objects, arrays, params, config, info = place_objects(
+    objects, arrays, params, config, _info = place_objects(
         object_list=setting["object_list"],
         config=setting["SimulationConfig"],
         constraints=setting["constraints"],

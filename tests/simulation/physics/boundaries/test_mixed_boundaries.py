@@ -30,7 +30,7 @@ _N_WIDE = 40  # cells
 _DOMAIN_XY_WIDE = _N_WIDE * _RESOLUTION  # 2 µm
 
 _DOMAIN_Z = 4e-6  # 80 cells
-_Z_CELLS = int(round(_DOMAIN_Z / _RESOLUTION))  # = 80
+_Z_CELLS = round(_DOMAIN_Z / _RESOLUTION)  # = 80
 
 _SOURCE_Z = _PML_CELLS + 2  # = 12
 _DET1_Z = _SOURCE_Z + 5  # = 17
@@ -47,7 +47,7 @@ _DET_T_Z = 60  # transmission detector
 
 # Time-averaging constants
 _DT_APPROX = 0.99 * _RESOLUTION / (3e8 * np.sqrt(3))
-_STEPS_PER_PERIOD = int(round(_WAVELENGTH / (3e8 * _DT_APPROX)))
+_STEPS_PER_PERIOD = round(_WAVELENGTH / (3e8 * _DT_APPROX))
 _N_AVG_STEPS = 10 * _STEPS_PER_PERIOD
 
 
@@ -350,7 +350,7 @@ def test_bloch_pml_normal():
         "min_y": "periodic",
         "max_y": "periodic",
     }
-    obj_p, con_p, cfg_p, vol_p, wave_p = _build_domain(_DOMAIN_XY_NARROW, _DOMAIN_XY_NARROW, periodic_overrides)
+    obj_p, con_p, cfg_p, vol_p, _wave_p = _build_domain(_DOMAIN_XY_NARROW, _DOMAIN_XY_NARROW, periodic_overrides)
     _add_flux_det("flux", _DET_T_Z, vol_p, obj_p, con_p)
     S_periodic = _mean_flux(_run(obj_p, con_p, cfg_p), "flux")
 
@@ -361,7 +361,7 @@ def test_bloch_pml_normal():
         "min_y": "bloch",
         "max_y": "bloch",
     }
-    obj_b, con_b, cfg_b, vol_b, wave_b = _build_domain(
+    obj_b, con_b, cfg_b, vol_b, _wave_b = _build_domain(
         _DOMAIN_XY_NARROW,
         _DOMAIN_XY_NARROW,
         bloch_overrides,

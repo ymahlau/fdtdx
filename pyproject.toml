@@ -40,6 +40,7 @@ exclude = ["examples", "slurm", "checks", "docs"]
 
 [tool.ruff.lint]
 extend-select = ["I", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

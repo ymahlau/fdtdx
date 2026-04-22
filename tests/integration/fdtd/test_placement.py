@@ -138,7 +138,7 @@ def test_placement():
 
     # place the objects
     key = jax.random.PRNGKey(42)
-    object_container, arrays, params, config, _ = fdtdx.place_objects(
+    _object_container, _arrays, _params, config, _ = fdtdx.place_objects(
         object_list=objects,
         config=config,
         constraints=constraints,

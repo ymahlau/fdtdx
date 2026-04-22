@@ -58,7 +58,7 @@ _RESOLUTION = 50e-9  # grid resolution (m) → 20 cells/λ in vacuum
 _PML_CELLS = 10
 _DOMAIN_XY = 3 * _RESOLUTION  # 3 cells, periodic
 _DOMAIN_Z = 4.5e-6  # 90 cells total
-_Z_CELLS = int(round(_DOMAIN_Z / _RESOLUTION))  # = 90
+_Z_CELLS = round(_DOMAIN_Z / _RESOLUTION)  # = 90
 
 _SOURCE_Z = _PML_CELLS + 2  # = 12 (2 cells into active region)
 _CONDUCTOR_START_Z = 30  # first conductor cell (18 vacuum cells from source)
@@ -74,7 +74,7 @@ _SIGMA = 1.0e4  # electric conductivity (S/m)
 # ── Simulation timing ─────────────────────────────────────────────────────────
 _SIM_TIME = 80e-15  # 80 fs ≈ 24 optical periods
 _DT_APPROX = 0.99 * _RESOLUTION / (_C0 * np.sqrt(3))  # ≈ 9.53e-17 s
-_STEPS_PER_PERIOD = int(round(_WAVELENGTH / (_C0 * _DT_APPROX)))  # ≈ 35
+_STEPS_PER_PERIOD = round(_WAVELENGTH / (_C0 * _DT_APPROX))  # ≈ 35
 _N_AVG_STEPS = 5 * _STEPS_PER_PERIOD  # last ~5 optical periods for steady state
 
 _TOLERANCE = 0.10  # 10 % — generous for lossy-medium FDTD dispersion

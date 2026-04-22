@@ -129,19 +129,19 @@ def no_source_setup():
 
 class TestSetupSparamsReturnTypes:
     def test_returns_object_container(self, minimal_setup):
-        objs, arrays, config = minimal_setup
+        objs, _arrays, _config = minimal_setup
         assert isinstance(objs, ObjectContainer)
 
     def test_returns_array_container(self, minimal_setup):
-        objs, arrays, config = minimal_setup
+        _objs, arrays, _config = minimal_setup
         assert isinstance(arrays, ArrayContainer)
 
     def test_returns_simulation_config(self, minimal_setup):
-        objs, arrays, config = minimal_setup
+        _objs, _arrays, config = minimal_setup
         assert isinstance(config, SimulationConfig)
 
     def test_config_resolution_preserved(self, minimal_setup):
-        objs, arrays, config = minimal_setup
+        _objs, _arrays, config = minimal_setup
         assert config.resolution == _RESOLUTION
 
 
@@ -152,7 +152,7 @@ class TestSetupSparamsReturnTypes:
 
 class TestSetupSparamsGridSizing:
     def test_grid_shape_all_axes(self, minimal_setup):
-        objs, arrays, config = minimal_setup
+        objs, _arrays, _config = minimal_setup
         pml_cells = _PML_LAYERS
         expected = tuple(round((_DOMAIN_SIZE[i] + 2 * pml_cells * _RESOLUTION) / _RESOLUTION) for i in range(3))
         assert objs.volume.grid_shape == expected  # (11, 8, 8)
@@ -175,25 +175,25 @@ class TestSetupSparamsGridSizing:
 
 class TestSetupSparamsObjectCounts:
     def test_six_pml_objects_always_created(self, minimal_setup):
-        objs, arrays, config = minimal_setup
+        objs, _arrays, _config = minimal_setup
         assert len(objs.pml_objects) == 6
 
     def test_all_pml_objects_are_pml_type(self, minimal_setup):
-        objs, arrays, config = minimal_setup
+        objs, _arrays, _config = minimal_setup
         for pml in objs.pml_objects:
             assert isinstance(pml, PerfectlyMatchedLayer)
 
     def test_one_input_one_output_total_objects(self, minimal_setup):
-        objs, arrays, config = minimal_setup
+        objs, _arrays, _config = minimal_setup
         # 1 background + 6 PML + 1 source + 1 norm_det + 1 output_det = 10
         assert len(objs.object_list) == 10
 
     def test_source_count_matches_input_ports(self, two_port_setup):
-        objs, arrays, config = two_port_setup
+        objs, _arrays, _config = two_port_setup
         assert len(objs.sources) == 2
 
     def test_detector_count_equals_input_plus_output(self, two_port_setup):
-        objs, arrays, config = two_port_setup
+        objs, _arrays, _config = two_port_setup
         # 2 norm detectors (one per input) + 2 output detectors = 4
         assert len(objs.detectors) == 4
 
@@ -205,15 +205,15 @@ class TestSetupSparamsObjectCounts:
 
 class TestSetupSparamsNaming:
     def test_named_source_name_preserved(self, minimal_setup):
-        objs, arrays, config = minimal_setup
+        objs, _arrays, _config = minimal_setup
         assert "SrcA" in [s.name for s in objs.sources]
 
     def test_named_output_detector_name_preserved(self, minimal_setup):
-        objs, arrays, config = minimal_setup
+        objs, _arrays, _config = minimal_setup
         assert "DetB" in [d.name for d in objs.detectors]
 
     def test_input_norm_detector_name_pattern(self, minimal_setup):
-        objs, arrays, config = minimal_setup
+        objs, _arrays, _config = minimal_setup
         assert "SrcA_input_normalization" in [d.name for d in objs.detectors]
 
     def test_unnamed_input_gets_source_i_name(self):
@@ -241,7 +241,7 @@ class TestSetupSparamsNaming:
         assert "Detector_1" in det_names
 
     def test_two_port_norm_detector_names(self, two_port_setup):
-        objs, arrays, config = two_port_setup
+        objs, _arrays, _config = two_port_setup
         det_names = [d.name for d in objs.detectors]
         assert "P1_input_normalization" in det_names
         assert "P2_input_normalization" in det_names
@@ -282,7 +282,7 @@ class TestSetupSparamsPortAttributes:
         assert objs["S"].partial_real_shape == expected
 
     def test_norm_detector_same_shape_as_source(self, minimal_setup):
-        objs, arrays, config = minimal_setup
+        objs, _arrays, _config = minimal_setup
         assert objs["SrcA_input_normalization"].partial_real_shape == objs["SrcA"].partial_real_shape
 
 
@@ -293,27 +293,27 @@ class TestSetupSparamsPortAttributes:
 
 class TestSetupSparamsArrayContainer:
     def test_e_field_shape_matches_grid(self, minimal_setup):
-        objs, arrays, config = minimal_setup
-        expected = (3,) + objs.volume.grid_shape
+        objs, arrays, _config = minimal_setup
+        expected = (3, *objs.volume.grid_shape)
         assert arrays.E.shape == expected
 
     def test_h_field_shape_matches_grid(self, minimal_setup):
-        objs, arrays, config = minimal_setup
-        expected = (3,) + objs.volume.grid_shape
+        objs, arrays, _config = minimal_setup
+        expected = (3, *objs.volume.grid_shape)
         assert arrays.H.shape == expected
 
     def test_detector_states_keys_match_detectors(self, minimal_setup):
-        objs, arrays, config = minimal_setup
+        objs, arrays, _config = minimal_setup
         expected = {d.name for d in objs.detectors}
         assert set(arrays.detector_states.keys()) == expected
 
     def test_fields_initialized_to_zero(self, minimal_setup):
-        objs, arrays, config = minimal_setup
+        _objs, arrays, _config = minimal_setup
         assert jnp.all(arrays.E == 0)
         assert jnp.all(arrays.H == 0)
 
     def test_inv_permittivities_positive(self, minimal_setup):
-        objs, arrays, config = minimal_setup
+        _objs, arrays, _config = minimal_setup
         assert jnp.all(arrays.inv_permittivities > 0)
 
 
@@ -328,36 +328,36 @@ class TestDetermineInputNormDetectorName:
     """
 
     def test_finds_p1_norm_detector(self, two_port_setup):
-        objs, arrays, config = two_port_setup
+        objs, _arrays, _config = two_port_setup
         assert determine_input_norm_detector_name("P1", objs) == "P1_input_normalization"
 
     def test_finds_p2_norm_detector(self, two_port_setup):
-        objs, arrays, config = two_port_setup
+        objs, _arrays, _config = two_port_setup
         assert determine_input_norm_detector_name("P2", objs) == "P2_input_normalization"
 
     def test_partial_suffix_unique_match(self, two_port_setup):
         # "P1_input" is a substring of "P1_input_normalization" only
-        objs, arrays, config = two_port_setup
+        objs, _arrays, _config = two_port_setup
         assert determine_input_norm_detector_name("P1_input", objs) == "P1_input_normalization"
 
     def test_no_match_raises_exception(self, two_port_setup):
-        objs, arrays, config = two_port_setup
+        objs, _arrays, _config = two_port_setup
         with pytest.raises(Exception, match="Cannot find"):
             determine_input_norm_detector_name("nonexistent_xyz_987", objs)
 
     def test_ambiguous_match_raises_exception(self, two_port_setup):
         # "_input_normalization" is a substring of both P1 and P2 norm detectors
-        objs, arrays, config = two_port_setup
+        objs, _arrays, _config = two_port_setup
         with pytest.raises(Exception, match="Cannot uniquely determine"):
             determine_input_norm_detector_name("_input_normalization", objs)
 
     def test_output_only_detector_matched_by_name(self, two_port_setup):
         # Confirms that all ModeOverlapDetectors (not just norm ones) are searched
-        objs, arrays, config = two_port_setup
+        objs, _arrays, _config = two_port_setup
         assert determine_input_norm_detector_name("P3", objs) == "P3"
 
     def test_returns_string(self, two_port_setup):
-        objs, arrays, config = two_port_setup
+        objs, _arrays, _config = two_port_setup
         result = determine_input_norm_detector_name("P1", objs)
         assert isinstance(result, str)
 
@@ -463,42 +463,42 @@ class TestCalculateSparamMultiSource:
 
     def test_returns_without_error(self, two_source_sparam_result):
         # Simply constructing the fixture confirms no exception was raised
-        result, states, objs = two_source_sparam_result
+        result, _states, _objs = two_source_sparam_result
         assert result is not None
 
     def test_result_is_dict(self, two_source_sparam_result):
-        result, states, objs = two_source_sparam_result
+        result, _states, _objs = two_source_sparam_result
         assert isinstance(result, dict)
 
     def test_states_is_dict(self, two_source_sparam_result):
-        result, states, objs = two_source_sparam_result
+        _result, states, _objs = two_source_sparam_result
         assert isinstance(states, dict)
 
     def test_result_keys_are_two_tuples(self, two_source_sparam_result):
-        result, states, objs = two_source_sparam_result
+        result, _states, _objs = two_source_sparam_result
         for key in result:
             assert isinstance(key, tuple) and len(key) == 2
 
     def test_input_port_name_in_all_keys(self, two_source_sparam_result):
-        result, states, objs = two_source_sparam_result
+        result, _states, _objs = two_source_sparam_result
         for det_name, src_name in result:
             assert src_name == "P1"
 
     def test_all_detectors_appear_in_result(self, two_source_sparam_result):
-        result, states, objs = two_source_sparam_result
+        result, _states, objs = two_source_sparam_result
         expected_dets = {d.name for d in objs.detectors}
         result_dets = {det_name for det_name, _ in result}
         assert result_dets == expected_dets
 
     def test_detector_states_returned_for_all_detectors(self, two_source_sparam_result):
-        result, states, objs = two_source_sparam_result
+        _result, states, objs = two_source_sparam_result
         for det in objs.detectors:
             assert det.name in states
 
     def test_s_params_are_finite(self, two_source_sparam_result):
         import jax.numpy as jnp
 
-        result, states, objs = two_source_sparam_result
+        result, _states, _objs = two_source_sparam_result
         for (det_name, _), s_param in result.items():
             assert jnp.isfinite(jnp.abs(s_param)), f"S-param for {det_name!r} is not finite"
 
@@ -560,27 +560,27 @@ class TestCalculateSparamsWrapper:
         assert isinstance(result, tuple) and len(result) == 2
 
     def test_merged_dict_contains_p1(self, sparams_wrapper_result):
-        result, states, objs = sparams_wrapper_result
+        result, _states, _objs = sparams_wrapper_result
         src_names = {src_name for _, src_name in result}
         assert "P1" in src_names
 
     def test_merged_dict_contains_p2(self, sparams_wrapper_result):
-        result, states, objs = sparams_wrapper_result
+        result, _states, _objs = sparams_wrapper_result
         src_names = {src_name for _, src_name in result}
         assert "P2" in src_names
 
     def test_merged_dict_key_count(self, sparams_wrapper_result):
-        result, states, objs = sparams_wrapper_result
+        result, _states, objs = sparams_wrapper_result
         n_detectors = len(objs.detectors)
         n_ports = 2
         assert len(result) == n_detectors * n_ports
 
     def test_detector_states_list_length(self, sparams_wrapper_result):
-        result, states, objs = sparams_wrapper_result
+        _result, states, _objs = sparams_wrapper_result
         assert len(states) == 2
 
     def test_detector_states_are_dicts(self, sparams_wrapper_result):
-        result, states, objs = sparams_wrapper_result
+        _result, states, _objs = sparams_wrapper_result
         for s in states:
             assert isinstance(s, dict)
 
@@ -609,6 +609,6 @@ class TestCalculateSparamsWrapper:
         assert states == []
 
     def test_s_params_are_finite(self, sparams_wrapper_result):
-        result, states, objs = sparams_wrapper_result
+        result, _states, _objs = sparams_wrapper_result
         for (det_name, _), s_param in result.items():
             assert jnp.isfinite(jnp.abs(s_param)), f"S-param for {det_name!r} is not finite"

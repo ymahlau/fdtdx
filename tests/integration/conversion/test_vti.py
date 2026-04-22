@@ -27,7 +27,7 @@ def test_export_arrays_snapshot_to_vti(tmp_path):
         constraints=[],
         key=subkey,
     )
-    arrays, new_objects, _ = fdtdx.apply_params(arrays, objects, params, key)
+    arrays, _new_objects, _ = fdtdx.apply_params(arrays, objects, params, key)
 
     output_path = tmp_path / "snapshot.vti"
 
