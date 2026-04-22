@@ -266,7 +266,7 @@ def calculate_sparam(
             found_input = True
             continue
         source_idx = objects.index(source.name)
-        objects = objects.aset(f"object_list[{source_idx}].switch.is_always_off", True)
+        objects = objects.aset(f"object_list->[{source_idx}]->switch->is_always_off", True)
     if not found_input:
         raise ValueError(f"{input_port_name=} does not exist")
 
