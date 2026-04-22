@@ -5,11 +5,12 @@ from typing import Literal
 
 import jax
 
-from fdtdx import extend_material_to_pml
+from fdtdx import DetectorState, GaussianPulseProfile, extend_material_to_pml
 from fdtdx.config import SimulationConfig
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.initialization import apply_params, place_objects
+from fdtdx.fdtd.stop_conditions import EnergyThresholdCondition
 from fdtdx.fdtd.wrapper import run_fdtd
 from fdtdx.materials import Material
 from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
@@ -166,7 +167,9 @@ def setup_sparams_simulation(
         object_list.append(poly)
         constraints.append(_center_at(poly, offset))
 
-    wave_character = WaveCharacter(wavelength=wavelength)
+    center_wave_character = WaveCharacter(wavelength=wavelength)
+    width_wave_character = WaveCharacter(wavelength=wavelength * 10)
+    profile = GaussianPulseProfile(center_wave=center_wave_character, spectral_width=width_wave_character)
 
     for i, port in enumerate(input_ports):
         name = port.name if port.name else f"Source_{i}"
@@ -174,12 +177,24 @@ def setup_sparams_simulation(
             mode_index=port.mode_index,
             filter_pol=port.filter_pol,
             direction=port.direction,
-            wave_character=wave_character,
+            temporal_profile=profile,
+            wave_character=center_wave_character,
             partial_real_shape=_make_port_shape(port.axis, resolution, port.width, port.height),
             name=name,
         )
         object_list.append(source)
         constraints.append(_center_at(source, port.center))
+
+        input_detector = ModeOverlapDetector(
+            mode_index=port.mode_index,
+            filter_pol=port.filter_pol,
+            direction=port.direction,
+            wave_characters=(center_wave_character,),
+            partial_real_shape=_make_port_shape(port.axis, resolution, port.width, port.height),
+            name=f"{name}_input_normalization",
+        )
+        object_list.append(input_detector)
+        constraints.append(_center_at(input_detector, port.center))
 
     for i, port in enumerate(output_ports):
         name = port.name if port.name else f"Detector_{i}"
@@ -187,7 +202,7 @@ def setup_sparams_simulation(
             mode_index=port.mode_index,
             filter_pol=port.filter_pol,
             direction=port.direction,
-            wave_characters=(wave_character,),
+            wave_characters=(center_wave_character,),
             partial_real_shape=_make_port_shape(port.axis, resolution, port.width, port.height),
             name=name,
         )
@@ -213,9 +228,10 @@ def calculate_sparam(
     arrays: ArrayContainer,
     config: SimulationConfig,
     input_port_name: str,
-    key: jax.Array | None = None,
     show_progress: bool = True,
-) -> dict[tuple[str, str], jax.Array]:
+    input_normalization_detector_name: str | None = None,
+    key: jax.Array | None = None,
+) -> tuple[dict[tuple[str, str], jax.Array], dict[str, DetectorState]]:
     """Run the FDTD simulation and extract S-parameters from mode-overlap detectors.
 
     Intended to be called with the outputs of :func:`setup_sparams_simulation`.
@@ -254,22 +270,56 @@ def calculate_sparam(
     if not found_input:
         raise ValueError(f"{input_port_name=} does not exist")
 
+    input_norm_name_part = (
+        input_normalization_detector_name if input_normalization_detector_name is not None else input_port_name
+    )
+    input_norm_name = determine_input_norm_detector_name(input_norm_name_part, objects)
+
     # apply_params (with no device params) calls obj.apply() on every object, which triggers mode-profile computation
     # inside ModeOverlapDetector and ModePlaneSource.
     key, subkey = jax.random.split(key)
     arrays, objects, _ = apply_params(arrays, objects, {}, subkey)
 
-    _, final_arrays = run_fdtd(
+    # run the simulation for at least 10% of max time specified
+    stopping_condition = EnergyThresholdCondition(
+        min_steps=round(config.time_steps_total / 10),
+    )
+
+    jitted_fdtd = jax.jit(run_fdtd, static_argnames=["show_progress"])
+    _, final_arrays = jitted_fdtd(
         arrays=arrays,
         objects=objects,
         config=config,
         key=key,
         show_progress=show_progress,
+        stopping_condition=stopping_condition,
     )
+
+    input_det_state = final_arrays.detector_states[input_norm_name]
+    input_det = objects[input_norm_name]
+    assert isinstance(input_det, ModeOverlapDetector)
+    input_overlap = input_det.compute_overlap(input_det_state)
 
     result: dict[tuple[str, str], jax.Array] = {}
     for obj in objects.object_list:
         if isinstance(obj, ModeOverlapDetector):
             state = final_arrays.detector_states[obj.name]
-            result[(obj.name, input_port_name)] = obj.compute_overlap(state)
-    return result
+            raw_overlap = obj.compute_overlap(state)
+            result[(obj.name, input_port_name)] = raw_overlap / input_overlap
+    return result, final_arrays.detector_states
+
+
+def determine_input_norm_detector_name(name_part: str, objects: ObjectContainer) -> str:
+    results = []
+    for obj in objects.object_list:
+        if isinstance(obj, ModeOverlapDetector):
+            if name_part in obj.name:
+                results.append(obj.name)
+    if len(results) == 1:
+        return results[0]
+    if not results:
+        raise Exception(f"Cannot find input normalization detector: No detector has {name_part} in name.")
+    raise Exception(
+        f"Cannot uniquely determine input normalization detector. Found multiple detector with {name_part} as part"
+        f" of their name. Found: {results}"
+    )
