@@ -203,8 +203,7 @@ def setup_sparams_simulation(
             partial_real_shape=_make_port_shape(port.axis, resolution, port.width, port.height),
             name=name,
         )
-        object_list.append(source)
-        constraints.append(_center_at(source, port.center))
+        object_list.append(_center_at(source, port.center))
 
         input_detector = ModeOverlapDetector(
             mode_index=port.mode_index,
@@ -229,8 +228,7 @@ def setup_sparams_simulation(
             partial_real_shape=_make_port_shape(port.axis, resolution, port.width, port.height),
             name=name,
         )
-        object_list.append(detector)
-        constraints.append(_center_at(detector, port.center))
+        object_list.append(_center_at(detector, port.center))
 
     objects, arrays, _, config, _ = place_objects(
         object_list=object_list,
