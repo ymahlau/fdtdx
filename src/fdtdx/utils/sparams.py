@@ -66,8 +66,9 @@ def setup_sparams_simulation(
     wavelength: float,
     resolution: float,
     max_time: float,
-    domain_size: tuple[float, float, float],
-    background_material: Material | None = None,
+    background_material: Material,
+    height: float,
+    domain_size: tuple[float, float] | None = None,
     pml_layers: int = 10,
     key: jax.Array | None = None,
 ) -> tuple[ObjectContainer, ArrayContainer, SimulationConfig]:
@@ -116,20 +117,56 @@ def setup_sparams_simulation(
     """
     if key is None:
         key = jax.random.PRNGKey(0)
-    if background_material is None:
-        background_material = Material()
+
+    def _nan_to_zero(v: float | None):
+        return v if v is not None else 0
+
+    def _center_at(obj, offset: tuple[float, float, float]):
+        """Constrain obj centre to core-region position offset."""
+        new_position = (
+            _nan_to_zero(obj.partial_real_position[0]) + offset[0],
+            _nan_to_zero(obj.partial_real_position[1]) + offset[1],
+            _nan_to_zero(obj.partial_real_position[2]) + offset[2],
+        )
+        obj = obj.aset("partial_real_position", new_position)
+        return obj
+
+    object_list = []
+    for poly, offset in polygons:
+        adjusted_poly = _center_at(poly, offset)
+        object_list.append(adjusted_poly)
+
+    # if domain size is not given, automatically determine bounds through given polygons
+    minx, maxx, miny, maxy = None, None, None, None
+    for obj in object_list:
+        if any([x is None for x in obj.partial_real_shape]):
+            raise ValueError(f"Polygon objects need to have size specified, but got: {obj}")
+        cur_minx = obj.partial_real_position[0] - obj.partial_real_shape[0] / 2
+        cur_maxx = obj.partial_real_position[0] + obj.partial_real_shape[0] / 2
+        cur_miny = obj.partial_real_position[1] - obj.partial_real_shape[1] / 2
+        cur_maxy = obj.partial_real_position[1] + obj.partial_real_shape[1] / 2
+        if minx is None or cur_minx < minx:
+            minx = cur_minx
+        if maxx is None or cur_maxx > maxx:
+            maxx = cur_maxx
+        if miny is None or cur_miny < miny:
+            miny = cur_miny
+        if maxy is None or cur_maxy > maxy:
+            maxy = cur_maxy
+
+    if domain_size is None:
+        assert maxx is not None and minx is not None and maxy is not None and miny is not None
+        calc_sizex, calc_sizey = maxx - minx, maxy - miny
+        domain_size = (calc_sizex, calc_sizey)
 
     pml_thickness = pml_layers * resolution
     total_size: tuple[float, float, float] = (
         domain_size[0] + 2.0 * pml_thickness,
         domain_size[1] + 2.0 * pml_thickness,
-        domain_size[2] + 2.0 * pml_thickness,
+        height + 2.0 * pml_thickness,
     )
 
     config = SimulationConfig(time=max_time, resolution=resolution)
-
-    object_list = []
-    constraints = []
 
     background = SimulationVolume(
         partial_real_shape=total_size,
@@ -148,24 +185,8 @@ def setup_sparams_simulation(
     )
     boundary_dict, boundary_constraints = boundary_objects_from_config(bound_cfg, background)
     object_list.extend(boundary_dict.values())
+    constraints = []
     constraints.extend(boundary_constraints)
-
-    def _nan_to_zero(v: float | None):
-        return v if v is not None else 0
-
-    def _center_at(obj, offset: tuple[float, float, float]):
-        """Constrain obj centre to core-region position offset."""
-        new_position = (
-            _nan_to_zero(obj.partial_real_position[0]) + offset[0],
-            _nan_to_zero(obj.partial_real_position[1]) + offset[1],
-            _nan_to_zero(obj.partial_real_position[2]) + offset[2],
-        )
-        obj = obj.aset("partial_real_position", new_position)
-        return obj
-
-    for poly, offset in polygons:
-        adjusted_poly = _center_at(poly, offset)
-        object_list.append(adjusted_poly)
 
     center_wave_character = WaveCharacter(wavelength=wavelength)
     width_wave_character = WaveCharacter(wavelength=wavelength * 10)
