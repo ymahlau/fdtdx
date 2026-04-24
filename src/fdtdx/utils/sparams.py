@@ -150,23 +150,22 @@ def setup_sparams_simulation(
     object_list.extend(boundary_dict.values())
     constraints.extend(boundary_constraints)
 
+    def _nan_to_zero(v: float | None):
+        return v if v is not None else 0
+
     def _center_at(obj, offset: tuple[float, float, float]):
         """Constrain obj centre to core-region position offset."""
-        return obj.place_relative_to(
-            background,
-            axes=(0, 1, 2),
-            own_positions=(0.0, 0.0, 0.0),
-            other_positions=(-1.0, -1.0, -1.0),
-            margins=(
-                offset[0] + pml_thickness,
-                offset[1] + pml_thickness,
-                offset[2] + pml_thickness,
-            ),
+        new_position = (
+            _nan_to_zero(obj.partial_real_position[0]) + offset[0],
+            _nan_to_zero(obj.partial_real_position[1]) + offset[1],
+            _nan_to_zero(obj.partial_real_position[2]) + offset[2],
         )
+        obj = obj.aset("partial_real_position", new_position)
+        return obj
 
     for poly, offset in polygons:
-        object_list.append(poly)
-        constraints.append(_center_at(poly, offset))
+        adjusted_poly = _center_at(poly, offset)
+        object_list.append(adjusted_poly)
 
     center_wave_character = WaveCharacter(wavelength=wavelength)
     width_wave_character = WaveCharacter(wavelength=wavelength * 10)
