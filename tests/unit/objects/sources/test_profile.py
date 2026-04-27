@@ -1,7 +1,10 @@
 """Tests for objects/sources/profile.py - Temporal profiles."""
 
+import math
+
 import jax.numpy as jnp
 import matplotlib
+import numpy as np
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -224,30 +227,29 @@ class TestCustomTimeSignalProfile:
         assert jnp.allclose(profile.signal, signal)
         assert profile.time_step_duration == 0.25
         assert profile.start_time == 0.0
-        assert profile.center_wave is None
-        assert profile.fwidth is None
         assert profile.interpolation == "linear"
         assert profile.outside_value == 0.0
 
     def test_exact_sample_times(self):
         """Test that exact sample times return exact signal values."""
-        signal = jnp.array([0.0, 2.0, 4.0, 8.0], dtype=jnp.float32)
-        profile = CustomTimeSignalProfile(signal=signal, time_step_duration=0.25)
+        signal = jnp.array([0.0, 0.0, 1.0, -2.0, 1.0, 0.0, 0.0], dtype=jnp.float32)
+        profile = CustomTimeSignalProfile(signal=signal, time_step_duration=1.0)
 
-        times = jnp.array([0.0, 0.25, 0.5, 0.75], dtype=jnp.float32)
+        times = jnp.arange(7, dtype=jnp.float32)
         amplitudes = profile.get_amplitude(time=times, period=1.0)
 
         assert jnp.allclose(amplitudes, signal)
 
     def test_linear_interpolation_between_samples(self):
-        """Test linear interpolation between adjacent signal samples."""
-        signal = jnp.array([0.0, 2.0, 4.0, 8.0], dtype=jnp.float32)
-        profile = CustomTimeSignalProfile(signal=signal, time_step_duration=0.25)
+        """Test linear interpolation between adjacent signal samples, including sign changes."""
+        signal = jnp.array([0.0, 0.0, 1.0, -2.0, 1.0, 0.0, 0.0], dtype=jnp.float32)
+        profile = CustomTimeSignalProfile(signal=signal, time_step_duration=1.0)
 
-        times = jnp.array([0.125, 0.375, 0.625], dtype=jnp.float32)
+        # t=1.5: midpoint(0.0, 1.0)=0.5; t=2.5: midpoint(1.0, -2.0)=-0.5; t=3.5: midpoint(-2.0, 1.0)=-0.5
+        times = jnp.array([1.5, 2.5, 3.5], dtype=jnp.float32)
         amplitudes = profile.get_amplitude(time=times, period=1.0)
 
-        expected = jnp.array([1.0, 3.0, 6.0], dtype=jnp.float32)
+        expected = jnp.array([0.5, -0.5, -0.5], dtype=jnp.float32)
         assert jnp.allclose(amplitudes, expected)
 
     def test_nearest_interpolation(self):
@@ -292,48 +294,37 @@ class TestCustomTimeSignalProfile:
         assert jnp.isclose(amp_no_shift, amp_with_shift)
 
     def test_array_time_input(self):
-        """Test amplitude with vector input times."""
-        signal = jnp.array([0.0, 2.0, 4.0, 8.0], dtype=jnp.float32)
-        profile = CustomTimeSignalProfile(signal=signal, time_step_duration=0.25)
+        """Test amplitude with vector input: boundary clamping, sign-change interpolation, outside_value."""
+        signal = jnp.array([0.0, 0.0, 1.0, -2.0, 1.0, 0.0, 0.0], dtype=jnp.float32)
+        profile = CustomTimeSignalProfile(signal=signal, time_step_duration=1.0)
 
-        times = jnp.array([-0.25, 0.0, 0.125, 0.75, 1.0], dtype=jnp.float32)
+        # pre-boundary, first sample, sign-change midpoint, negative peak, post-boundary
+        times = jnp.array([-0.5, 0.0, 2.5, 3.0, 7.0], dtype=jnp.float32)
         amplitudes = profile.get_amplitude(time=times, period=1.0)
 
-        expected = jnp.array([0.0, 0.0, 1.0, 8.0, 0.0], dtype=jnp.float32)
+        expected = jnp.array([0.0, 0.0, -0.5, -2.0, 0.0], dtype=jnp.float32)
         assert jnp.allclose(amplitudes, expected)
 
-    def test_reference_frequency_uses_center_wave(self):
-        """Test reference frequency metadata fallback and center_wave override."""
-        signal = jnp.array([0.0, 2.0, 4.0, 8.0], dtype=jnp.float32)
-        profile_without_center = CustomTimeSignalProfile(signal=signal, time_step_duration=0.25)
-        profile_with_center = CustomTimeSignalProfile(
-            signal=signal,
-            time_step_duration=0.25,
-            center_wave=WaveCharacter(frequency=193.4e12),
+    def test_reference_frequency_is_spectral_centroid(self):
+        """Reference frequency is computed as the power-weighted spectral centroid.
+
+        For a Gaussian-windowed carrier the centroid should be very close to the
+        carrier frequency — no user-supplied metadata required.
+        """
+        dt = 1e-15
+        n = 4096
+        f0 = 300e12
+        sigma_t = 30e-15
+        t0 = (n // 2) * dt
+        t = np.arange(n, dtype=np.float64) * dt
+        signal = jnp.asarray(
+            np.exp(-((t - t0) ** 2) / (2 * sigma_t**2)) * np.cos(2 * math.pi * f0 * (t - t0)),
+            dtype=jnp.float32,
         )
+        profile = CustomTimeSignalProfile(signal=signal, time_step_duration=dt)
 
-        assert profile_without_center.get_reference_frequency(period=2e-12) == 0.5e12
-        assert profile_with_center.get_reference_frequency(period=2e-12) == 193.4e12
-
-    def test_frequency_plot_range_uses_center_and_fwidth(self):
-        """Test frequency plot range from center_wave and fwidth metadata."""
-        signal = jnp.array([0.0, 2.0, 4.0, 8.0], dtype=jnp.float32)
-        profile = CustomTimeSignalProfile(
-            signal=signal,
-            time_step_duration=0.25,
-            center_wave=WaveCharacter(frequency=5.0),
-            fwidth=WaveCharacter(frequency=2.0),
-        )
-        frequencies = jnp.array([0.0, 2.0, 4.0, 6.0, 8.0, 10.0], dtype=jnp.float32)
-        spectrum = jnp.ones_like(frequencies)
-
-        frequency_range = profile.get_frequency_plot_range(
-            period=1.0,
-            frequencies=frequencies,
-            spectrum=spectrum,
-        )
-
-        assert frequency_range == (0.0, 10.0)
+        ref_freq = profile.get_reference_frequency(period=1.0 / f0)
+        assert abs(ref_freq - f0) / f0 < 0.02
 
     def test_plot_time_signal_and_spectrum_custom_writes_file(self, tmp_path):
         """Test that custom time-signal plots can be written to disk."""
@@ -369,6 +360,63 @@ class TestCustomTimeSignalProfile:
         assert len(axs[0].lines) == 1
         assert len(axs[1].lines) == 1
         plt.close("all")
+
+    def test_analytical_fidelity_time_and_frequency_domain(self):
+        """Verify that a Gaussian-windowed carrier is reproduced faithfully in time and frequency.
+
+        Analytical signal: s(t) = exp(-(t-t0)²/(2σ_t²)) · cos(2π f0 (t-t0))
+        Analytical spectrum: |S(f)| ∝ exp(-(f-f0)²/(2σ_f²)),  σ_f = 1/(2π σ_t)
+        """
+        dt = 1e-15  # 1 fs — resolves 300 THz optical carrier
+        n = 4096
+        f0 = 300e12  # 1 µm carrier
+        sigma_t = 30e-15  # 30 fs pulse → σ_f ≈ 5.3 THz
+        t0 = (n // 2) * dt  # center pulse in the window
+
+        time_grid = np.arange(n, dtype=np.float64) * dt
+
+        def analytical(t):
+            return np.exp(-((t - t0) ** 2) / (2 * sigma_t**2)) * np.cos(2 * math.pi * f0 * (t - t0))
+
+        signal = jnp.asarray(analytical(time_grid), dtype=jnp.float32)
+        profile = CustomTimeSignalProfile(signal=signal, time_step_duration=dt)
+
+        # --- time-domain fidelity ---
+        # Query at 200 off-grid times (shifted by 0.3 dt so we exercise interpolation)
+        query_times = jnp.asarray(np.arange(100, 300, dtype=np.float64) * dt + 0.3 * dt, dtype=jnp.float32)
+        interpolated = np.asarray(profile.get_amplitude(time=query_times, period=1.0 / f0))
+        expected = analytical(np.asarray(query_times, dtype=np.float64)).astype(np.float32)
+
+        max_error = float(np.max(np.abs(interpolated - expected)))
+        assert max_error < 1e-3, f"time-domain interpolation error {max_error:.2e} exceeds 1e-3"
+
+        # --- frequency-domain fidelity ---
+        frequencies, spectrum = profile.frequency_spectrum(
+            period=1.0 / f0,
+            time_step_duration=dt,
+            num_time_steps=n,
+            normalize=True,
+        )
+
+        # Peak must land within one frequency bin of the carrier
+        df = frequencies[1] - frequencies[0]
+        peak_freq = frequencies[np.argmax(spectrum)]
+        assert abs(peak_freq - f0) < df, (
+            f"spectral peak {peak_freq:.3e} Hz deviates from f0={f0:.3e} Hz by more than df={df:.3e} Hz"
+        )
+
+        # At f0 ± 2σ_f the Gaussian envelope gives exp(-2) ≈ 0.135; allow 15 % tolerance
+        sigma_f = 1.0 / (2 * math.pi * sigma_t)
+        for sign in (-1, +1):
+            target_freq = f0 + sign * 2 * sigma_f
+            idx = int(np.argmin(np.abs(frequencies - target_freq)))
+            assert abs(spectrum[idx] - math.exp(-2)) < 0.15, (
+                f"spectrum at f0{'+' if sign > 0 else '-'}2σ_f = {spectrum[idx]:.3f}, expected ≈ {math.exp(-2):.3f}"
+            )
+
+        # Strong out-of-band suppression at f0 + 5σ_f
+        idx_oob = int(np.argmin(np.abs(frequencies - (f0 + 5 * sigma_f))))
+        assert spectrum[idx_oob] < 0.01, f"out-of-band spectrum at f0+5σ_f = {spectrum[idx_oob]:.4f}, expected < 0.01"
 
 
 class TestTemporalProfilePlotting:
