@@ -841,7 +841,7 @@ class TestGradientDispersiveLossy:
         xs, ys, zs = jnp.where(c3 != 0, size=1, fill_value=0)
         voxel = (int(xs[0]), int(ys[0]), int(zs[0]))
         # pick the polarization component the dipole drives (axis 0)
-        idx = (0,) + voxel
+        idx = (0, *voxel)
 
         # Scale the step to the magnitude of the voxel being probed so that
         # float32 round-off doesn't swamp the finite-difference numerator.

@@ -144,7 +144,7 @@ def test_pole_padding_mixed_pole_counts(simple_config, simple_volume):
         ),
     ]
     key = jax.random.PRNGKey(0)
-    objects, arrays, _, config, _ = place_objects([simple_volume, obj1, obj2], simple_config, constraints, key)
+    objects, arrays, _, _, _ = place_objects([simple_volume, obj1, obj2], simple_config, constraints, key)
     placed1 = _placed(objects, "one_pole_slab")
     placed2 = _placed(objects, "three_pole_slab")
 
@@ -372,7 +372,7 @@ def test_device_dispersive_discrete(simple_config, simple_volume):
     drude_params = {name: jnp.ones_like(p) for name, p in params.items()}
     arrays, objects, _ = apply_params(arrays, objects, drude_params, key)
 
-    c1_ref, c2_ref, c3_ref = compute_pole_coefficients(
+    c1_ref, _, c3_ref = compute_pole_coefficients(
         materials["drude"].dispersion.poles,  # type: ignore[union-attr]
         config.time_step_duration,
     )

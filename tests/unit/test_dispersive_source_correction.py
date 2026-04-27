@@ -28,7 +28,7 @@ def _broadcast_coeffs(c1_poles, c2_poles, c3_poles, spatial_shape):
     Matches the ArrayContainer storage layout used by fdtdx's ADE backend.
     """
     num_poles = c1_poles.shape[0]
-    target_shape = (num_poles, 1) + spatial_shape
+    target_shape = (num_poles, 1, *spatial_shape)
     c1 = np.broadcast_to(c1_poles.reshape(num_poles, 1, 1, 1, 1), target_shape).copy()
     c2 = np.broadcast_to(c2_poles.reshape(num_poles, 1, 1, 1, 1), target_shape).copy()
     c3 = np.broadcast_to(c3_poles.reshape(num_poles, 1, 1, 1, 1), target_shape).copy()
@@ -38,11 +38,11 @@ def _broadcast_coeffs(c1_poles, c2_poles, c3_poles, spatial_shape):
 class TestEpsSpectrum:
     def test_non_dispersive_returns_eps_inf(self):
         """Zero ADE coefficients → spectrum is flat at eps_inf."""
-        c1 = np.zeros((0, 1) + _SPATIAL_SHAPE)
-        c2 = np.zeros((0, 1) + _SPATIAL_SHAPE)
-        c3 = np.zeros((0, 1) + _SPATIAL_SHAPE)
+        c1 = np.zeros((0, 1, *_SPATIAL_SHAPE))
+        c2 = np.zeros((0, 1, *_SPATIAL_SHAPE))
+        c3 = np.zeros((0, 1, *_SPATIAL_SHAPE))
         eps_inf_value = 2.25
-        inv_eps_inf = np.full((1,) + _SPATIAL_SHAPE, 1.0 / eps_inf_value)
+        inv_eps_inf = np.full((1, *_SPATIAL_SHAPE), 1.0 / eps_inf_value)
 
         omegas = np.array([1e14, 1e15, 5e15], dtype=np.float64)
         spectrum = compute_eps_spectrum_from_coefficients(
@@ -69,7 +69,7 @@ class TestEpsSpectrum:
             _SPATIAL_SHAPE,
         )
         eps_inf = 1.0
-        inv_eps_inf = np.full((1,) + _SPATIAL_SHAPE, 1.0 / eps_inf)
+        inv_eps_inf = np.full((1, *_SPATIAL_SHAPE), 1.0 / eps_inf)
 
         omegas = np.array([0.5e15, 1.0e15, 1.8e15, 3.0e15], dtype=np.float64)
         spectrum = compute_eps_spectrum_from_coefficients(
@@ -103,7 +103,7 @@ class TestEpsSpectrum:
             _SPATIAL_SHAPE,
         )
         eps_inf = 1.0
-        inv_eps_inf = np.full((1,) + _SPATIAL_SHAPE, 1.0 / eps_inf)
+        inv_eps_inf = np.full((1, *_SPATIAL_SHAPE), 1.0 / eps_inf)
 
         omegas = np.array([1.5e15, 2.5e15, 4.0e15], dtype=np.float64)
         spectrum = compute_eps_spectrum_from_coefficients(

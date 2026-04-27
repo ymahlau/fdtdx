@@ -5,7 +5,7 @@ half-space at a single frequency. The dispersive ADE update must reproduce
 the analytic Fresnel coefficient computed from the DispersionModel's
 susceptibility at the test frequency.
 
-Layout mirrors ``test_fresnel.py`` — 3×3 periodic transverse, PMLs in z,
+Layout mirrors ``test_fresnel.py`` — 3x3 periodic transverse, PMLs in z,
 ``UniformPlaneSource`` in +z, one transmission-side Poynting flux detector.
 """
 
@@ -22,7 +22,7 @@ _RESOLUTION = 25e-9  # 40 cells/λ in vacuum
 _PML_CELLS = 10
 _DOMAIN_XY = 3 * _RESOLUTION
 _DOMAIN_Z = 5e-6
-_Z_CELLS = int(round(_DOMAIN_Z / _RESOLUTION))  # = 200
+_Z_CELLS = round(_DOMAIN_Z / _RESOLUTION)  # = 200
 
 _SOURCE_Z = _PML_CELLS + 2  # = 12
 _INTERFACE_Z = 100
@@ -39,7 +39,7 @@ _SIM_TIME = 120e-15
 _TOLERANCE = 0.05
 
 _DT_APPROX = 0.99 * _RESOLUTION / (c0 * np.sqrt(3))
-_STEPS_PER_PERIOD = int(round(_WAVELENGTH / (c0 * _DT_APPROX)))
+_STEPS_PER_PERIOD = round(_WAVELENGTH / (c0 * _DT_APPROX))
 _N_AVG_STEPS = 10 * _STEPS_PER_PERIOD
 
 

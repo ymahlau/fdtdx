@@ -112,7 +112,7 @@ class TestComputePoleCoefficients:
         # For gamma*dt << 1, c2 should be very close to -1 (makes reverse
         # recurrence numerically well-conditioned).
         p = LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0)
-        c1, c2, c3 = compute_pole_coefficients((p,), dt=1e-17)
+        _, c2, _ = compute_pole_coefficients((p,), dt=1e-17)
         assert abs(c2[0] + 1.0) < 2e-4
 
     def test_multiple_poles(self):
@@ -120,7 +120,7 @@ class TestComputePoleCoefficients:
             LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0),
             DrudePole(plasma_frequency=5e15, damping=1e14),
         )
-        c1, c2, c3 = compute_pole_coefficients(poles, dt=5e-18)
+        c1, _, c3 = compute_pole_coefficients(poles, dt=5e-18)
         assert c1.shape == (2,)
         # c3 for Drude should be non-zero because coupling_sq = omega_p**2
         assert c3[1] > 0
