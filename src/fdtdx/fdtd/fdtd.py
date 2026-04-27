@@ -67,6 +67,11 @@ def reversible_fdtd(
     #     raise Exception(f"Reversible FDTD does not work with Conductive Materials")
     arrays = reset_array_container(arrays, objects)
 
+    # ``dispersive_inv_c2`` is a derived cache of ``1/c2``; stop_gradient it so
+    # gradients flow only through ``dispersive_c2`` and don't double-count.
+    if arrays.dispersive_inv_c2 is not None:
+        arrays = arrays.at["dispersive_inv_c2"].set(jax.lax.stop_gradient(arrays.dispersive_inv_c2))
+
     pbar = _make_pbar(
         show_progress=show_progress,
         total_steps=config.time_steps_total,
@@ -110,6 +115,11 @@ def reversible_fdtd(
         sigma: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array,
+        dispersive_P_curr: jax.Array | None,
+        dispersive_P_prev: jax.Array | None,
+        dispersive_c1: jax.Array | None,
+        dispersive_c2: jax.Array | None,
+        dispersive_c3: jax.Array | None,
         detector_states: dict[str, DetectorState],
         recording_state: RecordingState | None,
     ):
@@ -127,6 +137,12 @@ def reversible_fdtd(
             recording_state=recording_state,
             electric_conductivity=arrays.electric_conductivity,
             magnetic_conductivity=arrays.magnetic_conductivity,
+            dispersive_P_curr=dispersive_P_curr,
+            dispersive_P_prev=dispersive_P_prev,
+            dispersive_c1=dispersive_c1,
+            dispersive_c2=dispersive_c2,
+            dispersive_c3=dispersive_c3,
+            dispersive_inv_c2=arrays.dispersive_inv_c2,
         )
         state = reversible_fdtd_base(arr)
         return (
@@ -140,6 +156,11 @@ def reversible_fdtd(
             state[1].sigma,
             state[1].inv_permittivities,
             state[1].inv_permeabilities,
+            state[1].dispersive_P_curr,
+            state[1].dispersive_P_prev,
+            state[1].dispersive_c1,
+            state[1].dispersive_c2,
+            state[1].dispersive_c3,
             state[1].detector_states,
             state[1].recording_state,
         )
@@ -165,6 +186,9 @@ def reversible_fdtd(
                 record_detectors=True,
                 record_boundaries=False,
                 simulate_boundaries=True,
+                electric_conductivity=arrays.electric_conductivity,
+                magnetic_conductivity=arrays.magnetic_conductivity,
+                dispersive_inv_c2=arrays.dispersive_inv_c2,
             ),
             state[0],
             state[1].E,
@@ -176,6 +200,11 @@ def reversible_fdtd(
             state[1].sigma,
             state[1].inv_permittivities,
             state[1].inv_permeabilities,
+            state[1].dispersive_P_curr,
+            state[1].dispersive_P_prev,
+            state[1].dispersive_c1,
+            state[1].dispersive_c2,
+            state[1].dispersive_c3,
             state[1].detector_states,
             state[1].recording_state,
         )
@@ -207,6 +236,11 @@ def reversible_fdtd(
             res_sigma,
             res_inv_permittivities,
             res_inv_permeabilities,
+            res_dispersive_P_curr,
+            res_dispersive_P_prev,
+            res_dispersive_c1,
+            res_dispersive_c2,
+            res_dispersive_c3,
             res_detector_states,
             res_recording_state,
         ) = residual
@@ -225,6 +259,12 @@ def reversible_fdtd(
             recording_state=res_recording_state,
             electric_conductivity=arrays.electric_conductivity,
             magnetic_conductivity=arrays.magnetic_conductivity,
+            dispersive_P_curr=res_dispersive_P_curr,
+            dispersive_P_prev=res_dispersive_P_prev,
+            dispersive_c1=res_dispersive_c1,
+            dispersive_c2=res_dispersive_c2,
+            dispersive_c3=res_dispersive_c3,
+            dispersive_inv_c2=arrays.dispersive_inv_c2,
         )
 
         _, cot = eqxi.while_loop(
@@ -234,17 +274,22 @@ def reversible_fdtd(
             kind="lax",
         )
         return (
-            None,  # cot[1],
-            None,  # cot[2],
-            None,  # cot[3],
-            None,  # cot[4],
-            None,  # cot[5],
-            None,  # cot[6],
-            None,  # cot[7],
-            cot[8],
-            cot[9],
-            None,  # cot[10],
-            None,  # cot[11],
+            None,  # cot[1],   E
+            None,  # cot[2],   H
+            None,  # cot[3],   psi_E
+            None,  # cot[4],   psi_H
+            None,  # cot[5],   alpha
+            None,  # cot[6],   kappa
+            None,  # cot[7],   sigma
+            cot[8],  #         inv_permittivities
+            cot[9],  #         inv_permeabilities
+            None,  # cot[10],  dispersive_P_curr
+            None,  # cot[11],  dispersive_P_prev
+            cot[12],  #        dispersive_c1
+            cot[13],  #        dispersive_c2
+            cot[14],  #        dispersive_c3
+            None,  # cot[15],  detector_states
+            None,  # cot[16],  recording_state
         )
 
     def fdtd_fwd(
@@ -257,6 +302,11 @@ def reversible_fdtd(
         sigma: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array,
+        dispersive_P_curr: jax.Array | None,
+        dispersive_P_prev: jax.Array | None,
+        dispersive_c1: jax.Array | None,
+        dispersive_c2: jax.Array | None,
+        dispersive_c3: jax.Array | None,
         detector_states: dict[str, DetectorState],
         recording_state: RecordingState | None,
     ):
@@ -274,6 +324,12 @@ def reversible_fdtd(
             recording_state=recording_state,
             electric_conductivity=arrays.electric_conductivity,
             magnetic_conductivity=arrays.magnetic_conductivity,
+            dispersive_P_curr=dispersive_P_curr,
+            dispersive_P_prev=dispersive_P_prev,
+            dispersive_c1=dispersive_c1,
+            dispersive_c2=dispersive_c2,
+            dispersive_c3=dispersive_c3,
+            dispersive_inv_c2=arrays.dispersive_inv_c2,
         )
         s_k = reversible_fdtd_base(arr)
 
@@ -288,23 +344,15 @@ def reversible_fdtd(
             s_k[1].sigma,
             s_k[1].inv_permittivities,
             s_k[1].inv_permeabilities,
+            s_k[1].dispersive_P_curr,
+            s_k[1].dispersive_P_prev,
+            s_k[1].dispersive_c1,
+            s_k[1].dispersive_c2,
+            s_k[1].dispersive_c3,
             s_k[1].detector_states,
             s_k[1].recording_state,  # None
         )
-        residual = (
-            s_k[0],
-            s_k[1].E,
-            s_k[1].H,
-            s_k[1].psi_E,
-            s_k[1].psi_H,
-            s_k[1].alpha,
-            s_k[1].kappa,
-            s_k[1].sigma,
-            s_k[1].inv_permittivities,
-            s_k[1].inv_permeabilities,
-            s_k[1].detector_states,
-            s_k[1].recording_state,
-        )
+        residual = primal_out
         return primal_out, residual
 
     reversible_fdtd_primal.defvjp(fdtd_fwd, fdtd_bwd)
@@ -320,6 +368,11 @@ def reversible_fdtd(
         sigma,
         inv_permittivities,
         inv_permeabilities,
+        dispersive_P_curr,
+        dispersive_P_prev,
+        dispersive_c1,
+        dispersive_c2,
+        dispersive_c3,
         detector_states,
         recording_state,
     ) = reversible_fdtd_primal(
@@ -332,6 +385,11 @@ def reversible_fdtd(
         sigma=arrays.sigma,
         inv_permittivities=arrays.inv_permittivities,
         inv_permeabilities=arrays.inv_permeabilities,
+        dispersive_P_curr=arrays.dispersive_P_curr,
+        dispersive_P_prev=arrays.dispersive_P_prev,
+        dispersive_c1=arrays.dispersive_c1,
+        dispersive_c2=arrays.dispersive_c2,
+        dispersive_c3=arrays.dispersive_c3,
         detector_states=arrays.detector_states,
         recording_state=arrays.recording_state,
     )
@@ -351,6 +409,12 @@ def reversible_fdtd(
         recording_state=recording_state,
         electric_conductivity=arrays.electric_conductivity,
         magnetic_conductivity=arrays.magnetic_conductivity,
+        dispersive_P_curr=dispersive_P_curr,
+        dispersive_P_prev=dispersive_P_prev,
+        dispersive_c1=dispersive_c1,
+        dispersive_c2=dispersive_c2,
+        dispersive_c3=dispersive_c3,
+        dispersive_inv_c2=arrays.dispersive_inv_c2,
     )
     return time_step, out_arrs
 

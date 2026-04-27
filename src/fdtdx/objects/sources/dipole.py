@@ -1,12 +1,39 @@
-from typing import Literal
+from typing import Literal, Self
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 
-from fdtdx.core.jax.pytrees import autoinit, frozen_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.linalg import rotate_vector
+from fdtdx.core.null import Null
+from fdtdx.dispersion import effective_inv_permittivity
 from fdtdx.objects.sources.source import Source
+
+
+def _contract_orientation(
+    inv_material: jax.Array | float,
+    orientation: jax.Array,
+) -> jax.Array:
+    """Contract a material tensor with the dipole orientation.
+
+    Returns ``inv_oriented[i, x, y, z] = sum_j inv_material_{ij}(x,y,z) * orientation_j``
+    as a ``(3, Nx, Ny, Nz)`` array. For the isotropic and diagonal
+    representations this reduces to componentwise multiplication, matching the
+    pre-existing behavior. For the 9-component flattened tensor it correctly
+    picks up the off-diagonal coupling that was previously dropped by indexing
+    a row of the flattened tensor with ``inv_material[axis]``.
+    """
+    orient = orientation.reshape(3, 1, 1, 1)
+    if not isinstance(inv_material, jax.Array) or inv_material.ndim == 0:
+        return jnp.asarray(inv_material) * orient
+    shape0 = inv_material.shape[0]
+    if shape0 == 9:
+        tensor = inv_material.reshape(3, 3, *inv_material.shape[1:])
+        return jnp.einsum("ij...,j->i...", tensor, orientation)
+    # shape0 in (1, 3): isotropic scalar broadcasts against orientation, diagonal
+    # multiplies componentwise. Both collapse to this single multiplication.
+    return inv_material * orient
 
 
 @autoinit
@@ -26,12 +53,20 @@ class PointDipoleSource(Source):
     For an electric dipole with unit orientation ``p_hat``, the E-field
     update at each time step is::
 
-        E[i, x, y, z] += -c * inv_eps[i] * p_hat[i] * amplitude * temporal(t)
+        E[i, x, y, z] += -c * (inv_eps @ p_hat)[i] * amplitude * temporal(t)
 
-    for each component *i* in {0, 1, 2}.
+    where the tensor contraction ``(inv_eps @ p_hat)[i] = sum_j inv_eps_{ij} * p_hat_j``
+    collapses to ``inv_eps[i] * p_hat[i]`` for isotropic and diagonal media but
+    correctly picks up off-diagonal coupling when the permittivity is a full
+    3x3 tensor.
 
     For a magnetic dipole, the dual applies during the H update with
     inv_permeability replacing inv_permittivity.
+
+    The medium permittivity/permeability at the source cell is sampled once
+    during :meth:`apply` — at the carrier angular frequency when a dispersive
+    coefficient arrays is provided — so dispersive media are handled correctly
+    without runtime overhead.
     """
 
     #: Polarization axis (0=x, 1=y, 2=z).
@@ -48,6 +83,11 @@ class PointDipoleSource(Source):
 
     #: Source amplitude.
     amplitude: float = frozen_field(default=1.0)
+
+    _inv_eps_local: jax.Array = private_field()
+    _inv_mu_local: jax.Array | float = private_field()
+    _inv_eps_oriented: jax.Array = private_field()
+    _inv_mu_oriented: jax.Array = private_field()
 
     def __post_init__(self):
         if self.source_type not in ("electric", "magnetic"):
@@ -76,6 +116,47 @@ class PointDipoleSource(Source):
             axes_tuple=axes_tuple,
         )
 
+    def apply(
+        self: Self,
+        key: jax.Array,
+        inv_permittivities: jax.Array,
+        inv_permeabilities: jax.Array | float,
+        dispersive_c1: jax.Array | None = None,
+        dispersive_c2: jax.Array | None = None,
+        dispersive_c3: jax.Array | None = None,
+    ) -> Self:
+        del key
+
+        # inv_permittivities shape: (num_components, Nx, Ny, Nz)
+        inv_eps_slice = inv_permittivities[:, *self.grid_slice]
+
+        if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
+            c1_slice = dispersive_c1[:, :, *self.grid_slice]
+            c2_slice = dispersive_c2[:, :, *self.grid_slice]
+            c3_slice = dispersive_c3[:, :, *self.grid_slice]
+            inv_eps_slice = effective_inv_permittivity(
+                inv_eps=inv_eps_slice,
+                c1=c1_slice,
+                c2=c2_slice,
+                c3=c3_slice,
+                omega=2.0 * np.pi * self.wave_character.get_frequency(),
+                dt=self._config.time_step_duration,
+            )
+
+        if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
+            inv_mu_slice: jax.Array | float = inv_permeabilities[:, *self.grid_slice]
+        else:
+            inv_mu_slice = inv_permeabilities
+
+        inv_eps_oriented = _contract_orientation(inv_eps_slice, self._orientation)
+        inv_mu_oriented = _contract_orientation(inv_mu_slice, self._orientation)
+
+        self = self.aset("_inv_eps_local", inv_eps_slice, create_new_ok=True)
+        self = self.aset("_inv_mu_local", inv_mu_slice, create_new_ok=True)
+        self = self.aset("_inv_eps_oriented", inv_eps_oriented, create_new_ok=True)
+        self = self.aset("_inv_mu_oriented", inv_mu_oriented, create_new_ok=True)
+        return self
+
     def update_E(
         self,
         E: jax.Array,
@@ -97,13 +178,17 @@ class PointDipoleSource(Source):
             phase_shift=self.wave_character.phase_shift,
         )
 
-        orientation = self._orientation
         sign = -1.0 if not inverse else 1.0
 
+        if isinstance(self._inv_eps_oriented, Null):
+            inv_eps_slice = inv_permittivities[:, *self.grid_slice]
+            inv_eps_oriented = _contract_orientation(inv_eps_slice, self._orientation)
+        else:
+            inv_eps_oriented = self._inv_eps_oriented
+
+        scale = c * self.amplitude * self.static_amplitude_factor * amplitude
         for axis in range(3):
-            weight = orientation[axis]
-            inv_eps_local = inv_permittivities[axis, *self.grid_slice]
-            injection = c * inv_eps_local * weight * self.amplitude * self.static_amplitude_factor * amplitude
+            injection = scale * inv_eps_oriented[axis]
             E = E.at[axis, *self.grid_slice].add(sign * injection.astype(E.dtype))
 
         return E
@@ -129,16 +214,19 @@ class PointDipoleSource(Source):
             phase_shift=self.wave_character.phase_shift,
         )
 
-        orientation = self._orientation
         sign = -1.0 if not inverse else 1.0
 
-        for axis in range(3):
-            weight = orientation[axis]
+        if isinstance(self._inv_mu_oriented, Null):
+            inv_mu_source: jax.Array | float = inv_permeabilities
             if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
-                inv_mu_local = inv_permeabilities[axis, *self.grid_slice]
-            else:
-                inv_mu_local = inv_permeabilities
-            injection = c * inv_mu_local * weight * self.amplitude * self.static_amplitude_factor * amplitude
+                inv_mu_source = inv_permeabilities[:, *self.grid_slice]
+            inv_mu_oriented = _contract_orientation(inv_mu_source, self._orientation)
+        else:
+            inv_mu_oriented = self._inv_mu_oriented
+
+        scale = c * self.amplitude * self.static_amplitude_factor * amplitude
+        for axis in range(3):
+            injection = scale * inv_mu_oriented[axis]
             H = H.at[axis, *self.grid_slice].add(sign * injection.astype(H.dtype))
 
         return H

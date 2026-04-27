@@ -19,6 +19,13 @@ class PerfectElectricConductor(BaseBoundary):
     - PEC on x-face: zero Ey, Ez (tangential to x)
     - PEC on y-face: zero Ex, Ez (tangential to y)
     - PEC on z-face: zero Ex, Ey (tangential to z)
+
+    Note on dispersive media: the tangential polarization ``P`` at a
+    PEC-adjacent cell can be left one step out of sync with the freshly
+    zeroed tangential ``E`` because ``P`` is updated from ``E_prev``. This
+    converges on the next E-update — since ``E_tangential`` is clamped to
+    zero the next ``P`` relaxes back toward zero, which is the physically
+    correct behavior at a perfect conductor.
     """
 
     #: RGB color tuple for visualization. Defaults to red.

@@ -3,13 +3,15 @@ from typing import Self
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from fdtdx.core.grid import calculate_time_offset_yee
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.linalg import get_wave_vector_raw, rotate_vector
 from fdtdx.core.misc import expand_to_3x3, linear_interpolated_indexing, normalize_polarization_for_source
 from fdtdx.core.physics.metrics import compute_energy
-from fdtdx.objects.sources.tfsf import TFSFPlaneSource
+from fdtdx.dispersion import effective_inv_permittivity
+from fdtdx.objects.sources.tfsf import TFSFPlaneSource, _build_dispersive_H_filter
 
 
 @autoinit
@@ -28,12 +30,39 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
+        dispersive_c1: jax.Array | None = None,
+        dispersive_c2: jax.Array | None = None,
+        dispersive_c3: jax.Array | None = None,
     ):
         # inv_permittivities shape: (3, Nx, Ny, Nz) - slice with component dimension
         inv_permittivities = inv_permittivities[:, *self.grid_slice]
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
             # inv_permeabilities shape: (3, Nx, Ny, Nz) - slice with component dimension
             inv_permeabilities = inv_permeabilities[:, *self.grid_slice]
+
+        # Keep a handle to the raw (ε∞) inverse permittivity before any
+        # carrier-frequency correction — the broadband impedance filter
+        # computed below needs ε∞ to reconstruct the full ε(ω) spectrum.
+        inv_eps_inf_slice = inv_permittivities
+
+        # If the simulation is dispersive, evaluate the real effective inverse
+        # permittivity at the source carrier frequency so that the impedance and
+        # energy normalization reflect the true medium the source sits in,
+        # not just the high-frequency permittivity epsilon_infinity.
+        c1_slice = c2_slice = c3_slice = None
+        if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
+            # dispersive_c* shape: (num_poles, 1, Nx, Ny, Nz) → slice spatial axes
+            c1_slice = dispersive_c1[:, :, *self.grid_slice]
+            c2_slice = dispersive_c2[:, :, *self.grid_slice]
+            c3_slice = dispersive_c3[:, :, *self.grid_slice]
+            inv_permittivities = effective_inv_permittivity(
+                inv_eps=inv_permittivities,
+                c1=c1_slice,
+                c2=c2_slice,
+                c3=c3_slice,
+                omega=2.0 * np.pi * self.wave_character.get_frequency(),
+                dt=self._config.time_step_duration,
+            )
 
         # determine E/H polarization
         e_pol_raw, h_pol_raw = normalize_polarization_for_source(
@@ -151,6 +180,26 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         self = self.aset("_H", H, create_new_ok=True)
         self = self.aset("_time_offset_E", time_offset_E, create_new_ok=True)
         self = self.aset("_time_offset_H", time_offset_H, create_new_ok=True)
+
+        # Broadband impedance correction. The carrier-frequency rescale above
+        # only matches η at ω_c; a wide-bandwidth pulse (e.g. GaussianPulseProfile)
+        # sees a frequency-dependent impedance in a dispersive medium and the
+        # TFSF boundary leaks unphysical reflections for frequencies away from
+        # ω_c. Precompute a filtered H-side temporal profile s_H(t) whose
+        # spectrum is S(ω)·√(ε(ω)/ε(ω_c)) so that the injected H field has
+        # the frequency-dependent impedance correction baked in.
+        if c1_slice is not None and c2_slice is not None and c3_slice is not None:
+            filtered = _build_dispersive_H_filter(
+                temporal_profile=self.temporal_profile,
+                wave_character=self.wave_character,
+                dt=self._config.time_step_duration,
+                num_time_steps=self._config.time_steps_total,
+                c1_slice=c1_slice,
+                c2_slice=c2_slice,
+                c3_slice=c3_slice,
+                inv_eps_inf_slice=inv_eps_inf_slice,
+            )
+            self = self.aset("_temporal_H_filter", filtered, create_new_ok=True)
 
         return self
 

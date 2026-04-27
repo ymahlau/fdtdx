@@ -175,6 +175,39 @@ class ObjectContainer(TreeClass):
 
         return self._is_material_fn_true_for_all(_fn)
 
+    @property
+    def all_objects_non_dispersive(self) -> bool:
+        def _fn(m: Material):
+            return not m.is_dispersive
+
+        return self._is_material_fn_true_for_all(_fn)
+
+    @property
+    def max_num_dispersive_poles(self) -> int:
+        """Maximum number of dispersive poles required across all objects.
+
+        Walks every object (UniformMaterialObject, Device, StaticMultiMaterialObject)
+        and returns the largest pole count of any Material attached to them.
+        Drives the leading dimension of the per-cell dispersive coefficient and
+        polarization arrays, which are zero-padded for materials with fewer
+        poles.
+        """
+        n = 0
+        for o in self.objects:
+            if isinstance(o, UniformMaterialObject):
+                disp = o.material.dispersion
+                if disp is not None:
+                    n = max(n, disp.num_poles)
+            elif isinstance(o, Device):
+                for m in o.materials.values():
+                    if m.dispersion is not None:
+                        n = max(n, m.dispersion.num_poles)
+            elif isinstance(o, StaticMultiMaterialObject):
+                for m in o.materials.values():
+                    if m.dispersion is not None:
+                        n = max(n, m.dispersion.num_poles)
+        return n
+
     def _is_material_fn_true_for_all(
         self,
         fn: Callable[[Material], bool],
@@ -298,6 +331,32 @@ class ArrayContainer(TreeClass):
     #: field for magnetic conductivity terms. Defaults to None.
     magnetic_conductivity: jax.Array | None = None
 
+    #: Dispersive ADE polarization state at time step ``n``. Shape
+    #: ``(num_poles, 3, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
+    dispersive_P_curr: jax.Array | None = None
+
+    #: Dispersive ADE polarization state at time step ``n-1``. Shape
+    #: ``(num_poles, 3, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
+    dispersive_P_prev: jax.Array | None = None
+
+    #: Per-cell dispersive recurrence coefficient c1. Shape
+    #: ``(num_poles, 1, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
+    dispersive_c1: jax.Array | None = None
+
+    #: Per-cell dispersive recurrence coefficient c2. Shape
+    #: ``(num_poles, 1, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
+    dispersive_c2: jax.Array | None = None
+
+    #: Per-cell dispersive recurrence coefficient c3. Shape
+    #: ``(num_poles, 1, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
+    dispersive_c3: jax.Array | None = None
+
+    #: Per-cell cached ``1 / c2`` with non-dispersive cells set to 0. Lets the
+    #: reverse-time ADE update avoid a ``jnp.where`` + division per step.
+    #: Derived from ``dispersive_c2``; never differentiated independently.
+    #: Shape ``(num_poles, 1, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
+    dispersive_inv_c2: jax.Array | None = None
+
 
 # time step and arrays
 SimulationState = tuple[jax.Array, ArrayContainer]
@@ -327,6 +386,13 @@ def reset_array_container(
     arrays = arrays.aset("E", E)
     H = arrays.H * 0
     arrays = arrays.aset("H", H)
+
+    if arrays.dispersive_P_curr is not None:
+        dispersive_P_curr = arrays.dispersive_P_curr * 0
+        arrays = arrays.aset("dispersive_P_curr", dispersive_P_curr)
+    if arrays.dispersive_P_prev is not None:
+        dispersive_P_prev = arrays.dispersive_P_prev * 0
+        arrays = arrays.aset("dispersive_P_prev", dispersive_P_prev)
 
     detector_states = arrays.detector_states
     if reset_detector_states:

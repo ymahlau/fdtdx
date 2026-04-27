@@ -6,7 +6,107 @@ import jax.numpy as jnp
 import numpy as np
 
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
+from fdtdx.dispersion import (
+    compute_eps_spectrum_from_coefficients,
+    compute_impedance_corrected_temporal_profile,
+)
+from fdtdx.objects.sources.profile import TemporalProfile
 from fdtdx.objects.sources.source import DirectionalPlaneSourceBase
+
+
+def _build_dispersive_H_filter(
+    temporal_profile: TemporalProfile,
+    wave_character,
+    dt: float,
+    num_time_steps: int,
+    c1_slice: jax.Array,
+    c2_slice: jax.Array,
+    c3_slice: jax.Array,
+    inv_eps_inf_slice: jax.Array,
+) -> jax.Array:
+    """Precompute the broadband-corrected H-side temporal profile for a TFSF source.
+
+    Builds the FIR filter ``G(ω) = √(ε(ω)/ε(ω_c))`` from the ADE coefficients
+    and the raw ε∞ of the cells covered by the source slice, then applies it
+    to the raw temporal profile sampled at every integer simulation time step.
+    The returned array replaces the per-step ``temporal_profile.get_amplitude``
+    call on the H side of the TFSF injection, giving broadband impedance
+    matching in dispersive media.
+
+    Averaging over the source slice is uniform — sufficient for plane sources
+    (homogeneous background) and a reasonable first-order approximation for
+    mode sources (captures bulk dispersion of the guiding medium but not
+    geometry-driven modal dispersion).
+
+    Args:
+        temporal_profile: The source's raw temporal profile.
+        wave_character: The source's carrier WaveCharacter — provides ω_c and
+            the phase shift passed to ``get_amplitude``.
+        dt: Simulation time step (seconds).
+        num_time_steps: ``config.time_steps_total`` — the length of the
+            returned filter array.
+        c1_slice: ADE coefficient array sliced to the source cells.
+        c2_slice: ADE coefficient array sliced to the source cells.
+        c3_slice: ADE coefficient array sliced to the source cells.
+        inv_eps_inf_slice: Raw ``1/ε∞`` at the source cells
+            (before any carrier-frequency correction).
+
+    Returns:
+        JAX float32 array of shape ``(num_time_steps,)`` — the filtered
+        temporal profile ``s_H[n]``.
+    """
+    carrier_period = wave_character.get_period()
+    phase_shift = wave_character.phase_shift
+
+    # Sample the raw temporal profile at every integer time step. Use numpy
+    # here so the computation stays on the host and avoids the JAX dtype
+    # downcast warning when x64 is not enabled — the filter is built once
+    # at setup time and never traced.
+    times = np.arange(num_time_steps, dtype=np.float64) * dt
+    raw_samples_jax = temporal_profile.get_amplitude(
+        time=jnp.asarray(times),
+        period=carrier_period,
+        phase_shift=phase_shift,
+    )
+    raw_samples = np.asarray(raw_samples_jax, dtype=np.float64)
+
+    # Length-M zero-padded FFT for linear convolution.
+    m = 1
+    while m < 2 * num_time_steps:
+        m *= 2
+    omegas_rfft = 2.0 * np.pi * np.fft.rfftfreq(m, d=dt)
+
+    c1_np = np.asarray(c1_slice)
+    c2_np = np.asarray(c2_slice)
+    c3_np = np.asarray(c3_slice)
+    inv_eps_inf_np = np.asarray(inv_eps_inf_slice)
+
+    eps_spectrum = compute_eps_spectrum_from_coefficients(
+        c1=c1_np,
+        c2=c2_np,
+        c3=c3_np,
+        inv_eps_inf=inv_eps_inf_np,
+        omegas=omegas_rfft,
+        dt=dt,
+    )
+    omega_c = 2.0 * np.pi * wave_character.get_frequency()
+    eps_center_arr = compute_eps_spectrum_from_coefficients(
+        c1=c1_np,
+        c2=c2_np,
+        c3=c3_np,
+        inv_eps_inf=inv_eps_inf_np,
+        omegas=np.array([omega_c], dtype=np.float64),
+        dt=dt,
+    )
+    eps_center = complex(eps_center_arr[0])
+
+    s_H = compute_impedance_corrected_temporal_profile(
+        raw_samples=raw_samples,
+        dt=dt,
+        eps_spectrum=eps_spectrum,
+        eps_center=eps_center,
+    )
+    return jnp.asarray(s_H, dtype=jnp.float32)
 
 
 @autoinit
@@ -36,6 +136,14 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
     _H: jax.Array = private_field()
     _time_offset_E: jax.Array = private_field()
     _time_offset_H: jax.Array = private_field()
+
+    # Precomputed H-side temporal profile for broadband impedance matching in
+    # dispersive media. Shape (time_steps_total,). When None the source falls
+    # back to the per-step temporal_profile.get_amplitude call, which exactly
+    # reproduces the non-dispersive behavior. When set, the inner update_E
+    # loop reads the filtered profile with a fractional-index lookup so the
+    # existing half-step Yee time offsets are preserved.
+    _temporal_H_filter: jax.Array | None = private_field(default=None)
 
     @property
     def azimuth_radians(self) -> float:
@@ -149,8 +257,15 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
+        dispersive_c1: jax.Array | None = None,
+        dispersive_c2: jax.Array | None = None,
+        dispersive_c3: jax.Array | None = None,
     ) -> Self:
-        # Must populate self._E, self._H, self._time_offset_E, and self._time_offset_H
+        # Must populate self._E, self._H, self._time_offset_E, and self._time_offset_H.
+        # When dispersive_* are provided, the concrete implementation is expected
+        # to use them to compute a frequency-corrected inverse permittivity at
+        # the source carrier frequency so that the injected E/H ratio matches
+        # the real impedance of the local medium.
         raise NotImplementedError()
 
     def update_E(
@@ -180,14 +295,27 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         amplitude_H = {}
         for axis in [h_axis, v_axis, p_axis]:
             time_H[axis] = (time_step + self._time_offset_H[axis]) * delta_t
-            amplitude_H[axis] = (
-                self.temporal_profile.get_amplitude(
-                    time=time_H[axis],
-                    period=self.wave_character.get_period(),
-                    phase_shift=self.wave_character.phase_shift,
+            if self._temporal_H_filter is None:
+                amplitude_H[axis] = (
+                    self.temporal_profile.get_amplitude(
+                        time=time_H[axis],
+                        period=self.wave_character.get_period(),
+                        phase_shift=self.wave_character.phase_shift,
+                    )
+                    * self.static_amplitude_factor
                 )
-                * self.static_amplitude_factor
-            )
+            else:
+                # Dispersive background: look up the precomputed broadband
+                # impedance-corrected H profile at the Yee-offset time step.
+                # The time offset is spatially resolved — one fractional
+                # index per source cell — so use jnp.interp which preserves
+                # the array shape and zeros out-of-range samples (matching
+                # the raw profile's behavior at the source on/off boundaries).
+                idx_arr = time_step + self._time_offset_H[axis]
+                xp = jnp.arange(self._temporal_H_filter.shape[0], dtype=idx_arr.dtype)
+                amplitude_H[axis] = (
+                    jnp.interp(idx_arr, xp, self._temporal_H_filter, left=0.0, right=0.0) * self.static_amplitude_factor
+                )
 
         # if direction is negative, updates are reversed
         sign = 1 if self.direction == "+" else -1
