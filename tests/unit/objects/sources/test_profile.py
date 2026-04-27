@@ -2,9 +2,11 @@
 
 import math
 
+import jax
 import jax.numpy as jnp
 import matplotlib
 import numpy as np
+import pytest
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -229,6 +231,24 @@ class TestCustomTimeSignalProfile:
         assert profile.start_time == 0.0
         assert profile.interpolation == "linear"
         assert profile.outside_value == 0.0
+
+    def test_accepts_array_like_signal(self):
+        """Test that Python array-likes are converted to JAX arrays."""
+        profile = CustomTimeSignalProfile(signal=[0.0, 1.0, 0.0], time_step_duration=0.25)
+
+        assert isinstance(profile.signal, jax.Array)
+        assert profile.signal.dtype == jnp.float32
+
+    def test_invalid_parameters_raise(self):
+        """Test validation for signal shape, sample cadence, and interpolation mode."""
+        with pytest.raises(ValueError, match="one-dimensional"):
+            CustomTimeSignalProfile(signal=jnp.zeros((2, 2)), time_step_duration=0.25)
+        with pytest.raises(ValueError, match="at least two"):
+            CustomTimeSignalProfile(signal=jnp.zeros((1,)), time_step_duration=0.25)
+        with pytest.raises(ValueError, match="positive"):
+            CustomTimeSignalProfile(signal=jnp.zeros((2,)), time_step_duration=0.0)
+        with pytest.raises(ValueError, match="interpolation"):
+            CustomTimeSignalProfile(signal=jnp.zeros((2,)), time_step_duration=0.25, interpolation="cubic")
 
     def test_exact_sample_times(self):
         """Test that exact sample times return exact signal values."""

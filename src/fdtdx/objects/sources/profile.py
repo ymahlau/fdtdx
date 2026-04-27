@@ -357,7 +357,7 @@ class CustomTimeSignalProfile(TemporalProfile):
 
     #: Pre-sampled waveform, shape ``(N,)``.  Lives in the pytree so JAX can
     #: differentiate through the interpolation if needed.
-    signal: jax.Array = field()
+    signal: jax.Array = field(on_setattr=[jnp.asarray])
 
     #: Duration of a single simulation time step (seconds).
     time_step_duration: float = frozen_field()
@@ -370,6 +370,16 @@ class CustomTimeSignalProfile(TemporalProfile):
 
     #: Value returned for times outside the sampled window.
     outside_value: float = frozen_field(default=0.0)
+
+    def __post_init__(self):
+        if self.signal.ndim != 1:
+            raise ValueError(f"signal must be one-dimensional, got shape {self.signal.shape}")
+        if self.signal.shape[0] < 2:
+            raise ValueError("signal must contain at least two samples")
+        if self.time_step_duration <= 0:
+            raise ValueError("time_step_duration must be positive")
+        if self.interpolation not in ("linear", "nearest"):
+            raise ValueError(f"interpolation must be 'linear' or 'nearest', got {self.interpolation!r}")
 
     def get_reference_frequency(self, period: float) -> float:
         """Return the power-weighted spectral centroid of the stored signal.
