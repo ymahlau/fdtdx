@@ -48,8 +48,6 @@ def test_custom_time_signal_profile_source_workflow():
         temporal_profile=fdtdx.CustomTimeSignalProfile(
             signal=signal,
             time_step_duration=config.time_step_duration,
-            center_wave=wave,
-            fwidth=fdtdx.WaveCharacter(frequency=80e12),
         ),
     )
     constraints = [

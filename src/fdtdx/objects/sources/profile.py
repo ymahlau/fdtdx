@@ -342,10 +342,17 @@ class CustomTimeSignalProfile(TemporalProfile):
     JIT before constructing this object.
 
     The sampled ``signal`` fully defines the injected time waveform, so the FDTD
-    loop does not apply an additional source-level ``phase_shift``. Optional
-    ``center_wave`` and ``fwidth`` values only describe the signal for reference
-    frequency and spectrum-plotting logic.
+    loop does not apply an additional source-level ``phase_shift``.
 
+    Unlike :class:`GaussianPulseProfile`, this profile does **not** accept a
+    ``center_wave`` or spectral-width parameter.  For an arbitrary waveform the
+    spectral centre is not a free parameter — it is an emergent property of the
+    signal.  Letting the user specify it separately would create a silent
+    inconsistency risk (e.g. labelling a broadband sinc pulse as if it were a
+    narrowband Gaussian).  Instead, :meth:`get_reference_frequency` computes the
+    power-weighted spectral centroid directly from ``signal``, and the frequency
+    axis of any plot is determined automatically from the actual spectrum content
+    via :func:`_auto_range`.
     """
 
     #: Pre-sampled waveform, shape ``(N,)``.  Lives in the pytree so JAX can
@@ -358,12 +365,6 @@ class CustomTimeSignalProfile(TemporalProfile):
     #: Simulation time at which ``signal[0]`` was sampled (seconds).
     start_time: float = frozen_field(default=0.0)
 
-    #: Optional center wavelength / frequency metadata for spectrum plots.
-    center_wave: WaveCharacter | None = frozen_field(default=None)
-
-    #: Optional spectral width metadata for spectrum plots.
-    fwidth: WaveCharacter | None = frozen_field(default=None)
-
     #: Interpolation mode: ``"linear"`` (default) or ``"nearest"``.
     interpolation: Literal["linear", "nearest"] = frozen_field(default="linear")
 
@@ -371,26 +372,20 @@ class CustomTimeSignalProfile(TemporalProfile):
     outside_value: float = frozen_field(default=0.0)
 
     def get_reference_frequency(self, period: float) -> float:
-        if self.center_wave is not None:
-            return self.center_wave.get_frequency()
-        return 1.0 / period
+        """Return the power-weighted spectral centroid of the stored signal.
 
-    def get_frequency_plot_range(
-        self,
-        period: float,
-        frequencies: np.ndarray,
-        spectrum: np.ndarray,
-    ) -> tuple[float, float] | None:
-        if self.center_wave is None or self.fwidth is None:
-            return None
-        del period, spectrum
-        f0 = self.center_wave.get_frequency()
-        df = self.fwidth.get_frequency()
-        lower = max(float(frequencies[0]), f0 - 4 * df)
-        upper = min(float(frequencies[-1]), f0 + 4 * df)
-        if upper <= lower:
-            return None
-        return lower, upper
+        The centroid is well-defined for any spectrum — it equals the peak
+        frequency for unimodal signals and the power-weighted average for
+        multi-band ones.  It is used by :func:`_auto_range` to anchor the
+        frequency axis of spectrum plots.
+        """
+        del period
+        frequencies = np.fft.rfftfreq(len(self.signal), d=self.time_step_duration)
+        spectrum = np.abs(np.fft.rfft(np.asarray(self.signal)))
+        total = float(np.sum(spectrum))
+        if total == 0.0:
+            return 0.0
+        return float(np.sum(frequencies * spectrum) / total)
 
     def get_amplitude(
         self,
