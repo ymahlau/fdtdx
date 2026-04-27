@@ -18,6 +18,7 @@ API
     fdtdx.compute_mode
     fdtdx.compute_poynting_flux
     fdtdx.ConnectHolesAndStructures
+    fdtdx.CustomTimeSignalProfile
     fdtdx.Cylinder
     fdtdx.Detector
     fdtdx.Device
@@ -86,6 +87,7 @@ API
     fdtdx.StandardToPlusOneMinusOneRange
     fdtdx.SubpixelSmoothedProjection
     fdtdx.TanhProjection
+    fdtdx.TemporalProfile
     fdtdx.TreeClass
     fdtdx.UniformMaterialObject
     fdtdx.UniformPlaneSource
