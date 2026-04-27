@@ -8,7 +8,7 @@ from loguru import logger
 from fdtdx import constants
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field
 from fdtdx.interfaces.recorder import Recorder
-from fdtdx.typing import BackendOption
+from fdtdx.typing import BackendOption, GridShape3D
 
 
 @autoinit
@@ -187,6 +187,13 @@ class SimulationConfig(TreeClass):
         if self.gradient_config is None:
             return False
         return self.gradient_config.recorder is not None
+
+    @property
+    def grid_shape(self) -> GridShape3D:
+        """Calculate the 3D grid dimensions based on max travel distance and resolution."""
+        # Calculate how many grid points fit in the max travel distance
+        max_points = int(self.max_travel_distance / self.resolution)
+        return (max_points, max_points, max_points)
 
 
 DUMMY_SIMULATION_CONFIG = SimulationConfig(

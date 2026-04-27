@@ -676,6 +676,35 @@ def resolve_object_constraints(
     for obj_name, slice_list in resolved.items():
         resolved_slices[obj_name] = tuple([(axis_slice_list[0], axis_slice_list[1]) for axis_slice_list in slice_list])
 
+    # Validate all objects are within simulation volume bounds
+    volume_shape = config.grid_shape
+    for obj_name, slice_tuple in resolved_slices.items():
+        for axis in range(3):
+            s1, s2 = slice_tuple[axis]
+            volume_size = volume_shape[axis]
+
+            if s1 is None or s2 is None:
+                # Object not fully resolved - error should already be in errors dict
+                continue
+
+            if s1 < 0:
+                errors[obj_name] = (
+                    f"Object '{obj_name}' extends below the simulation volume along axis {axis}: "
+                    f"lower bound {s1} < 0. Object bounds: {slice_tuple}, "
+                    f"Volume size: {volume_shape}"
+                )
+            if s2 > volume_size:
+                errors[obj_name] = (
+                    f"Object '{obj_name}' extends beyond the simulation volume along axis {axis}: "
+                    f"upper bound {s2} > volume size {volume_size}. Object bounds: {slice_tuple}, "
+                    f"Volume size: {volume_shape}"
+                )
+            if s2 <= s1:
+                errors[obj_name] = (
+                    f"Object '{obj_name}' has invalid dimensions along axis {axis}: "
+                    f"lower bound {s1} >= upper bound {s2}. Object bounds: {slice_tuple}"
+                )
+
     return resolved_slices, errors
 
 

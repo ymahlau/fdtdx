@@ -283,10 +283,22 @@ class SimulationObject(TreeClass, ABC):
         del key
         if self._grid_slice_tuple != INVALID_SLICE_TUPLE_3D:
             raise Exception(f"Object is already compiled to grid: {self}")
+
         for axis in range(3):
             s1, s2 = grid_slice_tuple[axis]
-            if s1 < 0 or s2 < 0 or s2 <= s1:
-                raise Exception(f"Invalid placement of object {self} at {grid_slice_tuple}")
+            volume_size = config.grid_shape[axis]  # Now available after adding the property
+
+            # Grid indices valid range: [0, volume_size)
+            # s1 must be >= 0
+            # s2 must be > s1 (positive size)
+            # s2 must be <= volume_size (can be at boundary if zero-sized, but typically < volume_size)
+            if s1 < 0 or s2 <= s1 or s2 > volume_size:
+                raise Exception(
+                    f"Invalid placement of object '{self.name}' at {grid_slice_tuple}. "
+                    f"Axis {axis}: slice [{s1}, {s2}] is outside volume [0, {volume_size}) "
+                    f"or has invalid dimensions."
+                )
+
         self = self.aset("_grid_slice_tuple", grid_slice_tuple)
         self = self.aset("_config", config, create_new_ok=True)
         return self
