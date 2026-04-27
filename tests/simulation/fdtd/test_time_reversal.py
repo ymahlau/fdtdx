@@ -991,31 +991,18 @@ class TestGradientPMLBlochComplex:
         assert jnp.issubdtype(arrays.H.dtype, jnp.complexfloating)
 
 
-# ── Tests: differentiate_dispersion flag ───────────────────────────────────────
+# ── Tests: dispersion coefficient gradients ────────────────────────────────────
 
 
-class TestDifferentiateDispersionReversible:
-    """`GradientConfig.differentiate_dispersion` exposes `dispersive_c1/c2/c3`
-    as primal VJP inputs in the reversible path.
-
-    Two checks:
-    (a) Flag ON — the AD gradient w.r.t. ``dispersive_c3`` at an interior
-        dispersive voxel matches a central finite-difference estimate.
-    (b) Flag OFF (default) — the cotangent w.r.t. ``dispersive_c3`` is
-        exactly zero because the coefficients are closure-captured through
-        ``arrays_template`` and stop_gradient'd into source apply.
+class TestDispersiveCoefficientGradientReversible:
+    """Verify that ``dispersive_c1/c2/c3`` are primal VJP inputs of the
+    reversible FDTD path, i.e. the AD gradient w.r.t. ``dispersive_c3`` at an
+    interior dispersive voxel matches a central finite-difference estimate.
     """
 
     @staticmethod
-    def _build(differentiate_dispersion: bool):
-        obj, arrays, config = TestGradientDispersiveLossy._build()
-        grad_cfg = GradientConfig(
-            method="reversible",
-            recorder=config.gradient_config.recorder,
-            differentiate_dispersion=differentiate_dispersion,
-        )
-        config = config.aset("gradient_config", grad_cfg)
-        return obj, arrays, config
+    def _build():
+        return TestGradientDispersiveLossy._build()
 
     @staticmethod
     def _loss_fn(dispersive_c3, arrays, objects, config, key):
@@ -1044,7 +1031,7 @@ class TestDifferentiateDispersionReversible:
         return jnp.sum(jnp.real(out.E) ** 2)
 
     def test_gradient_through_c3_matches_finite_difference(self):
-        obj, arrays, config = self._build(differentiate_dispersion=True)
+        obj, arrays, config = self._build()
         key = jax.random.PRNGKey(99)
         c3 = arrays.dispersive_c3
         assert c3 is not None
@@ -1072,36 +1059,17 @@ class TestDifferentiateDispersionReversible:
             f"AD vs FD mismatch at {idx}: AD={float(ad):.6e}, FD={float(fd):.6e}, rel_err={float(rel_err):.3e}"
         )
 
-    def test_flag_off_produces_zero_c3_grad(self):
-        obj, arrays, config = self._build(differentiate_dispersion=False)
-        key = jax.random.PRNGKey(99)
-        c3 = arrays.dispersive_c3
-        assert c3 is not None
-        _, grads = jax.value_and_grad(self._loss_fn)(c3, arrays, obj, config, key)
-        max_abs = float(jnp.max(jnp.abs(grads)))
-        assert max_abs == 0.0, (
-            f"c3 gradient must be exactly zero when differentiate_dispersion=False, got max |grad|={max_abs:.3e}"
-        )
 
-
-class TestDifferentiateDispersionCheckpointed:
-    """Same verification as ``TestDifferentiateDispersionReversible`` but for
-    the checkpointed path.
-
-    The checkpointed branch uses standard autodiff through ``eqxi.while_loop``,
-    so gradient would flow through ``dispersive_c1/c2/c3`` naturally. The flag
-    gates a ``stop_gradient`` wrapper at the top of ``checkpointed_fdtd`` that
-    preserves the default "coefficients are not differentiated" behavior.
+class TestDispersiveCoefficientGradientCheckpointed:
+    """Same verification as ``TestDispersiveCoefficientGradientReversible``
+    but for the checkpointed path, which uses standard autodiff through
+    ``eqxi.while_loop`` so gradients flow naturally.
     """
 
     @staticmethod
-    def _build(differentiate_dispersion: bool):
+    def _build():
         obj, arrays, config = TestGradientDispersiveLossy._build()
-        grad_cfg = GradientConfig(
-            method="checkpointed",
-            num_checkpoints=8,
-            differentiate_dispersion=differentiate_dispersion,
-        )
+        grad_cfg = GradientConfig(method="checkpointed", num_checkpoints=8)
         config = config.aset("gradient_config", grad_cfg)
         return obj, arrays, config
 
@@ -1132,7 +1100,7 @@ class TestDifferentiateDispersionCheckpointed:
         return jnp.sum(jnp.real(out.E) ** 2)
 
     def test_gradient_through_c3_matches_finite_difference(self):
-        obj, arrays, config = self._build(differentiate_dispersion=True)
+        obj, arrays, config = self._build()
         key = jax.random.PRNGKey(99)
         c3 = arrays.dispersive_c3
         assert c3 is not None
@@ -1156,15 +1124,4 @@ class TestDifferentiateDispersionCheckpointed:
         rel_err = diff / scale
         assert rel_err < 0.1 or diff < 1e-5, (
             f"AD vs FD mismatch at {idx}: AD={float(ad):.6e}, FD={float(fd):.6e}, rel_err={float(rel_err):.3e}"
-        )
-
-    def test_flag_off_produces_zero_c3_grad(self):
-        obj, arrays, config = self._build(differentiate_dispersion=False)
-        key = jax.random.PRNGKey(99)
-        c3 = arrays.dispersive_c3
-        assert c3 is not None
-        _, grads = jax.value_and_grad(self._loss_fn)(c3, arrays, obj, config, key)
-        max_abs = float(jnp.max(jnp.abs(grads)))
-        assert max_abs == 0.0, (
-            f"c3 gradient must be exactly zero when differentiate_dispersion=False, got max |grad|={max_abs:.3e}"
         )

@@ -152,7 +152,8 @@ Stability needs `γ·dt < 2`; physically `γ·dt ≪ 1`, so `c2 ≈ −1` and th
 
 **ArrayContainer fields** (all `None` unless any object is dispersive):
 - `dispersive_P_curr`, `dispersive_P_prev` — shape `(num_poles, 3, Nx, Ny, Nz)`, field-dtype (complex if `use_complex_fields`). Not differentiable (state-only; `None` cotangent in both gradient paths).
-- `dispersive_c1`, `dispersive_c2`, `dispersive_c3` — shape `(num_poles, 1, Nx, Ny, Nz)` (middle axis broadcasts over field components). Config dtype. **Differentiable only when `GradientConfig.differentiate_dispersion=True`** (see *Gradient Strategies*); the default is `False`, matching the original "stop_gradient into sources + closure-captured in reversible VJP" behavior.
+- `dispersive_c1`, `dispersive_c2`, `dispersive_c3` — shape `(num_poles, 1, Nx, Ny, Nz)` (middle axis broadcasts over field components). Config dtype. Differentiable: cotangents flow through them in both the reversible and checkpointed paths.
+- `dispersive_inv_c2` — cached `1/c2`, closure-captured and `stop_gradient`'d so gradients flow through `c2` only and don't double-count.
 
 **Leading pole axis size:** `objects.max_num_dispersive_poles` — the max pole count across all `UniformMaterialObject`, `Device`, `StaticMultiMaterialObject`. Materials with fewer poles get zero-padded slots, so non-dispersive cells automatically contribute zero. `UniformMaterialObject` always writes the full zero-padded coefficient stack into its `grid_slice`, so a non-dispersive object placed over a dispersive one cleanly clears stale coefficients.
 
@@ -211,29 +212,20 @@ bound_dict, constraint_list = fdtdx.boundary_objects_from_config(bound_cfg, volu
 - O(1) field memory, O(T) boundary memory (PML interfaces only)
 - Uses `@jax.custom_vjp` — forward pass runs simulation recording boundaries, backward pass reconstructs fields in reverse
 - Requires a `Recorder` with optional compression modules (e.g., `DtypeConversion(dtype=jnp.bfloat16)`)
-- Default: gradients flow w.r.t. `inv_permittivities` and `inv_permeabilities` only. Conductivity arrays and ADE polarization state (`dispersive_P_curr/prev`) are always non-primal closure-captured via `arrays_template` in `forward_single_args_wrapper`. Dispersive coefficients (`dispersive_c1/c2/c3`) are stop_gradient'd on entry and closure-captured too — see the flag below to differentiate through them.
+- Differentiable primals: `inv_permittivities`, `inv_permeabilities`, and (when present) `dispersive_c1/c2/c3`. Conductivity arrays and `dispersive_inv_c2` are closure-captured non-primals; `dispersive_P_curr/prev` thread through as state-only primals with `None` cotangent.
 - Dispersive reverse update: the ADE recurrence `P^(n+1) = c1·P^n + c2·P^(n-1) + c3·E^n` is algebraically inverted to recover `P^(n-1)` (see `update_E_reverse`). For lossy + dispersive + conductive cells the reverse E update subtracts `inv_eps * sum(P^n − P^(n+1))` before dividing by the loss factor.
 
 **Checkpointed FDTD** (`method="checkpointed"`):
 - Standard gradient checkpointing via `eqxi.while_loop(kind="checkpointed")`
 - Configurable memory/compute tradeoff via `num_checkpoints`
-- Dispersive coefficients flow gradient naturally through the tape unless `differentiate_dispersion=False` (the default), in which case they're stop_gradient'd on entry to match the reversible path's default behavior.
-
-**`GradientConfig.differentiate_dispersion` (opt-in, default `False`):** When `True`, `dispersive_c1/c2/c3` become primal VJP inputs — gradients flow through them from the FDTD loss. Use this for inverse design where dispersive material contrast (pole coefficients, not just ε∞) drives the loss, e.g. multi-wavelength optimization over truly dispersive materials.
-
-Cost: the reversible path widens the per-step VJP from 14→17 inputs, adds 3 backward-carry accumulators of shape `(num_poles, 1, Nx, Ny, Nz)` inside the reverse `while_loop`, and pays transpose cost for the ADE recurrence every step. The checkpointed path stores c1/c2/c3 dependencies in the tape instead of eliding them. No-op when no object is dispersive (coefficient arrays are `None`). Keep `False` whenever you're only optimizing geometry or ε∞ — it's free savings.
+- Dispersive coefficients flow gradient naturally through the tape.
 
 **Setup pattern:**
 ```python
 recorder = fdtdx.Recorder(modules=[fdtdx.DtypeConversion(dtype=jnp.bfloat16)])
-gradient_config = fdtdx.GradientConfig(
-    method="reversible",
-    recorder=recorder,
-    differentiate_dispersion=False,  # set True for pole-coefficient optimization
-)
+gradient_config = fdtdx.GradientConfig(method="reversible", recorder=recorder)
 config = config.aset("gradient_config", gradient_config)
 ```
-`SimulationConfig.differentiate_dispersion` is a convenience property that returns the flag (or `False` if no gradient config is attached).
 
 ## Device & Parameter Transformations
 
@@ -278,7 +270,7 @@ device = fdtdx.Device(
 def apply(self, *, key, inv_permittivities, inv_permeabilities,
           dispersive_c1=None, dispersive_c2=None, dispersive_c3=None): ...
 ```
-Coefficient arrays are passed with `stop_gradient` by default; when `GradientConfig.differentiate_dispersion=True`, `apply_params` skips the stop_gradient so source-side sampling also participates in the gradient. Objects that don't use them (detectors, boundaries, uniform material objects) just `del` the kwargs; sources use them to sample the real medium at the carrier frequency.
+Coefficient arrays are passed with `stop_gradient` (matching how `inv_permittivities` is passed to source apply) — the FDTD VJP itself still differentiates through them, this only avoids gradient noise from the source amplitude path. Objects that don't use them (detectors, boundaries, uniform material objects) just `del` the kwargs; sources use them to sample the real medium at the carrier frequency.
 
 **Carrier-frequency impedance in dispersive media:** Sources inside a dispersive background call `effective_inv_permittivity(...)` to get `1/Re(ε∞ + χ(ω_c))` before computing impedance and energy normalization — otherwise they would use only ε∞ and inject with the wrong amplitude ratio. This happens in `LinearlyPolarizedPlaneSource.apply`, `ModePlaneSource.apply`, and `PointDipoleSource.apply`. `PointDipoleSource` additionally uses `_contract_orientation` (einsum over the flattened 9-tensor) so off-diagonal ε coupling is picked up correctly for tilted dipoles.
 

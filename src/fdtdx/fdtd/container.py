@@ -8,7 +8,6 @@ like sources, detectors, PML boundaries, Bloch/periodic boundaries, and devices.
 from typing import Callable, Self
 
 import jax
-import jax.numpy as jnp
 
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 from fdtdx.interfaces.state import RecordingState
@@ -383,13 +382,17 @@ def reset_array_container(
     Returns:
         ArrayContainer: A new ArrayContainer with reset fields and optionally reset states.
     """
-    arrays = arrays.aset("E", jnp.zeros_like(arrays.E))
-    arrays = arrays.aset("H", jnp.zeros_like(arrays.H))
+    E = arrays.E * 0
+    arrays = arrays.aset("E", E)
+    H = arrays.H * 0
+    arrays = arrays.aset("H", H)
 
     if arrays.dispersive_P_curr is not None:
-        arrays = arrays.aset("dispersive_P_curr", jnp.zeros_like(arrays.dispersive_P_curr))
+        dispersive_P_curr = arrays.dispersive_P_curr * 0
+        arrays = arrays.aset("dispersive_P_curr", dispersive_P_curr)
     if arrays.dispersive_P_prev is not None:
-        arrays = arrays.aset("dispersive_P_prev", jnp.zeros_like(arrays.dispersive_P_prev))
+        dispersive_P_prev = arrays.dispersive_P_prev * 0
+        arrays = arrays.aset("dispersive_P_prev", dispersive_P_prev)
 
     detector_states = arrays.detector_states
     if reset_detector_states:

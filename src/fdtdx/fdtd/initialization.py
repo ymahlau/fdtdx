@@ -259,23 +259,16 @@ def apply_params(
             arrays = arrays.at["dispersive_c3"].set(new_c3)
             arrays = arrays.at["dispersive_inv_c2"].set(new_inv_c2)
 
-    # apply random key to sources
+    # apply random key to sources. Source-side sampling of the dispersion
+    # coefficients (used only for carrier-frequency impedance / energy
+    # normalization) is stop_gradient'd to match the treatment of
+    # ``inv_permittivities`` — the FDTD VJP itself still propagates gradient
+    # through the coefficients, so this only avoids noise from the source
+    # amplitude path.
+    disp_c1 = None if arrays.dispersive_c1 is None else jax.lax.stop_gradient(arrays.dispersive_c1)
+    disp_c2 = None if arrays.dispersive_c2 is None else jax.lax.stop_gradient(arrays.dispersive_c2)
+    disp_c3 = None if arrays.dispersive_c3 is None else jax.lax.stop_gradient(arrays.dispersive_c3)
     new_objects = []
-    # Sources only sample the dispersion coefficients for impedance/energy
-    # normalization at their carrier frequency. By default we cut that gradient
-    # path — it's noise for topology optimization. When the user opts in via
-    # GradientConfig.differentiate_dispersion, we let gradients flow through
-    # source sampling too for consistency with the FDTD VJP.
-    first_config = objects.object_list[0]._config if objects.object_list else None
-    differentiate_dispersion = first_config is not None and first_config.differentiate_dispersion
-    if differentiate_dispersion:
-        disp_c1 = arrays.dispersive_c1
-        disp_c2 = arrays.dispersive_c2
-        disp_c3 = arrays.dispersive_c3
-    else:
-        disp_c1 = None if arrays.dispersive_c1 is None else jax.lax.stop_gradient(arrays.dispersive_c1)
-        disp_c2 = None if arrays.dispersive_c2 is None else jax.lax.stop_gradient(arrays.dispersive_c2)
-        disp_c3 = None if arrays.dispersive_c3 is None else jax.lax.stop_gradient(arrays.dispersive_c3)
     for obj in objects.object_list:
         key, subkey = jax.random.split(key)
         new_obj = obj.apply(

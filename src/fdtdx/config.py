@@ -31,13 +31,6 @@ class GradientConfig(TreeClass):
     #: Needs to be provided for checkpointing gradient computation. Defaults to None.
     num_checkpoints: int | None = frozen_field(default=None)
 
-    #: When True, dispersion coefficients (dispersive_c1/c2/c3) participate as
-    #: primal inputs to the FDTD VJP, so gradients flow through them. Default
-    #: False: the coefficients are stop_gradient'd / closure-captured and receive
-    #: no cotangent. Enable for inverse design where dispersive material contrast
-    #: (not just epsilon_infinity) drives the loss.
-    differentiate_dispersion: bool = frozen_field(default=False)
-
     def __post_init__(self):
         if self.method == "reversible" and self.recorder is None:
             raise Exception("Need Recorder in gradient config to compute reversible gradients")
@@ -178,16 +171,6 @@ class SimulationConfig(TreeClass):
             bool: True if no gradient configuration is specified, False otherwise.
         """
         return self.gradient_config is None
-
-    @property
-    def differentiate_dispersion(self) -> bool:
-        """Whether the FDTD VJP should include dispersion coefficients as primal inputs.
-
-        Returns False when no gradient config is attached (i.e. forward-only runs).
-        """
-        if self.gradient_config is None:
-            return False
-        return self.gradient_config.differentiate_dispersion
 
     @property
     def invertible_optimization(self) -> bool:

@@ -313,6 +313,9 @@ class TestForwardSingleArgsWrapper:
                 inv_permeabilities=arrays.inv_permeabilities,
                 dispersive_P_curr=None,
                 dispersive_P_prev=None,
+                dispersive_c1=None,
+                dispersive_c2=None,
+                dispersive_c3=None,
                 detector_states=arrays.detector_states,
                 recording_state=arrays.recording_state,
                 config=config,
@@ -339,8 +342,8 @@ class TestForwardSingleArgsWrapper:
             assert call_kwargs["record_boundaries"] is True
             assert call_kwargs["simulate_boundaries"] is True
 
-    def test_wrapper_returns_all_14_unpacked_fields(self, arrays, config, objects, key):
-        """Wrapper unpacks the returned SimulationState into 14 individual values."""
+    def test_wrapper_returns_all_17_unpacked_fields(self, arrays, config, objects, key):
+        """Wrapper unpacks the returned SimulationState into 17 individual values."""
         result_arrays = ArrayContainer(
             E=arrays.E * 2.0,
             H=arrays.H * 3.0,
@@ -370,6 +373,9 @@ class TestForwardSingleArgsWrapper:
                 inv_permeabilities=arrays.inv_permeabilities,
                 dispersive_P_curr=None,
                 dispersive_P_prev=None,
+                dispersive_c1=None,
+                dispersive_c2=None,
+                dispersive_c3=None,
                 detector_states=arrays.detector_states,
                 recording_state=arrays.recording_state,
                 config=config,
@@ -380,7 +386,7 @@ class TestForwardSingleArgsWrapper:
                 simulate_boundaries=False,
             )
 
-            assert len(result) == 14
+            assert len(result) == 17
             assert result[0] == 7  # time_step
             assert jnp.array_equal(result[1], result_arrays.E)
             assert jnp.array_equal(result[2], result_arrays.H)
@@ -393,5 +399,8 @@ class TestForwardSingleArgsWrapper:
             assert jnp.array_equal(result[9], result_arrays.inv_permeabilities)
             assert result[10] is result_arrays.dispersive_P_curr
             assert result[11] is result_arrays.dispersive_P_prev
-            assert result[12] is result_arrays.detector_states
-            assert result[13] is result_arrays.recording_state
+            assert result[12] is result_arrays.dispersive_c1
+            assert result[13] is result_arrays.dispersive_c2
+            assert result[14] is result_arrays.dispersive_c3
+            assert result[15] is result_arrays.detector_states
+            assert result[16] is result_arrays.recording_state

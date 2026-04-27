@@ -257,7 +257,6 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
-        *,
         dispersive_c1: jax.Array | None = None,
         dispersive_c2: jax.Array | None = None,
         dispersive_c3: jax.Array | None = None,

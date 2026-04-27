@@ -164,8 +164,7 @@ def update_E(
         # standard update formula using lossless material
         # Component-wise multiplication for diagonally anisotropic materials:
         # E[i, x, y, z] = factor * E[i, x, y, z] + c * curl[i, x, y, z] * inv_eps[i, x, y, z]
-        E_prev = arrays.E
-        E = factor * E_prev + c * curl * inv_eps
+        E = factor * arrays.E + c * curl * inv_eps
 
         # Dispersive (ADE) correction. Non-dispersive cells have c3 = 0, so P_new =
         # c1*P_curr + c2*P_prev and (P_curr - P_new) reduces to a purely historical
@@ -178,10 +177,10 @@ def update_E(
             disp_c2 = arrays.dispersive_c2
             disp_c3 = arrays.dispersive_c3
             assert P_prev is not None and disp_c1 is not None and disp_c2 is not None and disp_c3 is not None
-            # disp_c* are (num_poles, 1, Nx, Ny, Nz); E_prev is (3, Nx, Ny, Nz).
+            # disp_c* are (num_poles, 1, Nx, Ny, Nz); arrays.E is (3, Nx, Ny, Nz).
             # Right-aligned broadcasting produces (num_poles, 3, Nx, Ny, Nz) without
             # an explicit newaxis — skip the reshape so the HLO stays flat.
-            P_new = disp_c1 * P_curr + disp_c2 * P_prev + disp_c3 * E_prev
+            P_new = disp_c1 * P_curr + disp_c2 * P_prev + disp_c3 * arrays.E
             delta_sum = jnp.sum(P_curr - P_new, axis=0)
             E = E + inv_eps * delta_sum
             arrays = arrays.aset("dispersive_P_prev", P_curr)
