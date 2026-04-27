@@ -286,17 +286,12 @@ class SimulationObject(TreeClass, ABC):
 
         for axis in range(3):
             s1, s2 = grid_slice_tuple[axis]
-            volume_size = config.grid_shape[axis]  # Now available after adding the property
 
-            # Grid indices valid range: [0, volume_size)
-            # s1 must be >= 0
-            # s2 must be > s1 (positive size)
-            # s2 must be <= volume_size (can be at boundary if zero-sized, but typically < volume_size)
-            if s1 < 0 or s2 <= s1 or s2 > volume_size:
+            # Basic sanity: indices must be non-negative and size must be positive
+            if s1 < 0 or s2 <= s1:
                 raise Exception(
                     f"Invalid placement of object '{self.name}' at {grid_slice_tuple}. "
-                    f"Axis {axis}: slice [{s1}, {s2}] is outside volume [0, {volume_size}) "
-                    f"or has invalid dimensions."
+                    f"Axis {axis}: slice [{s1}, {s2}] has negative indices or non-positive size."
                 )
 
         self = self.aset("_grid_slice_tuple", grid_slice_tuple)

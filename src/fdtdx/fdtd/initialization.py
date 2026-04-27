@@ -676,33 +676,54 @@ def resolve_object_constraints(
     for obj_name, slice_list in resolved.items():
         resolved_slices[obj_name] = tuple([(axis_slice_list[0], axis_slice_list[1]) for axis_slice_list in slice_list])
 
-    # Validate all objects are within simulation volume bounds
-    volume_shape = config.grid_shape
-    for obj_name, slice_tuple in resolved_slices.items():
-        for axis in range(3):
-            s1, s2 = slice_tuple[axis]
-            volume_size = volume_shape[axis]
+    # Get volume bounds from resolved slices
+    volume_name = _resolve_volume_name({obj.name: obj for obj in objects})
+    volume_slice = resolved_slices.get(volume_name)
 
-            if s1 is None or s2 is None:
-                # Object not fully resolved - error should already be in errors dict
+    # If the volume itself failed to resolve, skip bounds checks
+    if volume_slice is not None:
+        tuple(s2 - s1 for s1, s2 in volume_slice)
+        volume_bounds = tuple((s1, s2) for s1, s2 in volume_slice)
+
+        # Validate all non-volume objects are within simulation volume bounds
+        for obj_name, slice_tuple in resolved_slices.items():
+            if obj_name == volume_name:
+                continue  # Skip the volume itself
+
+            # Check for unresolved bounds first
+            unresolved_axes = []
+            for axis in range(3):
+                s1, s2 = slice_tuple[axis]
+                if s1 is None or s2 is None:
+                    unresolved_axes.append(axis)
+
+            if unresolved_axes:
+                # Ensure unresolved objects are flagged in errors
+                if not errors.get(obj_name):
+                    errors[obj_name] = (
+                        f"Object '{obj_name}' has unresolved bounds on axes {unresolved_axes}. Slice: {slice_tuple}"
+                    )
                 continue
 
-            if s1 < 0:
+            # Check bounds violations
+            msgs = []
+            for axis in range(3):
+                s1, s2 = slice_tuple[axis]
+                vol_s1, vol_s2 = volume_bounds[axis]
+
+                if s1 < vol_s1:
+                    msgs.append(f"axis {axis}: lower bound {s1} < volume lower bound {vol_s1}")
+                if s2 > vol_s2:
+                    msgs.append(f"axis {axis}: upper bound {s2} > volume upper bound {vol_s2}")
+                if s2 <= s1:
+                    msgs.append(f"axis {axis}: invalid size (lower bound {s1} >= upper bound {s2})")
+
+            if msgs:
+                prev = errors.get(obj_name) or ""
                 errors[obj_name] = (
-                    f"Object '{obj_name}' extends below the simulation volume along axis {axis}: "
-                    f"lower bound {s1} < 0. Object bounds: {slice_tuple}, "
-                    f"Volume size: {volume_shape}"
-                )
-            if s2 > volume_size:
-                errors[obj_name] = (
-                    f"Object '{obj_name}' extends beyond the simulation volume along axis {axis}: "
-                    f"upper bound {s2} > volume size {volume_size}. Object bounds: {slice_tuple}, "
-                    f"Volume size: {volume_shape}"
-                )
-            if s2 <= s1:
-                errors[obj_name] = (
-                    f"Object '{obj_name}' has invalid dimensions along axis {axis}: "
-                    f"lower bound {s1} >= upper bound {s2}. Object bounds: {slice_tuple}"
+                    (prev + "; " if prev else "")
+                    + f"Object '{obj_name}' out of bounds ({slice_tuple} vs volume {volume_bounds}): "
+                    + "; ".join(msgs)
                 )
 
     return resolved_slices, errors
@@ -867,7 +888,7 @@ def _apply_constraints_iteratively(
     )
 
     # iterate
-    for _ in range(max_iter):
+    for iteration in range(max_iter):
         changed = False
 
         # check if we already resolved everything
@@ -967,6 +988,11 @@ def _apply_constraints_iteratively(
         if not changed:
             errors = _handle_unresolved_objects(object_map=object_map, slice_dict=slice_dict, errors=errors)
             break
+    else:
+        # max_iter reached without convergence
+        # Ensure all unresolved objects are flagged
+        errors = _handle_unresolved_objects(object_map=object_map, slice_dict=slice_dict, errors=errors)
+
     return slice_dict, errors
 
 
