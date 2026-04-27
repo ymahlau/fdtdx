@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Literal, Self
 
 import jax
@@ -89,6 +90,55 @@ class Source(SimulationObject, ABC):
         )
         self = self._update_on_arrays()
         return self
+
+    def sample_time_signal(
+        self,
+        config: SimulationConfig | None = None,
+    ):
+        """Sample the source temporal profile with this source's phase and simulation cadence."""
+        if config is None:
+            config = self._config
+        return self.temporal_profile.sample_time_signal(
+            period=self.wave_character.get_period(),
+            time_step_duration=config.time_step_duration,
+            num_time_steps=config.time_steps_total,
+            phase_shift=self.wave_character.phase_shift,
+        )
+
+    def frequency_spectrum(
+        self,
+        config: SimulationConfig | None = None,
+        normalize: bool = True,
+    ):
+        """Return the one-sided FFT magnitude for this source's sampled time signal."""
+        if config is None:
+            config = self._config
+        return self.temporal_profile.frequency_spectrum(
+            period=self.wave_character.get_period(),
+            time_step_duration=config.time_step_duration,
+            num_time_steps=config.time_steps_total,
+            phase_shift=self.wave_character.phase_shift,
+            normalize=normalize,
+        )
+
+    def plot_time_signal_and_spectrum(
+        self,
+        config: SimulationConfig | None = None,
+        *,
+        filename: str | Path | None = None,
+        **kwargs,
+    ):
+        """Plot this source's selected time signal and associated frequency spectrum."""
+        if config is None:
+            config = self._config
+        return self.temporal_profile.plot_time_signal_and_spectrum(
+            period=self.wave_character.get_period(),
+            time_step_duration=config.time_step_duration,
+            num_time_steps=config.time_steps_total,
+            phase_shift=self.wave_character.phase_shift,
+            filename=filename,
+            **kwargs,
+        )
 
     @abstractmethod
     def update_E(

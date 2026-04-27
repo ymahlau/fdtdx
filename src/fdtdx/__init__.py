@@ -94,7 +94,12 @@ from fdtdx.objects.object import (
 from fdtdx.objects.sources.dipole import PointDipoleSource
 from fdtdx.objects.sources.linear_polarization import GaussianPlaneSource, UniformPlaneSource
 from fdtdx.objects.sources.mode import ModePlaneSource
-from fdtdx.objects.sources.profile import GaussianPulseProfile, SingleFrequencyProfile
+from fdtdx.objects.sources.profile import (
+    CustomTimeSignalProfile,
+    GaussianPulseProfile,
+    SingleFrequencyProfile,
+    TemporalProfile,
+)
 from fdtdx.objects.static_material.cylinder import Cylinder
 from fdtdx.objects.static_material.polygon import (
     ExtrudedPolygon,
@@ -122,6 +127,7 @@ __all__ = [
     "ClosestIndex",
     "Color",
     "ConnectHolesAndStructures",
+    "CustomTimeSignalProfile",
     "Cylinder",
     "Detector",
     "DetectorState",
@@ -177,6 +183,7 @@ __all__ = [
     "StandardToPlusOneMinusOneRange",
     "SubpixelSmoothedProjection",
     "TanhProjection",
+    "TemporalProfile",
     "TreeClass",
     "UniformMaterialObject",
     "UniformPlaneSource",
