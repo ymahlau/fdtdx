@@ -4,7 +4,7 @@
   3b. Electric and magnetic dipoles have comparable total power and
       consistent radiation patterns (E↔H duality).
 
-Domain: 60×60×60 cells, PML on all faces.
+Domain: 60x60x60 cells, PML on all faces.
 """
 
 import jax
@@ -24,7 +24,7 @@ _CENTER = 30
 _DET_OFFSET = 10
 
 _DT_APPROX = 0.99 * _RESOLUTION / (3e8 * np.sqrt(3))
-_STEPS_PER_PERIOD = int(round(_WAVELENGTH / (3e8 * _DT_APPROX)))
+_STEPS_PER_PERIOD = round(_WAVELENGTH / (3e8 * _DT_APPROX))
 _N_AVG_STEPS = 10 * _STEPS_PER_PERIOD
 
 
@@ -173,7 +173,7 @@ def test_magnetic_vs_electric_duality():
     assert P_e > 0
     assert P_m > 0
 
-    # Same order of magnitude (within 10×)
+    # Same order of magnitude (within 10x)
     ratio = max(P_e, P_m) / min(P_e, P_m)
     assert ratio < 10, f"Electric/magnetic power ratio too large: P_e={P_e:.4e}, P_m={P_m:.4e}, ratio={ratio:.1f}"
 

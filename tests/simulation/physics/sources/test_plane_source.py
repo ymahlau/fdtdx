@@ -114,7 +114,7 @@ def test_uniform_plane_source_amplitude_consistency():
     p1 = complex(arrays_1x.detector_states["phasor"]["phasor"][0, 0].ravel()[0])
     p2 = complex(arrays_2x.detector_states["phasor"]["phasor"][0, 0].ravel()[0])
 
-    assert abs(p1) > 1e-30, "1× phasor amplitude is zero"
+    assert abs(p1) > 1e-30, "1x phasor amplitude is zero"
 
     ratio = abs(p2) / abs(p1)
     assert abs(ratio - 2.0) / 2.0 < 0.05, f"Amplitude ratio: {ratio:.3f}, expected 2.0"

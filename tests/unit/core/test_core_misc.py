@@ -418,7 +418,7 @@ class TestGetAirName:
         result = get_air_name(materials)
         captured = capsys.readouterr()
         assert "Warning" in captured.out
-        assert result == list(materials.keys())[0]
+        assert result == next(iter(materials.keys()))
 
     def test_single_material_fallback(self, capsys):
         materials = {"silicon": Material(permittivity=11.7)}
@@ -493,7 +493,7 @@ class TestAdvancedPadding:
     def test_none_values_default_to_zero(self):
         arr = jnp.ones((2, 3))
         cfg = PaddingConfig(widths=[1], modes=["constant"])
-        result, slices = advanced_padding(arr, cfg)
+        result, _slices = advanced_padding(arr, cfg)
         # corners should be 0
         assert float(result[0, 0]) == 0.0
 
@@ -537,7 +537,7 @@ class TestNormalizePolarizationForSource:
         assert h_pol.shape == (3,)
 
     def test_normalization(self):
-        e_pol, h_pol = normalize_polarization_for_source(
+        e_pol, _h_pol = normalize_polarization_for_source(
             direction="+",
             propagation_axis=0,
             fixed_E_polarization_vector=(0.0, 3.0, 4.0),

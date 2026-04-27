@@ -107,7 +107,7 @@ class EnergyThresholdCondition(StoppingCondition):
         )
         self = self.aset(
             "min_steps",
-            int(round(config.time_steps_total * 0.1)) if self.min_steps is None else self.min_steps,
+            round(config.time_steps_total * 0.1) if self.min_steps is None else self.min_steps,
             create_new_ok=True,
         )
         self._validate(state, config, objects)
@@ -196,14 +196,14 @@ class DetectorConvergenceCondition(StoppingCondition):
 
     def setup(self, state: SimulationState, config: SimulationConfig, objects: ObjectContainer) -> Self:
         """Setting up internal attributes and validating inputs."""
-        spp = int(round(self.wave_character.get_period() / config.time_step_duration))
+        spp = round(self.wave_character.get_period() / config.time_step_duration)
         self = self.aset("_spp", spp, create_new_ok=True)
         self = self.aset(
             "max_steps", config.time_steps_total if self.max_steps is None else self.max_steps, create_new_ok=True
         )
         self = self.aset(
             "min_steps",
-            int(round((self.prev_periods + 1) * spp)) if self.min_steps is None else self.min_steps,
+            round((self.prev_periods + 1) * spp) if self.min_steps is None else self.min_steps,
             create_new_ok=True,
         )
         self._validate(state, config, objects)

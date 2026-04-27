@@ -462,8 +462,8 @@ def frozen_field(
         repr=repr,
         kind=kind,
         metadata=metadata,
-        on_setattr=list(on_setattr) + [tc.freeze],
-        on_getattr=[tc.unfreeze] + list(on_getattr),
+        on_setattr=[*list(on_setattr), tc.freeze],
+        on_getattr=[tc.unfreeze, *list(on_getattr)],
         alias=alias,
     )
 

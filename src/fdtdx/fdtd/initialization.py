@@ -1437,6 +1437,20 @@ def _extend_to_inf_if_possible(
                 if (c.object, direction) in extension_obj:
                     extension_obj.remove((c.object, direction))
 
+            # Do not extend objects that have a pending PositionConstraint on this axis.
+            # If the referenced object's bounds are still unknown the constraint cannot resolve
+            # yet, and locking position=0 now will conflict when the constraint resolves later.
+            if isinstance(c, PositionConstraint):
+                for c_axis in c.axes:
+                    if c_axis != axis:
+                        continue
+                    other_b0, other_b1 = slice_dict[c.other_object][axis]
+                    if other_b0 is None or other_b1 is None:
+                        if (c.object, 0) in extension_obj:
+                            extension_obj.remove((c.object, 0))
+                        if (c.object, 1) in extension_obj:
+                            extension_obj.remove((c.object, 1))
+
         # For each object, determine what can be extended
         for o in object_map.keys():
             b0, b1 = slice_dict[o][axis]

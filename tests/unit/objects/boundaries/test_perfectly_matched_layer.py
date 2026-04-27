@@ -198,7 +198,7 @@ class TestPMLComputeProfile:
     def test_profile_dtype(self, micro_config, jax_key):
         pml = make_pml(axis=0, direction="-", thickness=10)
         placed = place_pml(pml, micro_config, jax_key)
-        profileE, profileH = placed._compute_pml_profile(0.0, 1.0, 3.0, jnp.float32)
+        profileE, _profileH = placed._compute_pml_profile(0.0, 1.0, 3.0, jnp.float32)
         assert profileE.dtype == jnp.float32
 
     def test_min_direction_profile_decreasing(self, micro_config, jax_key):
@@ -229,13 +229,13 @@ class TestPMLComputeProfile:
     def test_profile_axis1_shape(self, micro_config, jax_key):
         pml = make_pml(axis=1, direction="+", thickness=6)
         placed = place_pml(pml, micro_config, jax_key, volume_shape=(15, 20, 10))
-        profileE, profileH = placed._compute_pml_profile(0.0, 1.0, 1.0, jnp.float32)
+        profileE, _profileH = placed._compute_pml_profile(0.0, 1.0, 1.0, jnp.float32)
         assert profileE.shape == (15, 6, 10)
 
     def test_profile_axis2_shape(self, micro_config, jax_key):
         pml = make_pml(axis=2, direction="-", thickness=5)
         placed = place_pml(pml, micro_config, jax_key, volume_shape=(10, 10, 20))
-        profileE, profileH = placed._compute_pml_profile(0.0, 1.0, 1.0, jnp.float32)
+        profileE, _profileH = placed._compute_pml_profile(0.0, 1.0, 1.0, jnp.float32)
         assert profileE.shape == (10, 10, 5)
 
 

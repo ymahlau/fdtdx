@@ -522,14 +522,14 @@ class TestTidy3DModeComputationWrapper:
         else:
             # Multiple modes - 3D arrays with mode dimension last
             E_data = (
-                np.ones(shape + (num_modes,), dtype=np.complex64),
-                np.ones(shape + (num_modes,), dtype=np.complex64),
-                np.ones(shape + (num_modes,), dtype=np.complex64),
+                np.ones((*shape, num_modes), dtype=np.complex64),
+                np.ones((*shape, num_modes), dtype=np.complex64),
+                np.ones((*shape, num_modes), dtype=np.complex64),
             )
             H_data = (
-                np.ones(shape + (num_modes,), dtype=np.complex64),
-                np.ones(shape + (num_modes,), dtype=np.complex64),
-                np.ones(shape + (num_modes,), dtype=np.complex64),
+                np.ones((*shape, num_modes), dtype=np.complex64),
+                np.ones((*shape, num_modes), dtype=np.complex64),
+                np.ones((*shape, num_modes), dtype=np.complex64),
             )
 
         # Create a mock object that behaves like the expected EH structure

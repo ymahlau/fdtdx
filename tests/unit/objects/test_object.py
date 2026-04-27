@@ -206,7 +206,7 @@ class TestRealCoordinateConstraint:
 
 
 # ---------------------------------------------------------------------------
-# SimulationObject – basic properties before placement
+# SimulationObject - basic properties before placement
 # ---------------------------------------------------------------------------
 
 
@@ -240,7 +240,7 @@ class TestSimulationObjectDefaults:
 
 
 # ---------------------------------------------------------------------------
-# SimulationObject – place_on_grid
+# SimulationObject - place_on_grid
 # ---------------------------------------------------------------------------
 
 
@@ -604,7 +604,7 @@ class TestCheckOverlap:
         a = _make(name="a")
         b = _make(name="b")
         placed_a = _place(a, config, key, ((0, 5), (0, 5), (0, 5)))
-        # b starts at 5, which equals s_end of a – boundary condition
+        # b starts at 5, which equals s_end of a - boundary condition
         placed_b = _place(b, config, key, ((5, 10), (0, 5), (0, 5)))
         # 5 <= 5 <= 10: True for axis 0 → reports overlap
         assert placed_a.check_overlap(placed_b)

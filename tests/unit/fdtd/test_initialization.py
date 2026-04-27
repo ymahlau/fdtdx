@@ -62,7 +62,7 @@ def simple_material():
 
 
 # ---------------------------------------------------------------------------
-# resolve_object_constraints – error path tests
+# resolve_object_constraints - error path tests
 # ---------------------------------------------------------------------------
 
 
@@ -95,7 +95,7 @@ def test_resolve_constraints_conflicting_grid_coordinates(simple_config, simple_
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(10, 10, 10), material=simple_material)
     c1 = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[10])
     c2 = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[20])
-    resolved_slices, errors = resolve_object_constraints([simple_volume, obj], [c1, c2], simple_config)
+    _resolved_slices, errors = resolve_object_constraints([simple_volume, obj], [c1, c2], simple_config)
     assert errors["obj1"] is not None
 
 
@@ -103,7 +103,7 @@ def test_resolve_constraints_conflicting_real_coordinates(simple_config, simple_
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(10, 10, 10), material=simple_material)
     c1 = RealCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[10.0])
     c2 = RealCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[20.0])
-    resolved_slices, errors = resolve_object_constraints([simple_volume, obj], [c1, c2], simple_config)
+    _resolved_slices, errors = resolve_object_constraints([simple_volume, obj], [c1, c2], simple_config)
     assert errors["obj1"] is not None
 
 
@@ -128,7 +128,7 @@ def test_resolve_constraints_inconsistent_size_and_position(simple_config, simpl
         margins=[None],
     )
     grid_constraint = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[0])
-    resolved_slices, errors = resolve_object_constraints(
+    _resolved_slices, errors = resolve_object_constraints(
         [simple_volume, obj], [size_constraint, pos_constraint, grid_constraint], simple_config
     )
     assert errors["obj1"] is not None
@@ -154,7 +154,7 @@ def test_resolve_constraints_with_real_margins(simple_config, simple_volume, sim
         grid_margins=[None],
         margins=[5.0],
     )
-    resolved_slices, errors = resolve_object_constraints(
+    resolved_slices, _errors = resolve_object_constraints(
         [simple_volume, obj], [size_constraint, pos_constraint], simple_config
     )
     assert isinstance(resolved_slices, dict)
@@ -173,7 +173,7 @@ def test_resolve_constraints_with_both_margins(simple_volume, simple_material):
         grid_margins=[2],
         margins=[1.0],
     )
-    resolved_slices, errors = resolve_object_constraints([simple_volume, obj], [constraint], config)
+    resolved_slices, _errors = resolve_object_constraints([simple_volume, obj], [constraint], config)
     assert isinstance(resolved_slices, dict)
     assert "obj1" in resolved_slices
 
@@ -190,7 +190,7 @@ def test_resolve_constraints_with_real_offset_in_size(simple_volume, simple_mate
         grid_offsets=[None],
         offsets=[2.0],
     )
-    resolved_slices, errors = resolve_object_constraints([simple_volume, obj], [constraint], config)
+    resolved_slices, _errors = resolve_object_constraints([simple_volume, obj], [constraint], config)
     assert isinstance(resolved_slices, dict)
     assert "obj1" in resolved_slices
 
@@ -206,7 +206,7 @@ def test_resolve_constraints_with_grid_offset_in_size(simple_config, simple_volu
         grid_offsets=[10],
         offsets=[None],
     )
-    resolved_slices, errors = resolve_object_constraints([simple_volume, obj], [constraint], simple_config)
+    resolved_slices, _errors = resolve_object_constraints([simple_volume, obj], [constraint], simple_config)
     assert isinstance(resolved_slices, dict)
     assert "obj1" in resolved_slices
 
@@ -279,7 +279,7 @@ def test_resolve_constraints_with_partial_real_shape(simple_material):
     constraints = [
         GridCoordinateConstraint(object="obj1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[0, 0, 0])
     ]
-    resolved_slices, errors = resolve_object_constraints([volume, obj], constraints, config)
+    resolved_slices, _errors = resolve_object_constraints([volume, obj], constraints, config)
     assert isinstance(resolved_slices, dict)
     assert "obj1" in resolved_slices
     if resolved_slices["obj1"][0][0] is not None:
@@ -297,7 +297,7 @@ def test_resolve_constraints_extend_to_infinity(simple_config, simple_volume, si
 
 
 # ---------------------------------------------------------------------------
-# _resolve_volume_name – direct unit tests
+# _resolve_volume_name - direct unit tests
 # ---------------------------------------------------------------------------
 
 
@@ -321,7 +321,7 @@ def test_resolve_volume_name_multiple_volumes():
 
 
 # ---------------------------------------------------------------------------
-# _check_objects_names_from_constraints – direct unit tests
+# _check_objects_names_from_constraints - direct unit tests
 # ---------------------------------------------------------------------------
 
 
@@ -357,7 +357,7 @@ def test_check_objects_names_other_object_unknown():
 
 
 # ---------------------------------------------------------------------------
-# _resolve_static_shapes – direct unit tests
+# _resolve_static_shapes - direct unit tests
 # ---------------------------------------------------------------------------
 
 
@@ -392,7 +392,7 @@ def test_resolve_static_shapes_no_shape(simple_config, simple_material):
 
 
 # ---------------------------------------------------------------------------
-# _apply_grid_coordinate_constraint – direct unit tests
+# _apply_grid_coordinate_constraint - direct unit tests
 # ---------------------------------------------------------------------------
 
 
@@ -421,7 +421,7 @@ def test_apply_grid_coordinate_constraint_consistent_no_change(simple_volume, si
     obj_map = {"volume": simple_volume, "obj1": obj}
     slice_dict = {"volume": [[0, 100], [0, 100], [0, 100]], "obj1": [[15, None], [None, None], [None, None]]}
     c = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[15])
-    resolved, new_slices = _apply_grid_coordinate_constraint(c, obj_map, slice_dict)
+    resolved, _new_slices = _apply_grid_coordinate_constraint(c, obj_map, slice_dict)
     assert resolved is False
 
 
@@ -435,7 +435,7 @@ def test_apply_grid_coordinate_constraint_conflicting_raises(simple_volume, simp
 
 
 # ---------------------------------------------------------------------------
-# _apply_real_coordinate_constraint – direct unit tests
+# _apply_real_coordinate_constraint - direct unit tests
 # ---------------------------------------------------------------------------
 
 
@@ -473,7 +473,7 @@ def test_apply_real_coordinate_constraint_conflicting_raises(simple_config, simp
 
 
 # ---------------------------------------------------------------------------
-# _apply_size_extension_constraint – error path
+# _apply_size_extension_constraint - error path
 # ---------------------------------------------------------------------------
 
 
@@ -501,7 +501,7 @@ def test_apply_size_extension_constraint_other_not_placed_yet(simple_config, sim
 
 
 # ---------------------------------------------------------------------------
-# _handle_unresolved_objects – direct unit tests
+# _handle_unresolved_objects - direct unit tests
 # ---------------------------------------------------------------------------
 
 
@@ -532,7 +532,7 @@ def test_handle_unresolved_objects_no_errors_when_resolved(simple_volume, simple
 
 
 # ---------------------------------------------------------------------------
-# apply_params – unit tests (mocked)
+# apply_params - unit tests (mocked)
 # ---------------------------------------------------------------------------
 
 
@@ -590,7 +590,7 @@ def test_apply_params_continuous_type(mock_compute_perm):
     params = {"device1": {}}
     key = jax.random.PRNGKey(0)
     device.apply = Mock(return_value=device)
-    result_arrays, result_objects, info = apply_params(arrays, objects, params, key)
+    _result_arrays, _result_objects, _info = apply_params(arrays, objects, params, key)
     assert device.call_count > 0
     assert mock_compute_perm.called
 
@@ -615,7 +615,7 @@ def test_apply_params_discrete_type(mock_ste, mock_compute_perm):
     params = {"device1": {}}
     key = jax.random.PRNGKey(0)
     device.apply = Mock(return_value=device)
-    result_arrays, result_objects, info = apply_params(arrays, objects, params, key)
+    _result_arrays, _result_objects, _info = apply_params(arrays, objects, params, key)
     assert mock_ste.called
     assert mock_compute_perm.called
 
@@ -630,7 +630,7 @@ def test_apply_params_no_devices():
     objects.volume_idx = 0
     arrays = _make_arrays_mock()
     key = jax.random.PRNGKey(0)
-    result_arrays, result_objects, info = apply_params(arrays, objects, {}, key)
+    _result_arrays, _result_objects, info = apply_params(arrays, objects, {}, key)
     assert mock_obj.apply.called
     assert isinstance(info, dict)
 
@@ -685,7 +685,7 @@ def test_apply_params_isotropic_components(mock_compute_perm):
     objects.object_list = [mock_obj]
     objects.volume_idx = 0
     device.apply = Mock(return_value=device)
-    result_arrays, result_objects, info = apply_params(arrays, objects, {"device1": {}}, jax.random.PRNGKey(0))
+    _result_arrays, _result_objects, _info = apply_params(arrays, objects, {"device1": {}}, jax.random.PRNGKey(0))
     assert mock_compute_perm.called
 
 
@@ -742,7 +742,7 @@ def test_apply_params_fully_anisotropic_continuous(mock_compute_perm):
     objects.object_list = [mock_obj]
     objects.volume_idx = 0
     device.apply = Mock(return_value=device)
-    result_arrays, result_objects, info = apply_params(arrays, objects, {"device1": {}}, jax.random.PRNGKey(0))
+    _result_arrays, _result_objects, _info = apply_params(arrays, objects, {"device1": {}}, jax.random.PRNGKey(0))
     assert mock_compute_perm.called
 
 
@@ -800,13 +800,13 @@ def test_apply_params_fully_anisotropic_discrete(mock_ste, mock_compute_perm):
     objects.object_list = [mock_obj]
     objects.volume_idx = 0
     device.apply = Mock(return_value=device)
-    result_arrays, result_objects, info = apply_params(arrays, objects, {"device1": {}}, jax.random.PRNGKey(0))
+    _result_arrays, _result_objects, _info = apply_params(arrays, objects, {"device1": {}}, jax.random.PRNGKey(0))
     assert mock_ste.called
     assert mock_compute_perm.called
 
 
 # ---------------------------------------------------------------------------
-# _apply_position_constraint – edge cases
+# _apply_position_constraint - edge cases
 # ---------------------------------------------------------------------------
 
 
@@ -855,7 +855,7 @@ def test_apply_position_constraint_object_size_unknown(simple_config, simple_vol
 
 
 # ---------------------------------------------------------------------------
-# _apply_size_constraint – edge cases
+# _apply_size_constraint - edge cases
 # ---------------------------------------------------------------------------
 
 
@@ -897,7 +897,7 @@ def test_apply_size_constraint_conflicting_shape_raises(simple_config, simple_vo
 
 
 # ---------------------------------------------------------------------------
-# _update_grid_slices_from_shapes – direct unit tests
+# _update_grid_slices_from_shapes - direct unit tests
 # ---------------------------------------------------------------------------
 
 
@@ -911,7 +911,7 @@ def test_update_grid_slices_from_shapes_b0_known(simple_volume, simple_material)
         "obj1": [[5, None], [None, None], [None, None]],
     }
     errors = {"volume": None, "obj1": None}
-    resolved, new_slices, new_errors = _update_grid_slices_from_shapes(obj_map, shape_dict, slice_dict, errors)
+    resolved, new_slices, _new_errors = _update_grid_slices_from_shapes(obj_map, shape_dict, slice_dict, errors)
     assert resolved is True
     assert new_slices["obj1"][0][1] == 15  # b0(5) + shape(10)
 
@@ -926,7 +926,7 @@ def test_update_grid_slices_from_shapes_b1_known(simple_volume, simple_material)
         "obj1": [[None, 30], [None, None], [None, None]],
     }
     errors = {"volume": None, "obj1": None}
-    resolved, new_slices, new_errors = _update_grid_slices_from_shapes(obj_map, shape_dict, slice_dict, errors)
+    resolved, new_slices, _new_errors = _update_grid_slices_from_shapes(obj_map, shape_dict, slice_dict, errors)
     assert resolved is True
     assert new_slices["obj1"][0][0] == 20  # b1(30) - shape(10)
 
@@ -942,12 +942,12 @@ def test_update_grid_slices_from_shapes_inconsistent_shape(simple_volume, simple
         "obj1": [[5, 25], [None, None], [None, None]],
     }
     errors = {"volume": None, "obj1": None}
-    resolved, new_slices, new_errors = _update_grid_slices_from_shapes(obj_map, shape_dict, slice_dict, errors)
+    _resolved, _new_slices, new_errors = _update_grid_slices_from_shapes(obj_map, shape_dict, slice_dict, errors)
     assert new_errors["obj1"] is not None
 
 
 # ---------------------------------------------------------------------------
-# _update_grid_shapes_from_slices – direct unit tests
+# _update_grid_shapes_from_slices - direct unit tests
 # ---------------------------------------------------------------------------
 
 
@@ -961,7 +961,7 @@ def test_update_grid_shapes_from_slices_infers_shape(simple_volume, simple_mater
         "obj1": [[10, 30], [0, 100], [0, 100]],
     }
     errors = {"volume": None, "obj1": None}
-    resolved, new_shapes, new_errors = _update_grid_shapes_from_slices(obj_map, shape_dict, slice_dict, errors)
+    resolved, new_shapes, _new_errors = _update_grid_shapes_from_slices(obj_map, shape_dict, slice_dict, errors)
     assert resolved is True
     assert new_shapes["obj1"][0] == 20
 
@@ -977,12 +977,12 @@ def test_update_grid_shapes_from_slices_inconsistent(simple_volume, simple_mater
         "obj1": [[5, 25], [None, None], [None, None]],
     }
     errors = {"volume": None, "obj1": None}
-    resolved, new_shapes, new_errors = _update_grid_shapes_from_slices(obj_map, shape_dict, slice_dict, errors)
+    _resolved, _new_shapes, new_errors = _update_grid_shapes_from_slices(obj_map, shape_dict, slice_dict, errors)
     assert new_errors["obj1"] is not None
 
 
 # ---------------------------------------------------------------------------
-# _apply_position_constraint – conflict paths
+# _apply_position_constraint - conflict paths
 # ---------------------------------------------------------------------------
 
 
@@ -1035,7 +1035,7 @@ def test_apply_position_constraint_conflicting_b1_raises(simple_config, simple_v
 
 
 # ---------------------------------------------------------------------------
-# resolve_object_constraints – unknown constraint type via iterative solver
+# resolve_object_constraints - unknown constraint type via iterative solver
 # ---------------------------------------------------------------------------
 
 
@@ -1084,7 +1084,7 @@ def test_apply_size_extension_constraint_volume_upper_bound_none_raises(simple_c
 
 
 # ---------------------------------------------------------------------------
-# resolve_object_constraints – unknown constraint type via iterative solver
+# resolve_object_constraints - unknown constraint type via iterative solver
 # ---------------------------------------------------------------------------
 
 
@@ -1098,13 +1098,13 @@ def test_resolve_constraints_unknown_constraint_type_sets_error(simple_config, s
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(10, 10, 10), material=simple_material)
     fake = FakeConstraint()
     # _check_objects_names_from_constraints inspects getattr(c, "object") and getattr(c, "other_object")
-    resolved_slices, errors = resolve_object_constraints([simple_volume, obj], [fake], simple_config)
+    _resolved_slices, errors = resolve_object_constraints([simple_volume, obj], [fake], simple_config)
     # The unknown type raises inside the loop, exception is caught → error stored
     assert errors["obj1"] is not None
 
 
 # ---------------------------------------------------------------------------
-# _init_arrays – unknown static material object type
+# _init_arrays - unknown static material object type
 # ---------------------------------------------------------------------------
 
 
@@ -1268,7 +1268,7 @@ def test_resolve_constraints_partial_real_position_conflicts_with_constraint(
 
     constraints = [constraint]
 
-    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+    _resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
 
     # Should detect the conflict
     assert errors["obj1"] is not None
@@ -2054,7 +2054,7 @@ def test_extend_to_inf_no_bounds_but_size_known_triggers_upper_removal(simple_co
     objects = [simple_volume, obj]
     constraints = []  # important: no constraints that remove extension flags
 
-    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+    _resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
 
     # This configuration is valid, we just care about hitting the branch
     assert errors["obj1"] is None
@@ -2192,7 +2192,7 @@ def test_iterative_position_upper_bound_conflict(simple_config, simple_volume, s
         ),
     ]
 
-    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+    _resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
 
     # Conflict between b1=60 (from constraint) and upper=55 (from partial_real_position)
     # must be recorded in the errors dict.
@@ -2363,6 +2363,6 @@ def test_extend_to_inf_lower_bound_only_already_removed_from_extension_obj(
         ),
     ]
 
-    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+    _resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
 
     assert "obj1" in errors

@@ -117,7 +117,7 @@ def update_E(
 ) -> ArrayContainer:
     """Updates the electric field (E) according to Maxwell's equations using the FDTD method.
 
-    Implements the discretized form of dE/dt = (1/ε)∇×H on the Yee grid. Updates include:
+    Implements the discretized form of dE/dt = (1/eps) curl(H) on the Yee grid. Updates include:
     1. PML/periodic boundary conditions if simulate_boundaries=True
     2. Source contributions for active sources
     3. Field updates based on curl of H field
@@ -413,7 +413,7 @@ def update_H(
 ) -> ArrayContainer:
     """Updates the magnetic field (H) according to Maxwell's equations using the FDTD method.
 
-    Implements the discretized form of dH/dt = -(1/μ)∇×E on the Yee grid. Updates include:
+    Implements the discretized form of dH/dt = -(1/mu) curl(E) on the Yee grid. Updates include:
     1. PML/periodic boundary conditions if simulate_boundaries=True
     2. Source contributions for active sources
     3. Field updates based on curl of E field

@@ -505,8 +505,8 @@ def compute_allowed_electric_conductivities(
 
     Args:
         materials: Dictionary mapping material names to Material objects
-        isotropic: If True, return single-element tuples (σx,)
-        diagonally_anisotropic: If True, return 3-tuples (σx, σy, σz)
+        isotropic: If True, return single-element tuples (sigma_x,)
+        diagonally_anisotropic: If True, return 3-tuples (sigma_x, sigma_y, sigma_z)
 
     Returns:
         list[tuple[float, ...]]: List of electric conductivity tuples
@@ -532,8 +532,8 @@ def compute_allowed_magnetic_conductivities(
 
     Args:
         materials: Dictionary mapping material names to Material objects
-        isotropic: If True, return single-element tuples (σx,)
-        diagonally_anisotropic: If True, return 3-tuples (σx, σy, σz)
+        isotropic: If True, return single-element tuples (sigma_x,)
+        diagonally_anisotropic: If True, return 3-tuples (sigma_x, sigma_y, sigma_z)
 
     Returns:
         list[tuple[float, ...]]: List of magnetic conductivity tuples

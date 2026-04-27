@@ -36,6 +36,11 @@ class PhasorDetector(Detector):
     #: Whether to plot the measured data. Defaults to False.
     plot: bool = frozen_field(default=False)
 
+    #: Scaling of the resulting phasor. In continuous mode, the result is scaled by a factor of 2 / N, where N is
+    #: the number of time steps recorded. This allows accurate reconstruction of a continuous signal.
+    #: In pulse mode, the result is not scaled.
+    scaling_mode: Literal["continuous", "pulse"] = frozen_field(default="continuous")
+
     def __post_init__(
         self,
     ):
@@ -71,7 +76,12 @@ class PhasorDetector(Detector):
     ) -> DetectorState:
         del inv_permeability, inv_permittivity
         time_passed = time_step * self._config.time_step_duration
-        static_scale = 2 / self.num_time_steps_recorded
+        if self.scaling_mode == "continuous":
+            static_scale = 2 / self.num_time_steps_recorded
+        elif self.scaling_mode == "pulse":
+            static_scale = 1
+        else:
+            raise Exception(f"Invalid scaling mode: {self.scaling_mode=}")
 
         E, H = E[:, *self.grid_slice], H[:, *self.grid_slice]
         fields = []

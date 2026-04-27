@@ -59,7 +59,7 @@ def simple_material_setup():
     ]
 
     key = jax.random.PRNGKey(0)
-    objects, arrays, params, config, _ = fdtdx.place_objects(
+    _objects, arrays, _params, config, _ = fdtdx.place_objects(
         object_list=object_list,
         config=config,
         constraints=constraints,
@@ -108,7 +108,7 @@ def cylinder_setup():
     ]
 
     key = jax.random.PRNGKey(0)
-    objects, arrays, params, config, _ = fdtdx.place_objects(
+    _objects, arrays, _params, config, _ = fdtdx.place_objects(
         object_list=object_list,
         config=config,
         constraints=constraints,
@@ -156,7 +156,7 @@ def sphere_setup():
     ]
 
     key = jax.random.PRNGKey(0)
-    objects, arrays, params, config, _ = fdtdx.place_objects(
+    _objects, arrays, _params, config, _ = fdtdx.place_objects(
         object_list=object_list,
         config=config,
         constraints=constraints,
@@ -547,7 +547,7 @@ def test_plot_material_all_types_objects():
     ]
 
     key = jax.random.PRNGKey(0)
-    objects, arrays, params, config, _ = fdtdx.place_objects(
+    _objects, arrays, _params, config, _ = fdtdx.place_objects(
         object_list=object_list,
         config=config,
         constraints=constraints,

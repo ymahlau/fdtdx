@@ -43,7 +43,7 @@ def _slab_neff_te(n_core: float, n_clad: float, wavelength: float, thickness: fl
 
         κ tan(κd) = γ,   u² + w² = V²
 
-    where d = thickness/2, u = κd, w = γd, V = k₀d√(n_core² − n_clad²).
+    where d = thickness/2, u = κd, w = γd, V = k₀d√(n_core² - n_clad²).
     Uses bisection on u ∈ (0, min(V, π/2)).
     """
     k0 = 2 * np.pi / wavelength
@@ -157,7 +157,7 @@ def test_mode_source_waveguide_propagation():
     """Mode propagates with the effective index predicted for the TE slab mode.
 
     Two phasor detectors at different x positions give the phase difference,
-    from which n_eff = k_measured × λ / 2π is extracted.  The result is
+    from which n_eff = k_measured x λ / 2π is extracted.  The result is
     compared with the analytical solution of the symmetric-slab characteristic
     equation κ tan(κd) = γ (tolerance 10 %; the 50 nm resolution corresponds
     to ~4 cells across the 220 nm core so some discretisation error is expected).
@@ -247,7 +247,7 @@ def test_mode_source_confinement():
     # Find core region indices. The waveguide is centered.
     nz = ey_amp.shape[1]
     # Core spans WG_HEIGHT / RESOLUTION cells centered in z
-    wg_cells_z = int(round(_WG_HEIGHT / _RESOLUTION))
+    wg_cells_z = round(_WG_HEIGHT / _RESOLUTION)
     z_start = (nz - wg_cells_z) // 2
     z_end = z_start + wg_cells_z
 
