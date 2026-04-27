@@ -96,6 +96,7 @@ from fdtdx.objects.sources.linear_polarization import GaussianPlaneSource, Unifo
 from fdtdx.objects.sources.mode import ModePlaneSource
 from fdtdx.objects.sources.profile import GaussianPulseProfile, SingleFrequencyProfile
 from fdtdx.objects.static_material.cylinder import Cylinder
+from fdtdx.objects.static_material.meshed import MeshedObject, meshed_object_from_file
 from fdtdx.objects.static_material.polygon import (
     ExtrudedPolygon,
     extruded_polygon_from_gds,
@@ -142,6 +143,7 @@ __all__ = [
     "LinearReconstructEveryK",
     "Logger",
     "Material",
+    "MeshedObject",
     "ModeOverlapDetector",
     "ModePlaneSource",
     "ObjectContainer",
@@ -206,6 +208,7 @@ __all__ = [
     "frozen_private_field",
     "full_backward",
     "import_from_json",
+    "meshed_object_from_file",
     "metric_efficiency",
     "normalize_by_energy",
     "normalize_by_poynting_flux",
