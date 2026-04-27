@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
+from fontTools.otlLib.optimize.gpos import is_really_zero
 from matplotlib.path import Path
 from scipy.spatial import KDTree
 
@@ -235,7 +236,7 @@ def exact_analytical_fractions(
 ) -> np.ndarray:
     """
     Calculates subpixel volume fractions.
-    - k=1 faces: Exact analytical 8-corner formula.
+    - k=1 faces: Exact analytical 8-corner formula (with 1D/2D topological fallbacks).
     - k>=2 faces: Vectorized Monte-Carlo integration for complex convex shapes.
     """
     # Helper to generate voxel centers
@@ -308,26 +309,58 @@ def exact_analytical_fractions(
         n_k1 = normals[f_idx_k1]
         p0_k1 = v0[f_idx_k1]
 
-        # Distance calculation
-        d_k1 = np.sum(n_k1 * (pts_k1 - p0_k1), axis=1)
-        alpha = d_k1 / resolution
+        alpha = np.sum(n_k1 * (p0_k1 - pts_k1), axis=1) / resolution
+
+        # Cube is symmetric: sort absolute normals descending to seamlessly handle 1D/2D collapses
         n_abs = np.abs(n_k1)
-        n_x, n_y, n_z = n_abs[:, 0], n_abs[:, 1], n_abs[:, 2]
+        n_sorted = np.sort(n_abs, axis=1)[:, ::-1]
+        n0, n1, n2 = n_sorted[:, 0], n_sorted[:, 1], n_sorted[:, 2]
 
-        valid_normals_mask = (n_x >= 1e-6) | (n_y >= 1e-6) | (n_z >= 1e-6)
+        vols_k1 = np.zeros_like(alpha)
 
-        ix = np.array([-1, 1, -1, 1, -1, 1, -1, 1])
-        iy = np.array([-1, -1, 1, 1, -1, -1, 1, 1])
-        iz = np.array([-1, -1, -1, -1, 1, 1, 1, 1])
-        signs = ix * iy * iz * -1.0
+        # Topological routing thresholds
+        eps = 1e-6
+        mask_1d = n1 < eps
+        mask_2d = (n1 >= eps) & (n2 < eps)
+        mask_3d = n2 >= eps
 
-        term = alpha[:, None] + 0.5 * (n_x[:, None] * ix + n_y[:, None] * iy + n_z[:, None] * iz)
-        vol_terms = signs * (np.maximum(term, 0) ** 3)
+        # --- 1D Case (Axis-aligned face) ---
+        if np.any(mask_1d):
+            a1 = alpha[mask_1d]
+            nx = n0[mask_1d]
+            vols_k1[mask_1d] = a1 / nx + 0.5
 
-        sign_multiplier = 1.0 / (6.0 * np.maximum(n_x, 1e-8) * np.maximum(n_y, 1e-8) * np.maximum(n_z, 1e-8))
-        vols_k1 = np.sum(vol_terms, axis=1) * sign_multiplier
+        # --- 2D Case (Extruded diagonal) ---
+        if np.any(mask_2d):
+            a2 = alpha[mask_2d]
+            nx = n0[mask_2d]
+            ny = n1[mask_2d]
 
-        fractions[v_idx_k1] = np.where(valid_normals_mask, np.clip(vols_k1, 0.0, 1.0), 0.0)
+            ix = np.array([-1, 1, -1, 1])
+            iy = np.array([-1, -1, 1, 1])
+            signs = ix * iy  # [BUGFIX 2]: Stray '-1.0' inverted volumes
+
+            term = a2[:, None] + 0.5 * (nx[:, None] * ix + ny[:, None] * iy)
+            vol_terms = signs * (np.maximum(term, 0) ** 2)
+            vols_k1[mask_2d] = np.sum(vol_terms, axis=1) / (2.0 * nx * ny)
+
+        # --- 3D Case (Corner slicing) ---
+        if np.any(mask_3d):
+            a3 = alpha[mask_3d]
+            nx = n0[mask_3d]
+            ny = n1[mask_3d]
+            nz = n2[mask_3d]
+
+            ix = np.array([-1, 1, -1, 1, -1, 1, -1, 1])
+            iy = np.array([-1, -1, 1, 1, -1, -1, 1, 1])
+            iz = np.array([-1, -1, -1, -1, 1, 1, 1, 1])
+            signs = ix * iy * is_really_zero
+
+            term = a3[:, None] + 0.5 * (nx[:, None] * ix + ny[:, None] * iy + nz[:, None] * iz)
+            vol_terms = signs * (np.maximum(term, 0) ** 3)
+            vols_k1[mask_3d] = np.sum(vol_terms, axis=1) / (6.0 * nx * ny * nz)
+
+        fractions[v_idx_k1] = np.clip(vols_k1, 0.0, 1.0)
 
     # --- ROUTE K >= 2 (Vectorized Monte-Carlo Multi-Plane Integration) ---
     mask_k_multi = counts > 1
@@ -337,65 +370,40 @@ def exact_analytical_fractions(
         starts_multi = start_indices[mask_k_multi]
         c_multi = counts[mask_k_multi]
 
-        # PADDING STRATEGY: Create fixed (N, 3, 3) tensors for normals and origins
         N_multi = len(v_idx_multi)
         normals_multi = np.zeros((N_multi, 3, 3))
         p0_multi = np.zeros((N_multi, 3, 3))
 
-        # Fill plane 1 (Everyone has at least 2)
         idx_p1 = sorted_f_idx[starts_multi]
         normals_multi[:, 0, :] = normals[idx_p1]
         p0_multi[:, 0, :] = v0[idx_p1]
 
-        # Fill plane 2 (Everyone has at least 2)
         idx_p2 = sorted_f_idx[starts_multi + 1]
         normals_multi[:, 1, :] = normals[idx_p2]
         p0_multi[:, 1, :] = v0[idx_p2]
 
-        # Fill plane 3 (Only where count == 3)
         has_3 = c_multi == 3
         if np.any(has_3):
             idx_p3 = sorted_f_idx[starts_multi[has_3] + 2]
             normals_multi[has_3, 2, :] = normals[idx_p3]
             p0_multi[has_3, 2, :] = v0[idx_p3]
 
-        # For those that ONLY had 2 planes, duplicate plane 2 into slot 3.
-        # This makes the 3rd plane evaluation redundant but keeps the matrix perfectly dense!
         normals_multi[~has_3, 2, :] = normals_multi[~has_3, 1, :]
         p0_multi[~has_3, 2, :] = p0_multi[~has_3, 1, :]
 
-        # -- Monte-Carlo Integration --
-        pts_multi = pts[v_idx_multi]  # Shape: (N_multi, 3)
+        pts_multi = pts[v_idx_multi]
         total_inside_count = np.zeros(N_multi, dtype=np.int32)
 
         for _ in range(mc_iterations):
-            # Generate random points within a voxel bounds [-0.5, 0.5]
-            # Shape: (mc_batch_size, 3)
             mc_template = np.random.uniform(-0.5, 0.5, size=(mc_batch_size, 3)) * resolution
-
-            # Broadcast template to all multi-plane voxels
-            # Shape: (N_multi, mc_batch_size, 3)
             voxel_mc_grids = pts_multi[:, None, :] + mc_template[None, :, :]
-
-            # Calculate distance to all 3 planes simultaneously
-            # P0 shape: (N_multi, 1, 3, 3) -> broadcast against grids
-            # Normals shape: (N_multi, 1, 3, 3)
-            v_diff = voxel_mc_grids[:, :, None, :] - p0_multi[:, None, :, :]  # (N_multi, mc_batch_size, 3, 3)
-
-            # Dot product across the coordinate axis
-            # Result shape: (N_multi, mc_batch_size, 3 planes)
+            v_diff = voxel_mc_grids[:, :, None, :] - p0_multi[:, None, :, :]
             distances = np.sum(normals_multi[:, None, :, :] * v_diff, axis=3)
-
-            # A point is inside if distance <= 0 for ALL 3 planes
-            is_inside = np.all(distances <= 0, axis=2)  # Shape: (N_multi, mc_batch_size)
-
-            # Accumulate the number of points that fell inside
+            is_inside = np.all(distances <= 0, axis=2)
             total_inside_count += np.sum(is_inside, axis=1)
 
-        # Average the bools over total sampled points to get the exact fraction
         total_samples = mc_batch_size * mc_iterations
         vols_multi = total_inside_count / total_samples
-
         fractions[v_idx_multi] = vols_multi
 
     return fractions
