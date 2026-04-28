@@ -283,10 +283,17 @@ class SimulationObject(TreeClass, ABC):
         del key
         if self._grid_slice_tuple != INVALID_SLICE_TUPLE_3D:
             raise Exception(f"Object is already compiled to grid: {self}")
+
         for axis in range(3):
             s1, s2 = grid_slice_tuple[axis]
-            if s1 < 0 or s2 < 0 or s2 <= s1:
-                raise Exception(f"Invalid placement of object {self} at {grid_slice_tuple}")
+
+            # Basic sanity: indices must be non-negative and size must be positive
+            if s1 < 0 or s2 <= s1:
+                raise Exception(
+                    f"Invalid placement of object '{self.name}' at {grid_slice_tuple}. "
+                    f"Axis {axis}: slice [{s1}, {s2}] has negative indices or non-positive size."
+                )
+
         self = self.aset("_grid_slice_tuple", grid_slice_tuple)
         self = self.aset("_config", config, create_new_ok=True)
         return self
@@ -789,44 +796,3 @@ class SimulationObject(TreeClass, ABC):
 @autoinit
 class OrderableObject(SimulationObject):
     placement_order: int = frozen_field(default=0)
-
-    class EmptySimulationObject(SimulationObject):
-        # Add a large background object (covers most of the volume)
-        class LargeObject(SimulationObject):
-            def __init__(self):
-                super().__init__(
-                    partial_real_shape=(480 * 20e-9, 480 * 20e-9, 480 * 20e-9),  # 480 grid points * resolution
-                    partial_grid_shape=(10, 10, 10),
-                    name="large_background",
-                )
-                self.color = Color.from_rgb(216, 220, 214)
-
-        # Add a smaller centered object
-        class CenterObject(SimulationObject):
-            def __init__(self):
-                super().__init__(
-                    partial_real_shape=(100 * 20e-9, 100 * 20e-9, 100 * 20e-9),  # 100 grid points * resolution
-                    partial_grid_shape=(200, 200, 200),
-                    name="center_object",
-                )
-                self.color = Color.from_rgb(249, 115, 6)
-
-        # Add a thin vertical object
-        class VerticalObject(SimulationObject):
-            def __init__(self):
-                super().__init__(
-                    partial_real_shape=(50 * 20e-9, 50 * 20e-9, 200 * 20e-9),  # grid points * resolution
-                    partial_grid_shape=(350, 350, 150),
-                    name="vertical_object",
-                )
-                self.color = Color.from_rgb(1, 101, 252)
-
-        # Add a horizontal slab
-        class HorizontalSlab(SimulationObject):
-            def __init__(self):
-                super().__init__(
-                    partial_real_shape=(200 * 20e-9, 200 * 20e-9, 30 * 20e-9),  # grid points * resolution
-                    partial_grid_shape=(100, 100, 400),
-                    name="horizontal_slab",
-                )
-                self.color = Color.from_rgb(6, 71, 12)
