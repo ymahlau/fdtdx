@@ -5,15 +5,13 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from fdtdx.core.grid import _voxel_centers_numpy
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
 
-_RAY_CHUNK = 512  # points processed per batch in _contains_numpy
+_RAY_CHUNK = 2**16  # points processed per batch in _contains_numpy
 
-# Non-axis-aligned ray direction based on the golden ratio (φ).
-# Irrational components make accidental edge/vertex hits essentially impossible
-# for any regularly-structured mesh (boxes, extruded polygons, …).
 _PHI = (1.0 + np.sqrt(5.0)) / 2.0
 _RAY_DIR: np.ndarray = np.array([1.0, _PHI, _PHI**2])
 _RAY_DIR = _RAY_DIR / np.linalg.norm(_RAY_DIR)
@@ -111,20 +109,6 @@ def _extract_surface(cells_and_types: list[tuple[str, np.ndarray]]) -> np.ndarra
     return np.concatenate(all_faces, axis=0)
 
 
-def _voxel_centers(grid_shape: tuple[int, int, int], resolution: float) -> np.ndarray:
-    """Return voxel center positions in mesh-local coordinates (origin = bounding-box center).
-
-    Returns:
-        Array of shape (nx*ny*nz, 3).
-    """
-    nx, ny, nz = grid_shape
-    x = (np.arange(nx) + 0.5) * resolution - nx * resolution / 2
-    y = (np.arange(ny) + 0.5) * resolution - ny * resolution / 2
-    z = (np.arange(nz) + 0.5) * resolution - nz * resolution / 2
-    xx, yy, zz = np.meshgrid(x, y, z, indexing="ij")
-    return np.column_stack([xx.ravel(), yy.ravel(), zz.ravel()])
-
-
 @autoinit
 class MeshedObject(StaticMultiMaterialObject):
     """A single-material 3D object defined by a triangular surface mesh.
@@ -147,12 +131,15 @@ class MeshedObject(StaticMultiMaterialObject):
     #: Name of the material in the ``materials`` dict to assign to all voxels.
     material_name: str = frozen_field()
 
+    #: If True, calculates exact analytical subpixel volume fractions for boundary voxels
+    subpixel_smoothing: bool = frozen_field(default=False)
+
     # ------------------------------------------------------------------
     # StaticMultiMaterialObject interface
     # ------------------------------------------------------------------
 
     def get_voxel_mask_for_shape(self) -> jax.Array:
-        pts = _voxel_centers(self.grid_shape, self._config.resolution)
+        pts = _voxel_centers_numpy(self.grid_shape, self._config.resolution)
         inside = _contains_numpy(self.vertices, self.faces, pts)
         return jnp.asarray(inside.reshape(self.grid_shape), dtype=jnp.bool_)
 

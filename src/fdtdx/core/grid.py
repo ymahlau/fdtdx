@@ -215,14 +215,13 @@ def polygon_to_mask(
     return mask
 
 
-def _voxel_centers_numpy(grid_shape: tuple[int, int, int], resolution: float) -> np.ndarray:
-    # ... (Keep existing _voxel_centers implementation here) ...
+def get_voxel_centers(grid_shape: tuple[int, int, int], resolution: float) -> jax.Array:
     nx, ny, nz = grid_shape
-    x = (np.arange(nx) + 0.5) * resolution - nx * resolution / 2
-    y = (np.arange(ny) + 0.5) * resolution - ny * resolution / 2
-    z = (np.arange(nz) + 0.5) * resolution - nz * resolution / 2
-    xx, yy, zz = np.meshgrid(x, y, z, indexing="ij")
-    return np.column_stack([xx.ravel(), yy.ravel(), zz.ravel()])
+    x = (jnp.arange(nx) + 0.5) * resolution - nx * resolution / 2
+    y = (jnp.arange(ny) + 0.5) * resolution - ny * resolution / 2
+    z = (jnp.arange(nz) + 0.5) * resolution - nz * resolution / 2
+    xx, yy, zz = jnp.meshgrid(x, y, z, indexing="ij")
+    return jnp.column_stack([xx.ravel(), yy.ravel(), zz.ravel()])
 
 
 def exact_analytical_fractions(
@@ -235,9 +234,44 @@ def exact_analytical_fractions(
     mc_iterations: int = 5,
 ) -> np.ndarray:
     """
-    Calculates subpixel volume fractions.
-    - k=1 faces: Exact analytical 8-corner formula (with 1D/2D topological fallbacks).
-    - k>=2 faces: Vectorized Monte-Carlo integration for complex convex shapes.
+    Calculates subpixel volume fractions of a triangular mesh within a 3D voxel grid.
+
+    This function determines the precise fractional volume of a mesh occupying each voxel.
+    To balance speed and accuracy, it routes the computation based on the number of
+    intersecting faces (k) per voxel:
+
+    - k = 1 (Single Face): Uses an exact analytical 8-corner formula. It includes topological
+      fallbacks to seamlessly handle 1D (axis-aligned face), 2D (extruded diagonal), and
+      3D (corner slicing) intersections.
+    - k >= 2 (Multiple Faces): Uses vectorized Monte-Carlo multi-plane integration to
+      approximate the volume fraction for complex convex shapes.
+
+    Args:
+        vertices (np.ndarray): An array of shape (V, 3) containing the 3D coordinates
+            of the mesh vertices.
+        faces (np.ndarray): An array of shape (F, 3) containing the mesh faces, where
+            each element is an index referencing the `vertices` array.
+        grid_shape (tuple[int, int, int]): The (Nx, Ny, Nz) dimensions of the bounding
+            voxel grid.
+        resolution (float): The spatial size (side length) of a single cubic voxel.
+        binary_inside (np.ndarray): A boolean or numeric array (expected shape matching
+            `grid_shape`) indicating which voxels are completely inside the mesh.
+            These act as the base fractions before boundary intersections are calculated.
+        mc_batch_size (int, optional): The number of random samples generated per Monte-Carlo
+            batch for voxels intersecting multiple faces. Defaults to 1000.
+        mc_iterations (int, optional): The number of Monte-Carlo batches to run.
+            Total samples per complex voxel equals `mc_batch_size * mc_iterations`. Defaults to 5.
+
+    Returns:
+        np.ndarray: A flattened 1D array of shape (Nx * Ny * Nz,) containing float64 values
+        between 0.0 and 1.0, representing the exact or approximated volume fraction
+        for every voxel in the grid.
+
+    Notes:
+        - The function relies on an initial KD-Tree broad-phase query to efficiently find
+          voxels near mesh faces.
+        - For the Monte-Carlo multi-plane integration, intersecting faces are capped at 3
+          per voxel to define the localized convex corner.
     """
     # Helper to generate voxel centers
     x = np.arange(grid_shape[0]) * resolution
