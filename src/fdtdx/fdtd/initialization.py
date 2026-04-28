@@ -682,7 +682,6 @@ def resolve_object_constraints(
 
     # If the volume itself failed to resolve, skip bounds checks
     if volume_slice is not None:
-        tuple(s2 - s1 for s1, s2 in volume_slice)
         volume_bounds = tuple((s1, s2) for s1, s2 in volume_slice)
 
         # Validate all non-volume objects are within simulation volume bounds
