@@ -75,6 +75,7 @@ class ModePlaneSource(TFSFPlaneSource):
         raw_wave_vector = get_wave_vector_raw(
             direction=self.direction,
             propagation_axis=self.propagation_axis,
+            dtype=self._config.dtype,
         )
         time_offset_E, time_offset_H = calculate_time_offset_yee(
             center=center,

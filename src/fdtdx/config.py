@@ -105,6 +105,15 @@ class SimulationConfig(TreeClass):
             jax.config.update("jax_platform_name", "cpu")
 
     @property
+    def complex_dtype(self) -> jnp.dtype:
+        """Complex dtype matching the simulation's float dtype.
+
+        Returns:
+            jnp.dtype: ``jnp.complex128`` when ``dtype`` is ``jnp.float64``, otherwise ``jnp.complex64``.
+        """
+        return jnp.complex128 if self.dtype == jnp.float64 else jnp.complex64
+
+    @property
     def courant_number(self) -> float:
         """Calculate the Courant number for the simulation.
 

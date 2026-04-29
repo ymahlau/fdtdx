@@ -41,10 +41,12 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
             propagation_axis=self.propagation_axis,
             fixed_E_polarization_vector=self.fixed_E_polarization_vector,
             fixed_H_polarization_vector=self.fixed_H_polarization_vector,
+            dtype=self._config.dtype,
         )
         wave_vector_raw = get_wave_vector_raw(
             direction=self.direction,
             propagation_axis=self.propagation_axis,
+            dtype=self._config.dtype,
         )
 
         center, azimuth, elevation = self._get_random_parts(key)
@@ -69,7 +71,7 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         # basis in plane
         h_list = [0, 0, 0]
         h_list[self.horizontal_axis] = 1
-        h_axis = jnp.asarray(h_list, dtype=jnp.float32)
+        h_axis = jnp.asarray(h_list, dtype=self._config.dtype)
         u_basis = h_axis - jnp.dot(h_axis, wave_vector) * wave_vector
         u_basis = u_basis / jnp.linalg.norm(u_basis)
         v_basis = jnp.cross(wave_vector, u_basis)
@@ -78,12 +80,12 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         def project(point):
             point_list = [point[0], point[1]]
             point_list.insert(self.propagation_axis, 0)
-            point = jnp.asarray(point_list, dtype=jnp.float32)
+            point = jnp.asarray(point_list, dtype=self._config.dtype)
             projection = point - jnp.dot(point, wave_vector) * wave_vector
             # Convert to plane coordinates
             u = jnp.dot(projection, u_basis)
             v = jnp.dot(projection, v_basis)
-            return jnp.asarray((u, v), dtype=jnp.float32)
+            return jnp.asarray((u, v), dtype=self._config.dtype)
 
         float_projected = jax.vmap(project)(wh_indices.reshape(-1, 2))
         float_projected += center
@@ -223,5 +225,5 @@ class UniformPlaneSource(LinearlyPolarizedPlaneSource):
         center: jax.Array,
     ) -> jax.Array:
         del center
-        profile = jnp.ones(shape=self.grid_shape, dtype=jnp.float32)
+        profile = jnp.ones(shape=self.grid_shape, dtype=self._config.dtype)
         return self.amplitude * profile

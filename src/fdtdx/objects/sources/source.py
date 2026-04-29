@@ -190,6 +190,7 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
             propagation_axis=self.propagation_axis,
             fixed_E_polarization_vector=self.fixed_E_polarization_vector,
             fixed_H_polarization_vector=self.fixed_E_polarization_vector,
+            dtype=self._config.dtype,
         )
         E_update = e_pol[:, None, None, None] * magnitude
 
@@ -218,6 +219,7 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
             propagation_axis=self.propagation_axis,
             fixed_E_polarization_vector=self.fixed_E_polarization_vector,
             fixed_H_polarization_vector=self.fixed_E_polarization_vector,
+            dtype=self._config.dtype,
         )
         H_update = h_pol[:, None, None, None] * magnitude
 
