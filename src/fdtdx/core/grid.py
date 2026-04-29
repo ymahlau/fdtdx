@@ -534,8 +534,8 @@ def exact_analytical_fractions(
     binary_inside: np.ndarray | None = None,
     fixed_lookup_grid_size: tuple[int, int] | None = None,
     chunk_size: int = 100_000,
-    mc_batch_size: int = 1000,
-    mc_iterations: int = 5,
+    mc_samples_per_voxel: int = 5000,
+    mc_batch_size: int = 1_000_000,
 ) -> np.ndarray:
     """
     Calculates subpixel volume fractions of a triangular mesh for a set of voxel-center query points.
@@ -571,10 +571,14 @@ def exact_analytical_fractions(
         chunk_size (int, optional): Forwarded to `calculate_points_in_mesh` when
             `binary_inside` is computed internally. Ignored if `binary_inside` is supplied.
             Defaults to 100_000.
-        mc_batch_size (int, optional): Random samples per Monte-Carlo batch for k >= 2
-            voxels. Defaults to 1000.
-        mc_iterations (int, optional): Number of Monte-Carlo batches. Total samples per
-            complex voxel is `mc_batch_size * mc_iterations`. Defaults to 5.
+        mc_samples_per_voxel (int, optional): Total Monte-Carlo samples drawn per
+            k >= 2 voxel. Higher values reduce variance at linear cost. Defaults to 5000.
+        mc_batch_size (int, optional): Approximate cap on the number of (voxel, sample)
+            evaluations performed in parallel per batch. Controls peak memory; total work
+            is unaffected. If `mc_batch_size >= N_complex_voxels`, all complex voxels are
+            evaluated together with `mc_batch_size // N` samples per iteration; otherwise
+            voxels are processed in chunks of `mc_batch_size` with 1 sample per iteration.
+            Defaults to 1_000_000.
 
     Returns:
         np.ndarray: 1D float64 array of shape (Q,) with volume fractions in [0.0, 1.0].
@@ -669,9 +673,10 @@ def exact_analytical_fractions(
 
         # Topological routing thresholds
         eps = 1e-6
-        mask_1d = n1 < eps
-        mask_2d = (n1 >= eps) & (n2 < eps)
-        mask_3d = n2 >= eps
+        valid_n = n0 > 0  # skip degenerate (zero-area) faces whose normal is the zero vector
+        mask_1d = (n1 < eps) & valid_n
+        mask_2d = (n1 >= eps) & (n2 < eps) & valid_n
+        mask_3d = (n2 >= eps) & valid_n
 
         # --- 1D Case (Axis-aligned face) ---
         if np.any(mask_1d):
@@ -741,18 +746,35 @@ def exact_analytical_fractions(
         p0_multi[~has_3, 2, :] = p0_multi[~has_3, 1, :]
 
         pts_multi = pts[v_idx_multi]
-        total_inside_count = np.zeros(N_multi, dtype=np.int32)
+        total_inside_count = np.zeros(N_multi, dtype=np.int64)
 
-        for _ in range(mc_iterations):
-            mc_template = np.random.uniform(-0.5, 0.5, size=(mc_batch_size, 3)) * resolution
-            voxel_mc_grids = pts_multi[:, None, :] + mc_template[None, :, :]
-            v_diff = voxel_mc_grids[:, :, None, :] - p0_multi[:, None, :, :]
-            distances = np.sum(normals_multi[:, None, :, :] * v_diff, axis=3)
-            is_inside = np.all(distances <= 0, axis=2)
-            total_inside_count += np.sum(is_inside, axis=1)
+        # Choose voxel-chunk size and samples-per-iteration so that each
+        # batch evaluates ~mc_batch_size (voxel, sample) pairs in parallel.
+        if N_multi >= mc_batch_size:
+            voxels_per_chunk = mc_batch_size
+            samples_per_iter = 1
+        else:
+            voxels_per_chunk = N_multi
+            samples_per_iter = max(1, mc_batch_size // N_multi)
 
-        total_samples = mc_batch_size * mc_iterations
-        vols_multi = total_inside_count / total_samples
+        for v_start in range(0, N_multi, voxels_per_chunk):
+            v_end = min(v_start + voxels_per_chunk, N_multi)
+            pts_chunk = pts_multi[v_start:v_end]
+            normals_chunk = normals_multi[v_start:v_end]
+            p0_chunk = p0_multi[v_start:v_end]
+
+            samples_done = 0
+            while samples_done < mc_samples_per_voxel:
+                s = min(samples_per_iter, mc_samples_per_voxel - samples_done)
+                mc_template = np.random.uniform(-0.5, 0.5, size=(s, 3)) * resolution
+                voxel_mc_grids = pts_chunk[:, None, :] + mc_template[None, :, :]
+                v_diff = voxel_mc_grids[:, :, None, :] - p0_chunk[:, None, :, :]
+                distances = np.sum(normals_chunk[:, None, :, :] * v_diff, axis=3)
+                is_inside = np.all(distances <= 0, axis=2)
+                total_inside_count[v_start:v_end] += np.sum(is_inside, axis=1)
+                samples_done += s
+
+        vols_multi = total_inside_count / mc_samples_per_voxel
         fractions[v_idx_multi] = vols_multi
 
     return fractions

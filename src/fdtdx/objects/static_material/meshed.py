@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from fdtdx.core.grid import _voxel_centers_numpy
+from fdtdx.core.grid import get_voxel_centers_numpy
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
@@ -139,7 +139,7 @@ class MeshedObject(StaticMultiMaterialObject):
     # ------------------------------------------------------------------
 
     def get_voxel_mask_for_shape(self) -> jax.Array:
-        pts = _voxel_centers_numpy(self.grid_shape, self._config.resolution)
+        pts = get_voxel_centers_numpy(self.grid_shape, self._config.resolution)
         inside = _contains_numpy(self.vertices, self.faces, pts)
         return jnp.asarray(inside.reshape(self.grid_shape), dtype=jnp.bool_)
 
