@@ -85,27 +85,6 @@ def plot_interactive_3d_slices(arr: jax.Array | np.ndarray):
 def plot_interactive_3d_cutoff(arr) -> None:
     """
     Interactive 3D cut-away visualisation using PyVista.
-
-    Only the *shell* of the visible half-space is rendered — that is, every
-    voxel that has at least one face exposed to empty space.  This covers
-    both the outer surface of the block and the cross-section at the cutoff
-    plane, while completely skipping fully-interior voxels that would never
-    be visible anyway.
-
-    Performance notes
-    -----------------
-    * PyVista/VTK renders the geometry as a single GPU mesh, so the scene
-      stays interactive even for arrays up to ~200³.
-    * Shell extraction is a pure NumPy operation (one pad + six shifts)
-      and runs in microseconds.
-    * Mesh updates reuse the same actor via ``name=`` so there is no
-      actor accumulation between slider moves.
-
-    Parameters
-    ----------
-    arr : array-like, shape (Nx, Ny, Nz)
-        3-D array.  Accepts NumPy or JAX arrays (converted automatically).
-        Values are colour-mapped with viridis.
     """
     try:
         import pyvista as pv
@@ -117,59 +96,83 @@ def plot_interactive_3d_cutoff(arr) -> None:
         raise ValueError(f"Expected a 3-D array, got shape {arr.shape}.")
 
     Nx, Ny, Nz = arr.shape
+    arr_min, arr_max = arr.min(), arr.max()
 
-    # ── Static base grid ─────────────────────────────────────────────────────
-    # ImageData dimensions are *corner points*; the number of cells per axis
-    # is therefore (dim - 1).  VTK numbers cells x-fastest → Fortran ravel.
     grid = pv.ImageData(dimensions=(Nx + 1, Ny + 1, Nz + 1))
     grid.cell_data["values"] = arr.ravel(order="F")
 
-    # ── Shared mutable state ──────────────────────────────────────────────────
     state: dict = {
         "axis": 0,
         "side": "Left",
         "cutoff": arr.shape[0] // 2,
     }
 
-    # ── Shell extraction ──────────────────────────────────────────────────────
     def build_shell_mesh() -> pv.UnstructuredGrid:
         axis = state["axis"]
         side = state["side"]
         cutoff = state["cutoff"]
 
-        # Build the half-space boolean mask
         mask = np.zeros((Nx, Ny, Nz), dtype=bool)
         sl = [slice(None), slice(None), slice(None)]
         sl[axis] = slice(None, cutoff + 1) if side == "Left" else slice(cutoff + 1, None)
         mask[tuple(sl)] = True
 
-        # A voxel belongs to the shell iff it is inside the mask AND at least
-        # one of its six face-neighbours is outside the mask.
         p = np.pad(mask, 1, constant_values=False)
         exposed = (
             ~p[:-2, 1:-1, 1:-1]
-            | ~p[2:, 1:-1, 1:-1]  # ± x
+            | ~p[2:, 1:-1, 1:-1]
             | ~p[1:-1, :-2, 1:-1]
-            | ~p[1:-1, 2:, 1:-1]  # ± y
+            | ~p[1:-1, 2:, 1:-1]
             | ~p[1:-1, 1:-1, :-2]
-            | ~p[1:-1, 1:-1, 2:]  # ± z
+            | ~p[1:-1, 1:-1, 2:]
         )
         shell = mask & exposed
 
         cell_ids = np.flatnonzero(shell.ravel(order="F"))
         if cell_ids.size == 0:
-            return pv.UnstructuredGrid()  # nothing to draw (edge case)
+            return pv.UnstructuredGrid()
         return grid.extract_cells(cell_ids)
 
-    # ── Plotter ───────────────────────────────────────────────────────────────
     pl = pv.Plotter()
     pl.add_axes()  # ty:ignore[missing-argument]
     pl.set_background("#2b2b2b")  # ty:ignore[invalid-argument-type]
 
+    # 1. Turn off Multi-Sample Anti-Aliasing
+    # This stops the GPU from rendering multiple sub-pixels per actual pixel.
+    pl.disable_anti_aliasing()
+
+    # 2. Force standard resolution on High-DPI / Retina screens
+    # This renders the window at a lower internal resolution and lets the OS stretch it.
+    if hasattr(pl.render_window, "SetUseRetinaDisplay"):
+        pl.render_window.SetUseRetinaDisplay(False)  # ty:ignore[call-non-callable]
+
     MESH_NAME = "shell"
 
+    # Colorbar configuration updated: larger font sizes and white text
+    colorbar_args = {
+        "title": "Value",
+        "vertical": True,
+        "title_font_size": 28,  # Increased from 24
+        "label_font_size": 24,  # Increased from 20
+        "color": "white",  # Added white text formatting
+        "position_x": 0.92,
+        "position_y": 0.10,
+        "height": 0.80,
+        "width": 0.05,
+    }
+
+    dummy = pv.PolyData([0.0, 0.0, 0.0])
+    dummy["values"] = [arr_min]
+    pl.add_mesh(
+        dummy,
+        scalars="values",
+        cmap="viridis",
+        clim=[arr_min, arr_max],
+        opacity=0.0,
+        scalar_bar_args=colorbar_args,  # ty:ignore[invalid-argument-type]
+    )
+
     def redraw(_=None) -> None:
-        """Rebuild and replace the shell mesh in-place (no actor leakage)."""
         mesh = build_shell_mesh()
 
         if mesh.n_cells == 0:
@@ -178,20 +181,20 @@ def plot_interactive_3d_cutoff(arr) -> None:
 
         pl.add_mesh(
             mesh,
-            name=MESH_NAME,  # same name → replaces the existing actor
+            name=MESH_NAME,
             scalars="values",
             cmap="viridis",
+            clim=[arr_min, arr_max],
+            show_scalar_bar=False,
             show_edges=True,
             edge_color="black",
             line_width=0.3,
-            scalar_bar_args={"title": "Value", "vertical": True},
         )
 
     redraw()
 
     # ── Widgets ───────────────────────────────────────────────────────────────
 
-    # Cutoff index slider  (horizontal, bottom)
     def on_cutoff(value: float) -> None:
         state["cutoff"] = round(value)
         redraw()
@@ -201,19 +204,19 @@ def plot_interactive_3d_cutoff(arr) -> None:
         rng=[0, arr.shape[state["axis"]] - 1],
         value=state["cutoff"],
         title="Cutoff index",
-        pointa=(0.10, 0.06),
-        pointb=(0.80, 0.06),  # Slightly shortened to avoid overlapping the vertical colorbar
+        pointa=(0.35, 0.08),
+        pointb=(0.85, 0.08),
         style="modern",
         interaction_event="always",
+        fmt="%.0f",
+        color="white",  # Added white text formatting for the slider
     )
 
-    # Lists to keep track of the checkbox widgets so we can toggle them programmatically
     axis_widgets = []
     side_widgets = []
 
     def update_axis(idx: int):
         state["axis"] = idx
-        # Ensure radio-button visual behavior
         for i, w in enumerate(axis_widgets):
             w.GetRepresentation().SetState(1 if i == idx else 0)
 
@@ -227,7 +230,6 @@ def plot_interactive_3d_cutoff(arr) -> None:
     def make_axis_callback(idx: int):
         def callback(state_bool: bool):
             if not state_bool and state["axis"] == idx:
-                # Prevent the user from unchecking the currently active button
                 axis_widgets[idx].GetRepresentation().SetState(1)
             elif state_bool:
                 update_axis(idx)
@@ -236,7 +238,6 @@ def plot_interactive_3d_cutoff(arr) -> None:
 
     def update_side(idx: int, side_str: str):
         state["side"] = side_str
-        # Ensure radio-button visual behavior
         for i, w in enumerate(side_widgets):
             w.GetRepresentation().SetState(1 if i == idx else 0)
         redraw()
@@ -244,41 +245,41 @@ def plot_interactive_3d_cutoff(arr) -> None:
     def make_side_callback(idx: int, side_str: str):
         def callback(state_bool: bool):
             if not state_bool and state["side"] == side_str:
-                # Prevent the user from unchecking the currently active button
                 side_widgets[idx].GetRepresentation().SetState(1)
             elif state_bool:
                 update_side(idx, side_str)
 
         return callback
 
-    # --- UI Placement Parameters (Pixels from bottom-left) ---
-    Y_HEADER = 730
-    Y_LABEL = 695
-    Y_BTN = 660
+    # --- UI Placement Parameters ---
+    Y_HEADER = 100
+    Y_LABEL = 70
+    Y_BTN = 30
+    BTN_SIZE = 35
 
     # Render Axis Radio Buttons (0, 1, 2)
-    pl.add_text("Axis", position=(50, Y_HEADER), font_size=12, color="white")
+    pl.add_text("Axis", position=(20, Y_HEADER), font_size=16, color="white")
     for i, label in enumerate(["0", "1", "2"]):
-        x_pos = 50 + i * 60
-        pl.add_text(label, position=(x_pos + 8, Y_LABEL), font_size=10, color="white")
+        x_pos = 20 + i * 55
+        pl.add_text(label, position=(x_pos + 10, Y_LABEL), font_size=14, color="white")
         btn = pl.add_checkbox_button_widget(
             make_axis_callback(i),
             value=(state["axis"] == i),
             position=(x_pos, Y_BTN),
-            size=30,
+            size=BTN_SIZE,
         )
         axis_widgets.append(btn)
 
     # Render Side Radio Buttons (Left, Right)
-    pl.add_text("Side", position=(700, Y_HEADER), font_size=12, color="white")
+    pl.add_text("Side", position=(210, Y_HEADER), font_size=16, color="white")
     for i, label in enumerate(["Left", "Right"]):
-        x_pos = 700 + i * 80
-        pl.add_text(label, position=(x_pos + 5, Y_LABEL), font_size=10, color="white")
+        x_pos = 210 + i * 75
+        pl.add_text(label, position=(x_pos + 4, Y_LABEL), font_size=14, color="white")
         btn = pl.add_checkbox_button_widget(
             make_side_callback(i, label),
             value=(state["side"] == label),
             position=(x_pos, Y_BTN),
-            size=30,
+            size=BTN_SIZE,
         )
         side_widgets.append(btn)
 
