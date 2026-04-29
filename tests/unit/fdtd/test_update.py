@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.constants import eta0
-from fdtdx.fdtd.container import ArrayContainer
+from fdtdx.fdtd.container import ArrayContainer, FieldState
 from fdtdx.fdtd.update import (
     add_interfaces,
     collect_interfaces,
@@ -40,10 +40,12 @@ def _make_arrays(
 ):
     """Build a minimal real ArrayContainer for update tests."""
     return ArrayContainer(
-        E=E if E is not None else jnp.ones(FIELD_SHAPE),
-        H=H if H is not None else jnp.zeros(FIELD_SHAPE),
-        psi_E=jnp.zeros(PSI_SHAPE),
-        psi_H=jnp.zeros(PSI_SHAPE),
+        fields=FieldState(
+            E=E if E is not None else jnp.ones(FIELD_SHAPE),
+            H=H if H is not None else jnp.zeros(FIELD_SHAPE),
+            psi_E=jnp.zeros(PSI_SHAPE),
+            psi_H=jnp.zeros(PSI_SHAPE),
+        ),
         alpha=jnp.zeros(FIELD_SHAPE),
         kappa=jnp.ones(FIELD_SHAPE),
         sigma=jnp.zeros(FIELD_SHAPE),
@@ -660,7 +662,7 @@ class TestUpdateDetectorStates:
         assert jnp.allclose(captured["H"], interp_H)
 
     def test_no_interpolation_passes_raw_fields(self):
-        """exact_interpolation=False: helper_fn receives raw arrays.E and arrays.H."""
+        """exact_interpolation=False: helper_fn receives raw arrays.fields.E and arrays.fields.H."""
         det = self._make_detector(exact_interpolation=False)
         objects = self._make_det_objects(forward_detectors=[det])
         raw_E = jnp.ones(FIELD_SHAPE) * 5.0
@@ -688,7 +690,7 @@ class TestUpdateDetectorStates:
         assert jnp.allclose(captured["H"], raw_H)
 
     def test_interpolate_fields_receives_h_avg(self):
-        """interpolate_fields receives padded (H_prev + arrays.H) / 2 as H_pad."""
+        """interpolate_fields receives padded (H_prev + arrays.fields.H) / 2 as H_pad."""
         objects = self._make_det_objects(forward_detectors=[])
         H_field = jnp.ones(FIELD_SHAPE) * 4.0
         H_prev = jnp.ones(FIELD_SHAPE) * 2.0

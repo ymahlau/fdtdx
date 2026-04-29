@@ -78,8 +78,8 @@ def test_collect_boundary_interfaces(mock_arraycontainer, mock_pml):
     assert "pml1_E" in result
     assert "pml1_H" in result
 
-    expected_E = arrays.E[:, 0:1]
-    expected_H = arrays.H[:, 0:1]
+    expected_E = arrays.fields.E[:, 0:1]
+    expected_H = arrays.fields.H[:, 0:1]
 
     assert jnp.array_equal(result["pml1_E"], expected_E)
     assert jnp.array_equal(result["pml1_H"], expected_H)
@@ -93,7 +93,7 @@ def test_collect_boundary_interfaces_single_field(mock_arraycontainer, mock_pml)
 
     assert "pml1_E" in result
     assert "pml1_H" not in result
-    assert jnp.array_equal(result["pml1_E"], arrays.E[:, 0:1])
+    assert jnp.array_equal(result["pml1_E"], arrays.fields.E[:, 0:1])
 
 
 def test_collect_boundary_interfaces_multiple_pmls(mock_arraycontainer):
@@ -107,8 +107,8 @@ def test_collect_boundary_interfaces_multiple_pmls(mock_arraycontainer):
     assert "pml1_H" in result
     assert "pml2_E" in result
     assert "pml2_H" in result
-    assert jnp.array_equal(result["pml1_E"], arrays.E[:, 0:1])
-    assert jnp.array_equal(result["pml2_E"], arrays.E[:, 1:2])
+    assert jnp.array_equal(result["pml1_E"], arrays.fields.E[:, 0:1])
+    assert jnp.array_equal(result["pml2_E"], arrays.fields.E[:, 1:2])
 
 
 def test_add_boundary_interfaces(mock_arraycontainer, mock_pml):

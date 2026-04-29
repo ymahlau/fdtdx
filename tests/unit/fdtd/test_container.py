@@ -3,7 +3,7 @@ from unittest.mock import Mock
 import jax.numpy as jnp
 import pytest
 
-from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, reset_array_container
+from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, reset_array_container
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.materials import Material
 from fdtdx.objects.boundaries.bloch import BlochBoundary
@@ -261,10 +261,7 @@ class TestArrayContainer:
         self.recording_state = Mock(spec=RecordingState)
 
         self.array_container = ArrayContainer(
-            E=self.E,
-            H=self.H,
-            psi_E=self.psi_E,
-            psi_H=self.psi_H,
+            fields=FieldState(E=self.E, H=self.H, psi_E=self.psi_E, psi_H=self.psi_H),
             alpha=self.alpha,
             kappa=self.kappa,
             sigma=self.sigma,
@@ -275,8 +272,8 @@ class TestArrayContainer:
         )
 
     def test_creation(self):
-        assert jnp.array_equal(self.array_container.E, self.E)
-        assert jnp.array_equal(self.array_container.H, self.H)
+        assert jnp.array_equal(self.array_container.fields.E, self.E)
+        assert jnp.array_equal(self.array_container.fields.H, self.H)
         assert jnp.array_equal(self.array_container.inv_permittivities, self.inv_permittivities)
         assert jnp.array_equal(self.array_container.inv_permeabilities, self.inv_permeabilities)
         assert self.array_container.detector_states == self.detector_states
@@ -287,10 +284,7 @@ class TestArrayContainer:
         magnetic_conductivity = jnp.ones((3, 10, 10, 10))
 
         container = ArrayContainer(
-            E=self.E,
-            H=self.H,
-            psi_E=self.psi_E,
-            psi_H=self.psi_H,
+            fields=FieldState(E=self.E, H=self.H, psi_E=self.psi_E, psi_H=self.psi_H),
             alpha=self.alpha,
             kappa=self.kappa,
             sigma=self.sigma,
@@ -312,10 +306,7 @@ class TestArrayContainer:
     def test_inv_permeabilities_float(self):
         """Test that inv_permeabilities can be a float."""
         container = ArrayContainer(
-            E=self.E,
-            H=self.H,
-            psi_E=self.psi_E,
-            psi_H=self.psi_H,
+            fields=FieldState(E=self.E, H=self.H, psi_E=self.psi_E, psi_H=self.psi_H),
             alpha=self.alpha,
             kappa=self.kappa,
             sigma=self.sigma,
@@ -343,10 +334,7 @@ class TestResetArrayContainer:
         self.recording_state = RecordingState(data={"recording": jnp.ones(10)}, state={"state": jnp.ones(5)})
 
         self.array_container = ArrayContainer(
-            E=self.E,
-            H=self.H,
-            psi_E=self.psi_E,
-            psi_H=self.psi_H,
+            fields=FieldState(E=self.E, H=self.H, psi_E=self.psi_E, psi_H=self.psi_H),
             alpha=self.alpha,
             kappa=self.kappa,
             sigma=self.sigma,
@@ -363,8 +351,8 @@ class TestResetArrayContainer:
 
     def test_e_and_h_fields_zeroed(self):
         result = reset_array_container(arrays=self.array_container, objects=self.objects)
-        assert jnp.all(result.E == 0)
-        assert jnp.all(result.H == 0)
+        assert jnp.all(result.fields.E == 0)
+        assert jnp.all(result.fields.H == 0)
 
     def test_material_properties_preserved(self):
         result = reset_array_container(arrays=self.array_container, objects=self.objects)

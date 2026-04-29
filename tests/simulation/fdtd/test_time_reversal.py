@@ -15,7 +15,7 @@ import jax.numpy as jnp
 import fdtdx
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.fdtd.backward import backward
-from fdtdx.fdtd.container import ArrayContainer
+from fdtdx.fdtd.container import ArrayContainer, FieldState
 from fdtdx.fdtd.fdtd import reversible_fdtd
 from fdtdx.fdtd.forward import forward
 from fdtdx.interfaces.recorder import Recorder
@@ -80,7 +80,7 @@ def _build_simulation(boundary_types, bloch_vector=(0.0, 0.0, 0.0)):
 def _add_gradient_config(arrays, config, obj_container):
     """Attach a gradient recorder to the config and arrays."""
     input_shape_dtypes = {}
-    field_dtype = arrays.E.dtype
+    field_dtype = arrays.fields.E.dtype
     for boundary in obj_container.pml_objects:
         cur_shape = boundary.interface_grid_shape()
         extended_shape = (3, *cur_shape)
@@ -112,14 +112,14 @@ def _seed_fields(arrays, key, obj_container=None):
     destroy information during the forward step.
     """
     k1, k2 = jax.random.split(key)
-    E = jax.random.normal(k1, arrays.E.shape, dtype=arrays.E.dtype) * 1e-3
-    H = jax.random.normal(k2, arrays.H.shape, dtype=arrays.H.dtype) * 1e-3
+    E = jax.random.normal(k1, arrays.fields.E.shape, dtype=arrays.fields.E.dtype) * 1e-3
+    H = jax.random.normal(k2, arrays.fields.H.shape, dtype=arrays.fields.H.dtype) * 1e-3
     if obj_container is not None:
         for b in obj_container.boundary_objects:
             E = b.apply_post_E_update(E)
             H = b.apply_post_H_update(H)
-    arrays = arrays.aset("E", E)
-    arrays = arrays.aset("H", H)
+    arrays = arrays.aset("fields->E", E)
+    arrays = arrays.aset("fields->H", H)
     return arrays
 
 
@@ -132,8 +132,8 @@ def _forward_backward_roundtrip(obj_container, arrays, config, has_pml):
     arrays, config = _add_gradient_config(arrays, config, obj_container)
 
     # Save original fields
-    E_original = arrays.E.copy()
-    H_original = arrays.H.copy()
+    E_original = arrays.fields.E.copy()
+    H_original = arrays.fields.H.copy()
 
     # Forward one step
     state_fwd = forward(
@@ -365,10 +365,9 @@ class TestGradientPMLBlochComplex:
     @staticmethod
     def _loss_fn(inv_permittivities, arrays, objects, config, key):
         arrays = ArrayContainer(
-            E=arrays.E,
-            H=arrays.H,
-            psi_E=arrays.psi_E,
-            psi_H=arrays.psi_H,
+            fields=FieldState(
+                E=arrays.fields.E, H=arrays.fields.H, psi_E=arrays.fields.psi_E, psi_H=arrays.fields.psi_H
+            ),
             alpha=arrays.alpha,
             kappa=arrays.kappa,
             sigma=arrays.sigma,
@@ -404,5 +403,5 @@ class TestGradientPMLBlochComplex:
     def test_fields_are_complex(self):
         """Verify the simulation actually uses complex-valued fields."""
         _, arrays, _ = self._build()
-        assert jnp.issubdtype(arrays.E.dtype, jnp.complexfloating)
-        assert jnp.issubdtype(arrays.H.dtype, jnp.complexfloating)
+        assert jnp.issubdtype(arrays.fields.E.dtype, jnp.complexfloating)
+        assert jnp.issubdtype(arrays.fields.H.dtype, jnp.complexfloating)

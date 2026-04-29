@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import GradientConfig, SimulationConfig
-from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
+from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer
 from fdtdx.fdtd.fdtd import checkpointed_fdtd, custom_fdtd_forward, reversible_fdtd
 from fdtdx.fdtd.stop_conditions import TimeStepCondition
 from fdtdx.objects.object import SimulationObject
@@ -30,10 +30,12 @@ def field_shape():
 def dummy_arrays(field_shape):
     auxiliary_field_shape = (6, 2, 2, 2)
     return ArrayContainer(
-        E=jnp.zeros(field_shape),
-        H=jnp.zeros(field_shape),
-        psi_E=jnp.zeros(auxiliary_field_shape),
-        psi_H=jnp.zeros(auxiliary_field_shape),
+        fields=FieldState(
+            E=jnp.zeros(field_shape),
+            H=jnp.zeros(field_shape),
+            psi_E=jnp.zeros(auxiliary_field_shape),
+            psi_H=jnp.zeros(auxiliary_field_shape),
+        ),
         alpha=jnp.zeros(field_shape),
         kappa=jnp.ones(field_shape),
         sigma=jnp.zeros(field_shape),
@@ -126,10 +128,12 @@ class TestReversibleFdtd:
     def test_with_nonzero_initial_fields(self, dummy_objects, config_few_steps, key, field_shape):
         auxiliary_field_shape = (6, 2, 2, 2)
         arrays = ArrayContainer(
-            E=jnp.ones(field_shape) * 0.5,
-            H=jnp.ones(field_shape) * 0.3,
-            psi_E=jnp.zeros(auxiliary_field_shape),
-            psi_H=jnp.zeros(auxiliary_field_shape),
+            fields=FieldState(
+                E=jnp.ones(field_shape) * 0.5,
+                H=jnp.ones(field_shape) * 0.3,
+                psi_E=jnp.zeros(auxiliary_field_shape),
+                psi_H=jnp.zeros(auxiliary_field_shape),
+            ),
             alpha=jnp.zeros(field_shape),
             kappa=jnp.ones(field_shape),
             sigma=jnp.zeros(field_shape),
@@ -307,7 +311,7 @@ class TestShowProgressFlag:
         t, arrs = reversible_fdtd(dummy_arrays, dummy_objects, config_few_steps, key, show_progress=True)
         assert isinstance(t, jax.Array)
         assert isinstance(arrs, ArrayContainer)
-        assert arrs.E.shape == dummy_arrays.E.shape
+        assert arrs.E.shape == dummy_arrays.fields.E.shape
 
     def test_checkpointed_fdtd_with_progress(self, dummy_arrays, dummy_objects, config_checkpointed):
         key = jax.random.PRNGKey(0)

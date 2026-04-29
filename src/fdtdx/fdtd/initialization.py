@@ -6,7 +6,7 @@ import jax.numpy as jnp
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
 from fdtdx.core.jax.ste import straight_through_estimator
-from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, ParameterContainer
+from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, ParameterContainer
 from fdtdx.materials import (
     compute_allowed_electric_conductivities,
     compute_allowed_magnetic_conductivities,
@@ -599,10 +599,7 @@ def _init_arrays(
         config = config.aset("gradient_config", grad_cfg)
 
     arrays = ArrayContainer(
-        E=E,
-        H=H,
-        psi_E=psi_E,
-        psi_H=psi_H,
+        fields=FieldState(E=E, H=H, psi_E=psi_E, psi_H=psi_H),
         alpha=alpha,
         kappa=kappa,
         sigma=sigma,

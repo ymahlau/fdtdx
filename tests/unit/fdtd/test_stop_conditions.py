@@ -5,7 +5,7 @@ import pytest
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.wavelength import WaveCharacter
-from fdtdx.fdtd.container import ArrayContainer
+from fdtdx.fdtd.container import ArrayContainer, FieldState
 from fdtdx.fdtd.stop_conditions import DetectorConvergenceCondition, EnergyThresholdCondition, TimeStepCondition
 
 # ---------------------------------------------------------------------------
@@ -21,10 +21,12 @@ def _make_arrays(time_steps_total=None, detector_states=None):
     if detector_states is None:
         detector_states = {}
     return ArrayContainer(
-        E=jnp.ones((3, 4, 4, 4)),
-        H=jnp.ones((3, 4, 4, 4)),
-        psi_E=jnp.zeros((6, 4, 4, 4)),
-        psi_H=jnp.zeros((6, 4, 4, 4)),
+        fields=FieldState(
+            E=jnp.ones((3, 4, 4, 4)),
+            H=jnp.ones((3, 4, 4, 4)),
+            psi_E=jnp.zeros((6, 4, 4, 4)),
+            psi_H=jnp.zeros((6, 4, 4, 4)),
+        ),
         alpha=jnp.zeros((3, 4, 4, 4)),
         kappa=jnp.ones((3, 4, 4, 4)),
         sigma=jnp.zeros((3, 4, 4, 4)),
@@ -126,10 +128,12 @@ class TestEnergyThresholdCondition:
         # Use an extremely high threshold so energy would normally stop the simulation,
         # but min_steps forces continuation regardless.
         zero_arrays = ArrayContainer(
-            E=jnp.zeros((3, 4, 4, 4)),
-            H=jnp.zeros((3, 4, 4, 4)),
-            psi_E=jnp.zeros((6, 4, 4, 4)),
-            psi_H=jnp.zeros((6, 4, 4, 4)),
+            fields=FieldState(
+                E=jnp.zeros((3, 4, 4, 4)),
+                H=jnp.zeros((3, 4, 4, 4)),
+                psi_E=jnp.zeros((6, 4, 4, 4)),
+                psi_H=jnp.zeros((6, 4, 4, 4)),
+            ),
             alpha=jnp.zeros((3, 4, 4, 4)),
             kappa=jnp.ones((3, 4, 4, 4)),
             sigma=jnp.zeros((3, 4, 4, 4)),
@@ -160,7 +164,7 @@ class TestEnergyThresholdCondition:
         # Craft tiny E and H so energy < threshold
         tiny = jnp.full((3, 4, 4, 4), 1e-10)
         arrays = _make_arrays()
-        arrays = arrays.aset("E", tiny).aset("H", tiny)
+        arrays = arrays.aset("fields->E", tiny).aset("fields->H", tiny)
         cond = EnergyThresholdCondition(threshold=threshold, min_steps=min_steps).setup(
             _make_state(0, arrays), config, None
         )

@@ -97,8 +97,8 @@ def test_place_objects_initializes_arrays(simple_config, simple_volume, simple_m
     _obj_container, arrays, _params, _config, _info = place_objects(
         [simple_volume, obj], simple_config, [constraint], key
     )
-    assert arrays.E is not None
-    assert arrays.H is not None
+    assert arrays.fields.E is not None
+    assert arrays.fields.H is not None
     assert arrays.inv_permittivities is not None
     # simple_material has permittivity=2.0 → inv_perm ≈ 0.5 in the material region.
     # Verify at least one voxel was actually updated (differs from vacuum value 1.0).
