@@ -97,6 +97,7 @@ def compute_mode(
     direction: Literal["+", "-"],
     mode_index: int = 0,
     filter_pol: Literal["te", "tm"] | None = None,
+    dtype: jnp.dtype = jnp.float32,
 ) -> tuple[
     jax.Array,  # E
     jax.Array,  # H
@@ -120,6 +121,8 @@ def compute_mode(
         direction (Literal["+", "-"]): Propagation direction, either "+" or "-".
         mode_index (int, optional): Index of the mode to compute. Defaults to 0.
         filter_pol (Literal["te", "tm"] | None, optional). If not None, modes are filtered by polarization.
+        dtype (jnp.dtype, optional): Float dtype of the simulation. Controls whether mode fields are returned
+            as complex64 (float32) or complex128 (float64). Defaults to jnp.float32.
 
     Returns:
         Tuple[jax.Array, jax.Array, jax.Array]:
@@ -138,6 +141,8 @@ def compute_mode(
         ):
             raise Exception(f"Invalid shape of inv_permeabilities: {inv_permeabilities.shape}")
 
+    np_complex_dtype = np.complex128 if dtype == jnp.float64 else np.complex64
+
     def mode_helper(permittivity, permeability):
         modes = tidy3d_mode_computation_wrapper(
             frequency=frequency,
@@ -155,23 +160,23 @@ def compute_mode(
 
         if propagation_axis == 0:
             mode_E, mode_H = (
-                np.stack([mode.Ez, mode.Ex, mode.Ey], axis=0).astype(np.complex64),
-                np.stack([mode.Hz, mode.Hx, mode.Hy], axis=0).astype(np.complex64),
+                np.stack([mode.Ez, mode.Ex, mode.Ey], axis=0).astype(np_complex_dtype),
+                np.stack([mode.Hz, mode.Hx, mode.Hy], axis=0).astype(np_complex_dtype),
             )
         elif propagation_axis == 1:
             mode_E, mode_H = (
-                np.stack([mode.Ex, mode.Ez, mode.Ey], axis=0).astype(np.complex64),
-                -np.stack([mode.Hx, mode.Hz, mode.Hy], axis=0).astype(np.complex64),
+                np.stack([mode.Ex, mode.Ez, mode.Ey], axis=0).astype(np_complex_dtype),
+                -np.stack([mode.Hx, mode.Hz, mode.Hy], axis=0).astype(np_complex_dtype),
             )
         elif propagation_axis == 2:
             mode_E, mode_H = (
-                np.stack([mode.Ex, mode.Ey, mode.Ez], axis=0).astype(np.complex64),
-                np.stack([mode.Hx, mode.Hy, mode.Hz], axis=0).astype(np.complex64),
+                np.stack([mode.Ex, mode.Ey, mode.Ez], axis=0).astype(np_complex_dtype),
+                np.stack([mode.Hx, mode.Hy, mode.Hz], axis=0).astype(np_complex_dtype),
             )
         else:
             raise Exception("This should never happen")
 
-        neff = np.asarray(mode.neff).astype(np.complex64)
+        neff = np.asarray(mode.neff).astype(np_complex_dtype)
         return mode_E, mode_H, neff
 
     # compute input to tidy3d Mode solver
@@ -218,10 +223,11 @@ def compute_mode(
     if permittivity_squeezed.shape[0] == 9:
         permittivity_squeezed = permittivity_squeezed[jnp.array(perm_idx_full_anisotropy), :, :]
 
+    jnp_complex_dtype = jnp.complex128 if dtype == jnp.float64 else jnp.complex64
     result_shape_dtype = (
-        jnp.zeros((3, *permittivity_squeezed.shape[1:]), dtype=jnp.complex64),
-        jnp.zeros((3, *permittivity_squeezed.shape[1:]), dtype=jnp.complex64),
-        jnp.zeros(shape=(), dtype=jnp.complex64),
+        jnp.zeros((3, *permittivity_squeezed.shape[1:]), dtype=jnp_complex_dtype),
+        jnp.zeros((3, *permittivity_squeezed.shape[1:]), dtype=jnp_complex_dtype),
+        jnp.zeros(shape=(), dtype=jnp_complex_dtype),
     )
 
     if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0 and inv_permeabilities.shape[0] == 9:

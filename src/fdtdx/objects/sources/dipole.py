@@ -63,7 +63,7 @@ class PointDipoleSource(Source):
         ``azimuth_angle`` / ``elevation_angle`` using the same rotation
         convention as :func:`rotate_vector`.
         """
-        base = jnp.zeros(3, dtype=jnp.float32).at[self.polarization].set(1.0)
+        base = jnp.zeros(3, dtype=self._config.dtype).at[self.polarization].set(1.0)
         if self.azimuth_angle == 0.0 and self.elevation_angle == 0.0:
             return base
         horizontal_axis = (self.polarization + 1) % 3

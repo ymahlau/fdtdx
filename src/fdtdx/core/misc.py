@@ -451,15 +451,16 @@ def normalize_polarization_for_source(
     propagation_axis: int,
     fixed_E_polarization_vector: tuple[float, float, float] | None = None,
     fixed_H_polarization_vector: tuple[float, float, float] | None = None,
+    dtype: jnp.dtype = jnp.float32,
 ) -> tuple[jax.Array, jax.Array]:
     # determine E/H polarization
     e_pol = fixed_E_polarization_vector
     h_pol = fixed_H_polarization_vector
     if h_pol is not None:
-        h_pol = jnp.asarray(h_pol, dtype=jnp.float32)
+        h_pol = jnp.asarray(h_pol, dtype=dtype)
         h_pol = h_pol / jnp.linalg.norm(h_pol)
     if e_pol is not None:
-        e_pol = jnp.asarray(e_pol, dtype=jnp.float32)
+        e_pol = jnp.asarray(e_pol, dtype=dtype)
         e_pol = e_pol / jnp.linalg.norm(e_pol)
     if e_pol is None:
         if h_pol is None:
@@ -468,6 +469,7 @@ def normalize_polarization_for_source(
             v_H=h_pol,
             direction=direction,
             propagation_axis=propagation_axis,
+            dtype=dtype,
         )
     if h_pol is None:
         if e_pol is None:
@@ -476,6 +478,7 @@ def normalize_polarization_for_source(
             v_E=e_pol,
             direction=direction,
             propagation_axis=propagation_axis,
+            dtype=dtype,
         )
     return e_pol, h_pol
 
