@@ -21,14 +21,35 @@ class MockPML:
 class MockArrayContainer:
     """Mock replacement for ArrayContainer.
 
-    - Fields (E, H) are plain jnp arrays.
+    - Fields (E, H) are exposed through fields.E and fields.H.
+    - Direct E and H properties are kept for misc.py compatibility.
     - Supports arrays.at["E"].set(...) to set the whole field (used in add_boundary_interfaces).
     - Slicing and arr.at[..., ...].set(...) for individual jnp arrays is delegated to jax.numpy arrays.
     """
 
+    class _Fields:
+        def __init__(self, E, H):
+            self.E = E
+            self.H = H
+
     def __init__(self, E, H):
-        self.E = E
-        self.H = H
+        self.fields = MockArrayContainer._Fields(E=E, H=H)
+
+    @property
+    def E(self):
+        return self.fields.E
+
+    @E.setter
+    def E(self, value):
+        self.fields.E = value
+
+    @property
+    def H(self):
+        return self.fields.H
+
+    @H.setter
+    def H(self, value):
+        self.fields.H = value
 
     class _AtHelper:
         def __init__(self, parent):
@@ -78,8 +99,8 @@ def test_collect_boundary_interfaces(mock_arraycontainer, mock_pml):
     assert "pml1_E" in result
     assert "pml1_H" in result
 
-    expected_E = arrays.E[:, 0:1]
-    expected_H = arrays.H[:, 0:1]
+    expected_E = arrays.fields.E[:, 0:1]
+    expected_H = arrays.fields.H[:, 0:1]
 
     assert jnp.array_equal(result["pml1_E"], expected_E)
     assert jnp.array_equal(result["pml1_H"], expected_H)
@@ -93,7 +114,7 @@ def test_collect_boundary_interfaces_single_field(mock_arraycontainer, mock_pml)
 
     assert "pml1_E" in result
     assert "pml1_H" not in result
-    assert jnp.array_equal(result["pml1_E"], arrays.E[:, 0:1])
+    assert jnp.array_equal(result["pml1_E"], arrays.fields.E[:, 0:1])
 
 
 def test_collect_boundary_interfaces_multiple_pmls(mock_arraycontainer):
@@ -107,8 +128,8 @@ def test_collect_boundary_interfaces_multiple_pmls(mock_arraycontainer):
     assert "pml1_H" in result
     assert "pml2_E" in result
     assert "pml2_H" in result
-    assert jnp.array_equal(result["pml1_E"], arrays.E[:, 0:1])
-    assert jnp.array_equal(result["pml2_E"], arrays.E[:, 1:2])
+    assert jnp.array_equal(result["pml1_E"], arrays.fields.E[:, 0:1])
+    assert jnp.array_equal(result["pml2_E"], arrays.fields.E[:, 1:2])
 
 
 def test_add_boundary_interfaces(mock_arraycontainer, mock_pml):

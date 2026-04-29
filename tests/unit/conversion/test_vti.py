@@ -252,8 +252,9 @@ class TestExportArraysSnapshotToVti:
         """Create a mock ArrayContainer with the given properties."""
         mock = MagicMock()
         mock.inv_permittivities = jnp.ones(shape, dtype=jnp.float32) * 0.5
-        mock.E = jnp.zeros(shape, dtype=jnp.float32)
-        mock.H = jnp.zeros(shape, dtype=jnp.float32)
+        mock.fields = MagicMock()
+        mock.fields.E = jnp.zeros(shape, dtype=jnp.float32)
+        mock.fields.H = jnp.zeros(shape, dtype=jnp.float32)
 
         if scalar_permeability:
             mock.inv_permeabilities = 1.0
@@ -317,8 +318,8 @@ class TestExportArraysSnapshotToVti:
         """The function computes 1/inv_permittivities, so values should be inverted."""
         arrays = self._make_mock_arrays()
         arrays.inv_permittivities = jnp.full((3, 3, 3), 0.25, dtype=jnp.float32)
-        arrays.E = jnp.zeros((3, 3, 3), dtype=jnp.float32)
-        arrays.H = jnp.zeros((3, 3, 3), dtype=jnp.float32)
+        arrays.fields.E = jnp.zeros((3, 3, 3), dtype=jnp.float32)
+        arrays.fields.H = jnp.zeros((3, 3, 3), dtype=jnp.float32)
         arrays.inv_permeabilities = 1.0
         arrays.electric_conductivity = None
         arrays.magnetic_conductivity = None

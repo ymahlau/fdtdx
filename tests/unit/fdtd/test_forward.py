@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
+from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer
 from fdtdx.fdtd.forward import forward, forward_single_args_wrapper
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.objects.detectors.detector import DetectorState
@@ -15,10 +15,12 @@ from fdtdx.objects.detectors.detector import DetectorState
 def arrays():
     """Create an ArrayContainer with small test arrays."""
     return ArrayContainer(
-        E=jnp.ones((3, 4, 4, 4)),
-        H=jnp.ones((3, 4, 4, 4)) * 2.0,
-        psi_E=jnp.zeros((6, 4, 4, 4)),
-        psi_H=jnp.zeros((6, 4, 4, 4)),
+        fields=FieldState(
+            E=jnp.ones((3, 4, 4, 4)),
+            H=jnp.ones((3, 4, 4, 4)) * 2.0,
+            psi_E=jnp.zeros((6, 4, 4, 4)),
+            psi_H=jnp.zeros((6, 4, 4, 4)),
+        ),
         alpha=jnp.zeros((3, 4, 4, 4)),
         kappa=jnp.ones((3, 4, 4, 4)),
         sigma=jnp.zeros((3, 4, 4, 4)),
@@ -32,7 +34,7 @@ def arrays():
 @pytest.fixture
 def updated_arrays(arrays):
     """Arrays returned by update_E/update_H (E field modified to distinguish)."""
-    return arrays.aset("E", arrays.E * 3.0)
+    return arrays.aset("fields->E", arrays.fields.E * 3.0)
 
 
 @pytest.fixture
@@ -140,9 +142,9 @@ class TestForward:
             assert result[1] is updated_arrays
 
     def test_h_prev_captured_before_update_e(self, arrays, config, objects, key):
-        """H_prev is saved from original arrays.H before update_E modifies arrays."""
-        modified_H = arrays.H * 99.0
-        arrays_after_E = arrays.aset("H", modified_H)
+        """H_prev is saved from original arrays.fields.H before update_E modifies arrays."""
+        modified_H = arrays.fields.H * 99.0
+        arrays_after_E = arrays.aset("fields->H", modified_H)
 
         with (
             patch("fdtdx.fdtd.forward.update_E", return_value=arrays_after_E),
@@ -161,14 +163,14 @@ class TestForward:
 
             # H_prev should be the original H, not the modified one
             h_prev_arg = mock_det.call_args[1]["H_prev"]
-            assert jnp.array_equal(h_prev_arg, arrays.H)
+            assert jnp.array_equal(h_prev_arg, arrays.fields.H)
             assert not jnp.array_equal(h_prev_arg, modified_H)
 
     def test_record_boundaries_calls_collect_interfaces_with_stop_gradient(
         self, arrays, updated_arrays, config, objects, key
     ):
         """record_boundaries=True calls collect_interfaces wrapped in stop_gradient."""
-        collected = updated_arrays.aset("E", updated_arrays.E + 1.0)
+        collected = updated_arrays.aset("fields->E", updated_arrays.fields.E + 1.0)
 
         with (
             patch("fdtdx.fdtd.forward.update_E", return_value=updated_arrays),
@@ -260,7 +262,7 @@ class TestForward:
     def test_boundary_recording_before_detector_recording(self, arrays, updated_arrays, config, objects, key):
         """Boundary recording happens before detector recording (order matters)."""
         call_order = []
-        boundary_result = updated_arrays.aset("E", updated_arrays.E + 10.0)
+        boundary_result = updated_arrays.aset("fields->E", updated_arrays.fields.E + 10.0)
 
         def track_ci(**kwargs):
             call_order.append("collect_interfaces")
@@ -296,16 +298,16 @@ class TestForwardSingleArgsWrapper:
 
     def test_wrapper_constructs_array_container_and_calls_forward(self, arrays, config, objects, key):
         """Wrapper creates ArrayContainer from individual args and calls forward."""
-        result_arrays = arrays.aset("E", arrays.E * 5.0)
+        result_arrays = arrays.aset("fields->E", arrays.fields.E * 5.0)
         mock_state = (jnp.array(1), result_arrays)
 
         with patch("fdtdx.fdtd.forward.forward", return_value=mock_state) as mock_fwd:
             forward_single_args_wrapper(
                 time_step=jnp.array(0),
-                E=arrays.E,
-                H=arrays.H,
-                psi_E=arrays.psi_E,
-                psi_H=arrays.psi_H,
+                E=arrays.fields.E,
+                H=arrays.fields.H,
+                psi_E=arrays.fields.psi_E,
+                psi_H=arrays.fields.psi_H,
                 alpha=arrays.alpha,
                 kappa=arrays.kappa,
                 sigma=arrays.sigma,
@@ -327,8 +329,8 @@ class TestForwardSingleArgsWrapper:
             state_arg = call_kwargs["state"]
             assert jnp.array_equal(state_arg[0], jnp.array(0))
             assert isinstance(state_arg[1], ArrayContainer)
-            assert jnp.array_equal(state_arg[1].E, arrays.E)
-            assert jnp.array_equal(state_arg[1].H, arrays.H)
+            assert jnp.array_equal(state_arg[1].fields.E, arrays.fields.E)
+            assert jnp.array_equal(state_arg[1].fields.H, arrays.fields.H)
             # Verify flags are passed through
             assert call_kwargs["config"] is config
             assert call_kwargs["objects"] is objects
@@ -340,10 +342,12 @@ class TestForwardSingleArgsWrapper:
     def test_wrapper_returns_all_12_unpacked_fields(self, arrays, config, objects, key):
         """Wrapper unpacks the returned SimulationState into 12 individual values."""
         result_arrays = ArrayContainer(
-            E=arrays.E * 2.0,
-            H=arrays.H * 3.0,
-            psi_E=arrays.psi_E + 1.0,
-            psi_H=arrays.psi_H + 2.0,
+            fields=FieldState(
+                E=arrays.fields.E * 2.0,
+                H=arrays.fields.H * 3.0,
+                psi_E=arrays.fields.psi_E + 1.0,
+                psi_H=arrays.fields.psi_H + 2.0,
+            ),
             alpha=arrays.alpha + 0.1,
             kappa=arrays.kappa * 1.5,
             sigma=arrays.sigma + 0.5,
@@ -357,10 +361,10 @@ class TestForwardSingleArgsWrapper:
         with patch("fdtdx.fdtd.forward.forward", return_value=mock_state):
             result = forward_single_args_wrapper(
                 time_step=jnp.array(6),
-                E=arrays.E,
-                H=arrays.H,
-                psi_E=arrays.psi_E,
-                psi_H=arrays.psi_H,
+                E=arrays.fields.E,
+                H=arrays.fields.H,
+                psi_E=arrays.fields.psi_E,
+                psi_H=arrays.fields.psi_H,
                 alpha=arrays.alpha,
                 kappa=arrays.kappa,
                 sigma=arrays.sigma,
@@ -378,10 +382,10 @@ class TestForwardSingleArgsWrapper:
 
             assert len(result) == 12
             assert result[0] == 7  # time_step
-            assert jnp.array_equal(result[1], result_arrays.E)
-            assert jnp.array_equal(result[2], result_arrays.H)
-            assert jnp.array_equal(result[3], result_arrays.psi_E)
-            assert jnp.array_equal(result[4], result_arrays.psi_H)
+            assert jnp.array_equal(result[1], result_arrays.fields.E)
+            assert jnp.array_equal(result[2], result_arrays.fields.H)
+            assert jnp.array_equal(result[3], result_arrays.fields.psi_E)
+            assert jnp.array_equal(result[4], result_arrays.fields.psi_H)
             assert jnp.array_equal(result[5], result_arrays.alpha)
             assert jnp.array_equal(result[6], result_arrays.kappa)
             assert jnp.array_equal(result[7], result_arrays.sigma)

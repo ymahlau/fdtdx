@@ -35,8 +35,8 @@ def export_arrays_snapshot_to_vti(arrays: ArrayContainer, path: Path | str, reso
     """
     cell_data = {
         "permittivity": 1 / arrays.inv_permittivities,
-        "E": arrays.E,
-        "H": arrays.H,
+        "E": arrays.fields.E,
+        "H": arrays.fields.H,
     }
 
     if isinstance(arrays.inv_permeabilities, jax.Array) and arrays.inv_permeabilities.shape != ():

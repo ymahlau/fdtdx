@@ -138,7 +138,9 @@ class EnergyThresholdCondition(StoppingCondition):
         curr_time_step, arrays = state
         time_condition = curr_time_step < self.max_steps
         min_steps_condition = curr_time_step < self.min_steps
-        total_energy = jnp.sum(compute_energy(arrays.E, arrays.H, arrays.inv_permittivities, arrays.inv_permeabilities))
+        total_energy = jnp.sum(
+            compute_energy(arrays.fields.E, arrays.fields.H, arrays.inv_permittivities, arrays.inv_permeabilities)
+        )
         converged = total_energy < self.threshold
 
         return time_condition & (min_steps_condition | ~converged)

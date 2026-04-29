@@ -9,7 +9,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import GradientConfig, SimulationConfig
-from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
+from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer
 from fdtdx.fdtd.fdtd import reversible_fdtd
 from fdtdx.interfaces.recorder import Recorder
 
@@ -62,10 +62,12 @@ def recording_state(sim_config):
 def sim_arrays(field_shape, recording_state):
     auxiliary_field_shape = (6, 2, 2, 2)
     return ArrayContainer(
-        E=jnp.zeros(field_shape),
-        H=jnp.zeros(field_shape),
-        psi_E=jnp.zeros(auxiliary_field_shape),
-        psi_H=jnp.zeros(auxiliary_field_shape),
+        fields=FieldState(
+            E=jnp.zeros(field_shape),
+            H=jnp.zeros(field_shape),
+            psi_E=jnp.zeros(auxiliary_field_shape),
+            psi_H=jnp.zeros(auxiliary_field_shape),
+        ),
         alpha=jnp.zeros(field_shape),
         kappa=jnp.ones(field_shape),
         sigma=jnp.zeros(field_shape),
@@ -94,15 +96,14 @@ class TestReversibleFdtdGradients:
     def _loss_fn(self, inv_permittivities, arrays, objects, config, key):
         """L2 loss on output inv_permittivities through a full forward+backward pass.
 
-        Uses inv_permittivities (not E) because reset_array_container zeros E/H,
+        Uses inv_permittivities (not E) because ArrayContainer.reset zeros E/H,
         and without sources E stays zero. inv_permittivities passes through the
         simulation unchanged, giving a non-trivial gradient through the custom VJP.
         """
         arrays = ArrayContainer(
-            E=arrays.E,
-            H=arrays.H,
-            psi_E=arrays.psi_E,
-            psi_H=arrays.psi_H,
+            fields=FieldState(
+                E=arrays.fields.E, H=arrays.fields.H, psi_E=arrays.fields.psi_E, psi_H=arrays.fields.psi_H
+            ),
             alpha=arrays.alpha,
             kappa=arrays.kappa,
             sigma=arrays.sigma,
@@ -133,10 +134,12 @@ class TestReversibleFdtdGradients:
         """With nonzero initial E fields, gradients should be non-zero."""
         auxiliary_field_shape = (6, 2, 2, 2)
         arrays = ArrayContainer(
-            E=jnp.ones(field_shape) * 0.5,
-            H=jnp.ones(field_shape) * 0.3,
-            psi_E=jnp.zeros(auxiliary_field_shape),
-            psi_H=jnp.zeros(auxiliary_field_shape),
+            fields=FieldState(
+                E=jnp.ones(field_shape) * 0.5,
+                H=jnp.ones(field_shape) * 0.3,
+                psi_E=jnp.zeros(auxiliary_field_shape),
+                psi_H=jnp.zeros(auxiliary_field_shape),
+            ),
             alpha=jnp.zeros(field_shape),
             kappa=jnp.ones(field_shape),
             sigma=jnp.zeros(field_shape),

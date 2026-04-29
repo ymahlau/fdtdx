@@ -296,12 +296,12 @@ class TestSetupSparamsArrayContainer:
     def test_e_field_shape_matches_grid(self, minimal_setup):
         objs, arrays, _config = minimal_setup
         expected = (3, *objs.volume.grid_shape)
-        assert arrays.E.shape == expected
+        assert arrays.fields.E.shape == expected
 
     def test_h_field_shape_matches_grid(self, minimal_setup):
         objs, arrays, _config = minimal_setup
         expected = (3, *objs.volume.grid_shape)
-        assert arrays.H.shape == expected
+        assert arrays.fields.H.shape == expected
 
     def test_detector_states_keys_match_detectors(self, minimal_setup):
         objs, arrays, _config = minimal_setup
@@ -310,8 +310,8 @@ class TestSetupSparamsArrayContainer:
 
     def test_fields_initialized_to_zero(self, minimal_setup):
         _objs, arrays, _config = minimal_setup
-        assert jnp.all(arrays.E == 0)
-        assert jnp.all(arrays.H == 0)
+        assert jnp.all(arrays.fields.E == 0)
+        assert jnp.all(arrays.fields.H == 0)
 
     def test_inv_permittivities_positive(self, minimal_setup):
         _objs, arrays, _config = minimal_setup
