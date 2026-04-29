@@ -4,10 +4,14 @@ import pytest
 from numpy.testing import assert_array_almost_equal
 
 from fdtdx.core.grid import (
-    _voxel_centers_numpy,
+    build_spatial_lookup_grid_csr,
+    calculate_points_in_mesh,
     calculate_spatial_offsets_yee,
     calculate_time_offset_yee,
+    compute_lookup_grid_dims,
     exact_analytical_fractions,
+    get_voxel_centers_numpy,
+    points_in_mesh_csr,
     polygon_to_mask,
 )
 
@@ -466,7 +470,7 @@ class TestVoxelCentersNumpy:
         """Test that the output array has the correct shape (N, 3)."""
         grid_shape = (2, 3, 4)
         resolution = 0.5
-        centers = _voxel_centers_numpy(grid_shape, resolution)
+        centers = get_voxel_centers_numpy(grid_shape, resolution)
 
         expected_num_voxels = 2 * 3 * 4
         assert centers.shape == (expected_num_voxels, 3), "Shape mismatch"
@@ -475,7 +479,7 @@ class TestVoxelCentersNumpy:
         """Test a 1x1x1 grid. The center should be exactly at the origin (0, 0, 0)."""
         grid_shape = (1, 1, 1)
         resolution = 2.0
-        centers = _voxel_centers_numpy(grid_shape, resolution)
+        centers = get_voxel_centers_numpy(grid_shape, resolution)
 
         expected = np.array([[0.0, 0.0, 0.0]])
         assert_array_almost_equal(centers, expected, err_msg="Single voxel not centered at origin")
@@ -484,7 +488,7 @@ class TestVoxelCentersNumpy:
         """Test a 2x2x2 grid with resolution 1.0 against known exact coordinates."""
         grid_shape = (2, 2, 2)
         resolution = 1.0
-        centers = _voxel_centers_numpy(grid_shape, resolution)
+        centers = get_voxel_centers_numpy(grid_shape, resolution)
 
         # With resolution 1.0 and size 2, bounds are -1.0 to 1.0.
         # Centers should be at -0.5 and 0.5 for all axes.
@@ -507,7 +511,7 @@ class TestVoxelCentersNumpy:
         """Test that the entire grid is perfectly centered around (0,0,0)."""
         grid_shape = (5, 10, 3)  # Asymmetric bounds
         resolution = 0.1
-        centers = _voxel_centers_numpy(grid_shape, resolution)
+        centers = get_voxel_centers_numpy(grid_shape, resolution)
 
         # The mean of all centers in a properly centered grid should be 0 for x, y, and z
         mean_center = np.mean(centers, axis=0)
@@ -516,8 +520,8 @@ class TestVoxelCentersNumpy:
     def test_resolution_scaling(self):
         """Test that changing the resolution scales the coordinates linearly."""
         grid_shape = (3, 3, 3)
-        centers_res_1 = _voxel_centers_numpy(grid_shape, 1.0)
-        centers_res_2 = _voxel_centers_numpy(grid_shape, 2.0)
+        centers_res_1 = get_voxel_centers_numpy(grid_shape, 1.0)
+        centers_res_2 = get_voxel_centers_numpy(grid_shape, 2.0)
 
         # Doubling the resolution should exactly double all coordinate values
         assert_array_almost_equal(centers_res_1 * 2.0, centers_res_2, err_msg="Resolution scaling failed")
@@ -838,3 +842,459 @@ def test_22_completely_inside_bounding_box_but_outside_planes():
 
     # The intersection is exactly the corner (-0.5, -0.5, -0.5) and outward. 0 volume in the voxel.
     assert fractions[0] == 0.0
+
+
+# ─── Mesh helpers ─────────────────────────────────────────────────────────────
+
+
+def _unit_cube():
+    """Watertight unit cube occupying [-0.5, 0.5]^3 (12 triangles)."""
+    v = np.array(
+        [
+            [-0.5, -0.5, -0.5],
+            [0.5, -0.5, -0.5],  # 0, 1
+            [0.5, 0.5, -0.5],
+            [-0.5, 0.5, -0.5],  # 2, 3
+            [-0.5, -0.5, 0.5],
+            [0.5, -0.5, 0.5],  # 4, 5
+            [0.5, 0.5, 0.5],
+            [-0.5, 0.5, 0.5],  # 6, 7
+        ],
+        dtype=np.float64,
+    )
+    f = np.array(
+        [
+            [0, 1, 2],
+            [0, 2, 3],  # bottom z=-0.5
+            [4, 6, 5],
+            [4, 7, 6],  # top    z=+0.5
+            [0, 5, 1],
+            [0, 4, 5],  # front  y=-0.5
+            [2, 6, 7],
+            [2, 7, 3],  # back   y=+0.5
+            [0, 7, 4],
+            [0, 3, 7],  # left   x=-0.5
+            [1, 5, 6],
+            [1, 6, 2],  # right  x=+0.5
+        ],
+        dtype=np.int32,
+    )
+    return v, f
+
+
+def _unit_octahedron():
+    """
+    Watertight regular octahedron with all 6 vertices on the unit sphere.
+    Analytically inside iff |x| + |y| + |z| < 1.
+    """
+    v = np.array(
+        [
+            [1, 0, 0],
+            [-1, 0, 0],  # 0, 1
+            [0, 1, 0],
+            [0, -1, 0],  # 2, 3
+            [0, 0, 1],
+            [0, 0, -1],  # 4, 5
+        ],
+        dtype=np.float64,
+    )
+    f = np.array(
+        [
+            [0, 2, 4],
+            [2, 1, 4],
+            [1, 3, 4],
+            [3, 0, 4],  # upper cap
+            [0, 3, 5],
+            [3, 1, 5],
+            [1, 2, 5],
+            [2, 0, 5],  # lower cap
+        ],
+        dtype=np.int32,
+    )
+    return v, f
+
+
+# ─── get_voxel_centers_numpy ───────────────────────────────────────────────────
+
+
+class TestGetVoxelCentersNumpy:
+    def test_single_voxel_at_origin(self):
+        centers = get_voxel_centers_numpy((1, 1, 1), resolution=1.0)
+        assert centers.shape == (1, 3)
+        np.testing.assert_allclose(centers[0], [0.0, 0.0, 0.0])
+
+    def test_output_shape(self):
+        nx, ny, nz = 3, 4, 5
+        centers = get_voxel_centers_numpy((nx, ny, nz), resolution=0.5)
+        assert centers.shape == (nx * ny * nz, 3)
+
+    def test_2x2x2_exact_centers(self):
+        """2 voxels per axis at resolution=1 → centers at ±0.5."""
+        centers = get_voxel_centers_numpy((2, 2, 2), resolution=1.0)
+        expected = np.array([-0.5, 0.5])
+        for axis in range(3):
+            np.testing.assert_allclose(np.sort(np.unique(centers[:, axis])), expected)
+
+    def test_centers_symmetric_around_origin(self):
+        """Sum of all centers is zero (grid is centred at origin)."""
+        centers = get_voxel_centers_numpy((5, 3, 4), resolution=0.1)
+        np.testing.assert_allclose(centers.sum(axis=0), [0.0, 0.0, 0.0], atol=1e-12)
+
+    def test_resolution_scales_linearly(self):
+        """Doubling the resolution doubles every coordinate."""
+        c1 = get_voxel_centers_numpy((3, 3, 3), resolution=1.0)
+        c2 = get_voxel_centers_numpy((3, 3, 3), resolution=2.0)
+        np.testing.assert_allclose(c2, 2.0 * c1)
+
+    def test_adjacent_center_spacing_equals_resolution(self):
+        """Consecutive centers along each axis are exactly one resolution apart."""
+        res = 0.25
+        centers = get_voxel_centers_numpy((6, 1, 1), resolution=res)
+        xs = np.sort(centers[:, 0])
+        np.testing.assert_allclose(np.diff(xs), res)
+
+    def test_3x1x1_exact_x_values(self):
+        """3 voxels along x, resolution=2 → centers at -2, 0, +2."""
+        centers = get_voxel_centers_numpy((3, 1, 1), resolution=2.0)
+        np.testing.assert_allclose(np.sort(centers[:, 0]), [-2.0, 0.0, 2.0])
+
+    def test_column_order_xyz(self):
+        """Columns are X, Y, Z (indexing='ij' convention)."""
+        centers = get_voxel_centers_numpy((2, 3, 1), resolution=1.0)
+        # 2 unique x values, 3 unique y values, 1 unique z value
+        assert len(np.unique(centers[:, 0])) == 2
+        assert len(np.unique(centers[:, 1])) == 3
+        assert len(np.unique(centers[:, 2])) == 1
+
+
+# ─── compute_lookup_grid_dims ─────────────────────────────────────────────────
+
+
+class TestComputeLookupGridDims:
+    def _square_mesh(self):
+        verts2d = np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]])
+        faces = np.array([[0, 1, 2], [0, 2, 3]])
+        return verts2d, faces
+
+    def test_fixed_size_returns_exact_dims(self):
+        v, f = self._square_mesh()
+        gx, gy, _, _ = compute_lookup_grid_dims(v, f, fixed_lookup_grid_size=(7, 11))
+        assert gx == 7 and gy == 11
+
+    def test_fixed_size_bounds_are_vertex_minmax(self):
+        v, f = self._square_mesh()
+        _, _, mn, mx = compute_lookup_grid_dims(v, f, fixed_lookup_grid_size=(3, 3))
+        np.testing.assert_allclose(mn, [0.0, 0.0])
+        np.testing.assert_allclose(mx, [1.0, 1.0])
+
+    def test_auto_dims_are_at_least_one(self):
+        v, f = self._square_mesh()
+        gx, gy, _, _ = compute_lookup_grid_dims(v, f, fixed_lookup_grid_size=None)
+        assert gx >= 1 and gy >= 1
+
+    def test_auto_bounds_match_vertex_minmax(self):
+        v, f = self._square_mesh()
+        _, _, mn, mx = compute_lookup_grid_dims(v, f, fixed_lookup_grid_size=None)
+        np.testing.assert_allclose(mn, v.min(axis=0))
+        np.testing.assert_allclose(mx, v.max(axis=0))
+
+    def test_invalid_type_raises_value_error(self):
+        v, f = self._square_mesh()
+        with pytest.raises(ValueError):
+            compute_lookup_grid_dims(v, f, fixed_lookup_grid_size=42)
+
+    def test_auto_narrow_mesh_still_valid(self):
+        """Very narrow mesh (width >> height) still gives positive grid dims."""
+        v = np.array([[0.0, 0.0], [100.0, 0.0], [100.0, 0.1], [0.0, 0.1]])
+        f = np.array([[0, 1, 2], [0, 2, 3]])
+        gx, gy, _, _ = compute_lookup_grid_dims(v, f, fixed_lookup_grid_size=None)
+        assert gx >= 1 and gy >= 1
+
+    def test_auto_more_faces_gives_larger_or_equal_grid(self):
+        """Auto-sizing should produce a finer grid when face density is higher."""
+        v, f2 = self._square_mesh()
+        f_many = np.tile(f2, (100, 1))  # duplicate faces, same bounds
+        gx_few, gy_few, _, _ = compute_lookup_grid_dims(v, f2, None)
+        gx_many, gy_many, _, _ = compute_lookup_grid_dims(v, f_many, None)
+        # grid area should be >= (heuristic targets ~2-4 faces per cell)
+        assert gx_many * gy_many >= gx_few * gy_few
+
+    def test_fixed_size_1x1_works(self):
+        v, f = self._square_mesh()
+        gx, gy, _, _ = compute_lookup_grid_dims(v, f, fixed_lookup_grid_size=(1, 1))
+        assert gx == 1 and gy == 1
+
+
+# ─── build_spatial_lookup_grid_csr ────────────────────────────────────────────
+
+
+class TestBuildSpatialLookupGridCSR:
+    def test_offsets_length(self):
+        v, f = _unit_cube()
+        offsets, _, (gx, gy), _, _ = build_spatial_lookup_grid_csr(v, f)
+        assert len(offsets) == gx * gy + 1
+
+    def test_offsets_start_zero_end_total_indices(self):
+        v, f = _unit_cube()
+        offsets, indices, _, _, _ = build_spatial_lookup_grid_csr(v, f)
+        assert offsets[0] == 0
+        assert offsets[-1] == len(indices)
+
+    def test_offsets_monotonically_nondecreasing(self):
+        v, f = _unit_cube()
+        offsets, _, _, _, _ = build_spatial_lookup_grid_csr(v, f)
+        assert np.all(np.diff(offsets) >= 0)
+
+    def test_every_face_referenced_at_least_once(self):
+        v, f = _unit_cube()
+        _, indices, _, _, _ = build_spatial_lookup_grid_csr(v, f)
+        for fi in range(len(f)):
+            assert fi in indices, f"Face {fi} missing from CSR indices"
+
+    def test_fixed_grid_size_respected(self):
+        v, f = _unit_cube()
+        _, _, (gx, gy), _, _ = build_spatial_lookup_grid_csr(v, f, fixed_lookup_grid_size=(5, 7))
+        assert gx == 5 and gy == 7
+
+    def test_cell_size_positive(self):
+        v, f = _unit_cube()
+        _, _, _, _, cell_size = build_spatial_lookup_grid_csr(v, f)
+        assert np.all(cell_size > 0)
+
+    def test_min_b_matches_xy_vertex_min(self):
+        v, f = _unit_cube()
+        _, _, _, min_b, _ = build_spatial_lookup_grid_csr(v, f)
+        np.testing.assert_allclose(min_b, v[:, :2].min(axis=0))
+
+    def test_single_triangle_face_in_indices(self):
+        """A non-degenerate single triangle must appear in the CSR indices."""
+        v = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.5]])
+        f = np.array([[0, 1, 2]])
+        _, indices, _, _, _ = build_spatial_lookup_grid_csr(v, f)
+        assert 0 in indices
+
+    def test_face_count_in_indices_matches_cell_coverage(self):
+        """len(indices) equals sum of per-cell face counts from offsets."""
+        v, f = _unit_cube()
+        offsets, indices, (gx, gy), _, _ = build_spatial_lookup_grid_csr(v, f)
+        counts = np.diff(offsets)
+        assert counts.sum() == len(indices)
+
+    def test_indices_are_valid_face_indices(self):
+        """All values in indices are in range [0, F)."""
+        v, f = _unit_cube()
+        _, indices, _, _, _ = build_spatial_lookup_grid_csr(v, f)
+        assert np.all(indices >= 0)
+        assert np.all(indices < len(f))
+
+
+# ─── points_in_mesh_csr ───────────────────────────────────────────────────────
+
+
+class TestPointsInMeshCSR:
+    @pytest.fixture(scope="class")
+    def cube_csr(self):
+        v, f = _unit_cube()
+        offsets, indices, grid_dims, min_b, cell_size = build_spatial_lookup_grid_csr(v, f)
+        return v, f, offsets, indices, grid_dims, min_b, cell_size
+
+    @pytest.fixture(scope="class")
+    def oct_csr(self):
+        v, f = _unit_octahedron()
+        offsets, indices, grid_dims, min_b, cell_size = build_spatial_lookup_grid_csr(v, f)
+        return v, f, offsets, indices, grid_dims, min_b, cell_size
+
+    # ── unit cube: inside ─────────────────────────────────────────────────────
+
+    @pytest.mark.parametrize(
+        "pt",
+        [
+            [0.1, 0.2, 0.3],
+            [0.0, 0.1, 0.2],
+            [-0.2, 0.1, -0.3],
+            [0.3, 0.1, -0.2],
+            [0.0, 0.1, 0.0],
+        ],
+    )
+    def test_cube_interior_points(self, cube_csr, pt):
+        v, f, offsets, indices, gd, mb, cs = cube_csr
+        result = points_in_mesh_csr(v, f, np.array([pt]), offsets, indices, gd, mb, cs)
+        assert result[0], f"Expected inside for {pt}"
+
+    # ── unit cube: outside ────────────────────────────────────────────────────
+
+    @pytest.mark.parametrize(
+        "pt",
+        [
+            [0.7, 0.0, 0.0],
+            [-0.7, 0.0, 0.0],
+            [0.0, 0.7, 0.0],
+            [0.0, -0.7, 0.0],
+            [0.0, 0.0, 0.7],
+            [0.0, 0.0, -0.7],
+            [2.0, 2.0, 2.0],
+        ],
+    )
+    def test_cube_exterior_points(self, cube_csr, pt):
+        v, f, offsets, indices, gd, mb, cs = cube_csr
+        result = points_in_mesh_csr(v, f, np.array([pt]), offsets, indices, gd, mb, cs)
+        assert not result[0], f"Expected outside for {pt}"
+
+    def test_cube_dense_interior_grid(self, cube_csr):
+        """All points at |coord| ≤ 0.4 are inside the unit cube."""
+        v, f, offsets, indices, gd, mb, cs = cube_csr
+        coords = np.linspace(-0.4, 0.4, 4)
+        xx, yy, zz = np.meshgrid(coords, coords, coords)
+        # Shift slightly to avoid aligning on face-diagonal edges
+        q = np.column_stack([xx.ravel() + 0.01, yy.ravel() + 0.02, zz.ravel()])
+        result = points_in_mesh_csr(v, f, q, offsets, indices, gd, mb, cs)
+        assert np.all(result), f"Interior points misclassified: {np.where(~result)}"
+
+    # ── octahedron: analytically |x|+|y|+|z| < 1 → inside ───────────────────
+
+    @pytest.mark.parametrize(
+        "pt",
+        [
+            [0.2, 0.2, 0.2],  # L1 = 0.6
+            [0.1, 0.2, 0.3],  # L1 = 0.6
+            [0.3, 0.1, 0.1],  # L1 = 0.5
+        ],
+    )
+    def test_octahedron_interior_points(self, oct_csr, pt):
+        v, f, offsets, indices, gd, mb, cs = oct_csr
+        result = points_in_mesh_csr(v, f, np.array([pt]), offsets, indices, gd, mb, cs)
+        assert result[0], f"Expected inside for L1={sum(abs(x) for x in pt):.2f}: {pt}"
+
+    @pytest.mark.parametrize(
+        "pt",
+        [
+            [0.4, 0.4, 0.4],  # L1 = 1.2
+            [0.5, 0.3, 0.3],  # L1 = 1.1
+            [0.7, 0.2, 0.2],  # L1 = 1.1
+        ],
+    )
+    def test_octahedron_exterior_points(self, oct_csr, pt):
+        v, f, offsets, indices, gd, mb, cs = oct_csr
+        result = points_in_mesh_csr(v, f, np.array([pt]), offsets, indices, gd, mb, cs)
+        assert not result[0], f"Expected outside for L1={sum(abs(x) for x in pt):.2f}: {pt}"
+
+    # ── edge cases ────────────────────────────────────────────────────────────
+
+    def test_empty_query_returns_empty_bool_array(self, cube_csr):
+        v, f, offsets, indices, gd, mb, cs = cube_csr
+        result = points_in_mesh_csr(v, f, np.empty((0, 3)), offsets, indices, gd, mb, cs)
+        assert result.shape == (0,)
+        assert result.dtype == bool
+
+    def test_empty_csr_cells_branch(self):
+        """
+        Two small faces far apart in a 4×4 grid leave centre cells empty.
+        The total==0 branch inside the chunk loop must be reached without error.
+        """
+        v = np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [0.1, 0.0, 0.0],
+                [0.0, 0.1, 0.1],  # face 0 – bottom-left
+                [0.9, 0.9, 0.0],
+                [1.0, 0.9, 0.0],
+                [0.9, 1.0, 0.1],  # face 1 – top-right
+            ],
+            dtype=np.float64,
+        )
+        f = np.array([[0, 1, 2], [3, 4, 5]], dtype=np.int32)
+        offsets, indices, grid_dims, min_b, cell_size = build_spatial_lookup_grid_csr(
+            v, f, fixed_lookup_grid_size=(4, 4)
+        )
+        # Confirm some cells are truly empty
+        assert np.any(np.diff(offsets) == 0), "Expected empty grid cells"
+        # Query a point in the empty middle zone
+        q = np.array([[0.5, 0.5, 0.5]])
+        result = points_in_mesh_csr(v, f, q, offsets, indices, grid_dims, min_b, cell_size)
+        # Mesh is not watertight; result is False (no crossings from empty cell)
+        assert not result[0]
+
+    def test_chunk_size_does_not_affect_result(self, cube_csr):
+        """Results must be identical regardless of chunk_size."""
+        v, f, offsets, indices, gd, mb, cs = cube_csr
+        q = np.array(
+            [
+                [0.1, 0.2, 0.3],
+                [0.3, 0.1, -0.2],
+                [0.8, 0.0, 0.0],
+                [-0.8, 0.0, 0.0],
+            ]
+        )
+        r_single = points_in_mesh_csr(v, f, q, offsets, indices, gd, mb, cs, chunk_size=100_000)
+        r_chunked = points_in_mesh_csr(v, f, q, offsets, indices, gd, mb, cs, chunk_size=2)
+        np.testing.assert_array_equal(r_single, r_chunked)
+
+    def test_far_outside_point_clipped_to_boundary_cell(self, cube_csr):
+        """Points far outside the mesh bounding box are clipped; result is False."""
+        v, f, offsets, indices, gd, mb, cs = cube_csr
+        q = np.array([[100.0, 100.0, 0.0], [-100.0, -100.0, 0.0]])
+        result = points_in_mesh_csr(v, f, q, offsets, indices, gd, mb, cs)
+        assert not np.any(result)
+
+
+# ─── calculate_points_in_mesh ─────────────────────────────────────────────────
+
+
+class TestCalculatePointsInMesh:
+    def test_cube_interior_point(self):
+        v, f = _unit_cube()
+        result = calculate_points_in_mesh(v, f, np.array([[0.1, 0.2, 0.3]]))
+        assert result[0]
+
+    def test_cube_exterior_point(self):
+        v, f = _unit_cube()
+        result = calculate_points_in_mesh(v, f, np.array([[2.0, 2.0, 2.0]]))
+        assert not result[0]
+
+    def test_octahedron_inside_outside_pair(self):
+        """Analytical criterion |x|+|y|+|z| < 1 separates the two points."""
+        v, f = _unit_octahedron()
+        q = np.array(
+            [
+                [0.1, 0.2, 0.3],  # L1 = 0.6 → inside
+                [0.4, 0.4, 0.4],  # L1 = 1.2 → outside
+            ]
+        )
+        result = calculate_points_in_mesh(v, f, q)
+        assert result[0] and not result[1]
+
+    def test_fixed_lookup_grid_same_as_auto(self):
+        """Fixed and auto grid sizes give the same classification."""
+        v, f = _unit_cube()
+        q = np.array(
+            [
+                [0.1, 0.2, 0.3],
+                [0.8, 0.0, 0.0],
+            ]
+        )
+        r_auto = calculate_points_in_mesh(v, f, q)
+        r_fixed = calculate_points_in_mesh(v, f, q, fixed_lookup_grid_size=(4, 4))
+        np.testing.assert_array_equal(r_auto, r_fixed)
+
+    def test_empty_query_returns_empty_array(self):
+        v, f = _unit_cube()
+        result = calculate_points_in_mesh(v, f, np.empty((0, 3), dtype=np.float64))
+        assert result.shape == (0,)
+        assert result.dtype == bool
+
+    def test_multiple_interior_exterior_mixed(self):
+        """Mixed batch: verify each point independently."""
+        v, f = _unit_cube()
+        interior = np.array([[0.1, 0.2, 0.3], [0.0, 0.1, 0.2], [-0.2, 0.1, -0.3]])
+        exterior = np.array([[0.7, 0.0, 0.0], [0.0, 0.7, 0.0], [0.0, 0.0, -0.7]])
+        q = np.vstack([interior, exterior])
+        result = calculate_points_in_mesh(v, f, q)
+        assert np.all(result[:3]), "Interior points should be inside"
+        assert np.all(~result[3:]), "Exterior points should be outside"
+
+    def test_output_shape_matches_query_count(self):
+        v, f = _unit_cube()
+        q = np.zeros((13, 3))
+        result = calculate_points_in_mesh(v, f, q)
+        assert result.shape == (13,)
+        assert result.dtype == bool
