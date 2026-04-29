@@ -62,6 +62,7 @@ class ModePlaneSource(TFSFPlaneSource):
             direction=self.direction,
             mode_index=self.mode_index,
             filter_pol=self.filter_pol,
+            dtype=self._config.dtype,
         )
         mode_E, mode_H = jnp.real(mode_E), jnp.real(mode_H)
 
