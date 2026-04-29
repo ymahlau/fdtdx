@@ -151,9 +151,15 @@ def smoothed_projection(
     # with array-based AD tracers, apparently. See here:
     # https://github.com/google/jax/issues/1052#issuecomment-5140833520
     d_R = d / R_smoothing
-    F = jnp.where(needs_smoothing, 0.5 - 15 / 16 * d_R + 5 / 8 * d_R**3 - 3 / 16 * d_R**5, 1.0)
+    # Double-where trick: when needs_smoothing is False, d_R can be enormous (tiny norm_eff),
+    # causing d_R**4 to overflow to inf in float32. JAX evaluates all branches, so the
+    # polynomial gradient (dpoly/dd_R = inf) is computed everywhere. The jnp.where mask
+    # then computes 0 * inf = NaN. Using safe_d_R = 0 in the masked-out branch keeps
+    # dpoly/dd_R finite everywhere, eliminating the NaN.
+    safe_d_R = jnp.where(needs_smoothing, d_R, 0.0)
+    F = jnp.where(needs_smoothing, 0.5 - 15 / 16 * safe_d_R + 5 / 8 * safe_d_R**3 - 3 / 16 * safe_d_R**5, 1.0)
     # F(-d)
-    F_minus = jnp.where(needs_smoothing, 0.5 + 15 / 16 * d_R - 5 / 8 * d_R**3 + 3 / 16 * d_R**5, 1.0)
+    F_minus = jnp.where(needs_smoothing, 0.5 + 15 / 16 * safe_d_R - 5 / 8 * safe_d_R**3 + 3 / 16 * safe_d_R**5, 1.0)
 
     # Determine the upper and lower bounds of materials in the current pixel (before projection).
     rho_filtered_minus = rho_filtered - R_smoothing * rho_filtered_grad_norm_eff * F

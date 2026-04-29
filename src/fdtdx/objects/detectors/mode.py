@@ -94,6 +94,7 @@ class ModeOverlapDetector(PhasorDetector):
             direction=self.direction,
             mode_index=self.mode_index,
             filter_pol=self.filter_pol,
+            dtype=self._config.dtype,
         )
 
         self = self.aset("_mode_E", mode_E, create_new_ok=True)

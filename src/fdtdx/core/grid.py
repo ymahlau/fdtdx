@@ -60,7 +60,7 @@ def calculate_time_offset_yee(
     center_list = [center[0], center[1]]
     propagation_axis = spatial_shape.index(1)
     center_list.insert(propagation_axis, jnp.array(0))
-    center_3d = jnp.asarray(center_list, dtype=jnp.float32)[None, None, None, :]
+    center_3d = jnp.asarray(center_list, dtype=wave_vector.dtype)[None, None, None, :]
     xyz = xyz - center_3d
 
     # yee grid offsets
