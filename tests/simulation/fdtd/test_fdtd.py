@@ -96,7 +96,7 @@ class TestReversibleFdtdGradients:
     def _loss_fn(self, inv_permittivities, arrays, objects, config, key):
         """L2 loss on output inv_permittivities through a full forward+backward pass.
 
-        Uses inv_permittivities (not E) because reset_array_container zeros E/H,
+        Uses inv_permittivities (not E) because ArrayContainer.reset zeros E/H,
         and without sources E stays zero. inv_permittivities passes through the
         simulation unchanged, giving a non-trivial gradient through the custom VJP.
         """

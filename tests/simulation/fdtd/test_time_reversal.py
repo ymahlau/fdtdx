@@ -157,7 +157,7 @@ def _forward_backward_roundtrip(obj_container, arrays, config, has_pml):
     )
 
     _, arrays_bwd = state_bwd
-    return E_original, H_original, arrays_bwd.E, arrays_bwd.H
+    return E_original, H_original, arrays_bwd.fields.E, arrays_bwd.fields.H
 
 
 # ── Boundary type definitions ──────────────────────────────────────────────────

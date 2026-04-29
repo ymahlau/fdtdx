@@ -15,10 +15,12 @@ from fdtdx.objects.detectors.detector import DetectorState
 def arrays():
     """Create an ArrayContainer with small test arrays."""
     return ArrayContainer(
-        E=jnp.ones((3, 4, 4, 4)),
-        H=jnp.ones((3, 4, 4, 4)) * 2.0,
-        psi_E=jnp.zeros((6, 4, 4, 4)),
-        psi_H=jnp.zeros((6, 4, 4, 4)),
+        fields=FieldState(
+            E=jnp.ones((3, 4, 4, 4)),
+            H=jnp.ones((3, 4, 4, 4)) * 2.0,
+            psi_E=jnp.zeros((6, 4, 4, 4)),
+            psi_H=jnp.zeros((6, 4, 4, 4)),
+        ),
         alpha=jnp.zeros((3, 4, 4, 4)),
         kappa=jnp.ones((3, 4, 4, 4)),
         sigma=jnp.zeros((3, 4, 4, 4)),

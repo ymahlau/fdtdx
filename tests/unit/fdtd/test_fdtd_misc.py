@@ -21,14 +21,35 @@ class MockPML:
 class MockArrayContainer:
     """Mock replacement for ArrayContainer.
 
-    - Fields (E, H) are plain jnp arrays.
+    - Fields (E, H) are exposed through fields.E and fields.H.
+    - Direct E and H properties are kept for misc.py compatibility.
     - Supports arrays.at["E"].set(...) to set the whole field (used in add_boundary_interfaces).
     - Slicing and arr.at[..., ...].set(...) for individual jnp arrays is delegated to jax.numpy arrays.
     """
 
+    class _Fields:
+        def __init__(self, E, H):
+            self.E = E
+            self.H = H
+
     def __init__(self, E, H):
-        self.E = E
-        self.H = H
+        self.fields = MockArrayContainer._Fields(E=E, H=H)
+
+    @property
+    def E(self):
+        return self.fields.E
+
+    @E.setter
+    def E(self, value):
+        self.fields.E = value
+
+    @property
+    def H(self):
+        return self.fields.H
+
+    @H.setter
+    def H(self, value):
+        self.fields.H = value
 
     class _AtHelper:
         def __init__(self, parent):

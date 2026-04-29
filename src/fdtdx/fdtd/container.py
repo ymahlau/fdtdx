@@ -316,7 +316,22 @@ class ArrayContainer(TreeClass):
         reset_detector_states: bool = True,
         reset_recording_state: bool = False,
     ) -> "ArrayContainer":
-        """Return a copy with all dynamic fields zeroed and material properties preserved."""
+        """Return a reset copy of this array container.
+
+        Dynamic field arrays are zeroed while material arrays and conductivity
+        arrays are preserved. Detector states are reset by default because they
+        accumulate time-dependent measurements. Recording state is preserved by
+        default so partial simulations can continue writing to the same buffers.
+
+        Args:
+            reset_detector_states: Whether to zero all detector state arrays.
+                Defaults to True.
+            reset_recording_state: Whether to zero recording data and state
+                arrays when a recording state is present. Defaults to False.
+
+        Returns:
+            A new ArrayContainer with reset dynamic state.
+        """
         arrays = self.aset("fields", jax.tree.map(jnp.zeros_like, self.fields))
 
         detector_states = self.detector_states
@@ -337,17 +352,3 @@ class ArrayContainer(TreeClass):
 
 # time step and arrays
 SimulationState = tuple[jax.Array, ArrayContainer]
-
-
-# Keep as a module-level alias so existing imports don't break during migration.
-# Will be removed once all call sites are updated.
-def reset_array_container(
-    arrays: "ArrayContainer",
-    objects: "ObjectContainer",
-    reset_detector_states: bool = True,
-    reset_recording_state: bool = False,
-) -> "ArrayContainer":
-    return arrays.reset(
-        reset_detector_states=reset_detector_states,
-        reset_recording_state=reset_recording_state,
-    )
