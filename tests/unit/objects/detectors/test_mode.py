@@ -393,26 +393,20 @@ class TestModeOverlapDetectorBentWaveguide:
         self, single_frequency, simulation_config, plane_grid_slice, random_key
     ):
         """bend_axis matching the propagation axis (z=2 for plane_grid_slice) raises ValueError."""
-        det = ModeOverlapDetector(
-            wave_characters=single_frequency, direction="+", bend_radius=5e-6, bend_axis=2
-        )
+        det = ModeOverlapDetector(wave_characters=single_frequency, direction="+", bend_radius=5e-6, bend_axis=2)
         with pytest.raises(ValueError, match="must differ from the propagation axis"):
             det.place_on_grid(plane_grid_slice, simulation_config, random_key)
 
     def test_valid_bend_params_x_axis(self, single_frequency, simulation_config, plane_grid_slice, random_key):
         """Valid bend_radius + bend_axis=0 (x-axis, transverse to z-propagation) succeeds."""
-        det = ModeOverlapDetector(
-            wave_characters=single_frequency, direction="+", bend_radius=5e-6, bend_axis=0
-        )
+        det = ModeOverlapDetector(wave_characters=single_frequency, direction="+", bend_radius=5e-6, bend_axis=0)
         placed = det.place_on_grid(plane_grid_slice, simulation_config, random_key)
         assert placed.bend_radius == 5e-6
         assert placed.bend_axis == 0
 
     def test_valid_bend_params_y_axis(self, single_frequency, simulation_config, plane_grid_slice, random_key):
         """Valid bend_radius + bend_axis=1 (y-axis, transverse to z-propagation) succeeds."""
-        det = ModeOverlapDetector(
-            wave_characters=single_frequency, direction="+", bend_radius=10e-6, bend_axis=1
-        )
+        det = ModeOverlapDetector(wave_characters=single_frequency, direction="+", bend_radius=10e-6, bend_axis=1)
         placed = det.place_on_grid(plane_grid_slice, simulation_config, random_key)
         assert placed.bend_radius == 10e-6
         assert placed.bend_axis == 1
@@ -420,9 +414,7 @@ class TestModeOverlapDetectorBentWaveguide:
     def test_valid_bend_params_x_propagation(self, single_frequency, simulation_config, random_key):
         """Valid bend setup for x-propagating waveguide: bend_axis must be 1 or 2."""
         x_plane = ((0, 1), (0, 8), (0, 8))
-        det = ModeOverlapDetector(
-            wave_characters=single_frequency, direction="+", bend_radius=5e-6, bend_axis=2
-        )
+        det = ModeOverlapDetector(wave_characters=single_frequency, direction="+", bend_radius=5e-6, bend_axis=2)
         placed = det.place_on_grid(x_plane, simulation_config, random_key)
         assert placed.propagation_axis == 0
         assert placed.bend_axis == 2
@@ -430,8 +422,6 @@ class TestModeOverlapDetectorBentWaveguide:
     def test_bend_axis_same_as_x_propagation_raises(self, single_frequency, simulation_config, random_key):
         """bend_axis=0 for x-propagating waveguide (propagation_axis=0) raises ValueError."""
         x_plane = ((0, 1), (0, 8), (0, 8))
-        det = ModeOverlapDetector(
-            wave_characters=single_frequency, direction="+", bend_radius=5e-6, bend_axis=0
-        )
+        det = ModeOverlapDetector(wave_characters=single_frequency, direction="+", bend_radius=5e-6, bend_axis=0)
         with pytest.raises(ValueError, match="must differ from the propagation axis"):
             det.place_on_grid(x_plane, simulation_config, random_key)

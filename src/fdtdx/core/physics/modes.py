@@ -154,10 +154,11 @@ def compute_mode(
 
     def mode_helper(permittivity, permeability):
         if bend_radius is not None:
+            assert bend_axis is not None
             transverse_axes = [ax for ax in range(3) if ax != propagation_axis]
             tidy3d_bend_axis = transverse_axes.index(bend_axis)
             bend_radius_um = bend_radius / 1e-6
-            plane_center = tuple(float(0.5 * (coord[0] + coord[-1])) for coord in coords)
+            plane_center = (float(0.5 * (coords[0][0] + coords[0][-1])), float(0.5 * (coords[1][0] + coords[1][-1])))
         else:
             tidy3d_bend_axis = None
             bend_radius_um = None
