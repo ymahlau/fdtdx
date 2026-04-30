@@ -191,7 +191,10 @@ class TestRunFdtd:
         """progress_callback is passed through to checkpointed_fdtd (no gradient_config)."""
         arrays, objects, config, key = setup
         config.gradient_config = None
-        cb = lambda s, t: None
+
+        def cb(s, t):
+            return None
+
         mock_result = Mock(spec=SimulationState)
 
         with patch("fdtdx.fdtd.wrapper.checkpointed_fdtd", return_value=mock_result) as mock_ckpt:
@@ -204,7 +207,10 @@ class TestRunFdtd:
         arrays, objects, config, key = setup
         config.gradient_config = Mock()
         config.gradient_config.method = "reversible"
-        cb = lambda s, t: None
+
+        def cb(s, t):
+            return None
+
         mock_result = Mock(spec=SimulationState)
 
         with patch("fdtdx.fdtd.wrapper.reversible_fdtd", return_value=mock_result) as mock_rev:
@@ -217,7 +223,10 @@ class TestRunFdtd:
         arrays, objects, config, key = setup
         config.gradient_config = Mock()
         config.gradient_config.method = "checkpointed"
-        cb = lambda s, t: None
+
+        def cb(s, t):
+            return None
+
         mock_result = Mock(spec=SimulationState)
 
         with patch("fdtdx.fdtd.wrapper.checkpointed_fdtd", return_value=mock_result) as mock_ckpt:
