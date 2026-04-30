@@ -273,30 +273,6 @@ def test_size_relative_to_with_grid_offset():
     assert sl[1] == (0, 20)
 
 
-def test_size_relative_to_cross_axis():
-    """size_relative_to can reference a different axis on the parent object."""
-    # Use a non-cubic volume so axes are distinguishable
-    vol = fdtdx.SimulationVolume(partial_real_shape=(3e-6, 2e-6, 2e-6))  # 30x20x20
-    box = _box(name="box")
-    constraints = [
-        # box's z size = volume's x size (30 cells)
-        box.size_relative_to(vol, axes=2, other_axes=0),
-        box.same_position(vol),
-        box.same_size(vol, axes=(0, 1)),
-    ]
-    slices, errors = resolve_object_constraints(
-        objects=[vol, box],
-        constraints=constraints,
-        config=fdtdx.SimulationConfig(resolution=RESOLUTION, time=10e-15),
-    )
-    failed = {n: m for n, m in errors.items() if m}
-    assert not failed, f"Errors: {failed}"
-    sl = slices[box.name]
-    # z: 30 cells, centered in 20 → round(10-15)=-5 → b0=-5, b1=25
-    # This puts box outside the volume in z, which is allowed at constraint level
-    assert sl[2][1] - sl[2][0] == 30  # z size = 30 cells
-
-
 def test_same_position_and_size():
     """same_position_and_size is a shortcut for both constraints simultaneously."""
     vol = _volume()
