@@ -98,6 +98,8 @@ def compute_mode(
     mode_index: int = 0,
     filter_pol: Literal["te", "tm"] | None = None,
     dtype: jnp.dtype = jnp.float32,
+    bend_radius: float | None = None,
+    bend_axis: int | None = None,
 ) -> tuple[
     jax.Array,  # E
     jax.Array,  # H
@@ -123,6 +125,11 @@ def compute_mode(
         filter_pol (Literal["te", "tm"] | None, optional). If not None, modes are filtered by polarization.
         dtype (jnp.dtype, optional): Float dtype of the simulation. Controls whether mode fields are returned
             as complex64 (float32) or complex128 (float64). Defaults to jnp.float32.
+        bend_radius (float | None, optional): Bend radius of the waveguide in meters. Must be set together with
+            bend_axis. When set, the mode solver uses a conformal transformation to account for the bend. Defaults to
+            None (straight waveguide).
+        bend_axis (int | None, optional): Physical axis index (0/1/2) pointing from the waveguide toward the center
+            of curvature. Must differ from the propagation axis. Required when bend_radius is set. Defaults to None.
 
     Returns:
         Tuple[jax.Array, jax.Array, jax.Array]:
@@ -140,10 +147,22 @@ def compute_mode(
             or sum(dim == 1 for dim in inv_permeabilities.shape[1:]) != 1
         ):
             raise Exception(f"Invalid shape of inv_permeabilities: {inv_permeabilities.shape}")
+    if (bend_radius is None) != (bend_axis is None):
+        raise ValueError("bend_radius and bend_axis must both be set or both be None")
 
     np_complex_dtype = np.complex128 if dtype == jnp.float64 else np.complex64
 
     def mode_helper(permittivity, permeability):
+        if bend_radius is not None:
+            assert bend_axis is not None
+            transverse_axes = [ax for ax in range(3) if ax != propagation_axis]
+            tidy3d_bend_axis = transverse_axes.index(bend_axis)
+            bend_radius_um = bend_radius / 1e-6
+            plane_center = (float(0.5 * (coords[0][0] + coords[0][-1])), float(0.5 * (coords[1][0] + coords[1][-1])))
+        else:
+            tidy3d_bend_axis = None
+            bend_radius_um = None
+            plane_center = None
         modes = tidy3d_mode_computation_wrapper(
             frequency=frequency,
             permittivity_cross_section=permittivity,
@@ -151,6 +170,9 @@ def compute_mode(
             coords=coords,
             direction=direction,
             num_modes=2 * (mode_index + 1) + 10,
+            bend_radius=bend_radius_um,
+            bend_axis=tidy3d_bend_axis,
+            plane_center=plane_center,
         )
 
         # sort modes by polarization
@@ -283,6 +305,9 @@ def tidy3d_mode_computation_wrapper(
     angle_phi: float = 0.0,
     num_modes: int = 10,
     precision: Literal["single", "double"] = "double",
+    bend_radius: float | None = None,
+    bend_axis: int | None = None,
+    plane_center: tuple[float, float] | None = None,
 ) -> List[ModeTupleType]:
     """Compute optical modes of a waveguide cross-section.
 
@@ -301,6 +326,11 @@ def tidy3d_mode_computation_wrapper(
         angle_phi (float, optional): Azimuthal angle in radians. Defaults to 0.0.
         num_modes (int, optional): Number of modes to compute. Defaults to 10.
         precision (Literal["single", "double"], optional): Numerical precision. Defaults to "double".
+        bend_radius (float | None, optional): Bend radius in microns (tidy3d units). Defaults to None.
+        bend_axis (int | None, optional): Axis index (0 or 1) of the center of curvature in tidy3d's transverse
+            coordinate frame. Defaults to None.
+        plane_center (tuple[float, float] | None, optional): Center of the mode plane in the same units as coords.
+            Required by tidy3d when bend_radius is set. Defaults to None.
 
     Notes:
         tidy3d assumes propagation in z-direction. The output fields should be handled accordingly.
@@ -317,8 +347,8 @@ def tidy3d_mode_computation_wrapper(
         num_pml=(0, 0),
         angle_theta=angle_theta,
         angle_phi=angle_phi,
-        bend_radius=None,
-        bend_axis=None,
+        bend_radius=bend_radius,
+        bend_axis=bend_axis,
         precision=precision,
         track_freq="central",
         group_index_step=False,
@@ -363,6 +393,7 @@ def tidy3d_mode_computation_wrapper(
         mode_spec=mode_spec,
         direction=direction,
         mu_cross=mu_cross,
+        plane_center=plane_center,
     )
     ((Ex, Ey, Ez), (Hx, Hy, Hz)) = EH.squeeze()
 
