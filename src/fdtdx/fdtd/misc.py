@@ -28,7 +28,7 @@ def collect_boundary_interfaces(
     """
     res = {}
     for field_str in fields_to_collect:
-        arr: jax.Array = getattr(arrays, field_str)
+        arr: jax.Array = getattr(arrays.fields, field_str)
         for pml in pml_objects:
             cur_slice = arr[:, *pml.interface_slice()]
             res[f"{pml.name}_{field_str}"] = cur_slice
@@ -56,17 +56,12 @@ def add_boundary_interfaces(
     Returns:
         ArrayContainer: Updated ArrayContainer with restored interface field values
     """
-    updated_dict = {}
     for field_str in fields_to_add:
-        arr: jax.Array = getattr(arrays, field_str)
+        arr: jax.Array = getattr(arrays.fields, field_str)
         for pml in pml_objects:
             val = values[f"{pml.name}_{field_str}"]
-            grid_slice = pml.interface_slice()
-            arr = arr.at[:, *grid_slice].set(val)
-        updated_dict[field_str] = arr
-
-    for k, v in updated_dict.items():
-        arrays = arrays.at[k].set(v)
+            arr = arr.at[:, *pml.interface_slice()].set(val)
+        arrays = arrays.aset(f"fields->{field_str}", arr)
 
     return arrays
 

@@ -4,6 +4,7 @@ import jax.numpy as jnp
 import pytest
 
 import fdtdx.fdtd.misc as misc
+from fdtdx.fdtd.container import ArrayContainer, FieldState
 
 
 class MockPML:
@@ -18,71 +19,20 @@ class MockPML:
         return (slice(self._start, self._end),)
 
 
-class MockArrayContainer:
-    """Mock replacement for ArrayContainer.
-
-    - Fields (E, H) are exposed through fields.E and fields.H.
-    - Direct E and H properties are kept for misc.py compatibility.
-    - Supports arrays.at["E"].set(...) to set the whole field (used in add_boundary_interfaces).
-    - Slicing and arr.at[..., ...].set(...) for individual jnp arrays is delegated to jax.numpy arrays.
-    """
-
-    class _Fields:
-        def __init__(self, E, H):
-            self.E = E
-            self.H = H
-
-    def __init__(self, E, H):
-        self.fields = MockArrayContainer._Fields(E=E, H=H)
-
-    @property
-    def E(self):
-        return self.fields.E
-
-    @E.setter
-    def E(self, value):
-        self.fields.E = value
-
-    @property
-    def H(self):
-        return self.fields.H
-
-    @H.setter
-    def H(self, value):
-        self.fields.H = value
-
-    class _AtHelper:
-        def __init__(self, parent):
-            self.parent = parent
-
-        def __getitem__(self, key):
-            # Expect key to be the field name string, e.g. "E" or "H"
-            if not isinstance(key, str):
-                raise ValueError("MockArrayContainer.at expects a field-name string key")
-
-            parent = self.parent
-            field = key
-
-            class Setter:
-                def __init__(self, parent, field):
-                    self.parent = parent
-                    self.field = field
-
-                def set(self, v):
-                    # replace the whole field array
-                    setattr(self.parent, self.field, v)
-                    return self.parent
-
-            return Setter(parent, field)
-
-    @property
-    def at(self):
-        return MockArrayContainer._AtHelper(self)
-
-
-@pytest.fixture
-def mock_arraycontainer():
-    return MockArrayContainer
+def make_arrays(E: jnp.ndarray, H: jnp.ndarray) -> ArrayContainer:
+    """Construct a real ArrayContainer with only E/H populated."""
+    psi = jnp.zeros_like(E)
+    z = jnp.zeros_like(E)
+    return ArrayContainer(
+        fields=FieldState(E=E, H=H, psi_E=psi, psi_H=psi),
+        alpha=z,
+        kappa=z,
+        sigma=z,
+        inv_permittivities=z,
+        inv_permeabilities=1.0,
+        detector_states={},
+        recording_state=None,
+    )
 
 
 @pytest.fixture
@@ -91,8 +41,8 @@ def mock_pml():
     return [MockPML("pml1")]
 
 
-def test_collect_boundary_interfaces(mock_arraycontainer, mock_pml):
-    arrays = mock_arraycontainer(E=jnp.array([[1, 2], [3, 4]]), H=jnp.array([[5, 6], [7, 8]]))
+def test_collect_boundary_interfaces(mock_pml):
+    arrays = make_arrays(E=jnp.array([[1, 2], [3, 4]]), H=jnp.array([[5, 6], [7, 8]]))
 
     result = misc.collect_boundary_interfaces(arrays, mock_pml)
 
@@ -106,9 +56,9 @@ def test_collect_boundary_interfaces(mock_arraycontainer, mock_pml):
     assert jnp.array_equal(result["pml1_H"], expected_H)
 
 
-def test_collect_boundary_interfaces_single_field(mock_arraycontainer, mock_pml):
+def test_collect_boundary_interfaces_single_field(mock_pml):
     """custom fields_to_collect=('E',) only collects E keys."""
-    arrays = mock_arraycontainer(E=jnp.array([[1, 2], [3, 4]]), H=jnp.array([[5, 6], [7, 8]]))
+    arrays = make_arrays(E=jnp.array([[1, 2], [3, 4]]), H=jnp.array([[5, 6], [7, 8]]))
 
     result = misc.collect_boundary_interfaces(arrays, mock_pml, fields_to_collect=("E",))
 
@@ -117,10 +67,10 @@ def test_collect_boundary_interfaces_single_field(mock_arraycontainer, mock_pml)
     assert jnp.array_equal(result["pml1_E"], arrays.fields.E[:, 0:1])
 
 
-def test_collect_boundary_interfaces_multiple_pmls(mock_arraycontainer):
+def test_collect_boundary_interfaces_multiple_pmls():
     """Multiple PML objects each produce their own keys."""
     pmls = [MockPML("pml1", start=0, end=1), MockPML("pml2", start=1, end=2)]
-    arrays = mock_arraycontainer(E=jnp.array([[1, 2, 3], [4, 5, 6]]), H=jnp.array([[7, 8, 9], [10, 11, 12]]))
+    arrays = make_arrays(E=jnp.array([[1, 2, 3], [4, 5, 6]]), H=jnp.array([[7, 8, 9], [10, 11, 12]]))
 
     result = misc.collect_boundary_interfaces(arrays, pmls)
 
@@ -132,38 +82,38 @@ def test_collect_boundary_interfaces_multiple_pmls(mock_arraycontainer):
     assert jnp.array_equal(result["pml2_E"], arrays.fields.E[:, 1:2])
 
 
-def test_add_boundary_interfaces(mock_arraycontainer, mock_pml):
-    arrays = mock_arraycontainer(E=jnp.array([[1, 2], [3, 4]]), H=jnp.array([[5, 6], [7, 8]]))
+def test_add_boundary_interfaces(mock_pml):
+    arrays = make_arrays(E=jnp.array([[1, 2], [3, 4]]), H=jnp.array([[5, 6], [7, 8]]))
 
     values = {"pml1_E": jnp.array([[9], [10]]), "pml1_H": jnp.array([[11], [12]])}
 
     updated = misc.add_boundary_interfaces(arrays, values, mock_pml)
 
     # boundary slices should be updated
-    assert jnp.array_equal(updated.E[:, 0:1], values["pml1_E"])
-    assert jnp.array_equal(updated.H[:, 0:1], values["pml1_H"])
+    assert jnp.array_equal(updated.fields.E[:, 0:1], values["pml1_E"])
+    assert jnp.array_equal(updated.fields.H[:, 0:1], values["pml1_H"])
 
     # non-boundary entries should remain unchanged
-    assert jnp.array_equal(updated.E[:, 1:], jnp.array([[2], [4]]))
-    assert jnp.array_equal(updated.H[:, 1:], jnp.array([[6], [8]]))
+    assert jnp.array_equal(updated.fields.E[:, 1:], jnp.array([[2], [4]]))
+    assert jnp.array_equal(updated.fields.H[:, 1:], jnp.array([[6], [8]]))
 
 
-def test_add_boundary_interfaces_single_field(mock_arraycontainer, mock_pml):
+def test_add_boundary_interfaces_single_field(mock_pml):
     """custom fields_to_add=('H',) only updates H, leaves E untouched."""
-    arrays = mock_arraycontainer(E=jnp.array([[1, 2], [3, 4]]), H=jnp.array([[5, 6], [7, 8]]))
+    arrays = make_arrays(E=jnp.array([[1, 2], [3, 4]]), H=jnp.array([[5, 6], [7, 8]]))
 
     values = {"pml1_H": jnp.array([[11], [12]])}
     updated = misc.add_boundary_interfaces(arrays, values, mock_pml, fields_to_add=("H",))
 
-    assert jnp.array_equal(updated.H[:, 0:1], values["pml1_H"])
+    assert jnp.array_equal(updated.fields.H[:, 0:1], values["pml1_H"])
     # E untouched
-    assert jnp.array_equal(updated.E, jnp.array([[1, 2], [3, 4]]))
+    assert jnp.array_equal(updated.fields.E, jnp.array([[1, 2], [3, 4]]))
 
 
-def test_add_boundary_interfaces_multiple_pmls(mock_arraycontainer):
+def test_add_boundary_interfaces_multiple_pmls():
     """Multiple PML objects each restore their own boundary slice."""
     pmls = [MockPML("pml1", start=0, end=1), MockPML("pml2", start=1, end=2)]
-    arrays = mock_arraycontainer(
+    arrays = make_arrays(
         E=jnp.array([[1, 2, 3], [4, 5, 6]]),
         H=jnp.array([[7, 8, 9], [10, 11, 12]]),
     )
@@ -175,30 +125,30 @@ def test_add_boundary_interfaces_multiple_pmls(mock_arraycontainer):
     }
     updated = misc.add_boundary_interfaces(arrays, values, pmls)
 
-    assert jnp.array_equal(updated.E[:, 0:1], values["pml1_E"])
-    assert jnp.array_equal(updated.E[:, 1:2], values["pml2_E"])
-    assert jnp.array_equal(updated.H[:, 0:1], values["pml1_H"])
-    assert jnp.array_equal(updated.H[:, 1:2], values["pml2_H"])
+    assert jnp.array_equal(updated.fields.E[:, 0:1], values["pml1_E"])
+    assert jnp.array_equal(updated.fields.E[:, 1:2], values["pml2_E"])
+    assert jnp.array_equal(updated.fields.H[:, 0:1], values["pml1_H"])
+    assert jnp.array_equal(updated.fields.H[:, 1:2], values["pml2_H"])
 
 
-def test_round_trip_collect_add(mock_arraycontainer, mock_pml):
+def test_round_trip_collect_add(mock_pml):
     """Ensure collect → add restores the original arrays."""
-    original = mock_arraycontainer(E=jnp.array([[1, 2], [3, 4]]), H=jnp.array([[5, 6], [7, 8]]))
+    original = make_arrays(E=jnp.array([[1, 2], [3, 4]]), H=jnp.array([[5, 6], [7, 8]]))
 
     # Collect boundary values
     values = misc.collect_boundary_interfaces(original, mock_pml)
 
     # Tamper: overwrite boundary in a copy
-    tampered = mock_arraycontainer(
-        E=original.E.at[:, 0:1].set(jnp.array([[99], [99]])),
-        H=original.H.at[:, 0:1].set(jnp.array([[88], [88]])),
+    tampered = make_arrays(
+        E=original.fields.E.at[:, 0:1].set(jnp.array([[99], [99]])),
+        H=original.fields.H.at[:, 0:1].set(jnp.array([[88], [88]])),
     )
 
     # Add back original values
     restored = misc.add_boundary_interfaces(tampered, values, mock_pml)
 
-    assert jnp.array_equal(restored.E, original.E)
-    assert jnp.array_equal(restored.H, original.H)
+    assert jnp.array_equal(restored.fields.E, original.fields.E)
+    assert jnp.array_equal(restored.fields.H, original.fields.H)
 
 
 def test_compute_anisotropic_update_matrices_without_conductivity():
