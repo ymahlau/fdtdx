@@ -21,10 +21,11 @@ class MockPML:
 
 def make_arrays(E: jnp.ndarray, H: jnp.ndarray) -> ArrayContainer:
     """Construct a real ArrayContainer with only E/H populated."""
-    psi = jnp.zeros_like(E)
+    psi_E = jnp.zeros_like(E)
+    psi_H = jnp.zeros_like(H)
     z = jnp.zeros_like(E)
     return ArrayContainer(
-        fields=FieldState(E=E, H=H, psi_E=psi, psi_H=psi),
+        fields=FieldState(E=E, H=H, psi_E=psi_E, psi_H=psi_H),
         alpha=z,
         kappa=z,
         sigma=z,
