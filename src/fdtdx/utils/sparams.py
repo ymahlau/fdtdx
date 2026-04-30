@@ -294,7 +294,7 @@ def calculate_sparam(
         min_steps=round(config.time_steps_total / 5),
     )
 
-    jitted_fdtd = jax.jit(run_fdtd, static_argnames=["show_progress"])
+    jitted_fdtd = jax.jit(run_fdtd, static_argnames=["show_progress", "progress_callback"])
     _, final_arrays = jitted_fdtd(
         arrays=arrays,
         objects=objects,
