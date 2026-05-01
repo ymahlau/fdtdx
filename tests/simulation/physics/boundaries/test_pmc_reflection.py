@@ -36,7 +36,7 @@ _SIM_TIME = 120e-15
 _TOLERANCE = 0.05
 
 _DT_APPROX = 0.99 * _RESOLUTION / (3e8 * np.sqrt(3))
-_STEPS_PER_PERIOD = int(round(_WAVELENGTH / (3e8 * _DT_APPROX)))
+_STEPS_PER_PERIOD = round(_WAVELENGTH / (3e8 * _DT_APPROX))
 _N_AVG_STEPS = 10 * _STEPS_PER_PERIOD
 
 
@@ -134,7 +134,7 @@ def test_pmc_total_reflection():
     Two-run normalization:
       Reference (PML everywhere): S₀ = forward flux through detector
       PMC run (PMC at z-max):     S  = net flux (≈ 0 due to standing wave)
-      T = S / S₀ ≈ 0  →  R = 1 − T ≈ 1.0
+      T = S / S₀ ≈ 0  →  R = 1 - T ≈ 1.0
     """
     # Reference: PML on all z-faces
     obj_ref, con_ref, cfg_ref, vol_ref, _ = _build_base(z_max_type="pml")

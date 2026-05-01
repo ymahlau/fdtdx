@@ -1,5 +1,3 @@
-"""Integration tests for utils/plot_setup.py - requires place_objects simulation setup."""
-
 from pathlib import Path
 
 import matplotlib
@@ -11,6 +9,7 @@ import matplotlib.pyplot as plt
 
 import fdtdx
 from fdtdx import SimulationVolume
+from fdtdx.colors import Color
 from fdtdx.config import SimulationConfig
 from fdtdx.objects.object import GridCoordinateConstraint, OrderableObject
 from fdtdx.utils.plot_setup import plot_setup, plot_setup_from_side
@@ -33,32 +32,64 @@ def simulation_setup():
         name="simulation_volume",
     )
 
-    large_obj = OrderableObject.EmptySimulationObject.LargeObject()
-    center_obj = OrderableObject.EmptySimulationObject.CenterObject()
-    vertical_obj = OrderableObject.EmptySimulationObject.VerticalObject()
-    horizontal_obj = OrderableObject.EmptySimulationObject.HorizontalSlab()
+    # Create objects directly as OrderableObject instances
+    # Large object that covers most of the volume
+    large_obj = OrderableObject(
+        partial_grid_shape=(240, 240, 240),
+        name="large_background",
+        color=Color.from_rgb(216, 220, 214),
+        placement_order=0,
+    )
+
+    # Center object (50x50x50 grid cells)
+    center_obj = OrderableObject(
+        partial_grid_shape=(50, 50, 50),
+        name="center_object",
+        color=Color.from_rgb(249, 115, 6),
+        placement_order=1,
+    )
+
+    # Vertical object (25x25x100 grid cells)
+    vertical_obj = OrderableObject(
+        partial_grid_shape=(25, 25, 100),
+        name="vertical_object",
+        color=Color.from_rgb(1, 101, 252),
+        placement_order=2,
+    )
+
+    # Horizontal slab object (100x100x15 grid cells)
+    horizontal_obj = OrderableObject(
+        partial_grid_shape=(100, 100, 15),
+        name="horizontal_slab",
+        color=Color.from_rgb(6, 71, 12),
+        placement_order=3,
+    )
 
     object_list = [volume, large_obj, center_obj, vertical_obj, horizontal_obj]
 
     constraints = [
+        # Large background constraints - fills most of the volume
         GridCoordinateConstraint(object="large_background", axes=(0,), sides=("-",), coordinates=(5,)),
         GridCoordinateConstraint(object="large_background", axes=(0,), sides=("+",), coordinates=(245,)),
         GridCoordinateConstraint(object="large_background", axes=(1,), sides=("-",), coordinates=(5,)),
         GridCoordinateConstraint(object="large_background", axes=(1,), sides=("+",), coordinates=(245,)),
         GridCoordinateConstraint(object="large_background", axes=(2,), sides=("-",), coordinates=(5,)),
         GridCoordinateConstraint(object="large_background", axes=(2,), sides=("+",), coordinates=(245,)),
+        # Center object - placed in the middle of the volume
         GridCoordinateConstraint(object="center_object", axes=(0,), sides=("-",), coordinates=(100,)),
         GridCoordinateConstraint(object="center_object", axes=(0,), sides=("+",), coordinates=(150,)),
         GridCoordinateConstraint(object="center_object", axes=(1,), sides=("-",), coordinates=(100,)),
         GridCoordinateConstraint(object="center_object", axes=(1,), sides=("+",), coordinates=(150,)),
         GridCoordinateConstraint(object="center_object", axes=(2,), sides=("-",), coordinates=(100,)),
         GridCoordinateConstraint(object="center_object", axes=(2,), sides=("+",), coordinates=(150,)),
+        # Vertical object - positioned in one corner, taller in z
         GridCoordinateConstraint(object="vertical_object", axes=(0,), sides=("-",), coordinates=(175,)),
         GridCoordinateConstraint(object="vertical_object", axes=(0,), sides=("+",), coordinates=(200,)),
         GridCoordinateConstraint(object="vertical_object", axes=(1,), sides=("-",), coordinates=(175,)),
         GridCoordinateConstraint(object="vertical_object", axes=(1,), sides=("+",), coordinates=(200,)),
         GridCoordinateConstraint(object="vertical_object", axes=(2,), sides=("-",), coordinates=(75,)),
         GridCoordinateConstraint(object="vertical_object", axes=(2,), sides=("+",), coordinates=(175,)),
+        # Horizontal slab - thin object placed near the top
         GridCoordinateConstraint(object="horizontal_slab", axes=(0,), sides=("-",), coordinates=(50,)),
         GridCoordinateConstraint(object="horizontal_slab", axes=(0,), sides=("+",), coordinates=(150,)),
         GridCoordinateConstraint(object="horizontal_slab", axes=(1,), sides=("-",), coordinates=(50,)),
@@ -68,7 +99,7 @@ def simulation_setup():
     ]
 
     key = jax.random.PRNGKey(0)
-    objects, arrays, params, config, _ = fdtdx.place_objects(
+    objects, _arrays, _params, config, _ = fdtdx.place_objects(
         object_list=object_list,
         config=config,
         constraints=constraints,
@@ -166,7 +197,7 @@ def test_plot_setup_exclude_large_objects(simulation_setup):
     assert result_fig is not None
     assert (TEST_OUTPUT_DIR / "test_plot_setup_exclude_large.png").exists()
 
-    large_obj = [obj for obj in container.objects if obj.name == "large_background"][0]
+    large_obj = next(obj for obj in container.objects if obj.name == "large_background")
     volume = container.volume
     slices = large_obj.grid_slice_tuple
     xy_area = (slices[0][1] - slices[0][0]) * (slices[1][1] - slices[1][0])
@@ -182,8 +213,8 @@ def test_exclude_large_object_ratio_threshold(simulation_setup):
     """Test that exclude_large_object_ratio correctly filters objects at the threshold."""
     config, container, _ = simulation_setup
 
-    large_obj = [obj for obj in container.objects if obj.name == "large_background"][0]
-    center_obj = [obj for obj in container.objects if obj.name == "center_object"][0]
+    large_obj = next(obj for obj in container.objects if obj.name == "large_background")
+    center_obj = next(obj for obj in container.objects if obj.name == "center_object")
     volume = container.volume
 
     large_slices = large_obj.grid_slice_tuple
@@ -200,7 +231,7 @@ def test_exclude_large_object_ratio_threshold(simulation_setup):
 
     threshold = (large_coverage + center_coverage) / 2
 
-    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+    _fig, axs = plt.subplots(1, 3, figsize=(15, 5))
     result_fig = plot_setup(
         config=config,
         objects=container,

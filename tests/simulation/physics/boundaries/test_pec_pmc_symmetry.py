@@ -45,7 +45,7 @@ _PML_CELLS = 10
 _DOMAIN_XY = 3 * _RESOLUTION
 _DOMAIN_Z = 5e-6  # 400 cells
 
-_Z_CELLS = int(round(_DOMAIN_Z / _RESOLUTION))  # = 400
+_Z_CELLS = round(_DOMAIN_Z / _RESOLUTION)  # = 400
 _SOURCE_Z = _PML_CELLS + 2  # = 12
 
 # Detector positions relative to z-max wall

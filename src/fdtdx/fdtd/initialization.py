@@ -6,7 +6,7 @@ import jax.numpy as jnp
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
 from fdtdx.core.jax.ste import straight_through_estimator
-from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, ParameterContainer
+from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, ParameterContainer
 from fdtdx.materials import (
     compute_allowed_electric_conductivities,
     compute_allowed_magnetic_conductivities,
@@ -599,10 +599,7 @@ def _init_arrays(
         config = config.aset("gradient_config", grad_cfg)
 
     arrays = ArrayContainer(
-        E=E,
-        H=H,
-        psi_E=psi_E,
-        psi_H=psi_H,
+        fields=FieldState(E=E, H=H, psi_E=psi_E, psi_H=psi_H),
         alpha=alpha,
         kappa=kappa,
         sigma=sigma,
@@ -675,6 +672,55 @@ def resolve_object_constraints(
     resolved_slices = {}
     for obj_name, slice_list in resolved.items():
         resolved_slices[obj_name] = tuple([(axis_slice_list[0], axis_slice_list[1]) for axis_slice_list in slice_list])
+
+    # Get volume bounds from resolved slices
+    volume_name = _resolve_volume_name({obj.name: obj for obj in objects})
+    volume_slice = resolved_slices.get(volume_name)
+
+    # If the volume itself failed to resolve, skip bounds checks
+    if volume_slice is not None:
+        volume_bounds = tuple((s1, s2) for s1, s2 in volume_slice)
+
+        # Validate all non-volume objects are within simulation volume bounds
+        for obj_name, slice_tuple in resolved_slices.items():
+            if obj_name == volume_name:
+                continue  # Skip the volume itself
+
+            # Check for unresolved bounds first
+            unresolved_axes = []
+            for axis in range(3):
+                s1, s2 = slice_tuple[axis]
+                if s1 is None or s2 is None:
+                    unresolved_axes.append(axis)
+
+            if unresolved_axes:
+                # Ensure unresolved objects are flagged in errors
+                if not errors.get(obj_name):
+                    errors[obj_name] = (
+                        f"Object '{obj_name}' has unresolved bounds on axes {unresolved_axes}. Slice: {slice_tuple}"
+                    )
+                continue
+
+            # Check bounds violations
+            msgs = []
+            for axis in range(3):
+                s1, s2 = slice_tuple[axis]
+                vol_s1, vol_s2 = volume_bounds[axis]
+
+                if s1 < vol_s1:
+                    msgs.append(f"axis {axis}: lower bound {s1} < volume lower bound {vol_s1}")
+                if s2 > vol_s2:
+                    msgs.append(f"axis {axis}: upper bound {s2} > volume upper bound {vol_s2}")
+                if s2 <= s1:
+                    msgs.append(f"axis {axis}: invalid size (lower bound {s1} >= upper bound {s2})")
+
+            if msgs:
+                prev = errors.get(obj_name) or ""
+                errors[obj_name] = (
+                    (prev + "; " if prev else "")
+                    + f"Object '{obj_name}' out of bounds ({slice_tuple} vs volume {volume_bounds}): "
+                    + "; ".join(msgs)
+                )
 
     return resolved_slices, errors
 
@@ -838,7 +884,7 @@ def _apply_constraints_iteratively(
     )
 
     # iterate
-    for _ in range(max_iter):
+    for iteration in range(max_iter):
         changed = False
 
         # check if we already resolved everything
@@ -938,6 +984,11 @@ def _apply_constraints_iteratively(
         if not changed:
             errors = _handle_unresolved_objects(object_map=object_map, slice_dict=slice_dict, errors=errors)
             break
+    else:
+        # max_iter reached without convergence
+        # Ensure all unresolved objects are flagged
+        errors = _handle_unresolved_objects(object_map=object_map, slice_dict=slice_dict, errors=errors)
+
     return slice_dict, errors
 
 
@@ -1247,6 +1298,20 @@ def _extend_to_inf_if_possible(
                 direction = 0 if c.direction == "-" else 1
                 if (c.object, direction) in extension_obj:
                     extension_obj.remove((c.object, direction))
+
+            # Do not extend objects that have a pending PositionConstraint on this axis.
+            # If the referenced object's bounds are still unknown the constraint cannot resolve
+            # yet, and locking position=0 now will conflict when the constraint resolves later.
+            if isinstance(c, PositionConstraint):
+                for c_axis in c.axes:
+                    if c_axis != axis:
+                        continue
+                    other_b0, other_b1 = slice_dict[c.other_object][axis]
+                    if other_b0 is None or other_b1 is None:
+                        if (c.object, 0) in extension_obj:
+                            extension_obj.remove((c.object, 0))
+                        if (c.object, 1) in extension_obj:
+                            extension_obj.remove((c.object, 1))
 
         # For each object, determine what can be extended
         for o in object_map.keys():

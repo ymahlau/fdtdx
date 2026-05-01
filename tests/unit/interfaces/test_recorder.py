@@ -41,7 +41,7 @@ class TestRecorder:
             "E_z": jax.ShapeDtypeStruct(shape=(5, 5, 5), dtype=jnp.float32),
         }
 
-        updated_recorder, state = recorder.init_state(
+        _updated_recorder, state = recorder.init_state(
             input_shape_dtypes=input_shapes,
             max_time_steps=50,
             backend=None,
@@ -192,7 +192,7 @@ class TestRecorder:
         recorder = Recorder(modules=[])
         input_shapes = {"field": jax.ShapeDtypeStruct(shape=(5, 5), dtype=jnp.float32)}
 
-        updated_recorder, state = recorder.init_state(
+        _updated_recorder, state = recorder.init_state(
             input_shape_dtypes=input_shapes,
             max_time_steps=10,
             backend=None,
@@ -217,7 +217,7 @@ class TestRecorder:
         state = updated_recorder.compress({"field": jnp.ones((3, 3)) * 2.0}, state, jnp.array(10), subkey)
 
         key, subkey = jax.random.split(key)
-        result, returned_state = updated_recorder.decompress(state, jnp.array(0), subkey)
+        _result, returned_state = updated_recorder.decompress(state, jnp.array(0), subkey)
 
         assert isinstance(returned_state, RecordingState)
 
@@ -294,7 +294,7 @@ class TestRecorderEdgeCases:
         recorder = Recorder(modules=[LinearReconstructEveryK(k=1)])
         input_shapes = {"field": jax.ShapeDtypeStruct(shape=(3,), dtype=jnp.float32)}
 
-        updated_recorder, state = recorder.init_state(
+        _updated_recorder, state = recorder.init_state(
             input_shape_dtypes=input_shapes,
             max_time_steps=1,
             backend=None,
@@ -307,7 +307,7 @@ class TestRecorderEdgeCases:
         recorder = Recorder(modules=[LinearReconstructEveryK(k=100)])
         input_shapes = {"field": jax.ShapeDtypeStruct(shape=(3,), dtype=jnp.float32)}
 
-        updated_recorder, state = recorder.init_state(
+        _updated_recorder, state = recorder.init_state(
             input_shape_dtypes=input_shapes,
             max_time_steps=50,
             backend=None,

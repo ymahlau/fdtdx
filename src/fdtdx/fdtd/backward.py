@@ -93,7 +93,7 @@ def backward(
         key=key,
     )
 
-    H = arrays.H
+    H = arrays.fields.H
 
     arrays = update_H_reverse(
         time_step=time_step,
@@ -110,11 +110,11 @@ def backward(
     )
 
     if reset_fields:
-        new_fields = {f: getattr(arrays, f) for f in fields_to_reset}
+        new_fields = {f: getattr(arrays.fields, f) for f in fields_to_reset}
         for boundary in objects.boundary_objects:
             new_fields = boundary.apply_field_reset(new_fields)
         for name, f in new_fields.items():
-            arrays = arrays.aset(name, f)
+            arrays = arrays.aset(f"fields->{name}", f)
 
     if record_detectors:
         arrays = update_detector_states(

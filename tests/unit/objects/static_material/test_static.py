@@ -56,7 +56,7 @@ class TestUniformMaterialObject:
 
 
 # ---------------------------------------------------------------------------
-# StaticMultiMaterialObject – via minimal concrete subclass
+# StaticMultiMaterialObject - via minimal concrete subclass
 # ---------------------------------------------------------------------------
 
 

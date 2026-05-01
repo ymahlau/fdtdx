@@ -138,6 +138,18 @@ class TestSortModes:
 class TestComputeMode:
     """Test the compute_mode function."""
 
+    def test_only_bend_radius_raises(self):
+        """Setting bend_radius without bend_axis raises ValueError."""
+        inv_permittivities = jnp.ones((1, 5, 6, 1))
+        with pytest.raises(ValueError, match="both be set or both be None"):
+            compute_mode(2e14, inv_permittivities, 1.0, 1e-8, "+", bend_radius=5e-6)
+
+    def test_only_bend_axis_raises(self):
+        """Setting bend_axis without bend_radius raises ValueError."""
+        inv_permittivities = jnp.ones((1, 5, 6, 1))
+        with pytest.raises(ValueError, match="both be set or both be None"):
+            compute_mode(2e14, inv_permittivities, 1.0, 1e-8, "+", bend_axis=1)
+
     def test_invalid_permittivities_shape(self):
         """Test that invalid permittivities shape raises exception."""
         frequency = 2e14
@@ -522,14 +534,14 @@ class TestTidy3DModeComputationWrapper:
         else:
             # Multiple modes - 3D arrays with mode dimension last
             E_data = (
-                np.ones(shape + (num_modes,), dtype=np.complex64),
-                np.ones(shape + (num_modes,), dtype=np.complex64),
-                np.ones(shape + (num_modes,), dtype=np.complex64),
+                np.ones((*shape, num_modes), dtype=np.complex64),
+                np.ones((*shape, num_modes), dtype=np.complex64),
+                np.ones((*shape, num_modes), dtype=np.complex64),
             )
             H_data = (
-                np.ones(shape + (num_modes,), dtype=np.complex64),
-                np.ones(shape + (num_modes,), dtype=np.complex64),
-                np.ones(shape + (num_modes,), dtype=np.complex64),
+                np.ones((*shape, num_modes), dtype=np.complex64),
+                np.ones((*shape, num_modes), dtype=np.complex64),
+                np.ones((*shape, num_modes), dtype=np.complex64),
             )
 
         # Create a mock object that behaves like the expected EH structure
@@ -612,3 +624,102 @@ class TestTidy3DModeComputationWrapper:
 
         assert len(modes) == 1
         assert modes[0].neff == 1.6 + 0.2j
+
+
+class TestComputeModeBendPassthrough:
+    """Tests that bend args are correctly converted and passed to tidy3d_mode_computation_wrapper."""
+
+    def _make_mock_mode(self, shape=(5, 6)):
+        return ModeTupleType(
+            neff=1.5 + 0.1j,
+            Ex=np.ones(shape, dtype=np.complex64),
+            Ey=np.ones(shape, dtype=np.complex64),
+            Ez=np.ones(shape, dtype=np.complex64),
+            Hx=np.ones(shape, dtype=np.complex64),
+            Hy=np.ones(shape, dtype=np.complex64),
+            Hz=np.ones(shape, dtype=np.complex64),
+        )
+
+    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
+    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
+    def test_no_bend_passes_none_to_wrapper(self, mock_normalize, mock_wrapper):
+        """Without bend args, None is passed for bend_radius, bend_axis, and plane_center."""
+        mock_wrapper.return_value = [self._make_mock_mode()]
+        mock_normalize.return_value = (
+            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
+            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
+        )
+
+        compute_mode(2e14, jnp.ones((1, 5, 6, 1)), 1.0, 1e-8, "+")
+
+        kwargs = mock_wrapper.call_args.kwargs
+        assert kwargs["bend_radius"] is None
+        assert kwargs["bend_axis"] is None
+        assert kwargs["plane_center"] is None
+
+    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
+    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
+    def test_bend_radius_converted_meters_to_micrometers(self, mock_normalize, mock_wrapper):
+        """bend_radius is divided by 1e-6 before being passed to tidy3d (m → µm)."""
+        mock_wrapper.return_value = [self._make_mock_mode()]
+        mock_normalize.return_value = (
+            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
+            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
+        )
+
+        compute_mode(2e14, jnp.ones((1, 5, 6, 1)), 1.0, 1e-8, "+", bend_radius=5e-6, bend_axis=0)
+
+        kwargs = mock_wrapper.call_args.kwargs
+        assert kwargs["bend_radius"] == pytest.approx(5.0)  # 5e-6 m = 5.0 µm
+
+    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
+    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
+    def test_bend_axis_remapped_z_propagation(self, mock_normalize, mock_wrapper):
+        """For z-propagation, transverse axes are [0,1]: physical bend_axis=1 → tidy3d index 1."""
+        mock_wrapper.return_value = [self._make_mock_mode()]
+        mock_normalize.return_value = (
+            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
+            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
+        )
+
+        # z-propagation: inv_permittivities shape (1, 5, 6, 1), singleton at dim 3
+        compute_mode(2e14, jnp.ones((1, 5, 6, 1)), 1.0, 1e-8, "+", bend_radius=10e-6, bend_axis=1)
+
+        kwargs = mock_wrapper.call_args.kwargs
+        assert kwargs["bend_axis"] == 1  # transverse_axes=[0,1], index(1)=1
+
+    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
+    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
+    def test_bend_axis_remapped_x_propagation(self, mock_normalize, mock_wrapper):
+        """For x-propagation, transverse axes are [1,2]: physical bend_axis=2 → tidy3d index 1."""
+        mock_wrapper.return_value = [self._make_mock_mode()]
+        mock_normalize.return_value = (
+            jnp.ones((3, 1, 5, 6), dtype=jnp.complex64),
+            jnp.ones((3, 1, 5, 6), dtype=jnp.complex64),
+        )
+
+        # x-propagation: inv_permittivities shape (1, 1, 5, 6), singleton at dim 1
+        compute_mode(2e14, jnp.ones((1, 1, 5, 6)), 1.0, 1e-8, "+", bend_radius=10e-6, bend_axis=2)
+
+        kwargs = mock_wrapper.call_args.kwargs
+        assert kwargs["bend_axis"] == 1  # transverse_axes=[1,2], index(2)=1
+
+    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
+    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
+    def test_plane_center_is_midpoint_of_transverse_coords(self, mock_normalize, mock_wrapper):
+        """plane_center is computed as the midpoint of each transverse coordinate array."""
+        mock_wrapper.return_value = [self._make_mock_mode()]
+        mock_normalize.return_value = (
+            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
+            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
+        )
+
+        resolution = 1e-8
+        # z-propagation with transverse dims 5 (x) and 6 (y)
+        # coords[0] = np.arange(6) * resolution/1e-6, so last = 5 * resolution/1e-6
+        # coords[1] = np.arange(7) * resolution/1e-6, so last = 6 * resolution/1e-6
+        compute_mode(2e14, jnp.ones((1, 5, 6, 1)), 1.0, resolution, "+", bend_radius=5e-6, bend_axis=0)
+
+        kwargs = mock_wrapper.call_args.kwargs
+        expected = (0.5 * 5 * resolution / 1e-6, 0.5 * 6 * resolution / 1e-6)
+        assert kwargs["plane_center"] == pytest.approx(expected)

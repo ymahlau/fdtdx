@@ -16,7 +16,7 @@ class TestLinearReconstructEveryK:
         filter_obj = LinearReconstructEveryK(k=5)
         input_shapes = {"field": jax.ShapeDtypeStruct(shape=(10, 10), dtype=jnp.float32)}
 
-        updated_filter, array_size, out_shapes, state_shapes = filter_obj.init_shapes(input_shapes, time_steps_max=100)
+        _updated_filter, array_size, out_shapes, state_shapes = filter_obj.init_shapes(input_shapes, time_steps_max=100)
 
         assert array_size > 0
         assert array_size < 100  # Should be reduced
@@ -41,7 +41,7 @@ class TestLinearReconstructEveryK:
         filter_obj = LinearReconstructEveryK(k=7)
         input_shapes = {"field": jax.ShapeDtypeStruct(shape=(5,), dtype=jnp.float32)}
 
-        updated_filter, array_size, _, _ = filter_obj.init_shapes(input_shapes, time_steps_max=50)
+        updated_filter, _array_size, _, _ = filter_obj.init_shapes(input_shapes, time_steps_max=50)
 
         # The last time step (49) should be included
         assert 49 in updated_filter._save_time_steps.tolist()
@@ -80,7 +80,7 @@ class TestLinearReconstructEveryK:
         state = RecordingState(data={}, state={})
         key = jax.random.PRNGKey(0)
 
-        out_values, out_state = updated_filter.compress(values, state, jnp.array(0), key)
+        out_values, _out_state = updated_filter.compress(values, state, jnp.array(0), key)
 
         assert jnp.allclose(out_values["field"], values["field"])
 
@@ -150,7 +150,7 @@ class TestLinearReconstructEveryK:
         """Test with k=1 (save every step)."""
         filter_obj = LinearReconstructEveryK(k=1)
         input_shapes = {"field": jax.ShapeDtypeStruct(shape=(5,), dtype=jnp.float32)}
-        updated_filter, array_size, _, _ = filter_obj.init_shapes(input_shapes, time_steps_max=50)
+        _updated_filter, array_size, _, _ = filter_obj.init_shapes(input_shapes, time_steps_max=50)
 
         # Should save all 50 steps
         assert array_size == 50

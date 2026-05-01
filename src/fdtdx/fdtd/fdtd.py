@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from fdtdx.config import SimulationConfig
 from fdtdx.core.progress import _make_pbar, _wrap_body_with_progress
 from fdtdx.fdtd.backward import backward
-from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, SimulationState, reset_array_container
+from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, SimulationState
 from fdtdx.fdtd.forward import forward, forward_single_args_wrapper
 from fdtdx.fdtd.stop_conditions import StoppingCondition, TimeStepCondition
 from fdtdx.interfaces.state import RecordingState
@@ -65,7 +65,7 @@ def reversible_fdtd(
     """
     # if arrays.magnetic_conductivity is not None or arrays.electric_conductivity is not None:
     #     raise Exception(f"Reversible FDTD does not work with Conductive Materials")
-    arrays = reset_array_container(arrays, objects)
+    arrays = arrays.reset()
 
     pbar = _make_pbar(
         show_progress=show_progress,
@@ -114,10 +114,7 @@ def reversible_fdtd(
         recording_state: RecordingState | None,
     ):
         arr = ArrayContainer(
-            E=E,
-            H=H,
-            psi_E=psi_E,
-            psi_H=psi_H,
+            fields=FieldState(E=E, H=H, psi_E=psi_E, psi_H=psi_H),
             alpha=alpha,
             kappa=kappa,
             sigma=sigma,
@@ -131,10 +128,10 @@ def reversible_fdtd(
         state = reversible_fdtd_base(arr)
         return (
             state[0],
-            state[1].E,
-            state[1].H,
-            state[1].psi_E,
-            state[1].psi_H,
+            state[1].fields.E,
+            state[1].fields.H,
+            state[1].fields.psi_E,
+            state[1].fields.psi_H,
             state[1].alpha,
             state[1].kappa,
             state[1].sigma,
@@ -167,10 +164,10 @@ def reversible_fdtd(
                 simulate_boundaries=True,
             ),
             state[0],
-            state[1].E,
-            state[1].H,
-            state[1].psi_E,
-            state[1].psi_H,
+            state[1].fields.E,
+            state[1].fields.H,
+            state[1].fields.psi_E,
+            state[1].fields.psi_H,
             state[1].alpha,
             state[1].kappa,
             state[1].sigma,
@@ -212,10 +209,7 @@ def reversible_fdtd(
         ) = residual
 
         s_k = ArrayContainer(
-            E=res_E,
-            H=res_H,
-            psi_E=res_psi_E,
-            psi_H=res_psi_H,
+            fields=FieldState(E=res_E, H=res_H, psi_E=res_psi_E, psi_H=res_psi_H),
             alpha=res_alpha,
             kappa=res_kappa,
             sigma=res_sigma,
@@ -261,10 +255,7 @@ def reversible_fdtd(
         recording_state: RecordingState | None,
     ):
         arr = ArrayContainer(
-            E=E,
-            H=H,
-            psi_E=psi_E,
-            psi_H=psi_H,
+            fields=FieldState(E=E, H=H, psi_E=psi_E, psi_H=psi_H),
             alpha=alpha,
             kappa=kappa,
             sigma=sigma,
@@ -279,10 +270,10 @@ def reversible_fdtd(
 
         primal_out = (
             s_k[0],
-            s_k[1].E,
-            s_k[1].H,
-            s_k[1].psi_E,
-            s_k[1].psi_H,
+            s_k[1].fields.E,
+            s_k[1].fields.H,
+            s_k[1].fields.psi_E,
+            s_k[1].fields.psi_H,
             s_k[1].alpha,
             s_k[1].kappa,
             s_k[1].sigma,
@@ -293,10 +284,10 @@ def reversible_fdtd(
         )
         residual = (
             s_k[0],
-            s_k[1].E,
-            s_k[1].H,
-            s_k[1].psi_E,
-            s_k[1].psi_H,
+            s_k[1].fields.E,
+            s_k[1].fields.H,
+            s_k[1].fields.psi_E,
+            s_k[1].fields.psi_H,
             s_k[1].alpha,
             s_k[1].kappa,
             s_k[1].sigma,
@@ -323,10 +314,10 @@ def reversible_fdtd(
         detector_states,
         recording_state,
     ) = reversible_fdtd_primal(
-        E=arrays.E,
-        H=arrays.H,
-        psi_E=arrays.psi_E,
-        psi_H=arrays.psi_H,
+        E=arrays.fields.E,
+        H=arrays.fields.H,
+        psi_E=arrays.fields.psi_E,
+        psi_H=arrays.fields.psi_H,
         alpha=arrays.alpha,
         kappa=arrays.kappa,
         sigma=arrays.sigma,
@@ -338,10 +329,7 @@ def reversible_fdtd(
     _close_pbar()
 
     out_arrs = ArrayContainer(
-        E=E,
-        H=H,
-        psi_E=psi_E,
-        psi_H=psi_H,
+        fields=FieldState(E=E, H=H, psi_E=psi_E, psi_H=psi_H),
         alpha=alpha,
         kappa=kappa,
         sigma=sigma,
@@ -390,7 +378,7 @@ def checkpointed_fdtd(
         The number of checkpoints can be configured through config.gradient_config.num_checkpoints.
         More checkpoints reduce recomputation but increase memory usage.
     """
-    arrays = reset_array_container(arrays, objects)
+    arrays = arrays.reset()
     state = (jnp.asarray(0, dtype=jnp.int32), arrays)
     if stopping_condition is not None:
         stopping_condition = stopping_condition.setup(state, config, objects)
@@ -471,7 +459,7 @@ def custom_fdtd_forward(
         running partial simulations for analysis purposes.
     """
     if reset_container:
-        arrays = reset_array_container(arrays, objects)
+        arrays = arrays.reset()
     state = (jnp.asarray(start_time, dtype=jnp.int32), arrays)
 
     # start_time and end_time must be statically known Python ints here so that

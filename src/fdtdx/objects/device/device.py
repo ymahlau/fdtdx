@@ -96,7 +96,7 @@ class Device(OrderableObject, ABC):
             return ParameterType.CONTINUOUS
         out_type = self.param_transforms[-1]._output_type
         if isinstance(out_type, dict) and len(out_type) == 1:
-            out_type = list(out_type.values())[0]
+            out_type = next(iter(out_type.values()))
         if not isinstance(out_type, ParameterType):
             raise Exception(
                 "Output of Parameter transformation sequence (last module) needs to be a single array, but got: "
@@ -199,7 +199,7 @@ class Device(OrderableObject, ABC):
             )
             params[k] = p
         if len(params) == 1:
-            params = list(params.values())[0]
+            params = next(iter(params.values()))
         return params
 
     def __call__(
@@ -217,7 +217,7 @@ class Device(OrderableObject, ABC):
             params = transform(params_dict, **transform_kwargs)
             check_specs(params, transform._output_shape)
         if len(params) == 1:
-            single_val = list(params.values())[0]
+            single_val = next(iter(params.values()))
             assert isinstance(single_val, jax.Array)
             params = single_val
         else:

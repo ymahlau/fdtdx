@@ -223,7 +223,7 @@ class TestBoundaryConfigInsideBoundarySlice:
             thickness_grid_minz=5,
             thickness_grid_maxz=5,
         )
-        sx, sy, sz = cfg.get_inside_boundary_slice()
+        sx, _sy, _sz = cfg.get_inside_boundary_slice()
         # periodic x: starts at 0, ends at None
         assert sx.start == 0
         assert sx.stop is None
@@ -316,7 +316,7 @@ class TestBoundaryObjectsFromConfig:
 
     def test_creates_six_boundaries_all_pml(self, volume):
         cfg = BoundaryConfig.from_uniform_bound(thickness=10)
-        boundaries, constraints = boundary_objects_from_config(cfg, volume)
+        boundaries, _constraints = boundary_objects_from_config(cfg, volume)
         assert len(boundaries) == 6
         assert set(boundaries.keys()) == {"min_x", "max_x", "min_y", "max_y", "min_z", "max_z"}
 

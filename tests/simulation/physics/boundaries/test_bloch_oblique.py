@@ -10,9 +10,9 @@ Interface: vacuum (n₁=1) → dielectric ε_r=4 (n₂=2) at z = z_interface.
 
 Analytic Fresnel coefficients for TE at θ_i = 30°:
   θ_t = arcsin(sin(30°)/2) = 14.48°
-  r_s = (n₁ cos θ_i − n₂ cos θ_t) / (n₁ cos θ_i + n₂ cos θ_t) = −0.382
+  r_s = (n₁ cos θ_i - n₂ cos θ_t) / (n₁ cos θ_i + n₂ cos θ_t) = -0.382
   t_s = 2 n₁ cos θ_i / (n₁ cos θ_i + n₂ cos θ_t) = 0.618
-  T_power = (n₂ cos θ_t) / (n₁ cos θ_i) × |t_s|² = 0.854
+  T_power = (n₂ cos θ_t) / (n₁ cos θ_i) x |t_s|² = 0.854
 
 Two-run normalization:
   Reference: oblique wave in vacuum (no interface), flux detector at z_det
@@ -39,7 +39,7 @@ _DOMAIN_X = _N_X * _RESOLUTION  # 0.5 µm
 _DOMAIN_Y = 3 * _RESOLUTION
 _DOMAIN_Z = 4e-6  # 160 cells
 
-_Z_CELLS = int(round(_DOMAIN_Z / _RESOLUTION))  # = 160
+_Z_CELLS = round(_DOMAIN_Z / _RESOLUTION)  # = 160
 
 _THETA_DEG = 30.0  # incidence angle (degrees)
 _THETA = np.deg2rad(_THETA_DEG)
@@ -56,7 +56,7 @@ _TOLERANCE = 0.05
 
 # Time averaging
 _DT_APPROX = 0.99 * _RESOLUTION / (3e8 * np.sqrt(3))
-_STEPS_PER_PERIOD = int(round(_WAVELENGTH / (3e8 * _DT_APPROX)))
+_STEPS_PER_PERIOD = round(_WAVELENGTH / (3e8 * _DT_APPROX))
 _N_AVG_STEPS = 10 * _STEPS_PER_PERIOD
 
 # Analytic Fresnel TE coefficients

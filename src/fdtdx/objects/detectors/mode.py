@@ -39,14 +39,23 @@ class ModeOverlapDetector(PhasorDetector):
     #: When specified, only modes of the given polarization type are considered. Defaults to None.
     filter_pol: Literal["te", "tm"] | None = frozen_field(default=None)
 
+    #: Bend radius of the waveguide in meters. When set, the mode solver accounts for the conformal
+    #: transformation introduced by the bend. Must be set together with bend_axis. Defaults to None
+    #: (straight waveguide).
+    bend_radius: float | None = frozen_field(default=None)
+
+    #: Physical axis index (0=x, 1=y, 2=z) pointing from the waveguide center toward the center of
+    #: curvature. Must differ from the propagation axis. Required when bend_radius is set.
+    bend_axis: int | None = frozen_field(default=None)
+
     #: Cannot be specified here since the detector needs all components.
     components: Sequence[Literal["Ex", "Ey", "Ez", "Hx", "Hy", "Hz"]] = frozen_field(
         default=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"),
         init=False,  # in this detector, we always want all components. Do not give user a choice
-    )  # noqa: DOC603, DOC601
+    )
 
     #: Cannot be specified here since plotting a single scalar is useless.
-    plot: bool = frozen_field(default=False, init=False)  # noqa: DOC603, DOC601 # single scalar is useless for plotting
+    plot: bool = frozen_field(default=False, init=False)  # single scalar is useless for plotting
     _mode_E: jax.Array = private_field()
     _mode_H: jax.Array = private_field()
     _mode_neff: jax.Array = private_field()  # not required for detection, used for inspection
@@ -70,6 +79,12 @@ class ModeOverlapDetector(PhasorDetector):
         )
         if len(self.wave_characters) > 1:
             raise NotImplementedError()
+        if (self.bend_radius is None) != (self.bend_axis is None):
+            raise ValueError("bend_radius and bend_axis must both be set or both be None")
+        if self.bend_axis is not None and self.bend_axis == self.propagation_axis:
+            raise ValueError(
+                f"bend_axis ({self.bend_axis}) must differ from the propagation axis ({self.propagation_axis})"
+            )
         return self
 
     def apply(
@@ -94,6 +109,9 @@ class ModeOverlapDetector(PhasorDetector):
             direction=self.direction,
             mode_index=self.mode_index,
             filter_pol=self.filter_pol,
+            dtype=self._config.dtype,
+            bend_radius=self.bend_radius,
+            bend_axis=self.bend_axis,
         )
 
         self = self.aset("_mode_E", mode_E, create_new_ok=True)
@@ -125,7 +143,10 @@ class ModeOverlapDetector(PhasorDetector):
         )[self.propagation_axis]
 
         alpha_coeff = jnp.sum(E_cross_H_star_sim + E_star_cross_H_sim)
-        alpha_coeff = alpha_coeff / 4.0
+
+        # in pulsed mode return unscaled coefficient
+        if self.scaling_mode != "pulse":
+            alpha_coeff = alpha_coeff / 4.0
 
         return alpha_coeff
 

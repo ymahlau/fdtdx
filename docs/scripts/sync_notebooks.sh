@@ -5,12 +5,14 @@ curl -L https://github.com/ymahlau/fdtdx-notebooks/archive/refs/heads/main.zip -
 unzip repo.zip
 mkdir -p docs/source/notebooks/
 mkdir -p docs/source/notebooks/quickstart
-mkdir -p docs/source/notebooks/advanced
+mkdir -p docs/source/notebooks/physics
 mkdir -p docs/source/notebooks/components
+mkdir -p docs/source/notebooks/advanced
 
 mv fdtdx-notebooks-main/quickstart/*.ipynb docs/source/notebooks/quickstart
-mv fdtdx-notebooks-main/advanced/*.ipynb docs/source/notebooks/advanced
+mv fdtdx-notebooks-main/physics/*.ipynb docs/source/notebooks/physics
 mv fdtdx-notebooks-main/components/*.ipynb docs/source/notebooks/components
+mv fdtdx-notebooks-main/advanced/*.ipynb docs/source/notebooks/advanced
 
 # Clean up
 rm repo.zip

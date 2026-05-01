@@ -106,28 +106,59 @@ class TestAxisProperties:
 
 
 # ---------------------------------------------------------------------------
-# centered_vertices
+# centered convention
 # ---------------------------------------------------------------------------
 
 
-class TestCenteredVertices:
-    def test_shape_preserved(self, config, key, two_materials):
-        verts = _square_vertices()
-        poly = _make_polygon(two_materials, axis=2, vertices=verts)
-        placed = _place(poly, config, key)
-        cv = placed.centered_vertices
-        assert cv.shape == verts.shape
+class TestCenteredConvention:
+    """Vertices are given centered at origin; polygon is placed centered in the grid region."""
 
-    def test_vertices_shifted_right(self, config, key, two_materials):
-        """Centered vertices should all have non-negative x (after shifting by half real_shape)."""
-        verts = _square_vertices(half_side=100e-9)  # vertices in [-100nm, 100nm]
+    def test_symmetric_polygon_produces_symmetric_mask_axis2(self, config, key, two_materials):
+        """A square centered at origin yields an x/y-symmetric mask."""
+        verts = _square_vertices(half_side=100e-9)
         poly = _make_polygon(two_materials, axis=2, vertices=verts)
-        # grid: 20x20x10, real: 20*50nm=1000nm along horizontal axis
         placed = _place(poly, config, key, ((0, 20), (0, 20), (0, 10)))
-        cv = placed.centered_vertices
-        # half real_shape for horizontal axis (axis=2 → horizontal=0 → x-dim=20 → 1000nm)
-        # shift = 500nm; verts range from -100 to 100nm → shifted to 400..600nm
-        assert bool(np.all(cv[:, 0] > 0))
+        mask = placed.get_voxel_mask_for_shape()
+        slice_xy = np.array(mask[:, :, 0])
+        assert np.array_equal(slice_xy, slice_xy[::-1, :]), "mask should be symmetric along x"
+        assert np.array_equal(slice_xy, slice_xy[:, ::-1]), "mask should be symmetric along y"
+
+    def test_polygon_center_aligns_with_grid_center(self, config, key, two_materials):
+        """Bounding box center of the True region should coincide with the grid center."""
+        # 300nm = 6 cells; 20-cell grid center is between cells 9 and 10 (0-indexed)
+        verts = _square_vertices(half_side=150e-9)
+        poly = _make_polygon(two_materials, axis=2, vertices=verts)
+        placed = _place(poly, config, key, ((0, 20), (0, 20), (0, 10)))
+        mask = placed.get_voxel_mask_for_shape()
+        slice_xy = np.array(mask[:, :, 0])
+        rows = np.where(slice_xy.any(axis=1))[0]
+        cols = np.where(slice_xy.any(axis=0))[0]
+        center_row = (rows[0] + rows[-1] + 1) / 2.0
+        center_col = (cols[0] + cols[-1] + 1) / 2.0
+        assert abs(center_row - 10.0) <= 1.0, f"row center {center_row} not near grid center 10"
+        assert abs(center_col - 10.0) <= 1.0, f"col center {center_col} not near grid center 10"
+
+    def test_symmetric_polygon_produces_symmetric_mask_axis0(self, config, key, two_materials):
+        """Symmetry check for extrusion along x-axis."""
+        verts = _square_vertices(half_side=100e-9)
+        poly = _make_polygon(two_materials, axis=0, vertices=verts)
+        placed = _place(poly, config, key, ((0, 10), (0, 20), (0, 20)))
+        mask = placed.get_voxel_mask_for_shape()
+        slice_yz = np.array(mask[0, :, :])
+        assert np.array_equal(slice_yz, slice_yz[::-1, :]), "mask should be symmetric along y"
+        assert np.array_equal(slice_yz, slice_yz[:, ::-1]), "mask should be symmetric along z"
+
+    def test_no_auto_centering_of_offset_polygon(self, config, key, two_materials):
+        """Vertices NOT centered at origin should NOT be auto-centered — caller is responsible."""
+        # Shift a square 200nm off-center in x
+        offset = 200e-9
+        verts = _square_vertices(half_side=100e-9) + np.array([offset, 0.0])
+        poly = _make_polygon(two_materials, axis=2, vertices=verts)
+        placed = _place(poly, config, key, ((0, 20), (0, 20), (0, 10)))
+        mask = placed.get_voxel_mask_for_shape()
+        slice_xy = np.array(mask[:, :, 0])
+        # The mask should NOT be symmetric in x
+        assert not np.array_equal(slice_xy, slice_xy[::-1, :])
 
 
 # ---------------------------------------------------------------------------

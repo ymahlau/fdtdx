@@ -102,7 +102,7 @@ class TestOutputType:
 
 
 # ---------------------------------------------------------------------------
-# single_voxel_grid_shape – raises before placement
+# single_voxel_grid_shape - raises before placement
 # ---------------------------------------------------------------------------
 
 
