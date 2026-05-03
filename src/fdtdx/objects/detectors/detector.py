@@ -253,6 +253,15 @@ class Detector(SimulationObject, ABC):
         if squeezed_ndim is None:
             raise Exception(f"empty state: {state}")
 
+        if self._config.grid is not None and not self._config.grid.is_uniform:
+            only_time_series = squeezed_ndim == 1 and self.num_time_steps_recorded > 1
+            if not only_time_series:
+                raise ValueError(
+                    "Detector plotting on non-uniform grids is not supported yet because the plotting "
+                    "helpers build spatial axes from one scalar resolution. Set plot=False or export "
+                    "the detector state directly until rectilinear plotting is implemented."
+                )
+
         figs = {}
         if squeezed_ndim == 1 and self.num_time_steps_recorded > 1:
             # do line plot
