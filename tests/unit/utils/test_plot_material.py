@@ -6,10 +6,13 @@ from unittest.mock import MagicMock
 
 import matplotlib
 import numpy as np
+import pytest
 
 matplotlib.use("Agg")
+import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
+from fdtdx.core.grid import GridSpec
 from fdtdx.utils.plot_material import plot_material, plot_material_from_side
 
 
@@ -50,6 +53,20 @@ class TestPlotMaterialFromSide:
         _fig, ax = plt.subplots()
         result = plot_material_from_side(config=config, arrays=arrays, viewing_side="z", ax=ax)
         assert result is not None
+        plt.close("all")
+
+    def test_nonuniform_grid_rejected(self):
+        """Material plots currently use uniform axis scaling."""
+        config = _make_config()
+        config.grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 1.0, 2.0]),
+            z_edges=jnp.asarray([0.0, 1.0, 2.0]),
+        )
+        arrays = _make_arrays(shape=(1, 2, 2, 2))
+        _fig, ax = plt.subplots()
+        with pytest.raises(ValueError, match="requires a uniform grid"):
+            plot_material_from_side(config=config, arrays=arrays, viewing_side="z", ax=ax)
         plt.close("all")
 
     def test_viewing_side_y_returns_figure(self):
