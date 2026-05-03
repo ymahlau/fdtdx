@@ -2,6 +2,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
+from fdtdx import constants
 from fdtdx.core.grid import GridSpec, calculate_spatial_offsets_yee, calculate_time_offset_yee, polygon_to_mask
 
 
@@ -84,6 +85,17 @@ class TestGridSpec:
         assert grid.anchor_coordinate(axis=0, bounds=(1, 3), position=-1.0) == 1.0
         assert grid.anchor_coordinate(axis=0, bounds=(1, 3), position=1.0) == 6.0
         assert grid.bounds_for_anchor(axis=0, size=1, anchor=3.1, position=-1.0) == (2, 3)
+
+    def test_cfl_time_step_uses_min_spacing_per_axis(self):
+        """The rectilinear CFL limit uses the smallest spacing on each axis."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 2.0, 5.0]),
+            y_edges=jnp.asarray([0.0, 1.0]),
+            z_edges=jnp.asarray([0.0, 4.0]),
+        )
+
+        expected = 0.99 / (constants.c * np.sqrt(1 / 2.0**2 + 1 / 1.0**2 + 1 / 4.0**2))
+        assert np.isclose(grid.cfl_time_step(0.99), expected)
 
 
 def test_calculate_spatial_offsets_yee_basic():

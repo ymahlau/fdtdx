@@ -186,7 +186,7 @@ class TestSimulationConfigProperties:
     @patch("fdtdx.config.jax.devices")
     @patch("jax.extend.backend.get_backend")
     def test_time_step_duration_uses_grid_min_spacing(self, mock_get_backend, *_):
-        """Non-uniform grids use the smallest cell width for staged CFL safety."""
+        """Non-uniform grids use the per-axis minimum-spacing CFL formula."""
         mock_get_backend.return_value = _create_mock_backend("cpu")
 
         grid = GridSpec(
@@ -195,7 +195,7 @@ class TestSimulationConfigProperties:
             z_edges=jnp.asarray([0.0, 4e-9]),
         )
         config = SimulationConfig(time=1e-12, resolution=99e-9, grid=grid, backend="cpu")
-        expected = config.courant_number * 1e-9 / constants.c
+        expected = grid.cfl_time_step(config.courant_factor)
         assert math.isclose(config.time_step_duration, expected, rel_tol=1e-6)
 
     @patch("fdtdx.config.jax.config.update")
