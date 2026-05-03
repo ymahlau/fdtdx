@@ -12,6 +12,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import GridSpec
 from fdtdx.materials import Material
 from fdtdx.objects.static_material.cylinder import Cylinder
 
@@ -157,6 +158,22 @@ class TestGetVoxelMaskForShape:
             placed = cyl.place_on_grid(slices, config, key)
             mask = placed.get_voxel_mask_for_shape()
             assert mask.shape[axis] == 1, f"Expected size 1 along fiber axis={axis}"
+
+    def test_nonuniform_grid_uses_physical_cell_centers(self, key, two_materials):
+        """Cylinder masks use rectilinear transverse coordinates."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        cyl = _make_cylinder(two_materials, axis=2, radius=0.75)
+        placed = _place(cyl, config, key, ((0, 2), (0, 2), (0, 1)))
+
+        mask = placed.get_voxel_mask_for_shape()
+
+        assert mask.shape == (2, 2, 1)
+        assert bool(jnp.any(mask))
 
 
 # ---------------------------------------------------------------------------

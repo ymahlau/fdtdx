@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from fdtdx.core.grid import polygon_to_mask
+from fdtdx.core.grid import polygon_to_mask, polygon_to_mask_at_points
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
@@ -50,22 +50,35 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
     def get_voxel_mask_for_shape(self) -> jax.Array:
         n_horizontal = self.grid_shape[self.horizontal_axis]
         n_vertical = self.grid_shape[self.vertical_axis]
-        spacing = self._config.require_uniform_grid()
-
-        half_res = 0.5 * spacing
-        max_horizontal = (n_horizontal - 0.5) * spacing
-        max_vertical = (n_vertical - 0.5) * spacing
 
         # Shift vertices from object-center coords to local grid coords.
         center_h = 0.5 * self.real_shape[self.horizontal_axis]
         center_v = 0.5 * self.real_shape[self.vertical_axis]
         grid_vertices = self.vertices + np.array([center_h, center_v])
 
-        mask_2d = polygon_to_mask(
-            boundary=(half_res, half_res, max_horizontal, max_vertical),
-            resolution=spacing,
-            polygon_vertices=grid_vertices,
-        )
+        if self._config.grid is None:
+            spacing = self._config.require_uniform_grid()
+            half_res = 0.5 * spacing
+            max_horizontal = (n_horizontal - 0.5) * spacing
+            max_vertical = (n_vertical - 0.5) * spacing
+
+            mask_2d = polygon_to_mask(
+                boundary=(half_res, half_res, max_horizontal, max_vertical),
+                resolution=spacing,
+                polygon_vertices=grid_vertices,
+            )
+        else:
+            h_lower, h_upper = self.grid_slice_tuple[self.horizontal_axis]
+            v_lower, v_upper = self.grid_slice_tuple[self.vertical_axis]
+            h_edges = np.asarray(self._config.grid.edges(self.horizontal_axis))
+            v_edges = np.asarray(self._config.grid.edges(self.vertical_axis))
+            h_centers = 0.5 * (h_edges[h_lower:h_upper] + h_edges[h_lower + 1 : h_upper + 1]) - h_edges[h_lower]
+            v_centers = 0.5 * (v_edges[v_lower:v_upper] + v_edges[v_lower + 1 : v_upper + 1]) - v_edges[v_lower]
+            mask_2d = polygon_to_mask_at_points(
+                x_coords=h_centers,
+                y_coords=v_centers,
+                polygon_vertices=grid_vertices,
+            )
         extrusion_height = self.grid_shape[self.axis]
         mask = jnp.repeat(
             jnp.expand_dims(jnp.asarray(mask_2d, dtype=jnp.bool), axis=self.axis),

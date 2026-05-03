@@ -501,3 +501,25 @@ def polygon_to_mask(
     mask = inside_polygon.reshape(Y.shape).astype(bool)
 
     return mask
+
+
+def polygon_to_mask_at_points(
+    x_coords: np.ndarray,
+    y_coords: np.ndarray,
+    polygon_vertices: np.ndarray,
+) -> np.ndarray:
+    """Generate a 2D polygon mask at explicit sample coordinates.
+
+    This is the rectilinear-grid counterpart to ``polygon_to_mask``.  The caller
+    supplies the physical cell-center coordinates directly, so non-uniform grids
+    do not need to be resampled onto a synthetic uniform lattice.
+    """
+    assert polygon_vertices.ndim == 2
+    assert polygon_vertices.shape[1] == 2
+    x_coords = np.asarray(x_coords)
+    y_coords = np.asarray(y_coords)
+    X, Y = np.meshgrid(x_coords, y_coords, indexing="ij")
+    points = np.column_stack((X.ravel(), Y.ravel()))
+    polygon_path = Path(polygon_vertices)
+    inside_polygon = polygon_path.contains_points(points)
+    return inside_polygon.reshape(X.shape).astype(bool)

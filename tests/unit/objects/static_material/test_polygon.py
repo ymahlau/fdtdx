@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import GridSpec
 from fdtdx.materials import Material
 from fdtdx.objects.static_material.polygon import (
     ExtrudedPolygon,
@@ -209,6 +210,22 @@ class TestGetVoxelMaskForShape:
         mask = placed.get_voxel_mask_for_shape()
         for x in range(mask.shape[0]):
             assert jnp.array_equal(mask[x, :, :], mask[0, :, :])
+
+    def test_nonuniform_grid_uses_explicit_cell_centers(self, key, two_materials):
+        """Polygon masks evaluate the shape at rectilinear cell centers."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        poly = _make_polygon(two_materials, axis=2, vertices=_square_vertices(half_side=0.8))
+        placed = _place(poly, config, key, ((0, 2), (0, 2), (0, 1)))
+
+        mask = placed.get_voxel_mask_for_shape()
+
+        assert mask.shape == (2, 2, 1)
+        assert bool(jnp.any(mask))
 
 
 # ---------------------------------------------------------------------------

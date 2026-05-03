@@ -37,30 +37,28 @@ class Sphere(StaticMultiMaterialObject):
         Returns:
             jax.Array: Boolean mask where True indicates voxels inside the sphere/ellipsoid.
         """
-        # Get dimensions
-        x_dim, y_dim, z_dim = self.grid_shape
-
-        # Define center of the ellipsoid
-        center = (x_dim / 2, y_dim / 2, z_dim / 2)
-
         # Determine the radii for each axis
         radius_x = self.radius_x if self.radius_x is not None else self.radius
         radius_y = self.radius_y if self.radius_y is not None else self.radius
         radius_z = self.radius_z if self.radius_z is not None else self.radius
 
-        # Convert radii to grid units
-        spacing = self._config.require_uniform_grid()
-        grid_radius_x = radius_x / spacing
-        grid_radius_y = radius_y / spacing
-        grid_radius_z = radius_z / spacing
+        def local_centers(axis: int) -> jax.Array:
+            """Return physical cell centers relative to this object's lower edge."""
+            lower, upper = self.grid_slice_tuple[axis]
+            if self._config.grid is None:
+                spacing = self._config.require_uniform_grid()
+                return (jnp.arange(self.grid_shape[axis]) + 0.5) * spacing
+            edges = self._config.grid.edges(axis)
+            return 0.5 * (edges[lower:upper] + edges[lower + 1 : upper + 1]) - edges[lower]
 
         # Create 3D grid
-        x, y, z = jnp.meshgrid(jnp.arange(x_dim), jnp.arange(y_dim), jnp.arange(z_dim), indexing="ij")
+        x, y, z = jnp.meshgrid(local_centers(0), local_centers(1), local_centers(2), indexing="ij")
+        center_x, center_y, center_z = (0.5 * axis_size for axis_size in self.real_shape)
 
         # Calculate normalized squared distances for each dimension using the ellipsoid equation
-        x_term = ((x - center[0] + 0.5) / grid_radius_x) ** 2
-        y_term = ((y - center[1] + 0.5) / grid_radius_y) ** 2
-        z_term = ((z - center[2] + 0.5) / grid_radius_z) ** 2
+        x_term = ((x - center_x) / radius_x) ** 2
+        y_term = ((y - center_y) / radius_y) ** 2
+        z_term = ((z - center_z) / radius_z) ** 2
 
         # Create mask based on ellipsoid equation: points inside if x^2/a^2 + y^2/b^2 + z^2/c^2 < 1
         mask = (x_term + y_term + z_term) < 1
