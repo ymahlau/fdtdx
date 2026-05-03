@@ -6,6 +6,35 @@ from fdtdx.constants import c as c0
 from fdtdx.constants import eps0
 
 
+def _metric_scale(
+    config: SimulationConfig,
+    axis: int,
+    shape: tuple[int, int, int],
+    stencil: str,
+) -> jax.Array | float:
+    """Return the local derivative scale for a rectilinear Yee curl term.
+
+    fdtdx historically stores curl terms as raw finite differences and applies a
+    scalar Courant number in the update equations.  On a non-uniform grid the
+    equivalent term is ``(c * dt / courant_number) * diff / d_axis[i]``.  The
+    prefactor equals the uniform spacing on legacy grids, so uniform behavior is
+    unchanged while stretched grids get local metric factors.
+    """
+    if config.grid is None or config.grid.is_uniform:
+        return 1.0
+
+    widths = config.grid.cell_widths(axis)
+    if stencil == "backward":
+        widths = jnp.concatenate([widths[:1], widths[:-1]])
+    elif stencil != "forward":
+        raise ValueError(f"Unknown derivative stencil: {stencil}")
+    reference_spacing = c0 * config.time_step_duration / config.courant_number
+    scale = reference_spacing / widths
+    broadcast_shape = [1, 1, 1]
+    broadcast_shape[axis] = shape[axis]
+    return scale.reshape(tuple(broadcast_shape))
+
+
 def interpolate_fields(
     E_pad: jax.Array,
     H_pad: jax.Array,
@@ -102,12 +131,17 @@ def curl_E(
                   (half-integer grid points). Has same shape as input (3, nx, ny, nz).
     """
 
-    dyEz = (jnp.roll(E_pad[2], -1, axis=1) - E_pad[2])[1:-1, 1:-1, 1:-1]
-    dzEy = (jnp.roll(E_pad[1], -1, axis=2) - E_pad[1])[1:-1, 1:-1, 1:-1]
-    dzEx = (jnp.roll(E_pad[0], -1, axis=2) - E_pad[0])[1:-1, 1:-1, 1:-1]
-    dxEz = (jnp.roll(E_pad[2], -1, axis=0) - E_pad[2])[1:-1, 1:-1, 1:-1]
-    dxEy = (jnp.roll(E_pad[1], -1, axis=0) - E_pad[1])[1:-1, 1:-1, 1:-1]
-    dyEx = (jnp.roll(E_pad[0], -1, axis=1) - E_pad[0])[1:-1, 1:-1, 1:-1]
+    shape = E_pad.shape[1] - 2, E_pad.shape[2] - 2, E_pad.shape[3] - 2
+    dx_scale = _metric_scale(config, axis=0, shape=shape, stencil="forward")
+    dy_scale = _metric_scale(config, axis=1, shape=shape, stencil="forward")
+    dz_scale = _metric_scale(config, axis=2, shape=shape, stencil="forward")
+
+    dyEz = (jnp.roll(E_pad[2], -1, axis=1) - E_pad[2])[1:-1, 1:-1, 1:-1] * dy_scale
+    dzEy = (jnp.roll(E_pad[1], -1, axis=2) - E_pad[1])[1:-1, 1:-1, 1:-1] * dz_scale
+    dzEx = (jnp.roll(E_pad[0], -1, axis=2) - E_pad[0])[1:-1, 1:-1, 1:-1] * dz_scale
+    dxEz = (jnp.roll(E_pad[2], -1, axis=0) - E_pad[2])[1:-1, 1:-1, 1:-1] * dx_scale
+    dxEy = (jnp.roll(E_pad[1], -1, axis=0) - E_pad[1])[1:-1, 1:-1, 1:-1] * dx_scale
+    dyEx = (jnp.roll(E_pad[0], -1, axis=1) - E_pad[0])[1:-1, 1:-1, 1:-1] * dy_scale
 
     # Auxiliary fields
     psi_Hxy, psi_Hxz, psi_Hyz, psi_Hyx, psi_Hzx, psi_Hzy = psi_H
@@ -170,12 +204,17 @@ def curl_H(
                   (integer grid points). Has same shape as input (3, nx, ny, nz).
     """
 
-    dyHz = (H_pad[2] - jnp.roll(H_pad[2], 1, axis=1))[1:-1, 1:-1, 1:-1]
-    dzHy = (H_pad[1] - jnp.roll(H_pad[1], 1, axis=2))[1:-1, 1:-1, 1:-1]
-    dzHx = (H_pad[0] - jnp.roll(H_pad[0], 1, axis=2))[1:-1, 1:-1, 1:-1]
-    dxHz = (H_pad[2] - jnp.roll(H_pad[2], 1, axis=0))[1:-1, 1:-1, 1:-1]
-    dxHy = (H_pad[1] - jnp.roll(H_pad[1], 1, axis=0))[1:-1, 1:-1, 1:-1]
-    dyHx = (H_pad[0] - jnp.roll(H_pad[0], 1, axis=1))[1:-1, 1:-1, 1:-1]
+    shape = H_pad.shape[1] - 2, H_pad.shape[2] - 2, H_pad.shape[3] - 2
+    dx_scale = _metric_scale(config, axis=0, shape=shape, stencil="backward")
+    dy_scale = _metric_scale(config, axis=1, shape=shape, stencil="backward")
+    dz_scale = _metric_scale(config, axis=2, shape=shape, stencil="backward")
+
+    dyHz = (H_pad[2] - jnp.roll(H_pad[2], 1, axis=1))[1:-1, 1:-1, 1:-1] * dy_scale
+    dzHy = (H_pad[1] - jnp.roll(H_pad[1], 1, axis=2))[1:-1, 1:-1, 1:-1] * dz_scale
+    dzHx = (H_pad[0] - jnp.roll(H_pad[0], 1, axis=2))[1:-1, 1:-1, 1:-1] * dz_scale
+    dxHz = (H_pad[2] - jnp.roll(H_pad[2], 1, axis=0))[1:-1, 1:-1, 1:-1] * dx_scale
+    dxHy = (H_pad[1] - jnp.roll(H_pad[1], 1, axis=0))[1:-1, 1:-1, 1:-1] * dx_scale
+    dyHx = (H_pad[0] - jnp.roll(H_pad[0], 1, axis=1))[1:-1, 1:-1, 1:-1] * dy_scale
 
     # Auxiliary fields
     psi_Exy, psi_Exz, psi_Eyz, psi_Eyx, psi_Ezx, psi_Ezy = psi_E
