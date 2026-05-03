@@ -8,6 +8,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import GridSpec
 from fdtdx.objects.boundaries.bloch import BlochBoundary
 
 
@@ -163,6 +164,22 @@ class TestBlochGetBlochPhase:
         )
         expected = jnp.exp(1j * k * Nz * resolution)
         assert jnp.abs(phase - expected) < 1e-6
+
+    def test_nonuniform_grid_uses_physical_axis_extent(self, jax_key):
+        """Bloch phase uses edge extent instead of shape times scalar resolution."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 1.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        k = 0.25
+        bb = make_bloch(axis=0, direction="-", bloch_vector=(k, 0.0, 0.0))
+        placed = place_bloch(bb, config, jax_key, volume_shape=grid.shape)
+
+        phase = placed.get_bloch_phase(volume_shape=grid.shape, resolution=config.resolution)
+
+        assert jnp.allclose(phase, jnp.exp(1j * k * 3.0))
 
     def test_uses_correct_axis_component(self, micro_config):
         """Only the k component for this boundary's axis affects the phase."""
