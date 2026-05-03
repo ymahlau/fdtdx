@@ -128,6 +128,17 @@ class ModeOverlapDetector(PhasorDetector):
             transverse_edges.append(self._config.grid.edges(axis)[lower : upper + 1])
         return tuple(transverse_edges)
 
+    def _mode_solver_resolution(self) -> float:
+        """Return scalar resolution only for legacy uniform mode-solver setup.
+
+        ``compute_mode`` ignores this value when explicit transverse coordinates
+        are supplied.  For non-uniform grids we pass a harmless finite value so
+        the compatibility argument does not force a uniform-grid check.
+        """
+        if self._config.grid is not None and not self._config.grid.is_uniform:
+            return self._config.grid.min_spacing
+        return self._config.require_uniform_grid()
+
     def apply(
         self,
         key: jax.Array,
@@ -146,7 +157,7 @@ class ModeOverlapDetector(PhasorDetector):
             frequency=self.wave_characters[0].get_frequency(),
             inv_permittivities=inv_permittivity_slice,
             inv_permeabilities=inv_permeability_slice,
-            resolution=self._config.require_uniform_grid(),
+            resolution=self._mode_solver_resolution(),
             direction=self.direction,
             mode_index=self.mode_index,
             filter_pol=self.filter_pol,
