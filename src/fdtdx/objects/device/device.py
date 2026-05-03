@@ -112,6 +112,11 @@ class Device(OrderableObject, ABC):
         key: jax.Array,
     ) -> Self:
         self = super().place_on_grid(grid_slice_tuple=grid_slice_tuple, config=config, key=key)
+        if config.grid is not None and not config.grid.is_uniform:
+            raise ValueError(
+                "Device parameterization currently requires a uniform simulation grid. "
+                "Non-uniform support needs an explicit design-grid resampling step."
+            )
         # determine voxel shape
         voxel_grid_shape = []
         spacing = config.require_uniform_grid()
