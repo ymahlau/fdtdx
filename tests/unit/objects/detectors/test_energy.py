@@ -3,6 +3,8 @@
 import jax.numpy as jnp
 import pytest
 
+from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import GridSpec
 from fdtdx.objects.detectors.energy import EnergyDetector
 
 
@@ -204,6 +206,46 @@ class TestEnergyDetectorUpdate:
 
         # Higher E field should give higher energy
         assert state["energy"][1, 0] > state["energy"][0, 0]
+
+    def test_reduce_volume_integrates_nonuniform_cell_volume(self, random_key):
+        """A constant energy density integrates to density times physical volume."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 3.0, 7.0]),
+            z_edges=jnp.asarray([0.0, 2.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        detector = EnergyDetector(reduce_volume=True)
+        detector = detector.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
+        state = detector.init_state()
+
+        E = jnp.zeros((3, 2, 2, 1), dtype=jnp.float32).at[0].set(1.0)
+        H = jnp.zeros((3, 2, 2, 1), dtype=jnp.float32)
+        inv_permittivity = jnp.ones((3, 2, 2, 1), dtype=jnp.float32)
+
+        new_state = detector.update(jnp.array(0), E, H, state, inv_permittivity, 1.0)
+
+        assert jnp.allclose(new_state["energy"][0], jnp.asarray([21.0], dtype=jnp.float32))
+
+    def test_reduce_volume_can_keep_legacy_raw_sum(self, random_key):
+        """The integrate switch preserves density summation for compatibility checks."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 3.0, 7.0]),
+            z_edges=jnp.asarray([0.0, 2.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        detector = EnergyDetector(reduce_volume=True, integrate=False)
+        detector = detector.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
+        state = detector.init_state()
+
+        E = jnp.zeros((3, 2, 2, 1), dtype=jnp.float32).at[0].set(1.0)
+        H = jnp.zeros((3, 2, 2, 1), dtype=jnp.float32)
+        inv_permittivity = jnp.ones((3, 2, 2, 1), dtype=jnp.float32)
+
+        new_state = detector.update(jnp.array(0), E, H, state, inv_permittivity, 1.0)
+
+        assert jnp.allclose(new_state["energy"][0], jnp.asarray([2.0], dtype=jnp.float32))
 
 
 class TestEnergyDetectorConfiguration:
