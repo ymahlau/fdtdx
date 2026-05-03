@@ -94,6 +94,27 @@ class GridSpec(TreeClass):
         return float(jnp.min(jnp.asarray([jnp.min(self.dx), jnp.min(self.dy), jnp.min(self.dz)])))
 
     @property
+    def min_spacings(self) -> tuple[float, float, float]:
+        """Smallest cell width along each axis in metres."""
+        return (float(jnp.min(self.dx)), float(jnp.min(self.dy)), float(jnp.min(self.dz)))
+
+    def cfl_time_step(self, courant_factor: float) -> float:
+        """Return the CFL-limited time step for a rectilinear 3D grid.
+
+        The stability limit for an orthogonal FDTD grid is controlled by the
+        smallest spacing on each axis:
+
+        ``dt <= courant_factor / (c * sqrt(1/dx_min^2 + 1/dy_min^2 + 1/dz_min^2))``.
+
+        For uniform grids this is exactly the existing ``courant_factor/sqrt(3)``
+        behavior.  For anisotropic or stretched grids it avoids using one global
+        spacing for all three axes.
+        """
+        dx_min, dy_min, dz_min = self.min_spacings
+        inv_metric = (1 / dx_min**2) + (1 / dy_min**2) + (1 / dz_min**2)
+        return courant_factor / (constants.c * float(np.sqrt(inv_metric)))
+
+    @property
     def is_uniform(self) -> bool:
         """Whether all cell widths match a single spacing within numerical tolerance."""
         spacing = self.dx[0]

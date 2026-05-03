@@ -173,8 +173,9 @@ class SimulationConfig(TreeClass):
             float: Time step duration in seconds, calculated using the Courant
                 condition and spatial resolution.
         """
-        spacing = self.grid.min_spacing if self.grid is not None else self.resolution
-        return self.courant_number * spacing / constants.c
+        if self.grid is not None:
+            return self.grid.cfl_time_step(self.courant_factor)
+        return self.courant_number * self.resolution / constants.c
 
     @property
     def time_steps_total(self) -> int:
