@@ -115,6 +115,11 @@ class DiffractiveDetector(Detector):
         prop_axis = self.propagation_axis
         plane_dims = [i for i in range(3) if i != prop_axis]
         Nx, Ny = [self.grid_shape[i] for i in plane_dims]
+        if self._config.grid is not None and not self._config.grid.is_uniform:
+            raise ValueError(
+                "DiffractiveDetector currently requires a uniform grid because FFT diffraction orders "
+                "assume equally spaced transverse samples."
+            )
 
         # Get current field values at the specified plane
         cur_E = E[:, *self.grid_slice]  # Shape: (3, nx, ny, 1)
