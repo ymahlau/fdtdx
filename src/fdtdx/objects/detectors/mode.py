@@ -56,6 +56,16 @@ class ModeOverlapDetector(PhasorDetector):
 
     #: Cannot be specified here since plotting a single scalar is useless.
     plot: bool = frozen_field(default=False, init=False)  # single scalar is useless for plotting
+
+    #: Whether overlap coefficients should use physical detector face areas.
+    #:
+    #: Mode overlap is a surface integral over the detector plane.  Keeping the
+    #: area weights inside the detector makes uniform grids a special case of the
+    #: rectilinear metric and keeps the overlap independent of local mesh density.
+    #: Set this to false only for compatibility checks against the historical raw
+    #: summation formula.
+    integrate: bool = frozen_field(default=True)
+
     _mode_E: jax.Array = private_field()
     _mode_H: jax.Array = private_field()
     _mode_neff: jax.Array = private_field()  # not required for detection, used for inspection
@@ -84,8 +94,21 @@ class ModeOverlapDetector(PhasorDetector):
         if self.bend_axis is not None and self.bend_axis == self.propagation_axis:
             raise ValueError(
                 f"bend_axis ({self.bend_axis}) must differ from the propagation axis ({self.propagation_axis})"
-            )
+        )
         return self
+
+    def _face_area_weights(self) -> jax.Array:
+        """Return detector-plane face areas for mode-overlap integration.
+
+        The propagation axis is the plane normal.  For legacy construction paths
+        without an explicit ``GridSpec``, the scalar grid spacing supplies the
+        uniform face area.
+        """
+        if self._config.grid is not None:
+            return self._config.grid.face_area(axis=self.propagation_axis, slice_tuple=self.grid_slice_tuple)
+
+        spacing = self._config.require_uniform_grid()
+        return jnp.ones(self.grid_shape, dtype=self.dtype) * spacing * spacing
 
     def apply(
         self,
@@ -142,7 +165,10 @@ class ModeOverlapDetector(PhasorDetector):
             axis=0,
         )[self.propagation_axis]
 
-        alpha_coeff = jnp.sum(E_cross_H_star_sim + E_star_cross_H_sim)
+        integrand = E_cross_H_star_sim + E_star_cross_H_sim
+        if self.integrate:
+            integrand = integrand * self._face_area_weights()
+        alpha_coeff = jnp.sum(integrand)
 
         # in pulsed mode return unscaled coefficient
         if self.scaling_mode != "pulse":
