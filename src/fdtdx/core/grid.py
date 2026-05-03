@@ -160,13 +160,80 @@ class GridSpec(TreeClass):
         """Convert a physical length to a number of cells from the lower domain edge.
 
         This helper preserves the old uniform-grid behavior when ``snap`` is
-        ``"nearest"``.  For non-uniform placement the more robust operation is
-        usually to choose an interval using edge coordinates; this method is a
-        migration bridge for shape-only constraints.
+        ``"nearest"``.  For non-uniform placement, ``"upper"`` is usually the
+        safer rule because it chooses enough cells to cover the requested metric
+        size from the lower domain edge.
         """
         if length < 0:
             raise ValueError(f"Length must be non-negative, got {length}.")
         return self.coord_to_index(axis, float(self.edges(axis)[0]) + length, snap=snap)
+
+    def bounds_for_center(self, axis: int, center: float, size: int) -> tuple[int, int]:
+        """Choose a cell interval whose physical center is closest to ``center``.
+
+        Args:
+            axis: Grid axis.
+            center: Desired physical center coordinate in metres.
+            size: Number of cells in the interval.
+
+        Returns:
+            ``(lower, upper)`` edge indices with ``upper - lower == size``.
+
+        Notes:
+            This operation is used by object placement when a physical center
+            position and an already-resolved grid-cell size are known.  On a
+            non-uniform grid there is no exact analogue of ``round(x / dx)``;
+            selecting the closest physical interval center gives deterministic
+            snapping while preserving the requested grid-cell size.
+        """
+        if size <= 0:
+            raise ValueError(f"Interval size must be positive, got {size}.")
+        edges = np.asarray(self.edges(axis))
+        max_lower = edges.shape[0] - size - 1
+        if max_lower < 0:
+            raise ValueError(f"Interval of size {size} does not fit on axis {axis} with shape {self.shape[axis]}.")
+        lower_candidates = np.arange(max_lower + 1)
+        interval_centers = 0.5 * (edges[lower_candidates] + edges[lower_candidates + size])
+        lower = int(lower_candidates[np.argmin(np.abs(interval_centers - center))])
+        return lower, lower + size
+
+    def anchor_coordinate(self, axis: int, bounds: tuple[int, int], position: float) -> float:
+        """Return a physical anchor coordinate inside an interval.
+
+        ``position`` follows fdtdx object-anchor convention: ``-1`` is the lower
+        side, ``0`` is the center, and ``+1`` is the upper side.
+        """
+        lower, upper = bounds
+        edges = np.asarray(self.edges(axis))
+        lower_coord = edges[lower]
+        upper_coord = edges[upper]
+        return float(lower_coord + 0.5 * (position + 1.0) * (upper_coord - lower_coord))
+
+    def bounds_for_anchor(self, axis: int, size: int, anchor: float, position: float) -> tuple[int, int]:
+        """Choose a cell interval whose object anchor is closest to ``anchor``.
+
+        Args:
+            axis: Grid axis.
+            size: Number of cells in the interval.
+            anchor: Desired physical anchor coordinate in metres.
+            position: Object-relative anchor position, where ``-1`` is lower
+                side, ``0`` is center, and ``+1`` is upper side.
+
+        Returns:
+            ``(lower, upper)`` edge indices with ``upper - lower == size``.
+        """
+        if size <= 0:
+            raise ValueError(f"Interval size must be positive, got {size}.")
+        edges = np.asarray(self.edges(axis))
+        max_lower = edges.shape[0] - size - 1
+        if max_lower < 0:
+            raise ValueError(f"Interval of size {size} does not fit on axis {axis} with shape {self.shape[axis]}.")
+        lower_candidates = np.arange(max_lower + 1)
+        lower_edges = edges[lower_candidates]
+        upper_edges = edges[lower_candidates + size]
+        anchors = lower_edges + 0.5 * (position + 1.0) * (upper_edges - lower_edges)
+        lower = int(lower_candidates[np.argmin(np.abs(anchors - anchor))])
+        return lower, lower + size
 
     def face_area(self, axis: int, slice_tuple: tuple[tuple[int, int], tuple[int, int], tuple[int, int]]) -> jax.Array:
         """Return per-cell face-area weights for a detector plane.

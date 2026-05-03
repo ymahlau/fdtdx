@@ -288,6 +288,96 @@ def test_resolve_constraints_with_partial_real_shape(simple_material):
         assert shape == 10
 
 
+def test_nonuniform_partial_real_shape_covers_metric_size(simple_material):
+    """Real object sizes use grid edges and cover the requested metric length."""
+    grid = GridSpec(
+        x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
+        y_edges=jnp.asarray([0.0, 2.0, 5.0]),
+        z_edges=jnp.asarray([0.0, 1.5, 4.0]),
+    )
+    config = SimulationConfig(resolution=1.0, grid=grid, time=100e-15)
+    volume = SimulationVolume(name="volume", partial_grid_shape=grid.shape)
+    obj = UniformMaterialObject(name="obj1", partial_real_shape=(2.1, 2.1, 2.1), material=simple_material)
+    constraints = [
+        RealCoordinateConstraint(object="obj1", axes=(0, 1, 2), sides=("-", "-", "-"), coordinates=(0.0, 0.0, 0.0))
+    ]
+
+    resolved_slices, errors = resolve_object_constraints([volume, obj], constraints, config)
+
+    assert errors["obj1"] is None
+    assert resolved_slices["obj1"] == ((0, 2), (0, 2), (0, 2))
+
+
+def test_nonuniform_partial_real_position_uses_physical_interval_center(simple_material):
+    """Center placement chooses the grid interval with closest physical center."""
+    grid = GridSpec(
+        x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
+        y_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
+        z_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
+    )
+    config = SimulationConfig(resolution=1.0, grid=grid, time=100e-15)
+    volume = SimulationVolume(name="volume", partial_grid_shape=grid.shape)
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(2, 2, 2),
+        partial_real_position=(3.6, 3.6, 3.6),
+        material=simple_material,
+    )
+
+    resolved_slices, errors = resolve_object_constraints([volume, obj], [], config)
+
+    assert errors["obj1"] is None
+    assert resolved_slices["obj1"] == ((1, 3), (1, 3), (1, 3))
+
+
+def test_nonuniform_real_coordinate_constraint_snaps_to_nearest_edge(simple_material):
+    """Real coordinate constraints use physical edge coordinates on stretched grids."""
+    grid = GridSpec(
+        x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
+        y_edges=jnp.asarray([0.0, 1.0]),
+        z_edges=jnp.asarray([0.0, 1.0]),
+    )
+    config = SimulationConfig(resolution=1.0, grid=grid, time=100e-15)
+    volume = SimulationVolume(name="volume", partial_grid_shape=grid.shape)
+    obj = UniformMaterialObject(name="obj1", partial_grid_shape=(1, 1, 1), material=simple_material)
+    constraint = RealCoordinateConstraint(object="obj1", axes=(0,), sides=("-",), coordinates=(2.7,))
+
+    resolved_slices, errors = resolve_object_constraints([volume, obj], [constraint], config)
+
+    assert errors["obj1"] is None
+    assert resolved_slices["obj1"][0] == (2, 3)
+
+
+def test_nonuniform_grid_coordinate_constraint_is_rejected(simple_material):
+    """Index-space placement coordinates are not allowed on non-uniform grids."""
+    grid = GridSpec.uniform(shape=(3, 3, 3), spacing=1.0).aset("x_edges", jnp.asarray([0.0, 1.0, 3.0, 6.0]))
+    config = SimulationConfig(resolution=1.0, grid=grid, time=100e-15)
+    volume = SimulationVolume(name="volume", partial_grid_shape=grid.shape)
+    obj = UniformMaterialObject(name="obj1", partial_grid_shape=(1, 1, 1), material=simple_material)
+    constraint = GridCoordinateConstraint(object="obj1", axes=(0,), sides=("-",), coordinates=(1,))
+
+    _resolved_slices, errors = resolve_object_constraints([volume, obj], [constraint], config)
+
+    assert "not supported on non-uniform grids" in errors["obj1"]
+
+
+def test_nonuniform_nonzero_grid_margin_is_rejected(simple_material):
+    """Grid margins are index-space distances and must be expressed in metres."""
+    grid = GridSpec.uniform(shape=(4, 4, 4), spacing=1.0).aset("x_edges", jnp.asarray([0.0, 1.0, 3.0, 6.0, 10.0]))
+    config = SimulationConfig(resolution=1.0, grid=grid, time=100e-15)
+    volume = SimulationVolume(name="volume", partial_grid_shape=grid.shape)
+    parent = UniformMaterialObject(name="parent", partial_grid_shape=(1, 1, 1), material=simple_material)
+    child = UniformMaterialObject(name="child", partial_grid_shape=(1, 1, 1), material=simple_material)
+    constraints = [
+        RealCoordinateConstraint(object="parent", axes=(0, 1, 2), sides=("-", "-", "-"), coordinates=(0.0, 0.0, 0.0)),
+        child.face_to_face_positive_direction(parent, axes=(0,), grid_margins=(1,)),
+    ]
+
+    _resolved_slices, errors = resolve_object_constraints([volume, parent, child], constraints, config)
+
+    assert "grid_margins" in errors["child"]
+
+
 def test_resolve_constraints_extend_to_infinity(simple_config, simple_volume, simple_material):
     obj = UniformMaterialObject(name="obj1", material=simple_material)
     constraint = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[20])
