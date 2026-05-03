@@ -29,6 +29,12 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
     ):
+        if self._config.grid is not None and not self._config.grid.is_uniform:
+            raise ValueError(
+                "Linearly polarized plane sources currently require a uniform grid. "
+                "Non-uniform support needs physical-coordinate profile sampling and source correction metrics."
+            )
+
         # inv_permittivities shape: (3, Nx, Ny, Nz) - slice with component dimension
         inv_permittivities = inv_permittivities[:, *self.grid_slice]
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
