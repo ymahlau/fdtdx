@@ -350,7 +350,11 @@ def test_nonuniform_real_coordinate_constraint_snaps_to_nearest_edge(simple_mate
 
 def test_nonuniform_grid_coordinate_constraint_is_rejected(simple_material):
     """Index-space placement coordinates are not allowed on non-uniform grids."""
-    grid = GridSpec.uniform(shape=(3, 3, 3), spacing=1.0).aset("x_edges", jnp.asarray([0.0, 1.0, 3.0, 6.0]))
+    grid = GridSpec(
+        x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
+        y_edges=jnp.asarray([0.0, 1.0, 2.0, 3.0]),
+        z_edges=jnp.asarray([0.0, 1.0, 2.0, 3.0]),
+    )
     config = SimulationConfig(resolution=1.0, grid=grid, time=100e-15)
     volume = SimulationVolume(name="volume", partial_grid_shape=grid.shape)
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(1, 1, 1), material=simple_material)
@@ -363,7 +367,11 @@ def test_nonuniform_grid_coordinate_constraint_is_rejected(simple_material):
 
 def test_nonuniform_nonzero_grid_margin_is_rejected(simple_material):
     """Grid margins are index-space distances and must be expressed in metres."""
-    grid = GridSpec.uniform(shape=(4, 4, 4), spacing=1.0).aset("x_edges", jnp.asarray([0.0, 1.0, 3.0, 6.0, 10.0]))
+    grid = GridSpec(
+        x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0, 10.0]),
+        y_edges=jnp.asarray([0.0, 1.0, 2.0, 3.0, 4.0]),
+        z_edges=jnp.asarray([0.0, 1.0, 2.0, 3.0, 4.0]),
+    )
     config = SimulationConfig(resolution=1.0, grid=grid, time=100e-15)
     volume = SimulationVolume(name="volume", partial_grid_shape=grid.shape)
     parent = UniformMaterialObject(name="parent", partial_grid_shape=(1, 1, 1), material=simple_material)

@@ -240,7 +240,6 @@ def _init_arrays(
         raise ValueError(f"Configured grid shape {grid.shape} does not match simulation volume shape {volume_shape}.")
     if config.grid is None:
         config = config.aset("grid", grid)
-    conductivity_spacing = constants.c * config.time_step_duration / config.courant_number
     ext_shape = (3, *volume_shape)
 
     # Determine whether to use complex-valued fields
@@ -398,6 +397,9 @@ def _init_arrays(
             sharding_axis=1,
             backend=config.backend,
         )
+    conductivity_spacing = None
+    if electric_conductivity is not None or magnetic_conductivity is not None:
+        conductivity_spacing = constants.c * config.time_step_duration / config.courant_number
 
     # set permittivity/permeability/conductivity of static objects
     sorted_obj = sorted(
@@ -465,6 +467,7 @@ def _init_arrays(
                 # Scale physical conductivity into the dimensionless update coefficient.
                 # On uniform grids this equals the scalar grid spacing.  On stretched
                 # grids it is the reference spacing implied by ``c0 * dt / courant``.
+                assert conductivity_spacing is not None
                 obj_electric_conductivity = (jnp.array(cond_tuple, dtype=config.dtype) * conductivity_spacing)[
                     :, None, None, None
                 ]
@@ -486,6 +489,7 @@ def _init_arrays(
                     cond_tuple = o.material.magnetic_conductivity
 
                 # Scale physical conductivity into the dimensionless update coefficient.
+                assert conductivity_spacing is not None
                 obj_magnetic_conductivity = (jnp.array(cond_tuple, dtype=config.dtype) * conductivity_spacing)[
                     :, None, None, None
                 ]
@@ -544,6 +548,7 @@ def _init_arrays(
                     )
                 )
 
+                assert conductivity_spacing is not None
                 component_values = jnp.moveaxis(allowed_conds[indices], -1, 0) * conductivity_spacing
                 diff = component_values - electric_conductivity[:, *o.grid_slice]
                 electric_conductivity = electric_conductivity.at[:, *o.grid_slice].add(mask * diff)
@@ -557,6 +562,7 @@ def _init_arrays(
                     )
                 )
 
+                assert conductivity_spacing is not None
                 component_values = jnp.moveaxis(allowed_conds[indices], -1, 0) * conductivity_spacing
                 diff = component_values - magnetic_conductivity[:, *o.grid_slice]
                 magnetic_conductivity = magnetic_conductivity.at[:, *o.grid_slice].add(mask * diff)
