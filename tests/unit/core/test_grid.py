@@ -361,6 +361,31 @@ def test_calculate_time_offset_yee_4d_permeability():
         )
 
 
+def test_calculate_time_offset_yee_uses_coordinate_edges():
+    """Explicit rectilinear coordinates produce physical travel offsets."""
+    center = jnp.asarray([0.0, 0.0])
+    wave_vector = jnp.asarray([1.0, 0.0, 0.0])
+    inv_permittivities = jnp.ones((1, 2, 1, 1))
+    time_step_duration = 1.0 / constants.c
+
+    time_offset_E, _time_offset_H = calculate_time_offset_yee(
+        center=center,
+        wave_vector=wave_vector,
+        inv_permittivities=inv_permittivities,
+        inv_permeabilities=1.0,
+        resolution=1.0,
+        time_step_duration=time_step_duration,
+        coordinate_edges=(
+            jnp.asarray([0.0, 1.0, 3.0]),
+            jnp.asarray([0.0, 1.0]),
+            jnp.asarray([0.0, 1.0]),
+        ),
+        center_physical=jnp.asarray([0.0, 0.0, 0.0]),
+    )
+
+    assert jnp.allclose(time_offset_E[0, :, 0, 0], jnp.asarray([-0.5, -2.0]))
+
+
 def test_calculate_time_offset_yee_4d_permeability_without_h_polarization():
     """Test that 4D isotropic permeability works without h_polarization (uses [0] slice)."""
     center = jnp.array([1.0, 1.0])

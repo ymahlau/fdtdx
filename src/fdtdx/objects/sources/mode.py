@@ -26,6 +26,53 @@ class ModePlaneSource(TFSFPlaneSource):
 
     _neff: jax.Array = private_field()  # not required for sim, used for inspection
 
+    def _local_edge_coordinates(self) -> tuple[jax.Array, jax.Array, jax.Array] | None:
+        """Return local physical edge coordinates for this source slice.
+
+        Non-uniform mode sources need edge coordinates for both Tidy3D mode
+        solving and Yee time offsets.  Coordinates are shifted so the source
+        slice lower corner is at zero on each axis.
+        """
+        if self._config.grid is None:
+            return None
+
+        local_edges = []
+        for axis in range(3):
+            lower, upper = self.grid_slice_tuple[axis]
+            edges = self._config.grid.edges(axis)[lower : upper + 1]
+            local_edges.append(edges - edges[0])
+        return tuple(local_edges)
+
+    def _transverse_edge_coordinates(self) -> tuple[jax.Array, jax.Array] | None:
+        """Return local transverse edge coordinates for Tidy3D mode solving."""
+        local_edges = self._local_edge_coordinates()
+        if local_edges is None:
+            return None
+        return tuple(local_edges[axis] for axis in range(3) if axis != self.propagation_axis)
+
+    def _mode_solver_resolution(self) -> float:
+        """Return scalar resolution only for legacy uniform mode-solver setup.
+
+        ``compute_mode`` ignores this value when explicit transverse coordinates
+        are provided, but the argument remains part of the compatibility API.
+        """
+        if self._config.grid is not None and not self._config.grid.is_uniform:
+            return self._config.grid.min_spacing
+        return self._config.require_uniform_grid()
+
+    def _source_center_physical(self) -> jax.Array | None:
+        """Return the physical source center for grid-aware Yee time offsets."""
+        local_edges = self._local_edge_coordinates()
+        if local_edges is None:
+            return None
+        center = []
+        for axis, edges in enumerate(local_edges):
+            if axis == self.propagation_axis:
+                center.append(jnp.asarray(0.0, dtype=self._config.dtype))
+            else:
+                center.append(0.5 * edges[-1])
+        return jnp.asarray(center, dtype=self._config.dtype)
+
     def apply(
         self: Self,
         key: jax.Array,
@@ -58,11 +105,12 @@ class ModePlaneSource(TFSFPlaneSource):
             frequency=self.wave_character.get_frequency(),
             inv_permittivities=inv_permittivity_slice,
             inv_permeabilities=inv_permeability_slice,
-            resolution=self._config.require_uniform_grid(),
+            resolution=self._mode_solver_resolution(),
             direction=self.direction,
             mode_index=self.mode_index,
             filter_pol=self.filter_pol,
             dtype=self._config.dtype,
+            transverse_coords=self._transverse_edge_coordinates(),
         )
         mode_E, mode_H = jnp.real(mode_E), jnp.real(mode_H)
 
@@ -83,9 +131,11 @@ class ModePlaneSource(TFSFPlaneSource):
             wave_vector=raw_wave_vector,
             inv_permittivities=inv_permittivity_slice,
             inv_permeabilities=jnp.ones_like(inv_permeability_slice),
-            resolution=self._config.require_uniform_grid(),
+            resolution=self._mode_solver_resolution(),
             time_step_duration=self._config.time_step_duration,
             effective_index=jnp.real(eff_index),
+            coordinate_edges=self._local_edge_coordinates(),
+            center_physical=self._source_center_physical(),
         )
 
         self = self.aset("_time_offset_E", time_offset_E, create_new_ok=True)

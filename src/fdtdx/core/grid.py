@@ -324,6 +324,8 @@ def calculate_time_offset_yee(
     effective_index: jax.Array | float | None = None,
     e_polarization: jax.Array | None = None,
     h_polarization: jax.Array | None = None,
+    coordinate_edges: tuple[jax.Array, jax.Array, jax.Array] | None = None,
+    center_physical: jax.Array | None = None,
 ) -> tuple[jax.Array, jax.Array]:
     if inv_permittivities.ndim == 4:
         # Extract spatial shape from (1, Nx, Ny, Nz) or (3, Nx, Ny, Nz) or (9, Nx, Ny, Nz)
@@ -337,35 +339,71 @@ def calculate_time_offset_yee(
     if 1 not in spatial_shape:
         raise Exception(f"Expected one spatial axis to be one, but got {spatial_shape}")
 
-    # phase variation
-    x, y, z = jnp.meshgrid(
-        jnp.arange(spatial_shape[0]),
-        jnp.arange(spatial_shape[1]),
-        jnp.arange(spatial_shape[2]),
-        indexing="ij",
-    )
-    xyz = jnp.stack([x, y, z], axis=-1)
-    center_list = [center[0], center[1]]
     propagation_axis = spatial_shape.index(1)
-    center_list.insert(propagation_axis, jnp.array(0))
-    center_3d = jnp.asarray(center_list, dtype=wave_vector.dtype)[None, None, None, :]
-    xyz = xyz - center_3d
 
-    # yee grid offsets
-    xyz_E = jnp.stack(
-        [
-            xyz + jnp.asarray([0.5, 0, 0])[None, None, None, :],
-            xyz + jnp.asarray([0, 0.5, 0])[None, None, None, :],
-            xyz + jnp.asarray([0, 0, 0.5])[None, None, None, :],
-        ]
-    )
-    xyz_H = jnp.stack(
-        [
-            xyz + jnp.asarray([0, 0.5, 0.5])[None, None, None, :],
-            xyz + jnp.asarray([0.5, 0, 0.5])[None, None, None, :],
-            xyz + jnp.asarray([0.5, 0.5, 0])[None, None, None, :],
-        ]
-    )
+    if coordinate_edges is None:
+        # phase variation in grid-index units; convert to metres at the end
+        x, y, z = jnp.meshgrid(
+            jnp.arange(spatial_shape[0]),
+            jnp.arange(spatial_shape[1]),
+            jnp.arange(spatial_shape[2]),
+            indexing="ij",
+        )
+        xyz = jnp.stack([x, y, z], axis=-1)
+        center_list = [center[0], center[1]]
+        center_list.insert(propagation_axis, jnp.array(0))
+        center_3d = jnp.asarray(center_list, dtype=wave_vector.dtype)[None, None, None, :]
+        xyz = xyz - center_3d
+
+        # yee grid offsets
+        xyz_E = jnp.stack(
+            [
+                xyz + jnp.asarray([0.5, 0, 0])[None, None, None, :],
+                xyz + jnp.asarray([0, 0.5, 0])[None, None, None, :],
+                xyz + jnp.asarray([0, 0, 0.5])[None, None, None, :],
+            ]
+        )
+        xyz_H = jnp.stack(
+            [
+                xyz + jnp.asarray([0, 0.5, 0.5])[None, None, None, :],
+                xyz + jnp.asarray([0.5, 0, 0.5])[None, None, None, :],
+                xyz + jnp.asarray([0.5, 0.5, 0])[None, None, None, :],
+            ]
+        )
+        distance_scale = resolution
+    else:
+        if center_physical is None:
+            raise ValueError("center_physical must be provided with coordinate_edges")
+
+        def component_positions(axis: int, offset: float) -> jax.Array:
+            edges = coordinate_edges[axis]
+            centers = 0.5 * (edges[:-1] + edges[1:])
+            if offset == 0:
+                return edges[:-1]
+            if offset == 0.5:
+                return centers
+            raise ValueError(f"Unsupported Yee offset: {offset}")
+
+        def xyz_for_offsets(offsets: tuple[float, float, float]) -> jax.Array:
+            coords = [component_positions(axis, offsets[axis]) for axis in range(3)]
+            x, y, z = jnp.meshgrid(coords[0], coords[1], coords[2], indexing="ij")
+            return jnp.stack([x, y, z], axis=-1) - center_physical[None, None, None, :]
+
+        xyz_E = jnp.stack(
+            [
+                xyz_for_offsets((0.5, 0, 0)),
+                xyz_for_offsets((0, 0.5, 0)),
+                xyz_for_offsets((0, 0, 0.5)),
+            ]
+        )
+        xyz_H = jnp.stack(
+            [
+                xyz_for_offsets((0, 0.5, 0.5)),
+                xyz_for_offsets((0.5, 0, 0.5)),
+                xyz_for_offsets((0.5, 0.5, 0)),
+            ]
+        )
+        distance_scale = 1.0
 
     travel_offset_E = -jnp.dot(xyz_E, wave_vector)
     travel_offset_H = -jnp.dot(xyz_H, wave_vector)
@@ -453,8 +491,8 @@ def calculate_time_offset_yee(
         refractive_idx = 1 / jnp.sqrt(inv_perm_eff * inv_perm_eff_perm)
 
     velocity = (constants.c / refractive_idx)[None, ...]
-    time_offset_E = travel_offset_E * resolution / (velocity * time_step_duration)
-    time_offset_H = travel_offset_H * resolution / (velocity * time_step_duration)
+    time_offset_E = travel_offset_E * distance_scale / (velocity * time_step_duration)
+    time_offset_H = travel_offset_H * distance_scale / (velocity * time_step_duration)
     return time_offset_E, time_offset_H
 
 
