@@ -128,11 +128,11 @@ Remaining Uniform-Only Surfaces
 The remaining calls to ``require_uniform_grid()`` are intentional markers.  They
 cluster around:
 
-* PML auxiliary update coefficients inside the curl functions
 * generic TFSF/source profile sampling and correction metrics
 * diffractive detector FFT order decomposition, currently guarded
 * plotting and image/video export, currently guarded for setup/material plots
 * device parameterization helpers that assume one voxel size, currently guarded
+* detector slice/video plotting and some detector slice-selection helpers
 * fallback paths used before a concrete ``GridSpec`` is attached
 
 Performance Notes
