@@ -93,8 +93,9 @@ def pad_fields_for_boundaries(
     Args:
         fields: Field array of shape (3, Nx, Ny, Nz)
         objects: Container with simulation objects including boundaries
-        config: Simulation configuration. Boundary pad corrections still require
-            uniform spacing until Bloch/PML metric support is completed.
+        config: Simulation configuration. The scalar spacing argument is kept
+            for boundary API compatibility; grid-aware boundaries should read
+            physical metrics from ``config.grid`` when it is available.
 
     Returns:
         Padded fields of shape (3, Nx+2, Ny+2, Nz+2) with all corrections applied
@@ -104,7 +105,14 @@ def pad_fields_for_boundaries(
     boundaries = objects.boundary_objects
     if boundaries:
         volume_shape = objects.volume.grid_shape
-        spacing = config.require_uniform_grid()
+        grid = getattr(config, "grid", None)
+        if grid is not None and not grid.is_uniform:
+            # ``apply_pad_correction`` still has a legacy scalar-resolution
+            # parameter.  Non-uniform Bloch boundaries ignore this value and
+            # compute the physical phase length from ``GridSpec`` edges.
+            spacing = float(grid.min_spacing)
+        else:
+            spacing = config.require_uniform_grid()
         for boundary in boundaries:
             padded = boundary.apply_pad_correction(padded, volume_shape, spacing)
     return padded
