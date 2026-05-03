@@ -8,6 +8,7 @@ import numpy as np
 from matplotlib.figure import Figure
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import GridSpec
 from fdtdx.fdtd.container import ArrayContainer
 
 MaterialType = Literal["permittivity", "permeability"]
@@ -47,6 +48,10 @@ def plot_material_from_side(
     Note:
         The plots show material values in a 2D cross-section, with positions in micrometers.
     """
+    grid = getattr(config, "grid", None)
+    if isinstance(grid, GridSpec) and not grid.is_uniform:
+        raise ValueError("plot_material_from_side currently requires a uniform grid for axis scaling.")
+
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(6, 5))
     else:

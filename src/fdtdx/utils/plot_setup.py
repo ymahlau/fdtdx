@@ -7,6 +7,7 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Patch, Rectangle
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import GridSpec
 from fdtdx.fdtd.container import ObjectContainer
 from fdtdx.objects.boundaries.bloch import BlochBoundary
 from fdtdx.objects.boundaries.pec import PerfectElectricConductor
@@ -55,6 +56,10 @@ def plot_setup_from_side(
         The plots show object positions in micrometers, converting from simulation units.
         PML objects are automatically excluded from their respective boundary planes.
     """
+    grid = getattr(config, "grid", None)
+    if isinstance(grid, GridSpec) and not grid.is_uniform:
+        raise ValueError("plot_setup_from_side currently requires a uniform grid for axis scaling.")
+
     # default to empty lists
     exclude_object_list = exclude_object_list or []
     exclude_xy_plane_object_list = exclude_xy_plane_object_list or []

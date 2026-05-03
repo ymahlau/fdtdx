@@ -8,8 +8,10 @@ import matplotlib
 import pytest
 
 matplotlib.use("Agg")
+import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
+from fdtdx.core.grid import GridSpec
 from fdtdx.utils.plot_setup import plot_setup, plot_setup_from_side
 
 
@@ -95,6 +97,20 @@ class TestPlotSetupFromSide:
         _fig, ax = plt.subplots()
         with pytest.raises(ValueError, match="Invalid viewing_side"):
             plot_setup_from_side(config=config, objects=container, viewing_side="w", ax=ax)
+        plt.close("all")
+
+    def test_nonuniform_grid_rejected(self):
+        """Setup plots currently use uniform axis scaling."""
+        config = _make_config()
+        config.grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 1.0, 2.0]),
+            z_edges=jnp.asarray([0.0, 1.0, 2.0]),
+        )
+        container = _make_container()
+        _fig, ax = plt.subplots()
+        with pytest.raises(ValueError, match="requires a uniform grid"):
+            plot_setup_from_side(config=config, objects=container, viewing_side="z", ax=ax)
         plt.close("all")
 
     def test_axis_labels_and_title_z(self):
