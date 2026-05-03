@@ -10,6 +10,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import GridSpec
 from fdtdx.core.jax.pytrees import autoinit
 from fdtdx.materials import Material
 from fdtdx.objects.device.device import Device
@@ -144,6 +145,19 @@ class TestPlaceOnGrid:
         )
         placed = _place_device(device, config, key, ((0, 10), (0, 10), (0, 10)))
         assert placed.single_voxel_grid_shape == (2, 2, 2)
+
+    def test_nonuniform_grid_rejected(self, key, two_materials):
+        """Device parameter grids need an explicit nonuniform resampling design."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 1.0, 2.0]),
+            z_edges=jnp.asarray([0.0, 1.0, 2.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        device = _make_device(two_materials, voxel_grid=(1, 1, 1))
+
+        with pytest.raises(ValueError, match="requires a uniform simulation grid"):
+            _place_device(device, config, key, ((0, 2), (0, 2), (0, 2)))
 
     def test_overspecified_voxel_raises(self, config, key, two_materials):
         """Providing both grid and real shape for the same axis should raise."""
