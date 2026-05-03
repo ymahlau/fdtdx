@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import GridSpec
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.sources.linear_polarization import GaussianPlaneSource
 
@@ -126,6 +127,29 @@ class TestTFSFPlaneSourceProperties:
         )
         # At 100nm resolution, 200nm offset = 2 grid points
         assert np.isclose(placed.max_horizontal_offset_grid, 2.0)
+
+    def test_nonuniform_random_offsets_are_rejected(self, jax_key):
+        """Random physical offsets are ambiguous as index offsets on stretched grids."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 1.0, 2.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        source = GaussianPlaneSource(
+            partial_grid_shape=(2, 2, 1),
+            wave_character=WaveCharacter(wavelength=1.55e-6),
+            direction="-",
+            radius=1.0,
+            max_horizontal_offset=0.5,
+            max_vertical_offset=0.5,
+        )
+        placed = source.place_on_grid(((0, 2), (0, 2), (0, 1)), config, jax_key)
+
+        with pytest.raises(ValueError, match="horizontal TFSF offsets"):
+            _ = placed.max_horizontal_offset_grid
+        with pytest.raises(ValueError, match="vertical TFSF offsets"):
+            _ = placed.max_vertical_offset_grid
 
 
 class TestTFSFPlaneSourceRandomization:
