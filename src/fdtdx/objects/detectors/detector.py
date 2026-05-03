@@ -276,14 +276,15 @@ class Detector(SimulationObject, ABC):
         elif squeezed_ndim == 2 and self.num_time_steps_recorded == 1:
             # single time step, 2d-plot  # TODO:
             if all([x in squeezed_arrs.keys() for x in ["XY Plane", "XZ Plane", "YZ Plane"]]):
+                spacing = self._config.require_uniform_grid()
                 fig = plot_2d_from_slices(
                     xy_slice=squeezed_arrs["XY Plane"],
                     xz_slice=squeezed_arrs["XZ Plane"],
                     yz_slice=squeezed_arrs["YZ Plane"],
                     resolutions=(
-                        self._config.resolution,
-                        self._config.resolution,
-                        self._config.resolution,
+                        spacing,
+                        spacing,
+                        spacing,
                     ),
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,
@@ -294,6 +295,7 @@ class Detector(SimulationObject, ABC):
         elif squeezed_ndim == 3 and self.num_time_steps_recorded > 1:
             # multiple time steps, 2d-plots
             if all([x in squeezed_arrs.keys() for x in ["XY Plane", "XZ Plane", "YZ Plane"]]):
+                spacing = self._config.require_uniform_grid()
                 path = generate_video_from_slices(
                     plt_fn=plot_from_slices,
                     xy_slice=squeezed_arrs["XY Plane"],
@@ -302,9 +304,9 @@ class Detector(SimulationObject, ABC):
                     progress=progress,
                     num_worker=self.num_video_workers,
                     resolutions=(
-                        self._config.resolution,
-                        self._config.resolution,
-                        self._config.resolution,
+                        spacing,
+                        spacing,
+                        spacing,
                     ),
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,
@@ -317,6 +319,7 @@ class Detector(SimulationObject, ABC):
                 )
         elif squeezed_ndim == 3 and self.num_time_steps_recorded == 1:
             # single step, 3d-plot. # TODO: do as mean over planes
+            spacing = self._config.require_uniform_grid()
             for k, v in squeezed_arrs.items():
                 xy_slice = squeezed_arrs[k].mean(axis=2)
                 xz_slice = squeezed_arrs[k].mean(axis=1)
@@ -326,9 +329,9 @@ class Detector(SimulationObject, ABC):
                     xz_slice=xz_slice,
                     yz_slice=yz_slice,
                     resolutions=(
-                        self._config.resolution,
-                        self._config.resolution,
-                        self._config.resolution,
+                        spacing,
+                        spacing,
+                        spacing,
                     ),
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,
@@ -336,6 +339,7 @@ class Detector(SimulationObject, ABC):
                 figs[k] = fig
         elif squeezed_ndim == 4 and self.num_time_steps_recorded > 1:
             # video with 3d-volume in each time step. plot as slices
+            spacing = self._config.require_uniform_grid()
             for k, v in squeezed_arrs.items():
                 xy_slice = squeezed_arrs[k].mean(axis=3)
                 xz_slice = squeezed_arrs[k].mean(axis=2)
@@ -348,9 +352,9 @@ class Detector(SimulationObject, ABC):
                     progress=progress,
                     num_worker=self.num_video_workers,
                     resolutions=(
-                        self._config.resolution,
-                        self._config.resolution,
-                        self._config.resolution,
+                        spacing,
+                        spacing,
+                        spacing,
                     ),
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,

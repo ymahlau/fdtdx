@@ -8,6 +8,7 @@ import pytest
 
 from fdtdx import constants
 from fdtdx.config import DUMMY_SIMULATION_CONFIG, GradientConfig, SimulationConfig
+from fdtdx.core.grid import GridSpec
 
 
 class TestGradientConfigConstruction:
@@ -180,6 +181,52 @@ class TestSimulationConfigProperties:
         config = SimulationConfig(time=1e-12, resolution=resolution, backend="cpu")
         expected = config.courant_number * resolution / constants.c
         assert abs(config.time_step_duration - expected) < 1e-30
+
+    @patch("fdtdx.config.jax.config.update")
+    @patch("fdtdx.config.jax.devices")
+    @patch("jax.extend.backend.get_backend")
+    def test_time_step_duration_uses_grid_min_spacing(self, mock_get_backend, *_):
+        """Non-uniform grids use the smallest cell width for staged CFL safety."""
+        mock_get_backend.return_value = _create_mock_backend("cpu")
+
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 2e-9, 5e-9]),
+            y_edges=jnp.asarray([0.0, 1e-9]),
+            z_edges=jnp.asarray([0.0, 4e-9]),
+        )
+        config = SimulationConfig(time=1e-12, resolution=99e-9, grid=grid, backend="cpu")
+        expected = config.courant_number * 1e-9 / constants.c
+        assert math.isclose(config.time_step_duration, expected, rel_tol=1e-6)
+
+    @patch("fdtdx.config.jax.config.update")
+    @patch("fdtdx.config.jax.devices")
+    @patch("jax.extend.backend.get_backend")
+    def test_require_grid_builds_uniform_grid_from_resolution(self, mock_get_backend, *_):
+        """Legacy resolution configs create a concrete GridSpec when the volume shape is known."""
+        mock_get_backend.return_value = _create_mock_backend("cpu")
+
+        config = SimulationConfig(time=1e-12, resolution=2e-9, backend="cpu")
+        grid = config.require_grid((2, 3, 4))
+
+        assert grid.shape == (2, 3, 4)
+        assert math.isclose(grid.uniform_spacing, 2e-9, rel_tol=1e-6)
+
+    @patch("fdtdx.config.jax.config.update")
+    @patch("fdtdx.config.jax.devices")
+    @patch("jax.extend.backend.get_backend")
+    def test_require_uniform_grid_rejects_nonuniform_grid(self, mock_get_backend, *_):
+        """Scalar compatibility access fails instead of masking non-uniform metrics."""
+        mock_get_backend.return_value = _create_mock_backend("cpu")
+
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 1.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-12, resolution=1.0, grid=grid, backend="cpu")
+
+        with pytest.raises(ValueError, match="requires a uniform grid"):
+            config.require_uniform_grid()
 
     @patch("fdtdx.config.jax.config.update")
     @patch("fdtdx.config.jax.devices")

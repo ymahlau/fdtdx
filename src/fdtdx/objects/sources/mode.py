@@ -58,7 +58,7 @@ class ModePlaneSource(TFSFPlaneSource):
             frequency=self.wave_character.get_frequency(),
             inv_permittivities=inv_permittivity_slice,
             inv_permeabilities=inv_permeability_slice,
-            resolution=self._config.resolution,
+            resolution=self._config.require_uniform_grid(),
             direction=self.direction,
             mode_index=self.mode_index,
             filter_pol=self.filter_pol,
@@ -83,7 +83,7 @@ class ModePlaneSource(TFSFPlaneSource):
             wave_vector=raw_wave_vector,
             inv_permittivities=inv_permittivity_slice,
             inv_permeabilities=jnp.ones_like(inv_permeability_slice),
-            resolution=self._config.resolution,
+            resolution=self._config.require_uniform_grid(),
             time_step_duration=self._config.time_step_duration,
             effective_index=jnp.real(eff_index),
         )

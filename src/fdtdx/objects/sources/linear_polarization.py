@@ -143,7 +143,7 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
             wave_vector=wave_vector,
             inv_permittivities=inv_permittivities,
             inv_permeabilities=inv_permeabilities,
-            resolution=self._config.resolution,
+            resolution=self._config.require_uniform_grid(),
             time_step_duration=self._config.time_step_duration,
             e_polarization=e_pol,
             h_polarization=h_pol,
@@ -203,7 +203,7 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
         self,
         center: jax.Array,
     ) -> jax.Array:
-        grid_radius = self.radius / self._config.resolution
+        grid_radius = self.radius / self._config.require_uniform_grid()
         profile = self._gauss_profile(
             width=self.grid_shape[self.horizontal_axis],
             height=self.grid_shape[self.vertical_axis],

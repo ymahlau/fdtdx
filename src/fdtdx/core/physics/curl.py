@@ -114,7 +114,8 @@ def curl_E(
 
     if simulate_boundaries:
         # Get H-field PML coefficients
-        b = jnp.expm1(-config.courant_number * config.resolution / c0 / eps0 * (sigma / kappa + alpha)) + 1
+        spacing = config.require_uniform_grid()
+        b = jnp.expm1(-config.courant_number * spacing / c0 / eps0 * (sigma / kappa + alpha)) + 1
         a = jnp.nan_to_num((b - 1.0) * sigma / (sigma + alpha * kappa) / kappa, nan=0.0, posinf=0.0, neginf=0.0)
 
         # Update auxiliary fields
@@ -181,7 +182,8 @@ def curl_H(
 
     if simulate_boundaries:
         # Get E-field PML coefficients
-        b = jnp.expm1(-config.courant_number * config.resolution / c0 / eps0 * (sigma / kappa + alpha)) + 1
+        spacing = config.require_uniform_grid()
+        b = jnp.expm1(-config.courant_number * spacing / c0 / eps0 * (sigma / kappa + alpha)) + 1
         a = jnp.nan_to_num((b - 1.0) * sigma / (sigma + alpha * kappa) / kappa, nan=0.0, posinf=0.0, neginf=0.0)
 
         # Update auxiliary fields

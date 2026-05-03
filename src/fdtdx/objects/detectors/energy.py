@@ -91,13 +91,14 @@ class EnergyDetector(Detector):
                 energy_yz = energy.mean(axis=0)
             else:
                 # Convert real-world positions to indices
-                origin_x = self.grid_slice[0].start * self._config.resolution
-                origin_y = self.grid_slice[1].start * self._config.resolution
-                origin_z = self.grid_slice[2].start * self._config.resolution
+                spacing = self._config.require_uniform_grid()
+                origin_x = self.grid_slice[0].start * spacing
+                origin_y = self.grid_slice[1].start * spacing
+                origin_z = self.grid_slice[2].start * spacing
 
                 def to_index(real_pos, origin, axis_len):
                     if real_pos is not None:
-                        idx = int((real_pos - origin) / self._config.resolution)
+                        idx = int((real_pos - origin) / spacing)
                         return max(0, min(idx, axis_len - 1))
                     return axis_len // 2
 

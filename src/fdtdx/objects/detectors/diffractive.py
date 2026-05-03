@@ -138,7 +138,7 @@ class DiffractiveDetector(Detector):
         ky_indices = jnp.where(orders[:, 1] >= 0, orders[:, 1], Ny + orders[:, 1])
 
         # Compute wavevectors
-        dx = dy = self._config.resolution
+        dx = dy = self._config.require_uniform_grid()
         kx = 2 * jnp.pi * jnp.fft.fftfreq(Nx, dx)
         ky = 2 * jnp.pi * jnp.fft.fftfreq(Ny, dy)
         k0 = 2 * jnp.pi * self.frequencies[0] / constants.c  # Use first frequency for now

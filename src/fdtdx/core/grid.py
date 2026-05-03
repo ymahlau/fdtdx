@@ -4,6 +4,198 @@ import numpy as np
 from matplotlib.path import Path
 
 from fdtdx import constants
+from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
+
+
+@autoinit
+class GridSpec(TreeClass):
+    """Rectilinear simulation grid described by physical cell-edge coordinates.
+
+    This is the canonical grid representation used by fdtdx internals.  A uniform
+    grid is represented by equally spaced edge arrays, not by a separate scalar
+    code path.  Keeping one representation is important for the non-uniform grid
+    migration: placement, PML profiles, mode-solver coordinates, detector weights,
+    and Yee update metrics should all ask the grid for physical distances instead
+    of deriving them from a global ``resolution`` value.
+
+    The arrays store cell *edges* in metres.  For a grid with ``nx`` cells along
+    x, ``x_edges`` has shape ``(nx + 1,)`` and must be strictly increasing.  Cell
+    widths, centers, face areas, and volumes are derived from these arrays.
+
+    Notes:
+        The first implementation focuses on rectilinear grids.  It intentionally
+        does not encode automatic mesh generation policy.  A mesh generator should
+        produce a ``GridSpec``; the solver should only consume ``GridSpec``.
+    """
+
+    x_edges: jax.Array = frozen_field()
+    y_edges: jax.Array = frozen_field()
+    z_edges: jax.Array = frozen_field()
+
+    def __post_init__(self):
+        object.__setattr__(self, "x_edges", jnp.asarray(self.x_edges))
+        object.__setattr__(self, "y_edges", jnp.asarray(self.y_edges))
+        object.__setattr__(self, "z_edges", jnp.asarray(self.z_edges))
+        for axis, edges in enumerate((self.x_edges, self.y_edges, self.z_edges)):
+            if edges.ndim != 1:
+                raise ValueError(f"Grid edge coordinates for axis {axis} must be one-dimensional.")
+            if edges.shape[0] < 2:
+                raise ValueError(f"Grid edge coordinates for axis {axis} must contain at least two entries.")
+            if bool(jnp.any(jnp.diff(edges) <= 0)):
+                raise ValueError(f"Grid edge coordinates for axis {axis} must be strictly increasing.")
+
+    @classmethod
+    def uniform(cls, shape: tuple[int, int, int], spacing: float, origin: tuple[float, float, float] = (0, 0, 0)):
+        """Create a rectilinear ``GridSpec`` for a uniform grid.
+
+        Args:
+            shape: Number of cells in ``(x, y, z)``.
+            spacing: Uniform cell width in metres.
+            origin: Physical coordinate of the lower domain corner.
+
+        Returns:
+            A ``GridSpec`` whose edge arrays are equally spaced.
+        """
+        if spacing <= 0:
+            raise ValueError(f"Uniform grid spacing must be positive, got {spacing}.")
+        if any(n <= 0 for n in shape):
+            raise ValueError(f"Uniform grid shape entries must be positive, got {shape}.")
+        edge_arrays = tuple(origin[axis] + spacing * jnp.arange(shape[axis] + 1) for axis in range(3))
+        return cls(x_edges=edge_arrays[0], y_edges=edge_arrays[1], z_edges=edge_arrays[2])
+
+    @property
+    def shape(self) -> tuple[int, int, int]:
+        """Number of cells along each axis."""
+        return (self.x_edges.shape[0] - 1, self.y_edges.shape[0] - 1, self.z_edges.shape[0] - 1)
+
+    @property
+    def dx(self) -> jax.Array:
+        """Cell widths along x in metres."""
+        return jnp.diff(self.x_edges)
+
+    @property
+    def dy(self) -> jax.Array:
+        """Cell widths along y in metres."""
+        return jnp.diff(self.y_edges)
+
+    @property
+    def dz(self) -> jax.Array:
+        """Cell widths along z in metres."""
+        return jnp.diff(self.z_edges)
+
+    @property
+    def min_spacing(self) -> float:
+        """Smallest cell width in the grid.
+
+        This value is the conservative spacing used for staged CFL migration.
+        The full non-uniform update should eventually use explicit local metric
+        arrays, but stability remains controlled by the smallest cell.
+        """
+        return float(jnp.min(jnp.asarray([jnp.min(self.dx), jnp.min(self.dy), jnp.min(self.dz)])))
+
+    @property
+    def is_uniform(self) -> bool:
+        """Whether all cell widths match a single spacing within numerical tolerance."""
+        spacing = self.dx[0]
+        return bool(jnp.allclose(self.dx, spacing) and jnp.allclose(self.dy, spacing) and jnp.allclose(self.dz, spacing))
+
+    @property
+    def uniform_spacing(self) -> float:
+        """Return the scalar spacing for a uniform grid or raise for non-uniform grids.
+
+        This compatibility escape hatch should only be used by code that has not
+        yet been migrated to metric-aware helpers.  It deliberately raises for
+        non-uniform grids so unsupported paths fail loudly.
+        """
+        if not self.is_uniform:
+            raise ValueError("This operation still requires a uniform grid.")
+        return float(self.dx[0])
+
+    def edges(self, axis: int) -> jax.Array:
+        """Return edge coordinates for ``axis``."""
+        return (self.x_edges, self.y_edges, self.z_edges)[axis]
+
+    def cell_widths(self, axis: int) -> jax.Array:
+        """Return cell widths for ``axis``."""
+        return (self.dx, self.dy, self.dz)[axis]
+
+    def centers(self, axis: int) -> jax.Array:
+        """Return cell-center coordinates for ``axis``."""
+        edges = self.edges(axis)
+        return 0.5 * (edges[:-1] + edges[1:])
+
+    def axis_extent(self, axis: int, bounds: tuple[int, int]) -> float:
+        """Physical length covered by an index interval on one axis."""
+        lower, upper = bounds
+        edges = self.edges(axis)
+        return float(edges[upper] - edges[lower])
+
+    def slice_extent(self, slice_tuple: tuple[tuple[int, int], tuple[int, int], tuple[int, int]]) -> tuple[float, float, float]:
+        """Physical side lengths covered by a 3D grid slice."""
+        return tuple(self.axis_extent(axis, slice_tuple[axis]) for axis in range(3))  # type: ignore[return-value]
+
+    def coord_to_index(self, axis: int, coord: float, snap: str = "nearest") -> int:
+        """Map a physical coordinate to a grid edge index.
+
+        Args:
+            axis: Grid axis.
+            coord: Coordinate in metres.
+            snap: Snapping rule. ``"nearest"`` chooses the closest edge,
+                ``"lower"`` chooses the previous edge, and ``"upper"`` chooses
+                the next edge.
+
+        Returns:
+            Edge index after applying the requested snapping rule.
+        """
+        edges = np.asarray(self.edges(axis))
+        if snap == "nearest":
+            return int(np.argmin(np.abs(edges - coord)))
+        if snap == "lower":
+            return int(np.searchsorted(edges, coord, side="right") - 1)
+        if snap == "upper":
+            return int(np.searchsorted(edges, coord, side="left"))
+        raise ValueError(f"Unknown snapping rule: {snap}")
+
+    def length_to_cell_count(self, axis: int, length: float, snap: str = "nearest") -> int:
+        """Convert a physical length to a number of cells from the lower domain edge.
+
+        This helper preserves the old uniform-grid behavior when ``snap`` is
+        ``"nearest"``.  For non-uniform placement the more robust operation is
+        usually to choose an interval using edge coordinates; this method is a
+        migration bridge for shape-only constraints.
+        """
+        if length < 0:
+            raise ValueError(f"Length must be non-negative, got {length}.")
+        return self.coord_to_index(axis, float(self.edges(axis)[0]) + length, snap=snap)
+
+    def face_area(self, axis: int, slice_tuple: tuple[tuple[int, int], tuple[int, int], tuple[int, int]]) -> jax.Array:
+        """Return per-cell face-area weights for a detector plane.
+
+        Args:
+            axis: Normal axis of the face.
+            slice_tuple: Grid slice containing the detector volume.  The normal
+                axis is expected to have width one for a plane detector.
+
+        Returns:
+            Area weights broadcast to the detector's 3D slice shape.
+        """
+        transverse_axes = [a for a in range(3) if a != axis]
+        widths = []
+        for transverse_axis in transverse_axes:
+            lower, upper = slice_tuple[transverse_axis]
+            widths.append(self.cell_widths(transverse_axis)[lower:upper])
+        area_2d = widths[0][:, None] * widths[1][None, :]
+        shape = [1, 1, 1]
+        shape[transverse_axes[0]] = area_2d.shape[0]
+        shape[transverse_axes[1]] = area_2d.shape[1]
+        return area_2d.reshape(shape)
+
+    def cell_volume(self, slice_tuple: tuple[tuple[int, int], tuple[int, int], tuple[int, int]]) -> jax.Array:
+        """Return per-cell volume weights broadcast to a 3D slice shape."""
+        x0, x1 = slice_tuple[0]
+        y0, y1 = slice_tuple[1]
+        z0, z1 = slice_tuple[2]
+        return self.dx[x0:x1, None, None] * self.dy[None, y0:y1, None] * self.dz[None, None, z0:z1]
 
 
 def calculate_spatial_offsets_yee() -> tuple[jax.Array, jax.Array]:

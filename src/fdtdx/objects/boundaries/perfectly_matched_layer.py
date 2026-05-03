@@ -87,7 +87,8 @@ class PerfectlyMatchedLayer(BaseBoundary):
         # Now calculate sigma_end if it wasn't provided by the user
         if self.sigma_end is None:
             assert self.sigma_order is not None, "sigma_order should be set by __post_init__"
-            pml_thickness = self.thickness * self._config.resolution
+            spacing = self._config.require_uniform_grid()
+            pml_thickness = self.thickness * spacing
             sigma_end_calculated = -(self.sigma_order + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * pml_thickness)
             self = self.aset("sigma_end", float(sigma_end_calculated))
 

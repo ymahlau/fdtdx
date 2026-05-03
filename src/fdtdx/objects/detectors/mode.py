@@ -105,7 +105,7 @@ class ModeOverlapDetector(PhasorDetector):
             frequency=self.wave_characters[0].get_frequency(),
             inv_permittivities=inv_permittivity_slice,
             inv_permeabilities=inv_permeability_slice,
-            resolution=self._config.resolution,
+            resolution=self._config.require_uniform_grid(),
             direction=self.direction,
             mode_index=self.mode_index,
             filter_pol=self.filter_pol,
