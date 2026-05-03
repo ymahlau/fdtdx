@@ -1,5 +1,4 @@
 import jax
-import jax.numpy as jnp
 
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.physics.metrics import compute_energy
@@ -47,20 +46,6 @@ class EnergyDetector(Detector):
     #: If "mean", aggregates slices by averaging instead of using position.
     #: If None, mean is used. Defaults to None.
     aggregate: str | None = frozen_field(default=None)  # e.g., "mean"
-
-    def _cell_volume_weights(self) -> jax.Array:
-        """Return cell-volume weights matching this detector's grid slice.
-
-        ``SimulationConfig.grid`` is the preferred source because it carries the
-        full rectilinear metric.  The scalar-resolution fallback exists for older
-        construction paths and tests that instantiate detectors with a minimal
-        configuration.
-        """
-        if self._config.grid is not None:
-            return self._config.grid.cell_volume(self.grid_slice_tuple)
-
-        spacing = self._config.require_uniform_grid()
-        return jnp.ones(self.grid_shape, dtype=self.dtype) * spacing * spacing * spacing
 
     def _shape_dtype_single_time_step(
         self,

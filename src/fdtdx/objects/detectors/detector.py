@@ -80,6 +80,36 @@ class Detector(SimulationObject, ABC):
             raise Exception("Detector is not yet initialized")
         return self._num_time_steps_on
 
+    def _cell_volume_weights(self) -> jax.Array:
+        """Return physical cell-volume weights for this detector's grid slice.
+
+        Detectors that reduce spatial data should call this helper instead of
+        assuming equal-volume voxels.  A scalar-resolution fallback preserves
+        compatibility for tests and older construction paths without an explicit
+        ``GridSpec``.
+        """
+        if self._config.grid is not None:
+            return self._config.grid.cell_volume(self.grid_slice_tuple)
+
+        spacing = self._config.require_uniform_grid()
+        return jnp.ones(self.grid_shape, dtype=self.dtype) * spacing * spacing * spacing
+
+    def _volume_weighted_spatial_mean(self, values: jax.Array, leading_dims: int) -> jax.Array:
+        """Average spatial detector samples using physical cell volumes.
+
+        Args:
+            values: Array whose final three dimensions match ``grid_shape``.
+            leading_dims: Number of leading non-spatial dimensions to preserve,
+                such as component or frequency axes.
+
+        Returns:
+            ``values`` averaged over the three spatial dimensions.
+        """
+        weights = self._cell_volume_weights()
+        weight_shape = (1,) * leading_dims + weights.shape
+        spatial_axes = tuple(range(leading_dims, values.ndim))
+        return jnp.sum(values * weights.reshape(weight_shape), axis=spatial_axes) / jnp.sum(weights)
+
     def _calculate_on_list(
         self,
     ) -> list[bool]:

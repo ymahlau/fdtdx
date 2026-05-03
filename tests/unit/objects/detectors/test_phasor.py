@@ -3,6 +3,8 @@
 import jax.numpy as jnp
 import pytest
 
+from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import GridSpec
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.detectors.phasor import PhasorDetector
 
@@ -231,6 +233,28 @@ class TestPhasorDetectorUpdate:
 
         # Should be reduced to (1, 1, 6) - 1 latent step, 1 freq, 6 components
         assert new_state["phasor"].shape == (1, 1, 6)
+
+    def test_reduce_volume_uses_nonuniform_volume_weighted_mean(self, random_key, single_frequency):
+        """Reduced phasors average spatial samples by physical cell volume."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 3.0, 7.0]),
+            z_edges=jnp.asarray([0.0, 2.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        detector = PhasorDetector(wave_characters=single_frequency, reduce_volume=True, components=("Ex",))
+        detector = detector.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
+        state = detector.init_state()
+
+        E = jnp.zeros((3, 2, 2, 1), dtype=jnp.float32)
+        E = E.at[0, :, :, 0].set(jnp.asarray([[1.0, 2.0], [3.0, 4.0]], dtype=jnp.float32))
+        H = jnp.zeros((3, 2, 2, 1), dtype=jnp.float32)
+
+        new_state = detector.update(jnp.array(0), E, H, state, jnp.ones((1, 2, 2, 1)), 1.0)
+
+        static_scale = 2 / detector.num_time_steps_recorded
+        expected = static_scale * (1 * 6 + 2 * 8 + 3 * 12 + 4 * 16) / 42
+        assert jnp.allclose(new_state["phasor"][0, 0, 0], jnp.asarray(expected, dtype=jnp.complex64))
 
     def test_update_multiple_frequencies(
         self,
