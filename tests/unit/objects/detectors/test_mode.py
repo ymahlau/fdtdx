@@ -3,6 +3,8 @@
 import jax.numpy as jnp
 import pytest
 
+from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import GridSpec
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.detectors.mode import ModeOverlapDetector
 
@@ -76,6 +78,11 @@ class TestModeOverlapDetectorDefaults:
         """bend_axis defaults to None (straight waveguide)."""
         det = ModeOverlapDetector(wave_characters=single_frequency, direction="+")
         assert det.bend_axis is None
+
+    def test_integrate_default_true(self, single_frequency):
+        """Mode overlap defaults to physical surface integration."""
+        det = ModeOverlapDetector(wave_characters=single_frequency, direction="+")
+        assert det.integrate is True
 
     def test_bend_radius_stored(self, single_frequency):
         """Custom bend_radius value is stored."""
@@ -321,11 +328,53 @@ class TestModeOverlapDetectorComputeOverlap:
         phasors_H = phasors[0, 0, 3:]
         E_cross_H = jnp.cross(mode_E, jnp.conj(phasors_H), axis=0)[det.propagation_axis]
         E_cross_H_back = jnp.cross(jnp.conj(phasors_E), mode_H, axis=0)[det.propagation_axis]
-        expected = jnp.sum(E_cross_H + E_cross_H_back) / 4.0
+        expected = jnp.sum((E_cross_H + E_cross_H_back) * det._face_area_weights()) / 4.0
 
         overlap = det.compute_overlap_to_mode(state=state, mode_E=mode_E, mode_H=mode_H)
 
         assert jnp.isclose(overlap, expected)
+
+    def test_compute_overlap_integrates_nonuniform_face_area(self, random_key, single_frequency):
+        """A constant overlap integrand integrates to the detector face area."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 3.0, 7.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        det = ModeOverlapDetector(wave_characters=single_frequency, direction="+")
+        det = det.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
+
+        state = det.init_state()
+        phasor = jnp.zeros_like(state["phasor"]).at[0, 0, 4].set(1.0)
+        state = {"phasor": phasor}
+        mode_E = jnp.zeros((3, 2, 2, 1), dtype=jnp.complex64).at[0].set(1.0)
+        mode_H = jnp.zeros((3, 2, 2, 1), dtype=jnp.complex64)
+
+        overlap = det.compute_overlap_to_mode(state=state, mode_E=mode_E, mode_H=mode_H)
+
+        assert jnp.allclose(overlap, jnp.asarray(21.0 / 4.0, dtype=jnp.complex64))
+
+    def test_compute_overlap_can_keep_legacy_raw_sum(self, random_key, single_frequency):
+        """The integrate switch preserves raw overlap summation for compatibility checks."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 3.0, 7.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        det = ModeOverlapDetector(wave_characters=single_frequency, direction="+", integrate=False)
+        det = det.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
+
+        state = det.init_state()
+        phasor = jnp.zeros_like(state["phasor"]).at[0, 0, 4].set(1.0)
+        state = {"phasor": phasor}
+        mode_E = jnp.zeros((3, 2, 2, 1), dtype=jnp.complex64).at[0].set(1.0)
+        mode_H = jnp.zeros((3, 2, 2, 1), dtype=jnp.complex64)
+
+        overlap = det.compute_overlap_to_mode(state=state, mode_E=mode_E, mode_H=mode_H)
+
+        assert jnp.allclose(overlap, jnp.asarray(1.0, dtype=jnp.complex64))
 
 
 class TestModeOverlapDetectorComputeOverlapPath:
