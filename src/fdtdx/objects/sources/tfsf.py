@@ -71,6 +71,13 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         Returns:
             float: Maximum vertical offset in grid points.
         """
+        if self.max_vertical_offset == 0:
+            return 0.0
+        if self._config.grid is not None and not self._config.grid.is_uniform:
+            raise ValueError(
+                "Random vertical TFSF offsets are not supported on non-uniform grids yet. "
+                "Place the source explicitly in physical coordinates instead."
+            )
         return self.max_vertical_offset / self._config.require_uniform_grid()
 
     @property
@@ -80,6 +87,13 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         Returns:
             float: Maximum horizontal offset in grid points.
         """
+        if self.max_horizontal_offset == 0:
+            return 0.0
+        if self._config.grid is not None and not self._config.grid.is_uniform:
+            raise ValueError(
+                "Random horizontal TFSF offsets are not supported on non-uniform grids yet. "
+                "Place the source explicitly in physical coordinates instead."
+            )
         return self.max_horizontal_offset / self._config.require_uniform_grid()
 
     def _get_azimuth_elevation(
