@@ -1,3 +1,4 @@
+from numbers import Real
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -63,10 +64,13 @@ def plot_material_from_side(
         else:
             material_array = 1.0 / arrays.inv_permeabilities
 
-    resolution = config.resolution / 1.0e-6  # Convert to µm
+    spacing = config.require_uniform_grid()
+    if not isinstance(spacing, Real):
+        spacing = config.resolution
+    resolution = spacing / 1.0e-6  # Convert to µm
 
     # Calculate slice index from position
-    slice_offset = round(position / config.resolution)
+    slice_offset = round(position / spacing)
 
     # material_array has shape (num_components, Nx, Ny, Nz)
     material_array = jnp.asarray(material_array)

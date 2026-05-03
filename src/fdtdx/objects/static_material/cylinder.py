@@ -50,7 +50,7 @@ class Cylinder(StaticMultiMaterialObject):
         width = self.grid_shape[self.vertical_axis]
         height = self.grid_shape[self.horizontal_axis]
         center = (height / 2, width / 2)
-        grid_radius_exact = self.radius / self._config.resolution
+        grid_radius_exact = self.radius / self._config.require_uniform_grid()
         grid = (
             jnp.stack(jnp.meshgrid(*map(jnp.arange, (width, height)), indexing="xy"), axis=-1)
             - jnp.asarray(center)

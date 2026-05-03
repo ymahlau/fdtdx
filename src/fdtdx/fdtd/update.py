@@ -93,7 +93,8 @@ def pad_fields_for_boundaries(
     Args:
         fields: Field array of shape (3, Nx, Ny, Nz)
         objects: Container with simulation objects including boundaries
-        config: Simulation configuration (provides resolution)
+        config: Simulation configuration. Boundary pad corrections still require
+            uniform spacing until Bloch/PML metric support is completed.
 
     Returns:
         Padded fields of shape (3, Nx+2, Ny+2, Nz+2) with all corrections applied
@@ -103,8 +104,9 @@ def pad_fields_for_boundaries(
     boundaries = objects.boundary_objects
     if boundaries:
         volume_shape = objects.volume.grid_shape
+        spacing = config.require_uniform_grid()
         for boundary in boundaries:
-            padded = boundary.apply_pad_correction(padded, volume_shape, config.resolution)
+            padded = boundary.apply_pad_correction(padded, volume_shape, spacing)
     return padded
 
 

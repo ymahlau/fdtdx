@@ -5,6 +5,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import GridSpec
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.initialization import (
     _apply_grid_coordinate_constraint,
@@ -1089,6 +1090,9 @@ def test_init_arrays_unknown_static_material_type_raises(mock_create_matrix):
     config.resolution = 1.0
     config.backend = "cpu"
     config.gradient_config = None
+    config.grid = None
+    config.require_grid.return_value = GridSpec.uniform(shape=(2, 2, 2), spacing=1.0)
+    config.require_uniform_grid.return_value = 1.0
 
     objects = Mock(spec=ObjectContainer)
     objects.volume = Mock()

@@ -81,13 +81,14 @@ class Device(OrderableObject, ABC):
 
         Returns:
             tuple[float, float, float]: Tuple of (x,y,z) dimensions in real units, computed by multiplying
-                the grid shape by the simulation resolution.
+                the grid shape by the uniform simulation spacing.
         """
         grid_shape = self.single_voxel_grid_shape
+        spacing = self._config.require_uniform_grid()
         return (
-            grid_shape[0] * self._config.resolution,
-            grid_shape[1] * self._config.resolution,
-            grid_shape[2] * self._config.resolution,
+            grid_shape[0] * spacing,
+            grid_shape[1] * spacing,
+            grid_shape[2] * spacing,
         )
 
     @property
@@ -113,6 +114,7 @@ class Device(OrderableObject, ABC):
         self = super().place_on_grid(grid_slice_tuple=grid_slice_tuple, config=config, key=key)
         # determine voxel shape
         voxel_grid_shape = []
+        spacing = config.require_uniform_grid()
         for axis in range(3):
             partial_grid = self.partial_voxel_grid_shape[axis]
             partial_real = self.partial_voxel_real_shape[axis]
@@ -121,7 +123,7 @@ class Device(OrderableObject, ABC):
             if partial_grid is not None:
                 voxel_grid_shape.append(partial_grid)
             elif partial_real is not None:
-                voxel_grid_shape.append(round(partial_real / config.resolution))
+                voxel_grid_shape.append(round(partial_real / spacing))
             else:
                 raise Exception(f"Multi-Material voxels not specified in axis: {axis=}")
 
@@ -131,10 +133,10 @@ class Device(OrderableObject, ABC):
         for axis in range(3):
             float_div = is_float_divisible(
                 self.single_voxel_real_shape[axis],
-                self._config.resolution,
+                spacing,
             )
             if not float_div:
-                raise Exception(f"Not divisible: {self.single_voxel_real_shape[axis]=}, {self._config.resolution=}")
+                raise Exception(f"Not divisible: {self.single_voxel_real_shape[axis]=}, {spacing=}")
             if self.grid_shape[axis] % self.matrix_voxel_grid_shape[axis] != 0:
                 raise Exception(
                     f"Due to discretization, matrix got skewered for {axis=}. "

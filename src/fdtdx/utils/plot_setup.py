@@ -1,3 +1,4 @@
+from numbers import Real
 from pathlib import Path
 from typing import Any, Literal
 
@@ -84,7 +85,10 @@ def plot_setup_from_side(
     else:
         fig = None
 
-    resolution = config.resolution / 1.0e-6  # Convert to µm
+    spacing = config.require_uniform_grid()
+    if not isinstance(spacing, Real):
+        spacing = config.resolution
+    resolution = spacing / 1.0e-6  # Convert to µm
 
     # Determine which exclude list to use based on viewing side
     if viewing_side == "z":

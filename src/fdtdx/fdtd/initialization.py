@@ -234,6 +234,12 @@ def _init_arrays(
     """
     # create E/H fields
     volume_shape = objects.volume.grid_shape
+    grid = config.require_grid(volume_shape)
+    if grid.shape != volume_shape:
+        raise ValueError(f"Configured grid shape {grid.shape} does not match simulation volume shape {volume_shape}.")
+    if config.grid is None:
+        config = config.aset("grid", grid)
+    uniform_spacing = config.require_uniform_grid()
     ext_shape = (3, *volume_shape)
 
     # Determine whether to use complex-valued fields
@@ -456,7 +462,7 @@ def _init_arrays(
                     cond_tuple = o.material.electric_conductivity
 
                 # scale by grid size
-                obj_electric_conductivity = (jnp.array(cond_tuple, dtype=config.dtype) * config.resolution)[
+                obj_electric_conductivity = (jnp.array(cond_tuple, dtype=config.dtype) * uniform_spacing)[
                     :, None, None, None
                 ]
                 electric_conductivity = electric_conductivity.at[:, *o.grid_slice].set(obj_electric_conductivity)
@@ -477,7 +483,7 @@ def _init_arrays(
                     cond_tuple = o.material.magnetic_conductivity
 
                 # scale by grid size
-                obj_magnetic_conductivity = (jnp.array(cond_tuple, dtype=config.dtype) * config.resolution)[
+                obj_magnetic_conductivity = (jnp.array(cond_tuple, dtype=config.dtype) * uniform_spacing)[
                     :, None, None, None
                 ]
                 magnetic_conductivity = magnetic_conductivity.at[:, *o.grid_slice].set(obj_magnetic_conductivity)
@@ -535,7 +541,7 @@ def _init_arrays(
                     )
                 )
 
-                component_values = jnp.moveaxis(allowed_conds[indices], -1, 0) * config.resolution
+                component_values = jnp.moveaxis(allowed_conds[indices], -1, 0) * uniform_spacing
                 diff = component_values - electric_conductivity[:, *o.grid_slice]
                 electric_conductivity = electric_conductivity.at[:, *o.grid_slice].add(mask * diff)
 
@@ -548,7 +554,7 @@ def _init_arrays(
                     )
                 )
 
-                component_values = jnp.moveaxis(allowed_conds[indices], -1, 0) * config.resolution
+                component_values = jnp.moveaxis(allowed_conds[indices], -1, 0) * uniform_spacing
                 diff = component_values - magnetic_conductivity[:, *o.grid_slice]
                 magnetic_conductivity = magnetic_conductivity.at[:, *o.grid_slice].add(mask * diff)
         else:
@@ -754,6 +760,7 @@ def _resolve_static_positions_initial(
     This function converts it to grid coordinates and computes the slice boundaries
     if the object's size is known.
     """
+    spacing = config.require_uniform_grid()
     for obj_name, obj in object_map.items():
         # Check if the object has partial_real_position attribute
         if hasattr(obj, "partial_real_position") and obj.partial_real_position is not None:
@@ -764,7 +771,7 @@ def _resolve_static_positions_initial(
                     if size is not None:
                         lower, upper = _center_to_bounds(
                             obj.partial_real_position[axis],  # type: ignore
-                            config.resolution,
+                            spacing,
                             size,
                         )
                         slice_dict[obj_name][axis][0] = lower
@@ -786,6 +793,7 @@ def _resolve_static_positions_iterative(
     Returns True if any new positions were resolved.
     """
     resolved_something = False
+    spacing = config.require_uniform_grid()
     for obj_name, obj in object_map.items():
         # Check if the object has partial_real_position attribute
         if hasattr(obj, "partial_real_position") and obj.partial_real_position is not None:
@@ -801,7 +809,7 @@ def _resolve_static_positions_iterative(
                     if size is not None:
                         lower, upper = _center_to_bounds(
                             obj.partial_real_position[axis],  # type: ignore
-                            config.resolution,
+                            spacing,
                             size,
                         )
 
@@ -1012,13 +1020,14 @@ def _resolve_static_shapes(
     config: SimulationConfig,
 ):
     """Fill in static or directly defined shapes."""
+    spacing = config.require_uniform_grid()
     for obj_name, obj in object_map.items():
         for axis in range(3):
             if obj.partial_grid_shape[axis] is not None:
                 shape_dict[obj_name][axis] = obj.partial_grid_shape[axis]
             if obj.partial_real_shape[axis] is not None:
                 cur_grid_shape = round(
-                    obj.partial_real_shape[axis] / config.resolution  # type: ignore
+                    obj.partial_real_shape[axis] / spacing  # type: ignore
                 )
                 shape_dict[obj_name][axis] = cur_grid_shape
     return shape_dict
@@ -1109,8 +1118,9 @@ def _apply_real_coordinate_constraint(
     obj_name = constraint.object
     obj = object_map[obj_name]
     resolved_something = False
+    spacing = config.require_uniform_grid()
     for axis_idx, axis in enumerate(constraint.axes):
-        cur_size = round(constraint.coordinates[axis_idx] / config.resolution)
+        cur_size = round(constraint.coordinates[axis_idx] / spacing)
         b_idx = 0 if constraint.sides[axis_idx] == "-" else 1
         if slice_dict[obj_name][axis][b_idx] is None:
             slice_dict[obj_name][axis][b_idx] = cur_size
@@ -1134,6 +1144,7 @@ def _apply_position_constraint(
     obj_name, other_name = constraint.object, constraint.other_object
     obj = object_map[obj_name]
     resolved_something = False
+    spacing = config.require_uniform_grid()
     # go through axes of constraint
     for axis_idx, axis in enumerate(constraint.axes):
         grid_margin = constraint.grid_margins[axis_idx]
@@ -1154,7 +1165,7 @@ def _apply_position_constraint(
         if grid_margin is not None:
             other_offset += grid_margin
         if real_margin is not None:
-            other_offset += real_margin / config.resolution
+            other_offset += real_margin / spacing
         other_anchor = other_midpoint + factor * other_pos + other_offset
         # calculate position of object
         obj_pos = constraint.object_positions[axis_idx]
@@ -1202,6 +1213,7 @@ def _apply_size_constraint(
     obj_name, other_name = constraint.object, constraint.other_object
     obj = object_map[obj_name]
     resolved_something = False
+    spacing = config.require_uniform_grid()
     # iterate through axes of the constraint
     for axis_idx, axis in enumerate(constraint.axes):
         other_axes = constraint.other_axes[axis_idx]
@@ -1215,7 +1227,7 @@ def _apply_size_constraint(
         if constraint.grid_offsets[axis_idx] is not None:
             grid_offset += constraint.grid_offsets[axis_idx]
         if constraint.offsets[axis_idx] is not None:
-            grid_offset += constraint.offsets[axis_idx] / config.resolution
+            grid_offset += constraint.offsets[axis_idx] / spacing
         object_shape = round(other_shape * proportion + grid_offset)
         # update or check consistency
         if shape_dict[obj_name][axis] is None:
@@ -1241,6 +1253,7 @@ def _apply_size_extension_constraint(
     obj = object_map[obj_name]
     dir_idx = 0 if constraint.direction == "-" else 1
     resolved_something = False
+    spacing = config.require_uniform_grid()
     # calculate anchor point
     if other_name is not None:
         # check if other knows their position
@@ -1254,7 +1267,7 @@ def _apply_size_extension_constraint(
         if constraint.grid_offset is not None:
             other_offset += constraint.grid_offset
         if constraint.offset is not None:
-            other_offset += constraint.offset / config.resolution
+            other_offset += constraint.offset / spacing
         other_anchor = round(other_midpoint + factor * constraint.other_position + other_offset)
     else:
         # if other is not specified, extend to boundary of simulation volume

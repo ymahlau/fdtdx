@@ -2,7 +2,66 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from fdtdx.core.grid import calculate_spatial_offsets_yee, calculate_time_offset_yee, polygon_to_mask
+from fdtdx.core.grid import GridSpec, calculate_spatial_offsets_yee, calculate_time_offset_yee, polygon_to_mask
+
+
+class TestGridSpec:
+    """Tests for the canonical rectilinear grid representation."""
+
+    def test_uniform_constructor_stores_edges(self):
+        """Uniform grids are represented as ordinary rectilinear edge arrays."""
+        grid = GridSpec.uniform(shape=(2, 3, 4), spacing=0.5, origin=(1.0, 2.0, 3.0))
+
+        assert grid.shape == (2, 3, 4)
+        assert np.allclose(np.asarray(grid.x_edges), [1.0, 1.5, 2.0])
+        assert np.allclose(np.asarray(grid.y_edges), [2.0, 2.5, 3.0, 3.5])
+        assert np.allclose(np.asarray(grid.z_edges), [3.0, 3.5, 4.0, 4.5, 5.0])
+        assert grid.is_uniform
+        assert grid.uniform_spacing == 0.5
+
+    def test_nonuniform_grid_metrics(self):
+        """Non-uniform grids derive widths, centers, extents, areas, and volumes from edges."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 2.0, 5.0]),
+            z_edges=jnp.asarray([0.0, 4.0, 6.0]),
+        )
+        slice_tuple = ((0, 2), (0, 2), (0, 2))
+
+        assert grid.shape == (2, 2, 2)
+        assert np.allclose(np.asarray(grid.dx), [1.0, 2.0])
+        assert np.allclose(np.asarray(grid.centers(1)), [1.0, 3.5])
+        assert grid.min_spacing == 1.0
+        assert not grid.is_uniform
+        assert grid.slice_extent(slice_tuple) == (3.0, 5.0, 6.0)
+        assert np.allclose(np.asarray(grid.face_area(axis=0, slice_tuple=slice_tuple)), [[[8.0, 4.0], [12.0, 6.0]]])
+        assert np.allclose(
+            np.asarray(grid.cell_volume(slice_tuple)),
+            [[[8.0, 4.0], [12.0, 6.0]], [[16.0, 8.0], [24.0, 12.0]]],
+        )
+
+    def test_uniform_spacing_raises_for_nonuniform_grid(self):
+        """Scalar-resolution compatibility paths must fail loudly for non-uniform grids."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 1.0, 2.0]),
+            z_edges=jnp.asarray([0.0, 1.0, 2.0]),
+        )
+
+        with pytest.raises(ValueError, match="requires a uniform grid"):
+            _ = grid.uniform_spacing
+
+    def test_coord_to_index_snapping_rules(self):
+        """Coordinate snapping is centralized so placement code does not open-code searchsorted."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
+            y_edges=jnp.asarray([0.0, 1.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+
+        assert grid.coord_to_index(0, 2.2, snap="nearest") == 2
+        assert grid.coord_to_index(0, 2.2, snap="lower") == 1
+        assert grid.coord_to_index(0, 2.2, snap="upper") == 2
 
 
 def test_calculate_spatial_offsets_yee_basic():

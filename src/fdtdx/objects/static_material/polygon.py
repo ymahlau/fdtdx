@@ -50,10 +50,11 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
     def get_voxel_mask_for_shape(self) -> jax.Array:
         n_horizontal = self.grid_shape[self.horizontal_axis]
         n_vertical = self.grid_shape[self.vertical_axis]
+        spacing = self._config.require_uniform_grid()
 
-        half_res = 0.5 * self._config.resolution
-        max_horizontal = (n_horizontal - 0.5) * self._config.resolution
-        max_vertical = (n_vertical - 0.5) * self._config.resolution
+        half_res = 0.5 * spacing
+        max_horizontal = (n_horizontal - 0.5) * spacing
+        max_vertical = (n_vertical - 0.5) * spacing
 
         # Shift vertices from object-center coords to local grid coords.
         center_h = 0.5 * self.real_shape[self.horizontal_axis]
@@ -62,7 +63,7 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
 
         mask_2d = polygon_to_mask(
             boundary=(half_res, half_res, max_horizontal, max_vertical),
-            resolution=self._config.resolution,
+            resolution=spacing,
             polygon_vertices=grid_vertices,
         )
         extrusion_height = self.grid_shape[self.axis]

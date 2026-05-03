@@ -49,9 +49,10 @@ class Sphere(StaticMultiMaterialObject):
         radius_z = self.radius_z if self.radius_z is not None else self.radius
 
         # Convert radii to grid units
-        grid_radius_x = radius_x / self._config.resolution
-        grid_radius_y = radius_y / self._config.resolution
-        grid_radius_z = radius_z / self._config.resolution
+        spacing = self._config.require_uniform_grid()
+        grid_radius_x = radius_x / spacing
+        grid_radius_y = radius_y / spacing
+        grid_radius_z = radius_z / spacing
 
         # Create 3D grid
         x, y, z = jnp.meshgrid(jnp.arange(x_dim), jnp.arange(y_dim), jnp.arange(z_dim), indexing="ij")

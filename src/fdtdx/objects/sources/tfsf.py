@@ -71,7 +71,7 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         Returns:
             float: Maximum vertical offset in grid points.
         """
-        return self.max_vertical_offset / self._config.resolution
+        return self.max_vertical_offset / self._config.require_uniform_grid()
 
     @property
     def max_horizontal_offset_grid(self) -> float:
@@ -80,7 +80,7 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         Returns:
             float: Maximum horizontal offset in grid points.
         """
-        return self.max_horizontal_offset / self._config.resolution
+        return self.max_horizontal_offset / self._config.require_uniform_grid()
 
     def _get_azimuth_elevation(
         self,

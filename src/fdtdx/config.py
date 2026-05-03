@@ -6,6 +6,7 @@ import jax.numpy as jnp
 from loguru import logger
 
 from fdtdx import constants
+from fdtdx.core.grid import GridSpec
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field
 from fdtdx.interfaces.recorder import Recorder
 from fdtdx.typing import BackendOption
@@ -51,8 +52,21 @@ class SimulationConfig(TreeClass):
     #: Total simulation time in seconds.
     time: float = frozen_field()
 
-    #: Spatial resolution of the simulation grid in meters.
+    #: Spatial resolution of a legacy uniform simulation grid in meters.
+    #:
+    #: New internals should prefer ``grid``.  This field is kept as a public
+    #: compatibility constructor while the codebase migrates to one canonical
+    #: ``GridSpec`` path.  When ``grid`` is present and non-uniform, operations
+    #: that still rely on this scalar should fail loudly via ``require_uniform_grid``.
     resolution: float = frozen_field()
+
+    #: Rectilinear grid metric used by compiled simulations.
+    #:
+    #: The grid is optional during initial configuration because the simulation
+    #: volume can still be specified in physical units and resolved later during
+    #: object placement.  Once objects are placed, ``place_objects`` attaches a
+    #: concrete ``GridSpec`` so downstream code has a single metric source.
+    grid: GridSpec | None = frozen_field(default=None)
 
     #: Computation backend ('gpu', 'tpu', 'cpu' or 'METAL'). Defaults to "gpu".
     backend: BackendOption = frozen_field(default="gpu")
@@ -118,6 +132,35 @@ class SimulationConfig(TreeClass):
         """
         return self.courant_factor / math.sqrt(3)
 
+    def require_grid(self, shape: tuple[int, int, int] | None = None) -> GridSpec:
+        """Return the configured grid, creating a uniform compatibility grid if needed.
+
+        Args:
+            shape: Required when the config was constructed with only
+                ``resolution``.  The shape is normally the placed simulation
+                volume shape.
+
+        Returns:
+            A concrete ``GridSpec``.
+        """
+        if self.grid is not None:
+            return self.grid
+        if shape is None:
+            raise ValueError("A grid shape is required to build a GridSpec from scalar resolution.")
+        return GridSpec.uniform(shape=shape, spacing=self.resolution)
+
+    def require_uniform_grid(self) -> float:
+        """Return uniform spacing for legacy code that has not been metricized yet.
+
+        This method marks scalar-resolution dependencies explicitly.  It preserves
+        old behavior for uniform grids and raises for non-uniform grids, which is
+        safer than silently applying a global spacing where local metrics are
+        required.
+        """
+        if self.grid is None:
+            return self.resolution
+        return self.grid.uniform_spacing
+
     @property
     def time_step_duration(self) -> float:
         """Calculate the duration of a single time step.
@@ -130,7 +173,8 @@ class SimulationConfig(TreeClass):
             float: Time step duration in seconds, calculated using the Courant
                 condition and spatial resolution.
         """
-        return self.courant_number * self.resolution / constants.c
+        spacing = self.grid.min_spacing if self.grid is not None else self.resolution
+        return self.courant_number * spacing / constants.c
 
     @property
     def time_steps_total(self) -> int:
