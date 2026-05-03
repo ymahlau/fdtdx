@@ -100,6 +100,31 @@ def test_interpolate_fields_zero_fields():
     assert jnp.allclose(H_interp, 0.0)
 
 
+def test_interpolate_fields_nonuniform_center_to_edge_weights():
+    """Distance-weighted interpolation recovers linear fields on stretched cells."""
+    config = _make_nonuniform_config()
+    nx, ny, nz = config.grid.shape
+    x_centers = config.grid.centers(0)
+    z_edges = config.grid.z_edges[:-1]
+    Xc, _Y, Ze = jnp.meshgrid(x_centers, config.grid.y_edges[:-1], z_edges, indexing="ij")
+
+    E = jnp.zeros((3, nx, ny, nz), dtype=jnp.float32)
+    E = E.at[0].set(Xc + Ze)
+    H = jnp.zeros((3, nx, ny, nz), dtype=jnp.float32)
+
+    E_pad = pad_fields(E, (False, False, False))
+    H_pad = pad_fields(H, (False, False, False))
+    E_interp, _ = interpolate_fields(E_pad, H_pad, config=config)
+
+    target_x_edges = config.grid.x_edges[:-1]
+    target_z_centers = config.grid.centers(2)
+    X_edge, _Y_edge, Z_center = jnp.meshgrid(target_x_edges, config.grid.y_edges[:-1], target_z_centers, indexing="ij")
+    expected = X_edge + Z_center
+
+    assert E_interp.shape == (3, nx, ny, nz)
+    assert jnp.allclose(E_interp[0][1:, :, :-1], expected[1:, :, :-1], atol=1e-6)
+
+
 # ──────────────────────────────────────────────────────────────
 # curl_E
 # ──────────────────────────────────────────────────────────────

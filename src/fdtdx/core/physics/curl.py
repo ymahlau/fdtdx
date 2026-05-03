@@ -35,9 +35,38 @@ def _metric_scale(
     return scale.reshape(tuple(broadcast_shape))
 
 
+def _backward_edge_average(
+    current: jax.Array,
+    previous: jax.Array,
+    config: SimulationConfig | None,
+    axis: int,
+) -> jax.Array:
+    """Interpolate center-staggered samples back to an edge on a rectilinear grid.
+
+    Uniform grids use the historical arithmetic mean.  On stretched grids the
+    target edge is not halfway between neighboring cell centers, so the average
+    is weighted by the half-widths of the cells on each side of the edge.
+    """
+    if config is None or config.grid is None or config.grid.is_uniform:
+        return 0.5 * (current + previous)
+
+    widths = config.grid.cell_widths(axis)
+    previous_widths = jnp.concatenate([widths[:1], widths[:-1]])
+    current_half_width = 0.5 * widths
+    previous_half_width = 0.5 * previous_widths
+    broadcast_shape = [1, 1, 1]
+    broadcast_shape[axis] = current.shape[axis]
+    current_half_width = current_half_width.reshape(tuple(broadcast_shape))
+    previous_half_width = previous_half_width.reshape(tuple(broadcast_shape))
+    return (current * previous_half_width + previous * current_half_width) / (
+        current_half_width + previous_half_width
+    )
+
+
 def interpolate_fields(
     E_pad: jax.Array,
     H_pad: jax.Array,
+    config: SimulationConfig | None = None,
 ) -> tuple[jax.Array, jax.Array]:
     """Interpolates E and H fields onto the E_z Yee grid point (i, j, k+½).
 
@@ -57,6 +86,9 @@ def interpolate_fields(
     Args:
         E_pad: Pre-padded electric field array of shape (3, Nx+2, Ny+2, Nz+2)
         H_pad: Pre-padded magnetic field array of shape (3, Nx+2, Ny+2, Nz+2)
+        config: Optional simulation configuration.  When it carries a
+            non-uniform ``GridSpec``, center-to-edge interpolations use local
+            physical distances instead of equal weights.
 
     Returns:
         Tuple of (E_interp, H_interp), each of shape (3, Nx, Ny, Nz)
@@ -65,31 +97,90 @@ def interpolate_fields(
     H_x, H_y, H_z = H_pad[0], H_pad[1], H_pad[2]
 
     # E_x: (i+½, j, k) → (i, j, k+½): x backward, z forward
-    E_x = (E_x[1:-1, 1:-1, 1:-1] + E_x[:-2, 1:-1, 1:-1] + E_x[1:-1, 1:-1, 2:] + E_x[:-2, 1:-1, 2:]) / 4.0
+    E_x_lower_z = _backward_edge_average(
+        current=E_x[1:-1, 1:-1, 1:-1],
+        previous=E_x[:-2, 1:-1, 1:-1],
+        config=config,
+        axis=0,
+    )
+    E_x_upper_z = _backward_edge_average(
+        current=E_x[1:-1, 1:-1, 2:],
+        previous=E_x[:-2, 1:-1, 2:],
+        config=config,
+        axis=0,
+    )
+    E_x = (E_x_lower_z + E_x_upper_z) / 2.0
 
     # E_y: (i, j+½, k) → (i, j, k+½): y backward, z forward
-    E_y = (E_y[1:-1, 1:-1, 1:-1] + E_y[1:-1, :-2, 1:-1] + E_y[1:-1, 1:-1, 2:] + E_y[1:-1, :-2, 2:]) / 4.0
+    E_y_lower_z = _backward_edge_average(
+        current=E_y[1:-1, 1:-1, 1:-1],
+        previous=E_y[1:-1, :-2, 1:-1],
+        config=config,
+        axis=1,
+    )
+    E_y_upper_z = _backward_edge_average(
+        current=E_y[1:-1, 1:-1, 2:],
+        previous=E_y[1:-1, :-2, 2:],
+        config=config,
+        axis=1,
+    )
+    E_y = (E_y_lower_z + E_y_upper_z) / 2.0
 
     # E_z: (i, j, k+½) → already at target
     E_z = E_z[1:-1, 1:-1, 1:-1]
 
     # H_x: (i, j+½, k+½) → (i, j, k+½): y backward only
-    H_x = (H_x[1:-1, 1:-1, 1:-1] + H_x[1:-1, :-2, 1:-1]) / 2.0
+    H_x = _backward_edge_average(
+        current=H_x[1:-1, 1:-1, 1:-1],
+        previous=H_x[1:-1, :-2, 1:-1],
+        config=config,
+        axis=1,
+    )
 
     # H_y: (i+½, j, k+½) → (i, j, k+½): x backward only
-    H_y = (H_y[1:-1, 1:-1, 1:-1] + H_y[:-2, 1:-1, 1:-1]) / 2.0
+    H_y = _backward_edge_average(
+        current=H_y[1:-1, 1:-1, 1:-1],
+        previous=H_y[:-2, 1:-1, 1:-1],
+        config=config,
+        axis=0,
+    )
 
     # H_z: (i+½, j+½, k) → (i, j, k+½): x backward, y backward, z forward
-    H_z = (
-        H_z[1:-1, 1:-1, 1:-1]
-        + H_z[:-2, 1:-1, 1:-1]
-        + H_z[1:-1, :-2, 1:-1]
-        + H_z[:-2, :-2, 1:-1]
-        + H_z[1:-1, 1:-1, 2:]
-        + H_z[:-2, 1:-1, 2:]
-        + H_z[1:-1, :-2, 2:]
-        + H_z[:-2, :-2, 2:]
-    ) / 8.0
+    H_z_lower_z_x = _backward_edge_average(
+        current=H_z[1:-1, 1:-1, 1:-1],
+        previous=H_z[:-2, 1:-1, 1:-1],
+        config=config,
+        axis=0,
+    )
+    H_z_lower_z_xy = _backward_edge_average(
+        current=H_z_lower_z_x,
+        previous=_backward_edge_average(
+            current=H_z[1:-1, :-2, 1:-1],
+            previous=H_z[:-2, :-2, 1:-1],
+            config=config,
+            axis=0,
+        ),
+        config=config,
+        axis=1,
+    )
+    H_z_upper_z_x = _backward_edge_average(
+        current=H_z[1:-1, 1:-1, 2:],
+        previous=H_z[:-2, 1:-1, 2:],
+        config=config,
+        axis=0,
+    )
+    H_z_upper_z_xy = _backward_edge_average(
+        current=H_z_upper_z_x,
+        previous=_backward_edge_average(
+            current=H_z[1:-1, :-2, 2:],
+            previous=H_z[:-2, :-2, 2:],
+            config=config,
+            axis=0,
+        ),
+        config=config,
+        axis=1,
+    )
+    H_z = (H_z_lower_z_xy + H_z_upper_z_xy) / 2.0
 
     E_interp = jnp.stack([E_x, E_y, E_z], axis=0)
     H_interp = jnp.stack([H_x, H_y, H_z], axis=0)

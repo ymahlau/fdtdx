@@ -645,6 +645,7 @@ def update_detector_states(
     interpolated_E, interpolated_H = interpolate_fields(
         E_pad=E_pad,
         H_pad=H_avg_pad,
+        config=config,
     )
 
     def helper_fn(E_input, H_input, detector: Detector):
