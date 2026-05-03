@@ -61,7 +61,8 @@ Tests to add:
 Stage 4: PML and Boundary Metrics
 ---------------------------------
 
-Status: partially implemented.
+Status: implemented for physical-depth PML profiles, PML update time scaling,
+and Bloch phase lengths.
 
 PML grading should be based on physical depth into the boundary, not the number
 of cells.  Bloch and periodic phase corrections should use physical domain length
@@ -70,7 +71,9 @@ from ``GridSpec`` edges.
 Physical-depth PML profile construction is implemented.  The time-domain PML
 auxiliary coefficient update now uses ``SimulationConfig.time_step_duration``
 instead of reconstructing ``dt`` from a scalar spacing.  Bloch phase correction
-still uses uniform spacing and remains a non-uniform boundary blocker.
+uses the physical axis extent from ``GridSpec`` edges, and the boundary padding
+path no longer requires a scalar grid before calling grid-aware boundary
+corrections.
 
 Tests to add:
 
@@ -126,7 +129,6 @@ The remaining calls to ``require_uniform_grid()`` are intentional markers.  They
 cluster around:
 
 * PML auxiliary update coefficients inside the curl functions
-* Bloch boundary phase correction
 * generic TFSF/source profile sampling and correction metrics
 * diffractive detector FFT order decomposition, currently guarded
 * plotting and image/video export, currently guarded for setup/material plots
