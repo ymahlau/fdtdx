@@ -4,7 +4,7 @@ import numpy as np
 from matplotlib.path import Path
 
 from fdtdx import constants
-from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
+from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field, frozen_private_field
 
 
 @autoinit
@@ -31,6 +31,9 @@ class GridSpec(TreeClass):
     x_edges: jax.Array = frozen_field()
     y_edges: jax.Array = frozen_field()
     z_edges: jax.Array = frozen_field()
+    _min_spacings: tuple[float, float, float] = frozen_private_field()
+    _is_uniform: bool = frozen_private_field()
+    _uniform_spacing: float | None = frozen_private_field()
 
     def __post_init__(self):
         object.__setattr__(self, "x_edges", jnp.asarray(self.x_edges))
@@ -43,6 +46,14 @@ class GridSpec(TreeClass):
                 raise ValueError(f"Grid edge coordinates for axis {axis} must contain at least two entries.")
             if bool(jnp.any(jnp.diff(edges) <= 0)):
                 raise ValueError(f"Grid edge coordinates for axis {axis} must be strictly increasing.")
+        edge_arrays_np = tuple(np.asarray(edges) for edges in (self.x_edges, self.y_edges, self.z_edges))
+        width_arrays = tuple(np.diff(edges) for edges in edge_arrays_np)
+        min_spacings = tuple(float(np.min(widths)) for widths in width_arrays)
+        spacing = float(width_arrays[0][0])
+        is_uniform = all(np.allclose(widths, spacing) for widths in width_arrays)
+        object.__setattr__(self, "_min_spacings", min_spacings)
+        object.__setattr__(self, "_is_uniform", is_uniform)
+        object.__setattr__(self, "_uniform_spacing", spacing if is_uniform else None)
 
     @classmethod
     def uniform(cls, shape: tuple[int, int, int], spacing: float, origin: tuple[float, float, float] = (0, 0, 0)):
@@ -91,12 +102,12 @@ class GridSpec(TreeClass):
         The full non-uniform update should eventually use explicit local metric
         arrays, but stability remains controlled by the smallest cell.
         """
-        return float(jnp.min(jnp.asarray([jnp.min(self.dx), jnp.min(self.dy), jnp.min(self.dz)])))
+        return min(self._min_spacings)
 
     @property
     def min_spacings(self) -> tuple[float, float, float]:
         """Smallest cell width along each axis in metres."""
-        return (float(jnp.min(self.dx)), float(jnp.min(self.dy)), float(jnp.min(self.dz)))
+        return self._min_spacings
 
     def cfl_time_step(self, courant_factor: float) -> float:
         """Return the CFL-limited time step for a rectilinear 3D grid.
@@ -117,8 +128,7 @@ class GridSpec(TreeClass):
     @property
     def is_uniform(self) -> bool:
         """Whether all cell widths match a single spacing within numerical tolerance."""
-        spacing = self.dx[0]
-        return bool(jnp.allclose(self.dx, spacing) and jnp.allclose(self.dy, spacing) and jnp.allclose(self.dz, spacing))
+        return self._is_uniform
 
     @property
     def uniform_spacing(self) -> float:
@@ -128,9 +138,9 @@ class GridSpec(TreeClass):
         yet been migrated to metric-aware helpers.  It deliberately raises for
         non-uniform grids so unsupported paths fail loudly.
         """
-        if not self.is_uniform:
+        if self._uniform_spacing is None:
             raise ValueError("This operation still requires a uniform grid.")
-        return float(self.dx[0])
+        return self._uniform_spacing
 
     def edges(self, axis: int) -> jax.Array:
         """Return edge coordinates for ``axis``."""
