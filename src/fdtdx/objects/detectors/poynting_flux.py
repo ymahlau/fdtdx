@@ -1,6 +1,7 @@
 from typing import Literal
 
 import jax
+import jax.numpy as jnp
 
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.physics.metrics import compute_poynting_flux
@@ -33,6 +34,14 @@ class PoyntingFluxDetector(Detector):
     #: is returned (scalar). If true, all three vector components are returned. Defaults to False.
     keep_all_components: bool = frozen_field(default=False)
 
+    #: Whether reduced detector output should be a physical surface integral.
+    #:
+    #: When true, ``reduce_volume=True`` multiplies flux density by per-cell face
+    #: areas before summing.  This is essential for non-uniform grids, where a raw
+    #: sum depends on local mesh density.  ``reduce_volume=False`` continues to
+    #: report flux density at detector samples.
+    integrate: bool = frozen_field(default=True)
+
     @property
     def propagation_axis(self) -> int:
         """Determines the axis along which Poynting flux is measured.
@@ -64,6 +73,26 @@ class PoyntingFluxDetector(Detector):
             shape = (1,) if self.reduce_volume else self.grid_shape
         return {"poynting_flux": jax.ShapeDtypeStruct(shape, self.dtype)}
 
+    def _face_area_weights(self) -> jax.Array:
+        """Return face-area weights matching this detector's grid slice.
+
+        The detector may be initialized before ``SimulationConfig.grid`` exists
+        in unit tests and legacy flows.  In that case a uniform area array is
+        built from the scalar compatibility spacing.
+        """
+        if self._config.grid is not None:
+            if self.keep_all_components:
+                return jnp.stack(
+                    [self._config.grid.face_area(axis=axis, slice_tuple=self.grid_slice_tuple) for axis in range(3)]
+                )
+            return self._config.grid.face_area(axis=self.propagation_axis, slice_tuple=self.grid_slice_tuple)
+
+        spacing = self._config.require_uniform_grid()
+        area = jnp.ones(self.grid_shape, dtype=self.dtype) * spacing * spacing
+        if self.keep_all_components:
+            return jnp.stack([area, area, area])
+        return area
+
     def update(
         self,
         time_step: jax.Array,
@@ -83,6 +112,8 @@ class PoyntingFluxDetector(Detector):
         if self.direction == "-":
             pf = -pf
         if self.reduce_volume:
+            if self.integrate:
+                pf = pf * self._face_area_weights()
             if self.keep_all_components:
                 pf = pf.sum(axis=(1, 2, 3))
             else:
