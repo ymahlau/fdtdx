@@ -1,6 +1,7 @@
 import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import GridSpec
 from fdtdx.core.misc import pad_fields
 from fdtdx.core.physics.curl import curl_E, curl_H, interpolate_fields
 
@@ -9,6 +10,20 @@ def _make_config():
     return SimulationConfig(
         time=400e-15,
         resolution=1.0,
+        courant_factor=0.99,
+    )
+
+
+def _make_nonuniform_config():
+    grid = GridSpec(
+        x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0, 10.0]),
+        y_edges=jnp.asarray([0.0, 1.0, 2.5, 5.0, 9.0]),
+        z_edges=jnp.asarray([0.0, 1.0, 4.0, 8.0, 13.0]),
+    )
+    return SimulationConfig(
+        time=400e-15,
+        resolution=1.0,
+        grid=grid,
         courant_factor=0.99,
     )
 
@@ -218,6 +233,32 @@ def test_curl_E_mixed_periodic():
     assert jnp.allclose(curl_result[2][:-1, 1:-1, :-1], -2.0, atol=0.1)
 
 
+def test_curl_E_nonuniform_metric_no_boundaries():
+    """Local metric factors recover the physical curl of linear fields."""
+    config = _make_nonuniform_config()
+    nx, ny, nz = config.grid.shape
+    x = config.grid.x_edges[:-1]
+    y = config.grid.y_edges[:-1]
+    X, Y, _Z = jnp.meshgrid(x, y, config.grid.z_edges[:-1], indexing="ij")
+
+    E = jnp.stack([Y, -X, jnp.zeros((nx, ny, nz), dtype=jnp.float32)], axis=0)
+    E_pad = pad_fields(E, (False, False, False))
+    psi_H = jnp.zeros((6, nx, ny, nz))
+
+    curl_result, _ = curl_E(
+        config,
+        E_pad,
+        psi_H,
+        alpha=jnp.zeros((6, nx, ny, nz)),
+        kappa=jnp.ones((6, nx, ny, nz)),
+        sigma=jnp.zeros((6, nx, ny, nz)),
+        simulate_boundaries=False,
+    )
+
+    assert curl_result.shape == (3, nx, ny, nz)
+    assert jnp.allclose(curl_result[2][:-1, :-1, :], -2.0, atol=1e-6)
+
+
 # ──────────────────────────────────────────────────────────────
 # curl_H
 # ──────────────────────────────────────────────────────────────
@@ -342,3 +383,29 @@ def test_curl_H_mixed_periodic():
 
     assert curl_result.shape == (3, n, n, n)
     assert jnp.all(jnp.isfinite(curl_result))
+
+
+def test_curl_H_nonuniform_metric_no_boundaries():
+    """Backward-difference H curls use the local rectilinear metric."""
+    config = _make_nonuniform_config()
+    nx, ny, nz = config.grid.shape
+    x = config.grid.x_edges[:-1]
+    z = config.grid.z_edges[:-1]
+    X, _Y, Z = jnp.meshgrid(x, config.grid.y_edges[:-1], z, indexing="ij")
+
+    H = jnp.stack([Z, jnp.zeros((nx, ny, nz), dtype=jnp.float32), -X], axis=0)
+    H_pad = pad_fields(H, (False, False, False))
+    psi_E = jnp.zeros((6, nx, ny, nz))
+
+    curl_result, _ = curl_H(
+        config,
+        H_pad,
+        psi_E,
+        alpha=jnp.zeros((6, nx, ny, nz)),
+        kappa=jnp.ones((6, nx, ny, nz)),
+        sigma=jnp.zeros((6, nx, ny, nz)),
+        simulate_boundaries=False,
+    )
+
+    assert curl_result.shape == (3, nx, ny, nz)
+    assert jnp.allclose(curl_result[1][1:, :, 1:], 2.0, atol=1e-6)
