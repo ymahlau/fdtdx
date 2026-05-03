@@ -1,5 +1,7 @@
 """Tests for objects/detectors/mode.py - ModeOverlapDetector."""
 
+from unittest.mock import patch
+
 import jax.numpy as jnp
 import pytest
 
@@ -391,6 +393,29 @@ class TestModeOverlapDetectorComputeOverlap:
 
         assert jnp.allclose(x_edges, jnp.asarray([0.0, 1.0, 3.0]))
         assert jnp.allclose(y_edges, jnp.asarray([0.0, 3.0, 7.0]))
+
+    @patch("fdtdx.objects.detectors.mode.compute_mode")
+    def test_apply_passes_nonuniform_mode_coordinates(self, mock_compute_mode, random_key, single_frequency):
+        """Mode detector apply should not require a scalar grid spacing on stretched grids."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 3.0, 7.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        mock_compute_mode.return_value = (
+            jnp.ones((3, 2, 2, 1), dtype=jnp.complex64),
+            jnp.ones((3, 2, 2, 1), dtype=jnp.complex64),
+            jnp.asarray(1.5 + 0j, dtype=jnp.complex64),
+        )
+        det = ModeOverlapDetector(wave_characters=single_frequency, direction="+")
+        det = det.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
+
+        det.apply(random_key, jnp.ones((1, 2, 2, 1), dtype=jnp.float32), 1.0)
+
+        kwargs = mock_compute_mode.call_args.kwargs
+        assert kwargs["resolution"] == grid.min_spacing
+        assert kwargs["transverse_coords"] is not None
 
 
 class TestModeOverlapDetectorComputeOverlapPath:
