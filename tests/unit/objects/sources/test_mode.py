@@ -11,6 +11,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import GridSpec
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.sources.mode import ModePlaneSource
 
@@ -388,6 +389,44 @@ class TestModePlaneSourceGetEHVariation:
         assert call_kwargs["mode_index"] == 1
         assert call_kwargs["filter_pol"] == "te"
         assert call_kwargs["direction"] == "-"
+
+    @patch("fdtdx.objects.sources.mode.compute_mode")
+    @patch("fdtdx.objects.sources.mode.calculate_time_offset_yee")
+    def test_nonuniform_grid_passes_mode_and_time_coordinates(self, mock_time_offset, mock_compute_mode, jax_key):
+        """Non-uniform mode sources pass local edge coordinates to both mode helpers."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
+            y_edges=jnp.asarray([0.0, 2.0, 5.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu", dtype=jnp.float32)
+        mock_compute_mode.return_value = (
+            jnp.ones((3, 3, 2, 1), dtype=jnp.complex64),
+            jnp.ones((3, 3, 2, 1), dtype=jnp.complex64),
+            jnp.array(1.5 + 0j, dtype=jnp.complex64),
+        )
+        mock_time_offset.return_value = (
+            jnp.zeros((3, 3, 2, 1)),
+            jnp.zeros((3, 3, 2, 1)),
+        )
+        source = ModePlaneSource(
+            partial_grid_shape=(3, 2, 1),
+            wave_character=WaveCharacter(wavelength=1.55e-6),
+            direction="-",
+        )
+        placed = source.place_on_grid(((0, 3), (0, 2), (0, 1)), config, jax_key)
+
+        inv_perm = jnp.ones((1, 3, 2, 1), dtype=jnp.float32)
+        placed.apply(jax_key, inv_perm, 1.0)
+
+        mode_kwargs = mock_compute_mode.call_args.kwargs
+        x_edges, y_edges = mode_kwargs["transverse_coords"]
+        assert jnp.allclose(x_edges, jnp.asarray([0.0, 1.0, 3.0, 6.0]))
+        assert jnp.allclose(y_edges, jnp.asarray([0.0, 2.0, 5.0]))
+
+        time_kwargs = mock_time_offset.call_args.kwargs
+        assert time_kwargs["coordinate_edges"] is not None
+        assert jnp.allclose(time_kwargs["center_physical"], jnp.asarray([3.0, 2.5, 0.0], dtype=jnp.float32))
 
 
 class TestModePlaneSourceProperties:
