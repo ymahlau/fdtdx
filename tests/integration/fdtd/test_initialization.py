@@ -4,7 +4,9 @@ import jax
 import jax.numpy as jnp
 import pytest
 
+from fdtdx import constants
 from fdtdx.config import GradientConfig, SimulationConfig
+from fdtdx.core.grid import GridSpec
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.initialization import place_objects
 from fdtdx.interfaces.recorder import Recorder
@@ -150,6 +152,31 @@ def test_diagonally_anisotropic_material(simple_config, simple_volume):
     # electric and magnetic conductivity arrays created
     assert arrays.electric_conductivity is not None
     assert arrays.magnetic_conductivity is not None
+
+
+def test_nonuniform_grid_initializes_conductive_volume():
+    """Conductivity scaling uses the update reference spacing, not a uniform grid size."""
+    grid = GridSpec(
+        x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+        y_edges=jnp.asarray([0.0, 1.5, 4.0]),
+        z_edges=jnp.asarray([0.0, 2.0, 5.0]),
+    )
+    mat = Material(
+        permittivity=1.0,
+        permeability=1.0,
+        electric_conductivity=0.2,
+        magnetic_conductivity=0.4,
+    )
+    volume = SimulationVolume(name="volume", partial_grid_shape=(2, 2, 2), material=mat)
+    config = SimulationConfig(resolution=1.0, grid=grid, time=1e-8, backend="cpu")
+
+    _obj_container, arrays, _params, updated_config, _info = place_objects([volume], config, [], jax.random.PRNGKey(0))
+
+    conductivity_spacing = constants.c * updated_config.time_step_duration / updated_config.courant_number
+    assert arrays.electric_conductivity is not None
+    assert arrays.magnetic_conductivity is not None
+    assert jnp.allclose(arrays.electric_conductivity, 0.2 * conductivity_spacing)
+    assert jnp.allclose(arrays.magnetic_conductivity, 0.4 * conductivity_spacing)
 
 
 def test_fully_anisotropic_material(simple_config, simple_volume):

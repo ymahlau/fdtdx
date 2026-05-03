@@ -3,6 +3,7 @@ from typing import Any, Sequence
 import jax
 import jax.numpy as jnp
 
+from fdtdx import constants
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
 from fdtdx.core.jax.ste import straight_through_estimator
@@ -239,7 +240,7 @@ def _init_arrays(
         raise ValueError(f"Configured grid shape {grid.shape} does not match simulation volume shape {volume_shape}.")
     if config.grid is None:
         config = config.aset("grid", grid)
-    uniform_spacing = config.require_uniform_grid()
+    conductivity_spacing = constants.c * config.time_step_duration / config.courant_number
     ext_shape = (3, *volume_shape)
 
     # Determine whether to use complex-valued fields
@@ -461,8 +462,10 @@ def _init_arrays(
                     # Fully anisotropic
                     cond_tuple = o.material.electric_conductivity
 
-                # scale by grid size
-                obj_electric_conductivity = (jnp.array(cond_tuple, dtype=config.dtype) * uniform_spacing)[
+                # Scale physical conductivity into the dimensionless update coefficient.
+                # On uniform grids this equals the scalar grid spacing.  On stretched
+                # grids it is the reference spacing implied by ``c0 * dt / courant``.
+                obj_electric_conductivity = (jnp.array(cond_tuple, dtype=config.dtype) * conductivity_spacing)[
                     :, None, None, None
                 ]
                 electric_conductivity = electric_conductivity.at[:, *o.grid_slice].set(obj_electric_conductivity)
@@ -482,8 +485,8 @@ def _init_arrays(
                     # Fully anisotropic
                     cond_tuple = o.material.magnetic_conductivity
 
-                # scale by grid size
-                obj_magnetic_conductivity = (jnp.array(cond_tuple, dtype=config.dtype) * uniform_spacing)[
+                # Scale physical conductivity into the dimensionless update coefficient.
+                obj_magnetic_conductivity = (jnp.array(cond_tuple, dtype=config.dtype) * conductivity_spacing)[
                     :, None, None, None
                 ]
                 magnetic_conductivity = magnetic_conductivity.at[:, *o.grid_slice].set(obj_magnetic_conductivity)
@@ -541,7 +544,7 @@ def _init_arrays(
                     )
                 )
 
-                component_values = jnp.moveaxis(allowed_conds[indices], -1, 0) * uniform_spacing
+                component_values = jnp.moveaxis(allowed_conds[indices], -1, 0) * conductivity_spacing
                 diff = component_values - electric_conductivity[:, *o.grid_slice]
                 electric_conductivity = electric_conductivity.at[:, *o.grid_slice].add(mask * diff)
 
@@ -554,7 +557,7 @@ def _init_arrays(
                     )
                 )
 
-                component_values = jnp.moveaxis(allowed_conds[indices], -1, 0) * uniform_spacing
+                component_values = jnp.moveaxis(allowed_conds[indices], -1, 0) * conductivity_spacing
                 diff = component_values - magnetic_conductivity[:, *o.grid_slice]
                 magnetic_conductivity = magnetic_conductivity.at[:, *o.grid_slice].add(mask * diff)
         else:
