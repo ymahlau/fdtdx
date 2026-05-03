@@ -68,8 +68,9 @@ of cells.  Bloch and periodic phase corrections should use physical domain lengt
 from ``GridSpec`` edges.
 
 Physical-depth PML profile construction is implemented.  The time-domain PML
-auxiliary coefficient update still contains scalar-spacing assumptions and is a
-remaining blocker for non-uniform PML simulations.
+auxiliary coefficient update now uses ``SimulationConfig.time_step_duration``
+instead of reconstructing ``dt`` from a scalar spacing.  Bloch phase correction
+still uses uniform spacing and remains a non-uniform boundary blocker.
 
 Tests to add:
 
@@ -82,7 +83,7 @@ Stage 5: Weighted Detectors and Mode Coordinates
 ------------------------------------------------
 
 Status: implemented for Poynting flux, energy, reduced field/phasor averages,
-mode overlap, and Tidy3D mode-solver coordinates.
+mode overlap, Tidy3D mode-solver coordinates, and mode-source coordinates.
 
 Detector reductions must become physical integrals.  Flux detectors need face
 area weights, energy detectors need volume weights, and mode overlap should use
@@ -112,8 +113,11 @@ grids or be replaced by a rectilinear-grid export.  Plotting should use physical
 coordinates from grid edges.
 
 Sphere, cylinder, and extruded-polygon masks now sample physical cell centers on
-rectilinear grids.  Fill fractions/subpixel smoothing, plotting, and export are
-still open.
+rectilinear grids.  Setup/material plots, diffractive detectors, generic
+linearly polarized plane sources, random TFSF offsets, and device
+parameterization now reject non-uniform grids explicitly where the old behavior
+would have silently used scalar spacing.  Fill fractions/subpixel smoothing,
+rectilinear plotting/export, and true non-uniform source correction remain open.
 
 Remaining Uniform-Only Surfaces
 -------------------------------
@@ -122,10 +126,11 @@ The remaining calls to ``require_uniform_grid()`` are intentional markers.  They
 cluster around:
 
 * PML auxiliary update coefficients inside the curl functions
-* TFSF/source offsets and mode-source time offsets
-* diffractive detector FFT order decomposition
-* plotting and image/video export
-* device parameterization helpers that assume one voxel size
+* Bloch boundary phase correction
+* generic TFSF/source profile sampling and correction metrics
+* diffractive detector FFT order decomposition, currently guarded
+* plotting and image/video export, currently guarded for setup/material plots
+* device parameterization helpers that assume one voxel size, currently guarded
 * fallback paths used before a concrete ``GridSpec`` is attached
 
 Performance Notes
