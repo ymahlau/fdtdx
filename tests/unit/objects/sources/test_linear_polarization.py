@@ -11,6 +11,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import GridSpec
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.sources.linear_polarization import (
     GaussianPlaneSource,
@@ -210,6 +211,25 @@ class TestGaussianPlaneSource:
         # For propagation axis 2: horizontal = 0, vertical = 1
         assert placed.horizontal_axis == 0
         assert placed.vertical_axis == 1
+
+    def test_nonuniform_grid_apply_rejected(self, jax_key):
+        """Generic linearly polarized sources are uniform-grid only for now."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 1.0, 2.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        source = GaussianPlaneSource(
+            partial_grid_shape=(2, 2, 1),
+            wave_character=WaveCharacter(wavelength=1.55e-6),
+            direction="-",
+            radius=1.0,
+        )
+        placed = source.place_on_grid(((0, 2), (0, 2), (0, 1)), config, jax_key)
+
+        with pytest.raises(ValueError, match="require a uniform grid"):
+            placed.apply(jax_key, jnp.ones((1, 2, 2, 1)), 1.0)
 
 
 class TestUniformPlaneSource:
