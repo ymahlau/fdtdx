@@ -284,6 +284,29 @@ def test_curl_E_nonuniform_metric_no_boundaries():
     assert jnp.allclose(curl_result[2][:-1, :-1, :], -2.0, atol=1e-6)
 
 
+def test_curl_E_nonuniform_pml_coefficients_use_time_step():
+    """PML auxiliary coefficients do not require a uniform grid spacing."""
+    config = _make_nonuniform_config()
+    nx, ny, nz = config.grid.shape
+    E = jnp.ones((3, nx, ny, nz), dtype=jnp.float32)
+    E = E.at[2].set(jnp.arange(ny, dtype=jnp.float32).reshape(1, ny, 1))
+    E_pad = pad_fields(E, (False, False, False))
+    psi_H = jnp.zeros((6, nx, ny, nz))
+
+    curl_result, psi_updated = curl_E(
+        config,
+        E_pad,
+        psi_H,
+        alpha=jnp.ones((6, nx, ny, nz)) * 0.05,
+        kappa=jnp.ones((6, nx, ny, nz)),
+        sigma=jnp.ones((6, nx, ny, nz)) * 0.1,
+        simulate_boundaries=True,
+    )
+
+    assert jnp.all(jnp.isfinite(curl_result))
+    assert jnp.all(jnp.isfinite(psi_updated))
+
+
 # ──────────────────────────────────────────────────────────────
 # curl_H
 # ──────────────────────────────────────────────────────────────
@@ -434,3 +457,26 @@ def test_curl_H_nonuniform_metric_no_boundaries():
 
     assert curl_result.shape == (3, nx, ny, nz)
     assert jnp.allclose(curl_result[1][1:, :, 1:], 2.0, atol=1e-6)
+
+
+def test_curl_H_nonuniform_pml_coefficients_use_time_step():
+    """H-to-E PML auxiliary coefficients share the nonuniform-safe dt path."""
+    config = _make_nonuniform_config()
+    nx, ny, nz = config.grid.shape
+    H = jnp.ones((3, nx, ny, nz), dtype=jnp.float32)
+    H = H.at[2].set(jnp.arange(ny, dtype=jnp.float32).reshape(1, ny, 1))
+    H_pad = pad_fields(H, (False, False, False))
+    psi_E = jnp.zeros((6, nx, ny, nz))
+
+    curl_result, psi_updated = curl_H(
+        config,
+        H_pad,
+        psi_E,
+        alpha=jnp.ones((6, nx, ny, nz)) * 0.05,
+        kappa=jnp.ones((6, nx, ny, nz)),
+        sigma=jnp.ones((6, nx, ny, nz)) * 0.1,
+        simulate_boundaries=True,
+    )
+
+    assert jnp.all(jnp.isfinite(curl_result))
+    assert jnp.all(jnp.isfinite(psi_updated))
