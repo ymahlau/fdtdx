@@ -110,6 +110,24 @@ class ModeOverlapDetector(PhasorDetector):
         spacing = self._config.require_uniform_grid()
         return jnp.ones(self.grid_shape, dtype=self.dtype) * spacing * spacing
 
+    def _transverse_edge_coordinates(self) -> tuple[jax.Array, jax.Array] | None:
+        """Return physical transverse edge coordinates for the mode solver.
+
+        Tidy3D can solve modes on rectilinear non-uniform grids when supplied
+        with edge-coordinate arrays.  Returning ``None`` keeps the uniform scalar
+        spacing path for legacy configurations and older tests.
+        """
+        if self._config.grid is None:
+            return None
+
+        transverse_edges = []
+        for axis in range(3):
+            if axis == self.propagation_axis:
+                continue
+            lower, upper = self.grid_slice_tuple[axis]
+            transverse_edges.append(self._config.grid.edges(axis)[lower : upper + 1])
+        return tuple(transverse_edges)
+
     def apply(
         self,
         key: jax.Array,
@@ -135,6 +153,7 @@ class ModeOverlapDetector(PhasorDetector):
             dtype=self._config.dtype,
             bend_radius=self.bend_radius,
             bend_axis=self.bend_axis,
+            transverse_coords=self._transverse_edge_coordinates(),
         )
 
         self = self.aset("_mode_E", mode_E, create_new_ok=True)

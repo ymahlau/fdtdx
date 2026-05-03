@@ -376,6 +376,22 @@ class TestModeOverlapDetectorComputeOverlap:
 
         assert jnp.allclose(overlap, jnp.asarray(1.0, dtype=jnp.complex64))
 
+    def test_transverse_edge_coordinates_follow_detector_slice(self, random_key, single_frequency):
+        """Mode solving receives the physical edge arrays for the transverse detector axes."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 3.0, 7.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        det = ModeOverlapDetector(wave_characters=single_frequency, direction="+")
+        det = det.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
+
+        x_edges, y_edges = det._transverse_edge_coordinates()
+
+        assert jnp.allclose(x_edges, jnp.asarray([0.0, 1.0, 3.0]))
+        assert jnp.allclose(y_edges, jnp.asarray([0.0, 3.0, 7.0]))
+
 
 class TestModeOverlapDetectorComputeOverlapPath:
     """Tests for compute_overlap() - the stored-mode path (via aset)."""
