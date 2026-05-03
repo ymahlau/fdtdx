@@ -24,10 +24,11 @@ metric.
 Stage 2: Coordinate-Aware Placement
 -----------------------------------
 
-Replace placement math that converts metres to indices through one scalar
-spacing.  Object placement should use grid edge coordinates and explicit snapping
-rules.  Grid-distance APIs should either be removed from public non-uniform use
-or rejected clearly when ``grid.is_uniform`` is false.
+Status: implemented for real-coordinate and real-shape placement.
+
+Placement math that converts metres to indices through one scalar spacing now
+uses grid edge coordinates and explicit snapping rules.  Grid-distance APIs that
+would be ambiguous on stretched grids reject non-uniform grids clearly.
 
 Tests to add:
 
@@ -39,9 +40,16 @@ Tests to add:
 Stage 3: Solver Metrics and CFL
 -------------------------------
 
-Make Yee curl/update coefficients dimensionally explicit.  Derivatives should
-divide by the local E/H staggered spacing, and update equations should use the
-physical time step rather than hiding spacing inside a scalar Courant number.
+Status: partially implemented.
+
+The CFL time step now uses the smallest spacing on each axis.  Yee curl terms use
+local metric factors for forward E curls and backward H curls while preserving
+uniform-grid behavior.  Field interpolation for exact detector sampling also uses
+distance-weighted center-to-edge averages on stretched grids.
+
+Remaining work: PML auxiliary update coefficients and source/TFSF corrections
+still need full non-uniform metric support before complete simulations with those
+features should be considered supported.
 
 Tests to add:
 
@@ -53,9 +61,15 @@ Tests to add:
 Stage 4: PML and Boundary Metrics
 ---------------------------------
 
+Status: partially implemented.
+
 PML grading should be based on physical depth into the boundary, not the number
 of cells.  Bloch and periodic phase corrections should use physical domain length
 from ``GridSpec`` edges.
+
+Physical-depth PML profile construction is implemented.  The time-domain PML
+auxiliary coefficient update still contains scalar-spacing assumptions and is a
+remaining blocker for non-uniform PML simulations.
 
 Tests to add:
 
@@ -67,10 +81,17 @@ Tests to add:
 Stage 5: Weighted Detectors and Mode Coordinates
 ------------------------------------------------
 
+Status: implemented for Poynting flux, energy, reduced field/phasor averages,
+mode overlap, and Tidy3D mode-solver coordinates.
+
 Detector reductions must become physical integrals.  Flux detectors need face
 area weights, energy detectors need volume weights, and mode overlap should use
 transverse area weights.  Tidy3D mode solving should receive transverse coordinate
 arrays from ``GridSpec`` rather than generated uniform coordinates.
+
+Diffractive detectors remain uniform-only because the current FFT-based order
+decomposition assumes uniform transverse samples.  Supporting stretched grids
+there likely needs either resampling or a non-uniform Fourier transform strategy.
 
 Tests to add:
 
@@ -83,10 +104,29 @@ Tests to add:
 Stage 6: Rasterization, Export, and Visualization
 -------------------------------------------------
 
+Status: partially implemented.
+
 Geometry masks for spheres, cylinders, and polygons should sample physical cell
 coordinates or use fill fractions.  VTI image export should reject non-uniform
 grids or be replaced by a rectilinear-grid export.  Plotting should use physical
 coordinates from grid edges.
+
+Sphere, cylinder, and extruded-polygon masks now sample physical cell centers on
+rectilinear grids.  Fill fractions/subpixel smoothing, plotting, and export are
+still open.
+
+Remaining Uniform-Only Surfaces
+-------------------------------
+
+The remaining calls to ``require_uniform_grid()`` are intentional markers.  They
+cluster around:
+
+* PML auxiliary update coefficients inside the curl functions
+* TFSF/source offsets and mode-source time offsets
+* diffractive detector FFT order decomposition
+* plotting and image/video export
+* device parameterization helpers that assume one voxel size
+* fallback paths used before a concrete ``GridSpec`` is attached
 
 Performance Notes
 -----------------
@@ -97,6 +137,8 @@ optimizations are:
 
 * cache ``dx``, ``dy``, ``dz`` and common broadcast shapes in a solver metrics object
 * precompute PML physical-depth profiles once during initialization
+* cache detector face-area and cell-volume weights at placement/init time instead
+  of rebuilding them during each detector update
 * avoid materializing full 3D area/volume arrays when separable 1D weights are enough
 * keep uniform grids on the same API path, but allow JAX/compiler constants to
   simplify equal-spacing metric arrays
