@@ -3,6 +3,8 @@
 import jax.numpy as jnp
 import pytest
 
+from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import GridSpec
 from fdtdx.objects.detectors.diffractive import DiffractiveDetector
 
 
@@ -220,6 +222,23 @@ class TestDiffractiveDetectorUpdate:
         )
 
         assert jnp.allclose(jnp.abs(new_state["diffractive"]), 0.0)
+
+    def test_update_rejects_nonuniform_grid(self, random_key):
+        """FFT diffraction orders are explicitly uniform-grid only for now."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 1.0, 2.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        det = DiffractiveDetector(frequencies=[3e14], direction="+")
+        det = det.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
+        state = det.init_state()
+        E = jnp.zeros((3, 2, 2, 1), dtype=jnp.float32)
+        H = jnp.zeros((3, 2, 2, 1), dtype=jnp.float32)
+
+        with pytest.raises(ValueError, match="requires a uniform grid"):
+            det.update(jnp.array(0), E, H, state, jnp.ones((1, 2, 2, 1)), 1.0)
 
     def test_update_preserves_shape(
         self,
