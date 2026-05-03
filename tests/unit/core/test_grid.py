@@ -63,6 +63,28 @@ class TestGridSpec:
         assert grid.coord_to_index(0, 2.2, snap="lower") == 1
         assert grid.coord_to_index(0, 2.2, snap="upper") == 2
 
+    def test_bounds_for_center_uses_physical_interval_centers(self):
+        """Center snapping compares physical interval centers, not index centers."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
+            y_edges=jnp.asarray([0.0, 1.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+
+        assert grid.bounds_for_center(axis=0, center=3.6, size=2) == (1, 3)
+
+    def test_bounds_for_anchor_uses_physical_anchor_positions(self):
+        """Relative placement can target physical lower/center/upper anchors."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
+            y_edges=jnp.asarray([0.0, 1.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+
+        assert grid.anchor_coordinate(axis=0, bounds=(1, 3), position=-1.0) == 1.0
+        assert grid.anchor_coordinate(axis=0, bounds=(1, 3), position=1.0) == 6.0
+        assert grid.bounds_for_anchor(axis=0, size=1, anchor=3.1, position=-1.0) == (2, 3)
+
 
 def test_calculate_spatial_offsets_yee_basic():
     """Test basic functionality of calculate_spatial_offsets_yee"""
