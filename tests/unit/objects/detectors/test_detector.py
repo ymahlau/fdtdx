@@ -8,6 +8,8 @@ import numpy as np
 import pytest
 from matplotlib.figure import Figure
 
+from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import GridSpec
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.detectors.field import FieldDetector
@@ -191,6 +193,22 @@ class TestDrawPlot4D:
 
 class TestDrawPlotErrors:
     """Tests for draw_plot error cases."""
+
+    def test_nonuniform_spatial_plot_raises(self, random_key, single_switch):
+        """Spatial detector plots need rectilinear-aware plotting before use."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
+            y_edges=jnp.asarray([0.0, 1.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        detector = FieldDetector(components=("Ex",), switch=single_switch)
+        detector = detector.place_on_grid(((0, 3), (0, 1), (0, 1)), config, random_key)
+        state = detector.init_state()
+        state_np = {k: np.asarray(v) for k, v in state.items()}
+
+        with pytest.raises(ValueError, match="Detector plotting on non-uniform grids"):
+            detector.draw_plot(state_np)
 
     def test_empty_state_raises(self, simulation_config, plane_grid_slice, random_key, small_switch):
         """Empty state dict raises with 'empty state' message."""
