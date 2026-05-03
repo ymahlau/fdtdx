@@ -132,7 +132,7 @@ cluster around:
 * diffractive detector FFT order decomposition, currently guarded
 * plotting and image/video export, currently guarded for setup/material plots
 * device parameterization helpers that assume one voxel size, currently guarded
-* detector slice/video plotting and some detector slice-selection helpers
+* detector slice/video plotting, currently guarded for non-uniform spatial plots
 * fallback paths used before a concrete ``GridSpec`` is attached
 
 Performance Notes
