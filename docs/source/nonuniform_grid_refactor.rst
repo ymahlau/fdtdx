@@ -116,18 +116,19 @@ grids or be replaced by a rectilinear-grid export.  Plotting should use physical
 coordinates from grid edges.
 
 Sphere, cylinder, and extruded-polygon masks now sample physical cell centers on
-rectilinear grids.  Detector plots can use rectilinear physical axes, and VTR
-export writes explicit ``GridSpec`` edge coordinates for non-uniform grids.  VTI
-remains a uniform image-data export and rejects stretched grids with a pointer to
-VTR.
+rectilinear grids.  Detector, setup, and material plots can use rectilinear
+physical axes.  VTR export writes explicit ``GridSpec`` edge coordinates for
+non-uniform grids; VTI remains a uniform image-data export and rejects stretched
+grids with a pointer to VTR.
 
 Normal-incidence linearly polarized plane sources can use rectilinear Gaussian
 profile sampling and grid-aware Yee time offsets.  Tilted generic plane sources,
-random TFSF offsets, diffractive detectors, setup/material plots, and physical-size
-device voxels reject non-uniform grids explicitly where the old behavior would
-have silently used scalar spacing.  Device parameterization is supported on
-non-uniform grids only when design voxels are specified in simulation-cell counts.
-Fill fractions/subpixel smoothing and full tilted-source correction remain open.
+random TFSF offsets, and source correction metrics still reject non-uniform grids
+where the old behavior would have silently used scalar spacing.  Diffractive
+detectors resample stretched transverse planes before FFT order analysis.  Device
+parameterization supports both simulation-cell-count design voxels and physical
+design voxels mapped by cell-center sampling.  Fill fractions/subpixel smoothing,
+overlap-weighted device resampling, and full tilted-source correction remain open.
 
 Remaining Uniform-Only Surfaces
 -------------------------------
@@ -136,9 +137,7 @@ The remaining calls to ``require_uniform_grid()`` are intentional markers.  They
 cluster around:
 
 * tilted generic TFSF/source projection and correction metrics
-* diffractive detector FFT order decomposition, currently guarded
-* plotting and image/video export, currently guarded for setup/material plots
-* physical-size device voxel resampling, currently guarded
+* overlap-weighted physical device voxel resampling beyond center sampling
 * fallback paths used before a concrete ``GridSpec`` is attached
 
 Performance Notes
@@ -150,8 +149,8 @@ optimizations are:
 
 * cache ``dx``, ``dy``, ``dz`` and common broadcast shapes in a solver metrics object
 * precompute PML physical-depth profiles once during initialization
-* cache detector face-area and cell-volume weights at placement/init time instead
-  of rebuilding them during each detector update
+* extend the detector face-area and cell-volume cache pattern to curl/source
+  metric arrays that are still rebuilt inside hot paths
 * cache detector/source plot edge coordinates and source profile coordinates at
   placement time when plotting or source re-application becomes hot
 * avoid materializing full 3D area/volume arrays when separable 1D weights are enough
