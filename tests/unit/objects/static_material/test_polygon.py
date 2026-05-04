@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.materials import Material
 from fdtdx.objects.static_material.polygon import (
     ExtrudedPolygon,
@@ -213,7 +213,7 @@ class TestGetVoxelMaskForShape:
 
     def test_nonuniform_grid_uses_explicit_cell_centers(self, key, two_materials):
         """Polygon masks evaluate the shape at rectilinear cell centers."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 1.0, 3.0]),
             z_edges=jnp.asarray([0.0, 1.0]),

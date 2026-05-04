@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.objects.detectors.diffractive import DiffractiveDetector
 
 
@@ -225,7 +225,7 @@ class TestDiffractiveDetectorUpdate:
 
     def test_update_resamples_nonuniform_grid(self, random_key):
         """Nonuniform transverse samples are resampled before FFT order analysis."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 2.0, 5.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
@@ -244,7 +244,7 @@ class TestDiffractiveDetectorUpdate:
 
     def test_nonuniform_resample_preserves_constant_field_zeroth_order(self, random_key):
         """A constant field remains constant through the nonuniform resampling path."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 4.0, 10.0]),
             y_edges=jnp.asarray([0.0, 2.0, 3.0, 9.0]),
             z_edges=jnp.asarray([0.0, 1.0]),

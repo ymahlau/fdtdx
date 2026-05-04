@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.detectors.phasor import PhasorDetector
 
@@ -236,7 +236,7 @@ class TestPhasorDetectorUpdate:
 
     def test_reduce_volume_uses_nonuniform_volume_weighted_mean(self, random_key, single_frequency):
         """Reduced phasors average spatial samples by physical cell volume."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 3.0, 7.0]),
             z_edges=jnp.asarray([0.0, 2.0]),

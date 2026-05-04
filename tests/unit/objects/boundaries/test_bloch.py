@@ -8,7 +8,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.objects.boundaries.bloch import BlochBoundary
 
 
@@ -167,7 +167,7 @@ class TestBlochGetBlochPhase:
 
     def test_nonuniform_grid_uses_physical_axis_extent(self, jax_key):
         """Bloch phase uses edge extent instead of shape times scalar resolution."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 1.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
@@ -181,9 +181,9 @@ class TestBlochGetBlochPhase:
 
         assert jnp.allclose(phase, jnp.exp(1j * k * 3.0))
 
-    def test_uniform_gridspec_phase_is_jittable(self, jax_key):
-        """Concrete GridSpec phase lookup must not force Python floats inside JAX traces."""
-        grid = GridSpec.uniform(shape=(4, 4, 4), spacing=0.5)
+    def test_uniform_rectilinear_grid_phase_is_jittable(self, jax_key):
+        """Concrete RectilinearGrid phase lookup must not force Python floats inside JAX traces."""
+        grid = RectilinearGrid.uniform(shape=(4, 4, 4), spacing=0.5)
         config = SimulationConfig(time=1e-8, resolution=99.0, grid=grid, backend="cpu")
         k = 0.25
         bb = make_bloch(axis=0, direction="-", bloch_vector=(k, 0.0, 0.0))

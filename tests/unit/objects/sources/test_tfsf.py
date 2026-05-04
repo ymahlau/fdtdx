@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.sources.linear_polarization import GaussianPlaneSource
 
@@ -130,7 +130,7 @@ class TestTFSFPlaneSourceProperties:
 
     def test_nonuniform_random_offsets_use_physical_units(self, jax_key):
         """Random offsets remain physical source-plane distances on stretched grids."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 2.0, 5.0]),
             z_edges=jnp.asarray([0.0, 1.0]),

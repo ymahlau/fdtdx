@@ -11,7 +11,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.sources.linear_polarization import (
     GaussianPlaneSource,
@@ -214,7 +214,7 @@ class TestGaussianPlaneSource:
 
     def test_nonuniform_grid_apply_uses_physical_gaussian_profile(self, jax_key):
         """Normal-incidence Gaussian sources sample profiles on rectilinear cell centers."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 2.0, 5.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
@@ -239,7 +239,7 @@ class TestGaussianPlaneSource:
 
     def test_nonuniform_tilted_apply_uses_physical_projection(self, jax_key):
         """Tilted non-uniform plane sources project profiles in physical coordinates."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
             y_edges=jnp.asarray([0.0, 1.0, 2.0, 4.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
@@ -333,7 +333,7 @@ class TestUniformPlaneSource:
 
     def test_apply_uniform_source_on_nonuniform_grid(self, jax_key):
         """Normal-incidence uniform plane sources can use rectilinear Yee offsets."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 2.0, 5.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
@@ -356,7 +356,7 @@ class TestUniformPlaneSource:
 
     def test_nonuniform_tilted_uniform_source_preserves_constant_profile(self, jax_key):
         """Physical tilted projection must not distort a constant source profile."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 0.4, 1.1, 2.0]),
             y_edges=jnp.asarray([0.0, 0.6, 1.0, 2.0]),
             z_edges=jnp.asarray([0.0, 1.0]),

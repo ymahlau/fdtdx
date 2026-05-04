@@ -87,7 +87,7 @@ def interpolate_fields(
         E_pad: Pre-padded electric field array of shape (3, Nx+2, Ny+2, Nz+2)
         H_pad: Pre-padded magnetic field array of shape (3, Nx+2, Ny+2, Nz+2)
         config: Optional simulation configuration.  When it carries a
-            non-uniform ``GridSpec``, center-to-edge interpolations use local
+            non-uniform ``RectilinearGrid``, center-to-edge interpolations use local
             physical distances instead of equal weights.
 
     Returns:

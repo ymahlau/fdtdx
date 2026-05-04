@@ -11,7 +11,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.sources.mode import ModePlaneSource
 
@@ -394,7 +394,7 @@ class TestModePlaneSourceGetEHVariation:
     @patch("fdtdx.objects.sources.mode.calculate_time_offset_yee")
     def test_nonuniform_grid_passes_mode_and_time_coordinates(self, mock_time_offset, mock_compute_mode, jax_key):
         """Non-uniform mode sources pass local edge coordinates to both mode helpers."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
             y_edges=jnp.asarray([0.0, 2.0, 5.0]),
             z_edges=jnp.asarray([0.0, 1.0]),

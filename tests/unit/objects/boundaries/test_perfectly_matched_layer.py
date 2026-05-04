@@ -9,7 +9,7 @@ import pytest
 
 from fdtdx.config import SimulationConfig
 from fdtdx.constants import eta0
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 
 
@@ -242,7 +242,7 @@ class TestPMLComputeProfile:
 
     def test_nonuniform_profile_uses_physical_depth_min_side(self, jax_key):
         """Stretched PML profiles are graded by physical distance into the boundary."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0, 10.0]),
             y_edges=jnp.asarray([0.0, 1.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
@@ -258,7 +258,7 @@ class TestPMLComputeProfile:
 
     def test_nonuniform_sigma_end_uses_physical_thickness(self, jax_key):
         """Default sigma_end is based on physical PML thickness from grid edges."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
             y_edges=jnp.asarray([0.0, 1.0]),
             z_edges=jnp.asarray([0.0, 1.0]),

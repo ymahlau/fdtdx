@@ -14,7 +14,7 @@ from fdtdx.conversion.vti import (
     export_vti,
     export_vtr,
 )
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 
 # ---- NUMPY_TO_VTK_DTYPE mapping ----
 
@@ -166,7 +166,7 @@ class TestExportVti:
 
     def test_nonuniform_grid_raises_with_vtr_hint(self, tmp_path):
         data = jnp.zeros((2, 1, 1), dtype=jnp.float32)
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 1.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
@@ -177,7 +177,7 @@ class TestExportVti:
 
     def test_uniform_grid_overrides_resolution(self, tmp_path):
         data = jnp.zeros((2, 2, 2), dtype=jnp.float32)
-        grid = GridSpec.uniform(shape=(2, 2, 2), spacing=0.25)
+        grid = RectilinearGrid.uniform(shape=(2, 2, 2), spacing=0.25)
         path = tmp_path / "test.vti"
 
         export_vti({"field": data}, path, resolution=1.0, grid=grid)
@@ -373,7 +373,7 @@ class TestExportVtr:
 
     def test_writes_rectilinear_grid_coordinates(self, tmp_path):
         data = jnp.zeros((2, 2, 1), dtype=jnp.float32)
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 2.0, 5.0]),
             z_edges=jnp.asarray([0.0, 4.0]),
@@ -392,7 +392,7 @@ class TestExportVtr:
 
     def test_grid_slice_coordinates(self, tmp_path):
         data = jnp.zeros((2, 1, 1), dtype=jnp.float32)
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
             y_edges=jnp.asarray([0.0, 2.0, 5.0]),
             z_edges=jnp.asarray([0.0, 4.0]),
@@ -408,7 +408,7 @@ class TestExportVtr:
 
     def test_grid_slice_shape_mismatch_raises(self, tmp_path):
         data = jnp.zeros((2, 1, 1), dtype=jnp.float32)
-        grid = GridSpec.uniform(shape=(3, 3, 3), spacing=1.0)
+        grid = RectilinearGrid.uniform(shape=(3, 3, 3), spacing=1.0)
 
         with pytest.raises(AssertionError, match="shape must match"):
             export_vtr(

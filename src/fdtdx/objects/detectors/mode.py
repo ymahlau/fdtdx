@@ -103,7 +103,7 @@ class ModeOverlapDetector(PhasorDetector):
         """Return detector-plane face areas for mode-overlap integration.
 
         The propagation axis is the plane normal.  For legacy construction paths
-        without an explicit ``GridSpec``, the scalar grid spacing supplies the
+        without an explicit ``RectilinearGrid``, the scalar grid spacing supplies the
         uniform face area.
         """
         if self._config.grid is not None:

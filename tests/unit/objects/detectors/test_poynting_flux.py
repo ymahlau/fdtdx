@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.objects.detectors.poynting_flux import PoyntingFluxDetector
 
 
@@ -273,7 +273,7 @@ class TestPoyntingFluxDetectorUpdate:
 
     def test_reduce_volume_integrates_nonuniform_face_area(self, random_key):
         """A constant flux density integrates to the physical detector area."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 3.0, 7.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
@@ -292,7 +292,7 @@ class TestPoyntingFluxDetectorUpdate:
 
     def test_face_area_weights_are_cached(self, random_key):
         """Detector face-area weights are placement metrics and should be reused."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 3.0, 7.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
@@ -305,7 +305,7 @@ class TestPoyntingFluxDetectorUpdate:
 
     def test_reduce_volume_can_keep_legacy_raw_sum(self, random_key):
         """The integrate switch preserves raw summation for compatibility checks."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 3.0, 7.0]),
             z_edges=jnp.asarray([0.0, 1.0]),

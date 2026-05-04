@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.constants import eta0
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.fdtd.container import ArrayContainer, FieldState
 from fdtdx.fdtd.update import (
     add_interfaces,
@@ -159,7 +159,7 @@ class TestPadFieldsForBoundaries:
 
     def test_nonuniform_grid_passes_compatibility_spacing_to_boundaries(self):
         """Boundary padding should not require a scalar grid on stretched meshes."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 2.0]),
             z_edges=jnp.asarray([0.0, 4.0]),

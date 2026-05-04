@@ -8,24 +8,26 @@ from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field, frozen_pri
 
 
 @autoinit
-class GridSpec(TreeClass):
-    """Rectilinear simulation grid described by physical cell-edge coordinates.
+class RectilinearGrid(TreeClass):
+    """Realized rectilinear simulation grid described by physical cell edges.
 
-    This is the canonical grid representation used by fdtdx internals.  A uniform
-    grid is represented by equally spaced edge arrays, not by a separate scalar
-    code path.  Keeping one representation is important for the non-uniform grid
-    migration: placement, PML profiles, mode-solver coordinates, detector weights,
-    and Yee update metrics should all ask the grid for physical distances instead
-    of deriving them from a global ``resolution`` value.
+    This is the canonical solver-facing grid representation used by fdtdx
+    internals.  A uniform grid is represented by equally spaced edge arrays, not
+    by a separate scalar code path.  Keeping one realized representation is
+    important for the non-uniform grid migration: placement, PML profiles,
+    mode-solver coordinates, detector weights, and Yee update metrics should all
+    ask the grid for physical distances instead of deriving them from a global
+    ``resolution`` value.
 
     The arrays store cell *edges* in metres.  For a grid with ``nx`` cells along
     x, ``x_edges`` has shape ``(nx + 1,)`` and must be strictly increasing.  Cell
     widths, centers, face areas, and volumes are derived from these arrays.
 
     Notes:
-        The first implementation focuses on rectilinear grids.  It intentionally
-        does not encode automatic mesh generation policy.  A mesh generator should
-        produce a ``GridSpec``; the solver should only consume ``GridSpec``.
+        This class intentionally does not encode automatic mesh generation
+        policy.  Future policy objects such as ``AutoGrid`` or
+        ``QuasiUniformGrid`` should resolve to ``RectilinearGrid`` before the
+        solver runs.
     """
 
     x_edges: jax.Array = frozen_field()
@@ -57,7 +59,7 @@ class GridSpec(TreeClass):
 
     @classmethod
     def uniform(cls, shape: tuple[int, int, int], spacing: float, origin: tuple[float, float, float] = (0, 0, 0)):
-        """Create a rectilinear ``GridSpec`` for a uniform grid.
+        """Create a realized rectilinear grid for a uniform grid.
 
         Args:
             shape: Number of cells in ``(x, y, z)``.
@@ -65,7 +67,7 @@ class GridSpec(TreeClass):
             origin: Physical coordinate of the lower domain corner.
 
         Returns:
-            A ``GridSpec`` whose edge arrays are equally spaced.
+            A grid whose edge arrays are equally spaced.
         """
         if spacing <= 0:
             raise ValueError(f"Uniform grid spacing must be positive, got {spacing}.")
@@ -73,6 +75,21 @@ class GridSpec(TreeClass):
             raise ValueError(f"Uniform grid shape entries must be positive, got {shape}.")
         edge_arrays = tuple(origin[axis] + spacing * jnp.arange(shape[axis] + 1) for axis in range(3))
         return cls(x_edges=edge_arrays[0], y_edges=edge_arrays[1], z_edges=edge_arrays[2])
+
+    @classmethod
+    def custom(
+        cls,
+        x_edges: jax.Array,
+        y_edges: jax.Array,
+        z_edges: jax.Array,
+    ):
+        """Create a realized rectilinear grid from explicit edge arrays.
+
+        This constructor is equivalent to calling ``RectilinearGrid(...)``
+        directly, but it makes the user-facing intent explicit: the caller is
+        supplying the final grid coordinates, not an automatic meshing policy.
+        """
+        return cls(x_edges=x_edges, y_edges=y_edges, z_edges=z_edges)
 
     @property
     def shape(self) -> tuple[int, int, int]:

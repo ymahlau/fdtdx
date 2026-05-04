@@ -3,7 +3,7 @@
 import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.objects.detectors.field import FieldDetector
 
 
@@ -175,7 +175,7 @@ class TestFieldDetectorUpdate:
 
     def test_reduce_volume_uses_nonuniform_volume_weighted_mean(self, random_key):
         """Reduced fields report a physical volume average on stretched grids."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 3.0, 7.0]),
             z_edges=jnp.asarray([0.0, 2.0]),
