@@ -110,6 +110,50 @@ class Detector(SimulationObject, ABC):
         spatial_axes = tuple(range(leading_dims, values.ndim))
         return jnp.sum(values * weights.reshape(weight_shape), axis=spatial_axes) / jnp.sum(weights)
 
+    def _plot_axis_centers_um(self, axis: int) -> np.ndarray:
+        """Return detector-local cell centers in micrometres for plotting.
+
+        Rectilinear grids use the physical cell centers from ``GridSpec``.  The
+        coordinates are shifted so plots start at the detector slice origin,
+        matching the historical uniform-grid display convention.
+        """
+        if self._config.grid is not None:
+            start, stop = self.grid_slice_tuple[axis]
+            edges = np.asarray(self._config.grid.edges(axis)[start : stop + 1])
+            centers = 0.5 * (edges[:-1] + edges[1:])
+            return (centers - edges[0]) / 1.0e-6
+
+        spacing = self._config.require_uniform_grid()
+        return (np.arange(self.grid_shape[axis]) + 0.5) * spacing / 1.0e-6
+
+    def _plot_axis_edges_um(self, axis: int) -> np.ndarray:
+        """Return detector-local cell edges in micrometres for slice plots."""
+        if self._config.grid is not None:
+            start, stop = self.grid_slice_tuple[axis]
+            edges = np.asarray(self._config.grid.edges(axis)[start : stop + 1])
+            return (edges - edges[0]) / 1.0e-6
+
+        spacing = self._config.require_uniform_grid()
+        return np.arange(self.grid_shape[axis] + 1) * spacing / 1.0e-6
+
+    def _plot_resolutions(self) -> tuple[float, float, float]:
+        """Return a scalar-resolution tuple for legacy plotting APIs.
+
+        When a non-uniform ``GridSpec`` is present this value is only a fallback
+        for call signatures; rectilinear plots receive explicit edge arrays and
+        do not use the scalar spacing to position cells.
+        """
+        if self._config.grid is not None and not self._config.grid.is_uniform:
+            return (self._config.grid.min_spacing,) * 3
+        spacing = self._config.require_uniform_grid()
+        return (spacing, spacing, spacing)
+
+    def _plot_coordinate_edges_um(self) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+        """Return rectilinear detector edge coordinates when needed for plots."""
+        if self._config.grid is None or self._config.grid.is_uniform:
+            return None
+        return tuple(self._plot_axis_edges_um(axis) for axis in range(3))  # type: ignore[return-value]
+
     def _calculate_on_list(
         self,
     ) -> list[bool]:
@@ -253,15 +297,6 @@ class Detector(SimulationObject, ABC):
         if squeezed_ndim is None:
             raise Exception(f"empty state: {state}")
 
-        if self._config.grid is not None and not self._config.grid.is_uniform:
-            only_time_series = squeezed_ndim == 1 and self.num_time_steps_recorded > 1
-            if not only_time_series:
-                raise ValueError(
-                    "Detector plotting on non-uniform grids is not supported yet because the plotting "
-                    "helpers build spatial axes from one scalar resolution. Set plot=False or export "
-                    "the detector state directly until rectilinear plotting is implemented."
-                )
-
         figs = {}
         if squeezed_ndim == 1 and self.num_time_steps_recorded > 1:
             # do line plot
@@ -271,17 +306,20 @@ class Detector(SimulationObject, ABC):
                 fig = plot_line_over_time(arr=v, time_steps=time_steps.tolist(), metric_name=f"{self.name}: {k}")
                 figs[k] = fig
         elif squeezed_ndim == 1 and self.num_time_steps_recorded == 1:
-            SCALE = 10
             xlabel = None
+            spatial_axis = None
             if self.grid_shape[0] > 1 and self.grid_shape[1] <= 1 and self.grid_shape[2] <= 1:
                 xlabel = "X axis (μm)"
+                spatial_axis = self._plot_axis_centers_um(0)
             elif self.grid_shape[0] <= 1 and self.grid_shape[1] > 1 and self.grid_shape[2] <= 1:
                 xlabel = "Y axis (μm)"
+                spatial_axis = self._plot_axis_centers_um(1)
             elif self.grid_shape[0] <= 1 and self.grid_shape[1] <= 1 and self.grid_shape[2] > 1:
                 xlabel = "Z axis (μm)"
+                spatial_axis = self._plot_axis_centers_um(2)
             assert xlabel is not None, "This should never happen"
+            assert spatial_axis is not None, "This should never happen"
             for k, v in squeezed_arrs.items():
-                spatial_axis = np.arange(len(v)) / SCALE
                 fig = plot_line_over_time(
                     arr=v, time_steps=spatial_axis, metric_name=f"{self.name}: {k}", xlabel=xlabel
                 )
@@ -291,9 +329,6 @@ class Detector(SimulationObject, ABC):
             time_steps = np.where(np.asarray(self._is_on_at_time_step_arr))[0]
             time_steps = time_steps * self._config.time_step_duration
 
-            # Determine spatial axis based on which dimension has size > 1
-            SCALE = 10  # μm per grid point
-
             for k, v in squeezed_arrs.items():
                 # Determine which dimension is spatial (not time)
                 spatial_dim = 1 if v.shape[1] > 1 else 0
@@ -301,8 +336,10 @@ class Detector(SimulationObject, ABC):
                     # Transpose if needed so time is always first dimension
                     v = v.T
 
-                # Create spatial axis in μm
-                spatial_points = np.arange(v.shape[1]) / SCALE
+                active_axes = [axis for axis, size in enumerate(self.grid_shape) if size > 1]
+                if len(active_axes) != 1:
+                    raise Exception(f"Cannot infer one spatial plotting axis for grid shape {self.grid_shape}")
+                spatial_points = self._plot_axis_centers_um(active_axes[0])
 
                 fig = plot_waterfall_over_time(
                     arr=v,
@@ -315,16 +352,12 @@ class Detector(SimulationObject, ABC):
         elif squeezed_ndim == 2 and self.num_time_steps_recorded == 1:
             # single time step, 2d-plot  # TODO:
             if all([x in squeezed_arrs.keys() for x in ["XY Plane", "XZ Plane", "YZ Plane"]]):
-                spacing = self._config.require_uniform_grid()
                 fig = plot_2d_from_slices(
                     xy_slice=squeezed_arrs["XY Plane"],
                     xz_slice=squeezed_arrs["XZ Plane"],
                     yz_slice=squeezed_arrs["YZ Plane"],
-                    resolutions=(
-                        spacing,
-                        spacing,
-                        spacing,
-                    ),
+                    resolutions=self._plot_resolutions(),
+                    coordinate_edges_um=self._plot_coordinate_edges_um(),
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,
                 )
@@ -334,7 +367,6 @@ class Detector(SimulationObject, ABC):
         elif squeezed_ndim == 3 and self.num_time_steps_recorded > 1:
             # multiple time steps, 2d-plots
             if all([x in squeezed_arrs.keys() for x in ["XY Plane", "XZ Plane", "YZ Plane"]]):
-                spacing = self._config.require_uniform_grid()
                 path = generate_video_from_slices(
                     plt_fn=plot_from_slices,
                     xy_slice=squeezed_arrs["XY Plane"],
@@ -342,11 +374,8 @@ class Detector(SimulationObject, ABC):
                     yz_slice=squeezed_arrs["YZ Plane"],
                     progress=progress,
                     num_worker=self.num_video_workers,
-                    resolutions=(
-                        spacing,
-                        spacing,
-                        spacing,
-                    ),
+                    resolutions=self._plot_resolutions(),
+                    coordinate_edges_um=self._plot_coordinate_edges_um(),
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,
                 )
@@ -358,7 +387,6 @@ class Detector(SimulationObject, ABC):
                 )
         elif squeezed_ndim == 3 and self.num_time_steps_recorded == 1:
             # single step, 3d-plot. # TODO: do as mean over planes
-            spacing = self._config.require_uniform_grid()
             for k, v in squeezed_arrs.items():
                 xy_slice = squeezed_arrs[k].mean(axis=2)
                 xz_slice = squeezed_arrs[k].mean(axis=1)
@@ -367,18 +395,14 @@ class Detector(SimulationObject, ABC):
                     xy_slice=xy_slice,
                     xz_slice=xz_slice,
                     yz_slice=yz_slice,
-                    resolutions=(
-                        spacing,
-                        spacing,
-                        spacing,
-                    ),
+                    resolutions=self._plot_resolutions(),
+                    coordinate_edges_um=self._plot_coordinate_edges_um(),
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,
                 )
                 figs[k] = fig
         elif squeezed_ndim == 4 and self.num_time_steps_recorded > 1:
             # video with 3d-volume in each time step. plot as slices
-            spacing = self._config.require_uniform_grid()
             for k, v in squeezed_arrs.items():
                 xy_slice = squeezed_arrs[k].mean(axis=3)
                 xz_slice = squeezed_arrs[k].mean(axis=2)
@@ -390,11 +414,8 @@ class Detector(SimulationObject, ABC):
                     yz_slice=yz_slice,
                     progress=progress,
                     num_worker=self.num_video_workers,
-                    resolutions=(
-                        spacing,
-                        spacing,
-                        spacing,
-                    ),
+                    resolutions=self._plot_resolutions(),
+                    coordinate_edges_um=self._plot_coordinate_edges_um(),
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,
                 )
