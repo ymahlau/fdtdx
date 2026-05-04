@@ -66,9 +66,9 @@ class Device(OrderableObject, ABC):
             self._matrix_voxel_grid_shape_override
             if self._matrix_voxel_grid_shape_override != INVALID_SHAPE_3D
             else (
-            round(self.grid_shape[0] / self.single_voxel_grid_shape[0]),
-            round(self.grid_shape[1] / self.single_voxel_grid_shape[1]),
-            round(self.grid_shape[2] / self.single_voxel_grid_shape[2]),
+                round(self.grid_shape[0] / self.single_voxel_grid_shape[0]),
+                round(self.grid_shape[1] / self.single_voxel_grid_shape[1]),
+                round(self.grid_shape[2] / self.single_voxel_grid_shape[2]),
             )
         )
 
@@ -103,9 +103,11 @@ class Device(OrderableObject, ABC):
             return self._physical_design_voxel_shape
         grid = self._config.realized_grid
         if grid is not None and not grid.is_uniform:
-            return tuple(
-                self.real_shape[axis] / self.matrix_voxel_grid_shape[axis] for axis in range(3)
-            )  # type: ignore[return-value]
+            return (
+                self.real_shape[0] / self.matrix_voxel_grid_shape[0],
+                self.real_shape[1] / self.matrix_voxel_grid_shape[1],
+                self.real_shape[2] / self.matrix_voxel_grid_shape[2],
+            )
 
         single_voxel_shape = self.single_voxel_grid_shape
         spacing = self._config.require_uniform_grid()
@@ -141,7 +143,9 @@ class Device(OrderableObject, ABC):
         spacing = None
         if not config.has_nonuniform_grid:
             spacing = config.require_uniform_grid()
-        uses_physical_design_grid = config.has_nonuniform_grid and any(shape is not None for shape in self.partial_voxel_real_shape)
+        uses_physical_design_grid = config.has_nonuniform_grid and any(
+            shape is not None for shape in self.partial_voxel_real_shape
+        )
         if uses_physical_design_grid and any(shape is not None for shape in self.partial_voxel_grid_shape):
             raise ValueError(
                 "Non-uniform physical device voxel sizes cannot be mixed with partial_voxel_grid_shape. "

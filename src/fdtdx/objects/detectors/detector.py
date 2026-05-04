@@ -154,7 +154,8 @@ class Detector(SimulationObject, ABC):
         """
         if self._config.has_nonuniform_grid:
             assert self._config.realized_grid is not None
-            return (self._config.realized_grid.min_spacing,) * 3
+            spacing = self._config.realized_grid.min_spacing
+            return (spacing, spacing, spacing)
         spacing = self._config.require_uniform_grid()
         return (spacing, spacing, spacing)
 
@@ -162,7 +163,11 @@ class Detector(SimulationObject, ABC):
         """Return rectilinear detector edge coordinates when needed for plots."""
         if not self._config.has_nonuniform_grid:
             return None
-        return tuple(self._plot_axis_edges_um(axis) for axis in range(3))  # type: ignore[return-value]
+        return (
+            self._plot_axis_edges_um(0),
+            self._plot_axis_edges_um(1),
+            self._plot_axis_edges_um(2),
+        )
 
     def _calculate_on_list(
         self,

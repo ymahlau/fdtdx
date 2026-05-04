@@ -200,7 +200,7 @@ def make_waveguide_simulation(wavelength, mesh, width, height, absorber_thicknes
 
     # Define simulation configuration
     config = fdtdx.SimulationConfig(
-        resolution=resolution,
+        grid=fdtdx.UniformGrid(spacing=resolution),
         time=time,
         courant_factor=courant_factor,
     )

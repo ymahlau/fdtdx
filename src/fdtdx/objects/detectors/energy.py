@@ -23,15 +23,6 @@ class EnergyDetector(Detector):
     #: Defaults to False.
     reduce_volume: bool = frozen_field(default=False)
 
-    #: Whether reduced detector output should be a physical volume integral.
-    #:
-    #: When true, ``reduce_volume=True`` multiplies energy density by per-cell
-    #: volumes before summing.  This keeps uniform grids as the simple special
-    #: case of rectilinear grids and prevents non-uniform meshes from changing
-    #: total energy purely because a region was refined.  ``reduce_volume=False``
-    #: continues to record energy density at detector samples.
-    integrate: bool = frozen_field(default=True)
-
     #: real-world positions for slice extraction.
     #: Defaults to None.
     x_slice: float | None = frozen_field(default=None)
@@ -142,8 +133,7 @@ class EnergyDetector(Detector):
             }
 
         if self.reduce_volume:
-            if self.integrate:
-                energy = energy * self._cell_volume_weights()
+            energy = energy * self._cell_volume_weights()
             total_energy = energy.sum()
             new_arr = state["energy"].at[arr_idx].set(total_energy)
             return {"energy": new_arr}

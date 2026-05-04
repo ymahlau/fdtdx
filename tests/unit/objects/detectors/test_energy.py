@@ -240,25 +240,26 @@ class TestEnergyDetectorUpdate:
 
         assert detector._cell_volume_weights() is detector._cell_volume_weights()
 
-    def test_reduce_volume_can_keep_legacy_raw_sum(self, random_key):
-        """The integrate switch preserves density summation for compatibility checks."""
+    def test_reduce_volume_uses_cell_volume_on_uniform_grid(self, random_key):
+        """Reduced energy is a physical volume integral on uniform grids."""
+        spacing = 2e-7
         grid = RectilinearGrid(
-            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
-            y_edges=jnp.asarray([0.0, 3.0, 7.0]),
-            z_edges=jnp.asarray([0.0, 2.0]),
+            x_edges=jnp.asarray([0.0, spacing, 2 * spacing]),
+            y_edges=jnp.asarray([0.0, spacing, 2 * spacing]),
+            z_edges=jnp.asarray([0.0, spacing]),
         )
         config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
-        detector = EnergyDetector(reduce_volume=True, integrate=False)
-        detector = detector.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
-        state = detector.init_state()
-
         E = jnp.zeros((3, 2, 2, 1), dtype=jnp.float32).at[0].set(1.0)
         H = jnp.zeros((3, 2, 2, 1), dtype=jnp.float32)
         inv_permittivity = jnp.ones((3, 2, 2, 1), dtype=jnp.float32)
 
+        detector = EnergyDetector(reduce_volume=True)
+        detector = detector.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
+        state = detector.init_state()
+
         new_state = detector.update(jnp.array(0), E, H, state, inv_permittivity, 1.0)
 
-        assert jnp.allclose(new_state["energy"][0], jnp.asarray([2.0], dtype=jnp.float32))
+        assert jnp.allclose(new_state["energy"][0], jnp.asarray([2 * spacing**3], dtype=jnp.float32))
 
     def test_as_slices_uses_nonuniform_cell_centers_for_positions(self, random_key):
         """Explicit slice positions are selected by physical cell centers."""

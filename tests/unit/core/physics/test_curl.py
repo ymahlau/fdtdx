@@ -468,12 +468,12 @@ def test_curl_H_mixed_periodic():
 
 
 def test_curl_H_nonuniform_metric_no_boundaries():
-    """Backward-difference H curls use the local rectilinear metric."""
+    """Backward-difference H curls recover linear physical derivatives at cell centers."""
     config = _make_nonuniform_config()
     nx, ny, nz = config.grid.shape
-    x = config.grid.x_edges[:-1]
-    z = config.grid.z_edges[:-1]
-    X, _Y, Z = jnp.meshgrid(x, config.grid.y_edges[:-1], z, indexing="ij")
+    x_centers = config.grid.centers(0)
+    z_centers = config.grid.centers(2)
+    X, _Y, Z = jnp.meshgrid(x_centers, config.grid.y_edges[:-1], z_centers, indexing="ij")
 
     H = jnp.stack([Z, jnp.zeros((nx, ny, nz), dtype=jnp.float32), -X], axis=0)
     H_pad = pad_fields(H, (False, False, False))
@@ -494,12 +494,12 @@ def test_curl_H_nonuniform_metric_no_boundaries():
 
 
 def test_curl_H_nonuniform_quadratic_field_matches_local_physical_derivative():
-    """Backward Yee derivatives use previous stretched-cell widths."""
+    """Backward Yee derivatives use the inter-center distance (dy[j]+dy[j-1])/2."""
     config = _make_nonuniform_config()
     nx, ny, nz = config.grid.shape
-    y = config.grid.y_edges[:-1]
-    z = config.grid.z_edges[:-1]
-    _X, Y, Z = jnp.meshgrid(config.grid.x_edges[:-1], y, z, indexing="ij")
+    y_centers = config.grid.centers(1)
+    z_centers = config.grid.centers(2)
+    _X, Y, Z = jnp.meshgrid(config.grid.x_edges[:-1], y_centers, z_centers, indexing="ij")
 
     H = jnp.stack(
         [
@@ -522,8 +522,8 @@ def test_curl_H_nonuniform_quadratic_field_matches_local_physical_derivative():
         simulate_boundaries=False,
     )
 
-    expected_y = y[1:] + y[:-1]
-    expected_z = z[1:] + z[:-1]
+    expected_y = y_centers[1:] + y_centers[:-1]
+    expected_z = z_centers[1:] + z_centers[:-1]
     expected = expected_y[None, :, None] - expected_z[None, None, :]
     assert jnp.allclose(curl_result[0][:, 1:, 1:], expected, atol=1e-6)
 

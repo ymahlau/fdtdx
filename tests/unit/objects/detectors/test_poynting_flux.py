@@ -51,7 +51,7 @@ class TestPoyntingFluxDetectorShapes:
 
     def test_init_state(self, simulation_config, plane_grid_slice, random_key):
         """Test state initialization."""
-        detector = PoyntingFluxDetector(direction="+", integrate=False)
+        detector = PoyntingFluxDetector(direction="+")
         detector = detector.place_on_grid(plane_grid_slice, simulation_config, random_key)
 
         state = detector.init_state()
@@ -249,7 +249,7 @@ class TestPoyntingFluxDetectorUpdate:
         inv_permeability,
     ):
         """Test updating at multiple time steps."""
-        detector = PoyntingFluxDetector(direction="+", integrate=False)
+        detector = PoyntingFluxDetector(direction="+")
         detector = detector.place_on_grid(plane_grid_slice, simulation_config, random_key)
         state = detector.init_state()
 
@@ -268,8 +268,8 @@ class TestPoyntingFluxDetectorUpdate:
         # Flux values should be finite
         assert jnp.all(jnp.isfinite(flux_after_step0))
         assert jnp.all(jnp.isfinite(flux_after_step1))
-        # Doubled E and H should produce different (larger) flux than unit fields
-        assert not jnp.allclose(flux_after_step0, flux_after_step1)
+        # Doubled E and H should produce 4x the flux at the second recorded time step.
+        assert flux_after_step1[1, 0] > flux_after_step0[0, 0]
 
     def test_reduce_volume_integrates_nonuniform_face_area(self, random_key):
         """A constant flux density integrates to the physical detector area."""
@@ -303,24 +303,25 @@ class TestPoyntingFluxDetectorUpdate:
 
         assert detector._face_area_weights() is detector._face_area_weights()
 
-    def test_reduce_volume_can_keep_legacy_raw_sum(self, random_key):
-        """The integrate switch preserves raw summation for compatibility checks."""
+    def test_reduce_volume_uses_face_area_on_uniform_grid(self, random_key):
+        """Reduced flux is a physical surface integral on uniform grids."""
+        spacing = 2e-7
         grid = RectilinearGrid(
-            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
-            y_edges=jnp.asarray([0.0, 3.0, 7.0]),
-            z_edges=jnp.asarray([0.0, 1.0]),
+            x_edges=jnp.asarray([0.0, spacing, 2 * spacing]),
+            y_edges=jnp.asarray([0.0, spacing, 2 * spacing]),
+            z_edges=jnp.asarray([0.0, spacing]),
         )
         config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
-        detector = PoyntingFluxDetector(direction="+", reduce_volume=True, integrate=False)
-        detector = detector.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
-        state = detector.init_state()
-
         E = jnp.zeros((3, 2, 2, 1), dtype=jnp.float32).at[0].set(1.0)
         H = jnp.zeros((3, 2, 2, 1), dtype=jnp.float32).at[1].set(1.0)
 
+        detector = PoyntingFluxDetector(direction="+", reduce_volume=True)
+        detector = detector.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
+        state = detector.init_state()
+
         new_state = detector.update(jnp.array(0), E, H, state, jnp.ones((1, 2, 2, 1)), 1.0)
 
-        assert jnp.allclose(new_state["poynting_flux"][0], jnp.asarray([4.0], dtype=jnp.float32))
+        assert jnp.allclose(new_state["poynting_flux"][0], jnp.asarray([4 * spacing**2], dtype=jnp.float32))
 
 
 class TestPoyntingFluxDetectorConfiguration:

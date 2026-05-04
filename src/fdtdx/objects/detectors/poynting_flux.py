@@ -35,14 +35,6 @@ class PoyntingFluxDetector(Detector):
     #: is returned (scalar). If true, all three vector components are returned. Defaults to False.
     keep_all_components: bool = frozen_field(default=False)
 
-    #: Whether reduced detector output should be a physical surface integral.
-    #:
-    #: When true, ``reduce_volume=True`` multiplies flux density by per-cell face
-    #: areas before summing.  This is essential for non-uniform grids, where a raw
-    #: sum depends on local mesh density.  ``reduce_volume=False`` continues to
-    #: report flux density at detector samples.
-    integrate: bool = frozen_field(default=True)
-
     @property
     def propagation_axis(self) -> int:
         """Determines the axis along which Poynting flux is measured.
@@ -117,8 +109,7 @@ class PoyntingFluxDetector(Detector):
         if self.direction == "-":
             pf = -pf
         if self.reduce_volume:
-            if self.integrate:
-                pf = pf * self._face_area_weights()
+            pf = pf * self._face_area_weights()
             if self.keep_all_components:
                 pf = pf.sum(axis=(1, 2, 3))
             else:

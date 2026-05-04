@@ -53,9 +53,15 @@ class UniformGrid(TreeClass):
         lower, upper = bounds
         return (upper - lower) * self.spacing
 
-    def slice_extent(self, slice_tuple: tuple[tuple[int, int], tuple[int, int], tuple[int, int]]) -> tuple[float, float, float]:
+    def slice_extent(
+        self, slice_tuple: tuple[tuple[int, int], tuple[int, int], tuple[int, int]]
+    ) -> tuple[float, float, float]:
         """Physical side lengths covered by a 3D grid slice."""
-        return tuple(self.axis_extent(axis, slice_tuple[axis]) for axis in range(3))  # type: ignore[return-value]
+        return (
+            self.axis_extent(0, slice_tuple[0]),
+            self.axis_extent(1, slice_tuple[1]),
+            self.axis_extent(2, slice_tuple[2]),
+        )
 
     def coord_to_index(self, axis: int, coord: float, snap: str = "nearest") -> int:
         """Map a physical coordinate to a uniform-grid edge index."""
@@ -276,9 +282,15 @@ class RectilinearGrid(TreeClass):
         edges = self.edges(axis)
         return float(edges[upper] - edges[lower])
 
-    def slice_extent(self, slice_tuple: tuple[tuple[int, int], tuple[int, int], tuple[int, int]]) -> tuple[float, float, float]:
+    def slice_extent(
+        self, slice_tuple: tuple[tuple[int, int], tuple[int, int], tuple[int, int]]
+    ) -> tuple[float, float, float]:
         """Physical side lengths covered by a 3D grid slice."""
-        return tuple(self.axis_extent(axis, slice_tuple[axis]) for axis in range(3))  # type: ignore[return-value]
+        return (
+            self.axis_extent(0, slice_tuple[0]),
+            self.axis_extent(1, slice_tuple[1]),
+            self.axis_extent(2, slice_tuple[2]),
+        )
 
     def coord_to_index(self, axis: int, coord: float, snap: str = "nearest") -> int:
         """Map a physical coordinate to a grid edge index.

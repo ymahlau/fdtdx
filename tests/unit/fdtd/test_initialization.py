@@ -295,7 +295,7 @@ def test_nonuniform_partial_real_shape_covers_metric_size(simple_material):
         y_edges=jnp.asarray([0.0, 2.0, 5.0]),
         z_edges=jnp.asarray([0.0, 1.5, 4.0]),
     )
-    config = SimulationConfig( grid=grid, time=100e-15)
+    config = SimulationConfig(grid=grid, time=100e-15)
     volume = SimulationVolume(name="volume", partial_grid_shape=grid.shape)
     obj = UniformMaterialObject(name="obj1", partial_real_shape=(2.1, 2.1, 2.1), material=simple_material)
     constraints = [
@@ -315,7 +315,7 @@ def test_nonuniform_partial_real_position_uses_physical_interval_center(simple_m
         y_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
         z_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
     )
-    config = SimulationConfig( grid=grid, time=100e-15)
+    config = SimulationConfig(grid=grid, time=100e-15)
     volume = SimulationVolume(name="volume", partial_grid_shape=grid.shape)
     obj = UniformMaterialObject(
         name="obj1",
@@ -337,7 +337,7 @@ def test_nonuniform_real_coordinate_constraint_snaps_to_nearest_edge(simple_mate
         y_edges=jnp.asarray([0.0, 1.0]),
         z_edges=jnp.asarray([0.0, 1.0]),
     )
-    config = SimulationConfig( grid=grid, time=100e-15)
+    config = SimulationConfig(grid=grid, time=100e-15)
     volume = SimulationVolume(name="volume", partial_grid_shape=grid.shape)
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(1, 1, 1), material=simple_material)
     constraint = RealCoordinateConstraint(object="obj1", axes=(0,), sides=("-",), coordinates=(2.7,))
@@ -355,7 +355,7 @@ def test_nonuniform_grid_coordinate_constraint_is_rejected(simple_material):
         y_edges=jnp.asarray([0.0, 1.0, 2.0, 3.0]),
         z_edges=jnp.asarray([0.0, 1.0, 2.0, 3.0]),
     )
-    config = SimulationConfig( grid=grid, time=100e-15)
+    config = SimulationConfig(grid=grid, time=100e-15)
     volume = SimulationVolume(name="volume", partial_grid_shape=grid.shape)
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(1, 1, 1), material=simple_material)
     constraint = GridCoordinateConstraint(object="obj1", axes=(0,), sides=("-",), coordinates=(1,))
@@ -372,7 +372,7 @@ def test_nonuniform_nonzero_grid_margin_is_rejected(simple_material):
         y_edges=jnp.asarray([0.0, 1.0, 2.0, 3.0, 4.0]),
         z_edges=jnp.asarray([0.0, 1.0, 2.0, 3.0, 4.0]),
     )
-    config = SimulationConfig( grid=grid, time=100e-15)
+    config = SimulationConfig(grid=grid, time=100e-15)
     volume = SimulationVolume(name="volume", partial_grid_shape=grid.shape)
     parent = UniformMaterialObject(name="parent", partial_grid_shape=(1, 1, 1), material=simple_material)
     child = UniformMaterialObject(name="child", partial_grid_shape=(1, 1, 1), material=simple_material)
@@ -384,6 +384,45 @@ def test_nonuniform_nonzero_grid_margin_is_rejected(simple_material):
     _resolved_slices, errors = resolve_object_constraints([volume, parent, child], constraints, config)
 
     assert "grid_margins" in errors["child"]
+
+
+def test_nonuniform_size_constraint_uses_physical_proportion(simple_material):
+    """SizeConstraint proportions resolve using metric extents on stretched grids.
+
+    Grid x has widths [1, 2, 3] so three cells span 6 m.  A 50 % proportion
+    targets 3 m, which covers the first two cells (edges 0→1→3).
+    """
+    grid = RectilinearGrid(
+        x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),  # widths 1, 2, 3 → total 6 m
+        y_edges=jnp.asarray([0.0, 1.0]),
+        z_edges=jnp.asarray([0.0, 1.0]),
+    )
+    config = SimulationConfig(grid=grid, time=100e-15)
+    volume = SimulationVolume(name="volume", partial_grid_shape=grid.shape)
+    parent = UniformMaterialObject(name="parent", partial_grid_shape=(3, 1, 1), material=simple_material)
+    child = UniformMaterialObject(name="child", material=simple_material)
+    constraints = [
+        RealCoordinateConstraint(object="parent", axes=(0, 1, 2), sides=("-", "-", "-"), coordinates=(0.0, 0.0, 0.0)),
+        RealCoordinateConstraint(object="child", axes=(0, 1, 2), sides=("-", "-", "-"), coordinates=(0.0, 0.0, 0.0)),
+        SizeConstraint(
+            object="child",
+            other_object="parent",
+            axes=[0],
+            other_axes=[0],
+            proportions=[0.5],
+            grid_offsets=[None],
+            offsets=[None],
+        ),
+    ]
+
+    resolved_slices, errors = resolve_object_constraints([volume, parent, child], constraints, config)
+
+    assert errors["parent"] is None
+    assert errors["child"] is None
+    assert resolved_slices["parent"][0] == (0, 3)
+    # 50 % of 6 m = 3 m; upper-snap from lower edge gives 2 cells (0→1→3)
+    child_size = resolved_slices["child"][0][1] - resolved_slices["child"][0][0]
+    assert child_size == 2
 
 
 def test_resolve_constraints_extend_to_infinity(simple_config, simple_volume, simple_material):

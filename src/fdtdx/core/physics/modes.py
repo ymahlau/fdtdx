@@ -223,7 +223,9 @@ def compute_mode(
         normalization_area_weights = None
     else:
         if len(transverse_coords) != 2:
-            raise ValueError(f"transverse_coords must contain exactly two coordinate arrays, got {len(transverse_coords)}")
+            raise ValueError(
+                f"transverse_coords must contain exactly two coordinate arrays, got {len(transverse_coords)}"
+            )
         coords_meter = [np.asarray(coord, dtype=np.float64) for coord in transverse_coords]
         expected_lengths = [permittivities.shape[dim] + 1 for dim in other_axes]
         for axis_idx, (coord, expected_length) in enumerate(zip(coords_meter, expected_lengths, strict=True)):
