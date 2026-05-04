@@ -100,8 +100,9 @@ class PerfectlyMatchedLayer(BaseBoundary):
         behavior.  Non-uniform grids derive thickness from physical grid edges so
         the same PML cell count can represent stretched physical layers.
         """
-        if self._config.grid is not None:
-            return self._config.grid.axis_extent(self.axis, self.grid_slice_tuple[self.axis])
+        grid = self._config.realized_grid
+        if grid is not None:
+            return grid.axis_extent(self.axis, self.grid_slice_tuple[self.axis])
         return self.thickness * self._config.require_uniform_grid()
 
     @property
@@ -153,7 +154,7 @@ class PerfectlyMatchedLayer(BaseBoundary):
 
         # Create distance array along the PML axis
         # d varies from 0 (at interface) to L (at outer edge)
-        if self._config.grid is not None and not self._config.grid.is_uniform:
+        if self._config.has_nonuniform_grid:
             dE, dH, norm = self._compute_nonuniform_pml_depths(dtype)
         elif self.direction == "-":
             # For min boundary, distance increases as we go towards lower indices
@@ -190,9 +191,10 @@ class PerfectlyMatchedLayer(BaseBoundary):
         H profile uses cell-center depth except at the interface cell, where it is
         pinned to zero for continuity with the historical CPML staggering.
         """
-        assert self._config.grid is not None
+        grid = self._config.realized_grid
+        assert grid is not None
         lower, upper = self.grid_slice_tuple[self.axis]
-        edges = self._config.grid.edges(self.axis)[lower : upper + 1].astype(dtype)
+        edges = grid.edges(self.axis)[lower : upper + 1].astype(dtype)
         widths = edges[1:] - edges[:-1]
         norm = float(edges[-1] - edges[0])
         centers = 0.5 * (edges[:-1] + edges[1:])

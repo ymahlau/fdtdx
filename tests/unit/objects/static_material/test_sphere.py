@@ -10,7 +10,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import RectilinearGrid
+from fdtdx.core.grid import RectilinearGrid, UniformGrid
 from fdtdx.materials import Material
 from fdtdx.objects.static_material.sphere import Sphere
 
@@ -23,7 +23,7 @@ from fdtdx.objects.static_material.sphere import Sphere
 def config():
     return SimulationConfig(
         time=100e-15,
-        resolution=50e-9,
+        grid=UniformGrid(spacing=50e-9),
         backend="cpu",
         dtype=jnp.float32,
         gradient_config=None,
@@ -139,7 +139,7 @@ class TestGetVoxelMaskForShape:
             y_edges=jnp.asarray([0.0, 1.0, 3.0]),
             z_edges=jnp.asarray([0.0, 1.0, 3.0]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         sphere = _make_sphere(two_materials, radius=0.9)
         placed = _place(sphere, config, key, ((0, 2), (0, 2), (0, 2)))
 
@@ -157,7 +157,7 @@ class TestGetVoxelMaskForShape:
             y_edges=2.0 * t**1.15,
             z_edges=2.0 * t**1.05,
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         radius = 0.75
         sphere = _make_sphere(two_materials, radius=radius)
         placed = _place(sphere, config, key, ((0, n), (0, n), (0, n)))

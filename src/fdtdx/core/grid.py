@@ -8,6 +8,104 @@ from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field, frozen_pri
 
 
 @autoinit
+class UniformGrid(TreeClass):
+    """Unresolved policy for a uniform rectilinear grid.
+
+    ``UniformGrid`` is user intent, not the solver mesh itself.  It records the
+    physical cell spacing while the final simulation shape may still be unknown.
+    Object placement resolves this policy to a concrete ``RectilinearGrid`` once
+    the volume shape is known.
+
+    Keeping uniform spacing here avoids a second scalar discretization source on
+    ``SimulationConfig``.  Uniform grids and explicitly non-uniform grids both
+    enter the solver through the same realized ``RectilinearGrid`` structure.
+    """
+
+    spacing: float = frozen_field()
+    origin: tuple[float, float, float] = frozen_field(default=(0, 0, 0))
+
+    def __post_init__(self):
+        if self.spacing <= 0:
+            raise ValueError(f"Uniform grid spacing must be positive, got {self.spacing}.")
+
+    def resolve(self, shape: tuple[int, int, int]) -> "RectilinearGrid":
+        """Return a concrete solver grid for ``shape``."""
+        return RectilinearGrid.uniform(shape=shape, spacing=self.spacing, origin=self.origin)
+
+    @property
+    def is_uniform(self) -> bool:
+        """Uniform policies always represent equal cell widths."""
+        return True
+
+    @property
+    def min_spacing(self) -> float:
+        """Smallest cell width implied by this policy."""
+        return self.spacing
+
+    @property
+    def uniform_spacing(self) -> float:
+        """Scalar cell width in metres."""
+        return self.spacing
+
+    def axis_extent(self, axis: int, bounds: tuple[int, int]) -> float:
+        """Physical length covered by an index interval on one axis."""
+        del axis
+        lower, upper = bounds
+        return (upper - lower) * self.spacing
+
+    def slice_extent(self, slice_tuple: tuple[tuple[int, int], tuple[int, int], tuple[int, int]]) -> tuple[float, float, float]:
+        """Physical side lengths covered by a 3D grid slice."""
+        return tuple(self.axis_extent(axis, slice_tuple[axis]) for axis in range(3))  # type: ignore[return-value]
+
+    def coord_to_index(self, axis: int, coord: float, snap: str = "nearest") -> int:
+        """Map a physical coordinate to a uniform-grid edge index."""
+        origin = self.origin[axis]
+        scaled = (coord - origin) / self.spacing
+        if snap == "nearest":
+            return round(scaled)
+        if snap == "lower":
+            return int(np.floor(scaled))
+        if snap == "upper":
+            return int(np.ceil(scaled))
+        raise ValueError(f"Unknown snapping rule: {snap}")
+
+    def length_to_cell_count(self, axis: int, length: float, snap: str = "nearest") -> int:
+        """Convert a physical length to a uniform-grid cell count."""
+        return self.coord_to_index(axis, self.origin[axis] + length, snap=snap)
+
+    def bounds_for_center(self, axis: int, center: float, size: int) -> tuple[int, int]:
+        """Convert a physical center and grid size to edge bounds."""
+        grid_center = self.coord_to_index(axis, center, snap="nearest")
+        lower = round(grid_center - size / 2)
+        return lower, lower + size
+
+    def anchor_coordinate(self, axis: int, bounds: tuple[int, int], position: float) -> float:
+        """Return a physical anchor coordinate inside a uniform interval."""
+        lower, upper = bounds
+        lower_coord = self.origin[axis] + lower * self.spacing
+        upper_coord = self.origin[axis] + upper * self.spacing
+        return lower_coord + 0.5 * (position + 1.0) * (upper_coord - lower_coord)
+
+    def bounds_for_anchor(self, axis: int, size: int, anchor: float, position: float) -> tuple[int, int]:
+        """Choose a uniform-grid interval from an object anchor."""
+        anchor_cell = self.coord_to_index(axis, anchor, snap="nearest")
+        offset = round(0.5 * (position + 1.0) * size)
+        lower = anchor_cell - offset
+        return lower, lower + size
+
+    def cell_volume(self, slice_tuple: tuple[tuple[int, int], tuple[int, int], tuple[int, int]]) -> jax.Array:
+        """Return per-cell volumes for a slice on this uniform policy."""
+        shape = tuple(upper - lower for lower, upper in slice_tuple)
+        return jnp.ones(shape) * self.spacing**3
+
+    def face_area(self, axis: int, slice_tuple: tuple[tuple[int, int], tuple[int, int], tuple[int, int]]) -> jax.Array:
+        """Return per-face areas for a slice on this uniform policy."""
+        shape = tuple(upper - lower for lower, upper in slice_tuple)
+        area_shape = tuple(shape[i] for i in range(3) if i != axis)
+        return jnp.ones(area_shape) * self.spacing**2
+
+
+@autoinit
 class RectilinearGrid(TreeClass):
     """Realized rectilinear simulation grid described by physical cell edges.
 
@@ -55,7 +153,7 @@ class RectilinearGrid(TreeClass):
         is_uniform = all(np.allclose(widths, spacing) for widths in width_arrays)
         object.__setattr__(self, "_min_spacings", min_spacings)
         object.__setattr__(self, "_is_uniform", is_uniform)
-        object.__setattr__(self, "_uniform_spacing", spacing if is_uniform else None)
+        object.__setattr__(self, "_uniform_spacing", float(np.round(spacing, decimals=14)) if is_uniform else None)
 
     @classmethod
     def uniform(cls, shape: tuple[int, int, int], spacing: float, origin: tuple[float, float, float] = (0, 0, 0)):

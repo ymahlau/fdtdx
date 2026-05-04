@@ -34,7 +34,7 @@ _SIM_TIME = 120e-15
 
 def _build_base():
     config = fdtdx.SimulationConfig(
-        resolution=_RESOLUTION,
+        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
         time=_SIM_TIME,
         dtype=jnp.float32,
     )
@@ -272,7 +272,7 @@ def test_gaussian_pulse_broadband():
     sim_time = 12 * sigma_t  # t0=6σ_t peak + 6σ_t tail ≈ 19 fs
 
     config = fdtdx.SimulationConfig(
-        resolution=_RESOLUTION,
+        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
         time=sim_time,
         dtype=jnp.float32,
     )

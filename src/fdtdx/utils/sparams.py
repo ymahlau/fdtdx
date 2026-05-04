@@ -8,6 +8,7 @@ import jax
 
 from fdtdx import DetectorState, GaussianPulseProfile, extend_material_to_pml
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import UniformGrid
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.initialization import apply_params, place_objects
@@ -126,7 +127,7 @@ def setup_sparams_simulation(
         domain_size[2] + 2.0 * pml_thickness,
     )
 
-    config = SimulationConfig(time=max_time, resolution=resolution)
+    config = SimulationConfig(time=max_time, grid=UniformGrid(spacing=resolution))
 
     object_list = []
     constraints = []

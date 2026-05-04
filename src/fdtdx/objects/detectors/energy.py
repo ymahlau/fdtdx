@@ -59,7 +59,7 @@ class EnergyDetector(Detector):
         """
         if real_pos is None:
             return axis_len // 2
-        grid = self._config.grid
+        grid = self._config.realized_grid
         if grid is not None:
             start, stop = self.grid_slice_tuple[axis]
             centers = np.asarray(grid.centers(axis)[start:stop])

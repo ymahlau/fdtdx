@@ -106,8 +106,9 @@ class ModeOverlapDetector(PhasorDetector):
         without an explicit ``RectilinearGrid``, the scalar grid spacing supplies the
         uniform face area.
         """
-        if self._config.grid is not None:
-            return self._config.grid.face_area(axis=self.propagation_axis, slice_tuple=self.grid_slice_tuple)
+        grid = self._config.realized_grid
+        if grid is not None:
+            return grid.face_area(axis=self.propagation_axis, slice_tuple=self.grid_slice_tuple)
 
         spacing = self._config.require_uniform_grid()
         return jnp.ones(self.grid_shape, dtype=self.dtype) * spacing * spacing
@@ -123,7 +124,8 @@ class ModeOverlapDetector(PhasorDetector):
         with edge-coordinate arrays.  Returning ``None`` keeps the uniform scalar
         spacing path for legacy configurations and older tests.
         """
-        if self._config.grid is None:
+        grid = self._config.realized_grid
+        if grid is None:
             return None
 
         transverse_edges = []
@@ -131,7 +133,7 @@ class ModeOverlapDetector(PhasorDetector):
             if axis == self.propagation_axis:
                 continue
             lower, upper = self.grid_slice_tuple[axis]
-            transverse_edges.append(self._config.grid.edges(axis)[lower : upper + 1])
+            transverse_edges.append(grid.edges(axis)[lower : upper + 1])
         return tuple(transverse_edges)
 
     def _mode_solver_resolution(self) -> float:
@@ -141,8 +143,9 @@ class ModeOverlapDetector(PhasorDetector):
         are supplied.  For non-uniform grids we pass a harmless finite value so
         the compatibility argument does not force a uniform-grid check.
         """
-        if self._config.grid is not None and not self._config.grid.is_uniform:
-            return self._config.grid.min_spacing
+        if self._config.has_nonuniform_grid:
+            assert self._config.realized_grid is not None
+            return self._config.realized_grid.min_spacing
         return self._config.require_uniform_grid()
 
     def apply(

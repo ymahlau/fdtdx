@@ -9,6 +9,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import GradientConfig, SimulationConfig
+from fdtdx.core.grid import UniformGrid
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer
 from fdtdx.fdtd.fdtd import reversible_fdtd
 from fdtdx.interfaces.recorder import Recorder
@@ -28,7 +29,7 @@ def sim_config(field_shape):
     """
     base_config = SimulationConfig(
         time=400e-15,
-        resolution=40e-6,
+        grid=UniformGrid(spacing=40e-6),
         backend="cpu",
         dtype=jnp.float32,
         courant_factor=0.99,

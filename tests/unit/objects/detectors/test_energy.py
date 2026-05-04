@@ -214,7 +214,7 @@ class TestEnergyDetectorUpdate:
             y_edges=jnp.asarray([0.0, 3.0, 7.0]),
             z_edges=jnp.asarray([0.0, 2.0]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         detector = EnergyDetector(reduce_volume=True)
         detector = detector.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
         state = detector.init_state()
@@ -234,7 +234,7 @@ class TestEnergyDetectorUpdate:
             y_edges=jnp.asarray([0.0, 3.0, 7.0]),
             z_edges=jnp.asarray([0.0, 2.0]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         detector = EnergyDetector(reduce_volume=True)
         detector = detector.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
 
@@ -247,7 +247,7 @@ class TestEnergyDetectorUpdate:
             y_edges=jnp.asarray([0.0, 3.0, 7.0]),
             z_edges=jnp.asarray([0.0, 2.0]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         detector = EnergyDetector(reduce_volume=True, integrate=False)
         detector = detector.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
         state = detector.init_state()
@@ -267,7 +267,7 @@ class TestEnergyDetectorUpdate:
             y_edges=jnp.asarray([0.0, 2.0, 5.0]),
             z_edges=jnp.asarray([0.0, 1.0, 7.0]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         detector = EnergyDetector(as_slices=True, x_slice=2.4, y_slice=0.9, z_slice=4.1)
         detector = detector.place_on_grid(((0, 2), (0, 2), (0, 2)), config, random_key)
         state = detector.init_state()

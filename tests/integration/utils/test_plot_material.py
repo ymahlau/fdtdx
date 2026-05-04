@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import fdtdx
 from fdtdx import Cylinder, SimulationVolume, Sphere
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import UniformGrid
 from fdtdx.objects.object import GridCoordinateConstraint
 from fdtdx.objects.static_material.static import Material, UniformMaterialObject
 from fdtdx.utils.plot_material import plot_material, plot_material_from_side
@@ -49,7 +50,7 @@ def _axis_extent(ax) -> tuple[float, float, float, float]:
 def simple_material_setup():
     """A simple setup with basic material objects for testing."""
     config = SimulationConfig(
-        resolution=50e-9,
+        grid=UniformGrid(spacing=50e-9),
         time=100e-15,
     )
 
@@ -97,7 +98,7 @@ def simple_material_setup():
 def cylinder_setup():
     """Setup with a cylinder object."""
     config = SimulationConfig(
-        resolution=30e-9,
+        grid=UniformGrid(spacing=30e-9),
         time=100e-15,
     )
 
@@ -146,7 +147,7 @@ def cylinder_setup():
 def sphere_setup():
     """Setup with a sphere object."""
     config = SimulationConfig(
-        resolution=30e-9,
+        grid=UniformGrid(spacing=30e-9),
         time=100e-15,
     )
 
@@ -505,7 +506,7 @@ def test_plot_material_with_external_figure(simple_material_setup):
 def test_plot_material_all_types_objects():
     """Test plot_material with UniformMaterialObject, Cylinder, and Sphere."""
     config = SimulationConfig(
-        resolution=40e-9,
+        grid=UniformGrid(spacing=40e-9),
         time=100e-15,
     )
 

@@ -91,7 +91,7 @@ class TestDrawPlotLinePlots:
             y_edges=jnp.asarray([0.0, 1.0e-6]),
             z_edges=jnp.asarray([0.0, 1.0e-6]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0e-6, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         detector = FieldDetector(components=("Ex",), switch=single_switch)
         detector = detector.place_on_grid(((0, 3), (0, 1), (0, 1)), config, random_key)
         state_np = {"fields": np.asarray([1.0, 2.0, 3.0])}
@@ -140,7 +140,7 @@ class TestDrawPlotWaterfallAndSlices:
             y_edges=jnp.asarray([0.0, 2.0e-6, 5.0e-6]),
             z_edges=jnp.asarray([0.0, 3.0e-6, 7.0e-6]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0e-6, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         detector = EnergyDetector(as_slices=True, switch=single_switch)
         detector = detector.place_on_grid(((0, 2), (0, 2), (0, 2)), config, random_key)
         state = detector.init_state()
@@ -240,7 +240,7 @@ class TestDrawPlotErrors:
             y_edges=jnp.asarray([0.0, 1.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         detector = PoyntingFluxDetector(direction="+", switch=small_switch)
         detector = detector.place_on_grid(((0, 3), (0, 1), (0, 1)), config, random_key)
         state = detector.init_state()

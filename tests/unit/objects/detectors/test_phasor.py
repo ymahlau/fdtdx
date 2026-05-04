@@ -241,7 +241,7 @@ class TestPhasorDetectorUpdate:
             y_edges=jnp.asarray([0.0, 3.0, 7.0]),
             z_edges=jnp.asarray([0.0, 2.0]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         detector = PhasorDetector(wave_characters=single_frequency, reduce_volume=True, components=("Ex",))
         detector = detector.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
         state = detector.init_state()

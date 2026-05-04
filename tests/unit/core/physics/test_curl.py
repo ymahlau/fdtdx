@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import RectilinearGrid
+from fdtdx.core.grid import RectilinearGrid, UniformGrid
 from fdtdx.core.misc import pad_fields
 from fdtdx.core.physics.curl import curl_E, curl_H, interpolate_fields
 
@@ -9,7 +9,7 @@ from fdtdx.core.physics.curl import curl_E, curl_H, interpolate_fields
 def _make_config():
     return SimulationConfig(
         time=400e-15,
-        resolution=1.0,
+        grid=UniformGrid(spacing=1.0),
         courant_factor=0.99,
     )
 
@@ -22,7 +22,6 @@ def _make_nonuniform_config():
     )
     return SimulationConfig(
         time=400e-15,
-        resolution=1.0,
         grid=grid,
         courant_factor=0.99,
     )

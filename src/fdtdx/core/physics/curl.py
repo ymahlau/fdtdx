@@ -20,10 +20,12 @@ def _metric_scale(
     prefactor equals the uniform spacing on legacy grids, so uniform behavior is
     unchanged while stretched grids get local metric factors.
     """
-    if config.grid is None or config.grid.is_uniform:
+    if not config.has_nonuniform_grid:
         return 1.0
 
-    widths = config.grid.cell_widths(axis)
+    grid = config.realized_grid
+    assert grid is not None
+    widths = grid.cell_widths(axis)
     if stencil == "backward":
         widths = jnp.concatenate([widths[:1], widths[:-1]])
     elif stencil != "forward":
@@ -47,10 +49,12 @@ def _backward_edge_average(
     target edge is not halfway between neighboring cell centers, so the average
     is weighted by the half-widths of the cells on each side of the edge.
     """
-    if config is None or config.grid is None or config.grid.is_uniform:
+    if config is None or not config.has_nonuniform_grid:
         return 0.5 * (current + previous)
 
-    widths = config.grid.cell_widths(axis)
+    grid = config.realized_grid
+    assert grid is not None
+    widths = grid.cell_widths(axis)
     previous_widths = jnp.concatenate([widths[:1], widths[:-1]])
     current_half_width = 0.5 * widths
     previous_half_width = 0.5 * previous_widths

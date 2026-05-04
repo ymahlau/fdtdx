@@ -56,7 +56,7 @@ def _make_container(objects=None, volume_grid_shape=(50, 50, 50)):
 
 def _make_config(resolution: float = 50e-9) -> MagicMock:
     config = MagicMock()
-    config.resolution = resolution
+    config.require_uniform_grid.return_value = resolution
     return config
 
 

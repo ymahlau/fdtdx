@@ -9,7 +9,7 @@ import pytest
 
 from fdtdx.config import SimulationConfig
 from fdtdx.constants import eta0
-from fdtdx.core.grid import RectilinearGrid
+from fdtdx.core.grid import RectilinearGrid, UniformGrid
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 
 
@@ -17,7 +17,7 @@ from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLay
 def micro_config():
     return SimulationConfig(
         time=100e-15,
-        resolution=50e-9,
+        grid=UniformGrid(spacing=50e-9),
         backend="cpu",
         dtype=jnp.float32,
         courant_factor=0.99,
@@ -247,7 +247,7 @@ class TestPMLComputeProfile:
             y_edges=jnp.asarray([0.0, 1.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
         )
-        config = SimulationConfig(time=100e-15, resolution=1.0, grid=grid, backend="cpu", dtype=jnp.float32)
+        config = SimulationConfig(time=100e-15, grid=grid, backend="cpu", dtype=jnp.float32)
         pml = make_pml(axis=0, direction="-", thickness=3, sigma_end=1.0)
         placed = place_pml(pml, config, jax_key, volume_shape=grid.shape)
 
@@ -263,7 +263,7 @@ class TestPMLComputeProfile:
             y_edges=jnp.asarray([0.0, 1.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
         )
-        config = SimulationConfig(time=100e-15, resolution=1.0, grid=grid, backend="cpu", dtype=jnp.float32)
+        config = SimulationConfig(time=100e-15, grid=grid, backend="cpu", dtype=jnp.float32)
         pml = make_pml(axis=0, direction="-", thickness=2)
         placed = place_pml(pml, config, jax_key, volume_shape=grid.shape)
 

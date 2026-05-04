@@ -23,7 +23,7 @@ N = 20  # grid cells per axis
 
 
 def _cfg():
-    return fdtdx.SimulationConfig(resolution=RESOLUTION, time=10e-15)
+    return fdtdx.SimulationConfig(grid=fdtdx.UniformGrid(spacing=RESOLUTION), time=10e-15)
 
 
 def _volume():

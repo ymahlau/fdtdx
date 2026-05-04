@@ -5,6 +5,7 @@ import jax.numpy as jnp
 
 from fdtdx import constants
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
 from fdtdx.core.jax.ste import straight_through_estimator
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, ParameterContainer
@@ -83,6 +84,12 @@ def place_objects(
     object_map = {obj.name: obj for obj in object_list}
     volume_name = _resolve_volume_name(object_map)
     volume_obj = object_map[volume_name]
+    volume_shape = tuple(s1 - s0 for s0, s1 in resolved_slices[volume_obj.name])
+    grid = config.require_grid(volume_shape)  # Resolve user grid policy before objects see the config.
+    if grid.shape != volume_shape:
+        raise ValueError(f"Configured grid shape {grid.shape} does not match simulation volume shape {volume_shape}.")
+    if not isinstance(config.grid, RectilinearGrid):
+        config = config.aset("grid", grid)
 
     # Step 4: Place objects on grid based on resolved slice tuples
     placed_objects = []
@@ -238,8 +245,6 @@ def _init_arrays(
     grid = config.require_grid(volume_shape)
     if grid.shape != volume_shape:
         raise ValueError(f"Configured grid shape {grid.shape} does not match simulation volume shape {volume_shape}.")
-    if config.grid is None:
-        config = config.aset("grid", grid)
     ext_shape = (3, *volume_shape)
 
     # Determine whether to use complex-valued fields
@@ -767,8 +772,7 @@ def _has_nonuniform_grid(config: SimulationConfig) -> bool:
     grid = getattr(config, "grid", None)
     if grid is None:
         return False
-    is_uniform = getattr(grid, "is_uniform", True)
-    return is_uniform is False
+    return config.has_nonuniform_grid
 
 
 def _real_length_to_grid_size(config: SimulationConfig, axis: int, length: float) -> int:

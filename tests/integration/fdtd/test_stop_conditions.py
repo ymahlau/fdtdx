@@ -3,6 +3,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import UniformGrid
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.container import ArrayContainer, FieldState
 from fdtdx.fdtd.initialization import place_objects
@@ -52,7 +53,7 @@ class TestCondition:
 
         config = SimulationConfig(
             time=100e-11,
-            resolution=1e-4,
+            grid=UniformGrid(spacing=1e-4),
             courant_factor=0.99,
         )
         detector_name = "test_detector"

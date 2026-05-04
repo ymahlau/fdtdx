@@ -169,37 +169,37 @@ class BoundaryConfig(TreeClass):
     #: Initial sigma value at min x boundary. Default 0.0.
     sigma_start_minx: float | None = frozen_field(default=None)
 
-    #: Final sigma value at min x boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.resolution)).
+    #: Final sigma value at min x boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.require_uniform_grid())).
     sigma_end_minx: float | None = frozen_field(default=None)
 
     #: Initial sigma value at max x boundary. Default 0.0.
     sigma_start_maxx: float | None = frozen_field(default=None)
 
-    #: Final sigma value at max x boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.resolution)).
+    #: Final sigma value at max x boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.require_uniform_grid())).
     sigma_end_maxx: float | None = frozen_field(default=None)
 
     #: Initial sigma value at min y boundary. Default 0.0.
     sigma_start_miny: float | None = frozen_field(default=None)
 
-    #: Final sigma value at min y boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.resolution)).
+    #: Final sigma value at min y boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.require_uniform_grid())).
     sigma_end_miny: float | None = frozen_field(default=None)
 
     #: Initial sigma value at max y boundary. Default 0.0.
     sigma_start_maxy: float | None = frozen_field(default=None)
 
-    #: Final sigma value at max y boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.resolution)).
+    #: Final sigma value at max y boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.require_uniform_grid())).
     sigma_end_maxy: float | None = frozen_field(default=None)
 
     #: Initial sigma value at min z boundary. Default 0.0.
     sigma_start_minz: float | None = frozen_field(default=None)
 
-    #: Final sigma value at min z boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.resolution)).
+    #: Final sigma value at min z boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.require_uniform_grid())).
     sigma_end_minz: float | None = frozen_field(default=None)
 
     #: Initial sigma value at max z boundary. Default 0.0.
     sigma_start_maxz: float | None = frozen_field(default=None)
 
-    #: Final sigma value at max z boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.resolution)).
+    #: Final sigma value at max z boundary. Default -(3.0 + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * (self.thickness * self._config.require_uniform_grid())).
     sigma_end_maxz: float | None = frozen_field(default=None)
 
     #: Polynomial order for sigma grading at min x boundary. Default 3.0.

@@ -74,7 +74,7 @@ def _make_objects(sources=None):
 def _make_config(c=0.5):
     cfg = Mock()
     cfg.courant_number = c
-    cfg.resolution = 1.0
+    cfg.require_uniform_grid.return_value = 1.0
     return cfg
 
 

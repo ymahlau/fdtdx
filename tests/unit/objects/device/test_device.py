@@ -10,7 +10,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import RectilinearGrid
+from fdtdx.core.grid import RectilinearGrid, UniformGrid
 from fdtdx.core.jax.pytrees import autoinit
 from fdtdx.materials import Material
 from fdtdx.objects.device.device import Device
@@ -36,7 +36,7 @@ class _ConcreteDevice(Device):
 def config():
     return SimulationConfig(
         time=100e-15,
-        resolution=50e-9,
+        grid=UniformGrid(spacing=50e-9),
         backend="cpu",
         dtype=jnp.float32,
         gradient_config=None,
@@ -133,7 +133,7 @@ class TestPlaceOnGrid:
     def test_single_voxel_real_shape(self, config, key, two_materials):
         device = _make_device(two_materials, voxel_grid=(2, 2, 2))
         placed = _place_device(device, config, key)
-        res = config.resolution
+        res = config.require_uniform_grid()
         assert placed.single_voxel_real_shape == pytest.approx((2 * res, 2 * res, 2 * res))
 
     def test_voxel_size_from_real_shape(self, config, key, two_materials):
@@ -153,7 +153,7 @@ class TestPlaceOnGrid:
             y_edges=jnp.asarray([0.0, 2.0, 5.0]),
             z_edges=jnp.asarray([0.0, 4.0, 9.0]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         device = _make_device(two_materials, voxel_grid=(1, 1, 1))
 
         placed = _place_device(device, config, key, ((0, 2), (0, 2), (0, 2)))
@@ -169,7 +169,7 @@ class TestPlaceOnGrid:
             y_edges=jnp.asarray([0.0, 2.0, 5.0]),
             z_edges=jnp.asarray([0.0, 4.0, 9.0]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         device = _ConcreteDevice(
             materials=two_materials,
             param_transforms=[],
@@ -188,7 +188,7 @@ class TestPlaceOnGrid:
             y_edges=jnp.asarray([0.0, 2.0, 5.0]),
             z_edges=jnp.asarray([0.0, 4.0, 9.0]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         device = _ConcreteDevice(
             materials=two_materials,
             param_transforms=[],
@@ -214,7 +214,7 @@ class TestPlaceOnGrid:
             y_edges=jnp.asarray([0.0, 4.0, 5.0]),
             z_edges=jnp.asarray([0.0, 1.0, 9.0]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         device = _ConcreteDevice(
             materials=two_materials,
             param_transforms=[],
@@ -235,7 +235,7 @@ class TestPlaceOnGrid:
             y_edges=jnp.asarray([0.0, 4.0, 5.0]),
             z_edges=jnp.asarray([0.0, 1.0, 9.0]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         device = _ConcreteDevice(
             materials=two_materials,
             param_transforms=[],
@@ -256,7 +256,7 @@ class TestPlaceOnGrid:
             y_edges=jnp.asarray([0.0, 2.0, 5.0]),
             z_edges=jnp.asarray([0.0, 4.0, 9.0]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         device = _ConcreteDevice(
             materials=two_materials,
             param_transforms=[],
