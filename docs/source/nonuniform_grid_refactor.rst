@@ -116,11 +116,18 @@ grids or be replaced by a rectilinear-grid export.  Plotting should use physical
 coordinates from grid edges.
 
 Sphere, cylinder, and extruded-polygon masks now sample physical cell centers on
-rectilinear grids.  Setup/material plots, diffractive detectors, generic
-linearly polarized plane sources, random TFSF offsets, and device
-parameterization now reject non-uniform grids explicitly where the old behavior
-would have silently used scalar spacing.  Fill fractions/subpixel smoothing,
-rectilinear plotting/export, and true non-uniform source correction remain open.
+rectilinear grids.  Detector plots can use rectilinear physical axes, and VTR
+export writes explicit ``GridSpec`` edge coordinates for non-uniform grids.  VTI
+remains a uniform image-data export and rejects stretched grids with a pointer to
+VTR.
+
+Normal-incidence linearly polarized plane sources can use rectilinear Gaussian
+profile sampling and grid-aware Yee time offsets.  Tilted generic plane sources,
+random TFSF offsets, diffractive detectors, setup/material plots, and physical-size
+device voxels reject non-uniform grids explicitly where the old behavior would
+have silently used scalar spacing.  Device parameterization is supported on
+non-uniform grids only when design voxels are specified in simulation-cell counts.
+Fill fractions/subpixel smoothing and full tilted-source correction remain open.
 
 Remaining Uniform-Only Surfaces
 -------------------------------
@@ -128,11 +135,10 @@ Remaining Uniform-Only Surfaces
 The remaining calls to ``require_uniform_grid()`` are intentional markers.  They
 cluster around:
 
-* generic TFSF/source profile sampling and correction metrics
+* tilted generic TFSF/source projection and correction metrics
 * diffractive detector FFT order decomposition, currently guarded
 * plotting and image/video export, currently guarded for setup/material plots
-* device parameterization helpers that assume one voxel size, currently guarded
-* detector slice/video plotting, currently guarded for non-uniform spatial plots
+* physical-size device voxel resampling, currently guarded
 * fallback paths used before a concrete ``GridSpec`` is attached
 
 Performance Notes
@@ -146,6 +152,8 @@ optimizations are:
 * precompute PML physical-depth profiles once during initialization
 * cache detector face-area and cell-volume weights at placement/init time instead
   of rebuilding them during each detector update
+* cache detector/source plot edge coordinates and source profile coordinates at
+  placement time when plotting or source re-application becomes hot
 * avoid materializing full 3D area/volume arrays when separable 1D weights are enough
 * keep uniform grids on the same API path, but allow JAX/compiler constants to
   simplify equal-spacing metric arrays
