@@ -1,3 +1,4 @@
+from functools import cached_property
 from typing import Literal
 
 import jax
@@ -73,7 +74,8 @@ class PoyntingFluxDetector(Detector):
             shape = (1,) if self.reduce_volume else self.grid_shape
         return {"poynting_flux": jax.ShapeDtypeStruct(shape, self.dtype)}
 
-    def _face_area_weights(self) -> jax.Array:
+    @cached_property
+    def _cached_face_area_weights(self) -> jax.Array:
         """Return face-area weights matching this detector's grid slice.
 
         The detector may be initialized before ``SimulationConfig.grid`` exists
@@ -92,6 +94,10 @@ class PoyntingFluxDetector(Detector):
         if self.keep_all_components:
             return jnp.stack([area, area, area])
         return area
+
+    def _face_area_weights(self) -> jax.Array:
+        """Return cached face-area weights matching this detector's grid slice."""
+        return self._cached_face_area_weights
 
     def update(
         self,

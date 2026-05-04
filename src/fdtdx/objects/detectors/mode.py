@@ -1,3 +1,4 @@
+from functools import cached_property
 from typing import Literal, Self, Sequence
 
 import jax
@@ -97,7 +98,8 @@ class ModeOverlapDetector(PhasorDetector):
         )
         return self
 
-    def _face_area_weights(self) -> jax.Array:
+    @cached_property
+    def _cached_face_area_weights(self) -> jax.Array:
         """Return detector-plane face areas for mode-overlap integration.
 
         The propagation axis is the plane normal.  For legacy construction paths
@@ -109,6 +111,10 @@ class ModeOverlapDetector(PhasorDetector):
 
         spacing = self._config.require_uniform_grid()
         return jnp.ones(self.grid_shape, dtype=self.dtype) * spacing * spacing
+
+    def _face_area_weights(self) -> jax.Array:
+        """Return cached detector-plane face areas for mode-overlap integration."""
+        return self._cached_face_area_weights
 
     def _transverse_edge_coordinates(self) -> tuple[jax.Array, jax.Array] | None:
         """Return physical transverse edge coordinates for the mode solver.
