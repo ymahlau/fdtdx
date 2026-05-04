@@ -181,8 +181,8 @@ class TestPlaceOnGrid:
         assert placed.matrix_voxel_grid_shape == (2, 2, 1)
         assert placed.single_voxel_real_shape == pytest.approx((1.5, 2.5, 9.0))
 
-    def test_nonuniform_physical_design_grid_expands_by_cell_centers(self, key, two_materials):
-        """Simulation cells sample the physical design voxel containing their center."""
+    def test_nonuniform_physical_design_grid_expands_by_overlap_average(self, key, two_materials):
+        """Simulation cells average every physical design voxel they overlap."""
         grid = GridSpec(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 2.0, 5.0]),
@@ -201,11 +201,32 @@ class TestPlaceOnGrid:
 
         expected = jnp.asarray(
             [
-                [[1.0, 1.0], [2.0, 2.0]],
-                [[3.0, 3.0], [4.0, 4.0]],
+                [[1.0, 1.0], [11.0 / 6.0, 11.0 / 6.0]],
+                [[2.5, 2.5], [10.0 / 3.0, 10.0 / 3.0]],
             ]
         )
         assert jnp.allclose(expanded, expected)
+
+    def test_nonuniform_physical_design_overlap_weights_conserve_constants(self, key, two_materials):
+        """Overlap resampling keeps constant parameters constant on skewed cells."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 0.25, 3.0]),
+            y_edges=jnp.asarray([0.0, 4.0, 5.0]),
+            z_edges=jnp.asarray([0.0, 1.0, 9.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        device = _ConcreteDevice(
+            materials=two_materials,
+            param_transforms=[],
+            partial_voxel_real_shape=(1.5, 2.5, 3.0),
+        )
+        placed = _place_device(device, config, key, ((0, 2), (0, 2), (0, 2)))
+        params = jnp.ones(placed.matrix_voxel_grid_shape) * 7.0
+
+        expanded = placed(params, expand_to_sim_grid=True)
+
+        assert expanded.shape == (2, 2, 2)
+        assert jnp.allclose(expanded, 7.0)
 
     def test_nonuniform_physical_and_grid_voxels_cannot_mix(self, key, two_materials):
         """Mixed physical/index design voxel specs are ambiguous on stretched grids."""

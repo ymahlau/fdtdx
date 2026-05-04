@@ -225,29 +225,52 @@ class Device(OrderableObject, ABC):
             )
         return self
 
+    @staticmethod
+    def _overlap_weights_1d(sim_edges: jax.Array, design_edges: jax.Array) -> jax.Array:
+        """Return design-voxel overlap fractions for each simulation cell.
+
+        Rows correspond to simulation cells and columns correspond to design
+        voxels.  Each row sums to one for cells contained inside the local
+        design domain.  Using overlap fractions instead of center sampling keeps
+        physical-size design grids conservative on stretched meshes: a large
+        simulation cell that straddles multiple design voxels receives the
+        volume-weighted average of those parameters.
+        """
+        sim_lower = sim_edges[:-1, None]
+        sim_upper = sim_edges[1:, None]
+        design_lower = design_edges[None, :-1]
+        design_upper = design_edges[None, 1:]
+        overlap = jnp.maximum(0.0, jnp.minimum(sim_upper, design_upper) - jnp.maximum(sim_lower, design_lower))
+        widths = sim_upper - sim_lower
+        return overlap / widths
+
     def _resample_design_params_to_sim_grid(self, params: jax.Array) -> jax.Array:
-        """Map physical design-grid parameters to simulation cells by center sampling."""
+        """Map design-grid parameters to simulation cells.
+
+        Grid-count design voxels use the legacy repeat expansion.  Physical
+        design voxels on non-uniform grids use separable volume-overlap weights
+        so the expanded simulation grid represents the average design parameter
+        over each rectilinear simulation cell.
+        """
         if self._physical_design_voxel_shape is None or self._config.grid is None:
             return expand_matrix(
                 matrix=params,
                 grid_points_per_voxel=self.single_voxel_grid_shape,
             )
 
-        index_arrays = []
+        overlap_weights = []
         for axis in range(3):
             lower, upper = self.grid_slice_tuple[axis]
             sim_edges = self._config.grid.edges(axis)[lower : upper + 1]
-            sim_centers = 0.5 * (sim_edges[:-1] + sim_edges[1:])
-            local_centers = sim_centers - sim_edges[0]
             design_edges = jnp.linspace(
                 0.0,
                 self.real_shape[axis],
                 self.matrix_voxel_grid_shape[axis] + 1,
-                dtype=local_centers.dtype,
+                dtype=sim_edges.dtype,
             )
-            indices = jnp.searchsorted(design_edges, local_centers, side="right") - 1
-            index_arrays.append(jnp.clip(indices, 0, self.matrix_voxel_grid_shape[axis] - 1).astype(jnp.int32))
-        return params[jnp.ix_(index_arrays[0], index_arrays[1], index_arrays[2])]
+            local_sim_edges = sim_edges - sim_edges[0]
+            overlap_weights.append(self._overlap_weights_1d(local_sim_edges, design_edges))
+        return jnp.einsum("ia,jb,kc,abc->ijk", overlap_weights[0], overlap_weights[1], overlap_weights[2], params)
 
     def init_params(
         self,

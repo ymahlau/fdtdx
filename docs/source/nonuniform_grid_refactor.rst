@@ -40,16 +40,15 @@ Tests to add:
 Stage 3: Solver Metrics and CFL
 -------------------------------
 
-Status: partially implemented.
+Status: implemented.
 
 The CFL time step now uses the smallest spacing on each axis.  Yee curl terms use
 local metric factors for forward E curls and backward H curls while preserving
 uniform-grid behavior.  Field interpolation for exact detector sampling also uses
 distance-weighted center-to-edge averages on stretched grids.
 
-Remaining work: PML auxiliary update coefficients and source/TFSF corrections
-still need full non-uniform metric support before complete simulations with those
-features should be considered supported.
+Uniform-grid parity tests now cover both scalar-resolution configs and explicit
+uniform ``GridSpec`` configs so future solver changes have a regression fence.
 
 Tests to add:
 
@@ -93,9 +92,9 @@ area weights, energy detectors need volume weights, and mode overlap should use
 transverse area weights.  Tidy3D mode solving should receive transverse coordinate
 arrays from ``GridSpec`` rather than generated uniform coordinates.
 
-Diffractive detectors remain uniform-only because the current FFT-based order
-decomposition assumes uniform transverse samples.  Supporting stretched grids
-there likely needs either resampling or a non-uniform Fourier transform strategy.
+Diffractive detectors resample stretched transverse planes onto a uniform plane
+before FFT order analysis.  This preserves the existing FFT backend while making
+the coordinate assumption explicit at the detector boundary.
 
 Tests to add:
 
@@ -108,7 +107,7 @@ Tests to add:
 Stage 6: Rasterization, Export, and Visualization
 -------------------------------------------------
 
-Status: partially implemented.
+Status: implemented for rectilinear-grid support.
 
 Geometry masks for spheres, cylinders, and polygons should sample physical cell
 coordinates or use fill fractions.  VTI image export should reject non-uniform
@@ -121,24 +120,24 @@ physical axes.  VTR export writes explicit ``GridSpec`` edge coordinates for
 non-uniform grids; VTI remains a uniform image-data export and rejects stretched
 grids with a pointer to VTR.
 
-Normal-incidence linearly polarized plane sources can use rectilinear Gaussian
-profile sampling and grid-aware Yee time offsets.  Tilted generic plane sources,
-random TFSF offsets, and source correction metrics still reject non-uniform grids
-where the old behavior would have silently used scalar spacing.  Diffractive
-detectors resample stretched transverse planes before FFT order analysis.  Device
-parameterization supports both simulation-cell-count design voxels and physical
-design voxels mapped by cell-center sampling.  Fill fractions/subpixel smoothing,
-overlap-weighted device resampling, and full tilted-source correction remain open.
+Linearly polarized plane sources use rectilinear Gaussian profile sampling,
+physical-coordinate tilted projection, random TFSF offsets in physical
+transverse units, and grid-aware Yee time offsets.  Device parameterization
+supports both simulation-cell-count design voxels and physical design voxels;
+physical design voxels are mapped to simulation cells by volume-overlap
+averaging instead of center sampling.  Fill fractions/subpixel smoothing remain
+future accuracy improvements for geometry rasterization, not blockers for
+rectilinear-grid execution.
 
-Remaining Uniform-Only Surfaces
--------------------------------
+Remaining Guarded Surfaces
+--------------------------
 
-The remaining calls to ``require_uniform_grid()`` are intentional markers.  They
-cluster around:
+The remaining calls to ``require_uniform_grid()`` are compatibility fallbacks or
+intentional guards.  They cluster around:
 
-* tilted generic TFSF/source projection and correction metrics
-* overlap-weighted physical device voxel resampling beyond center sampling
 * fallback paths used before a concrete ``GridSpec`` is attached
+* legacy VTI image-data export, which cannot encode rectilinear spacing
+* index-space placement APIs whose semantics are ambiguous on stretched grids
 
 Performance Notes
 -----------------

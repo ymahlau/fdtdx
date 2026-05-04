@@ -201,6 +201,27 @@ class TestSimulationConfigProperties:
     @patch("fdtdx.config.jax.config.update")
     @patch("fdtdx.config.jax.devices")
     @patch("jax.extend.backend.get_backend")
+    def test_uniform_grid_time_step_matches_scalar_resolution(self, mock_get_backend, *_):
+        """Uniform GridSpec configs preserve scalar-resolution CFL behavior."""
+        mock_get_backend.return_value = _create_mock_backend("cpu")
+
+        spacing = 2e-9
+        scalar_config = SimulationConfig(time=1e-12, resolution=spacing, backend="cpu", courant_factor=0.8)
+        grid_config = SimulationConfig(
+            time=1e-12,
+            resolution=99e-9,
+            grid=GridSpec.uniform(shape=(3, 4, 5), spacing=spacing),
+            backend="cpu",
+            courant_factor=0.8,
+        )
+
+        assert math.isclose(grid_config.require_uniform_grid(), scalar_config.require_uniform_grid(), rel_tol=1e-6)
+        assert math.isclose(grid_config.courant_number, scalar_config.courant_number, rel_tol=1e-6)
+        assert math.isclose(grid_config.time_step_duration, scalar_config.time_step_duration, rel_tol=1e-6)
+
+    @patch("fdtdx.config.jax.config.update")
+    @patch("fdtdx.config.jax.devices")
+    @patch("jax.extend.backend.get_backend")
     def test_require_grid_builds_uniform_grid_from_resolution(self, mock_get_backend, *_):
         """Legacy resolution configs create a concrete GridSpec when the volume shape is known."""
         mock_get_backend.return_value = _create_mock_backend("cpu")
