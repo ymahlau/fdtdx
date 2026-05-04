@@ -148,7 +148,8 @@ class BlochBoundary(BaseBoundary):
         k = self.bloch_vector[self.axis]
         grid = getattr(self._config, "grid", None)
         if grid is not None:
-            L = grid.axis_extent(self.axis, (0, volume_shape[self.axis]))
+            edges = grid.edges(self.axis)
+            L = edges[volume_shape[self.axis]] - edges[0]
         else:
             L = volume_shape[self.axis] * resolution
         return jnp.exp(1j * k * L)
