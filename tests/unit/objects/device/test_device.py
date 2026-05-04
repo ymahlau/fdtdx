@@ -146,17 +146,37 @@ class TestPlaceOnGrid:
         placed = _place_device(device, config, key, ((0, 10), (0, 10), (0, 10)))
         assert placed.single_voxel_grid_shape == (2, 2, 2)
 
-    def test_nonuniform_grid_rejected(self, key, two_materials):
-        """Device parameter grids need an explicit nonuniform resampling design."""
+    def test_nonuniform_grid_index_voxels_place(self, key, two_materials):
+        """Cell-count design voxels can be placed on non-uniform grids."""
         grid = GridSpec(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
-            y_edges=jnp.asarray([0.0, 1.0, 2.0]),
-            z_edges=jnp.asarray([0.0, 1.0, 2.0]),
+            y_edges=jnp.asarray([0.0, 2.0, 5.0]),
+            z_edges=jnp.asarray([0.0, 4.0, 9.0]),
         )
         config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
         device = _make_device(two_materials, voxel_grid=(1, 1, 1))
 
-        with pytest.raises(ValueError, match="requires a uniform simulation grid"):
+        placed = _place_device(device, config, key, ((0, 2), (0, 2), (0, 2)))
+
+        assert placed.single_voxel_grid_shape == (1, 1, 1)
+        assert placed.matrix_voxel_grid_shape == (2, 2, 2)
+        assert placed.single_voxel_real_shape == pytest.approx((1.5, 2.5, 4.5))
+
+    def test_nonuniform_real_voxel_size_rejected(self, key, two_materials):
+        """Physical-size design voxels need an explicit resampling layer."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 2.0, 5.0]),
+            z_edges=jnp.asarray([0.0, 4.0, 9.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        device = _ConcreteDevice(
+            materials=two_materials,
+            param_transforms=[],
+            partial_voxel_real_shape=(1.0, 1.0, 1.0),
+        )
+
+        with pytest.raises(ValueError, match="physical voxel sizes are not supported"):
             _place_device(device, config, key, ((0, 2), (0, 2), (0, 2)))
 
     def test_overspecified_voxel_raises(self, config, key, two_materials):

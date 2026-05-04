@@ -77,18 +77,31 @@ class Device(OrderableObject, ABC):
 
     @property
     def single_voxel_real_shape(self) -> tuple[float, float, float]:
-        """Calculate the shape of a single voxel in real (physical) coordinates.
+        """Calculate the representative physical size of one design voxel.
 
         Returns:
-            tuple[float, float, float]: Tuple of (x,y,z) dimensions in real units, computed by multiplying
-                the grid shape by the uniform simulation spacing.
+            Tuple of ``(x, y, z)`` dimensions in metres.
+
+        Notes:
+            On uniform simulation grids this is the exact size of each design
+            voxel.  On non-uniform grids, devices are currently supported only
+            when design voxels are specified by simulation-cell counts.  The
+            returned physical size is then the average design-voxel extent over
+            the placed device, suitable for transforms that need a representative
+            scale.  True physical-size design voxels still require a resampling
+            layer and are rejected during placement.
         """
-        grid_shape = self.single_voxel_grid_shape
+        if self._config.grid is not None:
+            return tuple(
+                self.real_shape[axis] / self.matrix_voxel_grid_shape[axis] for axis in range(3)
+            )  # type: ignore[return-value]
+
+        single_voxel_shape = self.single_voxel_grid_shape
         spacing = self._config.require_uniform_grid()
         return (
-            grid_shape[0] * spacing,
-            grid_shape[1] * spacing,
-            grid_shape[2] * spacing,
+            single_voxel_shape[0] * spacing,
+            single_voxel_shape[1] * spacing,
+            single_voxel_shape[2] * spacing,
         )
 
     @property
@@ -112,14 +125,11 @@ class Device(OrderableObject, ABC):
         key: jax.Array,
     ) -> Self:
         self = super().place_on_grid(grid_slice_tuple=grid_slice_tuple, config=config, key=key)
-        if config.grid is not None and not config.grid.is_uniform:
-            raise ValueError(
-                "Device parameterization currently requires a uniform simulation grid. "
-                "Non-uniform support needs an explicit design-grid resampling step."
-            )
         # determine voxel shape
         voxel_grid_shape = []
-        spacing = config.require_uniform_grid()
+        spacing = None
+        if config.grid is None or config.grid.is_uniform:
+            spacing = config.require_uniform_grid()
         for axis in range(3):
             partial_grid = self.partial_voxel_grid_shape[axis]
             partial_real = self.partial_voxel_real_shape[axis]
@@ -128,6 +138,13 @@ class Device(OrderableObject, ABC):
             if partial_grid is not None:
                 voxel_grid_shape.append(partial_grid)
             elif partial_real is not None:
+                if config.grid is not None and not config.grid.is_uniform:
+                    raise ValueError(
+                        "Device physical voxel sizes are not supported on non-uniform grids yet. "
+                        "Specify partial_voxel_grid_shape to define design voxels in simulation-cell counts, "
+                        "or add an explicit physical design-grid resampling step."
+                    )
+                assert spacing is not None
                 voxel_grid_shape.append(round(partial_real / spacing))
             else:
                 raise Exception(f"Multi-Material voxels not specified in axis: {axis=}")
@@ -136,12 +153,13 @@ class Device(OrderableObject, ABC):
 
         # sanity checks on the voxel shape
         for axis in range(3):
-            float_div = is_float_divisible(
-                self.single_voxel_real_shape[axis],
-                spacing,
-            )
-            if not float_div:
-                raise Exception(f"Not divisible: {self.single_voxel_real_shape[axis]=}, {spacing=}")
+            if spacing is not None:
+                float_div = is_float_divisible(
+                    self.single_voxel_real_shape[axis],
+                    spacing,
+                )
+                if not float_div:
+                    raise Exception(f"Not divisible: {self.single_voxel_real_shape[axis]=}, {spacing=}")
             if self.grid_shape[axis] % self.matrix_voxel_grid_shape[axis] != 0:
                 raise Exception(
                     f"Due to discretization, matrix got skewered for {axis=}. "
