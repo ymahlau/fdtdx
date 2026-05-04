@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from functools import cached_property
 from typing import Self
 
 import jax
@@ -80,7 +81,8 @@ class Detector(SimulationObject, ABC):
             raise Exception("Detector is not yet initialized")
         return self._num_time_steps_on
 
-    def _cell_volume_weights(self) -> jax.Array:
+    @cached_property
+    def _cached_cell_volume_weights(self) -> jax.Array:
         """Return physical cell-volume weights for this detector's grid slice.
 
         Detectors that reduce spatial data should call this helper instead of
@@ -93,6 +95,10 @@ class Detector(SimulationObject, ABC):
 
         spacing = self._config.require_uniform_grid()
         return jnp.ones(self.grid_shape, dtype=self.dtype) * spacing * spacing * spacing
+
+    def _cell_volume_weights(self) -> jax.Array:
+        """Return cached physical cell-volume weights for this detector."""
+        return self._cached_cell_volume_weights
 
     def _volume_weighted_spatial_mean(self, values: jax.Array, leading_dims: int) -> jax.Array:
         """Average spatial detector samples using physical cell volumes.

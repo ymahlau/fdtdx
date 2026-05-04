@@ -227,6 +227,19 @@ class TestEnergyDetectorUpdate:
 
         assert jnp.allclose(new_state["energy"][0], jnp.asarray([21.0], dtype=jnp.float32))
 
+    def test_cell_volume_weights_are_cached(self, random_key):
+        """Detector volume weights are placement metrics and should be reused."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 3.0, 7.0]),
+            z_edges=jnp.asarray([0.0, 2.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        detector = EnergyDetector(reduce_volume=True)
+        detector = detector.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
+
+        assert detector._cell_volume_weights() is detector._cell_volume_weights()
+
     def test_reduce_volume_can_keep_legacy_raw_sum(self, random_key):
         """The integrate switch preserves density summation for compatibility checks."""
         grid = GridSpec(
