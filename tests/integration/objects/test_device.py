@@ -12,7 +12,7 @@ def test_ssp_intricate_grad_nan_bug():
 
     config = fdtdx.SimulationConfig(
         time=200e-15,
-        resolution=20e-9,
+        grid=fdtdx.UniformGrid(spacing=20e-9),
         dtype=jnp.float32,
         courant_factor=0.99,
     )
@@ -33,7 +33,7 @@ def test_ssp_intricate_grad_nan_bug():
             fdtdx.GaussianSmoothing2D(std_discrete=3),
             fdtdx.SubpixelSmoothedProjection(),
         ],
-        partial_voxel_real_shape=(config.resolution, config.resolution, height),
+        partial_voxel_real_shape=(config.require_uniform_grid(), config.require_uniform_grid(), height),
     )
     key = jax.random.PRNGKey(42)
     objects, arrays, params, config, _ = fdtdx.place_objects(

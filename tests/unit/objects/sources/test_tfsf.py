@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import RectilinearGrid
+from fdtdx.core.grid import RectilinearGrid, UniformGrid
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.sources.linear_polarization import GaussianPlaneSource
 
@@ -20,7 +20,7 @@ def micro_config():
     """Minimal simulation config for source testing."""
     return SimulationConfig(
         time=100e-15,
-        resolution=100e-9,
+        grid=UniformGrid(spacing=100e-9),
         backend="cpu",
         dtype=jnp.float32,
         courant_factor=0.99,
@@ -135,7 +135,7 @@ class TestTFSFPlaneSourceProperties:
             y_edges=jnp.asarray([0.0, 2.0, 5.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         source = GaussianPlaneSource(
             partial_grid_shape=(2, 2, 1),
             wave_character=WaveCharacter(wavelength=1.55e-6),

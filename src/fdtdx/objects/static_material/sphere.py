@@ -45,10 +45,11 @@ class Sphere(StaticMultiMaterialObject):
         def local_centers(axis: int) -> jax.Array:
             """Return physical cell centers relative to this object's lower edge."""
             lower, upper = self.grid_slice_tuple[axis]
-            if self._config.grid is None:
+            grid = self._config.realized_grid
+            if grid is None:
                 spacing = self._config.require_uniform_grid()
                 return (jnp.arange(self.grid_shape[axis]) + 0.5) * spacing
-            edges = self._config.grid.edges(axis)
+            edges = grid.edges(axis)
             return 0.5 * (edges[lower:upper] + edges[lower + 1 : upper + 1]) - edges[lower]
 
         # Create 3D grid

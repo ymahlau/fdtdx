@@ -9,6 +9,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import UniformGrid
 from fdtdx.objects.boundaries.bloch import BlochBoundary
 
 
@@ -16,7 +17,7 @@ from fdtdx.objects.boundaries.bloch import BlochBoundary
 def micro_config():
     return SimulationConfig(
         time=100e-15,
-        resolution=50e-9,
+        grid=UniformGrid(spacing=50e-9),
         backend="cpu",
         dtype=jnp.float32,
         courant_factor=0.99,

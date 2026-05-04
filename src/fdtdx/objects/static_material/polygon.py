@@ -56,7 +56,8 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
         center_v = 0.5 * self.real_shape[self.vertical_axis]
         grid_vertices = self.vertices + np.array([center_h, center_v])
 
-        if self._config.grid is None:
+        grid = self._config.realized_grid
+        if grid is None:
             spacing = self._config.require_uniform_grid()
             half_res = 0.5 * spacing
             max_horizontal = (n_horizontal - 0.5) * spacing
@@ -70,8 +71,8 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
         else:
             h_lower, h_upper = self.grid_slice_tuple[self.horizontal_axis]
             v_lower, v_upper = self.grid_slice_tuple[self.vertical_axis]
-            h_edges = np.asarray(self._config.grid.edges(self.horizontal_axis))
-            v_edges = np.asarray(self._config.grid.edges(self.vertical_axis))
+            h_edges = np.asarray(grid.edges(self.horizontal_axis))
+            v_edges = np.asarray(grid.edges(self.vertical_axis))
             h_centers = 0.5 * (h_edges[h_lower:h_upper] + h_edges[h_lower + 1 : h_upper + 1]) - h_edges[h_lower]
             v_centers = 0.5 * (v_edges[v_lower:v_upper] + v_edges[v_lower + 1 : v_upper + 1]) - v_edges[v_lower]
             mask_2d = polygon_to_mask_at_points(

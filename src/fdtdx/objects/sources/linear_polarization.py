@@ -70,12 +70,13 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         non-uniform grids need these explicit edge arrays for time-of-flight
         corrections and physical profile sampling.
         """
-        if self._config.grid is None:
+        grid = self._config.realized_grid
+        if grid is None:
             return None
         local_edges = []
         for axis in range(3):
             lower, upper = self.grid_slice_tuple[axis]
-            edges = self._config.grid.edges(axis)[lower : upper + 1]
+            edges = grid.edges(axis)[lower : upper + 1]
             local_edges.append(edges - edges[0])
         return tuple(local_edges)
 
@@ -88,7 +89,7 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         for axis, edges in enumerate(local_edges):
             if axis == self.propagation_axis:
                 physical_center.append(jnp.asarray(0.0, dtype=self._config.dtype))
-            elif self._config.grid is not None and not self._config.grid.is_uniform:
+            elif self._config.has_nonuniform_grid:
                 center_axis = 0 if axis == self.horizontal_axis else 1
                 physical_center.append(jnp.asarray(source_center[center_axis], dtype=self._config.dtype))
             else:
@@ -104,13 +105,14 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         call signature usable for rectilinear grids without pretending the mesh
         is uniform.
         """
-        if self._config.grid is not None and not self._config.grid.is_uniform:
-            return self._config.grid.min_spacing
+        if self._config.has_nonuniform_grid:
+            assert self._config.realized_grid is not None
+            return self._config.realized_grid.min_spacing
         return self._config.require_uniform_grid()
 
     def _uses_physical_source_coordinates(self) -> bool:
         """Whether transverse source coordinates are represented in metres."""
-        return self._config.grid is not None and not self._config.grid.is_uniform
+        return self._config.has_nonuniform_grid
 
     def apply(
         self: Self,
@@ -314,7 +316,7 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
         self,
         center: jax.Array,
     ) -> jax.Array:
-        if self._config.grid is not None and not self._config.grid.is_uniform:
+        if self._config.has_nonuniform_grid:
             local_edges = self._local_edge_coordinates()
             assert local_edges is not None
             horizontal_edges = local_edges[self.horizontal_axis]

@@ -62,7 +62,7 @@ _SIM_TIME = 150e-15  # 150 fs — extra time for standing wave to develop
 
 def _build(z_max_type):
     config = fdtdx.SimulationConfig(
-        resolution=_RESOLUTION,
+        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
         time=_SIM_TIME,
         dtype=jnp.float32,
     )

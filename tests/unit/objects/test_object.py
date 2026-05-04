@@ -9,6 +9,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import UniformGrid
 from fdtdx.core.jax.pytrees import autoinit
 from fdtdx.objects.object import (
     GridCoordinateConstraint,
@@ -58,7 +59,7 @@ def _place(obj, config, key, slices=((0, 10), (0, 10), (0, 10))):
 def config():
     return SimulationConfig(
         time=100e-15,
-        resolution=50e-9,
+        grid=UniformGrid(spacing=50e-9),
         backend="cpu",
         dtype=jnp.float32,
         gradient_config=None,
@@ -258,7 +259,7 @@ class TestPlaceOnGrid:
     def test_real_shape_after_placement(self, config, key):
         obj = _make()
         placed = _place(obj, config, key, ((0, 4), (0, 6), (0, 10)))
-        res = config.resolution
+        res = config.require_uniform_grid()
         assert placed.real_shape == pytest.approx((4 * res, 6 * res, 10 * res))
 
     def test_grid_slice_returns_python_slices(self, config, key):

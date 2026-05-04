@@ -108,12 +108,14 @@ class DiffractiveDetector(Detector):
         the same detector-center extent.  Uniform grids keep the legacy direct
         FFT path.
         """
-        if self._config.grid is None or self._config.grid.is_uniform:
+        if not self._config.has_nonuniform_grid:
             return None
+        grid = self._config.realized_grid
+        assert grid is not None
         centers = []
         for axis in plane_dims:
             lower, upper = self.grid_slice_tuple[axis]
-            centers.append(self._config.grid.centers(axis)[lower:upper])
+            centers.append(grid.centers(axis)[lower:upper])
         return tuple(centers)  # type: ignore[return-value]
 
     @staticmethod

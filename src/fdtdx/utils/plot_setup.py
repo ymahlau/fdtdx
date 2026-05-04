@@ -1,4 +1,3 @@
-from numbers import Real
 from pathlib import Path
 from typing import Any, Literal
 
@@ -25,8 +24,6 @@ def _axis_edges_um(config: SimulationConfig, axis: int, bounds: tuple[int, int])
         return (float(edges[bounds[0]] - domain_origin) / 1.0e-6, float(edges[bounds[1]] - domain_origin) / 1.0e-6)
 
     spacing = config.require_uniform_grid()
-    if not isinstance(spacing, Real):
-        spacing = config.resolution
     return (bounds[0] * spacing / 1.0e-6, bounds[1] * spacing / 1.0e-6)
 
 

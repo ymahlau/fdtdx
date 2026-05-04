@@ -1,4 +1,3 @@
-from numbers import Real
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -22,8 +21,6 @@ def _axis_edges_um(config: SimulationConfig, axis: int, length: int) -> np.ndarr
         return (edges - edges[0]) / 1.0e-6
 
     spacing = config.require_uniform_grid()
-    if not isinstance(spacing, Real):
-        spacing = config.resolution
     return np.arange(length + 1) * spacing / 1.0e-6
 
 
@@ -37,8 +34,6 @@ def _slice_index_from_position(config: SimulationConfig, axis: int, length: int,
         return int(np.clip(np.argmin(np.abs(centers - target)), 0, length - 1))
 
     spacing = config.require_uniform_grid()
-    if not isinstance(spacing, Real):
-        spacing = config.resolution
     center_idx = length // 2
     slice_offset = round(position / spacing)
     return max(0, min(center_idx + slice_offset, length - 1))

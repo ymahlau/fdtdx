@@ -11,7 +11,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import RectilinearGrid
+from fdtdx.core.grid import RectilinearGrid, UniformGrid
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.sources.mode import ModePlaneSource
 
@@ -59,7 +59,7 @@ def micro_config():
     """Minimal simulation config for mode source testing."""
     return SimulationConfig(
         time=100e-15,
-        resolution=100e-9,
+        grid=UniformGrid(spacing=100e-9),
         backend="cpu",
         dtype=jnp.float32,
         courant_factor=0.99,
@@ -399,7 +399,7 @@ class TestModePlaneSourceGetEHVariation:
             y_edges=jnp.asarray([0.0, 2.0, 5.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu", dtype=jnp.float32)
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu", dtype=jnp.float32)
         mock_compute_mode.return_value = (
             jnp.ones((3, 3, 2, 1), dtype=jnp.complex64),
             jnp.ones((3, 3, 2, 1), dtype=jnp.complex64),

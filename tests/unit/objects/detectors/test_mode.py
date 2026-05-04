@@ -343,7 +343,7 @@ class TestModeOverlapDetectorComputeOverlap:
             y_edges=jnp.asarray([0.0, 3.0, 7.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         det = ModeOverlapDetector(wave_characters=single_frequency, direction="+")
         det = det.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
 
@@ -364,7 +364,7 @@ class TestModeOverlapDetectorComputeOverlap:
             y_edges=jnp.asarray([0.0, 3.0, 7.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         det = ModeOverlapDetector(wave_characters=single_frequency, direction="+", integrate=False)
         det = det.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
 
@@ -385,7 +385,7 @@ class TestModeOverlapDetectorComputeOverlap:
             y_edges=jnp.asarray([0.0, 3.0, 7.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         det = ModeOverlapDetector(wave_characters=single_frequency, direction="+")
         det = det.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
 
@@ -402,7 +402,7 @@ class TestModeOverlapDetectorComputeOverlap:
             y_edges=jnp.asarray([0.0, 3.0, 7.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         mock_compute_mode.return_value = (
             jnp.ones((3, 2, 2, 1), dtype=jnp.complex64),
             jnp.ones((3, 2, 2, 1), dtype=jnp.complex64),

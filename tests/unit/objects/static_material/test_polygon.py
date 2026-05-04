@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import RectilinearGrid
+from fdtdx.core.grid import RectilinearGrid, UniformGrid
 from fdtdx.materials import Material
 from fdtdx.objects.static_material.polygon import (
     ExtrudedPolygon,
@@ -27,7 +27,7 @@ from fdtdx.objects.static_material.polygon import (
 def config():
     return SimulationConfig(
         time=100e-15,
-        resolution=50e-9,
+        grid=UniformGrid(spacing=50e-9),
         backend="cpu",
         dtype=jnp.float32,
         gradient_config=None,
@@ -218,7 +218,7 @@ class TestGetVoxelMaskForShape:
             y_edges=jnp.asarray([0.0, 1.0, 3.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         poly = _make_polygon(two_materials, axis=2, vertices=_square_vertices(half_side=0.8))
         placed = _place(poly, config, key, ((0, 2), (0, 2), (0, 1)))
 

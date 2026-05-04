@@ -11,7 +11,7 @@ def test_export_arrays_snapshot_to_vti(tmp_path):
 
     config = fdtdx.SimulationConfig(
         time=100e-15,
-        resolution=100e-9,
+        grid=fdtdx.UniformGrid(spacing=100e-9),
     )
     volume = fdtdx.SimulationVolume(
         partial_real_shape=(2.0e-6, 2.0e-6, 2.0e-6),
@@ -32,7 +32,7 @@ def test_export_arrays_snapshot_to_vti(tmp_path):
     output_path = tmp_path / "snapshot.vti"
 
     # Run the snapshot export
-    export_arrays_snapshot_to_vti(arrays, output_path, config.resolution)
+    export_arrays_snapshot_to_vti(arrays, output_path, config.require_uniform_grid())
 
     assert output_path.exists()
     assert output_path.stat().st_size > 0
@@ -47,5 +47,5 @@ def test_export_arrays_snapshot_to_vti(tmp_path):
     assert 'Name="H"' in content
 
     # Check spacing/resolution was passed correctly
-    res_str = f"{config.resolution} {config.resolution} {config.resolution}"
+    res_str = f"{config.require_uniform_grid()} {config.require_uniform_grid()} {config.require_uniform_grid()}"
     assert res_str in content

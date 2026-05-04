@@ -76,7 +76,7 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         """
         if self.max_vertical_offset == 0:
             return 0.0
-        if self._config.grid is not None and not self._config.grid.is_uniform:
+        if self._config.has_nonuniform_grid:
             return self.max_vertical_offset
         return self.max_vertical_offset / self._config.require_uniform_grid()
 
@@ -92,7 +92,7 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         """
         if self.max_horizontal_offset == 0:
             return 0.0
-        if self._config.grid is not None and not self._config.grid.is_uniform:
+        if self._config.has_nonuniform_grid:
             return self.max_horizontal_offset
         return self.max_horizontal_offset / self._config.require_uniform_grid()
 
@@ -127,11 +127,13 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         physical coordinates, so the returned center is measured in metres from
         the source-slice lower edge along the transverse axes.
         """
-        if self._config.grid is not None and not self._config.grid.is_uniform:
+        if self._config.has_nonuniform_grid:
+            grid = self._config.realized_grid
+            assert grid is not None
             local_edges = []
             for axis in (self.horizontal_axis, self.vertical_axis):
                 lower, upper = self.grid_slice_tuple[axis]
-                edges = self._config.grid.edges(axis)[lower : upper + 1]
+                edges = grid.edges(axis)[lower : upper + 1]
                 local_edges.append(edges - edges[0])
             center_horizontal = 0.5 * local_edges[0][-1]
             center_vertical = 0.5 * local_edges[1][-1]

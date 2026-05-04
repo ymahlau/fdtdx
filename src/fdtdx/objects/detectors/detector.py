@@ -90,8 +90,9 @@ class Detector(SimulationObject, ABC):
         compatibility for tests and older construction paths without an explicit
         ``RectilinearGrid``.
         """
-        if self._config.grid is not None:
-            return self._config.grid.cell_volume(self.grid_slice_tuple)
+        grid = self._config.realized_grid
+        if grid is not None:
+            return grid.cell_volume(self.grid_slice_tuple)
 
         spacing = self._config.require_uniform_grid()
         return jnp.ones(self.grid_shape, dtype=self.dtype) * spacing * spacing * spacing
@@ -123,9 +124,10 @@ class Detector(SimulationObject, ABC):
         coordinates are shifted so plots start at the detector slice origin,
         matching the historical uniform-grid display convention.
         """
-        if self._config.grid is not None:
+        grid = self._config.realized_grid
+        if grid is not None:
             start, stop = self.grid_slice_tuple[axis]
-            edges = np.asarray(self._config.grid.edges(axis)[start : stop + 1])
+            edges = np.asarray(grid.edges(axis)[start : stop + 1])
             centers = 0.5 * (edges[:-1] + edges[1:])
             return (centers - edges[0]) / 1.0e-6
 
@@ -134,9 +136,10 @@ class Detector(SimulationObject, ABC):
 
     def _plot_axis_edges_um(self, axis: int) -> np.ndarray:
         """Return detector-local cell edges in micrometres for slice plots."""
-        if self._config.grid is not None:
+        grid = self._config.realized_grid
+        if grid is not None:
             start, stop = self.grid_slice_tuple[axis]
-            edges = np.asarray(self._config.grid.edges(axis)[start : stop + 1])
+            edges = np.asarray(grid.edges(axis)[start : stop + 1])
             return (edges - edges[0]) / 1.0e-6
 
         spacing = self._config.require_uniform_grid()
@@ -149,14 +152,15 @@ class Detector(SimulationObject, ABC):
         for call signatures; rectilinear plots receive explicit edge arrays and
         do not use the scalar spacing to position cells.
         """
-        if self._config.grid is not None and not self._config.grid.is_uniform:
-            return (self._config.grid.min_spacing,) * 3
+        if self._config.has_nonuniform_grid:
+            assert self._config.realized_grid is not None
+            return (self._config.realized_grid.min_spacing,) * 3
         spacing = self._config.require_uniform_grid()
         return (spacing, spacing, spacing)
 
     def _plot_coordinate_edges_um(self) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
         """Return rectilinear detector edge coordinates when needed for plots."""
-        if self._config.grid is None or self._config.grid.is_uniform:
+        if not self._config.has_nonuniform_grid:
             return None
         return tuple(self._plot_axis_edges_um(axis) for axis in range(3))  # type: ignore[return-value]
 

@@ -82,12 +82,11 @@ class PoyntingFluxDetector(Detector):
         in unit tests and legacy flows.  In that case a uniform area array is
         built from the scalar compatibility spacing.
         """
-        if self._config.grid is not None:
+        grid = self._config.realized_grid
+        if grid is not None:
             if self.keep_all_components:
-                return jnp.stack(
-                    [self._config.grid.face_area(axis=axis, slice_tuple=self.grid_slice_tuple) for axis in range(3)]
-                )
-            return self._config.grid.face_area(axis=self.propagation_axis, slice_tuple=self.grid_slice_tuple)
+                return jnp.stack([grid.face_area(axis=axis, slice_tuple=self.grid_slice_tuple) for axis in range(3)])
+            return grid.face_area(axis=self.propagation_axis, slice_tuple=self.grid_slice_tuple)
 
         spacing = self._config.require_uniform_grid()
         area = jnp.ones(self.grid_shape, dtype=self.dtype) * spacing * spacing

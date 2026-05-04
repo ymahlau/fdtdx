@@ -33,13 +33,14 @@ class ModePlaneSource(TFSFPlaneSource):
         solving and Yee time offsets.  Coordinates are shifted so the source
         slice lower corner is at zero on each axis.
         """
-        if self._config.grid is None:
+        grid = self._config.realized_grid
+        if grid is None:
             return None
 
         local_edges = []
         for axis in range(3):
             lower, upper = self.grid_slice_tuple[axis]
-            edges = self._config.grid.edges(axis)[lower : upper + 1]
+            edges = grid.edges(axis)[lower : upper + 1]
             local_edges.append(edges - edges[0])
         return tuple(local_edges)
 
@@ -56,8 +57,9 @@ class ModePlaneSource(TFSFPlaneSource):
         ``compute_mode`` ignores this value when explicit transverse coordinates
         are provided, but the argument remains part of the compatibility API.
         """
-        if self._config.grid is not None and not self._config.grid.is_uniform:
-            return self._config.grid.min_spacing
+        if self._config.has_nonuniform_grid:
+            assert self._config.realized_grid is not None
+            return self._config.realized_grid.min_spacing
         return self._config.require_uniform_grid()
 
     def _source_center_physical(self) -> jax.Array | None:

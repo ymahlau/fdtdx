@@ -32,7 +32,7 @@ _SIM_TIME = 120e-15
 
 def _build_and_run(amplitude_factor=1.0, reduce_volume=True):
     config = fdtdx.SimulationConfig(
-        resolution=_RESOLUTION,
+        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
         time=_SIM_TIME,
         dtype=jnp.float32,
     )

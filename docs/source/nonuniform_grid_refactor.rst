@@ -48,11 +48,11 @@ The first stage introduces ``RectilinearGrid`` as the canonical grid representat
 It stores physical edge coordinates for x, y, and z and derives cell widths,
 centers, extents, face areas, and volumes from those coordinates.
 
-``SimulationConfig.resolution`` remains available as a compatibility constructor,
-but compiled simulations attach a concrete ``SimulationConfig.grid``.  Code paths
-that still require a scalar spacing now call ``require_uniform_grid()`` so they
-fail explicitly for non-uniform grids instead of silently applying the wrong
-metric.
+``SimulationConfig`` now receives grid intent through ``grid``.  Uniform grids use
+``UniformGrid(spacing=...)`` while the volume shape is still being inferred, and
+placement resolves that policy to a concrete ``RectilinearGrid``.  Code paths
+that still require a scalar spacing call ``require_uniform_grid()`` so they fail
+explicitly for non-uniform grids instead of silently applying the wrong metric.
 
 Stage 2: Coordinate-Aware Placement
 -----------------------------------

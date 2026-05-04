@@ -101,7 +101,8 @@ class Device(OrderableObject, ABC):
         """
         if self._physical_design_voxel_shape is not None:
             return self._physical_design_voxel_shape
-        if self._config.grid is not None:
+        grid = self._config.realized_grid
+        if grid is not None and not grid.is_uniform:
             return tuple(
                 self.real_shape[axis] / self.matrix_voxel_grid_shape[axis] for axis in range(3)
             )  # type: ignore[return-value]
@@ -138,11 +139,9 @@ class Device(OrderableObject, ABC):
         # determine voxel shape
         voxel_grid_shape = []
         spacing = None
-        if config.grid is None or config.grid.is_uniform:
+        if not config.has_nonuniform_grid:
             spacing = config.require_uniform_grid()
-        uses_physical_design_grid = config.grid is not None and not config.grid.is_uniform and any(
-            shape is not None for shape in self.partial_voxel_real_shape
-        )
+        uses_physical_design_grid = config.has_nonuniform_grid and any(shape is not None for shape in self.partial_voxel_real_shape)
         if uses_physical_design_grid and any(shape is not None for shape in self.partial_voxel_grid_shape):
             raise ValueError(
                 "Non-uniform physical device voxel sizes cannot be mixed with partial_voxel_grid_shape. "
@@ -182,6 +181,7 @@ class Device(OrderableObject, ABC):
                 float_div = is_float_divisible(
                     self.single_voxel_real_shape[axis],
                     spacing,
+                    tolerance=max(1e-15, abs(spacing) * 1e-4),
                 )
                 if not float_div:
                     raise Exception(f"Not divisible: {self.single_voxel_real_shape[axis]=}, {spacing=}")
@@ -254,7 +254,8 @@ class Device(OrderableObject, ABC):
         so the expanded simulation grid represents the average design parameter
         over each rectilinear simulation cell.
         """
-        if self._physical_design_voxel_shape is None or self._config.grid is None:
+        grid = self._config.realized_grid
+        if self._physical_design_voxel_shape is None or grid is None:
             return expand_matrix(
                 matrix=params,
                 grid_points_per_voxel=self.single_voxel_grid_shape,
@@ -265,7 +266,7 @@ class Device(OrderableObject, ABC):
         overlap_weights = []
         for axis in range(3):
             lower, upper = self.grid_slice_tuple[axis]
-            sim_edges = self._config.grid.edges(axis)[lower : upper + 1]
+            sim_edges = grid.edges(axis)[lower : upper + 1]
             design_edges = jnp.linspace(
                 0.0,
                 self._physical_design_domain_shape[axis],

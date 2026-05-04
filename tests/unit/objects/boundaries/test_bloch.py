@@ -8,7 +8,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import RectilinearGrid
+from fdtdx.core.grid import RectilinearGrid, UniformGrid
 from fdtdx.objects.boundaries.bloch import BlochBoundary
 
 
@@ -16,7 +16,7 @@ from fdtdx.objects.boundaries.bloch import BlochBoundary
 def micro_config():
     return SimulationConfig(
         time=100e-15,
-        resolution=50e-9,
+        grid=UniformGrid(spacing=50e-9),
         backend="cpu",
         dtype=jnp.float32,
         courant_factor=0.99,
@@ -126,7 +126,7 @@ class TestBlochGetBlochPhase:
         placed = place_bloch(bb, micro_config, jax_key, volume_shape=(10, 10, 10))
         phase = placed.get_bloch_phase(
             volume_shape=(10, 10, 10),
-            resolution=micro_config.resolution,
+            resolution=micro_config.require_uniform_grid(),
         )
         assert jnp.abs(phase - 1.0) < 1e-6
 
@@ -136,7 +136,7 @@ class TestBlochGetBlochPhase:
         placed = place_bloch(bb, micro_config, jax_key, volume_shape=(10, 10, 10))
         phase = placed.get_bloch_phase(
             volume_shape=(10, 10, 10),
-            resolution=micro_config.resolution,
+            resolution=micro_config.require_uniform_grid(),
         )
         assert jnp.issubdtype(phase.dtype, jnp.complexfloating)
 
@@ -146,7 +146,7 @@ class TestBlochGetBlochPhase:
         placed = place_bloch(bb, micro_config, jax_key, volume_shape=(20, 30, 20))
         phase = placed.get_bloch_phase(
             volume_shape=(20, 30, 20),
-            resolution=micro_config.resolution,
+            resolution=micro_config.require_uniform_grid(),
         )
         assert jnp.abs(jnp.abs(phase) - 1.0) < 1e-6
 
@@ -155,7 +155,7 @@ class TestBlochGetBlochPhase:
         k = 1e7
         axis = 2
         Nz = 25
-        resolution = micro_config.resolution
+        resolution = micro_config.require_uniform_grid()
         bb = make_bloch(axis=axis, direction="-", bloch_vector=(0.0, 0.0, k))
         # We can call get_bloch_phase without placing (it only uses bloch_vector and axis)
         phase = bb.get_bloch_phase(
@@ -172,31 +172,31 @@ class TestBlochGetBlochPhase:
             y_edges=jnp.asarray([0.0, 1.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         k = 0.25
         bb = make_bloch(axis=0, direction="-", bloch_vector=(k, 0.0, 0.0))
         placed = place_bloch(bb, config, jax_key, volume_shape=grid.shape)
 
-        phase = placed.get_bloch_phase(volume_shape=grid.shape, resolution=config.resolution)
+        phase = placed.get_bloch_phase(volume_shape=grid.shape, resolution=1.0)
 
         assert jnp.allclose(phase, jnp.exp(1j * k * 3.0))
 
     def test_uniform_rectilinear_grid_phase_is_jittable(self, jax_key):
         """Concrete RectilinearGrid phase lookup must not force Python floats inside JAX traces."""
         grid = RectilinearGrid.uniform(shape=(4, 4, 4), spacing=0.5)
-        config = SimulationConfig(time=1e-8, resolution=99.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         k = 0.25
         bb = make_bloch(axis=0, direction="-", bloch_vector=(k, 0.0, 0.0))
         placed = place_bloch(bb, config, jax_key, volume_shape=grid.shape)
 
-        phase = jax.jit(lambda: placed.get_bloch_phase(volume_shape=grid.shape, resolution=config.resolution))()
+        phase = jax.jit(lambda: placed.get_bloch_phase(volume_shape=grid.shape, resolution=1.0))()
 
         assert jnp.allclose(phase, jnp.exp(1j * k * 2.0))
 
     def test_uses_correct_axis_component(self, micro_config):
         """Only the k component for this boundary's axis affects the phase."""
         k_x, k_y, k_z = 1e6, 2e6, 3e6
-        resolution = micro_config.resolution
+        resolution = micro_config.require_uniform_grid()
         volume_shape = (10, 20, 30)
 
         for axis, k_axis in enumerate([k_x, k_y, k_z]):

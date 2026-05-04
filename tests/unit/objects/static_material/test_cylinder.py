@@ -14,7 +14,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import RectilinearGrid
+from fdtdx.core.grid import RectilinearGrid, UniformGrid
 from fdtdx.materials import Material
 from fdtdx.objects.static_material.cylinder import Cylinder
 
@@ -27,7 +27,7 @@ from fdtdx.objects.static_material.cylinder import Cylinder
 def config():
     return SimulationConfig(
         time=100e-15,
-        resolution=50e-9,
+        grid=UniformGrid(spacing=50e-9),
         backend="cpu",
         dtype=jnp.float32,
         gradient_config=None,
@@ -168,7 +168,7 @@ class TestGetVoxelMaskForShape:
             y_edges=jnp.asarray([0.0, 1.0, 3.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         cyl = _make_cylinder(two_materials, axis=2, radius=0.75)
         placed = _place(cyl, config, key, ((0, 2), (0, 2), (0, 1)))
 
@@ -186,7 +186,7 @@ class TestGetVoxelMaskForShape:
             y_edges=2.0 * t**1.4,
             z_edges=jnp.asarray([0.0, 1.0]),
         )
-        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
         radius = 0.7
         cyl = _make_cylinder(two_materials, axis=2, radius=radius)
         placed = _place(cyl, config, key, ((0, n), (0, n), (0, 1)))
