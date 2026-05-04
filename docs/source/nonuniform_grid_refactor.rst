@@ -6,6 +6,38 @@ grids.  The main design rule is that uniform grids are a special case of the
 same data structure: fdtdx internals should consume :class:`fdtdx.GridSpec`
 instead of branching between a scalar-resolution solver and a non-uniform solver.
 
+Current Scope and API Boundary
+------------------------------
+
+The current implementation intentionally supports only *realized rectilinear*
+grids:
+
+* uniform grids represented by equally spaced edge arrays
+* explicit non-uniform rectilinear grids represented by ``x_edges``, ``y_edges``,
+  and ``z_edges``
+
+This is the solver-facing data model.  The FDTD update, placement, detectors,
+sources, plotting, and export code should consume concrete cell-edge coordinates
+and derived metrics; they should not need to know how those coordinates were
+chosen.
+
+Automatic or quasi-uniform meshing is deliberately out of scope for this
+refactor.  When added later, it should be modeled as a *grid policy* that
+resolves to the same realized rectilinear grid before simulation setup.  In
+other words, future APIs may look like ``UniformGrid``, ``CustomGrid``,
+``AutoGrid``, ``QuasiUniformGrid``, snapping points, or mesh overrides, but the
+solver should still receive one concrete rectilinear edge-array representation.
+
+This split is important:
+
+* policy objects describe user intent, such as wavelength-aware refinement or
+  maximum adjacent-cell growth
+* the realized grid stores the actual coordinates used by the numerical method
+* users should be able to inspect or plot the realized grid before running a
+  simulation
+* uniform grids remain a special case of the realized rectilinear grid, not a
+  separate solver path
+
 Stage 1: Grid Representation and Uniform Compatibility
 ------------------------------------------------------
 
