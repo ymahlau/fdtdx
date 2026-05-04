@@ -11,7 +11,7 @@ matplotlib.use("Agg")
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.utils.plot_setup import plot_setup, plot_setup_from_side
 
 
@@ -100,9 +100,9 @@ class TestPlotSetupFromSide:
         plt.close("all")
 
     def test_nonuniform_grid_uses_physical_extents(self):
-        """Setup plots use GridSpec edge coordinates for stretched cells."""
+        """Setup plots use RectilinearGrid edge coordinates for stretched cells."""
         config = _make_config()
-        config.grid = GridSpec(
+        config.grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0e-6, 4.0e-6]),
             y_edges=jnp.asarray([0.0, 2.0e-6, 5.0e-6]),
             z_edges=jnp.asarray([0.0, 1.0e-6]),

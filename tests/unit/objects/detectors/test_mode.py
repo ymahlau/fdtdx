@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.detectors.mode import ModeOverlapDetector
 
@@ -338,7 +338,7 @@ class TestModeOverlapDetectorComputeOverlap:
 
     def test_compute_overlap_integrates_nonuniform_face_area(self, random_key, single_frequency):
         """A constant overlap integrand integrates to the detector face area."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 3.0, 7.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
@@ -359,7 +359,7 @@ class TestModeOverlapDetectorComputeOverlap:
 
     def test_compute_overlap_can_keep_legacy_raw_sum(self, random_key, single_frequency):
         """The integrate switch preserves raw overlap summation for compatibility checks."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 3.0, 7.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
@@ -380,7 +380,7 @@ class TestModeOverlapDetectorComputeOverlap:
 
     def test_transverse_edge_coordinates_follow_detector_slice(self, random_key, single_frequency):
         """Mode solving receives the physical edge arrays for the transverse detector axes."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 3.0, 7.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
@@ -397,7 +397,7 @@ class TestModeOverlapDetectorComputeOverlap:
     @patch("fdtdx.objects.detectors.mode.compute_mode")
     def test_apply_passes_nonuniform_mode_coordinates(self, mock_compute_mode, random_key, single_frequency):
         """Mode detector apply should not require a scalar grid spacing on stretched grids."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 3.0, 7.0]),
             z_edges=jnp.asarray([0.0, 1.0]),

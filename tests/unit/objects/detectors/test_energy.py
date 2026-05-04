@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.objects.detectors.energy import EnergyDetector
 
 
@@ -209,7 +209,7 @@ class TestEnergyDetectorUpdate:
 
     def test_reduce_volume_integrates_nonuniform_cell_volume(self, random_key):
         """A constant energy density integrates to density times physical volume."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 3.0, 7.0]),
             z_edges=jnp.asarray([0.0, 2.0]),
@@ -229,7 +229,7 @@ class TestEnergyDetectorUpdate:
 
     def test_cell_volume_weights_are_cached(self, random_key):
         """Detector volume weights are placement metrics and should be reused."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 3.0, 7.0]),
             z_edges=jnp.asarray([0.0, 2.0]),
@@ -242,7 +242,7 @@ class TestEnergyDetectorUpdate:
 
     def test_reduce_volume_can_keep_legacy_raw_sum(self, random_key):
         """The integrate switch preserves density summation for compatibility checks."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 3.0, 7.0]),
             z_edges=jnp.asarray([0.0, 2.0]),
@@ -262,7 +262,7 @@ class TestEnergyDetectorUpdate:
 
     def test_as_slices_uses_nonuniform_cell_centers_for_positions(self, random_key):
         """Explicit slice positions are selected by physical cell centers."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 4.0]),
             y_edges=jnp.asarray([0.0, 2.0, 5.0]),
             z_edges=jnp.asarray([0.0, 1.0, 7.0]),

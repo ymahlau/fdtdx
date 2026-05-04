@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.initialization import (
     _apply_grid_coordinate_constraint,
@@ -290,7 +290,7 @@ def test_resolve_constraints_with_partial_real_shape(simple_material):
 
 def test_nonuniform_partial_real_shape_covers_metric_size(simple_material):
     """Real object sizes use grid edges and cover the requested metric length."""
-    grid = GridSpec(
+    grid = RectilinearGrid(
         x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
         y_edges=jnp.asarray([0.0, 2.0, 5.0]),
         z_edges=jnp.asarray([0.0, 1.5, 4.0]),
@@ -310,7 +310,7 @@ def test_nonuniform_partial_real_shape_covers_metric_size(simple_material):
 
 def test_nonuniform_partial_real_position_uses_physical_interval_center(simple_material):
     """Center placement chooses the grid interval with closest physical center."""
-    grid = GridSpec(
+    grid = RectilinearGrid(
         x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
         y_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
         z_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
@@ -332,7 +332,7 @@ def test_nonuniform_partial_real_position_uses_physical_interval_center(simple_m
 
 def test_nonuniform_real_coordinate_constraint_snaps_to_nearest_edge(simple_material):
     """Real coordinate constraints use physical edge coordinates on stretched grids."""
-    grid = GridSpec(
+    grid = RectilinearGrid(
         x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
         y_edges=jnp.asarray([0.0, 1.0]),
         z_edges=jnp.asarray([0.0, 1.0]),
@@ -350,7 +350,7 @@ def test_nonuniform_real_coordinate_constraint_snaps_to_nearest_edge(simple_mate
 
 def test_nonuniform_grid_coordinate_constraint_is_rejected(simple_material):
     """Index-space placement coordinates are not allowed on non-uniform grids."""
-    grid = GridSpec(
+    grid = RectilinearGrid(
         x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
         y_edges=jnp.asarray([0.0, 1.0, 2.0, 3.0]),
         z_edges=jnp.asarray([0.0, 1.0, 2.0, 3.0]),
@@ -367,7 +367,7 @@ def test_nonuniform_grid_coordinate_constraint_is_rejected(simple_material):
 
 def test_nonuniform_nonzero_grid_margin_is_rejected(simple_material):
     """Grid margins are index-space distances and must be expressed in metres."""
-    grid = GridSpec(
+    grid = RectilinearGrid(
         x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0, 10.0]),
         y_edges=jnp.asarray([0.0, 1.0, 2.0, 3.0, 4.0]),
         z_edges=jnp.asarray([0.0, 1.0, 2.0, 3.0, 4.0]),
@@ -1189,7 +1189,7 @@ def test_init_arrays_unknown_static_material_type_raises(mock_create_matrix):
     config.backend = "cpu"
     config.gradient_config = None
     config.grid = None
-    config.require_grid.return_value = GridSpec.uniform(shape=(2, 2, 2), spacing=1.0)
+    config.require_grid.return_value = RectilinearGrid.uniform(shape=(2, 2, 2), spacing=1.0)
     config.require_uniform_grid.return_value = 1.0
 
     objects = Mock(spec=ObjectContainer)

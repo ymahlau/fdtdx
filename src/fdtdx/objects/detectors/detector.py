@@ -88,7 +88,7 @@ class Detector(SimulationObject, ABC):
         Detectors that reduce spatial data should call this helper instead of
         assuming equal-volume voxels.  A scalar-resolution fallback preserves
         compatibility for tests and older construction paths without an explicit
-        ``GridSpec``.
+        ``RectilinearGrid``.
         """
         if self._config.grid is not None:
             return self._config.grid.cell_volume(self.grid_slice_tuple)
@@ -119,7 +119,7 @@ class Detector(SimulationObject, ABC):
     def _plot_axis_centers_um(self, axis: int) -> np.ndarray:
         """Return detector-local cell centers in micrometres for plotting.
 
-        Rectilinear grids use the physical cell centers from ``GridSpec``.  The
+        Rectilinear grids use the physical cell centers from ``RectilinearGrid``.  The
         coordinates are shifted so plots start at the detector slice origin,
         matching the historical uniform-grid display convention.
         """
@@ -145,7 +145,7 @@ class Detector(SimulationObject, ABC):
     def _plot_resolutions(self) -> tuple[float, float, float]:
         """Return a scalar-resolution tuple for legacy plotting APIs.
 
-        When a non-uniform ``GridSpec`` is present this value is only a fallback
+        When a non-uniform ``RectilinearGrid`` is present this value is only a fallback
         for call signatures; rectilinear plots receive explicit edge arrays and
         do not use the scalar spacing to position cells.
         """

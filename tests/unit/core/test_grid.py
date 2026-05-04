@@ -3,15 +3,20 @@ import numpy as np
 import pytest
 
 from fdtdx import constants
-from fdtdx.core.grid import GridSpec, calculate_spatial_offsets_yee, calculate_time_offset_yee, polygon_to_mask
+from fdtdx.core.grid import (
+    RectilinearGrid,
+    calculate_spatial_offsets_yee,
+    calculate_time_offset_yee,
+    polygon_to_mask,
+)
 
 
-class TestGridSpec:
+class TestRectilinearGrid:
     """Tests for the canonical rectilinear grid representation."""
 
     def test_uniform_constructor_stores_edges(self):
         """Uniform grids are represented as ordinary rectilinear edge arrays."""
-        grid = GridSpec.uniform(shape=(2, 3, 4), spacing=0.5, origin=(1.0, 2.0, 3.0))
+        grid = RectilinearGrid.uniform(shape=(2, 3, 4), spacing=0.5, origin=(1.0, 2.0, 3.0))
 
         assert grid.shape == (2, 3, 4)
         assert np.allclose(np.asarray(grid.x_edges), [1.0, 1.5, 2.0])
@@ -20,9 +25,21 @@ class TestGridSpec:
         assert grid.is_uniform
         assert grid.uniform_spacing == 0.5
 
+    def test_custom_constructor_stores_explicit_edges(self):
+        """Custom grids are realized edge arrays, not automatic meshing policies."""
+        grid = RectilinearGrid.custom(
+            x_edges=jnp.asarray([0.0, 1.0, 2.5]),
+            y_edges=jnp.asarray([0.0, 2.0]),
+            z_edges=jnp.asarray([0.0, 0.5, 1.5]),
+        )
+
+        assert grid.shape == (2, 1, 2)
+        assert np.allclose(np.asarray(grid.dx), [1.0, 1.5])
+        assert not grid.is_uniform
+
     def test_nonuniform_grid_metrics(self):
         """Non-uniform grids derive widths, centers, extents, areas, and volumes from edges."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 2.0, 5.0]),
             z_edges=jnp.asarray([0.0, 4.0, 6.0]),
@@ -43,7 +60,7 @@ class TestGridSpec:
 
     def test_uniform_spacing_raises_for_nonuniform_grid(self):
         """Scalar-resolution compatibility paths must fail loudly for non-uniform grids."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 1.0, 2.0]),
             z_edges=jnp.asarray([0.0, 1.0, 2.0]),
@@ -54,7 +71,7 @@ class TestGridSpec:
 
     def test_coord_to_index_snapping_rules(self):
         """Coordinate snapping is centralized so placement code does not open-code searchsorted."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
             y_edges=jnp.asarray([0.0, 1.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
@@ -66,7 +83,7 @@ class TestGridSpec:
 
     def test_bounds_for_center_uses_physical_interval_centers(self):
         """Center snapping compares physical interval centers, not index centers."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
             y_edges=jnp.asarray([0.0, 1.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
@@ -76,7 +93,7 @@ class TestGridSpec:
 
     def test_bounds_for_anchor_uses_physical_anchor_positions(self):
         """Relative placement can target physical lower/center/upper anchors."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
             y_edges=jnp.asarray([0.0, 1.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
@@ -88,7 +105,7 @@ class TestGridSpec:
 
     def test_cfl_time_step_uses_min_spacing_per_axis(self):
         """The rectilinear CFL limit uses the smallest spacing on each axis."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 2.0, 5.0]),
             y_edges=jnp.asarray([0.0, 1.0]),
             z_edges=jnp.asarray([0.0, 4.0]),
@@ -161,7 +178,7 @@ def test_calculate_time_offset_yee_with_effective_index():
 
 
 def test_calculate_time_offset_yee_uniform_coordinates_match_scalar_path():
-    """A uniform GridSpec is a metric-equivalent replacement for scalar spacing."""
+    """A uniform RectilinearGrid is a metric-equivalent replacement for scalar spacing."""
     spacing = 0.2
     shape = (3, 3, 1)
     center = jnp.array([1.0, 1.0])

@@ -12,7 +12,7 @@ matplotlib.use("Agg")
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.utils.plot_material import plot_material, plot_material_from_side
 
 
@@ -56,9 +56,9 @@ class TestPlotMaterialFromSide:
         plt.close("all")
 
     def test_nonuniform_grid_uses_rectilinear_edges(self):
-        """Material plots use pcolormesh with GridSpec physical extents."""
+        """Material plots use pcolormesh with RectilinearGrid physical extents."""
         config = _make_config()
-        config.grid = GridSpec(
+        config.grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0e-6, 4.0e-6]),
             y_edges=jnp.asarray([0.0, 2.0e-6, 5.0e-6]),
             z_edges=jnp.asarray([0.0, 1.0e-6, 3.0e-6]),
@@ -241,7 +241,7 @@ class TestPlotMaterialFromSide:
     def test_nonuniform_position_selects_nearest_cell_center(self):
         """Nonuniform slice positions are offsets from physical domain center."""
         config = _make_config()
-        config.grid = GridSpec(
+        config.grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0e-6]),
             y_edges=jnp.asarray([0.0, 1.0e-6]),
             z_edges=jnp.asarray([0.0, 1.0e-6, 4.0e-6, 10.0e-6]),

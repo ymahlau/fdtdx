@@ -7,7 +7,7 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Patch, Rectangle
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.fdtd.container import ObjectContainer
 from fdtdx.objects.boundaries.bloch import BlochBoundary
 from fdtdx.objects.boundaries.pec import PerfectElectricConductor
@@ -19,7 +19,7 @@ from fdtdx.objects.object import SimulationObject
 def _axis_edges_um(config: SimulationConfig, axis: int, bounds: tuple[int, int]) -> tuple[float, float]:
     """Return local physical edge coordinates in micrometres for an index interval."""
     grid = getattr(config, "grid", None)
-    if isinstance(grid, GridSpec):
+    if isinstance(grid, RectilinearGrid):
         edges = grid.edges(axis)
         domain_origin = float(edges[0])
         return (float(edges[bounds[0]] - domain_origin) / 1.0e-6, float(edges[bounds[1]] - domain_origin) / 1.0e-6)

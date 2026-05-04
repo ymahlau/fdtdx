@@ -9,7 +9,7 @@ import pytest
 from matplotlib.figure import Figure
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.detectors.field import FieldDetector
@@ -86,7 +86,7 @@ class TestDrawPlotLinePlots:
 
     def test_1d_single_timestep_nonuniform_uses_cell_centers(self, random_key, single_switch):
         """Non-uniform spatial line plots use physical cell centers in micrometres."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0e-6, 4.0e-6, 10.0e-6]),
             y_edges=jnp.asarray([0.0, 1.0e-6]),
             z_edges=jnp.asarray([0.0, 1.0e-6]),
@@ -135,7 +135,7 @@ class TestDrawPlotWaterfallAndSlices:
 
     def test_2d_single_timestep_nonuniform_slices_plot(self, random_key, single_switch):
         """Non-uniform slice plots use rectilinear physical extents."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0e-6, 4.0e-6]),
             y_edges=jnp.asarray([0.0, 2.0e-6, 5.0e-6]),
             z_edges=jnp.asarray([0.0, 3.0e-6, 7.0e-6]),
@@ -235,7 +235,7 @@ class TestDrawPlotErrors:
 
     def test_nonuniform_scalar_time_series_still_plots(self, random_key, small_switch):
         """Reduced scalar plots do not need spatial axes on non-uniform grids."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
             y_edges=jnp.asarray([0.0, 1.0]),
             z_edges=jnp.asarray([0.0, 1.0]),

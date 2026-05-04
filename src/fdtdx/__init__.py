@@ -16,7 +16,7 @@ from fdtdx.constants import wavelength_to_period
 from fdtdx.conversion.json import export_json, export_json_str, import_from_json
 from fdtdx.conversion.stl import export_stl
 from fdtdx.conversion.vti import export_arrays_snapshot_to_vti, export_vti, export_vtr
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.core.jax.pytrees import (
     TreeClass,
     autoinit,
@@ -139,7 +139,6 @@ __all__ = [
     "GaussianSmoothing2D",
     "GradientConfig",
     "GridCoordinateConstraint",
-    "GridSpec",
     "HorizontalSymmetry2D",
     "HorizontalSymmetry3D",
     "LinearReconstructEveryK",
@@ -166,6 +165,7 @@ __all__ = [
     "RealCoordinateConstraint",
     "Recorder",
     "RecordingState",
+    "RectilinearGrid",
     "RemoveFloatingMaterial",
     "SimulationConfig",
     "SimulationObject",

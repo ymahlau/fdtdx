@@ -14,7 +14,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.materials import Material
 from fdtdx.objects.static_material.cylinder import Cylinder
 
@@ -163,7 +163,7 @@ class TestGetVoxelMaskForShape:
 
     def test_nonuniform_grid_uses_physical_cell_centers(self, key, two_materials):
         """Cylinder masks use rectilinear transverse coordinates."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 1.0, 3.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
@@ -181,7 +181,7 @@ class TestGetVoxelMaskForShape:
         """A resolved stretched-grid cylinder has the expected transverse area."""
         n = 18
         t = jnp.linspace(0.0, 1.0, n + 1)
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=2.0 * t**1.2,
             y_edges=2.0 * t**1.4,
             z_edges=jnp.asarray([0.0, 1.0]),

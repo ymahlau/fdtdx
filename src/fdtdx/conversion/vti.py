@@ -5,7 +5,7 @@ from pathlib import Path
 import jax
 import numpy as np
 
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.fdtd.container import ArrayContainer
 from fdtdx.typing import Slice3D
 
@@ -88,7 +88,7 @@ def export_vti(
     offset: tuple[int, int, int] = (0, 0, 0),
     grid_slice: Slice3D | None = None,
     compression_level: int = -1,
-    grid: GridSpec | None = None,
+    grid: RectilinearGrid | None = None,
 ):
     """Export a dictionary of arrays to a VTI (VTK ImageData) file.
 
@@ -197,7 +197,7 @@ def _validate_vtk_cell_data(cell_data: dict[str, jax.Array]) -> tuple[int, int, 
 def export_vtr(
     cell_data: dict[str, jax.Array],
     filename: Path | str,
-    grid: GridSpec,
+    grid: RectilinearGrid,
     grid_slice: Slice3D | None = None,
     compression_level: int = -1,
 ):
@@ -205,7 +205,7 @@ def export_vtr(
 
     VTR is the rectilinear counterpart to VTI: it stores explicit x/y/z point
     coordinates and can therefore represent non-uniform cell widths without
-    resampling.  Coordinates are written from ``GridSpec`` edge arrays, while
+    resampling.  Coordinates are written from ``RectilinearGrid`` edge arrays, while
     cell data uses the same appended compressed binary encoding as ``export_vti``.
 
     Args:
@@ -227,7 +227,7 @@ def export_vtr(
     stops = tuple(s.stop for s in grid_slice)
     assert all(stop is not None for stop in stops), "VTR grid_slice must have explicit stop values."
     assert tuple(stop - start for start, stop in zip(starts, stops, strict=True)) == shape, (
-        "Cell data shape must match the selected GridSpec slice."
+        "Cell data shape must match the selected RectilinearGrid slice."
     )
 
     coord_arrays = []

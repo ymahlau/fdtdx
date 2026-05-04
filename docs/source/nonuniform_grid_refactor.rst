@@ -3,14 +3,14 @@ Non-Uniform Grid Refactor
 
 This document tracks the staged implementation plan for non-uniform rectilinear
 grids.  The main design rule is that uniform grids are a special case of the
-same data structure: fdtdx internals should consume :class:`fdtdx.GridSpec`
+same data structure: fdtdx internals should consume a realized rectilinear grid
 instead of branching between a scalar-resolution solver and a non-uniform solver.
 
 Current Scope and API Boundary
 ------------------------------
 
 The current implementation intentionally supports only *realized rectilinear*
-grids:
+grids.  In code this is represented by ``RectilinearGrid``.
 
 * uniform grids represented by equally spaced edge arrays
 * explicit non-uniform rectilinear grids represented by ``x_edges``, ``y_edges``,
@@ -26,7 +26,8 @@ refactor.  When added later, it should be modeled as a *grid policy* that
 resolves to the same realized rectilinear grid before simulation setup.  In
 other words, future APIs may look like ``UniformGrid``, ``CustomGrid``,
 ``AutoGrid``, ``QuasiUniformGrid``, snapping points, or mesh overrides, but the
-solver should still receive one concrete rectilinear edge-array representation.
+solver should still receive one concrete ``RectilinearGrid`` edge-array
+representation.
 
 This split is important:
 
@@ -43,7 +44,7 @@ Stage 1: Grid Representation and Uniform Compatibility
 
 Status: implemented.
 
-The first stage introduces ``GridSpec`` as the canonical grid representation.
+The first stage introduces ``RectilinearGrid`` as the canonical grid representation.
 It stores physical edge coordinates for x, y, and z and derives cell widths,
 centers, extents, face areas, and volumes from those coordinates.
 
@@ -80,7 +81,7 @@ uniform-grid behavior.  Field interpolation for exact detector sampling also use
 distance-weighted center-to-edge averages on stretched grids.
 
 Uniform-grid parity tests now cover both scalar-resolution configs and explicit
-uniform ``GridSpec`` configs so future solver changes have a regression fence.
+uniform ``RectilinearGrid`` configs so future solver changes have a regression fence.
 
 Tests to add:
 
@@ -97,12 +98,12 @@ and Bloch phase lengths.
 
 PML grading should be based on physical depth into the boundary, not the number
 of cells.  Bloch and periodic phase corrections should use physical domain length
-from ``GridSpec`` edges.
+from ``RectilinearGrid`` edges.
 
 Physical-depth PML profile construction is implemented.  The time-domain PML
 auxiliary coefficient update now uses ``SimulationConfig.time_step_duration``
 instead of reconstructing ``dt`` from a scalar spacing.  Bloch phase correction
-uses the physical axis extent from ``GridSpec`` edges, and the boundary padding
+uses the physical axis extent from ``RectilinearGrid`` edges, and the boundary padding
 path no longer requires a scalar grid before calling grid-aware boundary
 corrections.
 
@@ -122,7 +123,7 @@ mode overlap, Tidy3D mode-solver coordinates, and mode-source coordinates.
 Detector reductions must become physical integrals.  Flux detectors need face
 area weights, energy detectors need volume weights, and mode overlap should use
 transverse area weights.  Tidy3D mode solving should receive transverse coordinate
-arrays from ``GridSpec`` rather than generated uniform coordinates.
+arrays from ``RectilinearGrid`` rather than generated uniform coordinates.
 
 Diffractive detectors resample stretched transverse planes onto a uniform plane
 before FFT order analysis.  This preserves the existing FFT backend while making
@@ -148,7 +149,7 @@ coordinates from grid edges.
 
 Sphere, cylinder, and extruded-polygon masks now sample physical cell centers on
 rectilinear grids.  Detector, setup, and material plots can use rectilinear
-physical axes.  VTR export writes explicit ``GridSpec`` edge coordinates for
+physical axes.  VTR export writes explicit ``RectilinearGrid`` edge coordinates for
 non-uniform grids; VTI remains a uniform image-data export and rejects stretched
 grids with a pointer to VTR.
 
@@ -167,7 +168,7 @@ Accuracy Validation
 The current validation suite includes both local numerical checks and
 integration-level parity checks:
 
-* uniform ``GridSpec`` initialization matches scalar-resolution initialization
+* uniform ``RectilinearGrid`` initialization matches scalar-resolution initialization
 * stretched-grid Yee curls recover analytic physical derivatives for linear and
   quadratic fields
 * distance-weighted field interpolation recovers linear fields on stretched cells
@@ -184,7 +185,7 @@ Remaining Guarded Surfaces
 The remaining calls to ``require_uniform_grid()`` are compatibility fallbacks or
 intentional guards.  They cluster around:
 
-* fallback paths used before a concrete ``GridSpec`` is attached
+* fallback paths used before a concrete ``RectilinearGrid`` is attached
 * legacy VTI image-data export, which cannot encode rectilinear spacing
 * index-space placement APIs whose semantics are ambiguous on stretched grids
 

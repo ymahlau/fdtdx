@@ -109,7 +109,7 @@ def pad_fields_for_boundaries(
         if grid is not None and not grid.is_uniform:
             # ``apply_pad_correction`` still has a legacy scalar-resolution
             # parameter.  Non-uniform Bloch boundaries ignore this value and
-            # compute the physical phase length from ``GridSpec`` edges.
+            # compute the physical phase length from ``RectilinearGrid`` edges.
             spacing = float(grid.min_spacing)
         else:
             spacing = config.require_uniform_grid()

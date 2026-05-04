@@ -8,7 +8,7 @@ import numpy as np
 from matplotlib.figure import Figure
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.fdtd.container import ArrayContainer
 
 MaterialType = Literal["permittivity", "permeability"]
@@ -17,7 +17,7 @@ MaterialType = Literal["permittivity", "permeability"]
 def _axis_edges_um(config: SimulationConfig, axis: int, length: int) -> np.ndarray:
     """Return local plotting edges in micrometres for an axis."""
     grid = getattr(config, "grid", None)
-    if isinstance(grid, GridSpec):
+    if isinstance(grid, RectilinearGrid):
         edges = np.asarray(grid.edges(axis)[: length + 1])
         return (edges - edges[0]) / 1.0e-6
 
@@ -30,7 +30,7 @@ def _axis_edges_um(config: SimulationConfig, axis: int, length: int) -> np.ndarr
 def _slice_index_from_position(config: SimulationConfig, axis: int, length: int, position: float) -> int:
     """Select a material slice by physical offset from the domain center."""
     grid = getattr(config, "grid", None)
-    if isinstance(grid, GridSpec):
+    if isinstance(grid, RectilinearGrid):
         edges = np.asarray(grid.edges(axis)[: length + 1])
         centers = 0.5 * (edges[:-1] + edges[1:])
         target = 0.5 * (edges[0] + edges[-1]) + position
@@ -128,7 +128,7 @@ def plot_material_from_side(
         edge_y = _axis_edges_um(config, 2, spatial_shape[2])
 
     # Plot the material slice
-    if isinstance(getattr(config, "grid", None), GridSpec):
+    if isinstance(getattr(config, "grid", None), RectilinearGrid):
         im = ax.pcolormesh(
             edge_x,
             edge_y,

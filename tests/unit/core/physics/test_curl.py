@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.core.misc import pad_fields
 from fdtdx.core.physics.curl import curl_E, curl_H, interpolate_fields
 
@@ -15,7 +15,7 @@ def _make_config():
 
 
 def _make_nonuniform_config():
-    grid = GridSpec(
+    grid = RectilinearGrid(
         x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0, 10.0]),
         y_edges=jnp.asarray([0.0, 1.0, 2.5, 5.0, 9.0]),
         z_edges=jnp.asarray([0.0, 1.0, 4.0, 8.0, 13.0]),

@@ -8,7 +8,7 @@ import pytest
 
 from fdtdx import constants
 from fdtdx.config import DUMMY_SIMULATION_CONFIG, GradientConfig, SimulationConfig
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 
 
 class TestGradientConfigConstruction:
@@ -189,7 +189,7 @@ class TestSimulationConfigProperties:
         """Non-uniform grids use the per-axis minimum-spacing CFL formula."""
         mock_get_backend.return_value = _create_mock_backend("cpu")
 
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 2e-9, 5e-9]),
             y_edges=jnp.asarray([0.0, 1e-9]),
             z_edges=jnp.asarray([0.0, 4e-9]),
@@ -202,7 +202,7 @@ class TestSimulationConfigProperties:
     @patch("fdtdx.config.jax.devices")
     @patch("jax.extend.backend.get_backend")
     def test_uniform_grid_time_step_matches_scalar_resolution(self, mock_get_backend, *_):
-        """Uniform GridSpec configs preserve scalar-resolution CFL behavior."""
+        """Uniform RectilinearGrid configs preserve scalar-resolution CFL behavior."""
         mock_get_backend.return_value = _create_mock_backend("cpu")
 
         spacing = 2e-9
@@ -210,7 +210,7 @@ class TestSimulationConfigProperties:
         grid_config = SimulationConfig(
             time=1e-12,
             resolution=99e-9,
-            grid=GridSpec.uniform(shape=(3, 4, 5), spacing=spacing),
+            grid=RectilinearGrid.uniform(shape=(3, 4, 5), spacing=spacing),
             backend="cpu",
             courant_factor=0.8,
         )
@@ -223,7 +223,7 @@ class TestSimulationConfigProperties:
     @patch("fdtdx.config.jax.devices")
     @patch("jax.extend.backend.get_backend")
     def test_require_grid_builds_uniform_grid_from_resolution(self, mock_get_backend, *_):
-        """Legacy resolution configs create a concrete GridSpec when the volume shape is known."""
+        """Legacy resolution configs create a concrete RectilinearGrid when the volume shape is known."""
         mock_get_backend.return_value = _create_mock_backend("cpu")
 
         config = SimulationConfig(time=1e-12, resolution=2e-9, backend="cpu")
@@ -239,7 +239,7 @@ class TestSimulationConfigProperties:
         """Scalar compatibility access fails instead of masking non-uniform metrics."""
         mock_get_backend.return_value = _create_mock_backend("cpu")
 
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 1.0]),
             z_edges=jnp.asarray([0.0, 1.0]),

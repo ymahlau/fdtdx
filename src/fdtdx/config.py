@@ -6,7 +6,7 @@ import jax.numpy as jnp
 from loguru import logger
 
 from fdtdx import constants
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field
 from fdtdx.interfaces.recorder import Recorder
 from fdtdx.typing import BackendOption
@@ -56,17 +56,17 @@ class SimulationConfig(TreeClass):
     #:
     #: New internals should prefer ``grid``.  This field is kept as a public
     #: compatibility constructor while the codebase migrates to one canonical
-    #: ``GridSpec`` path.  When ``grid`` is present and non-uniform, operations
+    #: ``RectilinearGrid`` path.  When ``grid`` is present and non-uniform, operations
     #: that still rely on this scalar should fail loudly via ``require_uniform_grid``.
     resolution: float = frozen_field()
 
-    #: Rectilinear grid metric used by compiled simulations.
+    #: Realized rectilinear grid metric used by compiled simulations.
     #:
     #: The grid is optional during initial configuration because the simulation
     #: volume can still be specified in physical units and resolved later during
     #: object placement.  Once objects are placed, ``place_objects`` attaches a
-    #: concrete ``GridSpec`` so downstream code has a single metric source.
-    grid: GridSpec | None = frozen_field(default=None)
+    #: concrete ``RectilinearGrid`` so downstream code has a single metric source.
+    grid: RectilinearGrid | None = frozen_field(default=None)
 
     #: Computation backend ('gpu', 'tpu', 'cpu' or 'METAL'). Defaults to "gpu".
     backend: BackendOption = frozen_field(default="gpu")
@@ -132,7 +132,7 @@ class SimulationConfig(TreeClass):
         """
         return self.courant_factor / math.sqrt(3)
 
-    def require_grid(self, shape: tuple[int, int, int] | None = None) -> GridSpec:
+    def require_grid(self, shape: tuple[int, int, int] | None = None) -> RectilinearGrid:
         """Return the configured grid, creating a uniform compatibility grid if needed.
 
         Args:
@@ -141,13 +141,13 @@ class SimulationConfig(TreeClass):
                 volume shape.
 
         Returns:
-            A concrete ``GridSpec``.
+            A concrete ``RectilinearGrid``.
         """
         if self.grid is not None:
             return self.grid
         if shape is None:
-            raise ValueError("A grid shape is required to build a GridSpec from scalar resolution.")
-        return GridSpec.uniform(shape=shape, spacing=self.resolution)
+            raise ValueError("A grid shape is required to build a RectilinearGrid from scalar resolution.")
+        return RectilinearGrid.uniform(shape=shape, spacing=self.resolution)
 
     def require_uniform_grid(self) -> float:
         """Return uniform spacing for legacy code that has not been metricized yet.

@@ -6,7 +6,7 @@ import pytest
 
 from fdtdx import constants
 from fdtdx.config import GradientConfig, SimulationConfig
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.initialization import place_objects
 from fdtdx.interfaces.recorder import Recorder
@@ -156,7 +156,7 @@ def test_diagonally_anisotropic_material(simple_config, simple_volume):
 
 def test_nonuniform_grid_initializes_conductive_volume():
     """Conductivity scaling uses the update reference spacing, not a uniform grid size."""
-    grid = GridSpec(
+    grid = RectilinearGrid(
         x_edges=jnp.asarray([0.0, 1.0, 3.0]),
         y_edges=jnp.asarray([0.0, 1.5, 4.0]),
         z_edges=jnp.asarray([0.0, 2.0, 5.0]),
@@ -179,8 +179,8 @@ def test_nonuniform_grid_initializes_conductive_volume():
     assert jnp.allclose(arrays.magnetic_conductivity, 0.4 * conductivity_spacing)
 
 
-def test_uniform_gridspec_initialization_matches_scalar_resolution(simple_material):
-    """Explicit uniform GridSpec initialization is equivalent to scalar resolution."""
+def test_uniform_rectilinear_grid_initialization_matches_scalar_resolution(simple_material):
+    """Explicit uniform RectilinearGrid initialization is equivalent to scalar resolution."""
     resolution = 1.0
     volume = SimulationVolume(name="volume", partial_grid_shape=(4, 4, 4))
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(2, 2, 2), material=simple_material)
@@ -194,7 +194,7 @@ def test_uniform_gridspec_initialization_matches_scalar_resolution(simple_materi
     scalar_config = SimulationConfig(resolution=resolution, time=100e-15, backend="cpu")
     grid_config = SimulationConfig(
         resolution=99.0,
-        grid=GridSpec.uniform(shape=(4, 4, 4), spacing=resolution),
+        grid=RectilinearGrid.uniform(shape=(4, 4, 4), spacing=resolution),
         time=100e-15,
         backend="cpu",
     )

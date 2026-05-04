@@ -209,7 +209,7 @@ class PerfectlyMatchedLayer(BaseBoundary):
             dH = dH.at[0].set(0)
 
         # If a boundary cell has zero width validation would already have failed
-        # in GridSpec, but this keeps the normalization robust for diagnostics.
+        # in RectilinearGrid, but this keeps the normalization robust for diagnostics.
         del widths
         return dE, dH, norm
 

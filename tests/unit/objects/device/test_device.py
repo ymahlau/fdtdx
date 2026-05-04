@@ -10,7 +10,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import GridSpec
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.core.jax.pytrees import autoinit
 from fdtdx.materials import Material
 from fdtdx.objects.device.device import Device
@@ -148,7 +148,7 @@ class TestPlaceOnGrid:
 
     def test_nonuniform_grid_index_voxels_place(self, key, two_materials):
         """Cell-count design voxels can be placed on non-uniform grids."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 2.0, 5.0]),
             z_edges=jnp.asarray([0.0, 4.0, 9.0]),
@@ -164,7 +164,7 @@ class TestPlaceOnGrid:
 
     def test_nonuniform_real_voxel_size_uses_physical_design_grid(self, key, two_materials):
         """Physical design voxels define a center-sampled design grid."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 2.0, 5.0]),
             z_edges=jnp.asarray([0.0, 4.0, 9.0]),
@@ -183,7 +183,7 @@ class TestPlaceOnGrid:
 
     def test_nonuniform_physical_design_grid_expands_by_overlap_average(self, key, two_materials):
         """Simulation cells average every physical design voxel they overlap."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 2.0, 5.0]),
             z_edges=jnp.asarray([0.0, 4.0, 9.0]),
@@ -209,7 +209,7 @@ class TestPlaceOnGrid:
 
     def test_nonuniform_physical_design_overlap_weights_conserve_constants(self, key, two_materials):
         """Overlap resampling keeps constant parameters constant on skewed cells."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 0.25, 3.0]),
             y_edges=jnp.asarray([0.0, 4.0, 5.0]),
             z_edges=jnp.asarray([0.0, 1.0, 9.0]),
@@ -230,7 +230,7 @@ class TestPlaceOnGrid:
 
     def test_nonuniform_physical_design_expansion_is_jittable(self, key, two_materials):
         """Physical design resampling uses cached domain metrics inside JAX traces."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 0.25, 3.0]),
             y_edges=jnp.asarray([0.0, 4.0, 5.0]),
             z_edges=jnp.asarray([0.0, 1.0, 9.0]),
@@ -251,7 +251,7 @@ class TestPlaceOnGrid:
 
     def test_nonuniform_physical_and_grid_voxels_cannot_mix(self, key, two_materials):
         """Mixed physical/index design voxel specs are ambiguous on stretched grids."""
-        grid = GridSpec(
+        grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 2.0, 5.0]),
             z_edges=jnp.asarray([0.0, 4.0, 9.0]),

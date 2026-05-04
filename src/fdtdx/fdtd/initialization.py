@@ -761,7 +761,7 @@ def _has_nonuniform_grid(config: SimulationConfig) -> bool:
     """Return True when placement should use physical edge coordinates.
 
     Uniform grids keep the historical scalar-resolution arithmetic for exact
-    backwards compatibility.  Non-uniform grids use ``GridSpec`` helpers so that
+    backwards compatibility.  Non-uniform grids use ``RectilinearGrid`` helpers so that
     metres are mapped through physical edge coordinates.
     """
     grid = getattr(config, "grid", None)
