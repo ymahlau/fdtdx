@@ -128,11 +128,11 @@ class TestTFSFPlaneSourceProperties:
         # At 100nm resolution, 200nm offset = 2 grid points
         assert np.isclose(placed.max_horizontal_offset_grid, 2.0)
 
-    def test_nonuniform_random_offsets_are_rejected(self, jax_key):
-        """Random physical offsets are ambiguous as index offsets on stretched grids."""
+    def test_nonuniform_random_offsets_use_physical_units(self, jax_key):
+        """Random offsets remain physical source-plane distances on stretched grids."""
         grid = GridSpec(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
-            y_edges=jnp.asarray([0.0, 1.0, 2.0]),
+            y_edges=jnp.asarray([0.0, 2.0, 5.0]),
             z_edges=jnp.asarray([0.0, 1.0]),
         )
         config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
@@ -146,10 +146,13 @@ class TestTFSFPlaneSourceProperties:
         )
         placed = source.place_on_grid(((0, 2), (0, 2), (0, 1)), config, jax_key)
 
-        with pytest.raises(ValueError, match="horizontal TFSF offsets"):
-            _ = placed.max_horizontal_offset_grid
-        with pytest.raises(ValueError, match="vertical TFSF offsets"):
-            _ = placed.max_vertical_offset_grid
+        center = placed._get_center(jax_key)
+
+        assert placed.max_horizontal_offset_grid == pytest.approx(0.5)
+        assert placed.max_vertical_offset_grid == pytest.approx(0.5)
+        assert center.shape == (2,)
+        assert jnp.abs(center[0] - 1.5) <= 0.5
+        assert jnp.abs(center[1] - 2.5) <= 0.5
 
 
 class TestTFSFPlaneSourceRandomization:

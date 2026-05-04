@@ -160,6 +160,44 @@ def test_calculate_time_offset_yee_with_effective_index():
     assert jnp.all(jnp.isfinite(time_offset_H))
 
 
+def test_calculate_time_offset_yee_uniform_coordinates_match_scalar_path():
+    """A uniform GridSpec is a metric-equivalent replacement for scalar spacing."""
+    spacing = 0.2
+    shape = (3, 3, 1)
+    center = jnp.array([1.0, 1.0])
+    wave_vector = jnp.array([0.3, 0.4, -0.5])
+    wave_vector = wave_vector / jnp.linalg.norm(wave_vector)
+    inv_permittivities = jnp.ones(shape)
+    inv_permeabilities = 1.0
+    time_step_duration = 1e-15
+
+    scalar_E, scalar_H = calculate_time_offset_yee(
+        center=center,
+        wave_vector=wave_vector,
+        inv_permittivities=inv_permittivities,
+        inv_permeabilities=inv_permeabilities,
+        resolution=spacing,
+        time_step_duration=time_step_duration,
+    )
+    grid_E, grid_H = calculate_time_offset_yee(
+        center=center,
+        wave_vector=wave_vector,
+        inv_permittivities=inv_permittivities,
+        inv_permeabilities=inv_permeabilities,
+        resolution=spacing,
+        time_step_duration=time_step_duration,
+        coordinate_edges=(
+            spacing * jnp.arange(shape[0] + 1),
+            spacing * jnp.arange(shape[1] + 1),
+            spacing * jnp.arange(shape[2] + 1),
+        ),
+        center_physical=jnp.array([center[0] * spacing, center[1] * spacing, 0.0]),
+    )
+
+    assert jnp.allclose(grid_E, scalar_E, rtol=1e-6, atol=0.2)
+    assert jnp.allclose(grid_H, scalar_H, rtol=1e-6, atol=0.2)
+
+
 def test_calculate_time_offset_yee_invalid_permittivity_shape():
     """Test that invalid permittivity shapes raise exceptions"""
     center = jnp.array([0.0, 0.0])

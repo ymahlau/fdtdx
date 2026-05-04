@@ -12,6 +12,45 @@ from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.objects.sources.tfsf import TFSFPlaneSource
 
 
+def _linear_interpolate_rectilinear_2d(
+    point: jax.Array,
+    x_coords: jax.Array,
+    y_coords: jax.Array,
+    values: jax.Array,
+) -> jax.Array:
+    """Bilinearly interpolate ``values`` sampled on rectilinear cell centers.
+
+    The tilted-source projection for non-uniform grids works in physical
+    transverse coordinates rather than legacy index coordinates.  This helper is
+    intentionally small and JAX-friendly: it finds the local bracketing centers
+    on each axis, clamps outside samples to the nearest center, and forms the
+    separable bilinear blend.  Clamping matches the practical behavior of the
+    legacy index-space interpolation near finite source boundaries.
+    """
+
+    def axis_weights(coords: jax.Array, val: jax.Array) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+        if coords.shape[0] == 1:
+            zero = jnp.asarray(0, dtype=jnp.int32)
+            return zero, zero, jnp.asarray(1.0, dtype=val.dtype), jnp.asarray(0.0, dtype=val.dtype)
+        upper = jnp.searchsorted(coords, val, side="right")
+        upper = jnp.clip(upper, 1, coords.shape[0] - 1)
+        lower = upper - 1
+        lower_coord = coords[lower]
+        upper_coord = coords[upper]
+        fraction = jnp.where(upper_coord == lower_coord, 0.0, (val - lower_coord) / (upper_coord - lower_coord))
+        fraction = jnp.clip(fraction, 0.0, 1.0)
+        return lower, upper, 1.0 - fraction, fraction
+
+    x0, x1, wx0, wx1 = axis_weights(x_coords, point[0])
+    y0, y1, wy0, wy1 = axis_weights(y_coords, point[1])
+    return (
+        wx0 * wy0 * values[x0, y0]
+        + wx0 * wy1 * values[x0, y1]
+        + wx1 * wy0 * values[x1, y0]
+        + wx1 * wy1 * values[x1, y1]
+    )
+
+
 @autoinit
 class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
     #: the electric polarization vector
@@ -40,18 +79,22 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
             local_edges.append(edges - edges[0])
         return tuple(local_edges)
 
-    def _source_center_physical(self) -> jax.Array | None:
+    def _source_center_physical(self, source_center: jax.Array) -> jax.Array | None:
         """Return the physical center used for grid-aware Yee time offsets."""
         local_edges = self._local_edge_coordinates()
         if local_edges is None:
             return None
-        center = []
+        physical_center = []
         for axis, edges in enumerate(local_edges):
             if axis == self.propagation_axis:
-                center.append(jnp.asarray(0.0, dtype=self._config.dtype))
+                physical_center.append(jnp.asarray(0.0, dtype=self._config.dtype))
+            elif self._config.grid is not None and not self._config.grid.is_uniform:
+                center_axis = 0 if axis == self.horizontal_axis else 1
+                physical_center.append(jnp.asarray(source_center[center_axis], dtype=self._config.dtype))
             else:
-                center.append(0.5 * edges[-1])
-        return jnp.asarray(center, dtype=self._config.dtype)
+                transverse_center = source_center[0] if axis == self.horizontal_axis else source_center[1]
+                physical_center.append(transverse_center * self._source_resolution())
+        return jnp.asarray(physical_center, dtype=self._config.dtype)
 
     def _source_resolution(self) -> float:
         """Return scalar spacing only for legacy source APIs.
@@ -65,15 +108,9 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
             return self._config.grid.min_spacing
         return self._config.require_uniform_grid()
 
-    def _raise_for_unsupported_nonuniform_tilt(self) -> None:
-        """Reject non-uniform source cases that still need a physical projection model."""
-        if self._config.grid is None or self._config.grid.is_uniform:
-            return
-        if self.azimuth_angle != 0 or self.elevation_angle != 0 or self.max_angle_random_offset != 0:
-            raise ValueError(
-                "Tilted linearly polarized plane sources are not supported on non-uniform grids yet. "
-                "Normal-incidence sources can use rectilinear profile sampling and Yee time offsets."
-            )
+    def _uses_physical_source_coordinates(self) -> bool:
+        """Whether transverse source coordinates are represented in metres."""
+        return self._config.grid is not None and not self._config.grid.is_uniform
 
     def apply(
         self: Self,
@@ -81,8 +118,6 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
     ):
-        self._raise_for_unsupported_nonuniform_tilt()
-
         # inv_permittivities shape: (3, Nx, Ny, Nz) - slice with component dimension
         inv_permittivities = inv_permittivities[:, *self.grid_slice]
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
@@ -114,14 +149,25 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         # update is amplitude multiplied by polarization
         amplitude_raw = self._get_amplitude_raw(center)[None, ...]
 
-        # map amplitude to propagation plane
-        w, h = jnp.meshgrid(
-            jnp.arange(self.grid_shape[self.horizontal_axis]),
-            jnp.arange(self.grid_shape[self.vertical_axis]),
-            indexing="ij",
-        )
-        wh_indices = jnp.stack((w, h), axis=-1)
-        wh_indices -= center
+        # map amplitude to propagation plane.  Uniform grids keep the legacy
+        # index-space projection; non-uniform grids project physical transverse
+        # coordinates and interpolate against physical cell centers.
+        if self._uses_physical_source_coordinates():
+            local_edges = self._local_edge_coordinates()
+            assert local_edges is not None
+            horizontal_edges = local_edges[self.horizontal_axis]
+            vertical_edges = local_edges[self.vertical_axis]
+            horizontal_centers = 0.5 * (horizontal_edges[:-1] + horizontal_edges[1:])
+            vertical_centers = 0.5 * (vertical_edges[:-1] + vertical_edges[1:])
+            w, h = jnp.meshgrid(horizontal_centers, vertical_centers, indexing="ij")
+        else:
+            w, h = jnp.meshgrid(
+                jnp.arange(self.grid_shape[self.horizontal_axis]),
+                jnp.arange(self.grid_shape[self.vertical_axis]),
+                indexing="ij",
+            )
+        wh_coords = jnp.stack((w, h), axis=-1)
+        wh_coords -= center
         # basis in plane
         h_list = [0, 0, 0]
         h_list[self.horizontal_axis] = 1
@@ -141,11 +187,20 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
             v = jnp.dot(projection, v_basis)
             return jnp.asarray((u, v), dtype=self._config.dtype)
 
-        float_projected = jax.vmap(project)(wh_indices.reshape(-1, 2))
+        float_projected = jax.vmap(project)(wh_coords.reshape(-1, 2))
         float_projected += center
-        # interpolate floating indices in original array
-        index_fn = jax.vmap(linear_interpolated_indexing, in_axes=(0, None))
-        interp = index_fn(float_projected, amplitude_raw.squeeze())
+        if self._uses_physical_source_coordinates():
+            index_fn = jax.vmap(
+                _linear_interpolate_rectilinear_2d,
+                in_axes=(0, None, None, None),
+            )
+            profile_2d = jnp.take(amplitude_raw[0], 0, axis=self.propagation_axis)
+            interp = index_fn(float_projected, horizontal_centers, vertical_centers, profile_2d)
+        else:
+            # interpolate floating indices in original array
+            index_fn = jax.vmap(linear_interpolated_indexing, in_axes=(0, None))
+            profile_2d = jnp.take(amplitude_raw[0], 0, axis=self.propagation_axis)
+            interp = index_fn(float_projected, profile_2d)
         amplitude = interp.reshape(*amplitude_raw.shape)
 
         E = amplitude * e_pol[:, None, None, None]
@@ -202,7 +257,7 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
             e_polarization=e_pol,
             h_polarization=h_pol,
             coordinate_edges=self._local_edge_coordinates(),
-            center_physical=self._source_center_physical(),
+            center_physical=self._source_center_physical(center),
         )
 
         self = self.aset("_E", E, create_new_ok=True)
@@ -267,8 +322,8 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
             horizontal_centers = 0.5 * (horizontal_edges[:-1] + horizontal_edges[1:])
             vertical_centers = 0.5 * (vertical_edges[:-1] + vertical_edges[1:])
             h_grid, v_grid = jnp.meshgrid(horizontal_centers, vertical_centers, indexing="ij")
-            h_center = 0.5 * horizontal_edges[-1]
-            v_center = 0.5 * vertical_edges[-1]
+            h_center = center[0]
+            v_center = center[1]
             normalized_radius_squared = ((h_grid - h_center) / self.radius) ** 2 + (
                 (v_grid - v_center) / self.radius
             ) ** 2
