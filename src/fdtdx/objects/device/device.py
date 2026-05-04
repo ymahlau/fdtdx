@@ -52,6 +52,7 @@ class Device(OrderableObject, ABC):
     _single_voxel_grid_shape: tuple[int, int, int] = frozen_private_field(default=INVALID_SHAPE_3D)
     _matrix_voxel_grid_shape_override: tuple[int, int, int] = frozen_private_field(default=INVALID_SHAPE_3D)
     _physical_design_voxel_shape: tuple[float, float, float] | None = frozen_private_field(default=None)
+    _physical_design_domain_shape: tuple[float, float, float] | None = frozen_private_field(default=None)
 
     @property
     def matrix_voxel_grid_shape(self) -> tuple[int, int, int]:
@@ -172,6 +173,7 @@ class Device(OrderableObject, ABC):
         self = self.aset("_single_voxel_grid_shape", tuple(voxel_grid_shape))
         if uses_physical_design_grid:
             self = self.aset("_physical_design_voxel_shape", tuple(physical_design_shape))
+            self = self.aset("_physical_design_domain_shape", self.real_shape)
             self = self.aset("_matrix_voxel_grid_shape_override", tuple(matrix_shape_override))
 
         # sanity checks on the voxel shape
@@ -257,6 +259,8 @@ class Device(OrderableObject, ABC):
                 matrix=params,
                 grid_points_per_voxel=self.single_voxel_grid_shape,
             )
+        if self._physical_design_domain_shape is None:
+            raise RuntimeError("Physical design-grid devices must be placed before expansion.")
 
         overlap_weights = []
         for axis in range(3):
@@ -264,7 +268,7 @@ class Device(OrderableObject, ABC):
             sim_edges = self._config.grid.edges(axis)[lower : upper + 1]
             design_edges = jnp.linspace(
                 0.0,
-                self.real_shape[axis],
+                self._physical_design_domain_shape[axis],
                 self.matrix_voxel_grid_shape[axis] + 1,
                 dtype=sim_edges.dtype,
             )

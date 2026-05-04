@@ -228,6 +228,27 @@ class TestPlaceOnGrid:
         assert expanded.shape == (2, 2, 2)
         assert jnp.allclose(expanded, 7.0)
 
+    def test_nonuniform_physical_design_expansion_is_jittable(self, key, two_materials):
+        """Physical design resampling uses cached domain metrics inside JAX traces."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 0.25, 3.0]),
+            y_edges=jnp.asarray([0.0, 4.0, 5.0]),
+            z_edges=jnp.asarray([0.0, 1.0, 9.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        device = _ConcreteDevice(
+            materials=two_materials,
+            param_transforms=[],
+            partial_voxel_real_shape=(1.5, 2.5, 3.0),
+        )
+        placed = _place_device(device, config, key, ((0, 2), (0, 2), (0, 2)))
+        params = jnp.ones(placed.matrix_voxel_grid_shape)
+
+        expanded = jax.jit(lambda p: placed(p, expand_to_sim_grid=True))(params)
+
+        assert expanded.shape == (2, 2, 2)
+        assert jnp.allclose(expanded, 1.0)
+
     def test_nonuniform_physical_and_grid_voxels_cannot_mix(self, key, two_materials):
         """Mixed physical/index design voxel specs are ambiguous on stretched grids."""
         grid = GridSpec(
