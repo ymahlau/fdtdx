@@ -117,11 +117,28 @@ def compute_poynting_flux(E: jax.Array, H: jax.Array, axis: int = 0) -> jax.Arra
     )
 
 
-def normalize_by_poynting_flux(E: jax.Array, H: jax.Array, axis: int) -> tuple[jax.Array, jax.Array]:
-    """Normalize fields so that Poynting flux along given axis = 1."""
+def normalize_by_poynting_flux(
+    E: jax.Array,
+    H: jax.Array,
+    axis: int,
+    area_weights: jax.Array | None = None,
+) -> tuple[jax.Array, jax.Array]:
+    """Normalize fields so the integrated Poynting flux along ``axis`` is one.
+
+    Args:
+        E: Electric field array with component axis first.
+        H: Magnetic field array with component axis first.
+        axis: Physical propagation axis whose Poynting component is integrated.
+        area_weights: Optional detector-plane area weights broadcastable to
+            ``E[axis]``.  Uniform-grid callers may omit this for the historical
+            raw-sum normalization; non-uniform callers should provide weights so
+            refinement alone does not change the normalization.
+    """
     # Compute Poynting vector components
     S_complex = jnp.cross(jnp.conj(E), H, axisa=0, axisb=0, axisc=0)
     S_real = 0.5 * jnp.real(S_complex[axis])  # power flow in desired direction
+    if area_weights is not None:
+        S_real = S_real * area_weights
 
     # Integrate over transverse plane (axis orthogonal to `axis`)
     power = jnp.abs(jnp.sum(S_real))

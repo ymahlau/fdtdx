@@ -1,6 +1,8 @@
+from functools import cached_property
 from typing import Literal
 
 import jax
+import jax.numpy as jnp
 
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.physics.metrics import compute_poynting_flux
@@ -64,6 +66,30 @@ class PoyntingFluxDetector(Detector):
             shape = (1,) if self.reduce_volume else self.grid_shape
         return {"poynting_flux": jax.ShapeDtypeStruct(shape, self.dtype)}
 
+    @cached_property
+    def _cached_face_area_weights(self) -> jax.Array:
+        """Return face-area weights matching this detector's grid slice.
+
+        The detector may be initialized before ``SimulationConfig.grid`` exists
+        in unit tests and legacy flows.  In that case a uniform area array is
+        built from the scalar compatibility spacing.
+        """
+        grid = self._config.realized_grid
+        if grid is not None:
+            if self.keep_all_components:
+                return jnp.stack([grid.face_area(axis=axis, slice_tuple=self.grid_slice_tuple) for axis in range(3)])
+            return grid.face_area(axis=self.propagation_axis, slice_tuple=self.grid_slice_tuple)
+
+        spacing = self._config.require_uniform_grid()
+        area = jnp.ones(self.grid_shape, dtype=self.dtype) * spacing * spacing
+        if self.keep_all_components:
+            return jnp.stack([area, area, area])
+        return area
+
+    def _face_area_weights(self) -> jax.Array:
+        """Return cached face-area weights matching this detector's grid slice."""
+        return self._cached_face_area_weights
+
     def update(
         self,
         time_step: jax.Array,
@@ -83,6 +109,7 @@ class PoyntingFluxDetector(Detector):
         if self.direction == "-":
             pf = -pf
         if self.reduce_volume:
+            pf = pf * self._face_area_weights()
             if self.keep_all_components:
                 pf = pf.sum(axis=(1, 2, 3))
             else:

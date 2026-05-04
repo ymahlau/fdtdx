@@ -6,6 +6,7 @@ import jax.numpy as jnp
 from loguru import logger
 
 from fdtdx import constants
+from fdtdx.core.grid import RectilinearGrid, UniformGrid
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field
 from fdtdx.interfaces.recorder import Recorder
 from fdtdx.typing import BackendOption
@@ -51,8 +52,13 @@ class SimulationConfig(TreeClass):
     #: Total simulation time in seconds.
     time: float = frozen_field()
 
-    #: Spatial resolution of the simulation grid in meters.
-    resolution: float = frozen_field()
+    #: Spatial grid configuration.
+    #:
+    #: ``UniformGrid`` is an unresolved policy used while the final volume shape
+    #: is still being inferred.  ``RectilinearGrid`` is the realized solver grid
+    #: with explicit physical edge coordinates.  Placement resolves policies to
+    #: ``RectilinearGrid`` so compiled FDTD code has exactly one metric source.
+    grid: UniformGrid | RectilinearGrid = frozen_field()
 
     #: Computation backend ('gpu', 'tpu', 'cpu' or 'METAL'). Defaults to "gpu".
     backend: BackendOption = frozen_field(default="gpu")
@@ -118,19 +124,67 @@ class SimulationConfig(TreeClass):
         """
         return self.courant_factor / math.sqrt(3)
 
+    def require_grid(self, shape: tuple[int, int, int] | None = None) -> RectilinearGrid:
+        """Return a realized solver grid.
+
+        Args:
+            shape: Required when ``grid`` is an unresolved ``UniformGrid``.
+
+        Returns:
+            A concrete ``RectilinearGrid``.
+        """
+        if isinstance(self.grid, RectilinearGrid):
+            return self.grid
+        if shape is None:
+            raise ValueError("A grid shape is required to resolve UniformGrid.")
+        return self.grid.resolve(shape)
+
+    @property
+    def realized_grid(self) -> RectilinearGrid | None:
+        """Return the solver grid when grid policy has already been resolved.
+
+        ``UniformGrid`` deliberately has no edge arrays because the final shape
+        may still be unknown.  Callers that need coordinates, areas, or volumes
+        should use this property and fall back to ``require_uniform_grid`` when
+        it returns ``None``.
+        """
+        if isinstance(self.grid, RectilinearGrid):
+            return self.grid
+        return None
+
+    @property
+    def has_nonuniform_grid(self) -> bool:
+        """Whether the realized solver grid is non-uniform."""
+        grid = self.realized_grid
+        return grid is not None and not grid.is_uniform
+
+    def require_uniform_grid(self) -> float:
+        """Return uniform spacing for paths that require a uniform grid.
+
+        ``UniformGrid`` can answer this before placement.  ``RectilinearGrid``
+        answers only when all spacings are equal and raises for non-uniform
+        meshes, making unsupported scalar assumptions explicit.
+        """
+        if isinstance(self.grid, UniformGrid):
+            return self.grid.spacing
+        return self.grid.uniform_spacing
+
     @property
     def time_step_duration(self) -> float:
         """Calculate the duration of a single time step.
 
         The time step duration is determined by the Courant condition to ensure
-        numerical stability. It depends on the spatial resolution and the speed
-        of light.
+        numerical stability. Realized rectilinear grids use their smallest
+        per-axis spacings. Unresolved uniform grids use their configured scalar
+        spacing.
 
         Returns:
             float: Time step duration in seconds, calculated using the Courant
                 condition and spatial resolution.
         """
-        return self.courant_number * self.resolution / constants.c
+        if isinstance(self.grid, RectilinearGrid):
+            return self.grid.cfl_time_step(self.courant_factor)
+        return self.courant_number * self.grid.spacing / constants.c
 
     @property
     def time_steps_total(self) -> int:
@@ -191,5 +245,5 @@ class SimulationConfig(TreeClass):
 
 DUMMY_SIMULATION_CONFIG = SimulationConfig(
     time=-1,
-    resolution=-1,
+    grid=UniformGrid(spacing=1),
 )

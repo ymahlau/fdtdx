@@ -57,7 +57,7 @@ class FieldDetector(Detector):
         EH = jnp.stack(fields, axis=0)
 
         if self.reduce_volume:
-            EH = EH.mean(axis=(1, 2, 3))
+            EH = self._volume_weighted_spatial_mean(EH, leading_dims=1)
         arr_idx = self._time_step_to_arr_idx[time_step]
         new_full_arr = state["fields"].at[arr_idx].set(EH)
         new_state = {"fields": new_full_arr}

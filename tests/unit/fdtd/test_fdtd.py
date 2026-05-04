@@ -5,6 +5,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import GradientConfig, SimulationConfig
+from fdtdx.core.grid import UniformGrid
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer
 from fdtdx.fdtd.fdtd import checkpointed_fdtd, custom_fdtd_forward, reversible_fdtd
 from fdtdx.fdtd.stop_conditions import TimeStepCondition
@@ -63,7 +64,7 @@ def config_few_steps():
     """Config with ~5 time steps for fast tests."""
     return SimulationConfig(
         time=400e-15,
-        resolution=40e-6,
+        grid=UniformGrid(spacing=40e-6),
         backend="cpu",
         dtype=jnp.float32,
         courant_factor=0.99,
@@ -75,7 +76,7 @@ def config_few_steps():
 def config_checkpointed():
     return SimulationConfig(
         time=400e-15,
-        resolution=40e-6,
+        grid=UniformGrid(spacing=40e-6),
         backend="gpu",
         dtype=jnp.float32,
         courant_factor=0.99,
@@ -111,7 +112,7 @@ class TestReversibleFdtd:
     def test_zero_time_produces_no_evolution(self, dummy_arrays, dummy_objects, key):
         config = SimulationConfig(
             time=0.0,
-            resolution=40e-6,
+            grid=UniformGrid(spacing=40e-6),
             backend="cpu",
             dtype=jnp.float32,
             courant_factor=0.99,

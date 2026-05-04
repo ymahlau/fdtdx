@@ -1,8 +1,12 @@
 """Tests for objects/detectors/mode.py - ModeOverlapDetector."""
 
+from unittest.mock import patch
+
 import jax.numpy as jnp
 import pytest
 
+from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.detectors.mode import ModeOverlapDetector
 
@@ -321,11 +325,71 @@ class TestModeOverlapDetectorComputeOverlap:
         phasors_H = phasors[0, 0, 3:]
         E_cross_H = jnp.cross(mode_E, jnp.conj(phasors_H), axis=0)[det.propagation_axis]
         E_cross_H_back = jnp.cross(jnp.conj(phasors_E), mode_H, axis=0)[det.propagation_axis]
-        expected = jnp.sum(E_cross_H + E_cross_H_back) / 4.0
+        expected = jnp.sum((E_cross_H + E_cross_H_back) * det._face_area_weights()) / 4.0
 
         overlap = det.compute_overlap_to_mode(state=state, mode_E=mode_E, mode_H=mode_H)
 
         assert jnp.isclose(overlap, expected)
+
+    def test_compute_overlap_integrates_nonuniform_face_area(self, random_key, single_frequency):
+        """A constant overlap integrand integrates to the detector face area."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 3.0, 7.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        det = ModeOverlapDetector(wave_characters=single_frequency, direction="+")
+        det = det.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
+
+        state = det.init_state()
+        phasor = jnp.zeros_like(state["phasor"]).at[0, 0, 4].set(1.0)
+        state = {"phasor": phasor}
+        mode_E = jnp.zeros((3, 2, 2, 1), dtype=jnp.complex64).at[0].set(1.0)
+        mode_H = jnp.zeros((3, 2, 2, 1), dtype=jnp.complex64)
+
+        overlap = det.compute_overlap_to_mode(state=state, mode_E=mode_E, mode_H=mode_H)
+
+        assert jnp.allclose(overlap, jnp.asarray(21.0 / 4.0, dtype=jnp.complex64))
+
+    def test_transverse_edge_coordinates_follow_detector_slice(self, random_key, single_frequency):
+        """Mode solving receives the physical edge arrays for the transverse detector axes."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 3.0, 7.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        det = ModeOverlapDetector(wave_characters=single_frequency, direction="+")
+        det = det.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
+
+        x_edges, y_edges = det._transverse_edge_coordinates()
+
+        assert jnp.allclose(x_edges, jnp.asarray([0.0, 1.0, 3.0]))
+        assert jnp.allclose(y_edges, jnp.asarray([0.0, 3.0, 7.0]))
+
+    @patch("fdtdx.objects.detectors.mode.compute_mode")
+    def test_apply_passes_nonuniform_mode_coordinates(self, mock_compute_mode, random_key, single_frequency):
+        """Mode detector apply should not require a scalar grid spacing on stretched grids."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 3.0, 7.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        mock_compute_mode.return_value = (
+            jnp.ones((3, 2, 2, 1), dtype=jnp.complex64),
+            jnp.ones((3, 2, 2, 1), dtype=jnp.complex64),
+            jnp.asarray(1.5 + 0j, dtype=jnp.complex64),
+        )
+        det = ModeOverlapDetector(wave_characters=single_frequency, direction="+")
+        det = det.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
+
+        det.apply(random_key, jnp.ones((1, 2, 2, 1), dtype=jnp.float32), 1.0)
+
+        kwargs = mock_compute_mode.call_args.kwargs
+        assert kwargs["resolution"] == grid.min_spacing
+        assert kwargs["transverse_coords"] is not None
 
 
 class TestModeOverlapDetectorComputeOverlapPath:

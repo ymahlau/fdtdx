@@ -46,7 +46,7 @@ _N_AVG_STEPS = 10 * _STEPS_PER_PERIOD
 
 def _build_gaussian(beam_radius: float, domain_xy: float):
     config = fdtdx.SimulationConfig(
-        resolution=_RESOLUTION,
+        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
         time=_SIM_TIME,
         dtype=jnp.float32,
     )
@@ -85,7 +85,7 @@ def _build_gaussian(beam_radius: float, domain_xy: float):
 
 def _build_uniform(domain_xy: float = _POWER_DOMAIN_XY):
     config = fdtdx.SimulationConfig(
-        resolution=_RESOLUTION,
+        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
         time=_SIM_TIME,
         dtype=jnp.float32,
     )

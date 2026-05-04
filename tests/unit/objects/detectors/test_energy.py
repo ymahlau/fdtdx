@@ -3,6 +3,8 @@
 import jax.numpy as jnp
 import pytest
 
+from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.objects.detectors.energy import EnergyDetector
 
 
@@ -204,6 +206,90 @@ class TestEnergyDetectorUpdate:
 
         # Higher E field should give higher energy
         assert state["energy"][1, 0] > state["energy"][0, 0]
+
+    def test_reduce_volume_integrates_nonuniform_cell_volume(self, random_key):
+        """A constant energy density integrates to density times physical volume."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 3.0, 7.0]),
+            z_edges=jnp.asarray([0.0, 2.0]),
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        detector = EnergyDetector(reduce_volume=True)
+        detector = detector.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
+        state = detector.init_state()
+
+        E = jnp.zeros((3, 2, 2, 1), dtype=jnp.float32).at[0].set(1.0)
+        H = jnp.zeros((3, 2, 2, 1), dtype=jnp.float32)
+        inv_permittivity = jnp.ones((3, 2, 2, 1), dtype=jnp.float32)
+
+        new_state = detector.update(jnp.array(0), E, H, state, inv_permittivity, 1.0)
+
+        assert jnp.allclose(new_state["energy"][0], jnp.asarray([21.0], dtype=jnp.float32))
+
+    def test_cell_volume_weights_are_cached(self, random_key):
+        """Detector volume weights are placement metrics and should be reused."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 3.0, 7.0]),
+            z_edges=jnp.asarray([0.0, 2.0]),
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        detector = EnergyDetector(reduce_volume=True)
+        detector = detector.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
+
+        assert detector._cell_volume_weights() is detector._cell_volume_weights()
+
+    def test_reduce_volume_uses_cell_volume_on_uniform_grid(self, random_key):
+        """Reduced energy is a physical volume integral on uniform grids."""
+        spacing = 2e-7
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, spacing, 2 * spacing]),
+            y_edges=jnp.asarray([0.0, spacing, 2 * spacing]),
+            z_edges=jnp.asarray([0.0, spacing]),
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        E = jnp.zeros((3, 2, 2, 1), dtype=jnp.float32).at[0].set(1.0)
+        H = jnp.zeros((3, 2, 2, 1), dtype=jnp.float32)
+        inv_permittivity = jnp.ones((3, 2, 2, 1), dtype=jnp.float32)
+
+        detector = EnergyDetector(reduce_volume=True)
+        detector = detector.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
+        state = detector.init_state()
+
+        new_state = detector.update(jnp.array(0), E, H, state, inv_permittivity, 1.0)
+
+        assert jnp.allclose(new_state["energy"][0], jnp.asarray([2 * spacing**3], dtype=jnp.float32))
+
+    def test_as_slices_uses_nonuniform_cell_centers_for_positions(self, random_key):
+        """Explicit slice positions are selected by physical cell centers."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0, 4.0]),
+            y_edges=jnp.asarray([0.0, 2.0, 5.0]),
+            z_edges=jnp.asarray([0.0, 1.0, 7.0]),
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        detector = EnergyDetector(as_slices=True, x_slice=2.4, y_slice=0.9, z_slice=4.1)
+        detector = detector.place_on_grid(((0, 2), (0, 2), (0, 2)), config, random_key)
+        state = detector.init_state()
+
+        values = jnp.asarray(
+            [
+                [[1.0, 2.0], [3.0, 4.0]],
+                [[5.0, 6.0], [7.0, 8.0]],
+            ],
+            dtype=jnp.float32,
+        )
+        E = jnp.zeros((3, 2, 2, 2), dtype=jnp.float32).at[0].set(values)
+        H = jnp.zeros((3, 2, 2, 2), dtype=jnp.float32)
+        inv_permittivity = jnp.ones((3, 2, 2, 2), dtype=jnp.float32)
+        energy = 0.5 * values**2
+
+        new_state = detector.update(jnp.array(0), E, H, state, inv_permittivity, 1.0)
+
+        assert jnp.allclose(new_state["XY Plane"][0], energy[:, :, 1])
+        assert jnp.allclose(new_state["XZ Plane"][0], energy[:, 0, :])
+        assert jnp.allclose(new_state["YZ Plane"][0], energy[1, :, :])
 
 
 class TestEnergyDetectorConfiguration:

@@ -8,6 +8,8 @@ import numpy as np
 import pytest
 from matplotlib.figure import Figure
 
+from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.detectors.field import FieldDetector
@@ -82,6 +84,24 @@ class TestDrawPlotLinePlots:
         assert isinstance(figs["fields"], Figure)
         plt.close(figs["fields"])
 
+    def test_1d_single_timestep_nonuniform_uses_cell_centers(self, random_key, single_switch):
+        """Non-uniform spatial line plots use physical cell centers in micrometres."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0e-6, 4.0e-6, 10.0e-6]),
+            y_edges=jnp.asarray([0.0, 1.0e-6]),
+            z_edges=jnp.asarray([0.0, 1.0e-6]),
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        detector = FieldDetector(components=("Ex",), switch=single_switch)
+        detector = detector.place_on_grid(((0, 3), (0, 1), (0, 1)), config, random_key)
+        state_np = {"fields": np.asarray([1.0, 2.0, 3.0])}
+
+        figs = detector.draw_plot(state_np)
+
+        xdata = figs["fields"].axes[0].lines[0].get_xdata()
+        assert np.allclose(xdata, np.asarray([0.5, 2.5, 7.0]))
+        plt.close(figs["fields"])
+
 
 class TestDrawPlotWaterfallAndSlices:
     """Tests for draw_plot → 2D data branches."""
@@ -111,6 +131,27 @@ class TestDrawPlotWaterfallAndSlices:
 
         assert "sliced_plot" in figs
         assert isinstance(figs["sliced_plot"], Figure)
+        plt.close(figs["sliced_plot"])
+
+    def test_2d_single_timestep_nonuniform_slices_plot(self, random_key, single_switch):
+        """Non-uniform slice plots use rectilinear physical extents."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0e-6, 4.0e-6]),
+            y_edges=jnp.asarray([0.0, 2.0e-6, 5.0e-6]),
+            z_edges=jnp.asarray([0.0, 3.0e-6, 7.0e-6]),
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        detector = EnergyDetector(as_slices=True, switch=single_switch)
+        detector = detector.place_on_grid(((0, 2), (0, 2), (0, 2)), config, random_key)
+        state = detector.init_state()
+        state_np = {k: np.asarray(v) for k, v in state.items()}
+
+        figs = detector.draw_plot(state_np)
+
+        assert "sliced_plot" in figs
+        assert isinstance(figs["sliced_plot"], Figure)
+        assert figs["sliced_plot"].axes[0].get_xlim() == pytest.approx((0.0, 4.0))
+        assert figs["sliced_plot"].axes[0].get_ylim() == pytest.approx((0.0, 5.0))
         plt.close(figs["sliced_plot"])
 
     def test_2d_single_timestep_wrong_keys_raises(self, simulation_config, small_grid_slice, random_key, single_switch):
@@ -191,6 +232,25 @@ class TestDrawPlot4D:
 
 class TestDrawPlotErrors:
     """Tests for draw_plot error cases."""
+
+    def test_nonuniform_scalar_time_series_still_plots(self, random_key, small_switch):
+        """Reduced scalar plots do not need spatial axes on non-uniform grids."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
+            y_edges=jnp.asarray([0.0, 1.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        detector = PoyntingFluxDetector(direction="+", switch=small_switch)
+        detector = detector.place_on_grid(((0, 3), (0, 1), (0, 1)), config, random_key)
+        state = detector.init_state()
+        state_np = {k: np.asarray(v) for k, v in state.items()}
+
+        figs = detector.draw_plot(state_np)
+
+        assert "poynting_flux" in figs
+        assert isinstance(figs["poynting_flux"], Figure)
+        plt.close(figs["poynting_flux"])
 
     def test_empty_state_raises(self, simulation_config, plane_grid_slice, random_key, small_switch):
         """Empty state dict raises with 'empty state' message."""

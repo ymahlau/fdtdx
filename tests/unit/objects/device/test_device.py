@@ -10,6 +10,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import RectilinearGrid, UniformGrid
 from fdtdx.core.jax.pytrees import autoinit
 from fdtdx.materials import Material
 from fdtdx.objects.device.device import Device
@@ -35,7 +36,7 @@ class _ConcreteDevice(Device):
 def config():
     return SimulationConfig(
         time=100e-15,
-        resolution=50e-9,
+        grid=UniformGrid(spacing=50e-9),
         backend="cpu",
         dtype=jnp.float32,
         gradient_config=None,
@@ -132,7 +133,7 @@ class TestPlaceOnGrid:
     def test_single_voxel_real_shape(self, config, key, two_materials):
         device = _make_device(two_materials, voxel_grid=(2, 2, 2))
         placed = _place_device(device, config, key)
-        res = config.resolution
+        res = config.require_uniform_grid()
         assert placed.single_voxel_real_shape == pytest.approx((2 * res, 2 * res, 2 * res))
 
     def test_voxel_size_from_real_shape(self, config, key, two_materials):
@@ -144,6 +145,127 @@ class TestPlaceOnGrid:
         )
         placed = _place_device(device, config, key, ((0, 10), (0, 10), (0, 10)))
         assert placed.single_voxel_grid_shape == (2, 2, 2)
+
+    def test_nonuniform_grid_index_voxels_place(self, key, two_materials):
+        """Cell-count design voxels can be placed on non-uniform grids."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 2.0, 5.0]),
+            z_edges=jnp.asarray([0.0, 4.0, 9.0]),
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        device = _make_device(two_materials, voxel_grid=(1, 1, 1))
+
+        placed = _place_device(device, config, key, ((0, 2), (0, 2), (0, 2)))
+
+        assert placed.single_voxel_grid_shape == (1, 1, 1)
+        assert placed.matrix_voxel_grid_shape == (2, 2, 2)
+        assert placed.single_voxel_real_shape == pytest.approx((1.5, 2.5, 4.5))
+
+    def test_nonuniform_real_voxel_size_uses_physical_design_grid(self, key, two_materials):
+        """Physical design voxels define a center-sampled design grid."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 2.0, 5.0]),
+            z_edges=jnp.asarray([0.0, 4.0, 9.0]),
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        device = _ConcreteDevice(
+            materials=two_materials,
+            param_transforms=[],
+            partial_voxel_real_shape=(1.5, 2.5, 9.0),
+        )
+
+        placed = _place_device(device, config, key, ((0, 2), (0, 2), (0, 2)))
+
+        assert placed.matrix_voxel_grid_shape == (2, 2, 1)
+        assert placed.single_voxel_real_shape == pytest.approx((1.5, 2.5, 9.0))
+
+    def test_nonuniform_physical_design_grid_expands_by_overlap_average(self, key, two_materials):
+        """Simulation cells average every physical design voxel they overlap."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 2.0, 5.0]),
+            z_edges=jnp.asarray([0.0, 4.0, 9.0]),
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        device = _ConcreteDevice(
+            materials=two_materials,
+            param_transforms=[],
+            partial_voxel_real_shape=(1.5, 2.5, 9.0),
+        )
+        placed = _place_device(device, config, key, ((0, 2), (0, 2), (0, 2)))
+        params = jnp.asarray([[[1.0], [2.0]], [[3.0], [4.0]]])
+
+        expanded = placed(params, expand_to_sim_grid=True)
+
+        expected = jnp.asarray(
+            [
+                [[1.0, 1.0], [11.0 / 6.0, 11.0 / 6.0]],
+                [[2.5, 2.5], [10.0 / 3.0, 10.0 / 3.0]],
+            ]
+        )
+        assert jnp.allclose(expanded, expected)
+
+    def test_nonuniform_physical_design_overlap_weights_conserve_constants(self, key, two_materials):
+        """Overlap resampling keeps constant parameters constant on skewed cells."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 0.25, 3.0]),
+            y_edges=jnp.asarray([0.0, 4.0, 5.0]),
+            z_edges=jnp.asarray([0.0, 1.0, 9.0]),
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        device = _ConcreteDevice(
+            materials=two_materials,
+            param_transforms=[],
+            partial_voxel_real_shape=(1.5, 2.5, 3.0),
+        )
+        placed = _place_device(device, config, key, ((0, 2), (0, 2), (0, 2)))
+        params = jnp.ones(placed.matrix_voxel_grid_shape) * 7.0
+
+        expanded = placed(params, expand_to_sim_grid=True)
+
+        assert expanded.shape == (2, 2, 2)
+        assert jnp.allclose(expanded, 7.0)
+
+    def test_nonuniform_physical_design_expansion_is_jittable(self, key, two_materials):
+        """Physical design resampling uses cached domain metrics inside JAX traces."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 0.25, 3.0]),
+            y_edges=jnp.asarray([0.0, 4.0, 5.0]),
+            z_edges=jnp.asarray([0.0, 1.0, 9.0]),
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        device = _ConcreteDevice(
+            materials=two_materials,
+            param_transforms=[],
+            partial_voxel_real_shape=(1.5, 2.5, 3.0),
+        )
+        placed = _place_device(device, config, key, ((0, 2), (0, 2), (0, 2)))
+        params = jnp.ones(placed.matrix_voxel_grid_shape)
+
+        expanded = jax.jit(lambda p: placed(p, expand_to_sim_grid=True))(params)
+
+        assert expanded.shape == (2, 2, 2)
+        assert jnp.allclose(expanded, 1.0)
+
+    def test_nonuniform_physical_and_grid_voxels_cannot_mix(self, key, two_materials):
+        """Mixed physical/index design voxel specs are ambiguous on stretched grids."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 2.0, 5.0]),
+            z_edges=jnp.asarray([0.0, 4.0, 9.0]),
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        device = _ConcreteDevice(
+            materials=two_materials,
+            param_transforms=[],
+            partial_voxel_grid_shape=(1, None, None),
+            partial_voxel_real_shape=(None, 2.5, 9.0),
+        )
+
+        with pytest.raises(ValueError, match="cannot be mixed"):
+            _place_device(device, config, key, ((0, 2), (0, 2), (0, 2)))
 
     def test_overspecified_voxel_raises(self, config, key, two_materials):
         """Providing both grid and real shape for the same axis should raise."""

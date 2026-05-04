@@ -12,7 +12,9 @@ from fdtdx.conversion.vti import (
     encode_array,
     export_arrays_snapshot_to_vti,
     export_vti,
+    export_vtr,
 )
+from fdtdx.core.grid import RectilinearGrid
 
 # ---- NUMPY_TO_VTK_DTYPE mapping ----
 
@@ -161,6 +163,27 @@ class TestExportVti:
 
         content = path.read_text(encoding="utf-8", errors="ignore")
         assert 'Spacing="0.5 0.5 0.5"' in content
+
+    def test_nonuniform_grid_raises_with_vtr_hint(self, tmp_path):
+        data = jnp.zeros((2, 1, 1), dtype=jnp.float32)
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 1.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+
+        with pytest.raises(ValueError, match="Use export_vtr"):
+            export_vti({"field": data}, tmp_path / "fail.vti", resolution=1.0, grid=grid)
+
+    def test_uniform_grid_overrides_resolution(self, tmp_path):
+        data = jnp.zeros((2, 2, 2), dtype=jnp.float32)
+        grid = RectilinearGrid.uniform(shape=(2, 2, 2), spacing=0.25)
+        path = tmp_path / "test.vti"
+
+        export_vti({"field": data}, path, resolution=1.0, grid=grid)
+
+        content = path.read_text(encoding="utf-8", errors="ignore")
+        assert 'Spacing="0.25 0.25 0.25"' in content
 
     def test_scalar_field_components(self, tmp_path):
         data = jnp.zeros((3, 3, 3), dtype=jnp.float32)
@@ -343,3 +366,54 @@ class TestExportArraysSnapshotToVti:
         decompressed = zlib.decompress(compressed)
         values = jnp.frombuffer(decompressed, dtype=jnp.float32)
         assert jnp.allclose(values, 4.0)
+
+
+class TestExportVtr:
+    """Tests for rectilinear VTR export."""
+
+    def test_writes_rectilinear_grid_coordinates(self, tmp_path):
+        data = jnp.zeros((2, 2, 1), dtype=jnp.float32)
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 2.0, 5.0]),
+            z_edges=jnp.asarray([0.0, 4.0]),
+        )
+        path = tmp_path / "test.vtr"
+
+        export_vtr({"field": data}, path, grid)
+
+        content = path.read_text(encoding="utf-8", errors="ignore")
+        assert '<VTKFile type="RectilinearGrid"' in content
+        assert 'WholeExtent="0 2 0 2 0 1"' in content
+        assert 'Name="X_COORDINATES"' in content
+        assert "0.0 1.0 3.0" in content
+        assert "0.0 2.0 5.0" in content
+        assert "0.0 4.0" in content
+
+    def test_grid_slice_coordinates(self, tmp_path):
+        data = jnp.zeros((2, 1, 1), dtype=jnp.float32)
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
+            y_edges=jnp.asarray([0.0, 2.0, 5.0]),
+            z_edges=jnp.asarray([0.0, 4.0]),
+        )
+        path = tmp_path / "slice.vtr"
+
+        export_vtr({"field": data}, path, grid, grid_slice=(slice(1, 3), slice(1, 2), slice(0, 1)))
+
+        content = path.read_text(encoding="utf-8", errors="ignore")
+        assert 'WholeExtent="1 3 1 2 0 1"' in content
+        assert "1.0 3.0 6.0" in content
+        assert "2.0 5.0" in content
+
+    def test_grid_slice_shape_mismatch_raises(self, tmp_path):
+        data = jnp.zeros((2, 1, 1), dtype=jnp.float32)
+        grid = RectilinearGrid.uniform(shape=(3, 3, 3), spacing=1.0)
+
+        with pytest.raises(AssertionError, match="shape must match"):
+            export_vtr(
+                {"field": data},
+                tmp_path / "fail.vtr",
+                grid,
+                grid_slice=(slice(0, 1), slice(0, 1), slice(0, 1)),
+            )

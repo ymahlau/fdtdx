@@ -14,6 +14,7 @@ import jax.numpy as jnp
 
 import fdtdx
 from fdtdx.config import GradientConfig, SimulationConfig
+from fdtdx.core.grid import UniformGrid
 from fdtdx.fdtd.backward import backward
 from fdtdx.fdtd.container import ArrayContainer, FieldState
 from fdtdx.fdtd.fdtd import reversible_fdtd
@@ -44,7 +45,7 @@ def _build_simulation(boundary_types, bloch_vector=(0.0, 0.0, 0.0)):
     """
     config = SimulationConfig(
         time=_SIM_TIME,
-        resolution=_RESOLUTION,
+        grid=UniformGrid(spacing=_RESOLUTION),
         backend="cpu",
         dtype=jnp.float32,
         courant_factor=0.99,

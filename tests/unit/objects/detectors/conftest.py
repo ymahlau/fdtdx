@@ -5,6 +5,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import UniformGrid
 
 
 @pytest.fixture
@@ -12,7 +13,7 @@ def simulation_config():
     """Create a minimal SimulationConfig for testing."""
     return SimulationConfig(
         time=1e-12,  # 1 picosecond
-        resolution=1e-7,  # 100 nm
+        grid=UniformGrid(spacing=1e-7),  # 100 nm
         backend="cpu",
     )
 

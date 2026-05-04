@@ -6,9 +6,70 @@ from fdtdx.constants import c as c0
 from fdtdx.constants import eps0
 
 
+def _metric_scale(
+    config: SimulationConfig,
+    axis: int,
+    shape: tuple[int, int, int],
+    stencil: str,
+) -> jax.Array | float:
+    """Return the local derivative scale for a rectilinear Yee curl term.
+
+    fdtdx historically stores curl terms as raw finite differences and applies a
+    scalar Courant number in the update equations.  On a non-uniform grid the
+    equivalent term is ``(c * dt / courant_number) * diff / d_axis[i]``.  The
+    prefactor equals the uniform spacing on legacy grids, so uniform behavior is
+    unchanged while stretched grids get local metric factors.
+    """
+    if not config.has_nonuniform_grid:
+        return 1.0
+
+    grid = config.realized_grid
+    assert grid is not None
+    widths = grid.cell_widths(axis)
+    if stencil == "backward":
+        prev_widths = jnp.concatenate([widths[:1], widths[:-1]])
+        widths = 0.5 * (widths + prev_widths)
+    elif stencil != "forward":
+        raise ValueError(f"Unknown derivative stencil: {stencil}")
+    reference_spacing = c0 * config.time_step_duration / config.courant_number
+    scale = reference_spacing / widths
+    broadcast_shape = [1, 1, 1]
+    broadcast_shape[axis] = shape[axis]
+    return scale.reshape(tuple(broadcast_shape))
+
+
+def _backward_edge_average(
+    current: jax.Array,
+    previous: jax.Array,
+    config: SimulationConfig | None,
+    axis: int,
+) -> jax.Array:
+    """Interpolate center-staggered samples back to an edge on a rectilinear grid.
+
+    Uniform grids use the historical arithmetic mean.  On stretched grids the
+    target edge is not halfway between neighboring cell centers, so the average
+    is weighted by the half-widths of the cells on each side of the edge.
+    """
+    if config is None or not config.has_nonuniform_grid:
+        return 0.5 * (current + previous)
+
+    grid = config.realized_grid
+    assert grid is not None
+    widths = grid.cell_widths(axis)
+    previous_widths = jnp.concatenate([widths[:1], widths[:-1]])
+    current_half_width = 0.5 * widths
+    previous_half_width = 0.5 * previous_widths
+    broadcast_shape = [1, 1, 1]
+    broadcast_shape[axis] = current.shape[axis]
+    current_half_width = current_half_width.reshape(tuple(broadcast_shape))
+    previous_half_width = previous_half_width.reshape(tuple(broadcast_shape))
+    return (current * previous_half_width + previous * current_half_width) / (current_half_width + previous_half_width)
+
+
 def interpolate_fields(
     E_pad: jax.Array,
     H_pad: jax.Array,
+    config: SimulationConfig | None = None,
 ) -> tuple[jax.Array, jax.Array]:
     """Interpolates E and H fields onto the E_z Yee grid point (i, j, k+½).
 
@@ -28,6 +89,9 @@ def interpolate_fields(
     Args:
         E_pad: Pre-padded electric field array of shape (3, Nx+2, Ny+2, Nz+2)
         H_pad: Pre-padded magnetic field array of shape (3, Nx+2, Ny+2, Nz+2)
+        config: Optional simulation configuration.  When it carries a
+            non-uniform ``RectilinearGrid``, center-to-edge interpolations use local
+            physical distances instead of equal weights.
 
     Returns:
         Tuple of (E_interp, H_interp), each of shape (3, Nx, Ny, Nz)
@@ -36,31 +100,90 @@ def interpolate_fields(
     H_x, H_y, H_z = H_pad[0], H_pad[1], H_pad[2]
 
     # E_x: (i+½, j, k) → (i, j, k+½): x backward, z forward
-    E_x = (E_x[1:-1, 1:-1, 1:-1] + E_x[:-2, 1:-1, 1:-1] + E_x[1:-1, 1:-1, 2:] + E_x[:-2, 1:-1, 2:]) / 4.0
+    E_x_lower_z = _backward_edge_average(
+        current=E_x[1:-1, 1:-1, 1:-1],
+        previous=E_x[:-2, 1:-1, 1:-1],
+        config=config,
+        axis=0,
+    )
+    E_x_upper_z = _backward_edge_average(
+        current=E_x[1:-1, 1:-1, 2:],
+        previous=E_x[:-2, 1:-1, 2:],
+        config=config,
+        axis=0,
+    )
+    E_x = (E_x_lower_z + E_x_upper_z) / 2.0
 
     # E_y: (i, j+½, k) → (i, j, k+½): y backward, z forward
-    E_y = (E_y[1:-1, 1:-1, 1:-1] + E_y[1:-1, :-2, 1:-1] + E_y[1:-1, 1:-1, 2:] + E_y[1:-1, :-2, 2:]) / 4.0
+    E_y_lower_z = _backward_edge_average(
+        current=E_y[1:-1, 1:-1, 1:-1],
+        previous=E_y[1:-1, :-2, 1:-1],
+        config=config,
+        axis=1,
+    )
+    E_y_upper_z = _backward_edge_average(
+        current=E_y[1:-1, 1:-1, 2:],
+        previous=E_y[1:-1, :-2, 2:],
+        config=config,
+        axis=1,
+    )
+    E_y = (E_y_lower_z + E_y_upper_z) / 2.0
 
     # E_z: (i, j, k+½) → already at target
     E_z = E_z[1:-1, 1:-1, 1:-1]
 
     # H_x: (i, j+½, k+½) → (i, j, k+½): y backward only
-    H_x = (H_x[1:-1, 1:-1, 1:-1] + H_x[1:-1, :-2, 1:-1]) / 2.0
+    H_x = _backward_edge_average(
+        current=H_x[1:-1, 1:-1, 1:-1],
+        previous=H_x[1:-1, :-2, 1:-1],
+        config=config,
+        axis=1,
+    )
 
     # H_y: (i+½, j, k+½) → (i, j, k+½): x backward only
-    H_y = (H_y[1:-1, 1:-1, 1:-1] + H_y[:-2, 1:-1, 1:-1]) / 2.0
+    H_y = _backward_edge_average(
+        current=H_y[1:-1, 1:-1, 1:-1],
+        previous=H_y[:-2, 1:-1, 1:-1],
+        config=config,
+        axis=0,
+    )
 
     # H_z: (i+½, j+½, k) → (i, j, k+½): x backward, y backward, z forward
-    H_z = (
-        H_z[1:-1, 1:-1, 1:-1]
-        + H_z[:-2, 1:-1, 1:-1]
-        + H_z[1:-1, :-2, 1:-1]
-        + H_z[:-2, :-2, 1:-1]
-        + H_z[1:-1, 1:-1, 2:]
-        + H_z[:-2, 1:-1, 2:]
-        + H_z[1:-1, :-2, 2:]
-        + H_z[:-2, :-2, 2:]
-    ) / 8.0
+    H_z_lower_z_x = _backward_edge_average(
+        current=H_z[1:-1, 1:-1, 1:-1],
+        previous=H_z[:-2, 1:-1, 1:-1],
+        config=config,
+        axis=0,
+    )
+    H_z_lower_z_xy = _backward_edge_average(
+        current=H_z_lower_z_x,
+        previous=_backward_edge_average(
+            current=H_z[1:-1, :-2, 1:-1],
+            previous=H_z[:-2, :-2, 1:-1],
+            config=config,
+            axis=0,
+        ),
+        config=config,
+        axis=1,
+    )
+    H_z_upper_z_x = _backward_edge_average(
+        current=H_z[1:-1, 1:-1, 2:],
+        previous=H_z[:-2, 1:-1, 2:],
+        config=config,
+        axis=0,
+    )
+    H_z_upper_z_xy = _backward_edge_average(
+        current=H_z_upper_z_x,
+        previous=_backward_edge_average(
+            current=H_z[1:-1, :-2, 2:],
+            previous=H_z[:-2, :-2, 2:],
+            config=config,
+            axis=0,
+        ),
+        config=config,
+        axis=1,
+    )
+    H_z = (H_z_lower_z_xy + H_z_upper_z_xy) / 2.0
 
     E_interp = jnp.stack([E_x, E_y, E_z], axis=0)
     H_interp = jnp.stack([H_x, H_y, H_z], axis=0)
@@ -102,19 +225,24 @@ def curl_E(
                   (half-integer grid points). Has same shape as input (3, nx, ny, nz).
     """
 
-    dyEz = (jnp.roll(E_pad[2], -1, axis=1) - E_pad[2])[1:-1, 1:-1, 1:-1]
-    dzEy = (jnp.roll(E_pad[1], -1, axis=2) - E_pad[1])[1:-1, 1:-1, 1:-1]
-    dzEx = (jnp.roll(E_pad[0], -1, axis=2) - E_pad[0])[1:-1, 1:-1, 1:-1]
-    dxEz = (jnp.roll(E_pad[2], -1, axis=0) - E_pad[2])[1:-1, 1:-1, 1:-1]
-    dxEy = (jnp.roll(E_pad[1], -1, axis=0) - E_pad[1])[1:-1, 1:-1, 1:-1]
-    dyEx = (jnp.roll(E_pad[0], -1, axis=1) - E_pad[0])[1:-1, 1:-1, 1:-1]
+    shape = E_pad.shape[1] - 2, E_pad.shape[2] - 2, E_pad.shape[3] - 2
+    dx_scale = _metric_scale(config, axis=0, shape=shape, stencil="forward")
+    dy_scale = _metric_scale(config, axis=1, shape=shape, stencil="forward")
+    dz_scale = _metric_scale(config, axis=2, shape=shape, stencil="forward")
+
+    dyEz = (jnp.roll(E_pad[2], -1, axis=1) - E_pad[2])[1:-1, 1:-1, 1:-1] * dy_scale
+    dzEy = (jnp.roll(E_pad[1], -1, axis=2) - E_pad[1])[1:-1, 1:-1, 1:-1] * dz_scale
+    dzEx = (jnp.roll(E_pad[0], -1, axis=2) - E_pad[0])[1:-1, 1:-1, 1:-1] * dz_scale
+    dxEz = (jnp.roll(E_pad[2], -1, axis=0) - E_pad[2])[1:-1, 1:-1, 1:-1] * dx_scale
+    dxEy = (jnp.roll(E_pad[1], -1, axis=0) - E_pad[1])[1:-1, 1:-1, 1:-1] * dx_scale
+    dyEx = (jnp.roll(E_pad[0], -1, axis=1) - E_pad[0])[1:-1, 1:-1, 1:-1] * dy_scale
 
     # Auxiliary fields
     psi_Hxy, psi_Hxz, psi_Hyz, psi_Hyx, psi_Hzx, psi_Hzy = psi_H
 
     if simulate_boundaries:
         # Get H-field PML coefficients
-        b = jnp.expm1(-config.courant_number * config.resolution / c0 / eps0 * (sigma / kappa + alpha)) + 1
+        b = jnp.expm1(-config.time_step_duration / eps0 * (sigma / kappa + alpha)) + 1
         a = jnp.nan_to_num((b - 1.0) * sigma / (sigma + alpha * kappa) / kappa, nan=0.0, posinf=0.0, neginf=0.0)
 
         # Update auxiliary fields
@@ -169,19 +297,24 @@ def curl_H(
                   (integer grid points). Has same shape as input (3, nx, ny, nz).
     """
 
-    dyHz = (H_pad[2] - jnp.roll(H_pad[2], 1, axis=1))[1:-1, 1:-1, 1:-1]
-    dzHy = (H_pad[1] - jnp.roll(H_pad[1], 1, axis=2))[1:-1, 1:-1, 1:-1]
-    dzHx = (H_pad[0] - jnp.roll(H_pad[0], 1, axis=2))[1:-1, 1:-1, 1:-1]
-    dxHz = (H_pad[2] - jnp.roll(H_pad[2], 1, axis=0))[1:-1, 1:-1, 1:-1]
-    dxHy = (H_pad[1] - jnp.roll(H_pad[1], 1, axis=0))[1:-1, 1:-1, 1:-1]
-    dyHx = (H_pad[0] - jnp.roll(H_pad[0], 1, axis=1))[1:-1, 1:-1, 1:-1]
+    shape = H_pad.shape[1] - 2, H_pad.shape[2] - 2, H_pad.shape[3] - 2
+    dx_scale = _metric_scale(config, axis=0, shape=shape, stencil="backward")
+    dy_scale = _metric_scale(config, axis=1, shape=shape, stencil="backward")
+    dz_scale = _metric_scale(config, axis=2, shape=shape, stencil="backward")
+
+    dyHz = (H_pad[2] - jnp.roll(H_pad[2], 1, axis=1))[1:-1, 1:-1, 1:-1] * dy_scale
+    dzHy = (H_pad[1] - jnp.roll(H_pad[1], 1, axis=2))[1:-1, 1:-1, 1:-1] * dz_scale
+    dzHx = (H_pad[0] - jnp.roll(H_pad[0], 1, axis=2))[1:-1, 1:-1, 1:-1] * dz_scale
+    dxHz = (H_pad[2] - jnp.roll(H_pad[2], 1, axis=0))[1:-1, 1:-1, 1:-1] * dx_scale
+    dxHy = (H_pad[1] - jnp.roll(H_pad[1], 1, axis=0))[1:-1, 1:-1, 1:-1] * dx_scale
+    dyHx = (H_pad[0] - jnp.roll(H_pad[0], 1, axis=1))[1:-1, 1:-1, 1:-1] * dy_scale
 
     # Auxiliary fields
     psi_Exy, psi_Exz, psi_Eyz, psi_Eyx, psi_Ezx, psi_Ezy = psi_E
 
     if simulate_boundaries:
         # Get E-field PML coefficients
-        b = jnp.expm1(-config.courant_number * config.resolution / c0 / eps0 * (sigma / kappa + alpha)) + 1
+        b = jnp.expm1(-config.time_step_duration / eps0 * (sigma / kappa + alpha)) + 1
         a = jnp.nan_to_num((b - 1.0) * sigma / (sigma + alpha * kappa) / kappa, nan=0.0, posinf=0.0, neginf=0.0)
 
         # Update auxiliary fields

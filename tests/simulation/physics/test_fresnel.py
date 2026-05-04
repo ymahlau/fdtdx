@@ -68,7 +68,7 @@ _N_AVG_STEPS = 10 * _STEPS_PER_PERIOD  # average over last ~10 optical periods
 def _build_base():
     """Domain with periodic xy BCs, PML in z, and a +z UniformPlaneSource."""
     config = fdtdx.SimulationConfig(
-        resolution=_RESOLUTION,
+        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
         time=_SIM_TIME,
         dtype=jnp.float32,
     )

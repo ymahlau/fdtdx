@@ -103,7 +103,7 @@ def _analytic_alpha() -> float:
 def _build_base():
     """Vacuum domain with periodic xy BCs, PML in z, and an x-polarized +z source."""
     config = fdtdx.SimulationConfig(
-        resolution=_RESOLUTION,
+        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
         time=_SIM_TIME,
         dtype=jnp.float32,
     )

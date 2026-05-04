@@ -100,6 +100,48 @@ class DiffractiveDetector(Detector):
     def _num_latent_time_steps(self) -> int:
         return 1
 
+    def _transverse_centers(self, plane_dims: list[int]) -> tuple[jax.Array, jax.Array] | None:
+        """Return physical transverse cell centers for the detector plane.
+
+        FFT order decomposition requires equally spaced samples.  On rectilinear
+        non-uniform grids, fields are first resampled onto a uniform grid spanning
+        the same detector-center extent.  Uniform grids keep the legacy direct
+        FFT path.
+        """
+        if not self._config.has_nonuniform_grid:
+            return None
+        grid = self._config.realized_grid
+        assert grid is not None
+        centers = []
+        for axis in plane_dims:
+            lower, upper = self.grid_slice_tuple[axis]
+            centers.append(grid.centers(axis)[lower:upper])
+        return tuple(centers)  # type: ignore[return-value]
+
+    @staticmethod
+    def _uniform_resample_2d(
+        field: jax.Array,
+        x_centers: jax.Array,
+        y_centers: jax.Array,
+    ) -> tuple[jax.Array, float, float]:
+        """Resample ``(component, x, y)`` fields onto uniform transverse centers."""
+        nx, ny = field.shape[1], field.shape[2]
+        target_x = jnp.linspace(x_centers[0], x_centers[-1], nx)
+        target_y = jnp.linspace(y_centers[0], y_centers[-1], ny)
+
+        def interp_x(component):
+            return jax.vmap(lambda column: jnp.interp(target_x, x_centers, column), in_axes=1, out_axes=1)(component)
+
+        def interp_y(component):
+            return jax.vmap(lambda row: jnp.interp(target_y, y_centers, row))(component)
+
+        field = jax.vmap(interp_x)(field)
+        field = jax.vmap(interp_y)(field)
+
+        dx = float(target_x[1] - target_x[0]) if nx > 1 else 1.0
+        dy = float(target_y[1] - target_y[0]) if ny > 1 else 1.0
+        return field, dx, dy
+
     def update(
         self,
         time_step: jax.Array,
@@ -124,6 +166,13 @@ class DiffractiveDetector(Detector):
         cur_E = jnp.squeeze(cur_E, axis=prop_axis + 1)  # Shape: (3, nx, ny)
         cur_H = jnp.squeeze(cur_H, axis=prop_axis + 1)  # Shape: (3, nx, ny)
 
+        transverse_centers = self._transverse_centers(plane_dims)
+        if transverse_centers is None:
+            dx = dy = self._config.require_uniform_grid()
+        else:
+            cur_E, dx, dy = self._uniform_resample_2d(cur_E, transverse_centers[0], transverse_centers[1])
+            cur_H, _, _ = self._uniform_resample_2d(cur_H, transverse_centers[0], transverse_centers[1])
+
         # Compute FFT of each field component.
         # After the squeeze, cur_E/cur_H always have shape (3, dim1, dim2), so the
         # two spatial axes are always 1 and 2 regardless of which axis was squeezed.
@@ -138,7 +187,6 @@ class DiffractiveDetector(Detector):
         ky_indices = jnp.where(orders[:, 1] >= 0, orders[:, 1], Ny + orders[:, 1])
 
         # Compute wavevectors
-        dx = dy = self._config.resolution
         kx = 2 * jnp.pi * jnp.fft.fftfreq(Nx, dx)
         ky = 2 * jnp.pi * jnp.fft.fftfreq(Ny, dy)
         k0 = 2 * jnp.pi * self.frequencies[0] / constants.c  # Use first frequency for now

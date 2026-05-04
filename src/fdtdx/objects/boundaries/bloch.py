@@ -146,5 +146,10 @@ class BlochBoundary(BaseBoundary):
             Complex scalar exp(i * k_axis * L) where L = volume_shape[axis] * resolution
         """
         k = self.bloch_vector[self.axis]
-        L = volume_shape[self.axis] * resolution
+        grid = getattr(self._config, "realized_grid", None)
+        if grid is not None:
+            edges = grid.edges(self.axis)
+            L = edges[volume_shape[self.axis]] - edges[0]
+        else:
+            L = volume_shape[self.axis] * resolution
         return jnp.exp(1j * k * L)

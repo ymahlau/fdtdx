@@ -11,6 +11,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import RectilinearGrid, UniformGrid
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.sources.linear_polarization import (
     GaussianPlaneSource,
@@ -23,7 +24,7 @@ def micro_config():
     """Minimal simulation config for source testing."""
     return SimulationConfig(
         time=100e-15,
-        resolution=100e-9,
+        grid=UniformGrid(spacing=100e-9),
         backend="cpu",
         dtype=jnp.float32,
         courant_factor=0.99,
@@ -211,6 +212,58 @@ class TestGaussianPlaneSource:
         assert placed.horizontal_axis == 0
         assert placed.vertical_axis == 1
 
+    def test_nonuniform_grid_apply_uses_physical_gaussian_profile(self, jax_key):
+        """Normal-incidence Gaussian sources sample profiles on rectilinear cell centers."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 2.0, 5.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        source = GaussianPlaneSource(
+            partial_grid_shape=(2, 2, 1),
+            wave_character=WaveCharacter(wavelength=1.55e-6),
+            direction="-",
+            radius=3.0,
+            normalize_by_energy=False,
+            fixed_E_polarization_vector=(1, 0, 0),
+        )
+        placed = source.place_on_grid(((0, 2), (0, 2), (0, 1)), config, jax_key)
+
+        applied = placed.apply(jax_key, jnp.ones((1, 2, 2, 1)), 1.0)
+
+        assert applied._E.shape == (3, 2, 2, 1)
+        assert applied._H.shape == (3, 2, 2, 1)
+        assert applied._time_offset_E.shape == (3, 2, 2, 1)
+        assert jnp.isclose(jnp.linalg.norm(applied._E), jnp.linalg.norm(applied._H))
+
+    def test_nonuniform_tilted_apply_uses_physical_projection(self, jax_key):
+        """Tilted non-uniform plane sources project profiles in physical coordinates."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
+            y_edges=jnp.asarray([0.0, 1.0, 2.0, 4.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        source = GaussianPlaneSource(
+            partial_grid_shape=(3, 3, 1),
+            wave_character=WaveCharacter(wavelength=1.55e-6),
+            direction="-",
+            radius=3.0,
+            azimuth_angle=15.0,
+            elevation_angle=5.0,
+            normalize_by_energy=False,
+            fixed_E_polarization_vector=(1, 0, 0),
+        )
+        placed = source.place_on_grid(((0, 3), (0, 3), (0, 1)), config, jax_key)
+
+        applied = placed.apply(jax_key, jnp.ones((1, 3, 3, 1)), 1.0)
+
+        assert applied._E.shape == (3, 3, 3, 1)
+        assert applied._H.shape == (3, 3, 3, 1)
+        assert applied._time_offset_E.shape == (3, 3, 3, 1)
+        assert jnp.any(applied._E[1] != 0) or jnp.any(applied._E[2] != 0)
+
 
 class TestUniformPlaneSource:
     """Unit tests for UniformPlaneSource."""
@@ -277,6 +330,55 @@ class TestUniformPlaneSource:
             direction="-",
         )
         assert source.direction == "-"
+
+    def test_apply_uniform_source_on_nonuniform_grid(self, jax_key):
+        """Normal-incidence uniform plane sources can use rectilinear Yee offsets."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 2.0, 5.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        source = UniformPlaneSource(
+            partial_grid_shape=(2, 2, 1),
+            wave_character=WaveCharacter(wavelength=1.55e-6),
+            direction="-",
+            normalize_by_energy=False,
+            fixed_E_polarization_vector=(1, 0, 0),
+        )
+        placed = source.place_on_grid(((0, 2), (0, 2), (0, 1)), config, jax_key)
+
+        applied = placed.apply(jax_key, jnp.ones((1, 2, 2, 1)), 1.0)
+
+        assert applied._E.shape == (3, 2, 2, 1)
+        assert applied._H.shape == (3, 2, 2, 1)
+        assert applied._time_offset_E.shape == (3, 2, 2, 1)
+
+    def test_nonuniform_tilted_uniform_source_preserves_constant_profile(self, jax_key):
+        """Physical tilted projection must not distort a constant source profile."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 0.4, 1.1, 2.0]),
+            y_edges=jnp.asarray([0.0, 0.6, 1.0, 2.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        source = UniformPlaneSource(
+            partial_grid_shape=(3, 3, 1),
+            wave_character=WaveCharacter(wavelength=1.55e-6),
+            direction="-",
+            amplitude=2.0,
+            azimuth_angle=20.0,
+            elevation_angle=7.0,
+            normalize_by_energy=False,
+            fixed_E_polarization_vector=(1, 0, 0),
+        )
+        placed = source.place_on_grid(((0, 3), (0, 3), (0, 1)), config, jax_key)
+
+        applied = placed.apply(jax_key, jnp.ones((1, 3, 3, 1)), 1.0)
+
+        active = jnp.abs(applied._E) > 1e-6
+        normalized = jnp.where(active, applied._E / applied._E[:, :1, :1, :], 1.0)
+        assert jnp.allclose(normalized[active], 1.0, atol=1e-6)
 
 
 class TestLinearlyPolarizedPlaneSourceApply:

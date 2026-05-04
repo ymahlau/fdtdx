@@ -8,6 +8,7 @@ import pytest
 
 from fdtdx import constants
 from fdtdx.config import DUMMY_SIMULATION_CONFIG, GradientConfig, SimulationConfig
+from fdtdx.core.grid import RectilinearGrid, UniformGrid
 
 
 class TestGradientConfigConstruction:
@@ -58,13 +59,13 @@ class TestSimulationConfigConstruction:
 
         config = SimulationConfig(
             time=1e-12,
-            resolution=1e-9,
+            grid=UniformGrid(spacing=1e-9),
             backend="cpu",
             dtype=jnp.float64,
             courant_factor=0.95,
         )
         assert config.time == 1e-12
-        assert config.resolution == 1e-9
+        assert config.require_uniform_grid() == 1e-9
         assert config.backend == "cpu"
         assert config.dtype == jnp.float64
         assert config.courant_factor == 0.95
@@ -82,7 +83,7 @@ class TestSimulationConfigBackendHandling:
         mock_get_backend.return_value = _create_mock_backend("gpu")
         mock_devices.return_value = [MagicMock()]
 
-        config = SimulationConfig(time=1e-12, resolution=1e-9, backend="gpu")
+        config = SimulationConfig(time=1e-12, grid=UniformGrid(spacing=1e-9), backend="gpu")
         assert config.backend == "gpu"
         mock_config_update.assert_called_with("jax_platform_name", "gpu")
 
@@ -94,7 +95,7 @@ class TestSimulationConfigBackendHandling:
         mock_get_backend.return_value = _create_mock_backend("cpu")
         mock_devices.side_effect = RuntimeError("No GPU found")
 
-        config = SimulationConfig(time=1e-12, resolution=1e-9, backend="gpu")
+        config = SimulationConfig(time=1e-12, grid=UniformGrid(spacing=1e-9), backend="gpu")
         assert config.backend == "cpu"
 
     @patch("fdtdx.config.jax.config.update")
@@ -105,7 +106,7 @@ class TestSimulationConfigBackendHandling:
         mock_get_backend.return_value = _create_mock_backend("tpu")
         mock_devices.return_value = [MagicMock()]
 
-        config = SimulationConfig(time=1e-12, resolution=1e-9, backend="tpu")
+        config = SimulationConfig(time=1e-12, grid=UniformGrid(spacing=1e-9), backend="tpu")
         assert config.backend == "tpu"
         mock_config_update.assert_called_with("jax_platform_name", "tpu")
 
@@ -117,7 +118,7 @@ class TestSimulationConfigBackendHandling:
         mock_get_backend.return_value = _create_mock_backend("cpu")
         mock_devices.side_effect = RuntimeError("No TPU found")
 
-        config = SimulationConfig(time=1e-12, resolution=1e-9, backend="tpu")
+        config = SimulationConfig(time=1e-12, grid=UniformGrid(spacing=1e-9), backend="tpu")
         assert config.backend == "cpu"
 
     @patch("fdtdx.config.jax.config.update")
@@ -127,7 +128,7 @@ class TestSimulationConfigBackendHandling:
         """Test explicit CPU backend."""
         mock_get_backend.return_value = _create_mock_backend("cpu")
 
-        config = SimulationConfig(time=1e-12, resolution=1e-9, backend="cpu")
+        config = SimulationConfig(time=1e-12, grid=UniformGrid(spacing=1e-9), backend="cpu")
         assert config.backend == "cpu"
         mock_config_update.assert_called_with("jax_platform_name", "cpu")
 
@@ -139,7 +140,7 @@ class TestSimulationConfigBackendHandling:
         mock_get_backend.return_value = _create_mock_backend("METAL")
         mock_devices.return_value = [MagicMock()]
 
-        config = SimulationConfig(time=1e-12, resolution=1e-9, backend="gpu")
+        config = SimulationConfig(time=1e-12, grid=UniformGrid(spacing=1e-9), backend="gpu")
         assert config.backend == "METAL"
         mock_config_update.assert_called_with("jax_platform_name", "metal")
 
@@ -151,7 +152,7 @@ class TestSimulationConfigBackendHandling:
         mock_get_backend.return_value = _create_mock_backend("cpu")
         mock_devices.side_effect = RuntimeError("METAL init failed")
 
-        config = SimulationConfig(time=1e-12, resolution=1e-9, backend="METAL")
+        config = SimulationConfig(time=1e-12, grid=UniformGrid(spacing=1e-9), backend="METAL")
         assert config.backend == "cpu"
 
 
@@ -165,7 +166,7 @@ class TestSimulationConfigProperties:
         """Test courant_number calculation."""
         mock_get_backend.return_value = _create_mock_backend("cpu")
 
-        config = SimulationConfig(time=1e-12, resolution=1e-9, backend="cpu", courant_factor=0.5)
+        config = SimulationConfig(time=1e-12, grid=UniformGrid(spacing=1e-9), backend="cpu", courant_factor=0.5)
         expected = 0.5 / math.sqrt(3)
         assert abs(config.courant_number - expected) < 1e-10
 
@@ -177,9 +178,77 @@ class TestSimulationConfigProperties:
         mock_get_backend.return_value = _create_mock_backend("cpu")
 
         resolution = 1e-9
-        config = SimulationConfig(time=1e-12, resolution=resolution, backend="cpu")
+        config = SimulationConfig(time=1e-12, grid=UniformGrid(spacing=resolution), backend="cpu")
         expected = config.courant_number * resolution / constants.c
         assert abs(config.time_step_duration - expected) < 1e-30
+
+    @patch("fdtdx.config.jax.config.update")
+    @patch("fdtdx.config.jax.devices")
+    @patch("jax.extend.backend.get_backend")
+    def test_time_step_duration_uses_grid_min_spacing(self, mock_get_backend, *_):
+        """Non-uniform grids use the per-axis minimum-spacing CFL formula."""
+        mock_get_backend.return_value = _create_mock_backend("cpu")
+
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 2e-9, 5e-9]),
+            y_edges=jnp.asarray([0.0, 1e-9]),
+            z_edges=jnp.asarray([0.0, 4e-9]),
+        )
+        config = SimulationConfig(time=1e-12, grid=grid, backend="cpu")
+        expected = grid.cfl_time_step(config.courant_factor)
+        assert math.isclose(config.time_step_duration, expected, rel_tol=1e-6)
+
+    @patch("fdtdx.config.jax.config.update")
+    @patch("fdtdx.config.jax.devices")
+    @patch("jax.extend.backend.get_backend")
+    def test_uniform_grid_time_step_matches_scalar_resolution(self, mock_get_backend, *_):
+        """Uniform RectilinearGrid configs preserve scalar-resolution CFL behavior."""
+        mock_get_backend.return_value = _create_mock_backend("cpu")
+
+        spacing = 2e-9
+        scalar_config = SimulationConfig(
+            time=1e-12, grid=UniformGrid(spacing=spacing), backend="cpu", courant_factor=0.8
+        )
+        grid_config = SimulationConfig(
+            time=1e-12,
+            grid=RectilinearGrid.uniform(shape=(3, 4, 5), spacing=spacing),
+            backend="cpu",
+            courant_factor=0.8,
+        )
+
+        assert math.isclose(grid_config.require_uniform_grid(), scalar_config.require_uniform_grid(), rel_tol=1e-6)
+        assert math.isclose(grid_config.courant_number, scalar_config.courant_number, rel_tol=1e-6)
+        assert math.isclose(grid_config.time_step_duration, scalar_config.time_step_duration, rel_tol=1e-6)
+
+    @patch("fdtdx.config.jax.config.update")
+    @patch("fdtdx.config.jax.devices")
+    @patch("jax.extend.backend.get_backend")
+    def test_require_grid_builds_uniform_grid_from_resolution(self, mock_get_backend, *_):
+        """Legacy resolution configs create a concrete RectilinearGrid when the volume shape is known."""
+        mock_get_backend.return_value = _create_mock_backend("cpu")
+
+        config = SimulationConfig(time=1e-12, grid=UniformGrid(spacing=2e-9), backend="cpu")
+        grid = config.require_grid((2, 3, 4))
+
+        assert grid.shape == (2, 3, 4)
+        assert math.isclose(grid.uniform_spacing, 2e-9, rel_tol=1e-6)
+
+    @patch("fdtdx.config.jax.config.update")
+    @patch("fdtdx.config.jax.devices")
+    @patch("jax.extend.backend.get_backend")
+    def test_require_uniform_grid_rejects_nonuniform_grid(self, mock_get_backend, *_):
+        """Scalar compatibility access fails instead of masking non-uniform metrics."""
+        mock_get_backend.return_value = _create_mock_backend("cpu")
+
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 1.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-12, grid=grid, backend="cpu")
+
+        with pytest.raises(ValueError, match="requires a uniform grid"):
+            config.require_uniform_grid()
 
     @patch("fdtdx.config.jax.config.update")
     @patch("fdtdx.config.jax.devices")
@@ -188,7 +257,7 @@ class TestSimulationConfigProperties:
         """Test time_steps_total calculation."""
         mock_get_backend.return_value = _create_mock_backend("cpu")
 
-        config = SimulationConfig(time=1e-12, resolution=1e-9, backend="cpu")
+        config = SimulationConfig(time=1e-12, grid=UniformGrid(spacing=1e-9), backend="cpu")
         expected = round(config.time / config.time_step_duration)
         assert config.time_steps_total == expected
 
@@ -200,7 +269,7 @@ class TestSimulationConfigProperties:
         mock_get_backend.return_value = _create_mock_backend("cpu")
 
         time = 1e-12
-        config = SimulationConfig(time=time, resolution=1e-9, backend="cpu")
+        config = SimulationConfig(time=time, grid=UniformGrid(spacing=1e-9), backend="cpu")
         expected = constants.c * time
         assert abs(config.max_travel_distance - expected) < 1e-20
 
@@ -215,7 +284,7 @@ class TestSimulationConfigGradientProperties:
         """Test only_forward is True when gradient_config is None."""
         mock_get_backend.return_value = _create_mock_backend("cpu")
 
-        config = SimulationConfig(time=1e-12, resolution=1e-9, backend="cpu")
+        config = SimulationConfig(time=1e-12, grid=UniformGrid(spacing=1e-9), backend="cpu")
         assert config.only_forward is True
         assert config.invertible_optimization is False
 
@@ -228,7 +297,9 @@ class TestSimulationConfigGradientProperties:
 
         mock_recorder = MagicMock()
         gradient_config = GradientConfig(method="reversible", recorder=mock_recorder)
-        config = SimulationConfig(time=1e-12, resolution=1e-9, backend="cpu", gradient_config=gradient_config)
+        config = SimulationConfig(
+            time=1e-12, grid=UniformGrid(spacing=1e-9), backend="cpu", gradient_config=gradient_config
+        )
         assert config.only_forward is False
         assert config.invertible_optimization is True
 
@@ -240,7 +311,9 @@ class TestSimulationConfigGradientProperties:
         mock_get_backend.return_value = _create_mock_backend("cpu")
 
         gradient_config = GradientConfig(method="checkpointed", num_checkpoints=10)
-        config = SimulationConfig(time=1e-12, resolution=1e-9, backend="cpu", gradient_config=gradient_config)
+        config = SimulationConfig(
+            time=1e-12, grid=UniformGrid(spacing=1e-9), backend="cpu", gradient_config=gradient_config
+        )
         assert config.only_forward is False
         assert config.invertible_optimization is False
 
@@ -252,4 +325,4 @@ class TestDummySimulationConfig:
         """Test DUMMY_SIMULATION_CONFIG has expected sentinel values."""
         assert isinstance(DUMMY_SIMULATION_CONFIG, SimulationConfig)
         assert DUMMY_SIMULATION_CONFIG.time == -1
-        assert DUMMY_SIMULATION_CONFIG.resolution == -1
+        assert DUMMY_SIMULATION_CONFIG.require_uniform_grid() == 1

@@ -7,11 +7,13 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.constants import eta0
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.fdtd.container import ArrayContainer, FieldState
 from fdtdx.fdtd.update import (
     add_interfaces,
     collect_interfaces,
     get_wrap_padding_axes,
+    pad_fields_for_boundaries,
     update_detector_states,
     update_E,
     update_E_reverse,
@@ -72,7 +74,7 @@ def _make_objects(sources=None):
 def _make_config(c=0.5):
     cfg = Mock()
     cfg.courant_number = c
-    cfg.resolution = 1.0
+    cfg.require_uniform_grid.return_value = 1.0
     return cfg
 
 
@@ -150,6 +152,37 @@ class TestGetWrapPaddingAxes:
         obj = Mock()
         obj.boundary_objects = [wrap, other]
         assert get_wrap_padding_axes(obj) == (False, True, False)
+
+
+class TestPadFieldsForBoundaries:
+    """Tests for boundary padding and pad-correction dispatch."""
+
+    def test_nonuniform_grid_passes_compatibility_spacing_to_boundaries(self):
+        """Boundary padding should not require a scalar grid on stretched meshes."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 2.0]),
+            z_edges=jnp.asarray([0.0, 4.0]),
+        )
+        config = Mock()
+        config.grid = grid
+        config.require_uniform_grid.side_effect = AssertionError("uniform spacing should not be required")
+
+        boundary = Mock()
+        boundary.axis = 0
+        boundary.uses_wrap_padding = True
+        boundary.apply_pad_correction.side_effect = lambda padded, _shape, _spacing: padded
+
+        objects = Mock()
+        objects.boundary_objects = [boundary]
+        objects.volume.grid_shape = grid.shape
+
+        fields = jnp.ones((3, *grid.shape))
+        padded = pad_fields_for_boundaries(fields, objects, config)
+
+        assert padded.shape == (3, 4, 3, 3)
+        boundary.apply_pad_correction.assert_called_once()
+        assert boundary.apply_pad_correction.call_args.args[2] == pytest.approx(1.0)
 
 
 # ─── TestUpdateE ──────────────────────────────────────────────────────────────

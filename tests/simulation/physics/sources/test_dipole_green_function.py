@@ -41,7 +41,7 @@ _N = np.sqrt(_EPS_R)
 def _build_dipole_in_medium(eps_r=1.0):
     """Build domain with dipole in a uniform medium."""
     config = fdtdx.SimulationConfig(
-        resolution=_RESOLUTION,
+        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
         time=_SIM_TIME,
         dtype=jnp.float32,
     )
