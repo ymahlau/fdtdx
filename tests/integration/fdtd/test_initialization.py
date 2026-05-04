@@ -179,6 +179,48 @@ def test_nonuniform_grid_initializes_conductive_volume():
     assert jnp.allclose(arrays.magnetic_conductivity, 0.4 * conductivity_spacing)
 
 
+def test_uniform_gridspec_initialization_matches_scalar_resolution(simple_material):
+    """Explicit uniform GridSpec initialization is equivalent to scalar resolution."""
+    resolution = 1.0
+    volume = SimulationVolume(name="volume", partial_grid_shape=(4, 4, 4))
+    obj = UniformMaterialObject(name="obj1", partial_grid_shape=(2, 2, 2), material=simple_material)
+    constraint = GridCoordinateConstraint(
+        object="obj1",
+        axes=[0, 1, 2],
+        sides=["-", "-", "-"],
+        coordinates=[1, 1, 1],
+    )
+
+    scalar_config = SimulationConfig(resolution=resolution, time=100e-15, backend="cpu")
+    grid_config = SimulationConfig(
+        resolution=99.0,
+        grid=GridSpec.uniform(shape=(4, 4, 4), spacing=resolution),
+        time=100e-15,
+        backend="cpu",
+    )
+
+    _, scalar_arrays, _, scalar_updated_config, _ = place_objects(
+        [volume, obj],
+        scalar_config,
+        [constraint],
+        jax.random.PRNGKey(0),
+    )
+    _, grid_arrays, _, grid_updated_config, _ = place_objects(
+        [volume, obj],
+        grid_config,
+        [constraint],
+        jax.random.PRNGKey(0),
+    )
+
+    assert jnp.array_equal(grid_arrays.inv_permittivities, scalar_arrays.inv_permittivities)
+    assert jnp.array_equal(grid_arrays.inv_permeabilities, scalar_arrays.inv_permeabilities)
+    assert grid_updated_config.grid is not None
+    assert scalar_updated_config.grid is not None
+    assert jnp.allclose(grid_updated_config.grid.x_edges, scalar_updated_config.grid.x_edges)
+    assert jnp.allclose(grid_updated_config.grid.y_edges, scalar_updated_config.grid.y_edges)
+    assert jnp.allclose(grid_updated_config.grid.z_edges, scalar_updated_config.grid.z_edges)
+
+
 def test_fully_anisotropic_material(simple_config, simple_volume):
     """Fully anisotropic material (off-diagonal) triggers 9-component arrays.
 

@@ -129,6 +129,23 @@ averaging instead of center sampling.  Fill fractions/subpixel smoothing remain
 future accuracy improvements for geometry rasterization, not blockers for
 rectilinear-grid execution.
 
+Accuracy Validation
+-------------------
+
+The current validation suite includes both local numerical checks and
+integration-level parity checks:
+
+* uniform ``GridSpec`` initialization matches scalar-resolution initialization
+* stretched-grid Yee curls recover analytic physical derivatives for linear and
+  quadratic fields
+* distance-weighted field interpolation recovers linear fields on stretched cells
+* weighted detector reductions integrate constant flux, energy, and mode-overlap
+  fields to the expected physical area or volume
+* resolved sphere and cylinder masks have physical volumes/areas close to the
+  analytic shapes when weighted by rectilinear cell metrics
+* tilted uniform plane-source projection preserves a constant profile on
+  stretched transverse grids
+
 Remaining Guarded Surfaces
 --------------------------
 

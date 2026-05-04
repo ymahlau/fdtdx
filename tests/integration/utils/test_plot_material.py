@@ -21,6 +21,30 @@ TEST_OUTPUT_DIR = Path("tests/generated")
 TEST_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def _plotted_material_artists(ax):
+    """Return image or rectilinear mesh artists created by material plotting."""
+    return list(ax.get_images()) + list(ax.collections)
+
+
+def _plotted_material_array(ax):
+    """Return plotted material values for either imshow or pcolormesh output."""
+    images = ax.get_images()
+    if images:
+        return images[0].get_array()
+    assert ax.collections, "Expected an image or mesh collection on the material plot."
+    return ax.collections[0].get_array()
+
+
+def _axis_extent(ax) -> tuple[float, float, float, float]:
+    """Return data extents for image or mesh based material plots."""
+    images = ax.get_images()
+    if images:
+        return images[0].get_extent()
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+    return (xlim[0], xlim[1], ylim[0], ylim[1])
+
+
 @pytest.fixture
 def simple_material_setup():
     """A simple setup with basic material objects for testing."""
@@ -323,8 +347,7 @@ def test_plot_material_verify_values(simple_material_setup):
         type="permittivity",
     )
 
-    im = ax.get_images()[0]
-    data = im.get_array()
+    data = _plotted_material_array(ax)
 
     assert data is not None
     assert data.size > 0
@@ -333,7 +356,7 @@ def test_plot_material_verify_values(simple_material_setup):
     # Setup uses 40 grid cells at 50nm resolution = 2.0 µm in each direction.
     # If the component axis bug is present, array_shape[0] == num_components (~3)
     # instead of Nx (40), collapsing the x-extent to ~0.15 µm instead of 2.0 µm.
-    extent = im.get_extent()  # [xmin, xmax, ymin, ymax] in µm
+    extent = _axis_extent(ax)  # [xmin, xmax, ymin, ymax] in µm
     expected_size_um = 2.0  # 40 cells * 50nm = 2µm
     assert abs(extent[1] - expected_size_um) < 0.1, (
         f"X-extent should be ~{expected_size_um} µm but got {extent[1]:.4f} µm. "
@@ -406,7 +429,7 @@ def test_plot_material_custom_axes(simple_material_setup):
     assert len(axs) == 3
 
     for ax in axs:
-        assert len(ax.get_images()) > 0
+        assert len(_plotted_material_artists(ax)) > 0
         assert ax.get_xlabel() != ""
         assert ax.get_ylabel() != ""
         assert ax.get_title() != ""
@@ -590,17 +613,16 @@ def test_plot_material_material_axis(simple_material_setup):
         )
         assert result_fig is not None, f"plot_material returned None for material_axis={axis}"
 
-        # Verify all three subplots have image data
+        # Verify all three subplots have image or rectilinear mesh data
         axs = result_fig.get_axes()
-        # Filter out colorbar axes (they have no images)
-        plot_axs = [a for a in axs if len(a.get_images()) > 0]
+        # Filter out colorbar axes (they have no plotted material artists)
+        plot_axs = [a for a in axs if len(_plotted_material_artists(a)) > 0]
         assert len(plot_axs) == 3, f"Expected 3 subplots with image data for material_axis={axis}, got {len(plot_axs)}"
 
         # Verify each subplot spans the full 2µm domain on both axes
         expected_size_um = 2.0  # 40 cells * 50nm
         for ax in plot_axs:
-            im = ax.get_images()[0]
-            extent = im.get_extent()  # [xmin, xmax, ymin, ymax]
+            extent = _axis_extent(ax)  # [xmin, xmax, ymin, ymax]
             assert abs(extent[1] - expected_size_um) < 0.1, (
                 f"material_axis={axis}: x-extent should be ~{expected_size_um} µm "
                 f"but got {extent[1]:.4f} µm in subplot '{ax.get_title()}'"

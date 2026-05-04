@@ -354,6 +354,32 @@ class TestUniformPlaneSource:
         assert applied._H.shape == (3, 2, 2, 1)
         assert applied._time_offset_E.shape == (3, 2, 2, 1)
 
+    def test_nonuniform_tilted_uniform_source_preserves_constant_profile(self, jax_key):
+        """Physical tilted projection must not distort a constant source profile."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 0.4, 1.1, 2.0]),
+            y_edges=jnp.asarray([0.0, 0.6, 1.0, 2.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        source = UniformPlaneSource(
+            partial_grid_shape=(3, 3, 1),
+            wave_character=WaveCharacter(wavelength=1.55e-6),
+            direction="-",
+            amplitude=2.0,
+            azimuth_angle=20.0,
+            elevation_angle=7.0,
+            normalize_by_energy=False,
+            fixed_E_polarization_vector=(1, 0, 0),
+        )
+        placed = source.place_on_grid(((0, 3), (0, 3), (0, 1)), config, jax_key)
+
+        applied = placed.apply(jax_key, jnp.ones((1, 3, 3, 1)), 1.0)
+
+        active = jnp.abs(applied._E) > 1e-6
+        normalized = jnp.where(active, applied._E / applied._E[:, :1, :1, :], 1.0)
+        assert jnp.allclose(normalized[active], 1.0, atol=1e-6)
+
 
 class TestLinearlyPolarizedPlaneSourceApply:
     """Tests for apply method and get_EH_variation with mocks."""

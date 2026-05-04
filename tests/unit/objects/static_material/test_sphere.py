@@ -3,6 +3,8 @@
 Tests Sphere (and ellipsoid variant) shape generation and material mapping.
 """
 
+import math
+
 import jax
 import jax.numpy as jnp
 import pytest
@@ -145,6 +147,26 @@ class TestGetVoxelMaskForShape:
 
         assert mask.shape == (2, 2, 2)
         assert bool(jnp.any(mask))
+
+    def test_nonuniform_weighted_mask_volume_matches_sphere_volume(self, key, two_materials):
+        """A resolved stretched-grid sphere has the expected physical volume."""
+        n = 16
+        t = jnp.linspace(0.0, 1.0, n + 1)
+        grid = GridSpec(
+            x_edges=2.0 * t**1.35,
+            y_edges=2.0 * t**1.15,
+            z_edges=2.0 * t**1.05,
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        radius = 0.75
+        sphere = _make_sphere(two_materials, radius=radius)
+        placed = _place(sphere, config, key, ((0, n), (0, n), (0, n)))
+
+        mask = placed.get_voxel_mask_for_shape()
+        measured_volume = jnp.sum(mask * grid.cell_volume(((0, n), (0, n), (0, n))))
+        analytic_volume = 4.0 / 3.0 * math.pi * radius**3
+
+        assert abs(float(measured_volume) - analytic_volume) / analytic_volume < 0.03
 
 
 # ---------------------------------------------------------------------------

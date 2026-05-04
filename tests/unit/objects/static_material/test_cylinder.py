@@ -7,6 +7,8 @@ Note: get_voxel_mask_for_shape returns a mask with size 1 along the fiber
 fiber-axis dimension is 1 (relying on broadcasting for application).
 """
 
+import math
+
 import jax
 import jax.numpy as jnp
 import pytest
@@ -174,6 +176,27 @@ class TestGetVoxelMaskForShape:
 
         assert mask.shape == (2, 2, 1)
         assert bool(jnp.any(mask))
+
+    def test_nonuniform_weighted_cross_section_matches_circle_area(self, key, two_materials):
+        """A resolved stretched-grid cylinder has the expected transverse area."""
+        n = 18
+        t = jnp.linspace(0.0, 1.0, n + 1)
+        grid = GridSpec(
+            x_edges=2.0 * t**1.2,
+            y_edges=2.0 * t**1.4,
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        radius = 0.7
+        cyl = _make_cylinder(two_materials, axis=2, radius=radius)
+        placed = _place(cyl, config, key, ((0, n), (0, n), (0, 1)))
+
+        mask = placed.get_voxel_mask_for_shape()
+        cell_areas = grid.face_area(axis=2, slice_tuple=((0, n), (0, n), (0, 1)))
+        measured_area = jnp.sum(mask * cell_areas)
+        analytic_area = math.pi * radius**2
+
+        assert abs(float(measured_area) - analytic_area) / analytic_area < 0.04
 
 
 # ---------------------------------------------------------------------------

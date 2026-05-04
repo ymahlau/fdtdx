@@ -284,6 +284,41 @@ def test_curl_E_nonuniform_metric_no_boundaries():
     assert jnp.allclose(curl_result[2][:-1, :-1, :], -2.0, atol=1e-6)
 
 
+def test_curl_E_nonuniform_quadratic_field_matches_local_physical_derivative():
+    """Forward Yee derivatives use local stretched-cell widths, not index spacing."""
+    config = _make_nonuniform_config()
+    nx, ny, nz = config.grid.shape
+    y = config.grid.y_edges[:-1]
+    z = config.grid.z_edges[:-1]
+    _X, Y, Z = jnp.meshgrid(config.grid.x_edges[:-1], y, z, indexing="ij")
+
+    E = jnp.stack(
+        [
+            jnp.zeros((nx, ny, nz), dtype=jnp.float32),
+            Z**2,
+            Y**2,
+        ],
+        axis=0,
+    )
+    E_pad = pad_fields(E, (False, False, False))
+    psi_H = jnp.zeros((6, nx, ny, nz))
+
+    curl_result, _ = curl_E(
+        config,
+        E_pad,
+        psi_H,
+        alpha=jnp.zeros((6, nx, ny, nz)),
+        kappa=jnp.ones((6, nx, ny, nz)),
+        sigma=jnp.zeros((6, nx, ny, nz)),
+        simulate_boundaries=False,
+    )
+
+    expected_y = y[:-1] + y[1:]
+    expected_z = z[:-1] + z[1:]
+    expected = expected_y[None, :, None] - expected_z[None, None, :]
+    assert jnp.allclose(curl_result[0][:, :-1, :-1], expected, atol=1e-6)
+
+
 def test_curl_E_nonuniform_pml_coefficients_use_time_step():
     """PML auxiliary coefficients do not require a uniform grid spacing."""
     config = _make_nonuniform_config()
@@ -457,6 +492,41 @@ def test_curl_H_nonuniform_metric_no_boundaries():
 
     assert curl_result.shape == (3, nx, ny, nz)
     assert jnp.allclose(curl_result[1][1:, :, 1:], 2.0, atol=1e-6)
+
+
+def test_curl_H_nonuniform_quadratic_field_matches_local_physical_derivative():
+    """Backward Yee derivatives use previous stretched-cell widths."""
+    config = _make_nonuniform_config()
+    nx, ny, nz = config.grid.shape
+    y = config.grid.y_edges[:-1]
+    z = config.grid.z_edges[:-1]
+    _X, Y, Z = jnp.meshgrid(config.grid.x_edges[:-1], y, z, indexing="ij")
+
+    H = jnp.stack(
+        [
+            jnp.zeros((nx, ny, nz), dtype=jnp.float32),
+            Z**2,
+            Y**2,
+        ],
+        axis=0,
+    )
+    H_pad = pad_fields(H, (False, False, False))
+    psi_E = jnp.zeros((6, nx, ny, nz))
+
+    curl_result, _ = curl_H(
+        config,
+        H_pad,
+        psi_E,
+        alpha=jnp.zeros((6, nx, ny, nz)),
+        kappa=jnp.ones((6, nx, ny, nz)),
+        sigma=jnp.zeros((6, nx, ny, nz)),
+        simulate_boundaries=False,
+    )
+
+    expected_y = y[1:] + y[:-1]
+    expected_z = z[1:] + z[:-1]
+    expected = expected_y[None, :, None] - expected_z[None, None, :]
+    assert jnp.allclose(curl_result[0][:, 1:, 1:], expected, atol=1e-6)
 
 
 def test_curl_H_nonuniform_pml_coefficients_use_time_step():

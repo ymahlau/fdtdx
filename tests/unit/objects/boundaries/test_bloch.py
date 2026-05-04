@@ -181,6 +181,18 @@ class TestBlochGetBlochPhase:
 
         assert jnp.allclose(phase, jnp.exp(1j * k * 3.0))
 
+    def test_uniform_gridspec_phase_is_jittable(self, jax_key):
+        """Concrete GridSpec phase lookup must not force Python floats inside JAX traces."""
+        grid = GridSpec.uniform(shape=(4, 4, 4), spacing=0.5)
+        config = SimulationConfig(time=1e-8, resolution=99.0, grid=grid, backend="cpu")
+        k = 0.25
+        bb = make_bloch(axis=0, direction="-", bloch_vector=(k, 0.0, 0.0))
+        placed = place_bloch(bb, config, jax_key, volume_shape=grid.shape)
+
+        phase = jax.jit(lambda: placed.get_bloch_phase(volume_shape=grid.shape, resolution=config.resolution))()
+
+        assert jnp.allclose(phase, jnp.exp(1j * k * 2.0))
+
     def test_uses_correct_axis_component(self, micro_config):
         """Only the k component for this boundary's axis affects the phase."""
         k_x, k_y, k_z = 1e6, 2e6, 3e6
