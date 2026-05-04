@@ -16,6 +16,20 @@ from fdtdx.objects.boundaries.pmc import PerfectMagneticConductor
 from fdtdx.objects.object import SimulationObject
 
 
+def _axis_edges_um(config: SimulationConfig, axis: int, bounds: tuple[int, int]) -> tuple[float, float]:
+    """Return local physical edge coordinates in micrometres for an index interval."""
+    grid = getattr(config, "grid", None)
+    if isinstance(grid, GridSpec):
+        edges = grid.edges(axis)
+        domain_origin = float(edges[0])
+        return (float(edges[bounds[0]] - domain_origin) / 1.0e-6, float(edges[bounds[1]] - domain_origin) / 1.0e-6)
+
+    spacing = config.require_uniform_grid()
+    if not isinstance(spacing, Real):
+        spacing = config.resolution
+    return (bounds[0] * spacing / 1.0e-6, bounds[1] * spacing / 1.0e-6)
+
+
 def plot_setup_from_side(
     config: SimulationConfig,
     objects: ObjectContainer,
@@ -56,10 +70,6 @@ def plot_setup_from_side(
         The plots show object positions in micrometers, converting from simulation units.
         PML objects are automatically excluded from their respective boundary planes.
     """
-    grid = getattr(config, "grid", None)
-    if isinstance(grid, GridSpec) and not grid.is_uniform:
-        raise ValueError("plot_setup_from_side currently requires a uniform grid for axis scaling.")
-
     # default to empty lists
     exclude_object_list = exclude_object_list or []
     exclude_xy_plane_object_list = exclude_xy_plane_object_list or []
@@ -89,11 +99,6 @@ def plot_setup_from_side(
         fig, ax = plt.subplots(1, 1, figsize=(5, 5))
     else:
         fig = None
-
-    spacing = config.require_uniform_grid()
-    if not isinstance(spacing, Real):
-        spacing = config.resolution
-    resolution = spacing / 1.0e-6  # Convert to µm
 
     # Determine which exclude list to use based on viewing side
     if viewing_side == "z":
@@ -171,9 +176,14 @@ def plot_setup_from_side(
 
         ax.add_patch(
             Rectangle(
-                (slices[axis_indices[0]][0] * resolution, slices[axis_indices[1]][0] * resolution),
-                (slices[axis_indices[0]][1] - slices[axis_indices[0]][0]) * resolution,
-                (slices[axis_indices[1]][1] - slices[axis_indices[1]][0]) * resolution,
+                (
+                    _axis_edges_um(config, axis_indices[0], slices[axis_indices[0]])[0],
+                    _axis_edges_um(config, axis_indices[1], slices[axis_indices[1]])[0],
+                ),
+                _axis_edges_um(config, axis_indices[0], slices[axis_indices[0]])[1]
+                - _axis_edges_um(config, axis_indices[0], slices[axis_indices[0]])[0],
+                _axis_edges_um(config, axis_indices[1], slices[axis_indices[1]])[1]
+                - _axis_edges_um(config, axis_indices[1], slices[axis_indices[1]])[0],
                 color=color.to_mpl() if color is not None else "gray",
                 alpha=0.5,
                 linestyle="--"
@@ -186,8 +196,8 @@ def plot_setup_from_side(
     ax.set_xlabel(axis_labels[0])
     ax.set_ylabel(axis_labels[1])
     ax.set_title(title)
-    ax.set_xlim((0, plane_size[0] * resolution))
-    ax.set_ylim((0, plane_size[1] * resolution))
+    ax.set_xlim(_axis_edges_um(config, axis_indices[0], (0, plane_size[0])))
+    ax.set_ylim(_axis_edges_um(config, axis_indices[1], (0, plane_size[1])))
     ax.set_aspect("equal")
     ax.grid(True)
 

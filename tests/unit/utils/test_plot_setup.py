@@ -99,18 +99,26 @@ class TestPlotSetupFromSide:
             plot_setup_from_side(config=config, objects=container, viewing_side="w", ax=ax)
         plt.close("all")
 
-    def test_nonuniform_grid_rejected(self):
-        """Setup plots currently use uniform axis scaling."""
+    def test_nonuniform_grid_uses_physical_extents(self):
+        """Setup plots use GridSpec edge coordinates for stretched cells."""
         config = _make_config()
         config.grid = GridSpec(
-            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
-            y_edges=jnp.asarray([0.0, 1.0, 2.0]),
-            z_edges=jnp.asarray([0.0, 1.0, 2.0]),
+            x_edges=jnp.asarray([0.0, 1.0e-6, 4.0e-6]),
+            y_edges=jnp.asarray([0.0, 2.0e-6, 5.0e-6]),
+            z_edges=jnp.asarray([0.0, 1.0e-6]),
         )
-        container = _make_container()
+        obj = _MockObj("box", "blue", ((1, 2), (0, 2), (0, 1)))
+        container = _make_container(objects=[obj], volume_grid_shape=(2, 2, 1))
         _fig, ax = plt.subplots()
-        with pytest.raises(ValueError, match="requires a uniform grid"):
-            plot_setup_from_side(config=config, objects=container, viewing_side="z", ax=ax)
+        plot_setup_from_side(config=config, objects=container, viewing_side="z", ax=ax, plot_legend=False)
+
+        patch = ax.patches[0]
+        assert patch.get_x() == pytest.approx(1.0)
+        assert patch.get_width() == pytest.approx(3.0)
+        assert patch.get_y() == pytest.approx(0.0)
+        assert patch.get_height() == pytest.approx(5.0)
+        assert ax.get_xlim() == pytest.approx((0.0, 4.0))
+        assert ax.get_ylim() == pytest.approx((0.0, 5.0))
         plt.close("all")
 
     def test_axis_labels_and_title_z(self):
