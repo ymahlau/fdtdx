@@ -23,17 +23,65 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
     #: whether to normalize the polarization vector
     normalize_by_energy: bool = frozen_field(default=True)
 
+    def _local_edge_coordinates(self) -> tuple[jax.Array, jax.Array, jax.Array] | None:
+        """Return source-local physical edge coordinates for Yee metrics.
+
+        Coordinates are shifted so the lower corner of this source slice is the
+        local origin.  Uniform grids can use the legacy scalar path, but
+        non-uniform grids need these explicit edge arrays for time-of-flight
+        corrections and physical profile sampling.
+        """
+        if self._config.grid is None:
+            return None
+        local_edges = []
+        for axis in range(3):
+            lower, upper = self.grid_slice_tuple[axis]
+            edges = self._config.grid.edges(axis)[lower : upper + 1]
+            local_edges.append(edges - edges[0])
+        return tuple(local_edges)
+
+    def _source_center_physical(self) -> jax.Array | None:
+        """Return the physical center used for grid-aware Yee time offsets."""
+        local_edges = self._local_edge_coordinates()
+        if local_edges is None:
+            return None
+        center = []
+        for axis, edges in enumerate(local_edges):
+            if axis == self.propagation_axis:
+                center.append(jnp.asarray(0.0, dtype=self._config.dtype))
+            else:
+                center.append(0.5 * edges[-1])
+        return jnp.asarray(center, dtype=self._config.dtype)
+
+    def _source_resolution(self) -> float:
+        """Return scalar spacing only for legacy source APIs.
+
+        ``calculate_time_offset_yee`` ignores this value when explicit
+        ``coordinate_edges`` are provided.  The min-spacing fallback keeps the
+        call signature usable for rectilinear grids without pretending the mesh
+        is uniform.
+        """
+        if self._config.grid is not None and not self._config.grid.is_uniform:
+            return self._config.grid.min_spacing
+        return self._config.require_uniform_grid()
+
+    def _raise_for_unsupported_nonuniform_tilt(self) -> None:
+        """Reject non-uniform source cases that still need a physical projection model."""
+        if self._config.grid is None or self._config.grid.is_uniform:
+            return
+        if self.azimuth_angle != 0 or self.elevation_angle != 0 or self.max_angle_random_offset != 0:
+            raise ValueError(
+                "Tilted linearly polarized plane sources are not supported on non-uniform grids yet. "
+                "Normal-incidence sources can use rectilinear profile sampling and Yee time offsets."
+            )
+
     def apply(
         self: Self,
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
     ):
-        if self._config.grid is not None and not self._config.grid.is_uniform:
-            raise ValueError(
-                "Linearly polarized plane sources currently require a uniform grid. "
-                "Non-uniform support needs physical-coordinate profile sampling and source correction metrics."
-            )
+        self._raise_for_unsupported_nonuniform_tilt()
 
         # inv_permittivities shape: (3, Nx, Ny, Nz) - slice with component dimension
         inv_permittivities = inv_permittivities[:, *self.grid_slice]
@@ -149,10 +197,12 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
             wave_vector=wave_vector,
             inv_permittivities=inv_permittivities,
             inv_permeabilities=inv_permeabilities,
-            resolution=self._config.require_uniform_grid(),
+            resolution=self._source_resolution(),
             time_step_duration=self._config.time_step_duration,
             e_polarization=e_pol,
             h_polarization=h_pol,
+            coordinate_edges=self._local_edge_coordinates(),
+            center_physical=self._source_center_physical(),
         )
 
         self = self.aset("_E", E, create_new_ok=True)
@@ -209,6 +259,25 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
         self,
         center: jax.Array,
     ) -> jax.Array:
+        if self._config.grid is not None and not self._config.grid.is_uniform:
+            local_edges = self._local_edge_coordinates()
+            assert local_edges is not None
+            horizontal_edges = local_edges[self.horizontal_axis]
+            vertical_edges = local_edges[self.vertical_axis]
+            horizontal_centers = 0.5 * (horizontal_edges[:-1] + horizontal_edges[1:])
+            vertical_centers = 0.5 * (vertical_edges[:-1] + vertical_edges[1:])
+            h_grid, v_grid = jnp.meshgrid(horizontal_centers, vertical_centers, indexing="ij")
+            h_center = 0.5 * horizontal_edges[-1]
+            v_center = 0.5 * vertical_edges[-1]
+            normalized_radius_squared = ((h_grid - h_center) / self.radius) ** 2 + (
+                (v_grid - v_center) / self.radius
+            ) ** 2
+            mask = normalized_radius_squared < 1
+            exp_part = jnp.exp(-0.5 * normalized_radius_squared / self.std**2)
+            profile_2d = jnp.where(mask, exp_part, 0)
+            profile_2d = profile_2d / profile_2d.sum()
+            return jnp.expand_dims(profile_2d, axis=self.propagation_axis)
+
         grid_radius = self.radius / self._config.require_uniform_grid()
         profile = self._gauss_profile(
             width=self.grid_shape[self.horizontal_axis],
