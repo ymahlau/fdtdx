@@ -182,15 +182,12 @@ def export_vti(
 def _validate_vtk_cell_data(cell_data: dict[str, jax.Array]) -> tuple[int, int, int]:
     """Validate common VTK cell-data constraints and return spatial shape."""
     shape = next(iter(cell_data.values())).shape[-3:]
-    assert all(a.shape[-3:] == shape for a in cell_data.values()), (
-        "All arrays in a VTK file need to be defined over the same underlying grid."
-    )
-    assert all(a.ndim == 3 or a.ndim == 4 for a in cell_data.values()), (
-        "Only 3d scalar fields (x, y, z) and vector fields (n, x, y, z) are supported."
-    )
-    assert all(str(a.dtype) in NUMPY_TO_VTK_DTYPE for a in cell_data.values()), (
-        f"VTK export only supports dtypes {list(NUMPY_TO_VTK_DTYPE.keys())}."
-    )
+    if not all(a.shape[-3:] == shape for a in cell_data.values()):
+        raise ValueError("All arrays in a VTK file need to be defined over the same underlying grid.")
+    if not all(a.ndim == 3 or a.ndim == 4 for a in cell_data.values()):
+        raise ValueError("Only 3d scalar fields (x, y, z) and vector fields (n, x, y, z) are supported.")
+    if not all(str(a.dtype) in NUMPY_TO_VTK_DTYPE for a in cell_data.values()):
+        raise ValueError(f"VTK export only supports dtypes {list(NUMPY_TO_VTK_DTYPE.keys())}.")
     return shape
 
 
@@ -252,7 +249,7 @@ def export_vtr(
     extent = f"{starts[0]} {stops[0]} {starts[1]} {stops[1]} {starts[2]} {stops[2]}"
     coordinate_xml = "\n".join(
         f'<DataArray type="Float64" Name="{axis_name}_COORDINATES" NumberOfComponents="1" format="ascii">'
-        f'{" ".join(str(v) for v in coords)}</DataArray>'
+        f"{' '.join(str(v) for v in coords)}</DataArray>"
         for axis_name, coords in zip(("X", "Y", "Z"), coord_arrays, strict=True)
     )
 

@@ -168,7 +168,7 @@ def test_nonuniform_grid_initializes_conductive_volume():
         magnetic_conductivity=0.4,
     )
     volume = SimulationVolume(name="volume", partial_grid_shape=(2, 2, 2), material=mat)
-    config = SimulationConfig( grid=grid, time=1e-8, backend="cpu")
+    config = SimulationConfig(grid=grid, time=1e-8, backend="cpu")
 
     _obj_container, arrays, _params, updated_config, _info = place_objects([volume], config, [], jax.random.PRNGKey(0))
 

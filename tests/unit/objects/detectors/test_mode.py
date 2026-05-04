@@ -81,11 +81,6 @@ class TestModeOverlapDetectorDefaults:
         det = ModeOverlapDetector(wave_characters=single_frequency, direction="+")
         assert det.bend_axis is None
 
-    def test_integrate_default_true(self, single_frequency):
-        """Mode overlap defaults to physical surface integration."""
-        det = ModeOverlapDetector(wave_characters=single_frequency, direction="+")
-        assert det.integrate is True
-
     def test_bend_radius_stored(self, single_frequency):
         """Custom bend_radius value is stored."""
         det = ModeOverlapDetector(wave_characters=single_frequency, direction="+", bend_radius=5e-6, bend_axis=0)
@@ -356,27 +351,6 @@ class TestModeOverlapDetectorComputeOverlap:
         overlap = det.compute_overlap_to_mode(state=state, mode_E=mode_E, mode_H=mode_H)
 
         assert jnp.allclose(overlap, jnp.asarray(21.0 / 4.0, dtype=jnp.complex64))
-
-    def test_compute_overlap_can_keep_legacy_raw_sum(self, random_key, single_frequency):
-        """The integrate switch preserves raw overlap summation for compatibility checks."""
-        grid = RectilinearGrid(
-            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
-            y_edges=jnp.asarray([0.0, 3.0, 7.0]),
-            z_edges=jnp.asarray([0.0, 1.0]),
-        )
-        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
-        det = ModeOverlapDetector(wave_characters=single_frequency, direction="+", integrate=False)
-        det = det.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
-
-        state = det.init_state()
-        phasor = jnp.zeros_like(state["phasor"]).at[0, 0, 4].set(1.0)
-        state = {"phasor": phasor}
-        mode_E = jnp.zeros((3, 2, 2, 1), dtype=jnp.complex64).at[0].set(1.0)
-        mode_H = jnp.zeros((3, 2, 2, 1), dtype=jnp.complex64)
-
-        overlap = det.compute_overlap_to_mode(state=state, mode_E=mode_E, mode_H=mode_H)
-
-        assert jnp.allclose(overlap, jnp.asarray(1.0, dtype=jnp.complex64))
 
     def test_transverse_edge_coordinates_follow_detector_slice(self, random_key, single_frequency):
         """Mode solving receives the physical edge arrays for the transverse detector axes."""

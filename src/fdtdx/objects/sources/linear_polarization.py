@@ -332,7 +332,10 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
             mask = normalized_radius_squared < 1
             exp_part = jnp.exp(-0.5 * normalized_radius_squared / self.std**2)
             profile_2d = jnp.where(mask, exp_part, 0)
-            profile_2d = profile_2d / profile_2d.sum()
+            h_widths = horizontal_edges[1:] - horizontal_edges[:-1]
+            v_widths = vertical_edges[1:] - vertical_edges[:-1]
+            cell_areas = h_widths[:, None] * v_widths[None, :]
+            profile_2d = profile_2d / (profile_2d * cell_areas).sum()
             return jnp.expand_dims(profile_2d, axis=self.propagation_axis)
 
         grid_radius = self.radius / self._config.require_uniform_grid()

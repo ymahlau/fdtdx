@@ -49,7 +49,8 @@ class ModePlaneSource(TFSFPlaneSource):
         local_edges = self._local_edge_coordinates()
         if local_edges is None:
             return None
-        return tuple(local_edges[axis] for axis in range(3) if axis != self.propagation_axis)
+        axes = [axis for axis in range(3) if axis != self.propagation_axis]
+        return local_edges[axes[0]], local_edges[axes[1]]
 
     def _mode_solver_resolution(self) -> float:
         """Return scalar resolution only for legacy uniform mode-solver setup.

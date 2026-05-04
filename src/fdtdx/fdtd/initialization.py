@@ -769,6 +769,11 @@ def _has_nonuniform_grid(config: SimulationConfig) -> bool:
     backwards compatibility.  Non-uniform grids use ``RectilinearGrid`` helpers so that
     metres are mapped through physical edge coordinates.
     """
+    # getattr is intentional: some unit tests pass a Mock(spec=SimulationConfig)
+    # with config.grid = None, which would bypass the isinstance check inside
+    # has_nonuniform_grid and silently return a truthy Mock.  The None guard
+    # keeps those tests on the uniform-grid path without requiring production
+    # code to change.
     grid = getattr(config, "grid", None)
     if grid is None:
         return False
@@ -1162,7 +1167,9 @@ def _apply_grid_coordinate_constraint(
     config: SimulationConfig | None = None,
 ):
     if config is not None and _has_nonuniform_grid(config):
-        raise ValueError("GridCoordinateConstraint is an index-space placement API and is not supported on non-uniform grids.")
+        raise ValueError(
+            "GridCoordinateConstraint is an index-space placement API and is not supported on non-uniform grids."
+        )
     obj_name = constraint.object
     obj = object_map[obj_name]
     resolved_something = False
@@ -1314,7 +1321,10 @@ def _apply_size_constraint(
         if _has_nonuniform_grid(config):
             assert config.grid is not None
             if slice_dict is None:
-                continue
+                raise RuntimeError(
+                    "_apply_size_constraint requires slice_dict on non-uniform grids "
+                    "to compute physical metric extents."
+                )
             other_b0, other_b1 = slice_dict[other_name][other_axes]
             if other_b0 is None or other_b1 is None:
                 continue

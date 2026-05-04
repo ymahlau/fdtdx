@@ -27,7 +27,8 @@ def _metric_scale(
     assert grid is not None
     widths = grid.cell_widths(axis)
     if stencil == "backward":
-        widths = jnp.concatenate([widths[:1], widths[:-1]])
+        prev_widths = jnp.concatenate([widths[:1], widths[:-1]])
+        widths = 0.5 * (widths + prev_widths)
     elif stencil != "forward":
         raise ValueError(f"Unknown derivative stencil: {stencil}")
     reference_spacing = c0 * config.time_step_duration / config.courant_number
@@ -62,9 +63,7 @@ def _backward_edge_average(
     broadcast_shape[axis] = current.shape[axis]
     current_half_width = current_half_width.reshape(tuple(broadcast_shape))
     previous_half_width = previous_half_width.reshape(tuple(broadcast_shape))
-    return (current * previous_half_width + previous * current_half_width) / (
-        current_half_width + previous_half_width
-    )
+    return (current * previous_half_width + previous * current_half_width) / (current_half_width + previous_half_width)
 
 
 def interpolate_fields(

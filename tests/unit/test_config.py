@@ -206,7 +206,9 @@ class TestSimulationConfigProperties:
         mock_get_backend.return_value = _create_mock_backend("cpu")
 
         spacing = 2e-9
-        scalar_config = SimulationConfig(time=1e-12, grid=UniformGrid(spacing=spacing), backend="cpu", courant_factor=0.8)
+        scalar_config = SimulationConfig(
+            time=1e-12, grid=UniformGrid(spacing=spacing), backend="cpu", courant_factor=0.8
+        )
         grid_config = SimulationConfig(
             time=1e-12,
             grid=RectilinearGrid.uniform(shape=(3, 4, 5), spacing=spacing),
@@ -295,7 +297,9 @@ class TestSimulationConfigGradientProperties:
 
         mock_recorder = MagicMock()
         gradient_config = GradientConfig(method="reversible", recorder=mock_recorder)
-        config = SimulationConfig(time=1e-12, grid=UniformGrid(spacing=1e-9), backend="cpu", gradient_config=gradient_config)
+        config = SimulationConfig(
+            time=1e-12, grid=UniformGrid(spacing=1e-9), backend="cpu", gradient_config=gradient_config
+        )
         assert config.only_forward is False
         assert config.invertible_optimization is True
 
@@ -307,7 +311,9 @@ class TestSimulationConfigGradientProperties:
         mock_get_backend.return_value = _create_mock_backend("cpu")
 
         gradient_config = GradientConfig(method="checkpointed", num_checkpoints=10)
-        config = SimulationConfig(time=1e-12, grid=UniformGrid(spacing=1e-9), backend="cpu", gradient_config=gradient_config)
+        config = SimulationConfig(
+            time=1e-12, grid=UniformGrid(spacing=1e-9), backend="cpu", gradient_config=gradient_config
+        )
         assert config.only_forward is False
         assert config.invertible_optimization is False
 
