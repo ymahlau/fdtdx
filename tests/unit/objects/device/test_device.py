@@ -162,8 +162,8 @@ class TestPlaceOnGrid:
         assert placed.matrix_voxel_grid_shape == (2, 2, 2)
         assert placed.single_voxel_real_shape == pytest.approx((1.5, 2.5, 4.5))
 
-    def test_nonuniform_real_voxel_size_rejected(self, key, two_materials):
-        """Physical-size design voxels need an explicit resampling layer."""
+    def test_nonuniform_real_voxel_size_uses_physical_design_grid(self, key, two_materials):
+        """Physical design voxels define a center-sampled design grid."""
         grid = GridSpec(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 2.0, 5.0]),
@@ -173,10 +173,56 @@ class TestPlaceOnGrid:
         device = _ConcreteDevice(
             materials=two_materials,
             param_transforms=[],
-            partial_voxel_real_shape=(1.0, 1.0, 1.0),
+            partial_voxel_real_shape=(1.5, 2.5, 9.0),
         )
 
-        with pytest.raises(ValueError, match="physical voxel sizes are not supported"):
+        placed = _place_device(device, config, key, ((0, 2), (0, 2), (0, 2)))
+
+        assert placed.matrix_voxel_grid_shape == (2, 2, 1)
+        assert placed.single_voxel_real_shape == pytest.approx((1.5, 2.5, 9.0))
+
+    def test_nonuniform_physical_design_grid_expands_by_cell_centers(self, key, two_materials):
+        """Simulation cells sample the physical design voxel containing their center."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 2.0, 5.0]),
+            z_edges=jnp.asarray([0.0, 4.0, 9.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        device = _ConcreteDevice(
+            materials=two_materials,
+            param_transforms=[],
+            partial_voxel_real_shape=(1.5, 2.5, 9.0),
+        )
+        placed = _place_device(device, config, key, ((0, 2), (0, 2), (0, 2)))
+        params = jnp.asarray([[[1.0], [2.0]], [[3.0], [4.0]]])
+
+        expanded = placed(params, expand_to_sim_grid=True)
+
+        expected = jnp.asarray(
+            [
+                [[1.0, 1.0], [2.0, 2.0]],
+                [[3.0, 3.0], [4.0, 4.0]],
+            ]
+        )
+        assert jnp.allclose(expanded, expected)
+
+    def test_nonuniform_physical_and_grid_voxels_cannot_mix(self, key, two_materials):
+        """Mixed physical/index design voxel specs are ambiguous on stretched grids."""
+        grid = GridSpec(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 2.0, 5.0]),
+            z_edges=jnp.asarray([0.0, 4.0, 9.0]),
+        )
+        config = SimulationConfig(time=1e-8, resolution=1.0, grid=grid, backend="cpu")
+        device = _ConcreteDevice(
+            materials=two_materials,
+            param_transforms=[],
+            partial_voxel_grid_shape=(1, None, None),
+            partial_voxel_real_shape=(None, 2.5, 9.0),
+        )
+
+        with pytest.raises(ValueError, match="cannot be mixed"):
             _place_device(device, config, key, ((0, 2), (0, 2), (0, 2)))
 
     def test_overspecified_voxel_raises(self, config, key, two_materials):
