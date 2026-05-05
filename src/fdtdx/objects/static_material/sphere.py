@@ -13,6 +13,10 @@ class Sphere(StaticMultiMaterialObject):
     This class represents a sphere or ellipsoid with customizable radius/radii and material.
     When all three radii are equal, the shape is a perfect sphere.
 
+    The bounding-box size (diameter = 2 * radius per axis) is automatically inferred
+    for all three axes, so ``partial_real_shape`` does not need to be specified.
+    Per-axis radii (``radius_x``, ``radius_y``, ``radius_z``) take precedence over the
+    default ``radius`` when present.
     """
 
     #: The default radius of the sphere in meter (used if specific axis radii are not provided).
@@ -30,6 +34,13 @@ class Sphere(StaticMultiMaterialObject):
 
     #: The radius along the z-axis in meter. If none, use radius. Defaults to None.
     radius_z: float | None = frozen_field(default=None)
+
+    def get_geometry_size_hint(self) -> tuple[float | None, float | None, float | None]:
+        return (
+            2.0 * (self.radius_x if self.radius_x is not None else self.radius),
+            2.0 * (self.radius_y if self.radius_y is not None else self.radius),
+            2.0 * (self.radius_z if self.radius_z is not None else self.radius),
+        )
 
     def get_voxel_mask_for_shape(self) -> jax.Array:
         """Generates a voxel mask for a sphere or ellipsoid shape.

@@ -870,7 +870,7 @@ def _apply_constraints_iteratively(
     errors: dict[str, str | None] = {obj.name: None for obj in objects}
 
     # handle static shapes
-    shape_dict = _resolve_static_shapes(
+    shape_dict, auto_shape_axes = _resolve_static_shapes(
         object_map=object_map,
         shape_dict=shape_dict,
         config=config,
@@ -907,12 +907,16 @@ def _apply_constraints_iteratively(
         )
         changed = changed or resolved
 
-        # update the grid slices based on static shape and partial known positions
+        # Slices-from-shapes must run before shapes-from-slices: it propagates a
+        # known shape to an open bound (and silently overrides auto-geometry hints
+        # that conflict with already-fixed bounds).  Shapes-from-slices then locks
+        # the shape from two known bounds in the same iteration.
         resolved, slice_dict, errors = _update_grid_slices_from_shapes(
             object_map=object_map,
             shape_dict=shape_dict,
             slice_dict=slice_dict,
             errors=errors,
+            auto_shape_axes=auto_shape_axes,
         )
         changed = changed or resolved
 
@@ -922,6 +926,7 @@ def _apply_constraints_iteratively(
             shape_dict=shape_dict,
             slice_dict=slice_dict,
             errors=errors,
+            auto_shape_axes=auto_shape_axes,
         )
         changed = changed or resolved
 
@@ -1010,8 +1015,16 @@ def _resolve_static_shapes(
     object_map: dict[str, SimulationObject],
     shape_dict: dict[str, list[int | None]],
     config: SimulationConfig,
-):
-    """Fill in static or directly defined shapes."""
+) -> tuple[dict[str, list[int | None]], set[tuple[str, int]]]:
+    """Fill in static or directly defined shapes.
+
+    Returns shape_dict and a set of (obj_name, axis) pairs whose size was
+    derived automatically from the object geometry (e.g. cylinder radius).
+    These auto-derived sizes are lower-priority than explicit constraints: if
+    a constraint later fixes both bounds for such an axis, the constraint
+    value wins without raising an inconsistency error.
+    """
+    auto_shape_axes: set[tuple[str, int]] = set()
     for obj_name, obj in object_map.items():
         for axis in range(3):
             if obj.partial_grid_shape[axis] is not None:
@@ -1021,7 +1034,42 @@ def _resolve_static_shapes(
                     obj.partial_real_shape[axis] / config.resolution  # type: ignore
                 )
                 shape_dict[obj_name][axis] = cur_grid_shape
-    return shape_dict
+        # Lower-priority auto-geometry hint (e.g. 2*radius for cylinders).
+        # Only fills axes that are still None after user-specified fields.
+        if isinstance(obj, StaticMultiMaterialObject):
+            auto_real = obj.get_geometry_size_hint()
+            for axis in range(3):
+                auto_size = auto_real[axis]
+                if shape_dict[obj_name][axis] is None and auto_size is not None:
+                    shape_dict[obj_name][axis] = round(auto_size / config.resolution)
+                    auto_shape_axes.add((obj_name, axis))
+    return shape_dict, auto_shape_axes
+
+
+def _resolve_shape_bound_conflict(
+    obj_name: str,
+    axis: int,
+    bound_size: int,
+    obj: SimulationObject,
+    shape_dict: dict[str, list[int | None]],
+    errors: dict[str, str | None],
+    auto_shape_axes: set[tuple[str, int]] | None,
+) -> bool:
+    """Handle a conflict where shape_dict and bound-derived size disagree.
+
+    If the shape came from a geometry hint, the constraint-determined bound_size
+    wins silently.  Otherwise the conflict is recorded as an error.
+    Returns True if the conflict was resolved (shape updated), False if it was an error.
+    """
+    if auto_shape_axes and (obj_name, axis) in auto_shape_axes:
+        shape_dict[obj_name][axis] = bound_size
+        auto_shape_axes.discard((obj_name, axis))
+        return True
+    errors[obj_name] = (
+        f"Inconsistent grid shape for object: {shape_dict[obj_name][axis]} != {bound_size},"
+        f" {obj.name} ({obj.__class__})."
+    )
+    return False
 
 
 def _update_grid_slices_from_shapes(
@@ -1029,6 +1077,7 @@ def _update_grid_slices_from_shapes(
     shape_dict: dict[str, list[int | None]],
     slice_dict: dict[str, list[list[int | None]]],
     errors: dict[str, str | None],
+    auto_shape_axes: set[tuple[str, int]] | None = None,
 ):
     resolved_something = False
     for obj_name, s in shape_dict.items():
@@ -1042,8 +1091,8 @@ def _update_grid_slices_from_shapes(
                 continue
             elif b0 is not None and b1 is not None:
                 if s_axis != b1 - b0:
-                    errors[obj_name] = (
-                        f"Inconsistent grid shape for object: {s_axis} != {b1 - b0}, {obj.name} ({obj.__class__})."
+                    resolved_something |= _resolve_shape_bound_conflict(
+                        obj_name, axis, b1 - b0, obj, shape_dict, errors, auto_shape_axes
                     )
             elif b0 is not None:
                 slice_dict[obj_name][axis][1] = b0 + s_axis
@@ -1059,6 +1108,7 @@ def _update_grid_shapes_from_slices(
     shape_dict: dict[str, list[int | None]],
     slice_dict: dict[str, list[list[int | None]]],
     errors: dict[str, str | None],
+    auto_shape_axes: set[tuple[str, int]] | None = None,
 ):
     resolved_something = False
     for obj_name, b in slice_dict.items():
@@ -1071,9 +1121,9 @@ def _update_grid_shapes_from_slices(
                 if s_axis is None:
                     shape_dict[obj_name][axis] = b1 - b0
                     resolved_something = True
-                elif s_axis is not None and b1 - b0 != s_axis:
-                    errors[obj_name] = (
-                        f"Inconsistent grid shape for object: {s_axis} != {b1 - b0}, {obj.name} ({obj.__class__})."
+                elif b1 - b0 != s_axis:
+                    resolved_something |= _resolve_shape_bound_conflict(
+                        obj_name, axis, b1 - b0, obj, shape_dict, errors, auto_shape_axes
                     )
     return resolved_something, shape_dict, errors
 

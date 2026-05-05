@@ -25,6 +25,20 @@ class StaticMultiMaterialObject(OrderableObject, ABC):
     #: the color of the material
     color: Color | None = frozen_field(default=XKCD_LIGHT_GREY)
 
+    def get_geometry_size_hint(self) -> tuple[float | None, float | None, float | None]:
+        """Return geometry-derived real-space size hints (in metres) for each axis.
+
+        The initialization system calls this as a low-priority fallback: if no
+        ``partial_real_shape`` entry and no explicit constraint determines the size
+        for an axis, this hint is used so callers do not need to repeat geometric
+        parameters that are already encoded in the object's fields (e.g. radius).
+
+        Subclasses that carry inherent size information should override this method.
+        Return ``None`` for any axis whose size should remain unconstrained by geometry.
+        The default implementation returns ``(None, None, None)``.
+        """
+        return (None, None, None)
+
     @abstractmethod
     def get_voxel_mask_for_shape(self) -> jax.Array:
         """Get a binary mask of the objects shape. Everything voxel not in the mask, will not be updated by
