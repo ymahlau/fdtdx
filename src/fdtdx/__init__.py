@@ -102,6 +102,7 @@ from fdtdx.objects.sources.profile import (
     TemporalProfile,
 )
 from fdtdx.objects.static_material.cylinder import Cylinder
+from fdtdx.objects.static_material.gds_layer_stack import GDSLayerObject, GDSLayerSpec, gds_layer_stack
 from fdtdx.objects.static_material.polygon import (
     ExtrudedPolygon,
     extruded_polygon_from_gds,
@@ -140,6 +141,8 @@ __all__ = [
     "ExtrudedPolygon",
     "FieldDetector",
     "FieldState",
+    "GDSLayerObject",
+    "GDSLayerSpec",
     "GaussianPlaneSource",
     "GaussianPulseProfile",
     "GaussianSmoothing2D",
@@ -217,6 +220,7 @@ __all__ = [
     "frozen_field",
     "frozen_private_field",
     "full_backward",
+    "gds_layer_stack",
     "import_from_json",
     "metric_efficiency",
     "normalize_by_energy",

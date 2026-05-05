@@ -6,6 +6,8 @@ initialized — so they run without GPU resources and complete in milliseconds.
 Volume: 2 um x 2 um x 2 um at 100 nm resolution → 20 x 20 x 20 grid cells.
 """
 
+import gdstk
+
 import fdtdx
 from fdtdx.fdtd.initialization import resolve_object_constraints
 from fdtdx.objects.object import RealCoordinateConstraint
@@ -779,3 +781,78 @@ def test_extruded_polygon_auto_size_from_vertices():
     assert sl[0] == (N // 2 - expected // 2, N // 2 + expected // 2)
     assert sl[1] == (N // 2 - expected // 2, N // 2 + expected // 2)
     assert sl[2] == (0, N)
+
+
+# ---------------------------------------------------------------------------
+# GDS layer stack
+# ---------------------------------------------------------------------------
+
+
+def _gds_lib_with_square(half_um=0.5, layer=1, datatype=0):
+    """In-memory gdstk Library with a square polygon on the given layer."""
+    lib = gdstk.Library(unit=1e-6, precision=1e-9)
+    cell = lib.new_cell("TOP")
+    h = half_um
+    cell.add(gdstk.Polygon([(-h, -h), (h, -h), (h, h), (-h, h)], layer=layer, datatype=datatype))
+    return lib
+
+
+_STACK_MATS = {"si": fdtdx.Material(permittivity=12.25), "sio2": fdtdx.Material(permittivity=2.25)}
+
+
+def test_gds_layer_stack_single_layer_placement():
+    """Single GDS layer at z_base=0 with thickness 400 nm → z cells (0, 4)."""
+    vol = _volume()
+    lib = _gds_lib_with_square()
+    layers = [fdtdx.GDSLayerSpec(gds_layer=1, material_name="si", thickness=400e-9, z_base=0.0)]
+    objects, constraints = fdtdx.gds_layer_stack(
+        gds_source=lib,
+        cell_name="TOP",
+        layers=layers,
+        materials=_STACK_MATS,
+        simulation_volume=vol,
+    )
+    slices = _resolve(vol, objects, constraints)
+    z_slice = _sl(slices, objects[0])[2]
+    assert z_slice == (0, 4), f"expected z=(0,4), got {z_slice}"
+    # x/y should span the full volume
+    assert _sl(slices, objects[0])[0] == (0, N)
+    assert _sl(slices, objects[0])[1] == (0, N)
+
+
+def test_gds_layer_stack_two_layers_stacked():
+    """Two GDS layers: si at z=0..4, sio2 at z=4..10 (z_base=400nm, thickness=600nm)."""
+    vol = _volume()
+    lib = _gds_lib_with_square()
+    # Add a second polygon on layer 2 for sio2
+    cell = next(c for c in lib.cells if c.name == "TOP")
+    cell.add(gdstk.Polygon([(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)], layer=2, datatype=0))
+    layers = [
+        fdtdx.GDSLayerSpec(gds_layer=1, material_name="si", thickness=400e-9, z_base=0.0, name="si_layer"),
+        fdtdx.GDSLayerSpec(gds_layer=2, material_name="sio2", thickness=600e-9, z_base=400e-9, name="sio2_layer"),
+    ]
+    objects, constraints = fdtdx.gds_layer_stack(
+        gds_source=lib,
+        cell_name="TOP",
+        layers=layers,
+        materials=_STACK_MATS,
+        simulation_volume=vol,
+    )
+    assert len(objects) == 2
+    assert len(constraints) == 4  # 2 per layer
+    slices = _resolve(vol, objects, constraints)
+    si_z = _sl(slices, objects[0])[2]
+    sio2_z = _sl(slices, objects[1])[2]
+    assert si_z == (0, 4), f"si layer expected z=(0,4), got {si_z}"
+    assert sio2_z == (4, 10), f"sio2 layer expected z=(4,10), got {sio2_z}"
+
+
+def test_gds_layer_stack_missing_cell_raises():
+    """gds_layer_stack raises ValueError when cell_name is not found."""
+    import pytest
+
+    vol = _volume()
+    lib = _gds_lib_with_square()
+    layers = [fdtdx.GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9)]
+    with pytest.raises(ValueError, match="MISSING"):
+        fdtdx.gds_layer_stack(lib, "MISSING", layers, _STACK_MATS, vol)
