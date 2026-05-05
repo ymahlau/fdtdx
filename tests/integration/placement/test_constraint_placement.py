@@ -9,6 +9,9 @@ Volume: 2 um x 2 um x 2 um at 100 nm resolution → 20 x 20 x 20 grid cells.
 import fdtdx
 from fdtdx.fdtd.initialization import resolve_object_constraints
 from fdtdx.objects.object import RealCoordinateConstraint
+from fdtdx.objects.static_material.cylinder import Cylinder
+from fdtdx.objects.static_material.polygon import ExtrudedPolygon
+from fdtdx.objects.static_material.sphere import Sphere
 
 # ---------------------------------------------------------------------------
 # Constants / helpers
@@ -694,3 +697,88 @@ def test_extend_to_plus_same_size_on_other_axes():
     assert sl[0] == (0, N)
     assert sl[1] == (0, N)
     assert sl[2] == (3, N)
+
+
+# ---------------------------------------------------------------------------
+# Auto-size from geometry (Cylinder / Sphere / ExtrudedPolygon)
+# ---------------------------------------------------------------------------
+
+_MATS = {"si": fdtdx.Material(permittivity=12.25)}
+
+
+def test_cylinder_auto_size_from_radius():
+    """Cylinder cross-section is sized automatically from radius without partial_real_shape."""
+    vol = _volume()
+    radius = 500e-9  # = 5 grid cells at 100 nm resolution
+    cyl = Cylinder(name="cyl", radius=radius, axis=2, materials=_MATS, material_name="si")
+
+    constraints = [
+        cyl.same_position(vol, axes=(0, 1)),
+        cyl.extend_to(None, axis=2, direction="+"),
+        cyl.extend_to(None, axis=2, direction="-"),
+    ]
+    sl = _sl(_resolve(vol, [cyl], constraints), cyl)
+
+    expected = round(2 * radius / RESOLUTION)  # = 10
+    assert sl[0] == (N // 2 - expected // 2, N // 2 + expected // 2)
+    assert sl[1] == (N // 2 - expected // 2, N // 2 + expected // 2)
+    assert sl[2] == (0, N)
+
+
+def test_cylinder_constraint_overrides_auto_size():
+    """Explicit GridCoordinateConstraints on cross-section axes win over auto-size."""
+    vol = _volume()
+    radius = 500e-9
+    cyl = Cylinder(name="cyl", radius=radius, axis=2, materials=_MATS, material_name="si")
+
+    constraints = [
+        cyl.set_grid_coordinates(axes=0, sides="-", coordinates=4),
+        cyl.set_grid_coordinates(axes=0, sides="+", coordinates=16),
+        cyl.set_grid_coordinates(axes=1, sides="-", coordinates=4),
+        cyl.set_grid_coordinates(axes=1, sides="+", coordinates=16),
+        cyl.extend_to(None, axis=2, direction="+"),
+        cyl.extend_to(None, axis=2, direction="-"),
+    ]
+    sl = _sl(_resolve(vol, [cyl], constraints), cyl)
+
+    # Constraint says 12 cells, auto-size would say 10 — constraint wins.
+    assert sl[0] == (4, 16)
+    assert sl[1] == (4, 16)
+
+
+def test_sphere_auto_size_all_axes():
+    """Sphere bounding box is sized automatically on all three axes."""
+    vol = _volume()
+    radius = 500e-9  # = 5 grid cells
+    sphere = Sphere(name="sphere", radius=radius, materials=_MATS, material_name="si")
+
+    constraints = [sphere.same_position(vol)]
+    sl = _sl(_resolve(vol, [sphere], constraints), sphere)
+
+    expected = round(2 * radius / RESOLUTION)  # = 10
+    lo, hi = N // 2 - expected // 2, N // 2 + expected // 2
+    assert sl[0] == (lo, hi)
+    assert sl[1] == (lo, hi)
+    assert sl[2] == (lo, hi)
+
+
+def test_extruded_polygon_auto_size_from_vertices():
+    """ExtrudedPolygon cross-section is sized from vertex bounding box."""
+    import numpy as np
+
+    vol = _volume()
+    half = 500e-9  # 5 cells → 10-cell square
+    verts = np.array([[-half, -half], [half, -half], [half, half], [-half, half]])
+    poly = ExtrudedPolygon(name="poly", axis=2, material_name="si", materials=_MATS, vertices=verts)
+
+    constraints = [
+        poly.same_position(vol, axes=(0, 1)),
+        poly.extend_to(None, axis=2, direction="+"),
+        poly.extend_to(None, axis=2, direction="-"),
+    ]
+    sl = _sl(_resolve(vol, [poly], constraints), poly)
+
+    expected = round(2 * half / RESOLUTION)  # = 10
+    assert sl[0] == (N // 2 - expected // 2, N // 2 + expected // 2)
+    assert sl[1] == (N // 2 - expected // 2, N // 2 + expected // 2)
+    assert sl[2] == (0, N)

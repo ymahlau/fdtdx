@@ -365,7 +365,7 @@ def test_resolve_static_shapes_grid_shape(simple_config, simple_volume, simple_m
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(10, 20, 30), material=simple_material)
     obj_map = {"volume": simple_volume, "obj1": obj}
     shape_dict = {"volume": [None, None, None], "obj1": [None, None, None]}
-    result = _resolve_static_shapes(obj_map, shape_dict, simple_config)
+    result, _ = _resolve_static_shapes(obj_map, shape_dict, simple_config)
     assert result["obj1"] == [10, 20, 30]
 
 
@@ -375,7 +375,7 @@ def test_resolve_static_shapes_real_shape(simple_material):
     obj = UniformMaterialObject(name="obj1", partial_real_shape=(5.0, 10.0, 15.0), material=simple_material)
     obj_map = {"volume": volume, "obj1": obj}
     shape_dict = {"volume": [None, None, None], "obj1": [None, None, None]}
-    result = _resolve_static_shapes(obj_map, shape_dict, config)
+    result, _ = _resolve_static_shapes(obj_map, shape_dict, config)
     # 5.0 / 0.5 = 10, 10.0 / 0.5 = 20, 15.0 / 0.5 = 30
     assert result["obj1"] == [10, 20, 30]
 
@@ -385,7 +385,7 @@ def test_resolve_static_shapes_no_shape(simple_config, simple_material):
     obj = UniformMaterialObject(name="obj1", material=simple_material)
     obj_map = {"volume": volume, "obj1": obj}
     shape_dict = {"volume": [None, None, None], "obj1": [None, None, None]}
-    result = _resolve_static_shapes(obj_map, shape_dict, simple_config)
+    result, _ = _resolve_static_shapes(obj_map, shape_dict, simple_config)
     # volume has grid shape, obj1 has nothing
     assert result["volume"] == [100, 100, 100]
     assert result["obj1"] == [None, None, None]

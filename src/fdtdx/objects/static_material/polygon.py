@@ -18,6 +18,11 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
     The vertices must be given in a coordinate system centered at the origin, i.e. (0, 0)
     corresponds to the center of the object's bounding box. The polygon is placed so that
     its center coincides with the center of the grid region allocated to this object.
+
+    The cross-section size is automatically inferred from the vertex bounding box for the
+    two axes perpendicular to ``axis``, so ``partial_real_shape`` does not need to be
+    specified for those axes.  The extrusion axis size must still be determined by a
+    constraint or an explicit ``partial_real_shape`` entry.
     """
 
     #: Name of the material in the materials dictionary to be used for the object
@@ -28,6 +33,12 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
 
     #: numpy array of shape (N, 2) with vertices in metrical units (meter), centered at origin.
     vertices: np.ndarray = frozen_field()
+
+    def get_geometry_size_hint(self) -> tuple[float | None, float | None, float | None]:
+        shape: list[float | None] = [None, None, None]
+        shape[self.horizontal_axis] = float(self.vertices[:, 0].max() - self.vertices[:, 0].min())
+        shape[self.vertical_axis] = float(self.vertices[:, 1].max() - self.vertices[:, 1].min())
+        return (shape[0], shape[1], shape[2])
 
     @property
     def horizontal_axis(self) -> int:

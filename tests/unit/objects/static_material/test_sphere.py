@@ -172,3 +172,24 @@ class TestGetMaterialMapping:
         placed = _place(sphere, config, key)
         mapping = placed.get_material_mapping()
         assert bool(jnp.all(mapping == mapping[0, 0, 0]))
+
+
+# ---------------------------------------------------------------------------
+# partial_real_shape auto-compute
+# ---------------------------------------------------------------------------
+
+
+class TestAutoRealShape:
+    def test_all_axes_set_to_diameter(self, two_materials):
+        radius = 200e-9
+        sphere = _make_sphere(two_materials, radius=radius)
+        auto = sphere.get_geometry_size_hint()
+        for ax in range(3):
+            assert auto[ax] == pytest.approx(2.0 * radius)
+
+    def test_per_axis_radii_override_default(self, two_materials):
+        sphere = _make_sphere(two_materials, radius=100e-9, radius_x=200e-9, radius_y=150e-9, radius_z=50e-9)
+        auto = sphere.get_geometry_size_hint()
+        assert auto[0] == pytest.approx(2 * 200e-9)
+        assert auto[1] == pytest.approx(2 * 150e-9)
+        assert auto[2] == pytest.approx(2 * 50e-9)
