@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import partial
 
 import equinox.internal as eqxi
@@ -22,6 +23,7 @@ def reversible_fdtd(
     config: SimulationConfig,
     key: jax.Array,
     show_progress: bool = True,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> SimulationState:
     """Run a memory-efficient differentiable FDTD simulation leveraging time-reversal symmetry.
 
@@ -71,6 +73,7 @@ def reversible_fdtd(
         show_progress=show_progress,
         total_steps=config.time_steps_total,
         desc="FDTD (reversible)",
+        progress_callback=progress_callback,
     )
 
     # Build the (optionally instrumented) forward body function once so both
@@ -350,6 +353,7 @@ def checkpointed_fdtd(
     key: jax.Array,
     stopping_condition: StoppingCondition | None = None,
     show_progress: bool = True,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> SimulationState:
     """Run an FDTD simulation with gradient checkpointing for memory efficiency.
 
@@ -389,6 +393,7 @@ def checkpointed_fdtd(
         show_progress=show_progress,
         total_steps=config.time_steps_total,
         desc="FDTD (checkpointed)",
+        progress_callback=progress_callback,
     )
 
     _forward_body = partial(
@@ -429,6 +434,7 @@ def custom_fdtd_forward(
     start_time: int | jax.Array,
     end_time: int | jax.Array,
     show_progress: bool = True,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> SimulationState:
     """Run a customizable forward FDTD simulation between specified time steps.
 
@@ -469,6 +475,7 @@ def custom_fdtd_forward(
     if isinstance(start_time, jax.Array) or isinstance(end_time, jax.Array):
         # Traced arrays: skip the progress bar entirely to avoid concretization.
         show_progress = False
+        progress_callback = None
         n_steps = 0
     else:
         n_steps = int(end_time) - int(start_time)
@@ -477,7 +484,8 @@ def custom_fdtd_forward(
         show_progress=show_progress,
         total_steps=n_steps,
         desc="FDTD (forward)",
-        step_offset=0 if not show_progress else int(start_time),
+        step_offset=0 if not show_progress and progress_callback is None else int(start_time),
+        progress_callback=progress_callback,
     )
 
     _forward_body = partial(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 
 import jax
 import jax.experimental
@@ -70,6 +71,8 @@ class SimulationProgressBar:
         desc: str = "FDTD",
         update_interval: int = 1,
         step_offset: int = 0,
+        show_tqdm: bool = True,
+        progress_callback: Callable[[int, int], None] | None = None,
     ):
         self.total_steps = total_steps
         self.desc = desc
@@ -78,6 +81,8 @@ class SimulationProgressBar:
         # For full simulations this is 0; for partial runs (custom_fdtd_forward)
         # it equals start_time so that bar.n stays in [0, total_steps].
         self.step_offset = step_offset
+        self.show_tqdm = show_tqdm
+        self.progress_callback = progress_callback
         self._bar = None
 
     # Host-side callbacks
@@ -96,18 +101,22 @@ class SimulationProgressBar:
         ``step_offset`` is subtracted so the bar position stays relative to
         the start of this particular simulation segment.
         """
-        if self._bar is None:
-            # Lazy import: only reached at XLA execution time.
-            from tqdm.auto import tqdm
+        relative_step = int(time_step) - self.step_offset
+        if self.show_tqdm:
+            if self._bar is None:
+                # Lazy import: only reached at XLA execution time.
+                from tqdm.auto import tqdm
 
-            self._bar = tqdm(
-                total=self.total_steps,
-                desc=self.desc,
-                unit="step",
-                dynamic_ncols=True,
-            )
-        self._bar.n = int(time_step) - self.step_offset
-        self._bar.refresh()
+                self._bar = tqdm(
+                    total=self.total_steps,
+                    desc=self.desc,
+                    unit="step",
+                    dynamic_ncols=True,
+                )
+            self._bar.n = relative_step
+            self._bar.refresh()
+        if self.progress_callback is not None:
+            self.progress_callback(relative_step, self.total_steps)
 
     def _host_close(self) -> None:
         """Force the bar to 100 % and close it.
@@ -117,11 +126,13 @@ class SimulationProgressBar:
         completion regardless of whether the last step landed on an
         update-interval boundary.
         """
-        if self._bar is not None:
+        if self.show_tqdm and self._bar is not None:
             self._bar.n = self.total_steps
             self._bar.refresh()
             self._bar.close()
             self._bar = None
+        if self.progress_callback is not None:
+            self.progress_callback(self.total_steps, self.total_steps)
 
     # JAX-side callback factory
 
@@ -182,6 +193,7 @@ def _make_pbar(
     total_steps: int,
     desc: str,
     step_offset: int = 0,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> SimulationProgressBar | None:
     """Return a :class:`SimulationProgressBar` or ``None``.
 
@@ -189,30 +201,36 @@ def _make_pbar(
     Returning ``None`` causes :func:`_wrap_body_with_progress` to leave the
     body function completely unmodified — zero JAX overhead.
 
-    ``None`` is returned when any of the following apply:
+    ``None`` is returned when all of the following apply:
 
     * ``show_progress`` is ``False``
+    * ``progress_callback`` is ``None``
     * ``total_steps`` is zero or negative (nothing to show)
-    * tqdm is not installed (checked here via a cheap import probe so the
-      simulation functions never import tqdm themselves)
 
-    The tqdm probe only attempts ``import tqdm`` — it does **not** import
-    ``tqdm.auto`` or instantiate anything, so its cost is a single
-    ``sys.modules`` lookup on repeated calls.
+    When ``show_progress`` is ``True``, tqdm availability is probed. If tqdm
+    is missing a warning is issued and the tqdm bar is skipped, but a
+    ``progress_callback`` (if provided) still fires normally.
     """
-    if not show_progress or total_steps <= 0:
+    if total_steps <= 0:
+        return None
+    if not show_progress and progress_callback is None:
         return None
 
-    try:
-        import tqdm  # noqa: F401 — availability probe only
-    except ImportError:
-        import warnings
+    show_tqdm = show_progress
+    if show_tqdm:
+        try:
+            import tqdm  # noqa: F401 — availability probe only
+        except ImportError:
+            import warnings
 
-        warnings.warn(
-            "tqdm is not installed — progress bar disabled. Install it with: pip install tqdm",
-            ImportWarning,
-            stacklevel=3,
-        )
+            warnings.warn(
+                "tqdm is not installed — progress bar disabled. Install it with: pip install tqdm",
+                ImportWarning,
+                stacklevel=3,
+            )
+            show_tqdm = False
+
+    if not show_tqdm and progress_callback is None:
         return None
 
     return SimulationProgressBar(
@@ -220,6 +238,8 @@ def _make_pbar(
         desc=desc,
         update_interval=_auto_update_interval(total_steps),
         step_offset=step_offset,
+        show_tqdm=show_tqdm,
+        progress_callback=progress_callback,
     )
 
 
