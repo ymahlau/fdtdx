@@ -7,8 +7,18 @@ import numpy as np
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.materials import Material
-from fdtdx.objects.static_material.gds_layer_stack import GDSLayerObject, GDSLayerSpec, gds_layer_stack
+from fdtdx.objects.detectors.mode import ModeOverlapDetector
+from fdtdx.objects.sources.mode import ModePlaneSource
+from fdtdx.objects.static_material.gds_layer_stack import (
+    GDSLayerObject,
+    GDSLayerSpec,
+    GDSPortSpec,
+    detectors_from_gds_ports,
+    gds_layer_stack,
+    sources_from_gds_ports,
+)
 from fdtdx.objects.static_material.static import SimulationVolume
 
 # ---------------------------------------------------------------------------
@@ -163,7 +173,7 @@ class TestGetVoxelMaskForShape:
     def test_single_polygon_has_interior_voxels(self, config, key, two_materials):
         """A 200nm square polygon with gds_center=(0,0) near the simulation center should have True voxels.
 
-        Grid: 20x20x4 cells at 50nm resolution = 1µm×1µm cross-section.
+        Grid: 20x20x4 cells at 50nm resolution = 1µmx1µm cross-section.
         Polygon: ±100nm square centered at GDS origin, gds_center=(0,0) maps GDS origin to grid center.
         """
         polygons = [_square_polygon(half_side=100e-9)]
@@ -347,3 +357,280 @@ class TestGdsLayerStack:
         """Spec with name=None → auto-generated name encodes layer and datatype."""
         objects, _ = _stack(square_lib, sim_volume, two_materials, [_spec(name=None)])
         assert objects[0].name == "gds_1_0"
+
+
+# ---------------------------------------------------------------------------
+# Boolean etch (etch_by)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def etch_lib():
+    """Library with a 600nm square on layer 1 and a 200nm square etch hole on layer 2."""
+    lib = gdstk.Library(unit=1e-6, precision=1e-9)
+    cell = lib.new_cell("TOP")
+    big = 0.3  # 600nm half-side in µm
+    hole = 0.1  # 200nm half-side in µm
+    cell.add(
+        gdstk.Polygon(
+            [(-big, -big), (big, -big), (big, big), (-big, big)],
+            layer=1,
+            datatype=0,
+        )
+    )
+    cell.add(
+        gdstk.Polygon(
+            [(-hole, -hole), (hole, -hole), (hole, hole), (-hole, hole)],
+            layer=2,
+            datatype=0,
+        )
+    )
+    return lib
+
+
+@pytest.mark.unit
+class TestEtchBy:
+    def test_etch_reduces_polygon_count(self, etch_lib, sim_volume, two_materials):
+        """Etching layer 2 from layer 1 should produce more polygons than the original (ring shape)."""
+        spec_no_etch = GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9, z_base=0.0)
+        spec_etch = GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9, z_base=0.0, etch_by=[(2, 0)])
+        objects_no_etch, _ = gds_layer_stack(
+            gds_source=etch_lib,
+            cell_name="TOP",
+            layers=[spec_no_etch],
+            materials=two_materials,
+            simulation_volume=sim_volume,
+        )
+        objects_etch, _ = gds_layer_stack(
+            gds_source=etch_lib,
+            cell_name="TOP",
+            layers=[spec_etch],
+            materials=two_materials,
+            simulation_volume=sim_volume,
+        )
+        assert len(objects_etch[0].polygons[0]) > len(objects_no_etch[0].polygons[0])
+
+    def test_etch_empty_removes_nothing(self, square_lib, sim_volume, two_materials):
+        """etch_by=[] (empty) should behave identically to no etch."""
+        spec_with = GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9, z_base=0.0, etch_by=[])
+        objects, _ = gds_layer_stack(
+            gds_source=square_lib,
+            cell_name="TOP",
+            layers=[spec_with],
+            materials=two_materials,
+            simulation_volume=sim_volume,
+        )
+        assert len(objects[0].polygons) == 1
+
+    def test_etch_nonexistent_layer_keeps_original(self, square_lib, sim_volume, two_materials):
+        """etch_by referencing a layer with no polygons leaves the original unchanged."""
+        spec = GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9, z_base=0.0, etch_by=[(99, 0)])
+        objects, _ = gds_layer_stack(
+            gds_source=square_lib, cell_name="TOP", layers=[spec], materials=two_materials, simulation_volume=sim_volume
+        )
+        assert len(objects[0].polygons) == 1
+
+
+# ---------------------------------------------------------------------------
+# gdsfactory integration
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestGdsLayerStackFromComponent:
+    def test_requires_gdsfactory(self, sim_volume, two_materials):
+        """Without gdsfactory installed, ImportError is raised with a helpful message."""
+        import sys
+
+        gdsf = sys.modules.pop("gdsfactory", None)
+        try:
+            from fdtdx.objects.static_material.gds_layer_stack import gds_layer_stack_from_component
+
+            with pytest.raises(ImportError, match="gdsfactory"):
+
+                class _FakeComponent:
+                    name = "FAKE"
+
+                    def write_gds(self, path):
+                        raise RuntimeError("should not be called")
+
+                gds_layer_stack_from_component(
+                    component=_FakeComponent(),
+                    layers=[_spec()],
+                    materials=two_materials,
+                    simulation_volume=sim_volume,
+                )
+        finally:
+            if gdsf is not None:
+                sys.modules["gdsfactory"] = gdsf
+
+    def test_with_gdsfactory_if_available(self, sim_volume, two_materials):
+        """If gdsfactory is installed, the function returns GDSLayerObjects."""
+        gf = pytest.importorskip("gdsfactory")
+        from fdtdx.objects.static_material.gds_layer_stack import gds_layer_stack_from_component
+
+        c = gf.Component("TEST")
+        c.add_polygon(
+            [(-0.1, -0.1), (0.1, -0.1), (0.1, 0.1), (-0.1, 0.1)],
+            layer=(1, 0),
+        )
+        objects, constraints = gds_layer_stack_from_component(
+            component=c,
+            cell_name="TEST",
+            layers=[_spec(gds_layer=1)],
+            materials=two_materials,
+            simulation_volume=sim_volume,
+        )
+        assert len(objects) == 1
+        assert isinstance(objects[0], GDSLayerObject)
+        assert len(constraints) == 2
+
+
+# ---------------------------------------------------------------------------
+# sources_from_gds_ports / detectors_from_gds_ports
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def port_lib():
+    """Library with a 100nm-wide port marker on layer 10 centred at GDS x=0."""
+    lib = gdstk.Library(unit=1e-6, precision=1e-9)
+    cell = lib.new_cell("TOP")
+    # Thin rectangle: x ∈ [-0.05, 0.05] µm, y ∈ [-0.2, 0.2] µm
+    cell.add(
+        gdstk.Polygon(
+            [(-0.05, -0.2), (0.05, -0.2), (0.05, 0.2), (-0.05, 0.2)],
+            layer=10,
+            datatype=0,
+        )
+    )
+    return lib
+
+
+@pytest.fixture
+def vol_with_x_size():
+    """SimulationVolume with partial_real_shape set on axis 0 (1 µm wide)."""
+    return SimulationVolume(name="volume", partial_real_shape=(1e-6, None, None))
+
+
+@pytest.fixture
+def wave_char():
+    return WaveCharacter(wavelength=1.55e-6)
+
+
+@pytest.mark.unit
+class TestSourcesFromGdsPorts:
+    def test_returns_correct_count(self, port_lib, vol_with_x_size, wave_char):
+        """One port polygon → one ModePlaneSource."""
+        spec = GDSPortSpec(gds_layer=10, propagation_axis=0)
+        sources, _constraints = sources_from_gds_ports(
+            gds_source=port_lib,
+            cell_name="TOP",
+            port_specs=[spec],
+            wave_character=wave_char,
+            simulation_volume=vol_with_x_size,
+        )
+        assert len(sources) == 1
+        assert isinstance(sources[0], ModePlaneSource)
+
+    def test_three_constraints_per_port(self, port_lib, vol_with_x_size, wave_char):
+        """Each port should produce 3 constraints: position, size, center."""
+        spec = GDSPortSpec(gds_layer=10, propagation_axis=0)
+        _, constraints = sources_from_gds_ports(
+            gds_source=port_lib,
+            cell_name="TOP",
+            port_specs=[spec],
+            wave_character=wave_char,
+            simulation_volume=vol_with_x_size,
+        )
+        assert len(constraints) == 4
+
+    def test_propagation_axis_2_raises(self, port_lib, vol_with_x_size, wave_char):
+        """propagation_axis=2 must raise ValueError."""
+        spec = GDSPortSpec(gds_layer=10, propagation_axis=2)
+        with pytest.raises(ValueError, match="propagation_axis"):
+            sources_from_gds_ports(
+                gds_source=port_lib,
+                cell_name="TOP",
+                port_specs=[spec],
+                wave_character=wave_char,
+                simulation_volume=vol_with_x_size,
+            )
+
+    def test_missing_vol_size_raises(self, port_lib, wave_char):
+        """Unset partial_real_shape on propagation axis must raise ValueError."""
+        vol_no_size = SimulationVolume(name="volume")
+        spec = GDSPortSpec(gds_layer=10, propagation_axis=0)
+        with pytest.raises(ValueError, match="partial_real_shape"):
+            sources_from_gds_ports(
+                gds_source=port_lib,
+                cell_name="TOP",
+                port_specs=[spec],
+                wave_character=wave_char,
+                simulation_volume=vol_no_size,
+            )
+
+    def test_empty_port_layer_returns_empty(self, port_lib, vol_with_x_size, wave_char):
+        """Spec referencing a layer with no polygons → empty lists."""
+        spec = GDSPortSpec(gds_layer=99, propagation_axis=0)
+        sources, constraints = sources_from_gds_ports(
+            gds_source=port_lib,
+            cell_name="TOP",
+            port_specs=[spec],
+            wave_character=wave_char,
+            simulation_volume=vol_with_x_size,
+        )
+        assert sources == []
+        assert constraints == []
+
+    def test_name_prefix_applied(self, port_lib, vol_with_x_size, wave_char):
+        """Custom name_prefix is reflected in the source name."""
+        spec = GDSPortSpec(gds_layer=10, propagation_axis=0, name_prefix="in")
+        sources, _ = sources_from_gds_ports(
+            gds_source=port_lib,
+            cell_name="TOP",
+            port_specs=[spec],
+            wave_character=wave_char,
+            simulation_volume=vol_with_x_size,
+        )
+        assert sources[0].name == "in_0"
+
+
+@pytest.mark.unit
+class TestDetectorsFromGdsPorts:
+    def test_returns_mode_overlap_detector(self, port_lib, vol_with_x_size, wave_char):
+        """One port polygon → one ModeOverlapDetector."""
+        spec = GDSPortSpec(gds_layer=10, propagation_axis=0)
+        detectors, _constraints = detectors_from_gds_ports(
+            gds_source=port_lib,
+            cell_name="TOP",
+            port_specs=[spec],
+            wave_characters=[wave_char],
+            simulation_volume=vol_with_x_size,
+        )
+        assert len(detectors) == 1
+        assert isinstance(detectors[0], ModeOverlapDetector)
+
+    def test_three_constraints_per_detector(self, port_lib, vol_with_x_size, wave_char):
+        """Each port should produce 3 constraints."""
+        spec = GDSPortSpec(gds_layer=10, propagation_axis=0)
+        _, constraints = detectors_from_gds_ports(
+            gds_source=port_lib,
+            cell_name="TOP",
+            port_specs=[spec],
+            wave_characters=[wave_char],
+            simulation_volume=vol_with_x_size,
+        )
+        assert len(constraints) == 4
+
+    def test_propagation_axis_2_raises(self, port_lib, vol_with_x_size, wave_char):
+        """propagation_axis=2 must raise ValueError."""
+        spec = GDSPortSpec(gds_layer=10, propagation_axis=2)
+        with pytest.raises(ValueError, match="propagation_axis"):
+            detectors_from_gds_ports(
+                gds_source=port_lib,
+                cell_name="TOP",
+                port_specs=[spec],
+                wave_characters=[wave_char],
+                simulation_volume=vol_with_x_size,
+            )

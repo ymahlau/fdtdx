@@ -102,7 +102,15 @@ from fdtdx.objects.sources.profile import (
     TemporalProfile,
 )
 from fdtdx.objects.static_material.cylinder import Cylinder
-from fdtdx.objects.static_material.gds_layer_stack import GDSLayerObject, GDSLayerSpec, gds_layer_stack
+from fdtdx.objects.static_material.gds_layer_stack import (
+    GDSLayerObject,
+    GDSLayerSpec,
+    GDSPortSpec,
+    detectors_from_gds_ports,
+    gds_layer_stack,
+    gds_layer_stack_from_component,
+    sources_from_gds_ports,
+)
 from fdtdx.objects.static_material.polygon import (
     ExtrudedPolygon,
     extruded_polygon_from_gds,
@@ -143,6 +151,7 @@ __all__ = [
     "FieldState",
     "GDSLayerObject",
     "GDSLayerSpec",
+    "GDSPortSpec",
     "GaussianPlaneSource",
     "GaussianPulseProfile",
     "GaussianSmoothing2D",
@@ -207,6 +216,7 @@ __all__ = [
     "compute_mode",
     "compute_poynting_flux",
     "constants",
+    "detectors_from_gds_ports",
     "export_arrays_snapshot_to_vti",
     "export_json",
     "export_json_str",
@@ -221,6 +231,7 @@ __all__ = [
     "frozen_private_field",
     "full_backward",
     "gds_layer_stack",
+    "gds_layer_stack_from_component",
     "import_from_json",
     "metric_efficiency",
     "normalize_by_energy",
@@ -236,5 +247,6 @@ __all__ = [
     "resolve_object_constraints",
     "run_fdtd",
     "setup_sparams_simulation",
+    "sources_from_gds_ports",
     "wavelength_to_period",
 ]
