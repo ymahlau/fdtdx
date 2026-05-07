@@ -28,12 +28,23 @@ class Cylinder(StaticMultiMaterialObject):
     #: Name of the material in the materials dictionary to be used for the object.
     material_name: str = frozen_field()
 
-    def get_geometry_size_hint(self) -> tuple[float | None, float | None, float | None]:
+    def __post_init__(self):
         diameter = 2.0 * self.radius
-        shape: list[float | None] = [None, None, None]
-        shape[self.horizontal_axis] = diameter
-        shape[self.vertical_axis] = diameter
-        return (shape[0], shape[1], shape[2])
+        real_shape = list(self.partial_real_shape)
+        grid_shape = list(self.partial_grid_shape)
+        for ax in (self.horizontal_axis, self.vertical_axis):
+            if real_shape[ax] is not None:
+                raise Exception(
+                    f"Cylinder {self.name}: partial_real_shape for axis {ax} is derived from the radius "
+                    f"({diameter:.3e} m). Do not specify it explicitly."
+                )
+            if grid_shape[ax] is not None:
+                raise Exception(
+                    f"Cylinder {self.name}: partial_grid_shape for axis {ax} is derived from the radius. "
+                    f"Do not specify it explicitly."
+                )
+            real_shape[ax] = diameter
+        object.__setattr__(self, "partial_real_shape", tuple(real_shape))
 
     @property
     def horizontal_axis(self) -> int:

@@ -34,11 +34,24 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
     #: numpy array of shape (N, 2) with vertices in metrical units (meter), centered at origin.
     vertices: np.ndarray = frozen_field()
 
-    def get_geometry_size_hint(self) -> tuple[float | None, float | None, float | None]:
-        shape: list[float | None] = [None, None, None]
-        shape[self.horizontal_axis] = float(self.vertices[:, 0].max() - self.vertices[:, 0].min())
-        shape[self.vertical_axis] = float(self.vertices[:, 1].max() - self.vertices[:, 1].min())
-        return (shape[0], shape[1], shape[2])
+    def __post_init__(self):
+        w = float(self.vertices[:, 0].max() - self.vertices[:, 0].min())
+        h = float(self.vertices[:, 1].max() - self.vertices[:, 1].min())
+        real_shape = list(self.partial_real_shape)
+        grid_shape = list(self.partial_grid_shape)
+        for ax, size in ((self.horizontal_axis, w), (self.vertical_axis, h)):
+            if real_shape[ax] is not None:
+                raise Exception(
+                    f"ExtrudedPolygon {self.name}: partial_real_shape for axis {ax} is derived from the "
+                    f"vertex bounding box ({size:.3e} m). Do not specify it explicitly."
+                )
+            if grid_shape[ax] is not None:
+                raise Exception(
+                    f"ExtrudedPolygon {self.name}: partial_grid_shape for axis {ax} is derived from the "
+                    f"vertex bounding box. Do not specify it explicitly."
+                )
+            real_shape[ax] = size
+        object.__setattr__(self, "partial_real_shape", tuple(real_shape))
 
     @property
     def horizontal_axis(self) -> int:

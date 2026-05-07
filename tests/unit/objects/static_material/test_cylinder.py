@@ -208,11 +208,10 @@ class TestAutoRealShape:
         radius = 150e-9
         for axis, (h, v) in axis_to_cross.items():
             cyl = _make_cylinder(two_materials, axis=axis, radius=radius)
-            auto = cyl.get_geometry_size_hint()
-            assert auto[h] == pytest.approx(2.0 * radius)
-            assert auto[v] == pytest.approx(2.0 * radius)
+            assert cyl.partial_real_shape[h] == pytest.approx(2.0 * radius)
+            assert cyl.partial_real_shape[v] == pytest.approx(2.0 * radius)
 
     def test_extrusion_axis_is_none(self, two_materials):
         for axis in range(3):
             cyl = _make_cylinder(two_materials, axis=axis)
-            assert cyl.get_geometry_size_hint()[axis] is None
+            assert cyl.partial_real_shape[axis] is None
