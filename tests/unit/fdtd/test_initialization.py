@@ -856,6 +856,88 @@ def test_apply_size_constraint_conflicting_shape_raises(simple_config, simple_vo
         _apply_size_constraint(c, obj_map, simple_config, shape_dict)
 
 
+def test_apply_size_constraint_conflicting_shape_raises_descriptive(simple_config, simple_volume, simple_material):
+    """SizeConstraint that conflicts with an already-set shape raises an informative error."""
+    obj = UniformMaterialObject(name="obj1", material=simple_material)
+    obj_map = {"volume": simple_volume, "obj1": obj}
+    shape_dict = {"volume": [100, 100, 100], "obj1": [60, None, None]}
+    c = SizeConstraint(
+        object="obj1",
+        other_object="volume",
+        axes=[0],
+        other_axes=[0],
+        proportions=[0.5],  # computes 50, but shape is already 60
+        grid_offsets=[0],
+        offsets=[None],
+    )
+    with pytest.raises(Exception, match="geometry"):
+        _apply_size_constraint(c, obj_map, simple_config, shape_dict)
+
+
+# ---------------------------------------------------------------------------
+# Cylinder __post_init__ — derived axis conflict tests
+# ---------------------------------------------------------------------------
+
+
+def test_cylinder_partial_grid_shape_on_derived_axis_raises(simple_material):
+    """Cylinder rejects partial_grid_shape for a cross-section axis at construction time."""
+    from fdtdx.objects.static_material.cylinder import Cylinder
+
+    materials = {"mat": simple_material}
+    with pytest.raises(Exception, match="derived from the radius"):
+        Cylinder(
+            name="cyl",
+            radius=5.0,
+            axis=2,
+            material_name="mat",
+            materials=materials,
+            partial_grid_shape=(10, None, None),
+        )
+
+
+def test_cylinder_partial_real_shape_on_derived_axis_raises(simple_material):
+    """Cylinder rejects partial_real_shape for a cross-section axis at construction time."""
+    from fdtdx.objects.static_material.cylinder import Cylinder
+
+    materials = {"mat": simple_material}
+    with pytest.raises(Exception, match="derived from the radius"):
+        Cylinder(
+            name="cyl",
+            radius=5.0,
+            axis=2,
+            material_name="mat",
+            materials=materials,
+            partial_real_shape=(8.0, None, None),
+        )
+
+
+def test_cylinder_sets_cross_section_from_radius(simple_material):
+    """Cylinder.__post_init__ fills partial_real_shape for cross-section axes from radius."""
+    from fdtdx.objects.static_material.cylinder import Cylinder
+
+    materials = {"mat": simple_material}
+    cyl = Cylinder(name="cyl", radius=5.0, axis=2, material_name="mat", materials=materials)
+    assert cyl.partial_real_shape[0] == pytest.approx(10.0)
+    assert cyl.partial_real_shape[1] == pytest.approx(10.0)
+    assert cyl.partial_real_shape[2] is None  # extrusion axis still free
+
+
+def test_cylinder_extrusion_axis_partial_real_shape_accepted(simple_material):
+    """Cylinder accepts partial_real_shape for the extrusion axis."""
+    from fdtdx.objects.static_material.cylinder import Cylinder
+
+    materials = {"mat": simple_material}
+    cyl = Cylinder(
+        name="cyl",
+        radius=5.0,
+        axis=2,
+        material_name="mat",
+        materials=materials,
+        partial_real_shape=(None, None, 20.0),
+    )
+    assert cyl.partial_real_shape[2] == pytest.approx(20.0)
+
+
 # ---------------------------------------------------------------------------
 # _update_grid_slices_from_shapes - direct unit tests
 # ---------------------------------------------------------------------------

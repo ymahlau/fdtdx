@@ -349,3 +349,32 @@ class TestExtrudedPolygonFromGdsPath:
             extruded_polygon_from_gds_path(
                 square_gds, "MISSING", layer=1, axis=2, material_name="si", materials=two_materials
             )
+
+
+# ---------------------------------------------------------------------------
+# partial_real_shape auto-compute
+# ---------------------------------------------------------------------------
+
+
+class TestAutoRealShape:
+    def test_cross_section_axes_set_from_vertices(self, two_materials):
+        verts = _square_vertices(half_side=100e-9)  # 200nm x 200nm bounding box
+        poly = _make_polygon(two_materials, axis=2, vertices=verts)
+        assert poly.partial_real_shape[0] == pytest.approx(200e-9)
+        assert poly.partial_real_shape[1] == pytest.approx(200e-9)
+
+    def test_extrusion_axis_is_none(self, two_materials):
+        for axis in range(3):
+            poly = _make_polygon(two_materials, axis=axis)
+            assert poly.partial_real_shape[axis] is None
+
+    def test_asymmetric_polygon_bounding_box(self, two_materials):
+        verts = np.array([[-150e-9, -50e-9], [150e-9, -50e-9], [150e-9, 50e-9], [-150e-9, 50e-9]])
+        poly = ExtrudedPolygon(
+            materials=two_materials,
+            axis=2,
+            material_name="si",
+            vertices=verts,
+        )
+        assert poly.partial_real_shape[0] == pytest.approx(300e-9)
+        assert poly.partial_real_shape[1] == pytest.approx(100e-9)

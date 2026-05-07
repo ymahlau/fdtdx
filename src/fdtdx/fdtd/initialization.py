@@ -907,7 +907,8 @@ def _apply_constraints_iteratively(
         )
         changed = changed or resolved
 
-        # update the grid slices based on static shape and partial known positions
+        # Slices-from-shapes: propagate a known shape to an open bound.
+        # Shapes-from-slices: lock the shape once both bounds are known.
         resolved, slice_dict, errors = _update_grid_slices_from_shapes(
             object_map=object_map,
             shape_dict=shape_dict,
@@ -1010,18 +1011,35 @@ def _resolve_static_shapes(
     object_map: dict[str, SimulationObject],
     shape_dict: dict[str, list[int | None]],
     config: SimulationConfig,
-):
-    """Fill in static or directly defined shapes."""
+) -> dict[str, list[int | None]]:
+    """Fill in shapes from each object's partial_real_shape and partial_grid_shape."""
     for obj_name, obj in object_map.items():
         for axis in range(3):
             if obj.partial_grid_shape[axis] is not None:
                 shape_dict[obj_name][axis] = obj.partial_grid_shape[axis]
             if obj.partial_real_shape[axis] is not None:
-                cur_grid_shape = round(
+                shape_dict[obj_name][axis] = round(
                     obj.partial_real_shape[axis] / config.resolution  # type: ignore
                 )
-                shape_dict[obj_name][axis] = cur_grid_shape
     return shape_dict
+
+
+def _record_shape_bound_conflict(
+    obj_name: str,
+    axis: int,
+    bound_size: int,
+    obj: SimulationObject,
+    shape_dict: dict[str, list[int | None]],
+    errors: dict[str, str | None],
+) -> bool:
+    """Record a conflict where shape_dict and bound-derived size disagree. Always an error."""
+    errors[obj_name] = (
+        f"Inconsistent grid shape for object: {shape_dict[obj_name][axis]} != {bound_size} "
+        f"for axis={axis}, {obj.name} ({obj.__class__.__name__}). "
+        f"Check partial_real_shape, partial_grid_shape, and any SizeConstraints for this object. "
+        f"If the shape is derived from geometry (e.g. radius), a conflicting constraint was applied."
+    )
+    return False
 
 
 def _update_grid_slices_from_shapes(
@@ -1042,9 +1060,7 @@ def _update_grid_slices_from_shapes(
                 continue
             elif b0 is not None and b1 is not None:
                 if s_axis != b1 - b0:
-                    errors[obj_name] = (
-                        f"Inconsistent grid shape for object: {s_axis} != {b1 - b0}, {obj.name} ({obj.__class__})."
-                    )
+                    resolved_something |= _record_shape_bound_conflict(obj_name, axis, b1 - b0, obj, shape_dict, errors)
             elif b0 is not None:
                 slice_dict[obj_name][axis][1] = b0 + s_axis
                 resolved_something = True
@@ -1071,10 +1087,8 @@ def _update_grid_shapes_from_slices(
                 if s_axis is None:
                     shape_dict[obj_name][axis] = b1 - b0
                     resolved_something = True
-                elif s_axis is not None and b1 - b0 != s_axis:
-                    errors[obj_name] = (
-                        f"Inconsistent grid shape for object: {s_axis} != {b1 - b0}, {obj.name} ({obj.__class__})."
-                    )
+                elif b1 - b0 != s_axis:
+                    resolved_something |= _record_shape_bound_conflict(obj_name, axis, b1 - b0, obj, shape_dict, errors)
     return resolved_something, shape_dict, errors
 
 
@@ -1223,9 +1237,11 @@ def _apply_size_constraint(
             resolved_something = True
         elif shape_dict[obj_name][axis] != object_shape:
             raise Exception(
-                "Inconsistent grid shape for object: ",
-                f"{shape_dict[obj_name][axis]} != {object_shape} for {axis=}, {obj.name} ({obj.__class__}). ",
-                "Please check if there are multiple constraints or sizes specified for the object.",
+                f"Inconsistent grid shape for object: "
+                f"{shape_dict[obj_name][axis]} != {object_shape} for axis={axis}, "
+                f"{obj.name} ({obj.__class__.__name__}). "
+                f"Check partial_real_shape, partial_grid_shape, and any SizeConstraints for this object. "
+                f"If the shape is derived from geometry (e.g. radius), a conflicting SizeConstraint was applied."
             )
     return resolved_something, shape_dict
 

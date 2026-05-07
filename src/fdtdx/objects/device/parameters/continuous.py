@@ -5,7 +5,6 @@ import jax
 import jax.numpy as jnp
 
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, frozen_private_field
-from fdtdx.core.misc import PaddingConfig, advanced_padding
 from fdtdx.objects.device.parameters.transform import ParameterTransformation, SameShapeTypeParameterTransform
 from fdtdx.typing import ParameterType
 
@@ -181,6 +180,18 @@ class GaussianSmoothing2D(SameShapeTypeParameterTransform):
     #: Integer specifying the standard deviation of the Gaussian kernel in discrete units.
     std_discrete: int = frozen_field()
 
+    #: 1D array of shape ``(ny,)`` used as padding before axis 0. ``None`` falls back to edge-repeat.
+    padding_low_axis0: jax.Array | None = frozen_field(default=None)
+
+    #: 1D array of shape ``(ny,)`` used as padding after axis 0. ``None`` falls back to edge-repeat.
+    padding_high_axis0: jax.Array | None = frozen_field(default=None)
+
+    #: 1D array of shape ``(nx,)`` used as padding before axis 1. ``None`` falls back to edge-repeat.
+    padding_low_axis1: jax.Array | None = frozen_field(default=None)
+
+    #: 1D array of shape ``(nx,)`` used as padding after axis 1. ``None`` falls back to edge-repeat.
+    padding_high_axis1: jax.Array | None = frozen_field(default=None)
+
     _fixed_input_type: ParameterType | Sequence[ParameterType] | None = frozen_private_field(
         default=ParameterType.CONTINUOUS
     )
@@ -197,26 +208,49 @@ class GaussianSmoothing2D(SameShapeTypeParameterTransform):
     def _apply_smoothing(self, x: jax.Array) -> jax.Array:
         vertical_axis = x.shape.index(1)
         x_squeezed = x.squeeze(vertical_axis)
-        # Check if the array is 2D
         if x_squeezed.ndim != 2:
             raise ValueError(f"Expected 2D array, got shape {x_squeezed.shape}")
 
-        # Create Gaussian kernel
-        kernel_size = 6 * self.std_discrete + 1  # Ensure kernel covers 3 std on each side
+        kernel_size = 6 * self.std_discrete + 1
         kernel = self._create_gaussian_kernel(kernel_size, self.std_discrete)
+        pad_w = kernel_size // 2
+        nx, ny = x_squeezed.shape
 
-        # pad array with edge values
-        padding_cfg = PaddingConfig(widths=(kernel_size // 2,), modes=("edge",))
-        padded_arr, orig_slice = advanced_padding(x_squeezed, padding_cfg)
+        # Pad axis 0 (row dimension)
+        if self.padding_low_axis0 is not None:
+            block_low0 = jnp.tile(self.padding_low_axis0[jnp.newaxis, :], (pad_w, 1))
+        else:
+            block_low0 = jnp.tile(x_squeezed[0:1, :], (pad_w, 1))
 
-        result = jax.scipy.signal.convolve(
-            padded_arr,
-            kernel,
-            mode="same",
-        )
-        result = result[*orig_slice]
+        if self.padding_high_axis0 is not None:
+            block_high0 = jnp.tile(self.padding_high_axis0[jnp.newaxis, :], (pad_w, 1))
+        else:
+            block_high0 = jnp.tile(x_squeezed[-1:, :], (pad_w, 1))
 
-        # Reshape back to original dimensions
+        arr = jnp.concatenate([block_low0, x_squeezed, block_high0], axis=0)
+
+        # Pad axis 1 (column dimension); extend 1D arrays with their edge values to cover corners
+        if self.padding_low_axis1 is not None:
+            corners_lo = jnp.full((pad_w,), self.padding_low_axis1[0])
+            corners_hi = jnp.full((pad_w,), self.padding_low_axis1[-1])
+            extended = jnp.concatenate([corners_lo, self.padding_low_axis1, corners_hi])
+            block_low1 = jnp.tile(extended[:, jnp.newaxis], (1, pad_w))
+        else:
+            block_low1 = jnp.tile(arr[:, 0:1], (1, pad_w))
+
+        if self.padding_high_axis1 is not None:
+            corners_lo = jnp.full((pad_w,), self.padding_high_axis1[0])
+            corners_hi = jnp.full((pad_w,), self.padding_high_axis1[-1])
+            extended = jnp.concatenate([corners_lo, self.padding_high_axis1, corners_hi])
+            block_high1 = jnp.tile(extended[:, jnp.newaxis], (1, pad_w))
+        else:
+            block_high1 = jnp.tile(arr[:, -1:], (1, pad_w))
+
+        arr = jnp.concatenate([block_low1, arr, block_high1], axis=1)
+
+        result = jax.scipy.signal.convolve(arr, kernel, mode="same")
+        result = result[pad_w : pad_w + nx, pad_w : pad_w + ny]
+
         return result.reshape(x.shape)
 
     def _create_gaussian_kernel(self, size: int, sigma: float) -> jax.Array:

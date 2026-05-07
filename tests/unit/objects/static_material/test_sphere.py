@@ -172,3 +172,58 @@ class TestGetMaterialMapping:
         placed = _place(sphere, config, key)
         mapping = placed.get_material_mapping()
         assert bool(jnp.all(mapping == mapping[0, 0, 0]))
+
+
+# ---------------------------------------------------------------------------
+# partial_real_shape auto-derived via __post_init__
+# ---------------------------------------------------------------------------
+
+
+class TestAutoRealShape:
+    def test_all_axes_set_to_diameter(self, two_materials):
+        radius = 200e-9
+        sphere = _make_sphere(two_materials, radius=radius)
+        for ax in range(3):
+            assert sphere.partial_real_shape[ax] == pytest.approx(2.0 * radius)
+
+    def test_per_axis_radii_override_default(self, two_materials):
+        sphere = _make_sphere(two_materials, radius=100e-9, radius_x=200e-9, radius_y=150e-9, radius_z=50e-9)
+        assert sphere.partial_real_shape[0] == pytest.approx(2 * 200e-9)
+        assert sphere.partial_real_shape[1] == pytest.approx(2 * 150e-9)
+        assert sphere.partial_real_shape[2] == pytest.approx(2 * 50e-9)
+
+
+# ---------------------------------------------------------------------------
+# Private shape fields (Sphere should not accept partial_real/grid_shape)
+# ---------------------------------------------------------------------------
+
+
+class TestPrivateShapeFields:
+    def test_partial_real_shape_not_a_constructor_param(self, two_materials):
+        """Sphere does not expose partial_real_shape in its __init__."""
+        with pytest.raises(TypeError):
+            Sphere(
+                materials=two_materials,
+                radius=200e-9,
+                material_name="si",
+                partial_real_shape=(400e-9, 400e-9, 400e-9),
+            )
+
+    def test_partial_grid_shape_not_a_constructor_param(self, two_materials):
+        """Sphere does not expose partial_grid_shape in its __init__."""
+        with pytest.raises(TypeError):
+            Sphere(
+                materials=two_materials,
+                radius=200e-9,
+                material_name="si",
+                partial_grid_shape=(10, 10, 10),
+            )
+
+    def test_partial_real_shape_is_derived_from_radius(self, two_materials):
+        """Sphere's partial_real_shape is set from radius, not left as UNDEFINED_SHAPE_3D."""
+        from fdtdx.typing import UNDEFINED_SHAPE_3D
+
+        sphere = _make_sphere(two_materials, radius=200e-9)
+        assert sphere.partial_real_shape != UNDEFINED_SHAPE_3D
+        assert all(v == pytest.approx(400e-9) for v in sphere.partial_real_shape)
+        assert sphere.partial_grid_shape == UNDEFINED_SHAPE_3D
