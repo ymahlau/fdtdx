@@ -29,7 +29,7 @@ def compute_modes_and_neff_complex(arrays, object):
         inv_permittivities = jax.lax.stop_gradient(
             1./(
                 1./arrays.inv_permittivities + \
-                1j * arrays.electric_conductivity / object._config.resolution / (2 * jnp.pi * object.wave_characters[0].get_frequency() * fdtdx.constants.eps0)
+                1j * arrays.electric_conductivity / object._config.require_uniform_grid() / (2 * jnp.pi * object.wave_characters[0].get_frequency() * fdtdx.constants.eps0)
             )
         )
     else:
@@ -45,7 +45,7 @@ def compute_modes_and_neff_complex(arrays, object):
         frequency          = object.wave_characters[0].get_frequency(),
         inv_permittivities = inv_permittivity_slice,
         inv_permeabilities = inv_permeability_slice,
-        resolution         = object._config.resolution,
+        resolution         = object._config.require_uniform_grid(),
         direction          = object.direction,
         mode_index         = object.mode_index,
         filter_pol         = object.filter_pol,

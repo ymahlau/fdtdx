@@ -195,7 +195,6 @@ class PerfectlyMatchedLayer(BaseBoundary):
         assert grid is not None
         lower, upper = self.grid_slice_tuple[self.axis]
         edges = grid.edges(self.axis)[lower : upper + 1].astype(dtype)
-        widths = edges[1:] - edges[:-1]
         norm = float(edges[-1] - edges[0])
         centers = 0.5 * (edges[:-1] + edges[1:])
 
@@ -210,9 +209,6 @@ class PerfectlyMatchedLayer(BaseBoundary):
             dH = centers - interface
             dH = dH.at[0].set(0)
 
-        # If a boundary cell has zero width validation would already have failed
-        # in RectilinearGrid, but this keeps the normalization robust for diagnostics.
-        del widths
         return dE, dH, norm
 
     def modify_arrays(

@@ -123,7 +123,7 @@ class DiffractiveDetector(Detector):
         field: jax.Array,
         x_centers: jax.Array,
         y_centers: jax.Array,
-    ) -> tuple[jax.Array, float, float]:
+    ) -> tuple[jax.Array, jax.Array | float, jax.Array | float]:
         """Resample ``(component, x, y)`` fields onto uniform transverse centers."""
         nx, ny = field.shape[1], field.shape[2]
         target_x = jnp.linspace(x_centers[0], x_centers[-1], nx)
@@ -138,8 +138,8 @@ class DiffractiveDetector(Detector):
         field = jax.vmap(interp_x)(field)
         field = jax.vmap(interp_y)(field)
 
-        dx = float(target_x[1] - target_x[0]) if nx > 1 else 1.0
-        dy = float(target_y[1] - target_y[0]) if ny > 1 else 1.0
+        dx = (target_x[1] - target_x[0]) if nx > 1 else 1.0
+        dy = (target_y[1] - target_y[0]) if ny > 1 else 1.0
         return field, dx, dy
 
     def update(

@@ -102,7 +102,7 @@ class ModeOverlapDetector(PhasorDetector):
             return grid.face_area(axis=self.propagation_axis, slice_tuple=self.grid_slice_tuple)
 
         spacing = self._config.require_uniform_grid()
-        return jnp.ones(self.grid_shape, dtype=self.dtype) * spacing * spacing
+        return jnp.ones(self.grid_shape, dtype=jnp.float32) * spacing * spacing
 
     def _face_area_weights(self) -> jax.Array:
         """Return cached detector-plane face areas for mode-overlap integration."""
