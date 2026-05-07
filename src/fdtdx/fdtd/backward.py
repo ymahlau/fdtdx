@@ -8,6 +8,15 @@ from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.container import ObjectContainer, SimulationState
 from fdtdx.fdtd.update import add_interfaces, update_detector_states, update_E_reverse, update_H_reverse
 
+_DEFAULT_KEY_SEED = 0
+
+
+def _default_key(key: jax.Array | None) -> jax.Array:
+    """Return *key* unchanged, or create a deterministic fallback key from a fixed seed."""
+    if key is None:
+        return jax.random.PRNGKey(_DEFAULT_KEY_SEED)
+    return key
+
 
 def cond_fn(state, start_time_step: int) -> bool:
     time_step = state[0]
@@ -18,9 +27,9 @@ def full_backward(
     state: SimulationState,
     objects: ObjectContainer,
     config: SimulationConfig,
-    key: jax.Array,
-    record_detectors: bool,
-    reset_fields: bool,
+    key: jax.Array | None = None,
+    record_detectors: bool = True,
+    reset_fields: bool = True,
     start_time_step: int = 0,
 ) -> SimulationState:
     """Perform full backward FDTD propagation from current state to start time.
@@ -32,7 +41,8 @@ def full_backward(
         state (SimulationState): Current simulation state tuple (time_step, arrays)
         objects (ObjectContainer): Container with simulation objects (sources, detectors, etc)
         config (SimulationConfig): Simulation configuration parameters
-        key (jax.Array): JAX PRNG key for random operations
+        key (jax.Array | None): JAX PRNG key for random operations.  When ``None``
+            (the default) a deterministic key is derived from a fixed seed.
         record_detectors (bool): Whether to record detector states
         reset_fields (bool): Whether to reset fields after each step
         start_time_step (int, optional): Time step to propagate back to (default: 0)
@@ -40,6 +50,7 @@ def full_backward(
     Returns:
         SimulationState: Final state after backward propagation
     """
+    key = _default_key(key)
     s0 = eqxi.while_loop(
         cond_fun=partial(cond_fn, start_time_step=start_time_step),
         body_fun=partial(
@@ -60,9 +71,9 @@ def backward(
     state: SimulationState,
     config: SimulationConfig,
     objects: ObjectContainer,
-    key: jax.Array,
-    record_detectors: bool,
-    reset_fields: bool,
+    key: jax.Array | None = None,
+    record_detectors: bool = True,
+    reset_fields: bool = True,
     fields_to_reset: Sequence[str] = ("E", "H"),
 ) -> SimulationState:
     """Perform one step of backward FDTD propagation.
@@ -74,7 +85,8 @@ def backward(
         state (SimulationState): Current simulation state tuple (time_step, arrays)
         config (SimulationConfig): Simulation configuration parameters
         objects (ObjectContainer): Container with simulation objects (sources, detectors, etc)
-        key (jax.Array): JAX PRNG key for random operations
+        key (jax.Array | None): JAX PRNG key for random operations.  When ``None``
+            (the default) a deterministic key is derived from a fixed seed.
         record_detectors (bool): Whether to record detector states
         reset_fields (bool): Whether to reset fields after updates
         fields_to_reset (Sequence[str], optional): Which fields to reset if reset_fields is True. Defaults to ("E", "H").
@@ -82,6 +94,7 @@ def backward(
     Returns:
         SimulationState: Updated state after one backward step
     """
+    key = _default_key(key)
     time_step, arrays = state
     time_step = time_step - 1
 

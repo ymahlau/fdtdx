@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-
 import jax
 
 from fdtdx.config import SimulationConfig
@@ -9,16 +7,26 @@ from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, SimulationStat
 from fdtdx.fdtd.fdtd import checkpointed_fdtd, reversible_fdtd
 from fdtdx.fdtd.stop_conditions import StoppingCondition
 
+_DEFAULT_KEY_SEED = 0
+
+
+def _default_key(key: jax.Array | None) -> jax.Array:
+    """Return *key* unchanged, or create a deterministic fallback key from a fixed seed."""
+    if key is None:
+        return jax.random.PRNGKey(_DEFAULT_KEY_SEED)
+    return key
+
 
 def run_fdtd(
     arrays: ArrayContainer,
     objects: ObjectContainer,
     config: SimulationConfig,
-    key: jax.Array,
+    key: jax.Array | None = None,
     stopping_condition: StoppingCondition | None = None,
     show_progress: bool = True,
-    progress_callback: Callable[[int, int], None] | None = None,
+    progress_callback=None,
 ) -> SimulationState:
+    key = _default_key(key)
     if stopping_condition is not None:
         if config.gradient_config is not None:
             raise NotImplementedError(
