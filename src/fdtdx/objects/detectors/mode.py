@@ -54,7 +54,7 @@ class ModeOverlapDetector(PhasorDetector):
     )
 
     #: Cannot be specified here since plotting a single scalar is useless.
-    plot: bool = static_field(default=False, init=False)  # noqa: DOC603, DOC601 # single scalar is useless for plotting
+    plot: bool = static_field(default=False, init=False)  # single scalar is useless for plotting
     _mode_E: jax.Array = private_field(default=None)
     _mode_H: jax.Array = private_field(default=None)
     _mode_neff: jax.Array = private_field(default=None)  # not required for detection, used for inspection
@@ -99,6 +99,9 @@ class ModeOverlapDetector(PhasorDetector):
             inv_permeability_slice = inv_permeabilities[:, *self.grid_slice]
         else:
             inv_permeability_slice = inv_permeabilities
+
+        if self.direction is None:
+            raise ValueError("ModeOverlapDetector requires a propagation direction (direction must be '+' or '-').")
 
         mode_E, mode_H, mode_neff = compute_mode(
             frequency=self.wave_characters[0].get_frequency(),

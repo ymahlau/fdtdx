@@ -249,6 +249,7 @@ class ObjectContainer(DataClass):
         self = self.aset("object_list", new_objects)
         return self
 
+
 class FieldState(DataClass):
     """Dynamic electromagnetic field state that evolves each time step.
 

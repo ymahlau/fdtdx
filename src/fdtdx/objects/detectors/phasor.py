@@ -38,7 +38,7 @@ class PhasorDetector(Detector):
     #: Scaling of the resulting phasor. In continuous mode, the result is scaled by a factor of 2 / N, where N is
     #: the number of time steps recorded. This allows accurate reconstruction of a continuous signal.
     #: In pulse mode, the result is not scaled.
-    scaling_mode: Literal["continuous", "pulse"] = frozen_field(default="continuous")
+    scaling_mode: Literal["continuous", "pulse"] = static_field(default="continuous")
 
     def __post_init__(
         self,

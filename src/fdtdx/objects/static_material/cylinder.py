@@ -27,15 +27,6 @@ class Cylinder(StaticMultiMaterialObject):
     #: Name of the material in the materials dictionary to be used for the object.
     material_name: str = static_field(default=None)
 
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        if self.radius is None:
-            raise ValueError("Cylinder requires 'radius' to be set")
-        if self.axis is None:
-            raise ValueError("Cylinder requires 'axis' to be set (0=x, 1=y, 2=z)")
-        if self.material_name is None:
-            raise ValueError("Cylinder requires 'material_name' to be set")
-
     def __post_init__(self):
         diameter = 2.0 * self.radius
         real_shape = list(self.partial_real_shape)

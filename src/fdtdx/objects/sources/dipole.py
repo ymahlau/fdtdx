@@ -3,13 +3,12 @@ from typing import Literal
 import jax
 import jax.numpy as jnp
 import numpy as np
+from drinx import static_field
 
-from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.linalg import rotate_vector
 from fdtdx.objects.sources.source import Source
 
 
-@autoinit
 class PointDipoleSource(Source):
     """Soft point dipole source (electric or magnetic).
 
@@ -35,25 +34,27 @@ class PointDipoleSource(Source):
     """
 
     #: Polarization axis (0=x, 1=y, 2=z).
-    polarization: int = frozen_field()
+    polarization: int = static_field()
 
     #: Azimuth angle in degrees (rotation around vertical axis).
-    azimuth_angle: float = frozen_field(default=0.0)
+    azimuth_angle: float = static_field(default=0.0)
 
     #: Elevation angle in degrees (rotation around horizontal axis).
-    elevation_angle: float = frozen_field(default=0.0)
+    elevation_angle: float = static_field(default=0.0)
 
     #: Source type: "electric" injects into E update, "magnetic" into H update.
-    source_type: Literal["electric", "magnetic"] = frozen_field(default="electric")
+    source_type: Literal["electric", "magnetic"] = static_field(default="electric")
 
     #: Source amplitude.
-    amplitude: float = frozen_field(default=1.0)
+    amplitude: float = static_field(default=1.0)
 
     def __post_init__(self):
         if self.source_type not in ("electric", "magnetic"):
             raise ValueError(f"source_type must be electric or magnetic, got {self.source_type}")
         if self.polarization not in (0, 1, 2):
             raise ValueError(f"polarization must be 0, 1, or 2, got {self.polarization}")
+        if self.wave_character is None:
+            raise ValueError("PointDipoleSource requires a WaveCharacter to be set.")
 
     @property
     def _orientation(self) -> jnp.ndarray:
@@ -88,6 +89,8 @@ class PointDipoleSource(Source):
         if self.source_type != "electric":
             return E
 
+        assert self.wave_character is not None, "PointDipoleSource requires a WaveCharacter."
+
         dt = self._config.time_step_duration
         c = self._config.courant_number
 
@@ -119,6 +122,7 @@ class PointDipoleSource(Source):
         del inv_permittivities
         if self.source_type != "magnetic":
             return H
+        assert self.wave_character is not None, "PointDipoleSource requires a WaveCharacter."
 
         dt = self._config.time_step_duration
         c = self._config.courant_number

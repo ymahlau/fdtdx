@@ -331,7 +331,7 @@ def main(
     
     # Apply initial parameters and plot source mode profile
     x, tmp, _ = fdtdx.apply_params(arrays, objects, params, key, beta=custom_schedule(start_idx))
-    tmp.sources[0].plot(  # type: ignore
+    tmp.sources[0].plot(
         exp_logger.cwd / "figures" / "mode.png"
     )
 

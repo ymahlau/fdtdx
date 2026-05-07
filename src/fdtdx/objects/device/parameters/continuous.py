@@ -3,8 +3,8 @@ from typing import Sequence
 
 import jax
 import jax.numpy as jnp
-
 from drinx import static_field, static_private_field
+
 from fdtdx.objects.device.parameters.transform import ParameterTransformation, SameShapeTypeParameterTransform
 from fdtdx.typing import ParameterType
 

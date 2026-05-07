@@ -99,7 +99,9 @@ def main():
     )
     
     source = ModePlaneSource(
-        partial_grid_shape=tuple([1 if a==prop_axis else None for a in range(3)]),  # type: ignore
+        partial_grid_shape=(1 if prop_axis == 0 else None,
+                            1 if prop_axis == 1 else None,
+                            1 if prop_axis == 2 else None),
         wave_character=WaveCharacter(wavelength=wavelength),
         direction="+",
         mode_index=0,
@@ -213,7 +215,7 @@ def main():
     )
     
     _, objects, _ = apply_params(arrays, objects, params, key)
-    objects.sources[0].plot(  # type: ignore
+    objects.sources[0].plot(
         exp_logger.cwd / "figures" / "mode.png"
     )
     
