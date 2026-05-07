@@ -332,10 +332,7 @@ def test_gaussian_pulse_broadband():
 
     arrays = _run(objects, constraints, config)
 
-    amps = {
-        name: abs(complex(arrays.detector_states[name]["phasor"][0, 0].ravel()[0]))
-        for name, _, _ in det_specs
-    }
+    amps = {name: abs(complex(arrays.detector_states[name]["phasor"][0, 0].ravel()[0])) for name, _, _ in det_specs}
 
     assert amps["center"] > 1e-20, "Center phasor is zero — pulse not detected"
 
@@ -403,16 +400,13 @@ def test_custom_time_signal_matches_gaussian_pulse_physics():
     center_idx = 1
     center_frequency = _phasor_detector_wave_characters()[center_idx].get_frequency()
     expected_center_phasor = (
-        amplitude
-        * phasor_ref[center_idx]
-        * np.exp(1j * 2 * np.pi * center_frequency * delay - 1j * phase_shift)
+        amplitude * phasor_ref[center_idx] * np.exp(1j * 2 * np.pi * center_frequency * delay - 1j * phase_shift)
     )
     # Phase check: with FDTDX's exp(+iωt) phasor convention, delay τ and
     # carrier phase φ rotate the center phasor by exp(i2πfτ - iφ).
     center_rel_err = abs(phasor_custom[center_idx] - expected_center_phasor) / abs(expected_center_phasor)
     assert center_rel_err < center_complex_phasor_tol, (
-        f"Corrected center-frequency phasor relative error {center_rel_err:.3f} "
-        f"exceeds {center_complex_phasor_tol}"
+        f"Corrected center-frequency phasor relative error {center_rel_err:.3f} exceeds {center_complex_phasor_tol}"
     )
 
     trace_ref = _custom_field_trace(arrays_ref)

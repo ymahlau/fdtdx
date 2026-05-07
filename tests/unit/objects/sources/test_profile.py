@@ -4,10 +4,9 @@ import math
 
 import jax
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
-
-import matplotlib.pyplot as plt
 
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.sources.profile import (
