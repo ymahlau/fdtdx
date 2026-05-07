@@ -195,10 +195,9 @@ def test_static_multi_material_object_sphere(simple_config, simple_volume):
     }
     sphere = Sphere(
         name="sphere1",
-        partial_grid_shape=(20, 20, 20),
         materials=materials,
         material_name="sphere_mat",
-        radius=5.0,  # 5 grid units at resolution=1.0
+        radius=5.0,  # 5 grid units at resolution=1.0 → bounding box 10 cells per axis
     )
     constraint = GridCoordinateConstraint(
         object="sphere1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[15, 15, 15]

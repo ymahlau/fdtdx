@@ -725,25 +725,24 @@ def test_cylinder_auto_size_from_radius():
     assert sl[2] == (0, N)
 
 
-def test_cylinder_constraint_overrides_auto_size():
-    """Explicit GridCoordinateConstraints on cross-section axes win over auto-size."""
+def test_cylinder_conflicting_constraint_errors():
+    """GridCoordinateConstraints that conflict with the geometry-derived cross-section size raise an error."""
     vol = _volume()
-    radius = 500e-9
+    radius = 500e-9  # → 10 grid cells cross-section
     cyl = Cylinder(name="cyl", radius=radius, axis=2, materials=_MATS, material_name="si")
 
     constraints = [
         cyl.set_grid_coordinates(axes=0, sides="-", coordinates=4),
-        cyl.set_grid_coordinates(axes=0, sides="+", coordinates=16),
+        cyl.set_grid_coordinates(axes=0, sides="+", coordinates=16),  # 12 cells ≠ 10 derived
         cyl.set_grid_coordinates(axes=1, sides="-", coordinates=4),
         cyl.set_grid_coordinates(axes=1, sides="+", coordinates=16),
         cyl.extend_to(None, axis=2, direction="+"),
         cyl.extend_to(None, axis=2, direction="-"),
     ]
-    sl = _sl(_resolve(vol, [cyl], constraints), cyl)
-
-    # Constraint says 12 cells, auto-size would say 10 — constraint wins.
-    assert sl[0] == (4, 16)
-    assert sl[1] == (4, 16)
+    _slices, errors = resolve_object_constraints(
+        objects=[vol, cyl], constraints=constraints, config=_cfg()
+    )
+    assert errors.get("cyl"), "Expected an error for conflicting cross-section constraint"
 
 
 def test_sphere_auto_size_all_axes():
