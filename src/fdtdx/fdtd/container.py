@@ -8,6 +8,7 @@ like sources, detectors, PML boundaries, Bloch/periodic boundaries, and devices.
 from typing import Callable, Self
 
 import jax
+import jax.numpy as jnp
 from drinx import DataClass, static_field
 
 from fdtdx.interfaces.state import RecordingState
@@ -222,14 +223,14 @@ class ObjectContainer(DataClass):
         key: str,
         val: SimulationObject,
     ):
-        idx = -1
-        for cur_idx, o in enumerate(self.objects):
-            if o.name == key:
-                idx = cur_idx
-                break
-        if idx == -1:
-            raise ValueError(f"Key {key} does not exist in object list: {[o.name for o in self.objects]}")
+        idx = self.index(key)
         self.object_list[idx] = val
+
+    def index(self, name: str) -> int:
+        for idx, o in enumerate(self.object_list):
+            if o.name == name:
+                return idx
+        raise ValueError(f"Object '{name}' does not exist in object list: {[o.name for o in self.objects]}")
 
     def copy(
         self,
@@ -248,6 +249,25 @@ class ObjectContainer(DataClass):
         self = self.aset("object_list", new_objects)
         return self
 
+class FieldState(DataClass):
+    """Dynamic electromagnetic field state that evolves each time step.
+
+    Grouping these together makes it impossible to forget a field when resetting
+    simulation state — ArrayContainer.reset() zeroes this entire struct at once.
+    """
+
+    #: Electric field array.
+    E: jax.Array
+
+    #: Magnetic field array.
+    H: jax.Array
+
+    #: PML auxiliary electric field.
+    psi_E: jax.Array
+
+    #: PML auxiliary magnetic field.
+    psi_H: jax.Array
+
 
 class ArrayContainer(DataClass):
     """Container for simulation field arrays and states.
@@ -257,17 +277,8 @@ class ArrayContainer(DataClass):
     and states for boundaries, detectors and recordings.
     """
 
-    #: Electric field array.
-    E: jax.Array
-
-    #: Magnetic field array.
-    H: jax.Array
-
-    #: Auxiliary electric field array.
-    psi_E: jax.Array
-
-    #: Auxiliary magnetic field array.
-    psi_H: jax.Array
+    #: Dynamic electromagnetic fields (E, H and PML auxiliaries).
+    fields: FieldState
 
     #: Alpha array for PML calculations.
     alpha: jax.Array
@@ -296,47 +307,44 @@ class ArrayContainer(DataClass):
     #: field for magnetic conductivity terms. Defaults to None.
     magnetic_conductivity: jax.Array | None = None
 
+    def reset(
+        self,
+        reset_detector_states: bool = True,
+        reset_recording_state: bool = False,
+    ) -> "ArrayContainer":
+        """Return a reset copy of this array container.
+
+        Dynamic field arrays are zeroed while material arrays and conductivity
+        arrays are preserved. Detector states are reset by default because they
+        accumulate time-dependent measurements. Recording state is preserved by
+        default so partial simulations can continue writing to the same buffers.
+
+        Args:
+            reset_detector_states: Whether to zero all detector state arrays.
+                Defaults to True.
+            reset_recording_state: Whether to zero recording data and state
+                arrays when a recording state is present. Defaults to False.
+
+        Returns:
+            A new ArrayContainer with reset dynamic state.
+        """
+        arrays = self.aset("fields", jax.tree.map(jnp.zeros_like, self.fields))
+
+        detector_states = self.detector_states
+        if reset_detector_states:
+            detector_states = {k: {k2: v2 * 0 for k2, v2 in v.items()} for k, v in detector_states.items()}
+        arrays = arrays.aset("detector_states", detector_states)
+
+        recording_state = self.recording_state
+        if reset_recording_state and self.recording_state is not None:
+            recording_state = RecordingState(
+                data={k: v * 0 for k, v in self.recording_state.data.items()},
+                state={k: v * 0 for k, v in self.recording_state.state.items()},
+            )
+        arrays = arrays.aset("recording_state", recording_state)
+
+        return arrays
+
 
 # time step and arrays
 SimulationState = tuple[jax.Array, ArrayContainer]
-
-
-def reset_array_container(
-    arrays: ArrayContainer,
-    objects: ObjectContainer,
-    reset_detector_states: bool = True,
-    reset_recording_state: bool = False,
-) -> ArrayContainer:
-    """Reset an ArrayContainer's fields and optionally its states.
-
-    This function creates a new ArrayContainer with zeroed E and H fields while preserving
-    material properties. It can optionally reset detector and recording states.
-
-    Args:
-        arrays (ArrayContainer): The ArrayContainer to reset.
-        objects (ObjectContainer): ObjectContainer with simulation objects.
-        reset_detector_states (bool, optional): Whether to zero detector states. Defaults to True.
-        reset_recording_state (bool, optional): Whether to zero recording state. Defaults to False.
-
-    Returns:
-        ArrayContainer: A new ArrayContainer with reset fields and optionally reset states.
-    """
-    E = arrays.E * 0
-    arrays = arrays.aset("E", E)
-    H = arrays.H * 0
-    arrays = arrays.aset("H", H)
-
-    detector_states = arrays.detector_states
-    if reset_detector_states:
-        detector_states = {k: {k2: v2 * 0 for k2, v2 in v.items()} for k, v in detector_states.items()}
-    arrays = arrays.aset("detector_states", detector_states)
-
-    recording_state = arrays.recording_state
-    if reset_recording_state and arrays.recording_state is not None:
-        recording_state = RecordingState(
-            data={k: v * 0 for k, v in arrays.recording_state.data.items()},
-            state={k: v * 0 for k, v in arrays.recording_state.state.items()},
-        )
-    arrays = arrays.aset("recording_state", recording_state)
-
-    return arrays

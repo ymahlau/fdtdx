@@ -201,7 +201,7 @@ class TestPhasorDetectorUpdate:
             inv_permeability=inv_permeability,
         )
 
-        # True accumulation means the second call adds to the first, so value ≈ 2×
+        # True accumulation means the second call adds to the first, so value ≈ 2x
         assert jnp.allclose(state_after_two["phasor"], 2 * state_after_one["phasor"], atol=1e-5)
 
     def test_update_with_reduce_volume(

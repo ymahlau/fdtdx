@@ -59,7 +59,7 @@ def simple_material_setup():
     ]
 
     key = jax.random.PRNGKey(0)
-    objects, arrays, params, config, _ = fdtdx.place_objects(
+    _objects, arrays, _params, config, _ = fdtdx.place_objects(
         object_list=object_list,
         config=config,
         constraints=constraints,
@@ -84,7 +84,7 @@ def cylinder_setup():
 
     cylinder = Cylinder(
         name="test_cylinder",
-        radius=0.5e-6,
+        radius=0.3e-6,  # 2*0.3e-6 / 30e-9 = 20 cells, matching the constraints below
         axis=2,
         materials={"dielectric": Material(permittivity=4.0, permeability=1.0)},
         material_name="dielectric",
@@ -108,7 +108,7 @@ def cylinder_setup():
     ]
 
     key = jax.random.PRNGKey(0)
-    objects, arrays, params, config, _ = fdtdx.place_objects(
+    _objects, arrays, _params, config, _ = fdtdx.place_objects(
         object_list=object_list,
         config=config,
         constraints=constraints,
@@ -156,7 +156,7 @@ def sphere_setup():
     ]
 
     key = jax.random.PRNGKey(0)
-    objects, arrays, params, config, _ = fdtdx.place_objects(
+    _objects, arrays, _params, config, _ = fdtdx.place_objects(
         object_list=object_list,
         config=config,
         constraints=constraints,
@@ -499,7 +499,7 @@ def test_plot_material_all_types_objects():
 
     cylinder = Cylinder(
         name="cylinder",
-        radius=0.5e-6,
+        radius=0.4e-6,  # 2*0.4e-6 / 40e-9 = 20 cells, matching the constraints below
         axis=2,
         materials={"silicon": Material(permittivity=11.7, permeability=1.0)},
         material_name="silicon",
@@ -507,7 +507,7 @@ def test_plot_material_all_types_objects():
 
     sphere = Sphere(
         name="sphere",
-        radius=0.5e-6,
+        radius=0.4e-6,  # 2*0.4e-6 / 40e-9 = 20 cells, matching the constraints below
         materials={"high_dielectric": Material(permittivity=9.0, permeability=1.0)},
         material_name="high_dielectric",
     )
@@ -547,7 +547,7 @@ def test_plot_material_all_types_objects():
     ]
 
     key = jax.random.PRNGKey(0)
-    objects, arrays, params, config, _ = fdtdx.place_objects(
+    _objects, arrays, _params, config, _ = fdtdx.place_objects(
         object_list=object_list,
         config=config,
         constraints=constraints,

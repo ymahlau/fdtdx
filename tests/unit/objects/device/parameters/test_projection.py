@@ -144,7 +144,7 @@ class TestSmoothedProjection:
         # Create a gradient field from 0 to 1
         x = jnp.linspace(0, 1, 20)
         y = jnp.linspace(0, 1, 20)
-        X, Y = jnp.meshgrid(x, y)
+        X, _Y = jnp.meshgrid(x, y)
         rho = X  # Gradient along x
 
         result = smoothed_projection(rho, beta=10.0, eta=0.5, resolution=20.0)

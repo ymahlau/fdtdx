@@ -189,7 +189,7 @@ class TestPlotFieldSlice:
         E = jnp.ones((3, 10))
         H = jnp.ones((3, 10, 10))
 
-        with pytest.raises(ValueError, match="E field must be 3D.*or 4D"):
+        with pytest.raises(ValueError, match=r"E field must be 3D.*or 4D"):
             plot_field_slice(E, H)
 
     def test_e_wrong_ndim_5d(self):
@@ -197,7 +197,7 @@ class TestPlotFieldSlice:
         E = jnp.ones((3, 10, 10, 10, 10))
         H = jnp.ones((3, 10, 10))
 
-        with pytest.raises(ValueError, match="E field must be 3D.*or 4D"):
+        with pytest.raises(ValueError, match=r"E field must be 3D.*or 4D"):
             plot_field_slice(E, H)
 
     def test_h_wrong_ndim_2d(self):
@@ -205,7 +205,7 @@ class TestPlotFieldSlice:
         E = jnp.ones((3, 10, 10))
         H = jnp.ones((3, 10))
 
-        with pytest.raises(ValueError, match="H field must be 3D.*or 4D"):
+        with pytest.raises(ValueError, match=r"H field must be 3D.*or 4D"):
             plot_field_slice(E, H)
 
     def test_h_wrong_ndim_5d(self):
@@ -213,7 +213,7 @@ class TestPlotFieldSlice:
         E = jnp.ones((3, 10, 10))
         H = jnp.ones((3, 10, 10, 10, 10))
 
-        with pytest.raises(ValueError, match="H field must be 3D.*or 4D"):
+        with pytest.raises(ValueError, match=r"H field must be 3D.*or 4D"):
             plot_field_slice(E, H)
 
     def test_shape_mismatch(self):

@@ -144,7 +144,7 @@ class BrushConstraint2D(ParameterTransformation):
     ) -> dict[str, jax.Array]:
         del kwargs
 
-        single_key = list(params.keys())[0]
+        single_key = next(iter(params.keys()))
         param_arr = params[single_key]
         s = param_arr.shape
         if s[self.axis] != 1:
@@ -408,7 +408,7 @@ class PillarDiscretization(ParameterTransformation):
     ) -> dict[str, jax.Array]:
         del kwargs
 
-        single_key = list(params.keys())[0]
+        single_key = next(iter(params.keys()))
         params_arr = params[single_key]
 
         is_isotropic = all(mat.is_isotropic_permittivity for mat in self._materials.values())

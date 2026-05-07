@@ -251,7 +251,7 @@ class TestPoyntingFluxDetectorUpdate:
         detector = detector.place_on_grid(plane_grid_slice, simulation_config, random_key)
         state = detector.init_state()
 
-        # Time step 0: Ex=1, Hy=1 → E×H has non-zero z-component
+        # Time step 0: Ex=1, Hy=1 → ExH has non-zero z-component
         E1 = jnp.zeros((3, 8, 8, 8), dtype=jnp.float32).at[0].set(1.0)
         H1 = jnp.zeros((3, 8, 8, 8), dtype=jnp.float32).at[1].set(1.0)
         state = detector.update(jnp.array(0), E1, H1, state, inv_permittivity, inv_permeability)

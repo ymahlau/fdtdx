@@ -411,3 +411,116 @@ class TestGaussianSmoothing2D:
 
         # Uniform input should remain approximately uniform
         assert jnp.allclose(result["test"], 5.0, rtol=0.01)
+
+    def test_custom_padding_axis0_low(self):
+        """Test that a custom axis-0 low padding array is used instead of edge-repeating."""
+        nx, ny = 6, 6
+        # Array with a hot first row
+        arr = jnp.zeros((nx, 1, ny))
+        arr = arr.at[0, 0, :].set(1.0)
+
+        # With edge padding the first row (1.0) is repeated → boundary smoothed values are large
+        transform_edge = GaussianSmoothing2D(std_discrete=1)
+        result_edge = transform_edge({"test": arr})
+
+        # With custom zero padding the boundary sees zeros outside → boundary values are smaller
+        transform_custom = GaussianSmoothing2D(
+            std_discrete=1,
+            padding_low_axis0=jnp.zeros(ny),
+        )
+        result_custom = transform_custom({"test": arr})
+
+        assert result_custom["test"].shape == arr.shape
+        assert jnp.all(jnp.isfinite(result_custom["test"]))
+        # Zero padding outside → smoothed value at first row is lower than edge-repeat padding
+        assert result_custom["test"][0, 0, ny // 2] < result_edge["test"][0, 0, ny // 2]
+
+    def test_custom_padding_axis0_high(self):
+        """Test that a custom axis-0 high padding array is used instead of edge-repeating."""
+        nx, ny = 6, 6
+        arr = jnp.zeros((nx, 1, ny))
+        arr = arr.at[-1, 0, :].set(1.0)
+
+        transform_edge = GaussianSmoothing2D(std_discrete=1)
+        result_edge = transform_edge({"test": arr})
+
+        transform_custom = GaussianSmoothing2D(
+            std_discrete=1,
+            padding_high_axis0=jnp.zeros(ny),
+        )
+        result_custom = transform_custom({"test": arr})
+
+        assert result_custom["test"].shape == arr.shape
+        assert jnp.all(jnp.isfinite(result_custom["test"]))
+        assert result_custom["test"][-1, 0, ny // 2] < result_edge["test"][-1, 0, ny // 2]
+
+    def test_custom_padding_axis1_low(self):
+        """Test that a custom axis-1 low padding array is used instead of edge-repeating."""
+        nx, ny = 6, 6
+        arr = jnp.zeros((nx, 1, ny))
+        arr = arr.at[:, 0, 0].set(1.0)
+
+        transform_edge = GaussianSmoothing2D(std_discrete=1)
+        result_edge = transform_edge({"test": arr})
+
+        transform_custom = GaussianSmoothing2D(
+            std_discrete=1,
+            padding_low_axis1=jnp.zeros(nx),
+        )
+        result_custom = transform_custom({"test": arr})
+
+        assert result_custom["test"].shape == arr.shape
+        assert jnp.all(jnp.isfinite(result_custom["test"]))
+        assert result_custom["test"][nx // 2, 0, 0] < result_edge["test"][nx // 2, 0, 0]
+
+    def test_custom_padding_axis1_high(self):
+        """Test that a custom axis-1 high padding array is used instead of edge-repeating."""
+        nx, ny = 6, 6
+        arr = jnp.zeros((nx, 1, ny))
+        arr = arr.at[:, 0, -1].set(1.0)
+
+        transform_edge = GaussianSmoothing2D(std_discrete=1)
+        result_edge = transform_edge({"test": arr})
+
+        transform_custom = GaussianSmoothing2D(
+            std_discrete=1,
+            padding_high_axis1=jnp.zeros(nx),
+        )
+        result_custom = transform_custom({"test": arr})
+
+        assert result_custom["test"].shape == arr.shape
+        assert jnp.all(jnp.isfinite(result_custom["test"]))
+        assert result_custom["test"][nx // 2, 0, -1] < result_edge["test"][nx // 2, 0, -1]
+
+    def test_custom_padding_all_sides(self):
+        """Test specifying custom padding on all 4 sides."""
+        nx, ny = 8, 8
+        arr = jnp.ones((nx, 1, ny)) * 0.5
+
+        transform = GaussianSmoothing2D(
+            std_discrete=1,
+            padding_low_axis0=jnp.zeros(ny),
+            padding_high_axis0=jnp.ones(ny),
+            padding_low_axis1=jnp.zeros(nx),
+            padding_high_axis1=jnp.ones(nx),
+        )
+        result = transform({"test": arr})
+
+        assert result["test"].shape == arr.shape
+        assert jnp.all(jnp.isfinite(result["test"]))
+
+    def test_none_padding_equals_edge_padding(self):
+        """None fields produce the same result as the old default edge-repeat behavior."""
+        arr = jnp.zeros((7, 1, 7))
+        arr = arr.at[0, 0, 0].set(1.0)
+
+        result_default = GaussianSmoothing2D(std_discrete=1)({"test": arr})
+        result_explicit_none = GaussianSmoothing2D(
+            std_discrete=1,
+            padding_low_axis0=None,
+            padding_high_axis0=None,
+            padding_low_axis1=None,
+            padding_high_axis1=None,
+        )({"test": arr})
+
+        assert jnp.allclose(result_default["test"], result_explicit_none["test"])

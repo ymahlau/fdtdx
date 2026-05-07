@@ -47,7 +47,7 @@ def test_get_orthogonal_vector_with_electric_field():
     v_E = jnp.array([1.0, 0.0, 0.0])
     wave_vector = jnp.array([0.0, 0.0, 1.0])
     result = get_orthogonal_vector(v_E=v_E, wave_vector=wave_vector)
-    expected = jnp.array([0.0, 1.0, 0.0])  # k × E
+    expected = jnp.array([0.0, 1.0, 0.0])  # k x E
     assert jnp.allclose(result, expected)
 
 
@@ -56,7 +56,7 @@ def test_get_orthogonal_vector_with_magnetic_field():
     v_H = jnp.array([0.0, 1.0, 0.0])
     wave_vector = jnp.array([0.0, 0.0, 1.0])
     result = get_orthogonal_vector(v_H=v_H, wave_vector=wave_vector)
-    expected = jnp.array([1.0, 0.0, 0.0])  # H × k
+    expected = jnp.array([1.0, 0.0, 0.0])  # H x k
     assert jnp.allclose(result, expected)
 
 

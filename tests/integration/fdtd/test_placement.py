@@ -108,7 +108,7 @@ def test_placement():
 
     # multi material objects
     polygon = fdtdx.ExtrudedPolygon(
-        partial_real_shape=(1e-6, 1e-6, 1e-6),
+        partial_real_shape=(None, None, 1e-6),
         materials=materials,
         axis=2,
         vertices=np.asarray([[0, 0], [0, 200e-9], [200e-9, 200e-9], [200e-9, 100e-9], [0, 0]]),
@@ -118,7 +118,6 @@ def test_placement():
     objects.append(polygon)
 
     sphere = fdtdx.Sphere(
-        partial_real_shape=(1e-6, 1e-6, 1e-6),
         materials=materials,
         radius=300e-9,
         material_name="polymer",
@@ -128,7 +127,7 @@ def test_placement():
 
     cylinder = fdtdx.Cylinder(
         axis=2,
-        partial_real_shape=(1e-6, 1e-6, 1e-6),
+        partial_real_shape=(None, None, 1e-6),
         materials=materials,
         radius=300e-9,
         material_name="polymer",
@@ -138,7 +137,7 @@ def test_placement():
 
     # place the objects
     key = jax.random.PRNGKey(42)
-    object_container, arrays, params, config, _ = fdtdx.place_objects(
+    _object_container, _arrays, _params, config, _ = fdtdx.place_objects(
         object_list=objects,
         config=config,
         constraints=constraints,

@@ -18,12 +18,12 @@ def interpolate_fields(
     (k → k+½).
 
     Natural positions (Taflove convention, axis 0=x, 1=y, 2=z):
-        E_x: (i+½, j,   k  )  →  shift x: −½, z: +½
-        E_y: (i,   j+½, k  )  →  shift y: −½, z: +½
+        E_x: (i+½, j,   k  )  →  shift x: -½, z: +½
+        E_y: (i,   j+½, k  )  →  shift y: -½, z: +½
         E_z: (i,   j,   k+½)  →  already at target
-        H_x: (i,   j+½, k+½)  →  shift y: −½
-        H_y: (i+½, j,   k+½)  →  shift x: −½
-        H_z: (i+½, j+½, k  )  →  shift x: −½, y: −½, z: +½
+        H_x: (i,   j+½, k+½)  →  shift y: -½
+        H_y: (i+½, j,   k+½)  →  shift x: -½
+        H_z: (i+½, j+½, k  )  →  shift x: -½, y: -½, z: +½
 
     Args:
         E_pad: Pre-padded electric field array of shape (3, Nx+2, Ny+2, Nz+2)

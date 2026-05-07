@@ -3,7 +3,7 @@ from unittest.mock import Mock
 import jax.numpy as jnp
 import pytest
 
-from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, reset_array_container
+from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.materials import Material
 from fdtdx.objects.boundaries.bloch import BlochBoundary
@@ -219,6 +219,15 @@ class TestObjectContainer:
         with pytest.raises(ValueError, match="nonexistent"):
             self.container["nonexistent"] = new_obj
 
+    def test_index_returns_correct_index(self):
+        assert self.container.index("volume") == 0
+        assert self.container.index("source1") == 1
+        assert self.container.index("detector1") == 2
+
+    def test_index_nonexistent_raises(self):
+        with pytest.raises(ValueError, match="nonexistent"):
+            self.container.index("nonexistent")
+
     def test_copy(self):
         copied = self.container.copy()
         assert copied.object_list == self.container.object_list
@@ -252,10 +261,7 @@ class TestArrayContainer:
         self.recording_state = Mock(spec=RecordingState)
 
         self.array_container = ArrayContainer(
-            E=self.E,
-            H=self.H,
-            psi_E=self.psi_E,
-            psi_H=self.psi_H,
+            fields=FieldState(E=self.E, H=self.H, psi_E=self.psi_E, psi_H=self.psi_H),
             alpha=self.alpha,
             kappa=self.kappa,
             sigma=self.sigma,
@@ -266,8 +272,8 @@ class TestArrayContainer:
         )
 
     def test_creation(self):
-        assert jnp.array_equal(self.array_container.E, self.E)
-        assert jnp.array_equal(self.array_container.H, self.H)
+        assert jnp.array_equal(self.array_container.fields.E, self.E)
+        assert jnp.array_equal(self.array_container.fields.H, self.H)
         assert jnp.array_equal(self.array_container.inv_permittivities, self.inv_permittivities)
         assert jnp.array_equal(self.array_container.inv_permeabilities, self.inv_permeabilities)
         assert self.array_container.detector_states == self.detector_states
@@ -278,10 +284,7 @@ class TestArrayContainer:
         magnetic_conductivity = jnp.ones((3, 10, 10, 10))
 
         container = ArrayContainer(
-            E=self.E,
-            H=self.H,
-            psi_E=self.psi_E,
-            psi_H=self.psi_H,
+            fields=FieldState(E=self.E, H=self.H, psi_E=self.psi_E, psi_H=self.psi_H),
             alpha=self.alpha,
             kappa=self.kappa,
             sigma=self.sigma,
@@ -303,10 +306,7 @@ class TestArrayContainer:
     def test_inv_permeabilities_float(self):
         """Test that inv_permeabilities can be a float."""
         container = ArrayContainer(
-            E=self.E,
-            H=self.H,
-            psi_E=self.psi_E,
-            psi_H=self.psi_H,
+            fields=FieldState(E=self.E, H=self.H, psi_E=self.psi_E, psi_H=self.psi_H),
             alpha=self.alpha,
             kappa=self.kappa,
             sigma=self.sigma,
@@ -318,7 +318,7 @@ class TestArrayContainer:
         assert container.inv_permeabilities == 1.0
 
 
-class TestResetArrayContainer:
+class TestArrayContainerReset:
     def setup_method(self):
         self.E = jnp.ones((3, 5, 5, 5))
         self.H = jnp.ones((3, 5, 5, 5))
@@ -334,10 +334,7 @@ class TestResetArrayContainer:
         self.recording_state = RecordingState(data={"recording": jnp.ones(10)}, state={"state": jnp.ones(5)})
 
         self.array_container = ArrayContainer(
-            E=self.E,
-            H=self.H,
-            psi_E=self.psi_E,
-            psi_H=self.psi_H,
+            fields=FieldState(E=self.E, H=self.H, psi_E=self.psi_E, psi_H=self.psi_H),
             alpha=self.alpha,
             kappa=self.kappa,
             sigma=self.sigma,
@@ -353,40 +350,36 @@ class TestResetArrayContainer:
         self.objects = ObjectContainer(object_list=[self.mock_boundary], volume_idx=0)
 
     def test_e_and_h_fields_zeroed(self):
-        result = reset_array_container(arrays=self.array_container, objects=self.objects)
-        assert jnp.all(result.E == 0)
-        assert jnp.all(result.H == 0)
+        result = self.array_container.reset()
+        assert jnp.all(result.fields.E == 0)
+        assert jnp.all(result.fields.H == 0)
 
     def test_material_properties_preserved(self):
-        result = reset_array_container(arrays=self.array_container, objects=self.objects)
+        result = self.array_container.reset()
         assert jnp.array_equal(result.inv_permittivities, self.inv_permittivities)
         assert jnp.array_equal(result.inv_permeabilities, self.inv_permeabilities)
 
     def test_detector_states_reset_by_default(self):
-        result = reset_array_container(arrays=self.array_container, objects=self.objects)
+        result = self.array_container.reset()
         assert jnp.all(result.detector_states["detector1"]["data"] == 0)
 
     def test_detector_states_preserved_when_not_reset(self):
-        result = reset_array_container(arrays=self.array_container, objects=self.objects, reset_detector_states=False)
+        result = self.array_container.reset(reset_detector_states=False)
         assert jnp.array_equal(
             result.detector_states["detector1"]["data"],
             self.detector_states["detector1"]["data"],
         )
 
     def test_recording_state_not_reset_by_default(self):
-        result = reset_array_container(arrays=self.array_container, objects=self.objects)
+        result = self.array_container.reset()
         assert result.recording_state == self.recording_state
 
     def test_recording_state_reset(self):
-        result = reset_array_container(arrays=self.array_container, objects=self.objects, reset_recording_state=True)
+        result = self.array_container.reset(reset_recording_state=True)
         assert jnp.all(result.recording_state.data["recording"] == 0)
         assert jnp.all(result.recording_state.state["state"] == 0)
 
     def test_recording_state_none_handled(self):
         array_container_no_recording = self.array_container.aset("recording_state", None)
-        result = reset_array_container(
-            arrays=array_container_no_recording,
-            objects=self.objects,
-            reset_recording_state=True,
-        )
+        result = array_container_no_recording.reset(reset_recording_state=True)
         assert result.recording_state is None

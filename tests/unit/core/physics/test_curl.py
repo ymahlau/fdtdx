@@ -96,7 +96,7 @@ def test_curl_E_linear_field():
     x = jnp.arange(nx)
     y = jnp.arange(ny)
     z = jnp.arange(nz)
-    X, Y, Z = jnp.meshgrid(x, y, z, indexing="ij")
+    X, Y, _Z = jnp.meshgrid(x, y, z, indexing="ij")
 
     E = jnp.stack([Y.astype(float), -X.astype(float), jnp.zeros_like(X, dtype=float)], axis=0)
     E_pad = pad_fields(E, (True, True, True))
@@ -197,7 +197,7 @@ def test_curl_E_mixed_periodic():
     """Test curl_E with mixed periodic axes."""
     n = 6
     x = jnp.arange(n, dtype=float)
-    X, Y, Z = jnp.meshgrid(x, x, x, indexing="ij")
+    X, Y, _Z = jnp.meshgrid(x, x, x, indexing="ij")
     E = jnp.stack([Y, -X, jnp.zeros_like(X)], axis=0)
     E_pad = pad_fields(E, (True, False, True))
     psi_H = jnp.zeros((6, n, n, n))

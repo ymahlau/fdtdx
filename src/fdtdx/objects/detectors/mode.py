@@ -38,11 +38,20 @@ class ModeOverlapDetector(PhasorDetector):
     #: When specified, only modes of the given polarization type are considered. Defaults to None.
     filter_pol: Literal["te", "tm"] | None = static_field(default=None)
 
+    #: Bend radius of the waveguide in meters. When set, the mode solver accounts for the conformal
+    #: transformation introduced by the bend. Must be set together with bend_axis. Defaults to None
+    #: (straight waveguide).
+    bend_radius: float | None = static_field(default=None)
+
+    #: Physical axis index (0=x, 1=y, 2=z) pointing from the waveguide center toward the center of
+    #: curvature. Must differ from the propagation axis. Required when bend_radius is set.
+    bend_axis: int | None = static_field(default=None)
+
     #: Cannot be specified here since the detector needs all components.
     components: Sequence[Literal["Ex", "Ey", "Ez", "Hx", "Hy", "Hz"]] = static_field(
         default=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"),
         init=False,  # in this detector, we always want all components. Do not give user a choice
-    )  # noqa: DOC603, DOC601
+    )
 
     #: Cannot be specified here since plotting a single scalar is useless.
     plot: bool = static_field(default=False, init=False)  # noqa: DOC603, DOC601 # single scalar is useless for plotting
@@ -69,6 +78,12 @@ class ModeOverlapDetector(PhasorDetector):
         )
         if len(self.wave_characters) > 1:
             raise NotImplementedError()
+        if (self.bend_radius is None) != (self.bend_axis is None):
+            raise ValueError("bend_radius and bend_axis must both be set or both be None")
+        if self.bend_axis is not None and self.bend_axis == self.propagation_axis:
+            raise ValueError(
+                f"bend_axis ({self.bend_axis}) must differ from the propagation axis ({self.propagation_axis})"
+            )
         return self
 
     def apply(
@@ -78,7 +93,6 @@ class ModeOverlapDetector(PhasorDetector):
         inv_permeabilities: jax.Array | float,
     ) -> Self:
         del key
-        assert self.direction is not None
 
         inv_permittivity_slice = inv_permittivities[:, *self.grid_slice]
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
@@ -94,6 +108,9 @@ class ModeOverlapDetector(PhasorDetector):
             direction=self.direction,
             mode_index=self.mode_index,
             filter_pol=self.filter_pol,
+            dtype=self._config.dtype,
+            bend_radius=self.bend_radius,
+            bend_axis=self.bend_axis,
         )
 
         self = self.aset("_mode_E", mode_E, create_new_ok=True)
@@ -125,7 +142,10 @@ class ModeOverlapDetector(PhasorDetector):
         )[self.propagation_axis]
 
         alpha_coeff = jnp.sum(E_cross_H_star_sim + E_star_cross_H_sim)
-        alpha_coeff = alpha_coeff / 4.0
+
+        # in pulsed mode return unscaled coefficient
+        if self.scaling_mode != "pulse":
+            alpha_coeff = alpha_coeff / 4.0
 
         return alpha_coeff
 

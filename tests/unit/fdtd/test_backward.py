@@ -65,16 +65,17 @@ class TestBackward:
     @pytest.fixture
     def mock_arrays(self):
         arrays = Mock()
-        arrays.E = jnp.ones((3, 10, 10, 10))
-        arrays.H = jnp.full((3, 10, 10, 10), 2.0)
+        arrays.fields.E = jnp.ones((3, 10, 10, 10))
+        arrays.fields.H = jnp.full((3, 10, 10, 10), 2.0)
 
         aset_log = {}
 
         def aset(field_name, value):
             aset_log[field_name] = value
             new = Mock()
-            new.E = value if field_name == "E" else arrays.E
-            new.H = value if field_name == "H" else arrays.H
+            new.fields = Mock()
+            new.fields.E = value if field_name == "fields->E" else arrays.fields.E
+            new.fields.H = value if field_name == "fields->H" else arrays.fields.H
             new.aset = aset
             return new
 
@@ -135,7 +136,7 @@ class TestBackward:
         patched_updates["update_detectors"].assert_called_once()
         call_kwargs = patched_updates["update_detectors"].call_args.kwargs
         assert call_kwargs["inverse"] is True
-        assert jnp.array_equal(call_kwargs["H_prev"], mock_arrays.H)
+        assert jnp.array_equal(call_kwargs["H_prev"], mock_arrays.fields.H)
 
     def test_reset_fields_calls_apply_field_reset_on_all_boundaries(
         self, mock_arrays, mock_objects, key, patched_updates
@@ -187,5 +188,5 @@ class TestBackward:
             fields_to_reset=("E",),
         )
 
-        assert "E" in mock_arrays._aset_log
-        assert "H" not in mock_arrays._aset_log
+        assert "fields->E" in mock_arrays._aset_log
+        assert "fields->H" not in mock_arrays._aset_log

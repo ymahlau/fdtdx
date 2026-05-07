@@ -129,7 +129,7 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
 
         center = jnp.asarray(
             [center_horizontal + horizontal_offset, center_vertical + vertical_offset],
-            dtype=jnp.float32,
+            dtype=self._config.dtype,
         ).squeeze()
         return center
 

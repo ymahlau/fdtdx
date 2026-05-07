@@ -43,7 +43,7 @@ def _make_container(objects=None, volume_grid_shape=(50, 50, 50)):
     if objects is None:
         objects = []
     container = MagicMock()
-    # volume is NOT in objects list – simulates real behaviour where volume is
+    # volume is NOT in objects list - simulates real behaviour where volume is
     # accessed separately and then excluded
     mock_volume = MagicMock()
     mock_volume.grid_shape = volume_grid_shape
@@ -65,7 +65,7 @@ class TestPlotSetupFromSide:
         """Viewing side z (XY plane) returns a Figure."""
         config = _make_config()
         container = _make_container()
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         result = plot_setup_from_side(config=config, objects=container, viewing_side="z", ax=ax)
         assert result is not None
         plt.close("all")
@@ -74,7 +74,7 @@ class TestPlotSetupFromSide:
         """Viewing side y (XZ plane) returns a Figure."""
         config = _make_config()
         container = _make_container()
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         result = plot_setup_from_side(config=config, objects=container, viewing_side="y", ax=ax)
         assert result is not None
         plt.close("all")
@@ -83,7 +83,7 @@ class TestPlotSetupFromSide:
         """Viewing side x (YZ plane) returns a Figure."""
         config = _make_config()
         container = _make_container()
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         result = plot_setup_from_side(config=config, objects=container, viewing_side="x", ax=ax)
         assert result is not None
         plt.close("all")
@@ -92,7 +92,7 @@ class TestPlotSetupFromSide:
         """Unsupported viewing_side raises ValueError."""
         config = _make_config()
         container = _make_container()
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         with pytest.raises(ValueError, match="Invalid viewing_side"):
             plot_setup_from_side(config=config, objects=container, viewing_side="w", ax=ax)
         plt.close("all")
@@ -101,7 +101,7 @@ class TestPlotSetupFromSide:
         """Viewing from z sets x/y labels and XY title."""
         config = _make_config()
         container = _make_container()
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         plot_setup_from_side(config=config, objects=container, viewing_side="z", ax=ax)
         assert "x" in ax.get_xlabel()
         assert "y" in ax.get_ylabel()
@@ -112,7 +112,7 @@ class TestPlotSetupFromSide:
         """Viewing from y sets x/z labels and XZ title."""
         config = _make_config()
         container = _make_container()
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         plot_setup_from_side(config=config, objects=container, viewing_side="y", ax=ax)
         assert "x" in ax.get_xlabel()
         assert "z" in ax.get_ylabel()
@@ -123,7 +123,7 @@ class TestPlotSetupFromSide:
         """Viewing from x sets y/z labels and YZ title."""
         config = _make_config()
         container = _make_container()
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         plot_setup_from_side(config=config, objects=container, viewing_side="x", ax=ax)
         assert "y" in ax.get_xlabel()
         assert "z" in ax.get_ylabel()
@@ -143,7 +143,7 @@ class TestPlotSetupFromSide:
         config = _make_config()
         obj = _MockObj("box", "blue", ((5, 15), (5, 15), (5, 15)))
         container = _make_container(objects=[obj])
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         plot_setup_from_side(config=config, objects=container, viewing_side="z", ax=ax, plot_legend=False)
         # At least one Rectangle patch should be present
         assert len(ax.patches) >= 1
@@ -155,7 +155,7 @@ class TestPlotSetupFromSide:
         obj_with_color = _MockObj("visible", "red", ((5, 15), (5, 15), (5, 15)))
         obj_no_color = _MockObj("invisible", None, ((20, 30), (20, 30), (20, 30)))
         container = _make_container(objects=[obj_with_color, obj_no_color])
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         plot_setup_from_side(config=config, objects=container, viewing_side="z", ax=ax, plot_legend=False)
         # Only 1 patch (from obj_with_color); obj_no_color is skipped
         assert len(ax.patches) == 1
@@ -167,7 +167,7 @@ class TestPlotSetupFromSide:
         obj_a = _MockObj("a", "blue", ((5, 15), (5, 15), (5, 15)))
         obj_b = _MockObj("b", "green", ((20, 30), (20, 30), (20, 30)))
         container = _make_container(objects=[obj_a, obj_b])
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         plot_setup_from_side(
             config=config,
             objects=container,
@@ -187,7 +187,7 @@ class TestPlotSetupFromSide:
         # A small object covering 4x4=0.26 % of the plane
         small = _MockObj("tiny", "blue", ((10, 14), (10, 14), (0, 50)))
         container = _make_container(objects=[large, small], volume_grid_shape=(50, 50, 50))
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         # threshold = 0.5: large covers 1600/2500 = 0.64 > 0.5, small covers 16/2500 < 0.5
         plot_setup_from_side(
             config=config,
@@ -205,7 +205,7 @@ class TestPlotSetupFromSide:
         config = _make_config()
         obj = _MockObj("item", "red", ((5, 15), (5, 15), (5, 15)))
         container = _make_container(objects=[obj])
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         plot_setup_from_side(config=config, objects=container, viewing_side="z", ax=ax, plot_legend=False)
         assert ax.get_legend() is None
         plt.close("all")
@@ -215,7 +215,7 @@ class TestPlotSetupFromSide:
         config = _make_config()
         obj = _MockObj("sensor", "green", ((5, 15), (5, 15), (5, 15)))
         container = _make_container(objects=[obj])
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         plot_setup_from_side(config=config, objects=container, viewing_side="z", ax=ax, plot_legend=True)
         assert ax.get_legend() is not None
         plt.close("all")
@@ -254,7 +254,7 @@ class TestPlotSetup:
         """When axs is provided, that figure's axes are populated."""
         config = _make_config()
         container = _make_container()
-        fig, axs = plt.subplots(1, 3)
+        _fig, axs = plt.subplots(1, 3)
         result = plot_setup(config=config, objects=container, axs=axs, plot_legend=False)
         assert result is not None
         for ax in axs:
@@ -267,7 +267,7 @@ class TestPlotSetup:
         obj_a = _MockObj("a", "blue", ((5, 15), (5, 15), (5, 15)))
         obj_b = _MockObj("b", "red", ((20, 30), (20, 30), (20, 30)))
         container = _make_container(objects=[obj_a, obj_b])
-        fig, axs = plt.subplots(1, 3)
+        _fig, axs = plt.subplots(1, 3)
         plot_setup(
             config=config,
             objects=container,

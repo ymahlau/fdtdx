@@ -4,7 +4,7 @@ import pytest
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.wavelength import WaveCharacter
-from fdtdx.fdtd.container import ArrayContainer
+from fdtdx.fdtd.container import ArrayContainer, FieldState
 from fdtdx.fdtd.initialization import place_objects
 
 # Import the module to test
@@ -34,10 +34,7 @@ class TestCondition:
 
         # Create array container
         arrays = ArrayContainer(
-            E=E,
-            H=H,
-            psi_E=psi_E,
-            psi_H=psi_H,
+            fields=FieldState(E=E, H=H, psi_E=psi_E, psi_H=psi_H),
             alpha=alpha,
             kappa=kappa,
             sigma=sigma,
@@ -194,13 +191,13 @@ class TestCondition:
         # To simulate having a lower energy than the threshold, we'll manually
         # create a state where the energy is below the threshold,
         # by setting its attributes, E and H, to a small value
-        nE = arrays.E.size
-        nH = arrays.H.size
+        nE = arrays.fields.E.size
+        nH = arrays.fields.H.size
         v = jnp.sqrt(threshold / float(nE + nH)) * 0.9
-        v = jnp.asarray(v, dtype=arrays.E.dtype)
-        E_new = jnp.full_like(arrays.E, v)
-        H_new = jnp.full_like(arrays.H, v)
-        arrays_new = arrays.aset("E", E_new).aset("H", H_new)
+        v = jnp.asarray(v, dtype=arrays.fields.E.dtype)
+        E_new = jnp.full_like(arrays.fields.E, v)
+        H_new = jnp.full_like(arrays.fields.H, v)
+        arrays_new = arrays.aset("fields->E", E_new).aset("fields->H", H_new)
         state_below_thresh = (jnp.array(min_steps + 1), arrays_new)
         cond_fun = cond_fun.setup(state_below_thresh, config, objects)
         assert not cond_fun(state_below_thresh, config, objects)
@@ -242,7 +239,7 @@ class TestCondition:
             ).setup(state, config, objects)
 
         # Test detector readings must be 2D (ndim == 2)
-        with pytest.raises(ValueError, match="must have two *dimensions*|must have reduce_volume"):
+        with pytest.raises(ValueError, match=r"must have two \*dimensions\*|must have reduce_volume"):
             arrays.detector_states["bad_detector"] = {"energy": jnp.zeros((config.time_steps_total,))}
             DetectorConvergenceCondition(
                 detector_name="bad_detector",

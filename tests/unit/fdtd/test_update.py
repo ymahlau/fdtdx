@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.constants import eta0
-from fdtdx.fdtd.container import ArrayContainer
+from fdtdx.fdtd.container import ArrayContainer, FieldState
 from fdtdx.fdtd.update import (
     add_interfaces,
     collect_interfaces,
@@ -40,10 +40,12 @@ def _make_arrays(
 ):
     """Build a minimal real ArrayContainer for update tests."""
     return ArrayContainer(
-        E=E if E is not None else jnp.ones(FIELD_SHAPE),
-        H=H if H is not None else jnp.zeros(FIELD_SHAPE),
-        psi_E=jnp.zeros(PSI_SHAPE),
-        psi_H=jnp.zeros(PSI_SHAPE),
+        fields=FieldState(
+            E=E if E is not None else jnp.ones(FIELD_SHAPE),
+            H=H if H is not None else jnp.zeros(FIELD_SHAPE),
+            psi_E=jnp.zeros(PSI_SHAPE),
+            psi_H=jnp.zeros(PSI_SHAPE),
+        ),
         alpha=jnp.zeros(FIELD_SHAPE),
         kappa=jnp.ones(FIELD_SHAPE),
         sigma=jnp.zeros(FIELD_SHAPE),
@@ -172,7 +174,7 @@ class TestUpdateE:
         """With zero curl and no conductivity, E is unchanged."""
         E_init = jnp.ones(FIELD_SHAPE) * 3.0
         result = self._call(_make_arrays(E=E_init), curl=CURL_ZERO)
-        assert jnp.allclose(result.E, E_init)
+        assert jnp.allclose(result.fields.E, E_init)
 
     def test_isotropic_no_conductivity_formula(self):
         """E^(n+1) = E^(n) + c * curl(H) * inv_eps."""
@@ -182,7 +184,7 @@ class TestUpdateE:
         inv_eps = jnp.ones(FIELD_SHAPE)
         result = self._call(_make_arrays(E=E_init, inv_permittivities=inv_eps), config=_make_config(c=c), curl=curl)
         expected = E_init + c * curl * inv_eps  # 1.0 + 0.5 * 2.0 * 1.0 = 2.0
-        assert jnp.allclose(result.E, expected)
+        assert jnp.allclose(result.fields.E, expected)
 
     def test_isotropic_with_conductivity_formula(self):
         """Lossy material forward update (Schneider 3.12): sigma_E != 0."""
@@ -194,13 +196,13 @@ class TestUpdateE:
         result = self._call(arrays, config=_make_config(c=c), curl=CURL_ZERO)
         half = c * sigma_E * eta0 * inv_eps / 2
         expected = (1 - half) * E_init / (1 + half)
-        assert jnp.allclose(result.E, expected, rtol=1e-5)
+        assert jnp.allclose(result.fields.E, expected, rtol=1e-5)
 
     def test_psi_E_updated_from_curl_H(self):
         """psi_E in the returned container matches the psi returned by curl_H."""
         new_psi = jnp.ones(PSI_SHAPE) * 9.0
         result = self._call(_make_arrays(), psi=new_psi)
-        assert jnp.allclose(result.psi_E, new_psi)
+        assert jnp.allclose(result.fields.psi_E, new_psi)
 
     def test_simulate_boundaries_flag_forwarded(self):
         """simulate_boundaries=True is passed to curl_H."""
@@ -219,8 +221,8 @@ class TestUpdateE:
         """inv_eps.shape[0]==9 triggers the anisotropic path; output is (3,N,N,N) and finite."""
         inv_eps = _diag_anisotropic_tensor((NX, NY, NZ))
         result = self._call(_make_arrays(inv_permittivities=inv_eps))
-        assert result.E.shape == FIELD_SHAPE
-        assert jnp.all(jnp.isfinite(result.E))
+        assert result.fields.E.shape == FIELD_SHAPE
+        assert jnp.all(jnp.isfinite(result.fields.E))
 
     def test_no_sources_skips_lax_cond(self):
         """With no sources, jax.lax.cond is never invoked."""
@@ -299,7 +301,7 @@ class TestUpdateEReverse:
         """With zero curl and no conductivity, E is unchanged."""
         E_init = jnp.ones(FIELD_SHAPE) * 3.0
         result = self._call(_make_arrays(E=E_init), curl=CURL_ZERO)
-        assert jnp.allclose(result.E, E_init)
+        assert jnp.allclose(result.fields.E, E_init)
 
     def test_isotropic_no_conductivity_formula(self):
         """Reverse update: E^(n) = E^(n+1) - c * curl * inv_eps."""
@@ -309,7 +311,7 @@ class TestUpdateEReverse:
         inv_eps = jnp.ones(FIELD_SHAPE)
         result = self._call(_make_arrays(E=E_fwd, inv_permittivities=inv_eps), config=_make_config(c=c), curl=curl)
         expected = E_fwd - c * curl * inv_eps  # 2.0 - 0.5 = 1.5
-        assert jnp.allclose(result.E, expected)
+        assert jnp.allclose(result.fields.E, expected)
 
     def test_isotropic_with_conductivity_reverses_forward(self):
         """Reverse lossy update recovers the original E field (zero curl)."""
@@ -322,14 +324,14 @@ class TestUpdateEReverse:
         E_fwd = (1 - half) * E_init / (1 + half)
         arrays = _make_arrays(E=E_fwd, inv_permittivities=inv_eps, electric_conductivity=sigma_E)
         result = self._call(arrays, config=_make_config(c=c), curl=CURL_ZERO)
-        assert jnp.allclose(result.E, E_init, rtol=1e-5)
+        assert jnp.allclose(result.fields.E, E_init, rtol=1e-5)
 
     def test_anisotropic_full_tensor_correct_shape_and_finite(self):
         """inv_eps.shape[0]==9 triggers anisotropic reverse path; output is finite."""
         inv_eps = _diag_anisotropic_tensor((NX, NY, NZ))
         result = self._call(_make_arrays(inv_permittivities=inv_eps))
-        assert result.E.shape == FIELD_SHAPE
-        assert jnp.all(jnp.isfinite(result.E))
+        assert result.fields.E.shape == FIELD_SHAPE
+        assert jnp.all(jnp.isfinite(result.fields.E))
 
     def test_with_source_calls_lax_cond(self):
         """Source reverse update is invoked via jax.lax.cond with inverse=True."""
@@ -375,7 +377,7 @@ class TestUpdateH:
         """With zero curl and no conductivity, H is unchanged."""
         H_init = jnp.ones(FIELD_SHAPE) * 3.0
         result = self._call(_make_arrays(H=H_init), curl=CURL_ZERO)
-        assert jnp.allclose(result.H, H_init)
+        assert jnp.allclose(result.fields.H, H_init)
 
     def test_isotropic_no_conductivity_formula(self):
         """H^(n+1/2) = H^(n-1/2) - c * curl(E) * inv_mu."""
@@ -385,7 +387,7 @@ class TestUpdateH:
         inv_mu = jnp.ones(FIELD_SHAPE)
         result = self._call(_make_arrays(H=H_init, inv_permeabilities=inv_mu), config=_make_config(c=c), curl=curl)
         expected = H_init - c * curl * inv_mu  # 2.0 - 0.5 = 1.5
-        assert jnp.allclose(result.H, expected)
+        assert jnp.allclose(result.fields.H, expected)
 
     def test_isotropic_with_conductivity_formula(self):
         """Lossy magnetic material update (sigma_H != 0)."""
@@ -397,13 +399,13 @@ class TestUpdateH:
         result = self._call(arrays, config=_make_config(c=c), curl=CURL_ZERO)
         half = c * sigma_H / eta0 * inv_mu / 2
         expected = (1 - half) * H_init / (1 + half)
-        assert jnp.allclose(result.H, expected, rtol=1e-5)
+        assert jnp.allclose(result.fields.H, expected, rtol=1e-5)
 
     def test_psi_H_updated_from_curl_E(self):
         """psi_H in the returned container matches the psi returned by curl_E."""
         new_psi = jnp.ones(PSI_SHAPE) * 7.0
         result = self._call(_make_arrays(), psi=new_psi)
-        assert jnp.allclose(result.psi_H, new_psi)
+        assert jnp.allclose(result.fields.psi_H, new_psi)
 
     def test_simulate_boundaries_flag_forwarded(self):
         """simulate_boundaries=True is passed as 7th positional arg to curl_E."""
@@ -421,8 +423,8 @@ class TestUpdateH:
         """inv_mu.shape[0]==9 triggers the anisotropic path; output is (3,N,N,N) and finite."""
         inv_mu = _diag_anisotropic_tensor((NX, NY, NZ))
         result = self._call(_make_arrays(inv_permeabilities=inv_mu))
-        assert result.H.shape == FIELD_SHAPE
-        assert jnp.all(jnp.isfinite(result.H))
+        assert result.fields.H.shape == FIELD_SHAPE
+        assert jnp.all(jnp.isfinite(result.fields.H))
 
     def test_no_sources_skips_lax_cond(self):
         """With no sources, jax.lax.cond is never invoked."""
@@ -501,7 +503,7 @@ class TestUpdateHReverse:
         """With zero curl and no conductivity, H is unchanged."""
         H_init = jnp.ones(FIELD_SHAPE) * 3.0
         result = self._call(_make_arrays(H=H_init), curl=CURL_ZERO)
-        assert jnp.allclose(result.H, H_init)
+        assert jnp.allclose(result.fields.H, H_init)
 
     def test_isotropic_no_conductivity_formula(self):
         """Reverse update without conductivity: H^(n-1/2) = H^(n+1/2) + c * curl * inv_mu."""
@@ -511,7 +513,7 @@ class TestUpdateHReverse:
         inv_mu = jnp.ones(FIELD_SHAPE)
         result = self._call(_make_arrays(H=H_fwd, inv_permeabilities=inv_mu), config=_make_config(c=c), curl=curl)
         expected = H_fwd + c * curl * inv_mu  # 1.5 + 0.5 = 2.0
-        assert jnp.allclose(result.H, expected)
+        assert jnp.allclose(result.fields.H, expected)
 
     def test_isotropic_with_conductivity_reverses_forward(self):
         """Reverse lossy update recovers the original H field (zero curl)."""
@@ -523,14 +525,14 @@ class TestUpdateHReverse:
         H_fwd = (1 - half) * H_init / (1 + half)
         arrays = _make_arrays(H=H_fwd, inv_permeabilities=inv_mu, magnetic_conductivity=sigma_H)
         result = self._call(arrays, config=_make_config(c=c), curl=CURL_ZERO)
-        assert jnp.allclose(result.H, H_init, rtol=1e-5)
+        assert jnp.allclose(result.fields.H, H_init, rtol=1e-5)
 
     def test_anisotropic_full_tensor_correct_shape_and_finite(self):
         """inv_mu.shape[0]==9 triggers anisotropic reverse path; output is finite."""
         inv_mu = _diag_anisotropic_tensor((NX, NY, NZ))
         result = self._call(_make_arrays(inv_permeabilities=inv_mu))
-        assert result.H.shape == FIELD_SHAPE
-        assert jnp.all(jnp.isfinite(result.H))
+        assert result.fields.H.shape == FIELD_SHAPE
+        assert jnp.all(jnp.isfinite(result.fields.H))
 
     def test_with_source_calls_lax_cond(self):
         """Source reverse update is invoked via jax.lax.cond with inverse=True."""
@@ -660,7 +662,7 @@ class TestUpdateDetectorStates:
         assert jnp.allclose(captured["H"], interp_H)
 
     def test_no_interpolation_passes_raw_fields(self):
-        """exact_interpolation=False: helper_fn receives raw arrays.E and arrays.H."""
+        """exact_interpolation=False: helper_fn receives raw arrays.fields.E and arrays.fields.H."""
         det = self._make_detector(exact_interpolation=False)
         objects = self._make_det_objects(forward_detectors=[det])
         raw_E = jnp.ones(FIELD_SHAPE) * 5.0
@@ -688,7 +690,7 @@ class TestUpdateDetectorStates:
         assert jnp.allclose(captured["H"], raw_H)
 
     def test_interpolate_fields_receives_h_avg(self):
-        """interpolate_fields receives padded (H_prev + arrays.H) / 2 as H_pad."""
+        """interpolate_fields receives padded (H_prev + arrays.fields.H) / 2 as H_pad."""
         objects = self._make_det_objects(forward_detectors=[])
         H_field = jnp.ones(FIELD_SHAPE) * 4.0
         H_prev = jnp.ones(FIELD_SHAPE) * 2.0

@@ -47,7 +47,7 @@ class TestPlotMaterialFromSide:
         """Viewing side z (XY plane) returns a Figure."""
         config = _make_config()
         arrays = _make_arrays()
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         result = plot_material_from_side(config=config, arrays=arrays, viewing_side="z", ax=ax)
         assert result is not None
         plt.close("all")
@@ -56,7 +56,7 @@ class TestPlotMaterialFromSide:
         """Viewing side y (XZ plane) returns a Figure."""
         config = _make_config()
         arrays = _make_arrays()
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         result = plot_material_from_side(config=config, arrays=arrays, viewing_side="y", ax=ax)
         assert result is not None
         plt.close("all")
@@ -65,7 +65,7 @@ class TestPlotMaterialFromSide:
         """Viewing side x (YZ plane) returns a Figure."""
         config = _make_config()
         arrays = _make_arrays()
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         result = plot_material_from_side(config=config, arrays=arrays, viewing_side="x", ax=ax)
         assert result is not None
         plt.close("all")
@@ -74,7 +74,7 @@ class TestPlotMaterialFromSide:
         """Viewing from z sets correct axis labels and title."""
         config = _make_config()
         arrays = _make_arrays()
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         plot_material_from_side(config=config, arrays=arrays, viewing_side="z", ax=ax, plot_legend=False)
         assert "x" in ax.get_xlabel()
         assert "y" in ax.get_ylabel()
@@ -85,7 +85,7 @@ class TestPlotMaterialFromSide:
         """Viewing from y sets correct axis labels and title."""
         config = _make_config()
         arrays = _make_arrays()
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         plot_material_from_side(config=config, arrays=arrays, viewing_side="y", ax=ax, plot_legend=False)
         assert "x" in ax.get_xlabel()
         assert "z" in ax.get_ylabel()
@@ -96,7 +96,7 @@ class TestPlotMaterialFromSide:
         """Viewing from x sets correct axis labels and title."""
         config = _make_config()
         arrays = _make_arrays()
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         plot_material_from_side(config=config, arrays=arrays, viewing_side="x", ax=ax, plot_legend=False)
         assert "y" in ax.get_xlabel()
         assert "z" in ax.get_ylabel()
@@ -107,7 +107,7 @@ class TestPlotMaterialFromSide:
         """An image is added to the axis."""
         config = _make_config()
         arrays = _make_arrays()
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         plot_material_from_side(config=config, arrays=arrays, viewing_side="z", ax=ax, plot_legend=False)
         assert len(ax.get_images()) == 1
         plt.close("all")
@@ -144,7 +144,7 @@ class TestPlotMaterialFromSide:
         """type='permittivity' uses inv_permittivities."""
         config = _make_config()
         arrays = _make_arrays(inv_perm=0.25)  # permittivity = 1/0.25 = 4.0
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         plot_material_from_side(config=config, arrays=arrays, viewing_side="z", ax=ax, type="permittivity")
         im = ax.get_images()[0]
         data = np.array(im.get_array())
@@ -155,7 +155,7 @@ class TestPlotMaterialFromSide:
         """type='permeability' with array inv_permeabilities uses that array."""
         config = _make_config()
         arrays = _make_arrays(inv_per=0.5, per_is_float=False)  # permeability = 2.0
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         plot_material_from_side(config=config, arrays=arrays, viewing_side="z", ax=ax, type="permeability")
         im = ax.get_images()[0]
         data = np.array(im.get_array())
@@ -166,7 +166,7 @@ class TestPlotMaterialFromSide:
         """type='permeability' with float inv_permeabilities fills with scalar."""
         config = _make_config()
         arrays = _make_arrays(inv_per=0.5, per_is_float=True)  # permeability = 2.0
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         plot_material_from_side(config=config, arrays=arrays, viewing_side="z", ax=ax, type="permeability")
         im = ax.get_images()[0]
         data = np.array(im.get_array())
@@ -184,8 +184,8 @@ class TestPlotMaterialFromSide:
         arrays.inv_permittivities = inv_perm
         arrays.inv_permeabilities = np.ones_like(inv_perm)
 
-        fig, ax_center = plt.subplots()
-        fig2, ax_offset = plt.subplots()
+        _fig, ax_center = plt.subplots()
+        _fig2, ax_offset = plt.subplots()
 
         plot_material_from_side(
             config=config, arrays=arrays, viewing_side="z", ax=ax_center, position=0.0, plot_legend=False
@@ -203,7 +203,7 @@ class TestPlotMaterialFromSide:
         """A very large position is clamped to the last valid slice."""
         config = _make_config()
         arrays = _make_arrays()
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         # Should not raise even if position is way outside the volume
         plot_material_from_side(config=config, arrays=arrays, viewing_side="z", ax=ax, position=100e-3)
         assert len(ax.get_images()) == 1
@@ -213,7 +213,7 @@ class TestPlotMaterialFromSide:
         """A very negative position is clamped to index 0."""
         config = _make_config()
         arrays = _make_arrays()
-        fig, ax = plt.subplots()
+        _fig, ax = plt.subplots()
         plot_material_from_side(config=config, arrays=arrays, viewing_side="z", ax=ax, position=-100e-3)
         assert len(ax.get_images()) == 1
         plt.close("all")
@@ -253,7 +253,7 @@ class TestPlotMaterial:
         """When axs is provided, that figure is returned."""
         config = _make_config()
         arrays = _make_arrays()
-        fig, axs = plt.subplots(1, 3)
+        _fig, axs = plt.subplots(1, 3)
         result = plot_material(config=config, arrays=arrays, axs=axs, plot_legend=False)
         assert result is not None
         for ax in axs:
@@ -270,7 +270,7 @@ class TestPlotMaterial:
         arrays.inv_permittivities = inv_perm
         arrays.inv_permeabilities = np.ones_like(inv_perm)
 
-        fig, axs = plt.subplots(1, 3)
+        _fig, axs = plt.subplots(1, 3)
         plot_material(config=config, arrays=arrays, axs=axs, plot_legend=False, positions=(5 * 50e-9, 0.0, 0.0))
         # YZ plane (ax[2]) uses x_pos = 5*50e-9, which corresponds to an offset
         yz_data = np.array(axs[2].get_images()[0].get_array())

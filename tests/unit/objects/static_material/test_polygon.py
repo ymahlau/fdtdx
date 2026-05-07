@@ -3,6 +3,7 @@
 Tests ExtrudedPolygon shape generation, material mapping, and axis properties.
 """
 
+import gdstk
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -10,7 +11,11 @@ import pytest
 
 from fdtdx.config import SimulationConfig
 from fdtdx.materials import Material
-from fdtdx.objects.static_material.polygon import ExtrudedPolygon
+from fdtdx.objects.static_material.polygon import (
+    ExtrudedPolygon,
+    extruded_polygon_from_gds,
+    extruded_polygon_from_gds_path,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -101,28 +106,59 @@ class TestAxisProperties:
 
 
 # ---------------------------------------------------------------------------
-# centered_vertices
+# centered convention
 # ---------------------------------------------------------------------------
 
 
-class TestCenteredVertices:
-    def test_shape_preserved(self, config, key, two_materials):
-        verts = _square_vertices()
-        poly = _make_polygon(two_materials, axis=2, vertices=verts)
-        placed = _place(poly, config, key)
-        cv = placed.centered_vertices
-        assert cv.shape == verts.shape
+class TestCenteredConvention:
+    """Vertices are given centered at origin; polygon is placed centered in the grid region."""
 
-    def test_vertices_shifted_right(self, config, key, two_materials):
-        """Centered vertices should all have non-negative x (after shifting by half real_shape)."""
-        verts = _square_vertices(half_side=100e-9)  # vertices in [-100nm, 100nm]
+    def test_symmetric_polygon_produces_symmetric_mask_axis2(self, config, key, two_materials):
+        """A square centered at origin yields an x/y-symmetric mask."""
+        verts = _square_vertices(half_side=100e-9)
         poly = _make_polygon(two_materials, axis=2, vertices=verts)
-        # grid: 20x20x10, real: 20*50nm=1000nm along horizontal axis
         placed = _place(poly, config, key, ((0, 20), (0, 20), (0, 10)))
-        cv = placed.centered_vertices
-        # half real_shape for horizontal axis (axis=2 → horizontal=0 → x-dim=20 → 1000nm)
-        # shift = 500nm; verts range from -100 to 100nm → shifted to 400..600nm
-        assert bool(np.all(cv[:, 0] > 0))
+        mask = placed.get_voxel_mask_for_shape()
+        slice_xy = np.array(mask[:, :, 0])
+        assert np.array_equal(slice_xy, slice_xy[::-1, :]), "mask should be symmetric along x"
+        assert np.array_equal(slice_xy, slice_xy[:, ::-1]), "mask should be symmetric along y"
+
+    def test_polygon_center_aligns_with_grid_center(self, config, key, two_materials):
+        """Bounding box center of the True region should coincide with the grid center."""
+        # 300nm = 6 cells; 20-cell grid center is between cells 9 and 10 (0-indexed)
+        verts = _square_vertices(half_side=150e-9)
+        poly = _make_polygon(two_materials, axis=2, vertices=verts)
+        placed = _place(poly, config, key, ((0, 20), (0, 20), (0, 10)))
+        mask = placed.get_voxel_mask_for_shape()
+        slice_xy = np.array(mask[:, :, 0])
+        rows = np.where(slice_xy.any(axis=1))[0]
+        cols = np.where(slice_xy.any(axis=0))[0]
+        center_row = (rows[0] + rows[-1] + 1) / 2.0
+        center_col = (cols[0] + cols[-1] + 1) / 2.0
+        assert abs(center_row - 10.0) <= 1.0, f"row center {center_row} not near grid center 10"
+        assert abs(center_col - 10.0) <= 1.0, f"col center {center_col} not near grid center 10"
+
+    def test_symmetric_polygon_produces_symmetric_mask_axis0(self, config, key, two_materials):
+        """Symmetry check for extrusion along x-axis."""
+        verts = _square_vertices(half_side=100e-9)
+        poly = _make_polygon(two_materials, axis=0, vertices=verts)
+        placed = _place(poly, config, key, ((0, 10), (0, 20), (0, 20)))
+        mask = placed.get_voxel_mask_for_shape()
+        slice_yz = np.array(mask[0, :, :])
+        assert np.array_equal(slice_yz, slice_yz[::-1, :]), "mask should be symmetric along y"
+        assert np.array_equal(slice_yz, slice_yz[:, ::-1]), "mask should be symmetric along z"
+
+    def test_no_auto_centering_of_offset_polygon(self, config, key, two_materials):
+        """Vertices NOT centered at origin should NOT be auto-centered — caller is responsible."""
+        # Shift a square 200nm off-center in x
+        offset = 200e-9
+        verts = _square_vertices(half_side=100e-9) + np.array([offset, 0.0])
+        poly = _make_polygon(two_materials, axis=2, vertices=verts)
+        placed = _place(poly, config, key, ((0, 20), (0, 20), (0, 10)))
+        mask = placed.get_voxel_mask_for_shape()
+        slice_xy = np.array(mask[:, :, 0])
+        # The mask should NOT be symmetric in x
+        assert not np.array_equal(slice_xy, slice_xy[::-1, :])
 
 
 # ---------------------------------------------------------------------------
@@ -218,3 +254,127 @@ class TestGetMaterialMapping:
         placed = _place(poly, config, key)
         mapping = placed.get_material_mapping()
         assert bool(jnp.all(mapping == mapping[0, 0, 0]))
+
+
+# ---------------------------------------------------------------------------
+# extruded_polygon_from_gds / extruded_polygon_from_gds_path
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def square_lib():
+    """In-memory gdstk Library with a 200nm square on layer 1."""
+    half = 0.1  # 0.1 µm = 100 nm
+    lib = gdstk.Library(unit=1e-6, precision=1e-9)
+    cell = lib.new_cell("TOP")
+    cell.add(
+        gdstk.Polygon(
+            [(-half, -half), (half, -half), (half, half), (-half, half)],
+            layer=1,
+            datatype=0,
+        )
+    )
+    return lib
+
+
+@pytest.fixture
+def square_gds(square_lib, tmp_path):
+    """Write the square library to a .gds file and return its path."""
+    path = tmp_path / "test.gds"
+    square_lib.write_gds(str(path))
+    return path
+
+
+@pytest.mark.unit
+class TestExtrudedPolygonFromGds:
+    """Tests for extruded_polygon_from_gds (accepts a gdstk.Library)."""
+
+    def test_returns_extruded_polygon(self, square_lib, two_materials):
+        result = extruded_polygon_from_gds(
+            square_lib, "TOP", layer=1, axis=2, material_name="si", materials=two_materials
+        )
+        assert isinstance(result, ExtrudedPolygon)
+
+    def test_vertices_shape(self, square_lib, two_materials):
+        result = extruded_polygon_from_gds(
+            square_lib, "TOP", layer=1, axis=2, material_name="si", materials=two_materials
+        )
+        assert result.vertices.shape == (4, 2)
+
+    def test_vertices_centred_around_origin(self, square_lib, two_materials):
+        """Vertices should be symmetric: max ≈ +100 nm, min ≈ -100 nm."""
+        result = extruded_polygon_from_gds(
+            square_lib, "TOP", layer=1, axis=2, material_name="si", materials=two_materials
+        )
+        expected_half = 100e-9
+        assert np.allclose(result.vertices.max(axis=0), [expected_half, expected_half])
+        assert np.allclose(result.vertices.min(axis=0), [-expected_half, -expected_half])
+
+    def test_bad_cell_name_raises(self, square_lib, two_materials):
+        with pytest.raises(ValueError, match="Cell 'MISSING'"):
+            extruded_polygon_from_gds(
+                square_lib, "MISSING", layer=1, axis=2, material_name="si", materials=two_materials
+            )
+
+    def test_bad_layer_raises(self, square_lib, two_materials):
+        with pytest.raises(ValueError, match="layer=99"):
+            extruded_polygon_from_gds(square_lib, "TOP", layer=99, axis=2, material_name="si", materials=two_materials)
+
+    def test_polygon_index_out_of_range_raises(self, square_lib, two_materials):
+        with pytest.raises(IndexError, match="polygon_index=5"):
+            extruded_polygon_from_gds(
+                square_lib, "TOP", layer=1, polygon_index=5, axis=2, material_name="si", materials=two_materials
+            )
+
+
+@pytest.mark.unit
+class TestExtrudedPolygonFromGdsPath:
+    """Tests for extruded_polygon_from_gds_path (accepts a file path)."""
+
+    def test_returns_extruded_polygon(self, square_gds, two_materials):
+        result = extruded_polygon_from_gds_path(
+            square_gds, "TOP", layer=1, axis=2, material_name="si", materials=two_materials
+        )
+        assert isinstance(result, ExtrudedPolygon)
+
+    def test_vertices_match_library_function(self, square_lib, square_gds, two_materials):
+        """Path variant must produce the same vertices as the library variant."""
+        kwargs = {"layer": 1, "axis": 2, "material_name": "si", "materials": two_materials}
+        from_lib = extruded_polygon_from_gds(square_lib, "TOP", **kwargs)
+        from_path = extruded_polygon_from_gds_path(square_gds, "TOP", **kwargs)
+        assert np.allclose(from_lib.vertices, from_path.vertices)
+
+    def test_bad_cell_name_raises(self, square_gds, two_materials):
+        with pytest.raises(ValueError, match="Cell 'MISSING'"):
+            extruded_polygon_from_gds_path(
+                square_gds, "MISSING", layer=1, axis=2, material_name="si", materials=two_materials
+            )
+
+
+# ---------------------------------------------------------------------------
+# partial_real_shape auto-compute
+# ---------------------------------------------------------------------------
+
+
+class TestAutoRealShape:
+    def test_cross_section_axes_set_from_vertices(self, two_materials):
+        verts = _square_vertices(half_side=100e-9)  # 200nm x 200nm bounding box
+        poly = _make_polygon(two_materials, axis=2, vertices=verts)
+        assert poly.partial_real_shape[0] == pytest.approx(200e-9)
+        assert poly.partial_real_shape[1] == pytest.approx(200e-9)
+
+    def test_extrusion_axis_is_none(self, two_materials):
+        for axis in range(3):
+            poly = _make_polygon(two_materials, axis=axis)
+            assert poly.partial_real_shape[axis] is None
+
+    def test_asymmetric_polygon_bounding_box(self, two_materials):
+        verts = np.array([[-150e-9, -50e-9], [150e-9, -50e-9], [150e-9, 50e-9], [-150e-9, 50e-9]])
+        poly = ExtrudedPolygon(
+            materials=two_materials,
+            axis=2,
+            material_name="si",
+            vertices=verts,
+        )
+        assert poly.partial_real_shape[0] == pytest.approx(300e-9)
+        assert poly.partial_real_shape[1] == pytest.approx(100e-9)

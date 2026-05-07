@@ -1,4 +1,4 @@
-"""Integration tests for fdtdx.fdtd.initialization – place_objects and _init_arrays."""
+"""Integration tests for fdtdx.fdtd.initialization - place_objects and _init_arrays."""
 
 import jax
 import jax.numpy as jnp
@@ -51,7 +51,9 @@ def test_place_objects_creates_object_container(simple_config, simple_volume, si
         object="obj1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
     )
     key = jax.random.PRNGKey(0)
-    obj_container, arrays, params, config, info = place_objects([simple_volume, obj], simple_config, [constraint], key)
+    obj_container, arrays, params, _config, _info = place_objects(
+        [simple_volume, obj], simple_config, [constraint], key
+    )
     assert isinstance(obj_container, ObjectContainer)
     assert isinstance(arrays, ArrayContainer)
     assert isinstance(params, dict)
@@ -66,7 +68,7 @@ def test_place_objects_with_multiple_objects(simple_config, simple_volume, simpl
         GridCoordinateConstraint(object="obj2", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[30, 30, 30]),
     ]
     key = jax.random.PRNGKey(0)
-    obj_container, arrays, params, config, info = place_objects(
+    obj_container, _arrays, _params, _config, _info = place_objects(
         [simple_volume, obj1, obj2], simple_config, constraints, key
     )
     assert len(obj_container.objects) == 3
@@ -79,7 +81,9 @@ def test_place_objects_updates_config(simple_config, simple_volume, simple_mater
         object="obj1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
     )
     key = jax.random.PRNGKey(0)
-    obj_container, arrays, params, config, info = place_objects([simple_volume, obj], simple_config, [constraint], key)
+    _obj_container, _arrays, _params, config, _info = place_objects(
+        [simple_volume, obj], simple_config, [constraint], key
+    )
     assert config is not None
     assert config.resolution == simple_config.resolution
 
@@ -90,9 +94,11 @@ def test_place_objects_initializes_arrays(simple_config, simple_volume, simple_m
         object="obj1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
     )
     key = jax.random.PRNGKey(0)
-    obj_container, arrays, params, config, info = place_objects([simple_volume, obj], simple_config, [constraint], key)
-    assert arrays.E is not None
-    assert arrays.H is not None
+    _obj_container, arrays, _params, _config, _info = place_objects(
+        [simple_volume, obj], simple_config, [constraint], key
+    )
+    assert arrays.fields.E is not None
+    assert arrays.fields.H is not None
     assert arrays.inv_permittivities is not None
     # simple_material has permittivity=2.0 → inv_perm ≈ 0.5 in the material region.
     # Verify at least one voxel was actually updated (differs from vacuum value 1.0).
@@ -112,7 +118,7 @@ def test_place_objects_raises_on_unresolvable_constraint(simple_config, simple_v
 
 
 # ---------------------------------------------------------------------------
-# Anisotropic material tests – covers component-count logic and update paths
+# Anisotropic material tests - covers component-count logic and update paths
 # ---------------------------------------------------------------------------
 
 
@@ -133,7 +139,9 @@ def test_diagonally_anisotropic_material(simple_config, simple_volume):
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(20, 20, 20), material=mat)
     constraint = GridCoordinateConstraint(object="obj1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[5, 5, 5])
     key = jax.random.PRNGKey(0)
-    obj_container, arrays, params, config, info = place_objects([simple_volume, obj], simple_config, [constraint], key)
+    _obj_container, arrays, _params, _config, _info = place_objects(
+        [simple_volume, obj], simple_config, [constraint], key
+    )
     # 3-component inv_permittivities (diagonally anisotropic)
     assert arrays.inv_permittivities.shape[0] == 3
     # 3-component inv_permeabilities (diagonally anisotropic, magnetic)
@@ -160,7 +168,9 @@ def test_fully_anisotropic_material(simple_config, simple_volume):
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(20, 20, 20), material=mat)
     constraint = GridCoordinateConstraint(object="obj1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[5, 5, 5])
     key = jax.random.PRNGKey(0)
-    obj_container, arrays, params, config, info = place_objects([simple_volume, obj], simple_config, [constraint], key)
+    _obj_container, arrays, _params, _config, _info = place_objects(
+        [simple_volume, obj], simple_config, [constraint], key
+    )
     # 9-component inv_permittivities (fully anisotropic)
     assert arrays.inv_permittivities.shape[0] == 9
     assert isinstance(arrays.inv_permeabilities, jax.Array)
@@ -185,16 +195,15 @@ def test_static_multi_material_object_sphere(simple_config, simple_volume):
     }
     sphere = Sphere(
         name="sphere1",
-        partial_grid_shape=(20, 20, 20),
         materials=materials,
         material_name="sphere_mat",
-        radius=5.0,  # 5 grid units at resolution=1.0
+        radius=5.0,  # 5 grid units at resolution=1.0 → bounding box 10 cells per axis
     )
     constraint = GridCoordinateConstraint(
         object="sphere1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[15, 15, 15]
     )
     key = jax.random.PRNGKey(0)
-    obj_container, arrays, params, config, info = place_objects(
+    obj_container, arrays, _params, _config, _info = place_objects(
         [simple_volume, sphere], simple_config, [constraint], key
     )
     assert isinstance(obj_container, ObjectContainer)
@@ -225,7 +234,7 @@ def test_pml_boundary_modifies_arrays(simple_config, simple_volume, simple_mater
         GridCoordinateConstraint(object="pml_xmin", axes=[0], sides=["-"], coordinates=[0]),
     ]
     key = jax.random.PRNGKey(0)
-    obj_container, arrays, params, config, info = place_objects(
+    obj_container, arrays, _params, _config, _info = place_objects(
         [simple_volume, obj, pml], simple_config, constraints, key
     )
     assert isinstance(obj_container, ObjectContainer)
@@ -259,7 +268,9 @@ def test_recording_state_with_gradient_config(simple_volume, simple_material):
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(20, 20, 20), material=simple_material)
     constraint = GridCoordinateConstraint(object="obj1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[5, 5, 5])
     key = jax.random.PRNGKey(0)
-    obj_container, arrays, params, updated_config, info = place_objects([simple_volume, obj], config, [constraint], key)
+    _obj_container, arrays, _params, updated_config, _info = place_objects(
+        [simple_volume, obj], config, [constraint], key
+    )
     assert updated_config.gradient_config is not None
     assert updated_config.gradient_config.recorder is not None
     # The recording state should be initialized (not None) when a Recorder is present.
@@ -267,7 +278,7 @@ def test_recording_state_with_gradient_config(simple_volume, simple_material):
 
 
 # ---------------------------------------------------------------------------
-# Device test – _init_params
+# Device test - _init_params
 # ---------------------------------------------------------------------------
 
 
@@ -291,7 +302,7 @@ def test_device_init_params(simple_config, simple_volume):
         object="device1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[5, 5, 5]
     )
     key = jax.random.PRNGKey(0)
-    obj_container, arrays, params, config, info = place_objects(
+    _obj_container, _arrays, params, _config, _info = place_objects(
         [simple_volume, device], simple_config, [constraint], key
     )
     # params should contain an entry for the device

@@ -155,7 +155,7 @@ def test_calculate_time_offset_yee_anisotropic_with_polarization():
         e_pol_y = jnp.array([0.0, 1.0, 0.0])
         h_pol_z = jnp.array([0.0, 0.0, 1.0])
 
-        time_offset_E_y, time_offset_H_y = calculate_time_offset_yee(
+        time_offset_E_y, _time_offset_H_y = calculate_time_offset_yee(
             center,
             wave_vector,
             inv_permittivities,
@@ -170,7 +170,7 @@ def test_calculate_time_offset_yee_anisotropic_with_polarization():
         e_pol_z = jnp.array([0.0, 0.0, 1.0])
         h_pol_y = jnp.array([0.0, 1.0, 0.0])
 
-        time_offset_E_z, time_offset_H_z = calculate_time_offset_yee(
+        time_offset_E_z, _time_offset_H_z = calculate_time_offset_yee(
             center,
             wave_vector,
             inv_permittivities,
