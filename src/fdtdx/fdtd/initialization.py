@@ -1060,9 +1060,7 @@ def _update_grid_slices_from_shapes(
                 continue
             elif b0 is not None and b1 is not None:
                 if s_axis != b1 - b0:
-                    resolved_something |= _record_shape_bound_conflict(
-                        obj_name, axis, b1 - b0, obj, shape_dict, errors
-                    )
+                    resolved_something |= _record_shape_bound_conflict(obj_name, axis, b1 - b0, obj, shape_dict, errors)
             elif b0 is not None:
                 slice_dict[obj_name][axis][1] = b0 + s_axis
                 resolved_something = True
@@ -1090,9 +1088,7 @@ def _update_grid_shapes_from_slices(
                     shape_dict[obj_name][axis] = b1 - b0
                     resolved_something = True
                 elif b1 - b0 != s_axis:
-                    resolved_something |= _record_shape_bound_conflict(
-                        obj_name, axis, b1 - b0, obj, shape_dict, errors
-                    )
+                    resolved_something |= _record_shape_bound_conflict(obj_name, axis, b1 - b0, obj, shape_dict, errors)
     return resolved_something, shape_dict, errors
 
 
