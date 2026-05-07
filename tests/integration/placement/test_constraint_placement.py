@@ -739,9 +739,7 @@ def test_cylinder_conflicting_constraint_errors():
         cyl.extend_to(None, axis=2, direction="+"),
         cyl.extend_to(None, axis=2, direction="-"),
     ]
-    _slices, errors = resolve_object_constraints(
-        objects=[vol, cyl], constraints=constraints, config=_cfg()
-    )
+    _slices, errors = resolve_object_constraints(objects=[vol, cyl], constraints=constraints, config=_cfg())
     assert errors.get("cyl"), "Expected an error for conflicting cross-section constraint"
 
 
