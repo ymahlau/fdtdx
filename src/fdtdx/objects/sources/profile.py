@@ -12,6 +12,7 @@ from fdtdx.core.wavelength import WaveCharacter
 
 
 def _unit_scale(max_abs_value: float, units: tuple[tuple[str, float], ...]) -> tuple[str, float]:
+    """Choose a physical display unit that keeps plotted axis values readable."""
     for label, scale in units:
         if max_abs_value * scale >= 0.1:
             return label, scale
@@ -21,11 +22,14 @@ def _unit_scale(max_abs_value: float, units: tuple[tuple[str, float], ...]) -> t
 def _auto_range(
     x: np.ndarray,
     y: np.ndarray,
-    *,
     relative_threshold: float,
     pad_fraction: float,
     center: float | None = None,
 ) -> tuple[float, float]:
+    """Choose a padded plot range around the significant part of an array.
+
+    Examples are the time signal or frequency spectrum.
+    """
     if x.size < 2:
         return (float(x[0]), float(x[0])) if x.size == 1 else (0.0, 1.0)
 
@@ -88,6 +92,11 @@ class TemporalProfile(TreeClass, ABC):
         return 1.0 / period
 
     def get_time_plot_range(self, period: float, total_time: float) -> tuple[float, float] | None:
+        """Return a profile-specific time plot range, or None to use automatic range detection.
+
+        Subclasses may override this hook when the profile has known physical time
+        properties (e.g. a Gaussian pulse).
+        """
         del period, total_time
         return None
 
@@ -97,12 +106,16 @@ class TemporalProfile(TreeClass, ABC):
         frequencies: np.ndarray,
         spectrum: np.ndarray,
     ) -> tuple[float, float] | None:
+        """Return a profile-specific frequency plot range, or None to use automatic range detection.
+
+        Subclasses may override this hook when the profile has known physical frequency
+        properties (e.g. a Gaussian pulse).
+        """
         del period, frequencies, spectrum
         return None
 
     def sample_time_signal(
         self,
-        *,
         period: float,
         time_step_duration: float,
         num_time_steps: int,
@@ -120,7 +133,6 @@ class TemporalProfile(TreeClass, ABC):
 
     def frequency_spectrum(
         self,
-        *,
         period: float,
         time_step_duration: float,
         num_time_steps: int,
@@ -144,7 +156,6 @@ class TemporalProfile(TreeClass, ABC):
 
     def plot_time_signal_and_spectrum(
         self,
-        *,
         period: float,
         time_step_duration: float,
         num_time_steps: int,
@@ -347,17 +358,16 @@ class CustomTimeSignalProfile(TemporalProfile):
     Unlike :class:`GaussianPulseProfile`, this profile does **not** accept a
     ``center_wave`` or spectral-width parameter.  For an arbitrary waveform the
     spectral centre is not a free parameter — it is an emergent property of the
-    signal.  Letting the user specify it separately would create a silent
-    inconsistency risk (e.g. labelling a broadband sinc pulse as if it were a
-    narrowband Gaussian).  Instead, :meth:`get_reference_frequency` computes the
-    power-weighted spectral centroid directly from ``signal``, and the frequency
-    axis of any plot is determined automatically from the actual spectrum content
-    via :func:`_auto_range`.
+    signal (see, e.g., Gedeon et al., IEEE Trans. Antennas Propag. 73(5),
+    2025).  Instead, :meth:`get_reference_frequency` computes the
+    magnitude-weighted spectral centroid directly from ``signal``, and the
+    frequency axis of any plot is determined automatically from the actual
+    spectrum content via :func:`_auto_range`.
     """
 
     #: Pre-sampled waveform, shape ``(N,)``.  Lives in the pytree so JAX can
     #: differentiate through the interpolation if needed.
-    signal: jax.Array = field(on_setattr=[jnp.asarray])
+    signal: jax.Array = field()
 
     #: Duration of a single simulation time step (seconds).
     time_step_duration: float = frozen_field()
@@ -372,6 +382,7 @@ class CustomTimeSignalProfile(TemporalProfile):
     outside_value: float = frozen_field(default=0.0)
 
     def __post_init__(self):
+        object.__setattr__(self, "signal", jnp.asarray(self.signal))
         if self.signal.ndim != 1:
             raise ValueError(f"signal must be one-dimensional, got shape {self.signal.shape}")
         if self.signal.shape[0] < 2:
@@ -382,12 +393,12 @@ class CustomTimeSignalProfile(TemporalProfile):
             raise ValueError(f"interpolation must be 'linear' or 'nearest', got {self.interpolation!r}")
 
     def get_reference_frequency(self, period: float) -> float:
-        """Return the power-weighted spectral centroid of the stored signal.
+        """Return the magnitude-weighted spectral centroid of the stored signal.
 
-        The centroid is well-defined for any spectrum — it equals the peak
-        frequency for unimodal signals and the power-weighted average for
-        multi-band ones.  It is used by :func:`_auto_range` to anchor the
-        frequency axis of spectrum plots.
+        The reference frequency is computed as the weighted mean of the
+        non-negative FFT frequency bins, using the magnitude spectrum as weights
+        (G. Peeters, IRCAM Technical Report, 2004). It is used by
+        :func:`_auto_range` to anchor the frequency axis of spectrum plots.
         """
         del period
         frequencies = np.fft.rfftfreq(len(self.signal), d=self.time_step_duration)

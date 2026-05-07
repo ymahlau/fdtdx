@@ -6,6 +6,7 @@ These are unit tests that test the base classes and their methods.
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 from fdtdx.config import SimulationConfig
@@ -200,6 +201,94 @@ class TestHardConstantAmplitudePlanceSource:
 
         E_updated = placed.update_E(E, inv_perm, 1.0, time_step, inverse=False)
         assert not jnp.allclose(E_updated, E)
+
+    def test_sample_time_signal_accepts_explicit_config_before_placement(self, micro_config):
+        """Test source time-signal sampling with an explicit config before placement."""
+        source = HardConstantAmplitudePlanceSource(
+            partial_grid_shape=(8, 8, 1),
+            wave_character=WaveCharacter(wavelength=1.55e-6),
+            direction="-",
+        )
+
+        time, signal = source.sample_time_signal(config=micro_config)
+
+        assert time.shape == signal.shape
+        assert time.shape == (micro_config.time_steps_total,)
+
+    @pytest.mark.parametrize(
+        "method_name",
+        [
+            "sample_time_signal",
+            "frequency_spectrum",
+            "plot_time_signal_and_spectrum",
+        ],
+    )
+    def test_time_signal_methods_require_config_or_placement(self, method_name):
+        """Test that unplaced source time-signal methods require an explicit config."""
+        source = HardConstantAmplitudePlanceSource(
+            partial_grid_shape=(8, 8, 1),
+            wave_character=WaveCharacter(wavelength=1.55e-6),
+            direction="-",
+        )
+
+        with pytest.raises(ValueError, match="place_objects"):
+            getattr(source, method_name)()
+
+    def test_sample_time_signal_matches_explicit_and_stored_config(self, micro_config, jax_key):
+        """Test explicit config and placed source config give the same sampled signal."""
+        source = HardConstantAmplitudePlanceSource(
+            partial_grid_shape=(8, 8, 1),
+            wave_character=WaveCharacter(wavelength=1.55e-6),
+            direction="-",
+        )
+        placed = source.place_on_grid(
+            grid_slice_tuple=((0, 8), (0, 8), (4, 5)),
+            config=micro_config,
+            key=jax_key,
+        )
+
+        time_explicit, signal_explicit = placed.sample_time_signal(config=micro_config)
+        time_stored, signal_stored = placed.sample_time_signal()
+
+        assert np.allclose(time_stored, time_explicit)
+        assert np.allclose(signal_stored, signal_explicit)
+
+    def test_frequency_spectrum_accepts_explicit_config_before_placement(self, micro_config):
+        """Test source spectrum sampling with an explicit config before placement."""
+        source = HardConstantAmplitudePlanceSource(
+            partial_grid_shape=(8, 8, 1),
+            wave_character=WaveCharacter(wavelength=1.55e-6),
+            direction="-",
+        )
+
+        frequencies, spectrum = source.frequency_spectrum(config=micro_config, normalize=False)
+
+        assert frequencies.shape == spectrum.shape
+        assert frequencies.shape == (micro_config.time_steps_total // 2 + 1,)
+        assert np.max(spectrum) > 0.0
+
+    def test_plot_time_signal_and_spectrum_accepts_explicit_config_and_axes(self, micro_config):
+        """Test source plotting forwards explicit config and caller-provided axes."""
+        import matplotlib.pyplot as plt
+
+        source = HardConstantAmplitudePlanceSource(
+            partial_grid_shape=(8, 8, 1),
+            wave_character=WaveCharacter(wavelength=1.55e-6),
+            direction="-",
+        )
+        fig, axs = plt.subplots(1, 2)
+
+        result_fig = source.plot_time_signal_and_spectrum(
+            config=micro_config,
+            axs=axs,
+            time_range="full",
+            frequency_range="full",
+        )
+
+        assert result_fig is fig
+        assert len(axs[0].lines) == 1
+        assert len(axs[1].lines) == 1
+        plt.close("all")
 
 
 class TestDirectionalPlaneSourceBaseProperties:

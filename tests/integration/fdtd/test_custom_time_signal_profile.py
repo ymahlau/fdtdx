@@ -4,15 +4,9 @@ from pathlib import Path
 
 import jax
 import jax.numpy as jnp
-import matplotlib
-
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 import fdtdx
-
-TEST_OUTPUT_DIR = Path("tests/generated")
-TEST_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _gaussian_windowed_carrier(config: fdtdx.SimulationConfig, wave: fdtdx.WaveCharacter) -> jax.Array:
@@ -65,12 +59,19 @@ def test_custom_time_signal_profile_source_workflow():
 
     placed_source = object_container.sources[0]
     assert isinstance(placed_source.temporal_profile, fdtdx.CustomTimeSignalProfile)
+    assert placed_config.time_step_duration == config.time_step_duration
+    assert placed_config.time_steps_total == config.time_steps_total
 
-    time, sampled_signal = placed_source.sample_time_signal(placed_config)
+    time, sampled_signal = placed_source.sample_time_signal()
     assert len(time) == placed_config.time_steps_total
     assert jnp.allclose(jnp.asarray(sampled_signal), signal, atol=1e-4)
 
-    filename = TEST_OUTPUT_DIR / "test_plot_time_signal_custom_source.png"
+    output_dir = Path("tests/generated")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    filename = output_dir / "test_plot_time_signal_custom_source.png"
+    if filename.exists():
+        filename.unlink()
+
     fig = placed_source.plot_time_signal_and_spectrum(
         config=placed_config,
         filename=filename,
@@ -78,4 +79,5 @@ def test_custom_time_signal_profile_source_workflow():
 
     assert fig is not None
     assert filename.exists()
+    assert filename.stat().st_size > 0
     plt.close("all")

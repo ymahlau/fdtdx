@@ -4,15 +4,19 @@ import math
 
 import jax
 import jax.numpy as jnp
-import matplotlib
 import numpy as np
 import pytest
 
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from fdtdx.core.wavelength import WaveCharacter
-from fdtdx.objects.sources.profile import CustomTimeSignalProfile, GaussianPulseProfile, SingleFrequencyProfile
+from fdtdx.objects.sources.profile import (
+    CustomTimeSignalProfile,
+    GaussianPulseProfile,
+    SingleFrequencyProfile,
+    _auto_range,
+    _unit_scale,
+)
 
 
 class TestSingleFrequencyProfile:
@@ -217,6 +221,49 @@ class TestGaussianPulseProfile:
         # Narrower spectrum (longer pulse) should have higher amplitude far from center
         assert narrow_far > wide_far or jnp.isclose(narrow_far, wide_far, rtol=0.5)
 
+    def test_gaussian_plot_ranges_use_physical_time_and_frequency_properties(self):
+        """Test Gaussian plot ranges from known pulse duration and spectral width."""
+        center_wave = WaveCharacter(frequency=193.4e12)
+        profile = GaussianPulseProfile(
+            spectral_width=WaveCharacter(frequency=10e12),
+            center_wave=center_wave,
+        )
+        total_time = 1e-12
+        frequencies = np.linspace(150e12, 240e12, 128)
+        spectrum = np.ones_like(frequencies)
+
+        time_range = profile.get_time_plot_range(period=center_wave.get_period(), total_time=total_time)
+        reference_frequency = profile.get_reference_frequency(period=center_wave.get_period())
+        frequency_range = profile.get_frequency_plot_range(
+            period=center_wave.get_period(),
+            frequencies=frequencies,
+            spectrum=spectrum,
+        )
+
+        assert time_range is not None
+        assert time_range[0] == 0.0
+        assert 0.0 < time_range[1] <= total_time
+        assert reference_frequency == center_wave.get_frequency()
+        assert frequency_range == (frequencies[0], frequencies[-1])
+
+    def test_gaussian_frequency_plot_range_returns_none_if_window_excludes_pulse(self):
+        """Test that Gaussian frequency plot range falls back to auto range when needed."""
+        center_wave = WaveCharacter(frequency=193.4e12)
+        profile = GaussianPulseProfile(
+            spectral_width=WaveCharacter(frequency=10e12),
+            center_wave=center_wave,
+        )
+        frequencies = np.linspace(0.0, 1e12, 8)
+        spectrum = np.ones_like(frequencies)
+
+        frequency_range = profile.get_frequency_plot_range(
+            period=center_wave.get_period(),
+            frequencies=frequencies,
+            spectrum=spectrum,
+        )
+
+        assert frequency_range is None
+
 
 class TestCustomTimeSignalProfile:
     """Tests for CustomTimeSignalProfile class."""
@@ -237,7 +284,7 @@ class TestCustomTimeSignalProfile:
         profile = CustomTimeSignalProfile(signal=[0.0, 1.0, 0.0], time_step_duration=0.25)
 
         assert isinstance(profile.signal, jax.Array)
-        assert profile.signal.dtype == jnp.float32
+        assert jnp.allclose(profile.signal, jnp.array([0.0, 1.0, 0.0]))
 
     def test_invalid_parameters_raise(self):
         """Test validation for signal shape, sample cadence, and interpolation mode."""
@@ -288,7 +335,11 @@ class TestCustomTimeSignalProfile:
         assert jnp.allclose(amplitudes, expected)
 
     def test_outside_sample_window_returns_outside_value(self):
-        """Test outside_value before the first sample and after the last sample."""
+        """Test outside_value before the first sample and after the sampled window.
+
+        Times in the final fractional sample interval return the last sample due to
+        boundary clamping; outside_value is used starting at start_time + n * dt.
+        """
         signal = jnp.array([0.0, 2.0, 4.0, 8.0], dtype=jnp.float32)
         profile = CustomTimeSignalProfile(
             signal=signal,
@@ -297,10 +348,10 @@ class TestCustomTimeSignalProfile:
             outside_value=-3.0,
         )
 
-        times = jnp.array([0.75, 1.0, 1.75, 2.0], dtype=jnp.float32)
+        times = jnp.array([0.75, 1.0, 1.75, 1.875, 2.0], dtype=jnp.float32)
         amplitudes = profile.get_amplitude(time=times, period=1.0)
 
-        expected = jnp.array([-3.0, 0.0, 8.0, -3.0], dtype=jnp.float32)
+        expected = jnp.array([-3.0, 0.0, 8.0, 8.0, -3.0], dtype=jnp.float32)
         assert jnp.allclose(amplitudes, expected)
 
     def test_phase_shift_is_ignored(self):
@@ -326,7 +377,7 @@ class TestCustomTimeSignalProfile:
         assert jnp.allclose(amplitudes, expected)
 
     def test_reference_frequency_is_spectral_centroid(self):
-        """Reference frequency is computed as the power-weighted spectral centroid.
+        """Reference frequency is computed as the magnitude-weighted spectral centroid.
 
         For a Gaussian-windowed carrier the centroid should be very close to the
         carrier frequency — no user-supplied metadata required.
@@ -346,6 +397,12 @@ class TestCustomTimeSignalProfile:
         ref_freq = profile.get_reference_frequency(period=1.0 / f0)
         assert abs(ref_freq - f0) / f0 < 0.02
 
+    def test_reference_frequency_returns_zero_for_zero_signal(self):
+        """Test zero signal has a zero spectral reference frequency."""
+        profile = CustomTimeSignalProfile(signal=jnp.zeros((8,), dtype=jnp.float32), time_step_duration=0.25)
+
+        assert profile.get_reference_frequency(period=1.0) == 0.0
+
     def test_plot_time_signal_and_spectrum_custom_writes_file(self, tmp_path):
         """Test that custom time-signal plots can be written to disk."""
         signal = jnp.array([0.0, 2.0, 4.0, 8.0], dtype=jnp.float32)
@@ -361,6 +418,7 @@ class TestCustomTimeSignalProfile:
 
         assert fig is not None
         assert filename.exists()
+        assert filename.stat().st_size > 0
         plt.close("all")
 
     def test_plot_time_signal_and_spectrum_accepts_external_axes(self):
@@ -379,6 +437,27 @@ class TestCustomTimeSignalProfile:
         assert result_fig is fig
         assert len(axs[0].lines) == 1
         assert len(axs[1].lines) == 1
+        plt.close("all")
+
+    def test_plot_time_signal_and_spectrum_accepts_explicit_ranges_and_raw_spectrum(self):
+        """Test explicit plot ranges and unnormalized spectrum display."""
+        signal = jnp.array([0.0, 1.0, 0.0, -1.0], dtype=jnp.float32)
+        profile = CustomTimeSignalProfile(signal=signal, time_step_duration=0.25)
+
+        fig = profile.plot_time_signal_and_spectrum(
+            period=1.0,
+            time_step_duration=0.25,
+            num_time_steps=signal.shape[0],
+            time_range=(0.0, 0.75),
+            frequency_range=(0.0, 2.0),
+            normalize_spectrum=False,
+        )
+
+        assert fig is not None
+        plotted_signal = fig.axes[0].lines[0].get_ydata()
+        spectrum_label = fig.axes[1].get_ylabel()
+        assert np.allclose(plotted_signal, np.asarray(signal))
+        assert spectrum_label == "|FFT|"
         plt.close("all")
 
     def test_analytical_fidelity_time_and_frequency_domain(self):
@@ -442,6 +521,86 @@ class TestCustomTimeSignalProfile:
 class TestTemporalProfilePlotting:
     """Tests for shared temporal profile plotting helpers."""
 
+    def test_unit_scale_uses_last_unit_for_small_values(self):
+        """Test display-unit selection falls back to the smallest provided scale."""
+        assert _unit_scale(1e-15, (("ms", 1e3), ("s", 1.0))) == ("s", 1.0)
+
+    def test_auto_range_handles_empty_single_zero_and_single_peak_arrays(self):
+        """Test automatic plot range edge cases without needing matplotlib."""
+        assert _auto_range(np.array([]), np.array([]), relative_threshold=0.1, pad_fraction=0.1) == (0.0, 1.0)
+        assert _auto_range(np.array([2.0]), np.array([1.0]), relative_threshold=0.1, pad_fraction=0.1) == (2.0, 2.0)
+        assert _auto_range(
+            np.array([0.0, 1.0, 2.0]),
+            np.array([0.0, 0.0, 0.0]),
+            relative_threshold=0.1,
+            pad_fraction=0.1,
+        ) == (0.0, 2.0)
+        assert _auto_range(
+            np.array([0.0, 1.0, 2.0]),
+            np.array([0.0, 1.0, 0.0]),
+            relative_threshold=2.0,
+            pad_fraction=0.1,
+        ) == (0.0, 2.0)
+
+        peak_range = _auto_range(
+            np.array([0.0, 1.0, 2.0]),
+            np.array([0.0, 1.0, 0.0]),
+            relative_threshold=1.0,
+            pad_fraction=0.1,
+        )
+        assert peak_range == (0.0, 2.0)
+
+    def test_auto_range_includes_reference_center_when_requested(self):
+        """Test automatic plot range expands to include a supplied reference center."""
+        plot_range = _auto_range(
+            np.array([0.0, 1.0, 2.0, 3.0]),
+            np.array([0.0, 0.0, 1.0, 0.0]),
+            relative_threshold=0.5,
+            pad_fraction=0.0,
+            center=1.0,
+        )
+
+        assert plot_range == (1.0, 2.0)
+
+    def test_temporal_profile_sampling_rejects_invalid_grid(self):
+        """Test time-signal sampling validates the FDTD time grid."""
+        profile = SingleFrequencyProfile()
+
+        with pytest.raises(ValueError, match="at least 2"):
+            profile.sample_time_signal(period=1.0, time_step_duration=0.1, num_time_steps=1)
+        with pytest.raises(ValueError, match="positive"):
+            profile.sample_time_signal(period=1.0, time_step_duration=0.0, num_time_steps=2)
+
+    def test_frequency_spectrum_can_return_unnormalized_zero_spectrum(self):
+        """Test non-normalized spectrum output and zero-signal normalization branch."""
+        zero_profile = CustomTimeSignalProfile(signal=jnp.zeros((4,), dtype=jnp.float32), time_step_duration=0.25)
+        frequencies, zero_spectrum = zero_profile.frequency_spectrum(
+            period=1.0,
+            time_step_duration=0.25,
+            num_time_steps=4,
+            normalize=True,
+        )
+        _, raw_spectrum = zero_profile.frequency_spectrum(
+            period=1.0,
+            time_step_duration=0.25,
+            num_time_steps=4,
+            normalize=False,
+        )
+
+        assert frequencies.shape == zero_spectrum.shape
+        assert np.allclose(zero_spectrum, 0.0)
+        assert np.allclose(raw_spectrum, 0.0)
+
+    def test_base_profile_plot_ranges_default_to_auto_detection(self):
+        """Test base temporal profile range hooks request automatic plot ranges."""
+        profile = SingleFrequencyProfile()
+        frequencies = np.linspace(0.0, 1.0, 4)
+        spectrum = np.ones_like(frequencies)
+
+        assert profile.get_reference_frequency(period=0.25) == 4.0
+        assert profile.get_time_plot_range(period=0.25, total_time=1.0) is None
+        assert profile.get_frequency_plot_range(period=0.25, frequencies=frequencies, spectrum=spectrum) is None
+
     def test_plot_time_signal_and_spectrum_gaussian_writes_file(self, tmp_path):
         """Test that Gaussian pulse plots can be written to disk."""
         center_wave = WaveCharacter(frequency=193.4e12)
@@ -460,6 +619,7 @@ class TestTemporalProfilePlotting:
 
         assert fig is not None
         assert filename.exists()
+        assert filename.stat().st_size > 0
         plt.close("all")
 
 
