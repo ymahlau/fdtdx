@@ -93,8 +93,8 @@ def compute_mode(
     frequency: float,
     inv_permittivities: jax.Array,  # shape (nx, ny, nz)
     inv_permeabilities: jax.Array | float,
-    direction: Literal["+", "-"],
     resolution: float | None = None,
+    direction: Literal["+", "-"] = "+",
     mode_index: int = 0,
     filter_pol: Literal["te", "tm"] | None = None,
     dtype: jnp.dtype = jnp.float32,

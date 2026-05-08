@@ -166,6 +166,8 @@ class TestPadFieldsForBoundaries:
         )
         config = Mock()
         config.grid = grid
+        config.has_nonuniform_grid = True
+        config.resolved_grid = grid
         config.uniform_spacing.side_effect = AssertionError("uniform spacing should not be required")
 
         boundary = Mock()

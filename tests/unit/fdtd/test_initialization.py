@@ -999,6 +999,7 @@ def test_apply_size_constraint_conflicting_shape_raises_descriptive(simple_confi
     obj = UniformMaterialObject(name="obj1", material=simple_material)
     obj_map = {"volume": simple_volume, "obj1": obj}
     shape_dict = {"volume": [100, 100, 100], "obj1": [60, None, None]}
+    slice_dict = {"volume": [[0, 100], [0, 100], [0, 100]], "obj1": [[0, 60], [None, None], [None, None]]}
     c = SizeConstraint(
         object="obj1",
         other_object="volume",
@@ -1009,7 +1010,7 @@ def test_apply_size_constraint_conflicting_shape_raises_descriptive(simple_confi
         offsets=[None],
     )
     with pytest.raises(Exception, match="geometry"):
-        _apply_size_constraint(c, obj_map, simple_config, shape_dict)
+        _apply_size_constraint(c, obj_map, simple_config, shape_dict, slice_dict)
 
 
 # ---------------------------------------------------------------------------
