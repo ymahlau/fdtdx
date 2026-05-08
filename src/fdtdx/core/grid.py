@@ -682,5 +682,7 @@ def polygons_to_mask(
         x_coords = np.arange(min_x, max_x + 0.5 * resolution, resolution)
         y_coords = np.arange(min_y, max_y + 0.5 * resolution, resolution)
         return np.zeros((len(x_coords), len(y_coords)), dtype=bool)
-    masks = [polygon_to_mask(boundary, resolution, poly) for poly in polygon_list]
-    return np.any(np.stack(masks, axis=0), axis=0)
+    result = polygon_to_mask(boundary, resolution, polygon_list[0])
+    for poly in polygon_list[1:]:
+        result |= polygon_to_mask(boundary, resolution, poly)
+    return result

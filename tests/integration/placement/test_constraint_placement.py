@@ -811,6 +811,7 @@ def test_gds_layer_stack_single_layer_placement():
         layers=layers,
         materials=_STACK_MATS,
         simulation_volume=vol,
+        gds_center=(0.0, 0.0),
     )
     slices = _resolve(vol, objects, constraints)
     z_slice = _sl(slices, objects[0])[2]
@@ -837,6 +838,7 @@ def test_gds_layer_stack_two_layers_stacked():
         layers=layers,
         materials=_STACK_MATS,
         simulation_volume=vol,
+        gds_center=(0.0, 0.0),
     )
     assert len(objects) == 2
     assert len(constraints) == 4  # 2 per layer
@@ -855,4 +857,4 @@ def test_gds_layer_stack_missing_cell_raises():
     lib = _gds_lib_with_square()
     layers = [fdtdx.GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9)]
     with pytest.raises(ValueError, match="MISSING"):
-        fdtdx.gds_layer_stack(lib, "MISSING", layers, _STACK_MATS, vol)
+        fdtdx.gds_layer_stack(lib, "MISSING", layers, _STACK_MATS, vol, (0.0, 0.0))

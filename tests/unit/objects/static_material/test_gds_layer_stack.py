@@ -241,6 +241,13 @@ class TestGetVoxelMaskForShape:
         mask = placed.get_voxel_mask_for_shape()
         assert bool(jnp.all(~mask)), "Expected all-False mask for empty polygon list"
 
+    def test_axis_not_2_raises(self, config, key, two_materials):
+        """axis != 2 must raise ValueError since GDS has no z-coordinate."""
+        obj = _make_layer_obj(two_materials, axis=0)
+        placed = _place(obj, config, key, slices=((0, 4), (0, 20), (0, 20)))
+        with pytest.raises(ValueError, match="axis=2"):
+            placed.get_voxel_mask_for_shape()
+
 
 # ---------------------------------------------------------------------------
 # get_material_mapping
@@ -312,6 +319,7 @@ def _stack(lib, sim_volume, materials, specs):
         layers=specs,
         materials=materials,
         simulation_volume=sim_volume,
+        gds_center=(0.0, 0.0),
     )
 
 
@@ -341,6 +349,7 @@ class TestGdsLayerStack:
                 layers=[_spec()],
                 materials=two_materials,
                 simulation_volume=sim_volume,
+                gds_center=(0.0, 0.0),
             )
 
     def test_empty_layer_produces_empty_polygons(self, square_lib, sim_volume, two_materials):
@@ -400,6 +409,7 @@ class TestEtchBy:
             layers=[spec_no_etch],
             materials=two_materials,
             simulation_volume=sim_volume,
+            gds_center=(0.0, 0.0),
         )
         objects_etch, _ = gds_layer_stack(
             gds_source=etch_lib,
@@ -407,6 +417,7 @@ class TestEtchBy:
             layers=[spec_etch],
             materials=two_materials,
             simulation_volume=sim_volume,
+            gds_center=(0.0, 0.0),
         )
         assert len(objects_etch[0].polygons[0]) > len(objects_no_etch[0].polygons[0])
 
@@ -419,6 +430,7 @@ class TestEtchBy:
             layers=[spec_with],
             materials=two_materials,
             simulation_volume=sim_volume,
+            gds_center=(0.0, 0.0),
         )
         assert len(objects[0].polygons) == 1
 
@@ -426,9 +438,25 @@ class TestEtchBy:
         """etch_by referencing a layer with no polygons leaves the original unchanged."""
         spec = GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9, z_base=0.0, etch_by=[(99, 0)])
         objects, _ = gds_layer_stack(
-            gds_source=square_lib, cell_name="TOP", layers=[spec], materials=two_materials, simulation_volume=sim_volume
+            gds_source=square_lib, cell_name="TOP", layers=[spec], materials=two_materials, simulation_volume=sim_volume,
+            gds_center=(0.0, 0.0),
         )
         assert len(objects[0].polygons) == 1
+
+    def test_etch_non_overlapping_leaves_polygon_unchanged(self, sim_volume, two_materials):
+        """Etching with a non-overlapping polygon leaves the original shape intact."""
+        lib = gdstk.Library(unit=1e-6, precision=1e-9)
+        cell = lib.new_cell("TOP")
+        cell.add(gdstk.Polygon([(-0.3, -0.3), (0.3, -0.3), (0.3, 0.3), (-0.3, 0.3)], layer=1, datatype=0))
+        # Etch polygon placed far away — no geometric overlap
+        cell.add(gdstk.Polygon([(1.0, 1.0), (1.5, 1.0), (1.5, 1.5), (1.0, 1.5)], layer=2, datatype=0))
+        spec = GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9, z_base=0.0, etch_by=[(2, 0)])
+        objects, _ = gds_layer_stack(
+            gds_source=lib, cell_name="TOP", layers=[spec], materials=two_materials, simulation_volume=sim_volume,
+            gds_center=(0.0, 0.0),
+        )
+        assert len(objects[0].polygons) == 1
+        assert len(objects[0].polygons[0]) == 4
 
 
 # ---------------------------------------------------------------------------
@@ -459,6 +487,7 @@ class TestGdsLayerStackFromComponent:
                     layers=[_spec()],
                     materials=two_materials,
                     simulation_volume=sim_volume,
+                    gds_center=(0.0, 0.0),
                 )
         finally:
             if gdsf is not None:
@@ -480,6 +509,7 @@ class TestGdsLayerStackFromComponent:
             layers=[_spec(gds_layer=1)],
             materials=two_materials,
             simulation_volume=sim_volume,
+            gds_center=(0.0, 0.0),
         )
         assert len(objects) == 1
         assert isinstance(objects[0], GDSLayerObject)
@@ -529,12 +559,13 @@ class TestSourcesFromGdsPorts:
             port_specs=[spec],
             wave_character=wave_char,
             simulation_volume=vol_with_x_size,
+            gds_center=(0.0, 0.0),
         )
         assert len(sources) == 1
         assert isinstance(sources[0], ModePlaneSource)
 
     def test_three_constraints_per_port(self, port_lib, vol_with_x_size, wave_char):
-        """Each port should produce 3 constraints: position, size, center."""
+        """Each port should produce 4 constraints: propagation position, transverse center, height size, height center."""
         spec = GDSPortSpec(gds_layer=10, propagation_axis=0)
         _, constraints = sources_from_gds_ports(
             gds_source=port_lib,
@@ -542,6 +573,7 @@ class TestSourcesFromGdsPorts:
             port_specs=[spec],
             wave_character=wave_char,
             simulation_volume=vol_with_x_size,
+            gds_center=(0.0, 0.0),
         )
         assert len(constraints) == 4
 
@@ -555,6 +587,7 @@ class TestSourcesFromGdsPorts:
                 port_specs=[spec],
                 wave_character=wave_char,
                 simulation_volume=vol_with_x_size,
+                gds_center=(0.0, 0.0),
             )
 
     def test_missing_vol_size_raises(self, port_lib, wave_char):
@@ -568,6 +601,7 @@ class TestSourcesFromGdsPorts:
                 port_specs=[spec],
                 wave_character=wave_char,
                 simulation_volume=vol_no_size,
+                gds_center=(0.0, 0.0),
             )
 
     def test_empty_port_layer_returns_empty(self, port_lib, vol_with_x_size, wave_char):
@@ -579,6 +613,7 @@ class TestSourcesFromGdsPorts:
             port_specs=[spec],
             wave_character=wave_char,
             simulation_volume=vol_with_x_size,
+            gds_center=(0.0, 0.0),
         )
         assert sources == []
         assert constraints == []
@@ -592,6 +627,7 @@ class TestSourcesFromGdsPorts:
             port_specs=[spec],
             wave_character=wave_char,
             simulation_volume=vol_with_x_size,
+            gds_center=(0.0, 0.0),
         )
         assert sources[0].name == "in_0"
 
@@ -607,12 +643,13 @@ class TestDetectorsFromGdsPorts:
             port_specs=[spec],
             wave_characters=[wave_char],
             simulation_volume=vol_with_x_size,
+            gds_center=(0.0, 0.0),
         )
         assert len(detectors) == 1
         assert isinstance(detectors[0], ModeOverlapDetector)
 
     def test_three_constraints_per_detector(self, port_lib, vol_with_x_size, wave_char):
-        """Each port should produce 3 constraints."""
+        """Each port should produce 4 constraints: propagation position, transverse center, height size, height center."""
         spec = GDSPortSpec(gds_layer=10, propagation_axis=0)
         _, constraints = detectors_from_gds_ports(
             gds_source=port_lib,
@@ -620,6 +657,7 @@ class TestDetectorsFromGdsPorts:
             port_specs=[spec],
             wave_characters=[wave_char],
             simulation_volume=vol_with_x_size,
+            gds_center=(0.0, 0.0),
         )
         assert len(constraints) == 4
 
@@ -633,4 +671,46 @@ class TestDetectorsFromGdsPorts:
                 port_specs=[spec],
                 wave_characters=[wave_char],
                 simulation_volume=vol_with_x_size,
+                gds_center=(0.0, 0.0),
             )
+
+    def test_missing_vol_size_raises(self, port_lib, wave_char):
+        """Unset partial_real_shape on propagation axis must raise ValueError."""
+        vol_no_size = SimulationVolume(name="volume")
+        spec = GDSPortSpec(gds_layer=10, propagation_axis=0)
+        with pytest.raises(ValueError, match="partial_real_shape"):
+            detectors_from_gds_ports(
+                gds_source=port_lib,
+                cell_name="TOP",
+                port_specs=[spec],
+                wave_characters=[wave_char],
+                simulation_volume=vol_no_size,
+                gds_center=(0.0, 0.0),
+            )
+
+    def test_empty_port_layer_returns_empty(self, port_lib, vol_with_x_size, wave_char):
+        """Spec referencing a layer with no polygons → empty lists."""
+        spec = GDSPortSpec(gds_layer=99, propagation_axis=0)
+        detectors, constraints = detectors_from_gds_ports(
+            gds_source=port_lib,
+            cell_name="TOP",
+            port_specs=[spec],
+            wave_characters=[wave_char],
+            simulation_volume=vol_with_x_size,
+            gds_center=(0.0, 0.0),
+        )
+        assert detectors == []
+        assert constraints == []
+
+    def test_name_prefix_applied(self, port_lib, vol_with_x_size, wave_char):
+        """Custom name_prefix is reflected in the detector name."""
+        spec = GDSPortSpec(gds_layer=10, propagation_axis=0, name_prefix="out")
+        detectors, _ = detectors_from_gds_ports(
+            gds_source=port_lib,
+            cell_name="TOP",
+            port_specs=[spec],
+            wave_characters=[wave_char],
+            simulation_volume=vol_with_x_size,
+            gds_center=(0.0, 0.0),
+        )
+        assert detectors[0].name == "out_0"

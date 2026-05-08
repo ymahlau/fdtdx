@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pathlib
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Generator, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -27,9 +27,9 @@ class GDSLayerSpec:
 
     Attributes:
         gds_layer: GDS layer number.
-        gds_datatype: GDS datatype number (default 0).
         material_name: Key into the materials dictionary to use for this layer.
         thickness: Layer thickness in metres.
+        gds_datatype: GDS datatype number (default 0).
         z_base: Distance from the simulation volume bottom face to the base of this layer, in metres.
         name: Optional name for the resulting object. Auto-generates "gds_{layer}_{datatype}" if None.
         etch_by: List of (layer, datatype) pairs whose polygons are subtracted from this layer via
@@ -37,9 +37,9 @@ class GDSLayerSpec:
     """
 
     gds_layer: int
+    material_name: str
+    thickness: float
     gds_datatype: int = 0
-    material_name: str = ""
-    thickness: float = 0.0
     z_base: float = 0.0
     name: str | None = None
     etch_by: list[tuple[int, int]] = field(default_factory=list)
@@ -121,9 +121,23 @@ class GDSLayerObject(StaticMultiMaterialObject):
     def get_voxel_mask_for_shape(self) -> jax.Array:
         """Compute a 3-D boolean mask for the extruded polygon shape.
 
+        Note:
+            Only ``axis=2`` (z-extrusion) is supported.  GDS layouts encode x/y
+            coordinates only, so extruding along x or y would require a z-coordinate
+            that does not exist in the GDS file.
+
         Returns:
             jax.Array: Boolean array of shape ``self.grid_shape``.
+
+        Raises:
+            ValueError: If ``self.axis != 2``.
         """
+        if self.axis != 2:
+            raise ValueError(
+                f"GDSLayerObject.get_voxel_mask_for_shape only supports axis=2 (z-extrusion); "
+                f"got axis={self.axis}. GDS layouts encode x/y coordinates only."
+            )
+
         n_h = self.grid_shape[self.horizontal_axis]
         n_v = self.grid_shape[self.vertical_axis]
         res = self._config.resolution
@@ -152,6 +166,12 @@ class GDSLayerObject(StaticMultiMaterialObject):
         return mask
 
     def get_material_mapping(self) -> jax.Array:
+        """Return an integer array filled with the index of ``material_name`` in the sorted material list.
+
+        Returns:
+            jax.Array: Integer array of shape ``self.grid_shape`` where every voxel has
+            the same value — the position of ``material_name`` in the sorted material name list.
+        """
         all_names = compute_ordered_names(self.materials)
         idx = all_names.index(self.material_name)
         return jnp.ones(self.grid_shape, dtype=jnp.int32) * idx
@@ -167,7 +187,13 @@ def _load_gds_cell(
     cell_name: str,
     flatten: bool,
 ) -> tuple[gdstk.Library, gdstk.Cell]:
-    """Load a gdstk Library and find the named cell."""
+    """Load a gdstk Library and find the named cell.
+
+    Note:
+        When *flatten* is ``True`` and *gds_source* is an already-loaded
+        :class:`gdstk.Library`, the cell is flattened **in place** inside the
+        caller's library.  Pass a file path to avoid mutating external state.
+    """
     if isinstance(gds_source, str | pathlib.Path):
         lib = gdstk.read_gds(str(gds_source))
     else:
@@ -189,6 +215,78 @@ def _gds_to_sim(gds_val: float, gds_center_val: float, vol_size: float) -> float
     return gds_val - gds_center_val + vol_size / 2
 
 
+@dataclass(frozen=True)
+class _PortEntry:
+    name: str
+    dir_val: Literal["+", "-"]
+    pgshape: tuple[int | None, int | None, int | None]
+    prshape: tuple[float | None, float | None, float | None]
+    prop_axis: int
+    trans_axis: int
+    sim_prop_pos: float
+
+
+def _iter_port_placements(
+    lib: gdstk.Library,
+    cell: gdstk.Cell,
+    port_specs: list[GDSPortSpec],
+    simulation_volume: SimulationVolume,
+    gds_center: tuple[float, float],
+    direction: Literal["+", "-"] | dict[str, Literal["+", "-"]],
+) -> Generator[_PortEntry, None, None]:
+    """Validate port specs and yield placement data for each port polygon."""
+    for spec in port_specs:
+        if spec.propagation_axis not in (0, 1):
+            raise ValueError(
+                f"propagation_axis={spec.propagation_axis} is not supported; "
+                "GDS port markers encode x/y positions only - use 0 (x) or 1 (y)."
+            )
+
+        trans_axis = 1 if spec.propagation_axis == 0 else 0
+        vol_size = simulation_volume.partial_real_shape[spec.propagation_axis]
+        if vol_size is None:
+            raise ValueError(
+                f"simulation_volume.partial_real_shape[{spec.propagation_axis}] must be "
+                "set to compute port positions from GDS coordinates."
+            )
+
+        matching = [p for p in cell.polygons if p.layer == spec.gds_layer and p.datatype == spec.gds_datatype]
+
+        # Sort by (x, y) centroid so port_0 / port_1 / ... are always deterministic.
+        poly_data = sorted(
+            [(np.array(p.points).mean(axis=0) * lib.unit, p) for p in matching],
+            key=lambda item: (float(item[0][0]), float(item[0][1])),
+        )
+
+        for i, (centroid, poly) in enumerate(poly_data):
+            name = f"{spec.name_prefix}_{i}"
+
+            gds_prop_val = centroid[spec.propagation_axis]
+            sim_prop_pos = _gds_to_sim(gds_prop_val, gds_center[spec.propagation_axis], vol_size)
+
+            # Transverse width from the actual marker polygon — avoids spanning
+            # neighbouring waveguides and corrupting mode-overlap integrals.
+            points = np.array(poly.points) * lib.unit
+            transverse_width = float(np.max(points[:, trans_axis]) - np.min(points[:, trans_axis]))
+
+            pgshape_list: list[int | None] = [None, None, None]
+            pgshape_list[spec.propagation_axis] = 1
+            prshape_list: list[float | None] = [None, None, None]
+            prshape_list[trans_axis] = transverse_width
+
+            dir_val: Literal["+", "-"] = direction.get(name, "+") if isinstance(direction, dict) else direction
+
+            yield _PortEntry(
+                name=name,
+                dir_val=dir_val,
+                pgshape=(pgshape_list[0], pgshape_list[1], pgshape_list[2]),
+                prshape=(prshape_list[0], prshape_list[1], prshape_list[2]),
+                prop_axis=spec.propagation_axis,
+                trans_axis=trans_axis,
+                sim_prop_pos=sim_prop_pos,
+            )
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -200,20 +298,22 @@ def gds_layer_stack(
     layers: list[GDSLayerSpec],
     materials: dict[str, Material],
     simulation_volume: SimulationVolume,
-    gds_center: tuple[float, float] = (0.0, 0.0),
-    extrusion_axis: int = 2,
+    gds_center: tuple[float, float],
     flatten: bool = True,
 ) -> tuple[list[GDSLayerObject], list[Any]]:
     """Build simulation objects from a GDS file according to a layer stack specification.
 
     For each :class:`GDSLayerSpec`, polygons are extracted from the named GDS cell,
     optionally etched by other layers, converted to metres, and wrapped in a
-    :class:`GDSLayerObject`.  Two constraints are generated per object:
+    :class:`GDSLayerObject`.  Layers are always extruded along z (axis 2) — GDS encodes
+    only x/y polygon geometry, so z is the only axis that can be inferred from the file.
+    For non-z extrusion (e.g. cross-section simulations), construct
+    :class:`GDSLayerObject` instances directly with the desired ``axis``.  Two
+    constraints are generated per object:
 
-    * A position constraint aligning the object's bottom face (along ``extrusion_axis``)
-      with the simulation volume's bottom face offset by ``spec.z_base``.
-    * A size constraint matching the simulation volume's extent in the two cross-section
-      axes.
+    * A position constraint aligning the object's bottom face (z) with the simulation
+      volume's bottom face offset by ``spec.z_base``.
+    * A size constraint matching the simulation volume's extent in the x/y axes.
 
     Args:
         gds_source: Path to a ``.gds`` file or an already-loaded :class:`gdstk.Library`.
@@ -222,8 +322,7 @@ def gds_layer_stack(
         materials: Materials dictionary forwarded to every :class:`GDSLayerObject`.
         simulation_volume: Used for size/position constraints.
         gds_center: GDS coordinate (in metres) that maps to the x/y centre of the
-            simulation volume. Defaults to ``(0.0, 0.0)``.
-        extrusion_axis: Axis along which layers are extruded (default 2 = z).
+            simulation volume.
         flatten: Flatten sub-cell references before reading polygons. Defaults to ``True``.
 
     Returns:
@@ -234,7 +333,6 @@ def gds_layer_stack(
         ValueError: If *cell_name* is not found in the library.
     """
     lib, cell = _load_gds_cell(gds_source, cell_name, flatten)
-    cross_axes = tuple(a for a in range(3) if a != extrusion_axis)
 
     objects: list[GDSLayerObject] = []
     constraints: list[Any] = []
@@ -256,28 +354,25 @@ def gds_layer_stack(
 
         name = spec.name if spec.name is not None else f"gds_{spec.gds_layer}_{spec.gds_datatype}"
 
-        extrusion_shape: list[float | None] = [None, None, None]
-        extrusion_shape[extrusion_axis] = spec.thickness
-
         obj = GDSLayerObject(
             name=name,
             materials=materials,
             polygons=polygons,
             gds_center=gds_center,
             material_name=spec.material_name,
-            axis=extrusion_axis,
+            axis=2,
             thickness=spec.thickness,
-            partial_real_shape=(extrusion_shape[0], extrusion_shape[1], extrusion_shape[2]),
+            partial_real_shape=(None, None, spec.thickness),
         )
 
         z_constraint = obj.place_relative_to(
             other=simulation_volume,
-            axes=(extrusion_axis,),
+            axes=(2,),
             own_positions=(-1.0,),
             other_positions=(-1.0,),
             margins=(spec.z_base,),
         )
-        xy_constraint = obj.same_size(other=simulation_volume, axes=cross_axes)
+        xy_constraint = obj.same_size(other=simulation_volume, axes=(0, 1))
 
         objects.append(obj)
         constraints.append(z_constraint)
@@ -291,9 +386,8 @@ def gds_layer_stack_from_component(
     layers: list[GDSLayerSpec],
     materials: dict[str, Material],
     simulation_volume: SimulationVolume,
+    gds_center: tuple[float, float],
     cell_name: str | None = None,
-    gds_center: tuple[float, float] = (0.0, 0.0),
-    extrusion_axis: int = 2,
     flatten: bool = True,
 ) -> tuple[list[GDSLayerObject], list[Any]]:
     """Build a layer stack from a gdsfactory ``Component``.
@@ -312,10 +406,9 @@ def gds_layer_stack_from_component(
         layers: Layer specifications forwarded to :func:`gds_layer_stack`.
         materials: Materials dictionary forwarded to every :class:`GDSLayerObject`.
         simulation_volume: Used for size/position constraints.
-        cell_name: GDS cell name to read.  Defaults to ``component.name``.
         gds_center: GDS coordinate (in metres) that maps to the x/y centre of the
-            simulation volume. Defaults to ``(0.0, 0.0)``.
-        extrusion_axis: Axis along which layers are extruded (default 2 = z).
+            simulation volume.
+        cell_name: GDS cell name to read.  Defaults to ``component.name``.
         flatten: Flatten sub-cell references before reading polygons.
 
     Returns:
@@ -334,6 +427,7 @@ def gds_layer_stack_from_component(
 
     name = cell_name if cell_name is not None else component.name
 
+    # delete=False so the file is closed (and releasable on Windows) before write_gds opens it.
     with tempfile.NamedTemporaryFile(suffix=".gds", delete=False) as f:
         tmp = pathlib.Path(f.name)
     try:
@@ -342,7 +436,7 @@ def gds_layer_stack_from_component(
     finally:
         tmp.unlink(missing_ok=True)
 
-    return gds_layer_stack(lib, name, layers, materials, simulation_volume, gds_center, extrusion_axis, flatten)
+    return gds_layer_stack(lib, name, layers, materials, simulation_volume, gds_center, flatten)
 
 
 def sources_from_gds_ports(
@@ -351,17 +445,18 @@ def sources_from_gds_ports(
     port_specs: list[GDSPortSpec],
     wave_character: WaveCharacter,
     simulation_volume: SimulationVolume,
-    gds_center: tuple[float, float] = (0.0, 0.0),
+    gds_center: tuple[float, float],
     direction: Literal["+", "-"] | dict[str, Literal["+", "-"]] = "+",
     mode_index: int = 0,
     filter_pol: Literal["te", "tm"] | None = None,
+    height_axis: int = 2,
     flatten: bool = True,
 ) -> tuple[list[ModePlaneSource], list[Any]]:
     """Create :class:`~fdtdx.objects.sources.mode.ModePlaneSource` objects from GDS port markers.
 
     Each polygon on a port marker layer becomes one source.  The polygon's centroid
-    determines the source position along ``propagation_axis``; the source's width is
-    set to match the port marker polygon's width on the transverse axis.
+    determines the position of the source's left face along ``propagation_axis``; the
+    source's width is set to match the port marker polygon's width on the transverse axis.
 
     Args:
         gds_source: Path to a ``.gds`` file or an already-loaded :class:`gdstk.Library`.
@@ -369,95 +464,49 @@ def sources_from_gds_ports(
         port_specs: List of :class:`GDSPortSpec` objects (one per port layer).
         wave_character: Wavelength / frequency character forwarded to every source.
         simulation_volume: Reference object for cross-section size/position constraints.
-            Its ``partial_real_shape`` must be set on both the ``propagation_axis`` and the transverse axis.
+            Its ``partial_real_shape`` must be set on ``propagation_axis``.
         gds_center: GDS coordinate (in metres) mapped to the x/y centre of the simulation
-            volume. Defaults to ``(0.0, 0.0)``.
+            volume.
         direction: Propagation direction passed to each source (``"+"`` or ``"-"``). Can also be a dict mapping port names to directions.
         mode_index: Waveguide mode index (default 0 = fundamental).
         filter_pol: Optional polarisation filter (``"te"``, ``"tm"``, or ``None``).
+        height_axis: Simulation axis treated as the out-of-plane height; sources are made
+            to span the full simulation extent on this axis (default 2 = z).
         flatten: Flatten sub-cell references before reading polygons.
 
     Returns:
-        ``(sources, constraints)`` — four constraints per source.
+        ``(sources, constraints)`` — four constraints per source: propagation position,
+        transverse center, full-height size, and vertical center.
 
     Raises:
         ValueError: If ``propagation_axis`` is not 0 or 1, or if
             ``simulation_volume.partial_real_shape`` is ``None`` on ``propagation_axis``.
     """
     lib, cell = _load_gds_cell(gds_source, cell_name, flatten)
-
     sources: list[ModePlaneSource] = []
     constraints: list[Any] = []
 
-    for spec in port_specs:
-        if spec.propagation_axis not in (0, 1):
-            raise ValueError(
-                f"propagation_axis={spec.propagation_axis} is not supported; "
-                "GDS port markers encode x/y positions only - use 0 (x) or 1 (y)."
-            )
-
-        transverse_axis = 1 if spec.propagation_axis == 0 else 0
-        vol_size = simulation_volume.partial_real_shape[spec.propagation_axis]
-        if vol_size is None:
-            raise ValueError(
-                f"simulation_volume.partial_real_shape[{spec.propagation_axis}] must be "
-                "set to compute port positions from GDS coordinates."
-            )
-
-        matching = [p for p in cell.polygons if p.layer == spec.gds_layer and p.datatype == spec.gds_datatype]
-
-        # Sort by (x, y) centroid so port_0 / port_1 / ... are always deterministic.
-        poly_data = sorted(
-            [(np.array(p.points).mean(axis=0) * lib.unit, p) for p in matching],
-            key=lambda item: (float(item[0][0]), float(item[0][1])),
+    for entry in _iter_port_placements(lib, cell, port_specs, simulation_volume, gds_center, direction):
+        src = ModePlaneSource(
+            name=entry.name,
+            wave_character=wave_character,
+            direction=entry.dir_val,
+            mode_index=mode_index,
+            filter_pol=filter_pol,
+            partial_grid_shape=entry.pgshape,
+            partial_real_shape=entry.prshape,
         )
-
-        for i, (centroid, poly) in enumerate(poly_data):
-            name = f"{spec.name_prefix}_{i}"
-
-            # Propagation-axis absolute position (left face of source).
-            gds_prop_val = centroid[spec.propagation_axis]
-            sim_prop_pos = _gds_to_sim(gds_prop_val, gds_center[spec.propagation_axis], vol_size)
-
-            # Transverse width from the actual marker polygon — avoids spanning
-            # neighbouring waveguides and corrupting mode-overlap integrals.
-            points = np.array(poly.points) * lib.unit
-            transverse_width = float(np.max(points[:, transverse_axis]) - np.min(points[:, transverse_axis]))
-
-            # 1 grid-cell thick along propagation axis; known width on transverse axis.
-            pgshape: list[int | None] = [None, None, None]
-            pgshape[spec.propagation_axis] = 1
-            prshape: list[float | None] = [None, None, None]
-            prshape[transverse_axis] = transverse_width
-
-            dir_val: Literal["+", "-"] = direction.get(name, "+") if isinstance(direction, dict) else direction
-
-            src = ModePlaneSource(
-                name=name,
-                wave_character=wave_character,
-                direction=dir_val,
-                mode_index=mode_index,
-                filter_pol=filter_pol,
-                partial_grid_shape=(pgshape[0], pgshape[1], pgshape[2]),
-                partial_real_shape=(prshape[0], prshape[1], prshape[2]),
-            )
-
-            # 1. Pin left (-) face of the source to the port centroid on propagation axis.
-            prop_constraint = RealCoordinateConstraint(
-                object=name,
-                axes=(spec.propagation_axis,),
-                sides=("-",),
-                coordinates=(sim_prop_pos,),
-            )
-            # 2. Centre transverse extent on the simulation volume using PositionConstraint.
-            trans_center_constraint = src.place_at_center(simulation_volume, axes=(transverse_axis,))
-            # 3. Span full simulation height along z.
-            height_constraint = src.same_size(simulation_volume, axes=(2,))
-            # 4. Centre vertically on the simulation volume.
-            vert_center_constraint = src.same_position(simulation_volume, axes=(2,))
-
-            sources.append(src)
-            constraints.extend([prop_constraint, trans_center_constraint, height_constraint, vert_center_constraint])
+        prop_constraint = RealCoordinateConstraint(
+            object=entry.name,
+            axes=(entry.prop_axis,),
+            sides=("-",),
+            coordinates=(entry.sim_prop_pos,),
+        )
+        trans_center_constraint = src.place_at_center(simulation_volume, axes=(entry.trans_axis,))
+        height_constraint = src.same_size(simulation_volume, axes=(height_axis,))
+        vert_center_constraint = src.same_position(simulation_volume, axes=(height_axis,))
+        sources.append(src)
+        constraints.extend([prop_constraint, trans_center_constraint, height_constraint, vert_center_constraint])
 
     return sources, constraints
 
@@ -468,10 +517,11 @@ def detectors_from_gds_ports(
     port_specs: list[GDSPortSpec],
     wave_characters: Sequence[WaveCharacter],
     simulation_volume: SimulationVolume,
-    gds_center: tuple[float, float] = (0.0, 0.0),
+    gds_center: tuple[float, float],
     direction: Literal["+", "-"] | dict[str, Literal["+", "-"]] = "+",
     mode_index: int = 0,
     filter_pol: Literal["te", "tm"] | None = None,
+    height_axis: int = 2,
     flatten: bool = True,
 ) -> tuple[list[ModeOverlapDetector], list[Any]]:
     """Create :class:`~fdtdx.objects.detectors.mode.ModeOverlapDetector` objects from GDS port markers.
@@ -491,93 +541,47 @@ def detectors_from_gds_ports(
         simulation_volume: Reference object for size/position constraints.
             Its ``partial_real_shape`` must be set on ``propagation_axis``.
         gds_center: GDS coordinate (in metres) mapped to the x/y centre of the
-            simulation volume. Defaults to ``(0.0, 0.0)``.
+            simulation volume.
         direction: Propagation direction (``"+"`` or ``"-"``), applied to all detectors.
             Pass a ``dict`` mapping port names to individual directions when needed.
         mode_index: Waveguide mode index.
         filter_pol: Optional polarisation filter.
+        height_axis: Simulation axis treated as the out-of-plane height; detectors are
+            made to span the full simulation extent on this axis (default 2 = z).
         flatten: Flatten sub-cell references before reading polygons.
 
     Returns:
-        ``(detectors, constraints)`` — four constraints per detector.
+        ``(detectors, constraints)`` — four constraints per detector: propagation position,
+        transverse center, full-height size, and vertical center.
 
     Raises:
         ValueError: If ``propagation_axis`` is not 0 or 1, or if
             ``simulation_volume.partial_real_shape`` is ``None`` on ``propagation_axis``.
     """
     lib, cell = _load_gds_cell(gds_source, cell_name, flatten)
-
     detectors: list[ModeOverlapDetector] = []
     constraints: list[Any] = []
 
-    for spec in port_specs:
-        if spec.propagation_axis not in (0, 1):
-            raise ValueError(
-                f"propagation_axis={spec.propagation_axis} is not supported; "
-                "GDS port markers encode x/y positions only - use 0 (x) or 1 (y)."
-            )
-
-        transverse_axis = 1 if spec.propagation_axis == 0 else 0
-        vol_size = simulation_volume.partial_real_shape[spec.propagation_axis]
-        if vol_size is None:
-            raise ValueError(
-                f"simulation_volume.partial_real_shape[{spec.propagation_axis}] must be "
-                "set to compute port positions from GDS coordinates."
-            )
-
-        matching = [p for p in cell.polygons if p.layer == spec.gds_layer and p.datatype == spec.gds_datatype]
-
-        # Sort by (x, y) centroid so port_0 / port_1 / ... are always deterministic.
-        poly_data = sorted(
-            [(np.array(p.points).mean(axis=0) * lib.unit, p) for p in matching],
-            key=lambda item: (float(item[0][0]), float(item[0][1])),
+    for entry in _iter_port_placements(lib, cell, port_specs, simulation_volume, gds_center, direction):
+        det = ModeOverlapDetector(
+            name=entry.name,
+            wave_characters=tuple(wave_characters),
+            direction=entry.dir_val,
+            mode_index=mode_index,
+            filter_pol=filter_pol,
+            partial_grid_shape=entry.pgshape,
+            partial_real_shape=entry.prshape,
         )
-
-        for i, (centroid, poly) in enumerate(poly_data):
-            name = f"{spec.name_prefix}_{i}"
-
-            # Propagation-axis absolute position (left face of detector).
-            gds_prop_val = centroid[spec.propagation_axis]
-            sim_prop_pos = _gds_to_sim(gds_prop_val, gds_center[spec.propagation_axis], vol_size)
-
-            # Transverse width from the actual marker polygon — avoids spanning
-            # neighbouring waveguides and corrupting mode-overlap integrals.
-            points = np.array(poly.points) * lib.unit
-            transverse_width = float(np.max(points[:, transverse_axis]) - np.min(points[:, transverse_axis]))
-
-            # 1 grid-cell thick along propagation axis; known width on transverse axis.
-            pgshape: list[int | None] = [None, None, None]
-            pgshape[spec.propagation_axis] = 1
-            prshape: list[float | None] = [None, None, None]
-            prshape[transverse_axis] = transverse_width
-
-            dir_val: Literal["+", "-"] = direction.get(name, "+") if isinstance(direction, dict) else direction
-
-            det = ModeOverlapDetector(
-                name=name,
-                wave_characters=tuple(wave_characters),
-                direction=dir_val,
-                mode_index=mode_index,
-                filter_pol=filter_pol,
-                partial_grid_shape=(pgshape[0], pgshape[1], pgshape[2]),
-                partial_real_shape=(prshape[0], prshape[1], prshape[2]),
-            )
-
-            # 1. Pin left (-) face of the detector to the port centroid on propagation axis.
-            prop_constraint = RealCoordinateConstraint(
-                object=name,
-                axes=(spec.propagation_axis,),
-                sides=("-",),
-                coordinates=(sim_prop_pos,),
-            )
-            # 2. Centre transverse extent on the simulation volume.
-            trans_center_constraint = det.place_at_center(simulation_volume, axes=(transverse_axis,))
-            # 3. Span full simulation height along z.
-            height_constraint = det.same_size(simulation_volume, axes=(2,))
-            # 4. Centre vertically on the simulation volume.
-            vert_center_constraint = det.same_position(simulation_volume, axes=(2,))
-
-            detectors.append(det)
-            constraints.extend([prop_constraint, trans_center_constraint, height_constraint, vert_center_constraint])
+        prop_constraint = RealCoordinateConstraint(
+            object=entry.name,
+            axes=(entry.prop_axis,),
+            sides=("-",),
+            coordinates=(entry.sim_prop_pos,),
+        )
+        trans_center_constraint = det.place_at_center(simulation_volume, axes=(entry.trans_axis,))
+        height_constraint = det.same_size(simulation_volume, axes=(height_axis,))
+        vert_center_constraint = det.same_position(simulation_volume, axes=(height_axis,))
+        detectors.append(det)
+        constraints.extend([prop_constraint, trans_center_constraint, height_constraint, vert_center_constraint])
 
     return detectors, constraints
