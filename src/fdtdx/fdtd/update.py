@@ -105,12 +105,9 @@ def pad_fields_for_boundaries(
     boundaries = objects.boundary_objects
     if boundaries:
         volume_shape = objects.volume.grid_shape
-        grid = getattr(config, "grid", None)
-        if grid is not None and not grid.is_uniform:
-            # ``apply_pad_correction`` still has a legacy scalar-resolution
-            # parameter.  Non-uniform Bloch boundaries ignore this value and
-            # compute the physical phase length from ``RectilinearGrid`` edges.
-            spacing = float(grid.min_spacing)
+        if config.has_nonuniform_grid:
+            assert config.resolved_grid is not None
+            spacing = float(config.resolved_grid.min_spacing)
         else:
             spacing = config.uniform_spacing()
         for boundary in boundaries:

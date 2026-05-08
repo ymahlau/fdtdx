@@ -93,8 +93,8 @@ def compute_mode(
     frequency: float,
     inv_permittivities: jax.Array,  # shape (nx, ny, nz)
     inv_permeabilities: jax.Array | float,
-    resolution: float,
     direction: Literal["+", "-"],
+    resolution: float | None = None,
     mode_index: int = 0,
     filter_pol: Literal["te", "tm"] | None = None,
     dtype: jnp.dtype = jnp.float32,
@@ -119,8 +119,8 @@ def compute_mode(
         inv_permittivities (jax.Array): 3D array of inverse relative permittivity values
         inv_permeabilities (jax.Array | float): 3D array of inverse relative permittivity values or single float for
             uniform permeability distribution.
-        resolution (float): Uniform-grid spacing in metres. For example a grid spacing of 10nm should be given as
-            10e-9. This is the compatibility path used when transverse_coords is not provided.
+        resolution (float | None): Uniform-grid spacing in metres. Required when ``transverse_coords`` is not
+            provided (uniform-grid path). Ignored when ``transverse_coords`` is given. Defaults to None.
         direction (Literal["+", "-"]): Propagation direction, either "+" or "-".
         mode_index (int, optional): Index of the mode to compute. Defaults to 0.
         filter_pol (Literal["te", "tm"] | None, optional). If not None, modes are filtered by polarization.
@@ -219,6 +219,8 @@ def compute_mode(
     other_axes = [a for a in range(1, 4) if permittivities.shape[a] != 1]
     propagation_axis = permittivities.shape[1:].index(1)
     if transverse_coords is None:
+        if resolution is None:
+            raise ValueError("resolution is required when transverse_coords is not provided")
         coords = [np.arange(permittivities.shape[dim] + 1) * resolution / 1e-6 for dim in other_axes]
         normalization_area_weights = None
     else:

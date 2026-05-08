@@ -651,26 +651,9 @@ def polygon_to_mask(
     assert polygon_vertices.shape[1] == 2
     min_x, min_y, max_x, max_y = boundary
 
-    # Create coordinate arrays
     x_coords = np.arange(min_x, max_x + 0.5 * resolution, resolution)
     y_coords = np.arange(min_y, max_y + 0.5 * resolution, resolution)
-
-    # Create meshgrid
-    X, Y = np.meshgrid(x_coords, y_coords, indexing="ij")
-
-    # Flatten coordinates for point-in-polygon test
-    points = np.column_stack((X.ravel(), Y.ravel()))
-
-    # Create matplotlib Path object from polygon vertices
-    polygon_path = Path(polygon_vertices)
-
-    # Test which points are inside the polygon
-    inside_polygon = polygon_path.contains_points(points)
-
-    # Reshape back to 2D grid
-    mask = inside_polygon.reshape(Y.shape).astype(bool)
-
-    return mask
+    return polygon_to_mask_at_points(x_coords, y_coords, polygon_vertices)
 
 
 def polygon_to_mask_at_points(
