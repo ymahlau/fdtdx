@@ -438,7 +438,11 @@ class TestEtchBy:
         """etch_by referencing a layer with no polygons leaves the original unchanged."""
         spec = GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9, z_base=0.0, etch_by=[(99, 0)])
         objects, _ = gds_layer_stack(
-            gds_source=square_lib, cell_name="TOP", layers=[spec], materials=two_materials, simulation_volume=sim_volume,
+            gds_source=square_lib,
+            cell_name="TOP",
+            layers=[spec],
+            materials=two_materials,
+            simulation_volume=sim_volume,
             gds_center=(0.0, 0.0),
         )
         assert len(objects[0].polygons) == 1
@@ -452,7 +456,11 @@ class TestEtchBy:
         cell.add(gdstk.Polygon([(1.0, 1.0), (1.5, 1.0), (1.5, 1.5), (1.0, 1.5)], layer=2, datatype=0))
         spec = GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9, z_base=0.0, etch_by=[(2, 0)])
         objects, _ = gds_layer_stack(
-            gds_source=lib, cell_name="TOP", layers=[spec], materials=two_materials, simulation_volume=sim_volume,
+            gds_source=lib,
+            cell_name="TOP",
+            layers=[spec],
+            materials=two_materials,
+            simulation_volume=sim_volume,
             gds_center=(0.0, 0.0),
         )
         assert len(objects[0].polygons) == 1
