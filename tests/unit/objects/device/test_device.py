@@ -133,7 +133,7 @@ class TestPlaceOnGrid:
     def test_single_voxel_real_shape(self, config, key, two_materials):
         device = _make_device(two_materials, voxel_grid=(2, 2, 2))
         placed = _place_device(device, config, key)
-        res = config.require_uniform_grid()
+        res = config.uniform_spacing()
         assert placed.single_voxel_real_shape == pytest.approx((2 * res, 2 * res, 2 * res))
 
     def test_voxel_size_from_real_shape(self, config, key, two_materials):

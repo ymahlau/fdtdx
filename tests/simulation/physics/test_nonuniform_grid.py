@@ -113,7 +113,7 @@ def _phasor(arrays, detector_name: str, component: int) -> complex:
 def _detector_center_z(obj_container, config, detector_name: str) -> float:
     detector = next(det for det in obj_container.detectors if det.name == detector_name)
     lower, upper = detector.grid_slice_tuple[2]
-    grid = config.realized_grid
+    grid = config.resolved_grid
     assert grid is not None
     return float(0.5 * (grid.z_edges[lower] + grid.z_edges[upper]))
 

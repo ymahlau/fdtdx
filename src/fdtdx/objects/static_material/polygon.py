@@ -80,9 +80,9 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
         center_v = 0.5 * self.real_shape[self.vertical_axis]
         grid_vertices = self.vertices + np.array([center_h, center_v])
 
-        grid = self._config.realized_grid
+        grid = self._config.resolved_grid
         if grid is None:
-            spacing = self._config.require_uniform_grid()
+            spacing = self._config.uniform_spacing()
             half_res = 0.5 * spacing
             max_horizontal = (n_horizontal - 0.5) * spacing
             max_vertical = (n_vertical - 0.5) * spacing

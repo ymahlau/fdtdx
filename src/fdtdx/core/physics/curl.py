@@ -23,7 +23,7 @@ def _metric_scale(
     if not config.has_nonuniform_grid:
         return 1.0
 
-    grid = config.realized_grid
+    grid = config.resolved_grid
     assert grid is not None
     widths = grid.cell_widths(axis)
     if stencil == "backward":
@@ -53,7 +53,7 @@ def _backward_edge_average(
     if config is None or not config.has_nonuniform_grid:
         return 0.5 * (current + previous)
 
-    grid = config.realized_grid
+    grid = config.resolved_grid
     assert grid is not None
     widths = grid.cell_widths(axis)
     previous_widths = jnp.concatenate([widths[:1], widths[:-1]])

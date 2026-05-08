@@ -58,7 +58,7 @@ class SimulationConfig(TreeClass):
     #: is still being inferred.  ``RectilinearGrid`` is the realized solver grid
     #: with explicit physical edge coordinates.  Placement resolves policies to
     #: ``RectilinearGrid`` so compiled FDTD code has exactly one metric source.
-    grid: UniformGrid | RectilinearGrid = frozen_field()
+    grid: UniformGrid | RectilinearGrid = field()
 
     #: Computation backend ('gpu', 'tpu', 'cpu' or 'METAL'). Defaults to "gpu".
     backend: BackendOption = frozen_field(default="gpu")
@@ -124,8 +124,8 @@ class SimulationConfig(TreeClass):
         """
         return self.courant_factor / math.sqrt(3)
 
-    def require_grid(self, shape: tuple[int, int, int] | None = None) -> RectilinearGrid:
-        """Return a realized solver grid.
+    def resolve_grid(self, shape: tuple[int, int, int] | None = None) -> RectilinearGrid:
+        """Return a concrete solver grid.
 
         Args:
             shape: Required when ``grid`` is an unresolved ``UniformGrid``.
@@ -140,13 +140,12 @@ class SimulationConfig(TreeClass):
         return self.grid.resolve(shape)
 
     @property
-    def realized_grid(self) -> RectilinearGrid | None:
-        """Return the solver grid when grid policy has already been resolved.
+    def resolved_grid(self) -> RectilinearGrid | None:
+        """Return the concrete solver grid, or ``None`` if not yet resolved.
 
-        ``UniformGrid`` deliberately has no edge arrays because the final shape
-        may still be unknown.  Callers that need coordinates, areas, or volumes
-        should use this property and fall back to ``require_uniform_grid`` when
-        it returns ``None``.
+        ``UniformGrid`` has no edge arrays until the simulation shape is known.
+        Callers that need coordinates, areas, or volumes should use this
+        property and fall back to ``uniform_spacing`` when it returns ``None``.
         """
         if isinstance(self.grid, RectilinearGrid):
             return self.grid
@@ -155,11 +154,11 @@ class SimulationConfig(TreeClass):
     @property
     def has_nonuniform_grid(self) -> bool:
         """Whether the realized solver grid is non-uniform."""
-        grid = self.realized_grid
+        grid = self.resolved_grid
         return grid is not None and not grid.is_uniform
 
-    def require_uniform_grid(self) -> float:
-        """Return uniform spacing for paths that require a uniform grid.
+    def uniform_spacing(self) -> float:
+        """Return the uniform grid spacing.
 
         ``UniformGrid`` can answer this before placement.  ``RectilinearGrid``
         answers only when all spacings are equal and raises for non-uniform

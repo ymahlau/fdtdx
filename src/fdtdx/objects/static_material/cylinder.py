@@ -72,9 +72,9 @@ class Cylinder(StaticMultiMaterialObject):
         def local_centers(axis: int) -> jax.Array:
             """Return physical cell centers relative to this object's lower edge."""
             lower, upper = self.grid_slice_tuple[axis]
-            grid = self._config.realized_grid
+            grid = self._config.resolved_grid
             if grid is None:
-                spacing = self._config.require_uniform_grid()
+                spacing = self._config.uniform_spacing()
                 return (jnp.arange(self.grid_shape[axis]) + 0.5) * spacing
             edges = grid.edges(axis)
             return 0.5 * (edges[lower:upper] + edges[lower + 1 : upper + 1]) - edges[lower]

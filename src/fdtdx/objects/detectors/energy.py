@@ -50,14 +50,14 @@ class EnergyDetector(Detector):
         """
         if real_pos is None:
             return axis_len // 2
-        grid = self._config.realized_grid
+        grid = self._config.resolved_grid
         if grid is not None:
             start, stop = self.grid_slice_tuple[axis]
             centers = np.asarray(grid.centers(axis)[start:stop])
             idx = int(np.argmin(np.abs(centers - real_pos)))
             return max(0, min(idx, axis_len - 1))
 
-        spacing = self._config.require_uniform_grid()
+        spacing = self._config.uniform_spacing()
         origin = self.grid_slice[axis].start * spacing
         idx = int((real_pos - origin) / spacing)
         return max(0, min(idx, axis_len - 1))

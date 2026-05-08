@@ -70,7 +70,7 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         non-uniform grids need these explicit edge arrays for time-of-flight
         corrections and physical profile sampling.
         """
-        grid = self._config.realized_grid
+        grid = self._config.resolved_grid
         if grid is None:
             return None
         local_edges = []
@@ -106,9 +106,9 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         is uniform.
         """
         if self._config.has_nonuniform_grid:
-            assert self._config.realized_grid is not None
-            return self._config.realized_grid.min_spacing
-        return self._config.require_uniform_grid()
+            assert self._config.resolved_grid is not None
+            return self._config.resolved_grid.min_spacing
+        return self._config.uniform_spacing()
 
     def _uses_physical_source_coordinates(self) -> bool:
         """Whether transverse source coordinates are represented in metres."""
@@ -338,7 +338,7 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
             profile_2d = profile_2d / (profile_2d * cell_areas).sum()
             return jnp.expand_dims(profile_2d, axis=self.propagation_axis)
 
-        grid_radius = self.radius / self._config.require_uniform_grid()
+        grid_radius = self.radius / self._config.uniform_spacing()
         profile = self._gauss_profile(
             width=self.grid_shape[self.horizontal_axis],
             height=self.grid_shape[self.vertical_axis],

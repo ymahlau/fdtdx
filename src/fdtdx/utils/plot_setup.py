@@ -23,7 +23,7 @@ def _axis_edges_um(config: SimulationConfig, axis: int, bounds: tuple[int, int])
         domain_origin = float(edges[0])
         return (float(edges[bounds[0]] - domain_origin) / 1.0e-6, float(edges[bounds[1]] - domain_origin) / 1.0e-6)
 
-    spacing = config.require_uniform_grid()
+    spacing = config.uniform_spacing()
     return (bounds[0] * spacing / 1.0e-6, bounds[1] * spacing / 1.0e-6)
 
 

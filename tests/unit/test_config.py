@@ -65,7 +65,7 @@ class TestSimulationConfigConstruction:
             courant_factor=0.95,
         )
         assert config.time == 1e-12
-        assert config.require_uniform_grid() == 1e-9
+        assert config.uniform_spacing() == 1e-9
         assert config.backend == "cpu"
         assert config.dtype == jnp.float64
         assert config.courant_factor == 0.95
@@ -216,19 +216,19 @@ class TestSimulationConfigProperties:
             courant_factor=0.8,
         )
 
-        assert math.isclose(grid_config.require_uniform_grid(), scalar_config.require_uniform_grid(), rel_tol=1e-6)
+        assert math.isclose(grid_config.uniform_spacing(), scalar_config.uniform_spacing(), rel_tol=1e-6)
         assert math.isclose(grid_config.courant_number, scalar_config.courant_number, rel_tol=1e-6)
         assert math.isclose(grid_config.time_step_duration, scalar_config.time_step_duration, rel_tol=1e-6)
 
     @patch("fdtdx.config.jax.config.update")
     @patch("fdtdx.config.jax.devices")
     @patch("jax.extend.backend.get_backend")
-    def test_require_grid_builds_uniform_grid_from_resolution(self, mock_get_backend, *_):
+    def test_resolve_grid_builds_uniform_grid_from_resolution(self, mock_get_backend, *_):
         """Legacy resolution configs create a concrete RectilinearGrid when the volume shape is known."""
         mock_get_backend.return_value = _create_mock_backend("cpu")
 
         config = SimulationConfig(time=1e-12, grid=UniformGrid(spacing=2e-9), backend="cpu")
-        grid = config.require_grid((2, 3, 4))
+        grid = config.resolve_grid((2, 3, 4))
 
         assert grid.shape == (2, 3, 4)
         assert math.isclose(grid.uniform_spacing, 2e-9, rel_tol=1e-6)
@@ -236,7 +236,7 @@ class TestSimulationConfigProperties:
     @patch("fdtdx.config.jax.config.update")
     @patch("fdtdx.config.jax.devices")
     @patch("jax.extend.backend.get_backend")
-    def test_require_uniform_grid_rejects_nonuniform_grid(self, mock_get_backend, *_):
+    def test_uniform_spacing_rejects_nonuniform_grid(self, mock_get_backend, *_):
         """Scalar compatibility access fails instead of masking non-uniform metrics."""
         mock_get_backend.return_value = _create_mock_backend("cpu")
 
@@ -248,7 +248,7 @@ class TestSimulationConfigProperties:
         config = SimulationConfig(time=1e-12, grid=grid, backend="cpu")
 
         with pytest.raises(ValueError, match="requires a uniform grid"):
-            config.require_uniform_grid()
+            config.uniform_spacing()
 
     @patch("fdtdx.config.jax.config.update")
     @patch("fdtdx.config.jax.devices")
@@ -325,4 +325,4 @@ class TestDummySimulationConfig:
         """Test DUMMY_SIMULATION_CONFIG has expected sentinel values."""
         assert isinstance(DUMMY_SIMULATION_CONFIG, SimulationConfig)
         assert DUMMY_SIMULATION_CONFIG.time == -1
-        assert DUMMY_SIMULATION_CONFIG.require_uniform_grid() == 1
+        assert DUMMY_SIMULATION_CONFIG.uniform_spacing() == 1

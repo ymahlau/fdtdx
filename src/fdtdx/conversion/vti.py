@@ -156,7 +156,7 @@ def export_vti(
         all_encoded_data.append(encoded_data)
         current_offset += len(encoded_data)
 
-    origin = "0 0 0"
+    origin = f"{offset[0] * resolution} {offset[1] * resolution} {offset[2] * resolution}"
     extent = f"{offset[0]} {nx + offset[0]} {offset[1]} {ny + offset[1]} {offset[2]} {nz + offset[2]}"
     spacing = f"{resolution} {resolution} {resolution}"
 

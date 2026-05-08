@@ -85,7 +85,7 @@ def place_objects(
     volume_name = _resolve_volume_name(object_map)
     volume_obj = object_map[volume_name]
     volume_shape = tuple(s1 - s0 for s0, s1 in resolved_slices[volume_obj.name])
-    grid = config.require_grid(volume_shape)  # Resolve user grid policy before objects see the config.
+    grid = config.resolve_grid(volume_shape)  # Resolve user grid policy before objects see the config.
     if grid.shape != volume_shape:
         raise ValueError(f"Configured grid shape {grid.shape} does not match simulation volume shape {volume_shape}.")
     if not isinstance(config.grid, RectilinearGrid):
@@ -242,7 +242,7 @@ def _init_arrays(
     """
     # create E/H fields
     volume_shape = objects.volume.grid_shape
-    grid = config.require_grid(volume_shape)
+    grid = config.resolve_grid(volume_shape)
     if grid.shape != volume_shape:
         raise ValueError(f"Configured grid shape {grid.shape} does not match simulation volume shape {volume_shape}.")
     ext_shape = (3, *volume_shape)
@@ -762,51 +762,25 @@ def _center_to_bounds(real_pos: float, resolution: float, size: int) -> tuple[in
     return lower, upper
 
 
-def _has_nonuniform_grid(config: SimulationConfig) -> bool:
-    """Return True when placement should use physical edge coordinates.
-
-    Uniform grids keep the historical scalar-resolution arithmetic for exact
-    backwards compatibility.  Non-uniform grids use ``RectilinearGrid`` helpers so that
-    metres are mapped through physical edge coordinates.
-    """
-    # getattr is intentional: some unit tests pass a Mock(spec=SimulationConfig)
-    # with config.grid = None, which would bypass the isinstance check inside
-    # has_nonuniform_grid and silently return a truthy Mock.  The None guard
-    # keeps those tests on the uniform-grid path without requiring production
-    # code to change.
-    grid = getattr(config, "grid", None)
-    if grid is None:
-        return False
-    return config.has_nonuniform_grid
-
-
 def _real_length_to_grid_size(config: SimulationConfig, axis: int, length: float) -> int:
     """Convert a physical length to a grid-cell count.
 
-    For uniform grids this intentionally uses the historical ``round(length/dx)``
-    rule.  For non-uniform grids it chooses enough cells from the lower domain
-    edge to cover the requested metric length.
+    Non-uniform grids snap upward so objects always cover at least the
+    requested metric length.  Uniform grids use the historical round-to-nearest
+    rule for exact backwards compatibility.
     """
-    if _has_nonuniform_grid(config):
-        assert config.grid is not None
-        return config.grid.length_to_cell_count(axis, length, snap="upper")
-    return round(length / config.require_uniform_grid())
+    snap = "upper" if config.has_nonuniform_grid else "nearest"
+    return config.grid.length_to_cell_count(axis, length, snap=snap)
 
 
 def _real_coord_to_edge_index(config: SimulationConfig, axis: int, coord: float) -> int:
     """Snap a physical coordinate to a grid edge index."""
-    if _has_nonuniform_grid(config):
-        assert config.grid is not None
-        return config.grid.coord_to_index(axis, coord, snap="nearest")
-    return round(coord / config.require_uniform_grid())
+    return config.grid.coord_to_index(axis, coord, snap="nearest")
 
 
 def _center_to_bounds_for_grid(config: SimulationConfig, axis: int, real_pos: float, size: int) -> tuple[int, int]:
     """Convert a physical center and resolved grid size to edge bounds."""
-    if _has_nonuniform_grid(config):
-        assert config.grid is not None
-        return config.grid.bounds_for_center(axis, real_pos, size)
-    return _center_to_bounds(real_pos, config.require_uniform_grid(), size)
+    return config.grid.bounds_for_center(axis, real_pos, size)
 
 
 def _raise_for_nonuniform_grid_offsets(config: SimulationConfig, values: Sequence[int | None], name: str):
@@ -816,7 +790,7 @@ def _raise_for_nonuniform_grid_offsets(config: SimulationConfig, values: Sequenc
     defaults.  Non-zero grid distances do not have a metric meaning on stretched
     grids and must be expressed in metres instead.
     """
-    if not _has_nonuniform_grid(config):
+    if not config.has_nonuniform_grid:
         return
     if any(v not in (None, 0) for v in values):
         raise ValueError(f"{name} are index-space distances and are not supported on non-uniform grids.")
@@ -1181,7 +1155,7 @@ def _apply_grid_coordinate_constraint(
     slice_dict: dict[str, list[list[int | None]]],
     config: SimulationConfig | None = None,
 ):
-    if config is not None and _has_nonuniform_grid(config):
+    if config is not None and config.has_nonuniform_grid:
         raise ValueError(
             "GridCoordinateConstraint is an index-space placement API and is not supported on non-uniform grids."
         )
@@ -1249,40 +1223,22 @@ def _apply_position_constraint(
         object_size = shape_dict[obj_name][axis]
         if object_size is None:
             continue
-        if _has_nonuniform_grid(config):
-            assert config.grid is not None
-            other_anchor = config.grid.anchor_coordinate(
-                axis,
-                (other_b0, other_b1),
-                constraint.other_object_positions[axis_idx],
-            )
-            if real_margin is not None:
-                other_anchor += real_margin
-            b0, b1 = config.grid.bounds_for_anchor(
-                axis,
-                object_size,
-                other_anchor,
-                constraint.object_positions[axis_idx],
-            )
-        else:
-            spacing = config.require_uniform_grid()
-            # calculate anchor of other
-            other_pos = constraint.other_object_positions[axis_idx]
-            other_midpoint = (other_b1 + other_b0) / 2
-            factor = (other_b1 - other_b0) / 2
-            other_offset = 0
-            if grid_margin is not None:
-                other_offset += grid_margin
-            if real_margin is not None:
-                other_offset += real_margin / spacing
-            other_anchor = other_midpoint + factor * other_pos + other_offset
-            # calculate position of object
-            obj_pos = constraint.object_positions[axis_idx]
-            obj_factor = object_size / 2
-            object_midpoint = other_anchor - obj_pos * obj_factor
-            b0 = round(object_midpoint - obj_factor)
-            # Important: do not round twice to exactly preserve object size
-            b1 = b0 + object_size
+        other_anchor = config.grid.anchor_coordinate(
+            axis,
+            (other_b0, other_b1),
+            constraint.other_object_positions[axis_idx],
+        )
+        if real_margin is not None:
+            other_anchor += real_margin
+        if grid_margin is not None:
+            # grid_margin is in cell units; rejected for non-uniform grids above
+            other_anchor += grid_margin * config.uniform_spacing()
+        b0, b1 = config.grid.bounds_for_anchor(
+            axis,
+            object_size,
+            other_anchor,
+            constraint.object_positions[axis_idx],
+        )
         # update position or check consistency
         old_b0, old_b1 = slice_dict[obj_name][axis]
         if old_b0 is None:
@@ -1333,29 +1289,18 @@ def _apply_size_constraint(
             continue
         # calculate objects shape
         proportion = constraint.proportions[axis_idx]
-        if _has_nonuniform_grid(config):
-            assert config.grid is not None
-            if slice_dict is None:
-                raise RuntimeError(
-                    "_apply_size_constraint requires slice_dict on non-uniform grids "
-                    "to compute physical metric extents."
-                )
-            other_b0, other_b1 = slice_dict[other_name][other_axes]
-            if other_b0 is None or other_b1 is None:
-                continue
-            other_length = config.grid.axis_extent(other_axes, (other_b0, other_b1))
-            target_length = other_length * proportion
-            if constraint.offsets[axis_idx] is not None:
-                target_length += constraint.offsets[axis_idx]
-            object_shape = _real_length_to_grid_size(config, axis, target_length)
-        else:
-            spacing = config.require_uniform_grid()
-            grid_offset = 0
-            if constraint.grid_offsets[axis_idx] is not None:
-                grid_offset += constraint.grid_offsets[axis_idx]
-            if constraint.offsets[axis_idx] is not None:
-                grid_offset += constraint.offsets[axis_idx] / spacing
-            object_shape = round(other_shape * proportion + grid_offset)
+        assert slice_dict is not None, "_apply_size_constraint requires slice_dict"
+        other_b0, other_b1 = slice_dict[other_name][other_axes]
+        if other_b0 is None or other_b1 is None:
+            continue
+        other_length = config.grid.axis_extent(other_axes, (other_b0, other_b1))
+        target_length = other_length * proportion
+        if constraint.offsets[axis_idx] is not None:
+            target_length += constraint.offsets[axis_idx]
+        if constraint.grid_offsets[axis_idx] is not None:
+            # grid_offsets are in cell units; rejected for non-uniform grids above
+            target_length += constraint.grid_offsets[axis_idx] * config.uniform_spacing()
+        object_shape = _real_length_to_grid_size(config, axis, target_length)
         # update or check consistency
         if shape_dict[obj_name][axis] is None:
             shape_dict[obj_name][axis] = object_shape
@@ -1389,27 +1334,17 @@ def _apply_size_extension_constraint(
         other_b0, other_b1 = slice_dict[other_name][constraint.axis]
         if other_b0 is None or other_b1 is None:
             return False, slice_dict
-        if _has_nonuniform_grid(config):
-            assert config.grid is not None
-            other_anchor_coord = config.grid.anchor_coordinate(
-                constraint.axis,
-                (other_b0, other_b1),
-                constraint.other_position,
-            )
-            if constraint.offset is not None:
-                other_anchor_coord += constraint.offset
-            other_anchor = config.grid.coord_to_index(constraint.axis, other_anchor_coord, snap="nearest")
-        else:
-            spacing = config.require_uniform_grid()
-            # calculate anchor of other position
-            other_midpoint = (other_b1 + other_b0) / 2
-            factor = (other_b1 - other_b0) / 2
-            other_offset = 0
-            if constraint.grid_offset is not None:
-                other_offset += constraint.grid_offset
-            if constraint.offset is not None:
-                other_offset += constraint.offset / spacing
-            other_anchor = round(other_midpoint + factor * constraint.other_position + other_offset)
+        other_anchor_coord = config.grid.anchor_coordinate(
+            constraint.axis,
+            (other_b0, other_b1),
+            constraint.other_position,
+        )
+        if constraint.offset is not None:
+            other_anchor_coord += constraint.offset
+        if constraint.grid_offset is not None:
+            # grid_offset is in cell units; rejected for non-uniform grids above
+            other_anchor_coord += constraint.grid_offset * config.uniform_spacing()
+        other_anchor = config.grid.coord_to_index(constraint.axis, other_anchor_coord, snap="nearest")
     else:
         # if other is not specified, extend to boundary of simulation volume
         other_anchor = slice_dict[volume_name][constraint.axis][dir_idx]

@@ -1,4 +1,3 @@
-from functools import cached_property
 from typing import Literal, Self, Sequence
 
 import jax
@@ -61,6 +60,7 @@ class ModeOverlapDetector(PhasorDetector):
     _mode_E: jax.Array = private_field()
     _mode_H: jax.Array = private_field()
     _mode_neff: jax.Array = private_field()  # not required for detection, used for inspection
+    _cached_face_area_weights: jax.Array = private_field()
 
     @property
     def propagation_axis(self) -> int:
@@ -87,25 +87,17 @@ class ModeOverlapDetector(PhasorDetector):
             raise ValueError(
                 f"bend_axis ({self.bend_axis}) must differ from the propagation axis ({self.propagation_axis})"
             )
+        grid = self._config.resolved_grid
+        if grid is not None:
+            weights = grid.face_area(axis=self.propagation_axis, slice_tuple=self.grid_slice_tuple)
+        else:
+            spacing = self._config.uniform_spacing()
+            weights = jnp.ones(self.grid_shape, dtype=jnp.float32) * spacing * spacing
+        self = self.aset("_cached_face_area_weights", weights, create_new_ok=True)
         return self
 
-    @cached_property
-    def _cached_face_area_weights(self) -> jax.Array:
-        """Return detector-plane face areas for mode-overlap integration.
-
-        The propagation axis is the plane normal.  For legacy construction paths
-        without an explicit ``RectilinearGrid``, the scalar grid spacing supplies the
-        uniform face area.
-        """
-        grid = self._config.realized_grid
-        if grid is not None:
-            return grid.face_area(axis=self.propagation_axis, slice_tuple=self.grid_slice_tuple)
-
-        spacing = self._config.require_uniform_grid()
-        return jnp.ones(self.grid_shape, dtype=jnp.float32) * spacing * spacing
-
     def _face_area_weights(self) -> jax.Array:
-        """Return cached detector-plane face areas for mode-overlap integration."""
+        """Return detector-plane face areas for mode-overlap integration."""
         return self._cached_face_area_weights
 
     def _transverse_edge_coordinates(self) -> tuple[jax.Array, jax.Array] | None:
@@ -115,7 +107,7 @@ class ModeOverlapDetector(PhasorDetector):
         with edge-coordinate arrays.  Returning ``None`` keeps the uniform scalar
         spacing path for legacy configurations and older tests.
         """
-        grid = self._config.realized_grid
+        grid = self._config.resolved_grid
         if grid is None:
             return None
 
@@ -135,9 +127,9 @@ class ModeOverlapDetector(PhasorDetector):
         the compatibility argument does not force a uniform-grid check.
         """
         if self._config.has_nonuniform_grid:
-            assert self._config.realized_grid is not None
-            return self._config.realized_grid.min_spacing
-        return self._config.require_uniform_grid()
+            assert self._config.resolved_grid is not None
+            return self._config.resolved_grid.min_spacing
+        return self._config.uniform_spacing()
 
     def apply(
         self,

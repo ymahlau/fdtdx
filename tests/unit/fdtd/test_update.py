@@ -74,7 +74,7 @@ def _make_objects(sources=None):
 def _make_config(c=0.5):
     cfg = Mock()
     cfg.courant_number = c
-    cfg.require_uniform_grid.return_value = 1.0
+    cfg.uniform_spacing.return_value = 1.0
     return cfg
 
 
@@ -166,7 +166,7 @@ class TestPadFieldsForBoundaries:
         )
         config = Mock()
         config.grid = grid
-        config.require_uniform_grid.side_effect = AssertionError("uniform spacing should not be required")
+        config.uniform_spacing.side_effect = AssertionError("uniform spacing should not be required")
 
         boundary = Mock()
         boundary.axis = 0

@@ -101,7 +101,7 @@ class Device(OrderableObject, ABC):
         """
         if self._physical_design_voxel_shape is not None:
             return self._physical_design_voxel_shape
-        grid = self._config.realized_grid
+        grid = self._config.resolved_grid
         if grid is not None and not grid.is_uniform:
             return (
                 self.real_shape[0] / self.matrix_voxel_grid_shape[0],
@@ -110,7 +110,7 @@ class Device(OrderableObject, ABC):
             )
 
         single_voxel_shape = self.single_voxel_grid_shape
-        spacing = self._config.require_uniform_grid()
+        spacing = self._config.uniform_spacing()
         return (
             single_voxel_shape[0] * spacing,
             single_voxel_shape[1] * spacing,
@@ -142,7 +142,7 @@ class Device(OrderableObject, ABC):
         voxel_grid_shape = []
         spacing = None
         if not config.has_nonuniform_grid:
-            spacing = config.require_uniform_grid()
+            spacing = config.uniform_spacing()
         uses_physical_design_grid = config.has_nonuniform_grid and any(
             shape is not None for shape in self.partial_voxel_real_shape
         )
@@ -258,7 +258,7 @@ class Device(OrderableObject, ABC):
         so the expanded simulation grid represents the average design parameter
         over each rectilinear simulation cell.
         """
-        grid = self._config.realized_grid
+        grid = self._config.resolved_grid
         if self._physical_design_voxel_shape is None or grid is None:
             return expand_matrix(
                 matrix=params,

@@ -112,7 +112,7 @@ def pad_fields_for_boundaries(
             # compute the physical phase length from ``RectilinearGrid`` edges.
             spacing = float(grid.min_spacing)
         else:
-            spacing = config.require_uniform_grid()
+            spacing = config.uniform_spacing()
         for boundary in boundaries:
             padded = boundary.apply_pad_correction(padded, volume_shape, spacing)
     return padded

@@ -110,7 +110,7 @@ class DiffractiveDetector(Detector):
         """
         if not self._config.has_nonuniform_grid:
             return None
-        grid = self._config.realized_grid
+        grid = self._config.resolved_grid
         assert grid is not None
         centers = []
         for axis in plane_dims:
@@ -168,7 +168,7 @@ class DiffractiveDetector(Detector):
 
         transverse_centers = self._transverse_centers(plane_dims)
         if transverse_centers is None:
-            dx = dy = self._config.require_uniform_grid()
+            dx = dy = self._config.uniform_spacing()
         else:
             cur_E, dx, dy = self._uniform_resample_2d(cur_E, transverse_centers[0], transverse_centers[1])
             cur_H, _, _ = self._uniform_resample_2d(cur_H, transverse_centers[0], transverse_centers[1])

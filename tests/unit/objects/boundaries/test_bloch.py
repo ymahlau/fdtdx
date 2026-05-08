@@ -126,7 +126,7 @@ class TestBlochGetBlochPhase:
         placed = place_bloch(bb, micro_config, jax_key, volume_shape=(10, 10, 10))
         phase = placed.get_bloch_phase(
             volume_shape=(10, 10, 10),
-            resolution=micro_config.require_uniform_grid(),
+            resolution=micro_config.uniform_spacing(),
         )
         assert jnp.abs(phase - 1.0) < 1e-6
 
@@ -136,7 +136,7 @@ class TestBlochGetBlochPhase:
         placed = place_bloch(bb, micro_config, jax_key, volume_shape=(10, 10, 10))
         phase = placed.get_bloch_phase(
             volume_shape=(10, 10, 10),
-            resolution=micro_config.require_uniform_grid(),
+            resolution=micro_config.uniform_spacing(),
         )
         assert jnp.issubdtype(phase.dtype, jnp.complexfloating)
 
@@ -146,7 +146,7 @@ class TestBlochGetBlochPhase:
         placed = place_bloch(bb, micro_config, jax_key, volume_shape=(20, 30, 20))
         phase = placed.get_bloch_phase(
             volume_shape=(20, 30, 20),
-            resolution=micro_config.require_uniform_grid(),
+            resolution=micro_config.uniform_spacing(),
         )
         assert jnp.abs(jnp.abs(phase) - 1.0) < 1e-6
 
@@ -155,7 +155,7 @@ class TestBlochGetBlochPhase:
         k = 1e7
         axis = 2
         Nz = 25
-        resolution = micro_config.require_uniform_grid()
+        resolution = micro_config.uniform_spacing()
         bb = make_bloch(axis=axis, direction="-", bloch_vector=(0.0, 0.0, k))
         # We can call get_bloch_phase without placing (it only uses bloch_vector and axis)
         phase = bb.get_bloch_phase(
@@ -196,7 +196,7 @@ class TestBlochGetBlochPhase:
     def test_uses_correct_axis_component(self, micro_config):
         """Only the k component for this boundary's axis affects the phase."""
         k_x, k_y, k_z = 1e6, 2e6, 3e6
-        resolution = micro_config.require_uniform_grid()
+        resolution = micro_config.uniform_spacing()
         volume_shape = (10, 20, 30)
 
         for axis, k_axis in enumerate([k_x, k_y, k_z]):

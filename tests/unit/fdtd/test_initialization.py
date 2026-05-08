@@ -1306,12 +1306,12 @@ def test_init_arrays_unknown_static_material_type_raises(mock_create_matrix):
 
     config = Mock(spec=SimulationConfig)
     config.dtype = jnp.float32
-    config.require_uniform_grid.return_value = 1.0
+    config.uniform_spacing.return_value = 1.0
     config.backend = "cpu"
     config.gradient_config = None
-    config.grid = None
-    config.require_grid.return_value = RectilinearGrid.uniform(shape=(2, 2, 2), spacing=1.0)
-    config.require_uniform_grid.return_value = 1.0
+    config.grid = UniformGrid(spacing=1.0)
+    config.resolve_grid.return_value = RectilinearGrid.uniform(shape=(2, 2, 2), spacing=1.0)
+    config.uniform_spacing.return_value = 1.0
 
     objects = Mock(spec=ObjectContainer)
     objects.volume = Mock()

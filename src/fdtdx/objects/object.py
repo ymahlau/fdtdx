@@ -264,11 +264,11 @@ class SimulationObject(TreeClass, ABC):
         has been attached to the config, the legacy uniform-resolution fallback is
         still used for compatibility.
         """
-        grid = self._config.realized_grid
+        grid = self._config.resolved_grid
         if grid is not None:
             return grid.slice_extent(self.grid_slice_tuple)
         grid_shape = self.grid_shape
-        spacing = self._config.require_uniform_grid()
+        spacing = self._config.uniform_spacing()
         return (
             grid_shape[0] * spacing,
             grid_shape[1] * spacing,

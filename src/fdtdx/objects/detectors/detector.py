@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from functools import cached_property
 from typing import Self
 
 import jax
@@ -66,6 +65,7 @@ class Detector(SimulationObject, ABC):
     _num_time_steps_on: int = frozen_private_field()
     _is_on_at_time_step_arr: jax.Array = private_field()
     _time_step_to_arr_idx: jax.Array = private_field()
+    _cached_cell_volume_weights: jax.Array = private_field()
 
     @property
     def num_time_steps_recorded(self) -> int:
@@ -81,24 +81,8 @@ class Detector(SimulationObject, ABC):
             raise Exception("Detector is not yet initialized")
         return self._num_time_steps_on
 
-    @cached_property
-    def _cached_cell_volume_weights(self) -> jax.Array:
-        """Return physical cell-volume weights for this detector's grid slice.
-
-        Detectors that reduce spatial data should call this helper instead of
-        assuming equal-volume voxels.  A scalar-resolution fallback preserves
-        compatibility for tests and older construction paths without an explicit
-        ``RectilinearGrid``.
-        """
-        grid = self._config.realized_grid
-        if grid is not None:
-            return grid.cell_volume(self.grid_slice_tuple)
-
-        spacing = self._config.require_uniform_grid()
-        return jnp.ones(self.grid_shape, dtype=self.dtype) * spacing * spacing * spacing
-
     def _cell_volume_weights(self) -> jax.Array:
-        """Return cached physical cell-volume weights for this detector."""
+        """Return physical cell-volume weights for this detector's grid slice."""
         return self._cached_cell_volume_weights
 
     def _volume_weighted_spatial_mean(self, values: jax.Array, leading_dims: int) -> jax.Array:
@@ -124,25 +108,25 @@ class Detector(SimulationObject, ABC):
         coordinates are shifted so plots start at the detector slice origin,
         matching the historical uniform-grid display convention.
         """
-        grid = self._config.realized_grid
+        grid = self._config.resolved_grid
         if grid is not None:
             start, stop = self.grid_slice_tuple[axis]
             edges = np.asarray(grid.edges(axis)[start : stop + 1])
             centers = 0.5 * (edges[:-1] + edges[1:])
             return (centers - edges[0]) / 1.0e-6
 
-        spacing = self._config.require_uniform_grid()
+        spacing = self._config.uniform_spacing()
         return (np.arange(self.grid_shape[axis]) + 0.5) * spacing / 1.0e-6
 
     def _plot_axis_edges_um(self, axis: int) -> np.ndarray:
         """Return detector-local cell edges in micrometres for slice plots."""
-        grid = self._config.realized_grid
+        grid = self._config.resolved_grid
         if grid is not None:
             start, stop = self.grid_slice_tuple[axis]
             edges = np.asarray(grid.edges(axis)[start : stop + 1])
             return (edges - edges[0]) / 1.0e-6
 
-        spacing = self._config.require_uniform_grid()
+        spacing = self._config.uniform_spacing()
         return np.arange(self.grid_shape[axis] + 1) * spacing / 1.0e-6
 
     def _plot_resolutions(self) -> tuple[float, float, float]:
@@ -153,10 +137,10 @@ class Detector(SimulationObject, ABC):
         do not use the scalar spacing to position cells.
         """
         if self._config.has_nonuniform_grid:
-            assert self._config.realized_grid is not None
-            spacing = self._config.realized_grid.min_spacing
+            assert self._config.resolved_grid is not None
+            spacing = self._config.resolved_grid.min_spacing
             return (spacing, spacing, spacing)
-        spacing = self._config.require_uniform_grid()
+        spacing = self._config.uniform_spacing()
         return (spacing, spacing, spacing)
 
     def _plot_coordinate_edges_um(self) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
@@ -227,6 +211,14 @@ class Detector(SimulationObject, ABC):
                 counter += 1
         time_to_arr_idx_arr = jnp.asarray(time_to_arr_idx_list, dtype=jnp.int32)
         self = self.aset("_time_step_to_arr_idx", time_to_arr_idx_arr, create_new_ok=True)
+        # compute cell volume weights now that config and grid_slice are available
+        grid = self._config.resolved_grid
+        if grid is not None:
+            weights = grid.cell_volume(self.grid_slice_tuple)
+        else:
+            spacing = self._config.uniform_spacing()
+            weights = jnp.ones(self.grid_shape, dtype=self.dtype) * spacing**3
+        self = self.aset("_cached_cell_volume_weights", weights, create_new_ok=True)
         return self
 
     def init_state(

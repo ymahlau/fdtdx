@@ -18,7 +18,7 @@ from fdtdx.utils.plot_material import plot_material, plot_material_from_side
 
 def _make_config(resolution: float = 50e-9) -> MagicMock:
     config = MagicMock()
-    config.require_uniform_grid.return_value = resolution
+    config.uniform_spacing.return_value = resolution
     return config
 
 

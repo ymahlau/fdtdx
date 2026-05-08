@@ -20,7 +20,7 @@ def _axis_edges_um(config: SimulationConfig, axis: int, length: int) -> np.ndarr
         edges = np.asarray(grid.edges(axis)[: length + 1])
         return (edges - edges[0]) / 1.0e-6
 
-    spacing = config.require_uniform_grid()
+    spacing = config.uniform_spacing()
     return np.arange(length + 1) * spacing / 1.0e-6
 
 
@@ -33,7 +33,7 @@ def _slice_index_from_position(config: SimulationConfig, axis: int, length: int,
         target = 0.5 * (edges[0] + edges[-1]) + position
         return int(np.clip(np.argmin(np.abs(centers - target)), 0, length - 1))
 
-    spacing = config.require_uniform_grid()
+    spacing = config.uniform_spacing()
     center_idx = length // 2
     slice_offset = round(position / spacing)
     return max(0, min(center_idx + slice_offset, length - 1))

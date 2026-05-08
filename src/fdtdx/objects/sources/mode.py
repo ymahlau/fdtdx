@@ -33,7 +33,7 @@ class ModePlaneSource(TFSFPlaneSource):
         solving and Yee time offsets.  Coordinates are shifted so the source
         slice lower corner is at zero on each axis.
         """
-        grid = self._config.realized_grid
+        grid = self._config.resolved_grid
         if grid is None:
             return None
 
@@ -59,9 +59,9 @@ class ModePlaneSource(TFSFPlaneSource):
         are provided, but the argument remains part of the compatibility API.
         """
         if self._config.has_nonuniform_grid:
-            assert self._config.realized_grid is not None
-            return self._config.realized_grid.min_spacing
-        return self._config.require_uniform_grid()
+            assert self._config.resolved_grid is not None
+            return self._config.resolved_grid.min_spacing
+        return self._config.uniform_spacing()
 
     def _source_center_physical(self) -> jax.Array | None:
         """Return the physical source center for grid-aware Yee time offsets."""

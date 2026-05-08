@@ -4,7 +4,7 @@ import numpy as np
 from matplotlib.path import Path
 
 from fdtdx import constants
-from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field, frozen_private_field
+from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field, frozen_private_field
 
 
 @autoinit
@@ -21,7 +21,9 @@ class UniformGrid(TreeClass):
     enter the solver through the same realized ``RectilinearGrid`` structure.
     """
 
+    #: Physical cell spacing in metres. Must be positive.
     spacing: float = frozen_field()
+    #: Physical coordinate of the lower domain corner in metres. Defaults to the origin.
     origin: tuple[float, float, float] = frozen_field(default=(0, 0, 0))
 
     def __post_init__(self):
@@ -134,9 +136,12 @@ class RectilinearGrid(TreeClass):
         solver runs.
     """
 
-    x_edges: jax.Array = frozen_field()
-    y_edges: jax.Array = frozen_field()
-    z_edges: jax.Array = frozen_field()
+    #: Physical edge coordinates along x in metres, shape ``(nx + 1,)``.
+    x_edges: jax.Array = field()
+    #: Physical edge coordinates along y in metres, shape ``(ny + 1,)``.
+    y_edges: jax.Array = field()
+    #: Physical edge coordinates along z in metres, shape ``(nz + 1,)``.
+    z_edges: jax.Array = field()
     _min_spacings: tuple[float, float, float] = frozen_private_field()
     _is_uniform: bool = frozen_private_field()
     _uniform_spacing: float | None = frozen_private_field()

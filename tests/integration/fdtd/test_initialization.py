@@ -87,7 +87,7 @@ def test_place_objects_updates_config(simple_config, simple_volume, simple_mater
         [simple_volume, obj], simple_config, [constraint], key
     )
     assert config is not None
-    assert config.require_uniform_grid() == simple_config.require_uniform_grid()
+    assert config.uniform_spacing() == simple_config.uniform_spacing()
 
 
 def test_place_objects_initializes_arrays(simple_config, simple_volume, simple_material):

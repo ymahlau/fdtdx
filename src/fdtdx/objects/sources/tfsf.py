@@ -78,7 +78,7 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
             return 0.0
         if self._config.has_nonuniform_grid:
             return self.max_vertical_offset
-        return self.max_vertical_offset / self._config.require_uniform_grid()
+        return self.max_vertical_offset / self._config.uniform_spacing()
 
     @property
     def max_horizontal_offset_grid(self) -> float:
@@ -94,7 +94,7 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
             return 0.0
         if self._config.has_nonuniform_grid:
             return self.max_horizontal_offset
-        return self.max_horizontal_offset / self._config.require_uniform_grid()
+        return self.max_horizontal_offset / self._config.uniform_spacing()
 
     def _get_azimuth_elevation(
         self,
@@ -128,7 +128,7 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         the source-slice lower edge along the transverse axes.
         """
         if self._config.has_nonuniform_grid:
-            grid = self._config.realized_grid
+            grid = self._config.resolved_grid
             assert grid is not None
             local_edges = []
             for axis in (self.horizontal_axis, self.vertical_axis):

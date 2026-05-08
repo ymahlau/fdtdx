@@ -123,7 +123,7 @@ def test_config_json(setup_simulation_inputs):
     s = export_json_str(conf)
     rec = import_from_json(s)
     assert rec.time == 20e-15
-    assert rec.require_uniform_grid() == 100e-9
+    assert rec.uniform_spacing() == 100e-9
 
 
 def test_volume_json(setup_simulation_inputs):
