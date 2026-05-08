@@ -476,20 +476,18 @@ class TestEtchBy:
 class TestGdsLayerStackFromComponent:
     def test_requires_gdsfactory(self, sim_volume, two_materials):
         """Without gdsfactory installed, ImportError is raised with a helpful message."""
-        import sys
+        from unittest.mock import patch
 
-        gdsf = sys.modules.pop("gdsfactory", None)
-        try:
-            from fdtdx.objects.static_material.gds_layer_stack import gds_layer_stack_from_component
+        from fdtdx.objects.static_material.gds_layer_stack import gds_layer_stack_from_component
 
+        class _FakeComponent:
+            name = "FAKE"
+
+            def write_gds(self, path):
+                raise RuntimeError("should not be called")
+
+        with patch.dict("sys.modules", {"gdsfactory": None}):
             with pytest.raises(ImportError, match="gdsfactory"):
-
-                class _FakeComponent:
-                    name = "FAKE"
-
-                    def write_gds(self, path):
-                        raise RuntimeError("should not be called")
-
                 gds_layer_stack_from_component(
                     component=_FakeComponent(),
                     layers=[_spec()],
@@ -497,9 +495,6 @@ class TestGdsLayerStackFromComponent:
                     simulation_volume=sim_volume,
                     gds_center=(0.0, 0.0),
                 )
-        finally:
-            if gdsf is not None:
-                sys.modules["gdsfactory"] = gdsf
 
     def test_with_gdsfactory_if_available(self, sim_volume, two_materials):
         """If gdsfactory is installed, the function returns GDSLayerObjects."""
@@ -572,7 +567,7 @@ class TestSourcesFromGdsPorts:
         assert len(sources) == 1
         assert isinstance(sources[0], ModePlaneSource)
 
-    def test_three_constraints_per_port(self, port_lib, vol_with_x_size, wave_char):
+    def test_four_constraints_per_port(self, port_lib, vol_with_x_size, wave_char):
         """Each port should produce 4 constraints: propagation position, transverse center, height size, height center."""
         spec = GDSPortSpec(gds_layer=10, propagation_axis=0)
         _, constraints = sources_from_gds_ports(
@@ -656,7 +651,7 @@ class TestDetectorsFromGdsPorts:
         assert len(detectors) == 1
         assert isinstance(detectors[0], ModeOverlapDetector)
 
-    def test_three_constraints_per_detector(self, port_lib, vol_with_x_size, wave_char):
+    def test_four_constraints_per_detector(self, port_lib, vol_with_x_size, wave_char):
         """Each port should produce 4 constraints: propagation position, transverse center, height size, height center."""
         spec = GDSPortSpec(gds_layer=10, propagation_axis=0)
         _, constraints = detectors_from_gds_ports(
