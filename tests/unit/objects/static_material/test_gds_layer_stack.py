@@ -402,7 +402,7 @@ class TestEtchBy:
     def test_etch_reduces_polygon_count(self, etch_lib, sim_volume, two_materials):
         """Etching layer 2 from layer 1 should produce more polygons than the original (ring shape)."""
         spec_no_etch = GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9, z_base=0.0)
-        spec_etch = GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9, z_base=0.0, etch_by=[(2, 0)])
+        spec_etch = GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9, z_base=0.0, etch_by=((2, 0),))
         objects_no_etch, _ = gds_layer_stack(
             gds_source=etch_lib,
             cell_name="TOP",
@@ -423,7 +423,7 @@ class TestEtchBy:
 
     def test_etch_empty_removes_nothing(self, square_lib, sim_volume, two_materials):
         """etch_by=[] (empty) should behave identically to no etch."""
-        spec_with = GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9, z_base=0.0, etch_by=[])
+        spec_with = GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9, z_base=0.0, etch_by=())
         objects, _ = gds_layer_stack(
             gds_source=square_lib,
             cell_name="TOP",
@@ -436,7 +436,7 @@ class TestEtchBy:
 
     def test_etch_nonexistent_layer_keeps_original(self, square_lib, sim_volume, two_materials):
         """etch_by referencing a layer with no polygons leaves the original unchanged."""
-        spec = GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9, z_base=0.0, etch_by=[(99, 0)])
+        spec = GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9, z_base=0.0, etch_by=((99, 0),))
         objects, _ = gds_layer_stack(
             gds_source=square_lib,
             cell_name="TOP",
@@ -454,7 +454,7 @@ class TestEtchBy:
         cell.add(gdstk.Polygon([(-0.3, -0.3), (0.3, -0.3), (0.3, 0.3), (-0.3, 0.3)], layer=1, datatype=0))
         # Etch polygon placed far away — no geometric overlap
         cell.add(gdstk.Polygon([(1.0, 1.0), (1.5, 1.0), (1.5, 1.5), (1.0, 1.5)], layer=2, datatype=0))
-        spec = GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9, z_base=0.0, etch_by=[(2, 0)])
+        spec = GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9, z_base=0.0, etch_by=((2, 0),))
         objects, _ = gds_layer_stack(
             gds_source=lib,
             cell_name="TOP",

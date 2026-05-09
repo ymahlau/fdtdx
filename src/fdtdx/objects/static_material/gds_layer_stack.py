@@ -3,7 +3,7 @@ from __future__ import annotations
 import pathlib
 import tempfile
 from collections.abc import Generator, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Literal
 
 import gdstk
@@ -21,7 +21,7 @@ from fdtdx.objects.sources.mode import ModePlaneSource
 from fdtdx.objects.static_material.static import SimulationVolume, StaticMultiMaterialObject
 
 
-@dataclass
+@dataclass(frozen=True)
 class GDSLayerSpec:
     """Specification for a single GDS layer to be imported as a simulation object.
 
@@ -32,7 +32,7 @@ class GDSLayerSpec:
         gds_datatype: GDS datatype number (default 0).
         z_base: Distance from the simulation volume bottom face to the base of this layer, in metres.
         name: Optional name for the resulting object. Auto-generates "gds_{layer}_{datatype}" if None.
-        etch_by: List of (layer, datatype) pairs whose polygons are subtracted from this layer via
+        etch_by: Tuple of (layer, datatype) pairs whose polygons are subtracted from this layer via
             a boolean NOT operation before voxelization. Useful for etched features such as via holes.
     """
 
@@ -42,10 +42,10 @@ class GDSLayerSpec:
     gds_datatype: int = 0
     z_base: float = 0.0
     name: str | None = None
-    etch_by: list[tuple[int, int]] = field(default_factory=list)
+    etch_by: tuple[tuple[int, int], ...] = ()
 
 
-@dataclass
+@dataclass(frozen=True)
 class GDSPortSpec:
     """Specification for a GDS port marker layer used to auto-generate sources or detectors.
 
@@ -80,8 +80,8 @@ class GDSLayerObject(StaticMultiMaterialObject):
     the x/y center of the simulation object.
     """
 
-    #: List of (N, 2) vertex arrays for each polygon, in GDS metres.
-    polygons: list[np.ndarray] = frozen_field()
+    #: Sequence of (N, 2) vertex arrays for each polygon, in GDS metres.
+    polygons: Sequence[np.ndarray] = frozen_field()
 
     #: GDS coordinate (horizontal, vertical) of the simulation x/y center.
     gds_center: tuple[float, float] = frozen_field()
@@ -471,7 +471,9 @@ def sources_from_gds_ports(
         mode_index: Waveguide mode index (default 0 = fundamental).
         filter_pol: Optional polarisation filter (``"te"``, ``"tm"``, or ``None``).
         height_axis: Simulation axis treated as the out-of-plane height; sources are made
-            to span the full simulation extent on this axis (default 2 = z).
+            to span the full simulation extent on this axis (default 2 = z).  This assumes
+            a single vertical stack — sources run from one face of the simulation volume to
+            the other along ``height_axis``.
         flatten: Flatten sub-cell references before reading polygons.
 
     Returns:
@@ -504,7 +506,7 @@ def sources_from_gds_ports(
         )
         trans_center_constraint = src.place_at_center(simulation_volume, axes=(entry.trans_axis,))
         height_constraint = src.same_size(simulation_volume, axes=(height_axis,))
-        vert_center_constraint = src.same_position(simulation_volume, axes=(height_axis,))
+        vert_center_constraint = src.place_at_center(simulation_volume, axes=(height_axis,))
         sources.append(src)
         constraints.extend([prop_constraint, trans_center_constraint, height_constraint, vert_center_constraint])
 
@@ -547,7 +549,9 @@ def detectors_from_gds_ports(
         mode_index: Waveguide mode index.
         filter_pol: Optional polarisation filter.
         height_axis: Simulation axis treated as the out-of-plane height; detectors are
-            made to span the full simulation extent on this axis (default 2 = z).
+            made to span the full simulation extent on this axis (default 2 = z).  This
+            assumes a single vertical stack — detectors run from one face of the simulation
+            volume to the other along ``height_axis``.
         flatten: Flatten sub-cell references before reading polygons.
 
     Returns:
@@ -580,7 +584,7 @@ def detectors_from_gds_ports(
         )
         trans_center_constraint = det.place_at_center(simulation_volume, axes=(entry.trans_axis,))
         height_constraint = det.same_size(simulation_volume, axes=(height_axis,))
-        vert_center_constraint = det.same_position(simulation_volume, axes=(height_axis,))
+        vert_center_constraint = det.place_at_center(simulation_volume, axes=(height_axis,))
         detectors.append(det)
         constraints.extend([prop_constraint, trans_center_constraint, height_constraint, vert_center_constraint])
 

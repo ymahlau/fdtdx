@@ -858,3 +858,86 @@ def test_gds_layer_stack_missing_cell_raises():
     layers = [fdtdx.GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9)]
     with pytest.raises(ValueError, match="MISSING"):
         fdtdx.gds_layer_stack(lib, "MISSING", layers, _STACK_MATS, vol, (0.0, 0.0))
+
+
+def test_gds_layer_stack_from_file():
+    """gds_layer_stack reads polygons from a real .gds file on disk."""
+    import pathlib
+
+    gds_path = pathlib.Path(__file__).parent.parent.parent / "data" / "simple_waveguide.gds"
+    vol = _volume()
+    layers = [
+        fdtdx.GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9, z_base=0.0, name="core"),
+        fdtdx.GDSLayerSpec(gds_layer=2, material_name="sio2", thickness=400e-9, z_base=0.0, name="clad"),
+    ]
+    objects, constraints = fdtdx.gds_layer_stack(
+        gds_source=gds_path,
+        cell_name="TOP",
+        layers=layers,
+        materials=_STACK_MATS,
+        simulation_volume=vol,
+        gds_center=(0.0, 0.0),
+    )
+    assert len(objects) == 2
+    assert objects[0].name == "core"
+    assert objects[1].name == "clad"
+    assert len(objects[0].polygons) == 1
+    assert len(objects[1].polygons) == 1
+    assert len(constraints) == 4
+
+
+def test_sources_from_gds_ports_from_file():
+    """sources_from_gds_ports reads port markers from a real .gds file on disk."""
+    import pathlib
+
+    gds_path = pathlib.Path(__file__).parent.parent.parent / "data" / "simple_waveguide.gds"
+    # Volume with x size set so port positions can be computed on propagation_axis=0.
+    vol = fdtdx.SimulationVolume(partial_real_shape=(VOL_SIDE, VOL_SIDE, VOL_SIDE))
+    spec = fdtdx.GDSPortSpec(gds_layer=10, propagation_axis=0, name_prefix="port")
+    wave = fdtdx.WaveCharacter(wavelength=1.55e-6)
+    sources, constraints = fdtdx.sources_from_gds_ports(
+        gds_source=gds_path,
+        cell_name="TOP",
+        port_specs=[spec],
+        wave_character=wave,
+        simulation_volume=vol,
+        gds_center=(0.0, 0.0),
+    )
+    assert len(sources) == 1
+    assert sources[0].name == "port_0"
+    assert len(constraints) == 4
+
+
+def test_sources_from_gds_ports_nonzero_gds_center():
+    """Non-zero gds_center shifts the source position in the simulation by the expected amount.
+
+    Port marker centroid is at GDS x = -0.4 µm = -4e-7 m.
+    Volume width on x = 2 µm. Grid: 20 cells at 100 nm.
+
+    gds_center=(0, 0)      → sim_prop_pos = -4e-7 + 1e-6 = 6e-7 m → left face at cell 6
+    gds_center=(-4e-7, 0)  → sim_prop_pos =  0    + 1e-6 = 1e-6 m → left face at cell 10
+    """
+    import pathlib
+
+    gds_path = pathlib.Path(__file__).parent.parent.parent / "data" / "simple_waveguide.gds"
+    vol = fdtdx.SimulationVolume(partial_real_shape=(VOL_SIDE, VOL_SIDE, VOL_SIDE))
+    spec = fdtdx.GDSPortSpec(gds_layer=10, propagation_axis=0)
+    wave = fdtdx.WaveCharacter(wavelength=1.55e-6)
+
+    def _port_x_cell(gds_center):
+        sources, constraints = fdtdx.sources_from_gds_ports(
+            gds_source=gds_path,
+            cell_name="TOP",
+            port_specs=[spec],
+            wave_character=wave,
+            simulation_volume=vol,
+            gds_center=gds_center,
+        )
+        slices = _resolve(vol, sources, constraints)
+        return _sl(slices, sources[0])[0]  # (x_lo, x_hi)
+
+    x_origin = _port_x_cell((0.0, 0.0))
+    x_shifted = _port_x_cell((-400e-9, 0.0))
+
+    assert x_origin == (6, 7), f"expected (6,7) got {x_origin}"
+    assert x_shifted == (10, 11), f"expected (10,11) got {x_shifted}"
