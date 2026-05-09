@@ -149,16 +149,16 @@ class Device(OrderableObject, ABC):
         uses_physical_design_grid = config.has_nonuniform_grid and any(
             shape is not None for shape in self.partial_voxel_real_shape
         )
+        if uses_physical_design_grid and any(shape is not None for shape in self.partial_voxel_grid_shape):
+            raise ValueError(
+                "Non-uniform physical device voxel sizes cannot be mixed with partial_voxel_grid_shape. "
+                "Use either a physical design grid or grid-cell-count design voxels."
+            )
         if uses_physical_design_grid:
             raise NotImplementedError(
                 "Physical-unit design voxels (partial_voxel_real_shape) are not yet supported on "
                 "non-uniform grids. Use partial_voxel_grid_shape to specify voxel sizes in "
                 "simulation grid-cell counts instead."
-            )
-        if uses_physical_design_grid and any(shape is not None for shape in self.partial_voxel_grid_shape):
-            raise ValueError(
-                "Non-uniform physical device voxel sizes cannot be mixed with partial_voxel_grid_shape. "
-                "Use either a physical design grid or grid-cell-count design voxels."
             )
         physical_design_shape = []
         matrix_shape_override = []
