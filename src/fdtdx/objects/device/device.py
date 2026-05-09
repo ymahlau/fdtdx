@@ -54,6 +54,9 @@ class Device(OrderableObject, ABC):
     _physical_design_voxel_shape: tuple[float, float, float] | None = frozen_private_field(default=None)
     _physical_design_domain_shape: tuple[float, float, float] | None = frozen_private_field(default=None)
 
+    # TODO(teevee112): support physical-unit design voxels on non-uniform grids — requires a resampling layer
+    # or snapping to RectilinearGrid cell boundaries; currently only grid-cell-count voxels are
+    # reliable on non-uniform grids (see PR #312)
     @property
     def matrix_voxel_grid_shape(self) -> tuple[int, int, int]:
         """Calculate the shape of the voxel matrix in grid coordinates.
@@ -146,6 +149,12 @@ class Device(OrderableObject, ABC):
         uses_physical_design_grid = config.has_nonuniform_grid and any(
             shape is not None for shape in self.partial_voxel_real_shape
         )
+        if uses_physical_design_grid:
+            raise NotImplementedError(
+                "Physical-unit design voxels (partial_voxel_real_shape) are not yet supported on "
+                "non-uniform grids. Use partial_voxel_grid_shape to specify voxel sizes in "
+                "simulation grid-cell counts instead."
+            )
         if uses_physical_design_grid and any(shape is not None for shape in self.partial_voxel_grid_shape):
             raise ValueError(
                 "Non-uniform physical device voxel sizes cannot be mixed with partial_voxel_grid_shape. "

@@ -5,6 +5,7 @@ import jax.numpy as jnp
 
 from fdtdx import constants
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
+from fdtdx.core.physics.metrics import resample_to_uniform_2d
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 
@@ -118,30 +119,6 @@ class DiffractiveDetector(Detector):
             centers.append(grid.centers(axis)[lower:upper])
         return tuple(centers)  # type: ignore[return-value]
 
-    @staticmethod
-    def _uniform_resample_2d(
-        field: jax.Array,
-        x_centers: jax.Array,
-        y_centers: jax.Array,
-    ) -> tuple[jax.Array, jax.Array | float, jax.Array | float]:
-        """Resample ``(component, x, y)`` fields onto uniform transverse centers."""
-        nx, ny = field.shape[1], field.shape[2]
-        target_x = jnp.linspace(x_centers[0], x_centers[-1], nx)
-        target_y = jnp.linspace(y_centers[0], y_centers[-1], ny)
-
-        def interp_x(component):
-            return jax.vmap(lambda column: jnp.interp(target_x, x_centers, column), in_axes=1, out_axes=1)(component)
-
-        def interp_y(component):
-            return jax.vmap(lambda row: jnp.interp(target_y, y_centers, row))(component)
-
-        field = jax.vmap(interp_x)(field)
-        field = jax.vmap(interp_y)(field)
-
-        dx = (target_x[1] - target_x[0]) if nx > 1 else 1.0
-        dy = (target_y[1] - target_y[0]) if ny > 1 else 1.0
-        return field, dx, dy
-
     def update(
         self,
         time_step: jax.Array,
@@ -170,8 +147,8 @@ class DiffractiveDetector(Detector):
         if transverse_centers is None:
             dx = dy = self._config.uniform_spacing()
         else:
-            cur_E, dx, dy = self._uniform_resample_2d(cur_E, transverse_centers[0], transverse_centers[1])
-            cur_H, _, _ = self._uniform_resample_2d(cur_H, transverse_centers[0], transverse_centers[1])
+            cur_E, dx, dy = resample_to_uniform_2d(cur_E, transverse_centers[0], transverse_centers[1])
+            cur_H, _, _ = resample_to_uniform_2d(cur_H, transverse_centers[0], transverse_centers[1])
 
         # Compute FFT of each field component.
         # After the squeeze, cur_E/cur_H always have shape (3, dim1, dim2), so the

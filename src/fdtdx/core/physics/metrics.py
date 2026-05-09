@@ -148,3 +148,32 @@ def normalize_by_poynting_flux(
     E_norm = E / norm_factor
     H_norm = H / norm_factor
     return E_norm, H_norm
+
+
+def resample_to_uniform_2d(
+    field: jax.Array,
+    x_centers: jax.Array,
+    y_centers: jax.Array,
+) -> tuple[jax.Array, jax.Array | float, jax.Array | float]:
+    """Resample a ``(component, x, y)`` field onto a uniform transverse grid.
+
+    Interpolates each component from the given non-uniform physical center
+    coordinates onto a uniform grid with the same extent and number of points.
+    Returns the resampled field and the uniform grid spacings.
+    """
+    nx, ny = field.shape[1], field.shape[2]
+    target_x = jnp.linspace(x_centers[0], x_centers[-1], nx)
+    target_y = jnp.linspace(y_centers[0], y_centers[-1], ny)
+
+    def interp_x(component):
+        return jax.vmap(lambda column: jnp.interp(target_x, x_centers, column), in_axes=1, out_axes=1)(component)
+
+    def interp_y(component):
+        return jax.vmap(lambda row: jnp.interp(target_y, y_centers, row))(component)
+
+    field = jax.vmap(interp_x)(field)
+    field = jax.vmap(interp_y)(field)
+
+    dx = (target_x[1] - target_x[0]) if nx > 1 else 1.0
+    dy = (target_y[1] - target_y[0]) if ny > 1 else 1.0
+    return field, dx, dy

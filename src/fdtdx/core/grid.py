@@ -474,68 +474,47 @@ def calculate_time_offset_yee(
     propagation_axis = spatial_shape.index(1)
 
     if coordinate_edges is None:
-        # phase variation in grid-index units; convert to metres at the end
-        x, y, z = jnp.meshgrid(
-            jnp.arange(spatial_shape[0]),
-            jnp.arange(spatial_shape[1]),
-            jnp.arange(spatial_shape[2]),
-            indexing="ij",
-        )
-        xyz = jnp.stack([x, y, z], axis=-1)
-        center_list = [center[0], center[1]]
-        center_list.insert(propagation_axis, jnp.array(0))
-        center_3d = jnp.asarray(center_list, dtype=wave_vector.dtype)[None, None, None, :]
-        xyz = xyz - center_3d
-
-        # yee grid offsets
-        xyz_E = jnp.stack(
-            [
-                xyz + jnp.asarray([0.5, 0, 0])[None, None, None, :],
-                xyz + jnp.asarray([0, 0.5, 0])[None, None, None, :],
-                xyz + jnp.asarray([0, 0, 0.5])[None, None, None, :],
-            ]
-        )
-        xyz_H = jnp.stack(
-            [
-                xyz + jnp.asarray([0, 0.5, 0.5])[None, None, None, :],
-                xyz + jnp.asarray([0.5, 0, 0.5])[None, None, None, :],
-                xyz + jnp.asarray([0.5, 0.5, 0])[None, None, None, :],
-            ]
-        )
-        distance_scale = resolution
+        # Build uniform coordinate edges from scalar resolution so the rest of
+        # the function has one physical-space code path.
+        e = [jnp.arange(spatial_shape[ax] + 1, dtype=jnp.float32) * resolution for ax in range(3)]
+        resolved_edges: tuple[jax.Array, jax.Array, jax.Array] = (e[0], e[1], e[2])
+        center_list: list = [float(center[0]) * resolution, float(center[1]) * resolution]
+        center_list.insert(propagation_axis, 0.0)
+        center_physical = jnp.asarray(center_list, dtype=wave_vector.dtype)
     else:
         if center_physical is None:
             raise ValueError("center_physical must be provided with coordinate_edges")
+        resolved_edges = coordinate_edges
 
-        def component_positions(axis: int, offset: float) -> jax.Array:
-            edges = coordinate_edges[axis]
-            centers = 0.5 * (edges[:-1] + edges[1:])
-            if offset == 0:
-                return edges[:-1]
-            if offset == 0.5:
-                return centers
-            raise ValueError(f"Unsupported Yee offset: {offset}")
+    def component_positions(axis: int, offset: float) -> jax.Array:
+        edges = resolved_edges[axis]
+        centers = 0.5 * (edges[:-1] + edges[1:])
+        if offset == 0:
+            return edges[:-1]
+        if offset == 0.5:
+            return centers
+        raise ValueError(f"Unsupported Yee offset: {offset}")
 
-        def xyz_for_offsets(offsets: tuple[float, float, float]) -> jax.Array:
-            coords = [component_positions(axis, offsets[axis]) for axis in range(3)]
-            x, y, z = jnp.meshgrid(coords[0], coords[1], coords[2], indexing="ij")
-            return jnp.stack([x, y, z], axis=-1) - center_physical[None, None, None, :]
+    def xyz_for_offsets(offsets: tuple[float, float, float]) -> jax.Array:
+        coords = [component_positions(ax, offsets[ax]) for ax in range(3)]
+        x, y, z = jnp.meshgrid(coords[0], coords[1], coords[2], indexing="ij")
+        return jnp.stack([x, y, z], axis=-1) - center_physical[None, None, None, :]
 
-        xyz_E = jnp.stack(
-            [
-                xyz_for_offsets((0.5, 0, 0)),
-                xyz_for_offsets((0, 0.5, 0)),
-                xyz_for_offsets((0, 0, 0.5)),
-            ]
-        )
-        xyz_H = jnp.stack(
-            [
-                xyz_for_offsets((0, 0.5, 0.5)),
-                xyz_for_offsets((0.5, 0, 0.5)),
-                xyz_for_offsets((0.5, 0.5, 0)),
-            ]
-        )
-        distance_scale = 1.0
+    xyz_E = jnp.stack(
+        [
+            xyz_for_offsets((0.5, 0, 0)),
+            xyz_for_offsets((0, 0.5, 0)),
+            xyz_for_offsets((0, 0, 0.5)),
+        ]
+    )
+    xyz_H = jnp.stack(
+        [
+            xyz_for_offsets((0, 0.5, 0.5)),
+            xyz_for_offsets((0.5, 0, 0.5)),
+            xyz_for_offsets((0.5, 0.5, 0)),
+        ]
+    )
+    distance_scale = 1.0
 
     travel_offset_E = -jnp.dot(xyz_E, wave_vector)
     travel_offset_H = -jnp.dot(xyz_H, wave_vector)
