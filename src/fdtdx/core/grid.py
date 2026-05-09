@@ -247,6 +247,8 @@ class RectilinearGrid(TreeClass):
         behavior.  For anisotropic or stretched grids it avoids using one global
         spacing for all three axes.
         """
+        if self._is_uniform and self._uniform_spacing is not None:
+            return (courant_factor / float(np.sqrt(3.0))) * self._uniform_spacing / constants.c
         dx_min, dy_min, dz_min = self.min_spacings
         inv_metric = (1 / dx_min**2) + (1 / dy_min**2) + (1 / dz_min**2)
         return courant_factor / (constants.c * float(np.sqrt(inv_metric)))
