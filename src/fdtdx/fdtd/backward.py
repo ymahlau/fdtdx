@@ -5,17 +5,9 @@ import equinox.internal as eqxi
 import jax
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.jax.default_key import default_key
 from fdtdx.fdtd.container import ObjectContainer, SimulationState
 from fdtdx.fdtd.update import add_interfaces, update_detector_states, update_E_reverse, update_H_reverse
-
-_DEFAULT_KEY_SEED = 0
-
-
-def _default_key(key: jax.Array | None) -> jax.Array:
-    """Return *key* unchanged, or create a deterministic fallback key from a fixed seed."""
-    if key is None:
-        return jax.random.PRNGKey(_DEFAULT_KEY_SEED)
-    return key
 
 
 def cond_fn(state, start_time_step: int) -> bool:
@@ -50,7 +42,7 @@ def full_backward(
     Returns:
         SimulationState: Final state after backward propagation
     """
-    key = _default_key(key)
+    key = default_key(key)
     s0 = eqxi.while_loop(
         cond_fun=partial(cond_fn, start_time_step=start_time_step),
         body_fun=partial(
@@ -94,7 +86,7 @@ def backward(
     Returns:
         SimulationState: Updated state after one backward step
     """
-    key = _default_key(key)
+    key = default_key(key)
     time_step, arrays = state
     time_step = time_step - 1
 
