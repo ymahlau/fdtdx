@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import jax
 
 from fdtdx.config import SimulationConfig
@@ -16,7 +18,7 @@ def run_fdtd(
     key: jax.Array | None = None,
     stopping_condition: StoppingCondition | None = None,
     show_progress: bool = True,
-    progress_callback=None,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> SimulationState:
     key = default_key(key)
     if stopping_condition is not None:
