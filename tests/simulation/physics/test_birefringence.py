@@ -87,7 +87,7 @@ def _build_base(polarization_vector):
     and extends through the right PML, so the source is in vacuum.
     """
     config = fdtdx.SimulationConfig(
-        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
+        resolution=_RESOLUTION,
         time=_SIM_TIME,
         dtype=jnp.float32,
     )

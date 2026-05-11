@@ -46,7 +46,7 @@ _N_AVG_STEPS = 10 * _STEPS_PER_PERIOD
 def _build_dipole_domain(polarization=2, azimuth_angle=0.0, elevation_angle=0.0):
     """Build domain with a point dipole at center and PML on all faces."""
     config = fdtdx.SimulationConfig(
-        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
+        resolution=_RESOLUTION,
         time=_SIM_TIME,
         dtype=jnp.float32,
     )

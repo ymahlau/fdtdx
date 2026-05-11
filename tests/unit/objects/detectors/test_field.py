@@ -2,8 +2,6 @@
 
 import jax.numpy as jnp
 
-from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import RectilinearGrid
 from fdtdx.objects.detectors.field import FieldDetector
 
 
@@ -172,27 +170,6 @@ class TestFieldDetectorUpdate:
 
         assert jnp.isclose(state["fields"][0, 0], 1.0)  # t=0
         assert jnp.isclose(state["fields"][1, 0], 2.0)  # t=1
-
-    def test_reduce_volume_uses_nonuniform_volume_weighted_mean(self, random_key):
-        """Reduced fields report a physical volume average on stretched grids."""
-        grid = RectilinearGrid(
-            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
-            y_edges=jnp.asarray([0.0, 3.0, 7.0]),
-            z_edges=jnp.asarray([0.0, 2.0]),
-        )
-        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
-        detector = FieldDetector(reduce_volume=True, components=("Ex",))
-        detector = detector.place_on_grid(((0, 2), (0, 2), (0, 1)), config, random_key)
-        state = detector.init_state()
-
-        E = jnp.zeros((3, 2, 2, 1), dtype=jnp.float32)
-        E = E.at[0, :, :, 0].set(jnp.asarray([[1.0, 2.0], [3.0, 4.0]], dtype=jnp.float32))
-        H = jnp.zeros((3, 2, 2, 1), dtype=jnp.float32)
-
-        new_state = detector.update(jnp.array(0), E, H, state, jnp.ones((1, 2, 2, 1)), 1.0)
-
-        expected = (1 * 6 + 2 * 8 + 3 * 12 + 4 * 16) / 42
-        assert jnp.allclose(new_state["fields"][0, 0], jnp.asarray(expected, dtype=jnp.float32))
 
     def test_update_with_sinusoidal_field(
         self,

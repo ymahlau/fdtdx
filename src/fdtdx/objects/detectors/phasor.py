@@ -108,8 +108,9 @@ class PhasorDetector(Detector):
         new_phasors = EH * phasors * static_scale  # Shape: (num_freqs, num_components, *grid_shape)
 
         if self.reduce_volume:
-            # Average over spatial dimensions using physical cell volumes.
-            new_phasors = self._volume_weighted_spatial_mean(new_phasors, leading_dims=2)
+            # Average over all spatial dimensions
+            spatial_axes = tuple(range(2, new_phasors.ndim))  # Skip freq and component axes
+            new_phasors = new_phasors.mean(axis=spatial_axes) if spatial_axes else new_phasors
 
         if self.inverse:
             result = state["phasor"] - new_phasors[None, ...]

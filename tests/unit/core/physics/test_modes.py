@@ -172,57 +172,6 @@ class TestComputeMode:
         with pytest.raises(Exception, match="Invalid shape of inv_permeabilities"):
             compute_mode(frequency, inv_permittivities, inv_permeabilities, resolution, "+")
 
-    def test_invalid_transverse_coords_shape(self):
-        """Transverse coordinate arrays must match the mode cross-section shape."""
-        inv_permittivities = jnp.ones((1, 2, 2, 1))
-
-        with pytest.raises(ValueError, match="length 3"):
-            compute_mode(
-                frequency=2e14,
-                inv_permittivities=inv_permittivities,
-                inv_permeabilities=1.0,
-                resolution=1e-8,
-                direction="+",
-                transverse_coords=[np.asarray([0.0, 1.0]), np.asarray([0.0, 1.0, 2.0])],
-            )
-
-    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
-    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
-    def test_transverse_coords_passed_to_tidy3d_and_normalization(self, mock_normalize, mock_tidy3d_wrapper):
-        """Non-uniform transverse coordinates are passed through and used for normalization weights."""
-        mock_mode = ModeTupleType(
-            neff=1.5 + 0.1j,
-            Ex=np.ones((2, 2), dtype=np.complex64),
-            Ey=np.ones((2, 2), dtype=np.complex64),
-            Ez=np.ones((2, 2), dtype=np.complex64),
-            Hx=np.ones((2, 2), dtype=np.complex64),
-            Hy=np.ones((2, 2), dtype=np.complex64),
-            Hz=np.ones((2, 2), dtype=np.complex64),
-        )
-        mock_tidy3d_wrapper.return_value = [mock_mode]
-        mock_normalize.return_value = (
-            jnp.ones((3, 2, 2, 1), dtype=jnp.complex64),
-            jnp.ones((3, 2, 2, 1), dtype=jnp.complex64),
-        )
-
-        compute_mode(
-            frequency=2e14,
-            inv_permittivities=jnp.ones((1, 2, 2, 1)),
-            inv_permeabilities=1.0,
-            resolution=1e-8,
-            direction="+",
-            transverse_coords=[np.asarray([0.0, 1e-6, 3e-6]), np.asarray([0.0, 2e-6, 5e-6])],
-        )
-
-        wrapper_kwargs = mock_tidy3d_wrapper.call_args.kwargs
-        assert np.allclose(wrapper_kwargs["coords"][0], [0.0, 1.0, 3.0])
-        assert np.allclose(wrapper_kwargs["coords"][1], [0.0, 2.0, 5.0])
-
-        normalize_kwargs = mock_normalize.call_args.kwargs
-        assert normalize_kwargs["axis"] == 2
-        expected_area = jnp.asarray([[[2e-12], [3e-12]], [[4e-12], [6e-12]]], dtype=jnp.float32)
-        assert jnp.allclose(normalize_kwargs["area_weights"], expected_area)
-
 
 class TestAnisotropicModeComputation:
     """Test anisotropic material handling in compute_mode."""

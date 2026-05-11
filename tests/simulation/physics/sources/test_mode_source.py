@@ -71,7 +71,7 @@ def _slab_neff_te(n_core: float, n_clad: float, wavelength: float, thickness: fl
 
 def _build_waveguide_domain():
     config = fdtdx.SimulationConfig(
-        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
+        resolution=_RESOLUTION,
         time=_SIM_TIME,
         dtype=jnp.float32,
     )

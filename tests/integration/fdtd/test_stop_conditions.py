@@ -3,7 +3,6 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import UniformGrid
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.container import ArrayContainer, FieldState
 from fdtdx.fdtd.initialization import place_objects
@@ -53,7 +52,7 @@ class TestCondition:
 
         config = SimulationConfig(
             time=100e-11,
-            grid=UniformGrid(spacing=1e-4),
+            resolution=1e-4,
             courant_factor=0.99,
         )
         detector_name = "test_detector"
@@ -214,7 +213,7 @@ class TestCondition:
         config = setup_simulation_state["config"]
         objects = setup_simulation_state["objects"]
         arrays = state[1]
-        # If courant_factor=0.99 and grid=UniformGrid(spacing=1e-4), then time_step_duration ≈ 1.906e-13 s
+        # If courant_factor=0.99 and resolution=1e-4, then time_step_duration ≈ 1.906e-13 s
         # Therefore we have time / time_step_duration ≈ 524.5, which is rounded up to 525.
         # This is the number of time steps. Remember that min_steps cannot be larger than this
         detector_name = setup_simulation_state["dn"]

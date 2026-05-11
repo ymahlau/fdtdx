@@ -11,7 +11,6 @@ import fdtdx
 from fdtdx import SimulationVolume
 from fdtdx.colors import Color
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import UniformGrid
 from fdtdx.objects.object import GridCoordinateConstraint, OrderableObject
 from fdtdx.utils.plot_setup import plot_setup, plot_setup_from_side
 
@@ -24,7 +23,7 @@ TEST_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 def simulation_setup():
     """Fixture that creates a simple simulation setup with various objects."""
     config = SimulationConfig(
-        grid=UniformGrid(spacing=20e-9),
+        resolution=20e-9,
         time=100e-15,
     )
 

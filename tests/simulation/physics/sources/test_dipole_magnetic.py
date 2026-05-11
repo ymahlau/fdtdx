@@ -33,7 +33,7 @@ _N_AVG_STEPS = 10 * _STEPS_PER_PERIOD
 
 def _build_dipole(source_type="electric", polarization=2):
     config = fdtdx.SimulationConfig(
-        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
+        resolution=_RESOLUTION,
         time=_SIM_TIME,
         dtype=jnp.float32,
     )

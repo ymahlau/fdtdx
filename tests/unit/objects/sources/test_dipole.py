@@ -10,7 +10,6 @@ import numpy as np
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import UniformGrid
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.sources.dipole import PointDipoleSource
 
@@ -20,7 +19,7 @@ def micro_config():
     """Minimal simulation config for source testing."""
     return SimulationConfig(
         time=100e-15,
-        grid=UniformGrid(spacing=100e-9),
+        resolution=100e-9,
         backend="cpu",
         dtype=jnp.float32,
         courant_factor=0.99,

@@ -3,9 +3,7 @@ from typing import Any, Sequence
 import jax
 import jax.numpy as jnp
 
-from fdtdx import constants
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import RectilinearGrid
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
 from fdtdx.core.jax.ste import straight_through_estimator
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, ParameterContainer
@@ -84,12 +82,6 @@ def place_objects(
     object_map = {obj.name: obj for obj in object_list}
     volume_name = _resolve_volume_name(object_map)
     volume_obj = object_map[volume_name]
-    volume_shape = tuple(s1 - s0 for s0, s1 in resolved_slices[volume_obj.name])
-    grid = config.resolve_grid(volume_shape)  # Resolve user grid policy before objects see the config.
-    if grid.shape != volume_shape:
-        raise ValueError(f"Configured grid shape {grid.shape} does not match simulation volume shape {volume_shape}.")
-    if not isinstance(config.grid, RectilinearGrid):
-        config = config.aset("grid", grid)
 
     # Step 4: Place objects on grid based on resolved slice tuples
     placed_objects = []
@@ -242,9 +234,6 @@ def _init_arrays(
     """
     # create E/H fields
     volume_shape = objects.volume.grid_shape
-    grid = config.resolve_grid(volume_shape)
-    if grid.shape != volume_shape:
-        raise ValueError(f"Configured grid shape {grid.shape} does not match simulation volume shape {volume_shape}.")
     ext_shape = (3, *volume_shape)
 
     # Determine whether to use complex-valued fields
@@ -402,9 +391,6 @@ def _init_arrays(
             sharding_axis=1,
             backend=config.backend,
         )
-    conductivity_spacing = None
-    if electric_conductivity is not None or magnetic_conductivity is not None:
-        conductivity_spacing = constants.c * config.time_step_duration / config.courant_number
 
     # set permittivity/permeability/conductivity of static objects
     sorted_obj = sorted(
@@ -469,11 +455,8 @@ def _init_arrays(
                     # Fully anisotropic
                     cond_tuple = o.material.electric_conductivity
 
-                # Scale physical conductivity into the dimensionless update coefficient.
-                # On uniform grids this equals the scalar grid spacing.  On stretched
-                # grids it is the reference spacing implied by ``c0 * dt / courant``.
-                assert conductivity_spacing is not None
-                obj_electric_conductivity = (jnp.array(cond_tuple, dtype=config.dtype) * conductivity_spacing)[
+                # scale by grid size
+                obj_electric_conductivity = (jnp.array(cond_tuple, dtype=config.dtype) * config.resolution)[
                     :, None, None, None
                 ]
                 electric_conductivity = electric_conductivity.at[:, *o.grid_slice].set(obj_electric_conductivity)
@@ -493,9 +476,8 @@ def _init_arrays(
                     # Fully anisotropic
                     cond_tuple = o.material.magnetic_conductivity
 
-                # Scale physical conductivity into the dimensionless update coefficient.
-                assert conductivity_spacing is not None
-                obj_magnetic_conductivity = (jnp.array(cond_tuple, dtype=config.dtype) * conductivity_spacing)[
+                # scale by grid size
+                obj_magnetic_conductivity = (jnp.array(cond_tuple, dtype=config.dtype) * config.resolution)[
                     :, None, None, None
                 ]
                 magnetic_conductivity = magnetic_conductivity.at[:, *o.grid_slice].set(obj_magnetic_conductivity)
@@ -553,8 +535,7 @@ def _init_arrays(
                     )
                 )
 
-                assert conductivity_spacing is not None
-                component_values = jnp.moveaxis(allowed_conds[indices], -1, 0) * conductivity_spacing
+                component_values = jnp.moveaxis(allowed_conds[indices], -1, 0) * config.resolution
                 diff = component_values - electric_conductivity[:, *o.grid_slice]
                 electric_conductivity = electric_conductivity.at[:, *o.grid_slice].add(mask * diff)
 
@@ -567,8 +548,7 @@ def _init_arrays(
                     )
                 )
 
-                assert conductivity_spacing is not None
-                component_values = jnp.moveaxis(allowed_conds[indices], -1, 0) * conductivity_spacing
+                component_values = jnp.moveaxis(allowed_conds[indices], -1, 0) * config.resolution
                 diff = component_values - magnetic_conductivity[:, *o.grid_slice]
                 magnetic_conductivity = magnetic_conductivity.at[:, *o.grid_slice].add(mask * diff)
         else:
@@ -762,40 +742,6 @@ def _center_to_bounds(real_pos: float, resolution: float, size: int) -> tuple[in
     return lower, upper
 
 
-def _real_length_to_grid_size(config: SimulationConfig, axis: int, length: float) -> int:
-    """Convert a physical length to a grid-cell count.
-
-    Non-uniform grids snap upward so objects always cover at least the
-    requested metric length.  Uniform grids use the historical round-to-nearest
-    rule for exact backwards compatibility.
-    """
-    snap = "upper" if config.has_nonuniform_grid else "nearest"
-    return config.grid.length_to_cell_count(axis, length, snap=snap)
-
-
-def _real_coord_to_edge_index(config: SimulationConfig, axis: int, coord: float) -> int:
-    """Snap a physical coordinate to a grid edge index."""
-    return config.grid.coord_to_index(axis, coord, snap="nearest")
-
-
-def _center_to_bounds_for_grid(config: SimulationConfig, axis: int, real_pos: float, size: int) -> tuple[int, int]:
-    """Convert a physical center and resolved grid size to edge bounds."""
-    return config.grid.bounds_for_center(axis, real_pos, size)
-
-
-def _raise_for_nonuniform_grid_offsets(config: SimulationConfig, values: Sequence[int | None], name: str):
-    """Reject index-space distance offsets when a grid is non-uniform.
-
-    Zero and ``None`` are accepted as no-ops for backwards-compatible helper
-    defaults.  Non-zero grid distances do not have a metric meaning on stretched
-    grids and must be expressed in metres instead.
-    """
-    if not config.has_nonuniform_grid:
-        return
-    if any(v not in (None, 0) for v in values):
-        raise ValueError(f"{name} are index-space distances and are not supported on non-uniform grids.")
-
-
 def _resolve_static_positions_initial(
     object_map: dict[str, SimulationObject],
     slice_dict: dict[str, list[list[int | None]]],
@@ -816,10 +762,9 @@ def _resolve_static_positions_initial(
                     # If we know the size, we can compute both boundaries from center
                     size = shape_dict[obj_name][axis]
                     if size is not None:
-                        lower, upper = _center_to_bounds_for_grid(
-                            config,
-                            axis,
+                        lower, upper = _center_to_bounds(
                             obj.partial_real_position[axis],  # type: ignore
+                            config.resolution,
                             size,
                         )
                         slice_dict[obj_name][axis][0] = lower
@@ -854,10 +799,9 @@ def _resolve_static_positions_iterative(
                     # If we know the size, we can compute both boundaries from center
                     size = shape_dict[obj_name][axis]
                     if size is not None:
-                        lower, upper = _center_to_bounds_for_grid(
-                            config,
-                            axis,
+                        lower, upper = _center_to_bounds(
                             obj.partial_real_position[axis],  # type: ignore
+                            config.resolution,
                             size,
                         )
 
@@ -990,7 +934,6 @@ def _apply_constraints_iteratively(
                         constraint=c,
                         object_map=object_map,
                         slice_dict=slice_dict,
-                        config=config,
                     )
                 elif isinstance(c, RealCoordinateConstraint):
                     resolved, slice_dict = _apply_real_coordinate_constraint(
@@ -1013,7 +956,6 @@ def _apply_constraints_iteratively(
                         object_map=object_map,
                         config=config,
                         shape_dict=shape_dict,
-                        slice_dict=slice_dict,
                     )
                 elif isinstance(c, SizeExtensionConstraint):
                     resolved, slice_dict = _apply_size_extension_constraint(
@@ -1076,8 +1018,9 @@ def _resolve_static_shapes(
             if obj.partial_grid_shape[axis] is not None:
                 shape_dict[obj_name][axis] = obj.partial_grid_shape[axis]
             if obj.partial_real_shape[axis] is not None:
-                cur_grid_shape = _real_length_to_grid_size(config, axis, obj.partial_real_shape[axis])  # type: ignore
-                shape_dict[obj_name][axis] = cur_grid_shape
+                shape_dict[obj_name][axis] = round(
+                    obj.partial_real_shape[axis] / config.resolution  # type: ignore
+                )
     return shape_dict
 
 
@@ -1153,12 +1096,7 @@ def _apply_grid_coordinate_constraint(
     constraint: GridCoordinateConstraint,
     object_map: dict[str, SimulationObject],
     slice_dict: dict[str, list[list[int | None]]],
-    config: SimulationConfig | None = None,
 ):
-    if config is not None and config.has_nonuniform_grid:
-        raise ValueError(
-            "GridCoordinateConstraint is an index-space placement API and is not supported on non-uniform grids."
-        )
     obj_name = constraint.object
     obj = object_map[obj_name]
     resolved_something = False
@@ -1186,7 +1124,7 @@ def _apply_real_coordinate_constraint(
     obj = object_map[obj_name]
     resolved_something = False
     for axis_idx, axis in enumerate(constraint.axes):
-        cur_size = _real_coord_to_edge_index(config, axis, constraint.coordinates[axis_idx])
+        cur_size = round(constraint.coordinates[axis_idx] / config.resolution)
         b_idx = 0 if constraint.sides[axis_idx] == "-" else 1
         if slice_dict[obj_name][axis][b_idx] is None:
             slice_dict[obj_name][axis][b_idx] = cur_size
@@ -1214,7 +1152,6 @@ def _apply_position_constraint(
     for axis_idx, axis in enumerate(constraint.axes):
         grid_margin = constraint.grid_margins[axis_idx]
         real_margin = constraint.margins[axis_idx]
-        _raise_for_nonuniform_grid_offsets(config, (grid_margin,), "grid_margins")
         # check if other knows their position
         other_b0, other_b1 = slice_dict[other_name][axis]
         if other_b0 is None or other_b1 is None:
@@ -1223,22 +1160,23 @@ def _apply_position_constraint(
         object_size = shape_dict[obj_name][axis]
         if object_size is None:
             continue
-        other_anchor = config.grid.anchor_coordinate(
-            axis,
-            (other_b0, other_b1),
-            constraint.other_object_positions[axis_idx],
-        )
-        if real_margin is not None:
-            other_anchor += real_margin
+        # calculate anchor of other
+        other_pos = constraint.other_object_positions[axis_idx]
+        other_midpoint = (other_b1 + other_b0) / 2
+        factor = (other_b1 - other_b0) / 2
+        other_offset = 0
         if grid_margin is not None:
-            # grid_margin is in cell units; rejected for non-uniform grids above
-            other_anchor += grid_margin * config.uniform_spacing()
-        b0, b1 = config.grid.bounds_for_anchor(
-            axis,
-            object_size,
-            other_anchor,
-            constraint.object_positions[axis_idx],
-        )
+            other_offset += grid_margin
+        if real_margin is not None:
+            other_offset += real_margin / config.resolution
+        other_anchor = other_midpoint + factor * other_pos + other_offset
+        # calculate position of object
+        obj_pos = constraint.object_positions[axis_idx]
+        obj_factor = object_size / 2
+        object_midpoint = other_anchor - obj_pos * obj_factor
+        b0 = round(object_midpoint - obj_factor)
+        # Important: do not round twice to exactly preserve object size
+        b1 = b0 + object_size
         # update position or check consistency
         old_b0, old_b1 = slice_dict[obj_name][axis]
         if old_b0 is None:
@@ -1273,7 +1211,6 @@ def _apply_size_constraint(
     object_map: dict[str, SimulationObject],
     config: SimulationConfig,
     shape_dict: dict[str, list[int | None]],
-    slice_dict: dict[str, list[list[int | None]]] | None = None,
 ):
     """Resolve a size relationship between objects."""
     obj_name, other_name = constraint.object, constraint.other_object
@@ -1281,7 +1218,6 @@ def _apply_size_constraint(
     resolved_something = False
     # iterate through axes of the constraint
     for axis_idx, axis in enumerate(constraint.axes):
-        _raise_for_nonuniform_grid_offsets(config, (constraint.grid_offsets[axis_idx],), "grid_offsets")
         other_axes = constraint.other_axes[axis_idx]
         # check if other object knows their shape
         other_shape = shape_dict[other_name][other_axes]
@@ -1289,18 +1225,12 @@ def _apply_size_constraint(
             continue
         # calculate objects shape
         proportion = constraint.proportions[axis_idx]
-        assert slice_dict is not None, "_apply_size_constraint requires slice_dict"
-        other_b0, other_b1 = slice_dict[other_name][other_axes]
-        if other_b0 is None or other_b1 is None:
-            continue
-        other_length = config.grid.axis_extent(other_axes, (other_b0, other_b1))
-        target_length = other_length * proportion
-        if constraint.offsets[axis_idx] is not None:
-            target_length += constraint.offsets[axis_idx]
+        grid_offset = 0
         if constraint.grid_offsets[axis_idx] is not None:
-            # grid_offsets are in cell units; rejected for non-uniform grids above
-            target_length += constraint.grid_offsets[axis_idx] * config.uniform_spacing()
-        object_shape = _real_length_to_grid_size(config, axis, target_length)
+            grid_offset += constraint.grid_offsets[axis_idx]
+        if constraint.offsets[axis_idx] is not None:
+            grid_offset += constraint.offsets[axis_idx] / config.resolution
+        object_shape = round(other_shape * proportion + grid_offset)
         # update or check consistency
         if shape_dict[obj_name][axis] is None:
             shape_dict[obj_name][axis] = object_shape
@@ -1327,24 +1257,21 @@ def _apply_size_extension_constraint(
     obj = object_map[obj_name]
     dir_idx = 0 if constraint.direction == "-" else 1
     resolved_something = False
-    _raise_for_nonuniform_grid_offsets(config, (constraint.grid_offset,), "grid_offset")
     # calculate anchor point
     if other_name is not None:
         # check if other knows their position
         other_b0, other_b1 = slice_dict[other_name][constraint.axis]
         if other_b0 is None or other_b1 is None:
             return False, slice_dict
-        other_anchor_coord = config.grid.anchor_coordinate(
-            constraint.axis,
-            (other_b0, other_b1),
-            constraint.other_position,
-        )
-        if constraint.offset is not None:
-            other_anchor_coord += constraint.offset
+        # calculate anchor of other position
+        other_midpoint = (other_b1 + other_b0) / 2
+        factor = (other_b1 - other_b0) / 2
+        other_offset = 0
         if constraint.grid_offset is not None:
-            # grid_offset is in cell units; rejected for non-uniform grids above
-            other_anchor_coord += constraint.grid_offset * config.uniform_spacing()
-        other_anchor = config.grid.coord_to_index(constraint.axis, other_anchor_coord, snap="nearest")
+            other_offset += constraint.grid_offset
+        if constraint.offset is not None:
+            other_offset += constraint.offset / config.resolution
+        other_anchor = round(other_midpoint + factor * constraint.other_position + other_offset)
     else:
         # if other is not specified, extend to boundary of simulation volume
         other_anchor = slice_dict[volume_name][constraint.axis][dir_idx]
