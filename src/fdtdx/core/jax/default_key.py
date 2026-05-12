@@ -4,7 +4,7 @@ _DEFAULT_KEY_SEED = 0
 
 
 def default_key(key: jax.Array | None) -> jax.Array:
-    """Return *key* unchanged, or create a deterministic key from a fixed seed.
+    """Return *key* unchanged or create a deterministic key from a fixed seed.
 
     Use this at the top of any public function that accepts an optional
     ``key`` argument so callers can omit it for deterministic workflows
