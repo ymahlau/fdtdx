@@ -145,9 +145,6 @@ class RectilinearGrid(TreeClass):
     _min_spacings: tuple[float, float, float] = frozen_private_field()
     _is_uniform: bool = frozen_private_field()
     _uniform_spacing: float | None = frozen_private_field()
-    _x_edges_tuple: tuple[float, ...] = frozen_private_field()
-    _y_edges_tuple: tuple[float, ...] = frozen_private_field()
-    _z_edges_tuple: tuple[float, ...] = frozen_private_field()
 
     def __post_init__(self):
         object.__setattr__(self, "x_edges", jnp.asarray(self.x_edges))
@@ -168,9 +165,6 @@ class RectilinearGrid(TreeClass):
         object.__setattr__(self, "_min_spacings", min_spacings)
         object.__setattr__(self, "_is_uniform", is_uniform)
         object.__setattr__(self, "_uniform_spacing", float(np.round(spacing, decimals=14)) if is_uniform else None)
-        object.__setattr__(self, "_x_edges_tuple", tuple(edge_arrays_np[0].tolist()))
-        object.__setattr__(self, "_y_edges_tuple", tuple(edge_arrays_np[1].tolist()))
-        object.__setattr__(self, "_z_edges_tuple", tuple(edge_arrays_np[2].tolist()))
 
     @classmethod
     def uniform(cls, shape: tuple[int, int, int], spacing: float, origin: tuple[float, float, float] = (0, 0, 0)):
@@ -279,16 +273,6 @@ class RectilinearGrid(TreeClass):
     def edges(self, axis: int) -> jax.Array:
         """Return edge coordinates for ``axis``."""
         return (self.x_edges, self.y_edges, self.z_edges)[axis]
-
-    def edges_np(self, axis: int) -> np.ndarray:
-        """Return edge coordinates for ``axis`` as a concrete numpy array.
-
-        Unlike ``edges()``, this never returns an abstract JAX tracer, because
-        the backing data is stored as a plain Python tuple (pytree auxiliary
-        data) rather than as a JAX array leaf.  Use this in non-differentiable
-        code paths (e.g. mode solvers) that require concrete values.
-        """
-        return np.asarray((self._x_edges_tuple, self._y_edges_tuple, self._z_edges_tuple)[axis])
 
     def cell_widths(self, axis: int) -> jax.Array:
         """Return cell widths for ``axis``."""
@@ -474,7 +458,7 @@ def calculate_time_offset_yee(
     effective_index: jax.Array | float | None = None,
     e_polarization: jax.Array | None = None,
     h_polarization: jax.Array | None = None,
-    coordinate_edges: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
+    coordinate_edges: tuple[jax.Array, jax.Array, jax.Array] | None = None,
     center_physical: jax.Array | None = None,
 ) -> tuple[jax.Array, jax.Array]:
     if inv_permittivities.ndim == 4:
@@ -494,8 +478,8 @@ def calculate_time_offset_yee(
     if coordinate_edges is None:
         # Build uniform coordinate edges from scalar resolution so the rest of
         # the function has one physical-space code path.
-        e = [np.arange(spatial_shape[ax] + 1, dtype=np.float32) * resolution for ax in range(3)]
-        resolved_edges: tuple[np.ndarray, np.ndarray, np.ndarray] = (e[0], e[1], e[2])
+        e = [jnp.arange(spatial_shape[ax] + 1, dtype=jnp.float32) * resolution for ax in range(3)]
+        resolved_edges: tuple[jax.Array, jax.Array, jax.Array] = (e[0], e[1], e[2])
         center_list: list = [float(center[0]) * resolution, float(center[1]) * resolution]
         center_list.insert(propagation_axis, 0.0)
         center_physical = jnp.asarray(center_list, dtype=wave_vector.dtype)
@@ -504,7 +488,7 @@ def calculate_time_offset_yee(
             raise ValueError("center_physical must be provided with coordinate_edges")
         resolved_edges = coordinate_edges
 
-    def component_positions(axis: int, offset: float) -> np.ndarray:
+    def component_positions(axis: int, offset: float) -> jax.Array:
         edges = resolved_edges[axis]
         centers = 0.5 * (edges[:-1] + edges[1:])
         if offset == 0:

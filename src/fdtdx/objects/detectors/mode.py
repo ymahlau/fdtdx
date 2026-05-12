@@ -2,7 +2,6 @@ from typing import Literal, Self, Sequence
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
@@ -101,15 +100,12 @@ class ModeOverlapDetector(PhasorDetector):
         """Return detector-plane face areas for mode-overlap integration."""
         return self._cached_face_area_weights
 
-    def _transverse_edge_coordinates(self) -> tuple[np.ndarray, np.ndarray] | None:
+    def _transverse_edge_coordinates(self) -> tuple[jax.Array, jax.Array] | None:
         """Return physical transverse edge coordinates for the mode solver.
 
         Tidy3D can solve modes on rectilinear non-uniform grids when supplied
         with edge-coordinate arrays.  Returning ``None`` keeps the uniform scalar
         spacing path for legacy configurations and older tests.
-
-        Returns numpy arrays (not JAX arrays) so coordinates remain concrete
-        when this method is called inside a jax.jit-traced function.
         """
         grid = self._config.resolved_grid
         if grid is None:
@@ -120,7 +116,7 @@ class ModeOverlapDetector(PhasorDetector):
             if axis == self.propagation_axis:
                 continue
             lower, upper = self.grid_slice_tuple[axis]
-            transverse_edges.append(grid.edges_np(axis)[lower : upper + 1])
+            transverse_edges.append(grid.edges(axis)[lower : upper + 1])
         return tuple(transverse_edges)
 
     def _mode_solver_resolution(self) -> float:

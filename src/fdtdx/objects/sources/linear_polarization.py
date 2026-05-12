@@ -3,7 +3,6 @@ from typing import Self
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 
 from fdtdx.core.grid import calculate_time_offset_yee
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
@@ -63,16 +62,13 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
     #: whether to normalize the polarization vector
     normalize_by_energy: bool = frozen_field(default=True)
 
-    def _local_edge_coordinates(self) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+    def _local_edge_coordinates(self) -> tuple[jax.Array, jax.Array, jax.Array] | None:
         """Return source-local physical edge coordinates for Yee metrics.
 
         Coordinates are shifted so the lower corner of this source slice is the
         local origin.  Uniform grids can use the legacy scalar path, but
         non-uniform grids need these explicit edge arrays for time-of-flight
         corrections and physical profile sampling.
-
-        Returns numpy arrays so coordinates remain concrete when this method is
-        called inside a jax.jit-traced function.
         """
         grid = self._config.resolved_grid
         if grid is None:
@@ -80,7 +76,7 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         local_edges = []
         for axis in range(3):
             lower, upper = self.grid_slice_tuple[axis]
-            edges = grid.edges_np(axis)[lower : upper + 1]
+            edges = grid.edges(axis)[lower : upper + 1]
             local_edges.append(edges - edges[0])
         return tuple(local_edges)
 
@@ -163,8 +159,8 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
             assert local_edges is not None
             horizontal_edges = local_edges[self.horizontal_axis]
             vertical_edges = local_edges[self.vertical_axis]
-            horizontal_centers = jnp.asarray(0.5 * (horizontal_edges[:-1] + horizontal_edges[1:]))
-            vertical_centers = jnp.asarray(0.5 * (vertical_edges[:-1] + vertical_edges[1:]))
+            horizontal_centers = 0.5 * (horizontal_edges[:-1] + horizontal_edges[1:])
+            vertical_centers = 0.5 * (vertical_edges[:-1] + vertical_edges[1:])
             w, h = jnp.meshgrid(horizontal_centers, vertical_centers, indexing="ij")
         else:
             w, h = jnp.meshgrid(
@@ -325,8 +321,8 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
             assert local_edges is not None
             horizontal_edges = local_edges[self.horizontal_axis]
             vertical_edges = local_edges[self.vertical_axis]
-            horizontal_centers = jnp.asarray(0.5 * (horizontal_edges[:-1] + horizontal_edges[1:]))
-            vertical_centers = jnp.asarray(0.5 * (vertical_edges[:-1] + vertical_edges[1:]))
+            horizontal_centers = 0.5 * (horizontal_edges[:-1] + horizontal_edges[1:])
+            vertical_centers = 0.5 * (vertical_edges[:-1] + vertical_edges[1:])
             h_grid, v_grid = jnp.meshgrid(horizontal_centers, vertical_centers, indexing="ij")
             h_center = center[0]
             v_center = center[1]
