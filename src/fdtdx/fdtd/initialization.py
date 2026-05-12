@@ -1246,10 +1246,11 @@ def _apply_size_constraint(
             resolved_something = True
         elif shape_dict[obj_name][axis] != object_shape:
             raise Exception(
-                f"Inconsistent geometry for object {obj.name} ({obj.__class__}): "
-                f"shape_dict has {shape_dict[obj_name][axis]} but SizeConstraint computes "
-                f"{object_shape} for {axis=}. "
-                "Please check if there are multiple constraints or sizes specified for the object."
+                f"Inconsistent grid shape for object: "
+                f"{shape_dict[obj_name][axis]} != {object_shape} for axis={axis}, "
+                f"{obj.name} ({obj.__class__.__name__}). "
+                f"Check partial_real_shape, partial_grid_shape, and any SizeConstraints for this object. "
+                f"If the shape is derived from geometry (e.g. radius), a conflicting SizeConstraint was applied."
             )
     return resolved_something, shape_dict
 
