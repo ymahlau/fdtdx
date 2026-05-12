@@ -474,7 +474,7 @@ def calculate_time_offset_yee(
     effective_index: jax.Array | float | None = None,
     e_polarization: jax.Array | None = None,
     h_polarization: jax.Array | None = None,
-    coordinate_edges: tuple[np.ndarray | jax.Array, np.ndarray | jax.Array, np.ndarray | jax.Array] | None = None,
+    coordinate_edges: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
     center_physical: jax.Array | None = None,
 ) -> tuple[jax.Array, jax.Array]:
     if inv_permittivities.ndim == 4:
@@ -494,8 +494,8 @@ def calculate_time_offset_yee(
     if coordinate_edges is None:
         # Build uniform coordinate edges from scalar resolution so the rest of
         # the function has one physical-space code path.
-        e = [jnp.arange(spatial_shape[ax] + 1, dtype=jnp.float32) * resolution for ax in range(3)]
-        resolved_edges: tuple[jax.Array, jax.Array, jax.Array] = (e[0], e[1], e[2])
+        e = [np.arange(spatial_shape[ax] + 1, dtype=np.float32) * resolution for ax in range(3)]
+        resolved_edges: tuple[np.ndarray, np.ndarray, np.ndarray] = (e[0], e[1], e[2])
         center_list: list = [float(center[0]) * resolution, float(center[1]) * resolution]
         center_list.insert(propagation_axis, 0.0)
         center_physical = jnp.asarray(center_list, dtype=wave_vector.dtype)
@@ -504,7 +504,7 @@ def calculate_time_offset_yee(
             raise ValueError("center_physical must be provided with coordinate_edges")
         resolved_edges = coordinate_edges
 
-    def component_positions(axis: int, offset: float) -> np.ndarray | jax.Array:
+    def component_positions(axis: int, offset: float) -> np.ndarray:
         edges = resolved_edges[axis]
         centers = 0.5 * (edges[:-1] + edges[1:])
         if offset == 0:
