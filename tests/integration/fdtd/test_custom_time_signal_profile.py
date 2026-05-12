@@ -22,7 +22,7 @@ def _gaussian_windowed_carrier(config: fdtdx.SimulationConfig, wave: fdtdx.WaveC
 def test_custom_time_signal_profile_source_workflow():
     """CustomTimeSignalProfile works through placement and source wrappers."""
     config = fdtdx.SimulationConfig(
-        grid=fdtdx.UniformGrid(spacing=50e-9),
+        resolution=50e-9,
         time=500e-15,
         dtype=jnp.float32,
     )

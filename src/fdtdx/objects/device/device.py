@@ -1,4 +1,3 @@
-import math
 from abc import ABC
 from typing import Self, Sequence, cast
 
@@ -50,13 +49,7 @@ class Device(OrderableObject, ABC):
     partial_voxel_real_shape: PartialRealShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
 
     _single_voxel_grid_shape: tuple[int, int, int] = frozen_private_field(default=INVALID_SHAPE_3D)
-    _matrix_voxel_grid_shape_override: tuple[int, int, int] = frozen_private_field(default=INVALID_SHAPE_3D)
-    _physical_design_voxel_shape: tuple[float, float, float] | None = frozen_private_field(default=None)
-    _physical_design_domain_shape: tuple[float, float, float] | None = frozen_private_field(default=None)
 
-    # TODO(teevee112): support physical-unit design voxels on non-uniform grids — requires a resampling layer
-    # or snapping to RectilinearGrid cell boundaries; currently only grid-cell-count voxels are
-    # reliable on non-uniform grids (see PR #312)
     @property
     def matrix_voxel_grid_shape(self) -> tuple[int, int, int]:
         """Calculate the shape of the voxel matrix in grid coordinates.
@@ -66,13 +59,9 @@ class Device(OrderableObject, ABC):
                 of the grid shape when divided by the single voxel shape.
         """
         return (
-            self._matrix_voxel_grid_shape_override
-            if self._matrix_voxel_grid_shape_override != INVALID_SHAPE_3D
-            else (
-                round(self.grid_shape[0] / self.single_voxel_grid_shape[0]),
-                round(self.grid_shape[1] / self.single_voxel_grid_shape[1]),
-                round(self.grid_shape[2] / self.single_voxel_grid_shape[2]),
-            )
+            round(self.grid_shape[0] / self.single_voxel_grid_shape[0]),
+            round(self.grid_shape[1] / self.single_voxel_grid_shape[1]),
+            round(self.grid_shape[2] / self.single_voxel_grid_shape[2]),
         )
 
     @property
@@ -88,36 +77,17 @@ class Device(OrderableObject, ABC):
 
     @property
     def single_voxel_real_shape(self) -> tuple[float, float, float]:
-        """Calculate the representative physical size of one design voxel.
+        """Calculate the shape of a single voxel in real (physical) coordinates.
 
         Returns:
-            Tuple of ``(x, y, z)`` dimensions in metres.
-
-        Notes:
-            On uniform simulation grids this is the exact size of each design
-            voxel.  On non-uniform grids, devices are currently supported only
-            when design voxels are specified by simulation-cell counts.  The
-            returned physical size is then the average design-voxel extent over
-            the placed device, suitable for transforms that need a representative
-            scale.  True physical-size design voxels still require a resampling
-            layer and are rejected during placement.
+            tuple[float, float, float]: Tuple of (x,y,z) dimensions in real units, computed by multiplying
+                the grid shape by the simulation resolution.
         """
-        if self._physical_design_voxel_shape is not None:
-            return self._physical_design_voxel_shape
-        grid = self._config.resolved_grid
-        if grid is not None and not grid.is_uniform:
-            return (
-                self.real_shape[0] / self.matrix_voxel_grid_shape[0],
-                self.real_shape[1] / self.matrix_voxel_grid_shape[1],
-                self.real_shape[2] / self.matrix_voxel_grid_shape[2],
-            )
-
-        single_voxel_shape = self.single_voxel_grid_shape
-        spacing = self._config.uniform_spacing()
+        grid_shape = self.single_voxel_grid_shape
         return (
-            single_voxel_shape[0] * spacing,
-            single_voxel_shape[1] * spacing,
-            single_voxel_shape[2] * spacing,
+            grid_shape[0] * self._config.resolution,
+            grid_shape[1] * self._config.resolution,
+            grid_shape[2] * self._config.resolution,
         )
 
     @property
@@ -143,25 +113,6 @@ class Device(OrderableObject, ABC):
         self = super().place_on_grid(grid_slice_tuple=grid_slice_tuple, config=config, key=key)
         # determine voxel shape
         voxel_grid_shape = []
-        spacing = None
-        if not config.has_nonuniform_grid:
-            spacing = config.uniform_spacing()
-        uses_physical_design_grid = config.has_nonuniform_grid and any(
-            shape is not None for shape in self.partial_voxel_real_shape
-        )
-        if uses_physical_design_grid and any(shape is not None for shape in self.partial_voxel_grid_shape):
-            raise ValueError(
-                "Non-uniform physical device voxel sizes cannot be mixed with partial_voxel_grid_shape. "
-                "Use either a physical design grid or grid-cell-count design voxels."
-            )
-        if uses_physical_design_grid:
-            raise NotImplementedError(
-                "Physical-unit design voxels (partial_voxel_real_shape) are not yet supported on "
-                "non-uniform grids. Use partial_voxel_grid_shape to specify voxel sizes in "
-                "simulation grid-cell counts instead."
-            )
-        physical_design_shape = []
-        matrix_shape_override = []
         for axis in range(3):
             partial_grid = self.partial_voxel_grid_shape[axis]
             partial_real = self.partial_voxel_real_shape[axis]
@@ -170,35 +121,21 @@ class Device(OrderableObject, ABC):
             if partial_grid is not None:
                 voxel_grid_shape.append(partial_grid)
             elif partial_real is not None:
-                if uses_physical_design_grid:
-                    if partial_real <= 0:
-                        raise ValueError(f"Physical design voxel size must be positive for {axis=}.")
-                    physical_design_shape.append(float(partial_real))
-                    matrix_shape_override.append(max(1, math.ceil(self.real_shape[axis] / partial_real)))
-                    voxel_grid_shape.append(1)
-                else:
-                    assert spacing is not None
-                    voxel_grid_shape.append(round(partial_real / spacing))
+                voxel_grid_shape.append(round(partial_real / config.resolution))
             else:
                 raise Exception(f"Multi-Material voxels not specified in axis: {axis=}")
 
         self = self.aset("_single_voxel_grid_shape", tuple(voxel_grid_shape))
-        if uses_physical_design_grid:
-            self = self.aset("_physical_design_voxel_shape", tuple(physical_design_shape))
-            self = self.aset("_physical_design_domain_shape", self.real_shape)
-            self = self.aset("_matrix_voxel_grid_shape_override", tuple(matrix_shape_override))
 
         # sanity checks on the voxel shape
         for axis in range(3):
-            if spacing is not None:
-                float_div = is_float_divisible(
-                    self.single_voxel_real_shape[axis],
-                    spacing,
-                    tolerance=max(1e-15, abs(spacing) * 1e-4),
-                )
-                if not float_div:
-                    raise Exception(f"Not divisible: {self.single_voxel_real_shape[axis]=}, {spacing=}")
-            if not uses_physical_design_grid and self.grid_shape[axis] % self.matrix_voxel_grid_shape[axis] != 0:
+            float_div = is_float_divisible(
+                self.single_voxel_real_shape[axis],
+                self._config.resolution,
+            )
+            if not float_div:
+                raise Exception(f"Not divisible: {self.single_voxel_real_shape[axis]=}, {self._config.resolution=}")
+            if self.grid_shape[axis] % self.matrix_voxel_grid_shape[axis] != 0:
                 raise Exception(
                     f"Due to discretization, matrix got skewered for {axis=}. "
                     f"{self.grid_shape=}, {self.matrix_voxel_grid_shape=}"
@@ -239,56 +176,6 @@ class Device(OrderableObject, ABC):
                 f"but got {self.materials}"
             )
         return self
-
-    @staticmethod
-    def _overlap_weights_1d(sim_edges: jax.Array, design_edges: jax.Array) -> jax.Array:
-        """Return design-voxel overlap fractions for each simulation cell.
-
-        Rows correspond to simulation cells and columns correspond to design
-        voxels.  Each row sums to one for cells contained inside the local
-        design domain.  Using overlap fractions instead of center sampling keeps
-        physical-size design grids conservative on stretched meshes: a large
-        simulation cell that straddles multiple design voxels receives the
-        volume-weighted average of those parameters.
-        """
-        sim_lower = sim_edges[:-1, None]
-        sim_upper = sim_edges[1:, None]
-        design_lower = design_edges[None, :-1]
-        design_upper = design_edges[None, 1:]
-        overlap = jnp.maximum(0.0, jnp.minimum(sim_upper, design_upper) - jnp.maximum(sim_lower, design_lower))
-        widths = sim_upper - sim_lower
-        return overlap / widths
-
-    def _resample_design_params_to_sim_grid(self, params: jax.Array) -> jax.Array:
-        """Map design-grid parameters to simulation cells.
-
-        Grid-count design voxels use the legacy repeat expansion.  Physical
-        design voxels on non-uniform grids use separable volume-overlap weights
-        so the expanded simulation grid represents the average design parameter
-        over each rectilinear simulation cell.
-        """
-        grid = self._config.resolved_grid
-        if self._physical_design_voxel_shape is None or grid is None:
-            return expand_matrix(
-                matrix=params,
-                grid_points_per_voxel=self.single_voxel_grid_shape,
-            )
-        if self._physical_design_domain_shape is None:
-            raise RuntimeError("Physical design-grid devices must be placed before expansion.")
-
-        overlap_weights = []
-        for axis in range(3):
-            lower, upper = self.grid_slice_tuple[axis]
-            sim_edges = grid.edges(axis)[lower : upper + 1]
-            design_edges = jnp.linspace(
-                0.0,
-                self._physical_design_domain_shape[axis],
-                self.matrix_voxel_grid_shape[axis] + 1,
-                dtype=sim_edges.dtype,
-            )
-            local_sim_edges = sim_edges - sim_edges[0]
-            overlap_weights.append(self._overlap_weights_1d(local_sim_edges, design_edges))
-        return jnp.einsum("ia,jb,kc,abc->ijk", overlap_weights[0], overlap_weights[1], overlap_weights[2], params)
 
     def init_params(
         self,
@@ -339,5 +226,8 @@ class Device(OrderableObject, ABC):
                 " make sure that the latent transformations abide to this rule."
             )
         if expand_to_sim_grid:
-            params = self._resample_design_params_to_sim_grid(params)
+            params = expand_matrix(
+                matrix=params,
+                grid_points_per_voxel=self.single_voxel_grid_shape,
+            )
         return params

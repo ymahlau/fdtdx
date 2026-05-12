@@ -34,7 +34,7 @@ def main():
     # Define simulation configuration (duration, resolution, data type, etc.)
     config = fdtdx.SimulationConfig(
         time=100e-15,
-        grid=fdtdx.UniformGrid(spacing=100e-9),
+        resolution=100e-9,
         dtype=jnp.float32,
         courant_factor=0.99,
     )

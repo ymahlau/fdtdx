@@ -66,35 +66,21 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
 
     @property
     def max_vertical_offset_grid(self) -> float:
-        """Return the maximum vertical random offset in source-center units.
+        """Convert maximum vertical offset from physical units to grid points.
 
         Returns:
-            On uniform grids this is the legacy grid-index offset.  On
-            non-uniform grids source centers are represented in physical
-            transverse coordinates, so the returned value is the requested
-            physical offset in metres.
+            float: Maximum vertical offset in grid points.
         """
-        if self.max_vertical_offset == 0:
-            return 0.0
-        if self._config.has_nonuniform_grid:
-            return self.max_vertical_offset
-        return self.max_vertical_offset / self._config.uniform_spacing()
+        return self.max_vertical_offset / self._config.resolution
 
     @property
     def max_horizontal_offset_grid(self) -> float:
-        """Return the maximum horizontal random offset in source-center units.
+        """Convert maximum horizontal offset from physical units to grid points.
 
         Returns:
-            On uniform grids this is the legacy grid-index offset.  On
-            non-uniform grids source centers are represented in physical
-            transverse coordinates, so the returned value is the requested
-            physical offset in metres.
+            float: Maximum horizontal offset in grid points.
         """
-        if self.max_horizontal_offset == 0:
-            return 0.0
-        if self._config.has_nonuniform_grid:
-            return self.max_horizontal_offset
-        return self.max_horizontal_offset / self._config.uniform_spacing()
+        return self.max_horizontal_offset / self._config.resolution
 
     def _get_azimuth_elevation(
         self,
@@ -120,28 +106,13 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         return azimuth_radians, elevation_radians
 
     def _get_center(self, key: jax.Array) -> jax.Array:  # shape(2,)
-        """Calculate the randomized source center.
+        # Calculate center position with random offset
+        horizontal_size = self.grid_shape[self.horizontal_axis]
+        vertical_size = self.grid_shape[self.vertical_axis]
 
-        Uniform-grid sources use the legacy index-space center.  On a
-        non-uniform grid, tilted projections and Gaussian profiles are sampled in
-        physical coordinates, so the returned center is measured in metres from
-        the source-slice lower edge along the transverse axes.
-        """
-        if self._config.has_nonuniform_grid:
-            grid = self._config.resolved_grid
-            assert grid is not None
-            local_edges = []
-            for axis in (self.horizontal_axis, self.vertical_axis):
-                lower, upper = self.grid_slice_tuple[axis]
-                edges = grid.edges(axis)[lower : upper + 1]
-                local_edges.append(edges - edges[0])
-            center_horizontal = 0.5 * local_edges[0][-1]
-            center_vertical = 0.5 * local_edges[1][-1]
-        else:
-            horizontal_size = self.grid_shape[self.horizontal_axis]
-            vertical_size = self.grid_shape[self.vertical_axis]
-            center_horizontal = (horizontal_size - 1) / 2
-            center_vertical = (vertical_size - 1) / 2
+        # account for zero-indexing in center calculation
+        center_horizontal = (horizontal_size - 1) / 2
+        center_vertical = (vertical_size - 1) / 2
 
         key, subkey = jax.random.split(key)
         horizontal_offset = jax.random.uniform(

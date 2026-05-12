@@ -6,7 +6,7 @@ import fdtdx
 
 def test_placement():
     config = fdtdx.SimulationConfig(
-        grid=fdtdx.UniformGrid(spacing=100e-9),
+        resolution=100e-9,
         time=10e-15,
     )
 

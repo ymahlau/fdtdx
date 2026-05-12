@@ -4,7 +4,6 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import UniformGrid
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.container import ArrayContainer, FieldState
 from fdtdx.fdtd.stop_conditions import DetectorConvergenceCondition, EnergyThresholdCondition, TimeStepCondition
@@ -14,7 +13,7 @@ from fdtdx.fdtd.stop_conditions import DetectorConvergenceCondition, EnergyThres
 # ---------------------------------------------------------------------------
 
 # Config with ~525 time steps; time_step_duration ≈ 1.906e-12 s
-_CONFIG = SimulationConfig(time=100e-11, grid=UniformGrid(spacing=1e-3), courant_factor=0.99)
+_CONFIG = SimulationConfig(time=100e-11, resolution=1e-3, courant_factor=0.99)
 
 
 def _make_arrays(time_steps_total=None, detector_states=None):
@@ -197,7 +196,7 @@ class TestEnergyThresholdCondition:
 
 def _detector_config():
     """Config with ~525 steps; dt ≈ 1.906e-12 s."""
-    return SimulationConfig(time=100e-11, grid=UniformGrid(spacing=1e-3), courant_factor=0.99)
+    return SimulationConfig(time=100e-11, resolution=1e-3, courant_factor=0.99)
 
 
 def _detector_arrays(config, name="det", *, readings=None):

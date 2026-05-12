@@ -38,7 +38,7 @@ _REL_TOL = 1e-4
 
 def _build(bc_type, bloch_vector=(0.0, 0.0, 0.0)):
     config = fdtdx.SimulationConfig(
-        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
+        resolution=_RESOLUTION,
         time=_SIM_TIME,
         dtype=jnp.float32,
     )

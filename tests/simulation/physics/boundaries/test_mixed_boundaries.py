@@ -95,7 +95,7 @@ def _build_domain(
 ):
     """Build a simulation domain with specified transverse sizes and boundary overrides."""
     config = fdtdx.SimulationConfig(
-        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
+        resolution=_RESOLUTION,
         time=_SIM_TIME,
         dtype=jnp.float32,
         use_complex_fields=use_complex_fields,

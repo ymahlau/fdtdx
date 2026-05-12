@@ -2,117 +2,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from fdtdx import constants
-from fdtdx.core.grid import (
-    RectilinearGrid,
-    calculate_spatial_offsets_yee,
-    calculate_time_offset_yee,
-    polygon_to_mask,
-)
-
-
-class TestRectilinearGrid:
-    """Tests for the canonical rectilinear grid representation."""
-
-    def test_uniform_constructor_stores_edges(self):
-        """Uniform grids are represented as ordinary rectilinear edge arrays."""
-        grid = RectilinearGrid.uniform(shape=(2, 3, 4), spacing=0.5, origin=(1.0, 2.0, 3.0))
-
-        assert grid.shape == (2, 3, 4)
-        assert np.allclose(np.asarray(grid.x_edges), [1.0, 1.5, 2.0])
-        assert np.allclose(np.asarray(grid.y_edges), [2.0, 2.5, 3.0, 3.5])
-        assert np.allclose(np.asarray(grid.z_edges), [3.0, 3.5, 4.0, 4.5, 5.0])
-        assert grid.is_uniform
-        assert grid.uniform_spacing == 0.5
-
-    def test_custom_constructor_stores_explicit_edges(self):
-        """Custom grids are realized edge arrays, not automatic meshing policies."""
-        grid = RectilinearGrid.custom(
-            x_edges=jnp.asarray([0.0, 1.0, 2.5]),
-            y_edges=jnp.asarray([0.0, 2.0]),
-            z_edges=jnp.asarray([0.0, 0.5, 1.5]),
-        )
-
-        assert grid.shape == (2, 1, 2)
-        assert np.allclose(np.asarray(grid.dx), [1.0, 1.5])
-        assert not grid.is_uniform
-
-    def test_nonuniform_grid_metrics(self):
-        """Non-uniform grids derive widths, centers, extents, areas, and volumes from edges."""
-        grid = RectilinearGrid(
-            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
-            y_edges=jnp.asarray([0.0, 2.0, 5.0]),
-            z_edges=jnp.asarray([0.0, 4.0, 6.0]),
-        )
-        slice_tuple = ((0, 2), (0, 2), (0, 2))
-
-        assert grid.shape == (2, 2, 2)
-        assert np.allclose(np.asarray(grid.dx), [1.0, 2.0])
-        assert np.allclose(np.asarray(grid.centers(1)), [1.0, 3.5])
-        assert grid.min_spacing == 1.0
-        assert not grid.is_uniform
-        assert grid.slice_extent(slice_tuple) == (3.0, 5.0, 6.0)
-        assert np.allclose(np.asarray(grid.face_area(axis=0, slice_tuple=slice_tuple)), [[[8.0, 4.0], [12.0, 6.0]]])
-        assert np.allclose(
-            np.asarray(grid.cell_volume(slice_tuple)),
-            [[[8.0, 4.0], [12.0, 6.0]], [[16.0, 8.0], [24.0, 12.0]]],
-        )
-
-    def test_uniform_spacing_raises_for_nonuniform_grid(self):
-        """Scalar-resolution compatibility paths must fail loudly for non-uniform grids."""
-        grid = RectilinearGrid(
-            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
-            y_edges=jnp.asarray([0.0, 1.0, 2.0]),
-            z_edges=jnp.asarray([0.0, 1.0, 2.0]),
-        )
-
-        with pytest.raises(ValueError, match="requires a uniform grid"):
-            _ = grid.uniform_spacing
-
-    def test_coord_to_index_snapping_rules(self):
-        """Coordinate snapping is centralized so placement code does not open-code searchsorted."""
-        grid = RectilinearGrid(
-            x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
-            y_edges=jnp.asarray([0.0, 1.0]),
-            z_edges=jnp.asarray([0.0, 1.0]),
-        )
-
-        assert grid.coord_to_index(0, 2.2, snap="nearest") == 2
-        assert grid.coord_to_index(0, 2.2, snap="lower") == 1
-        assert grid.coord_to_index(0, 2.2, snap="upper") == 2
-
-    def test_bounds_for_center_uses_physical_interval_centers(self):
-        """Center snapping compares physical interval centers, not index centers."""
-        grid = RectilinearGrid(
-            x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
-            y_edges=jnp.asarray([0.0, 1.0]),
-            z_edges=jnp.asarray([0.0, 1.0]),
-        )
-
-        assert grid.bounds_for_center(axis=0, center=3.6, size=2) == (1, 3)
-
-    def test_bounds_for_anchor_uses_physical_anchor_positions(self):
-        """Relative placement can target physical lower/center/upper anchors."""
-        grid = RectilinearGrid(
-            x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
-            y_edges=jnp.asarray([0.0, 1.0]),
-            z_edges=jnp.asarray([0.0, 1.0]),
-        )
-
-        assert grid.anchor_coordinate(axis=0, bounds=(1, 3), position=-1.0) == 1.0
-        assert grid.anchor_coordinate(axis=0, bounds=(1, 3), position=1.0) == 6.0
-        assert grid.bounds_for_anchor(axis=0, size=1, anchor=3.1, position=-1.0) == (2, 3)
-
-    def test_cfl_time_step_uses_min_spacing_per_axis(self):
-        """The rectilinear CFL limit uses the smallest spacing on each axis."""
-        grid = RectilinearGrid(
-            x_edges=jnp.asarray([0.0, 2.0, 5.0]),
-            y_edges=jnp.asarray([0.0, 1.0]),
-            z_edges=jnp.asarray([0.0, 4.0]),
-        )
-
-        expected = 0.99 / (constants.c * np.sqrt(1 / 2.0**2 + 1 / 1.0**2 + 1 / 4.0**2))
-        assert np.isclose(grid.cfl_time_step(0.99), expected)
+from fdtdx.core.grid import calculate_spatial_offsets_yee, calculate_time_offset_yee, polygon_to_mask
 
 
 def test_calculate_spatial_offsets_yee_basic():
@@ -175,44 +65,6 @@ def test_calculate_time_offset_yee_with_effective_index():
     # Check that results are finite
     assert jnp.all(jnp.isfinite(time_offset_E))
     assert jnp.all(jnp.isfinite(time_offset_H))
-
-
-def test_calculate_time_offset_yee_uniform_coordinates_match_scalar_path():
-    """A uniform RectilinearGrid is a metric-equivalent replacement for scalar spacing."""
-    spacing = 0.2
-    shape = (3, 3, 1)
-    center = jnp.array([1.0, 1.0])
-    wave_vector = jnp.array([0.3, 0.4, -0.5])
-    wave_vector = wave_vector / jnp.linalg.norm(wave_vector)
-    inv_permittivities = jnp.ones(shape)
-    inv_permeabilities = 1.0
-    time_step_duration = 1e-15
-
-    scalar_E, scalar_H = calculate_time_offset_yee(
-        center=center,
-        wave_vector=wave_vector,
-        inv_permittivities=inv_permittivities,
-        inv_permeabilities=inv_permeabilities,
-        resolution=spacing,
-        time_step_duration=time_step_duration,
-    )
-    grid_E, grid_H = calculate_time_offset_yee(
-        center=center,
-        wave_vector=wave_vector,
-        inv_permittivities=inv_permittivities,
-        inv_permeabilities=inv_permeabilities,
-        resolution=spacing,
-        time_step_duration=time_step_duration,
-        coordinate_edges=(
-            spacing * jnp.arange(shape[0] + 1),
-            spacing * jnp.arange(shape[1] + 1),
-            spacing * jnp.arange(shape[2] + 1),
-        ),
-        center_physical=jnp.array([center[0] * spacing, center[1] * spacing, 0.0]),
-    )
-
-    assert jnp.allclose(grid_E, scalar_E, rtol=1e-6, atol=0.2)
-    assert jnp.allclose(grid_H, scalar_H, rtol=1e-6, atol=0.2)
 
 
 def test_calculate_time_offset_yee_invalid_permittivity_shape():
@@ -414,31 +266,6 @@ def test_calculate_time_offset_yee_4d_permeability():
             e_polarization=e_pol,
             h_polarization=h_pol,
         )
-
-
-def test_calculate_time_offset_yee_uses_coordinate_edges():
-    """Explicit rectilinear coordinates produce physical travel offsets."""
-    center = jnp.asarray([0.0, 0.0])
-    wave_vector = jnp.asarray([1.0, 0.0, 0.0])
-    inv_permittivities = jnp.ones((1, 2, 1, 1))
-    time_step_duration = 1.0 / constants.c
-
-    time_offset_E, _time_offset_H = calculate_time_offset_yee(
-        center=center,
-        wave_vector=wave_vector,
-        inv_permittivities=inv_permittivities,
-        inv_permeabilities=1.0,
-        resolution=1.0,
-        time_step_duration=time_step_duration,
-        coordinate_edges=(
-            jnp.asarray([0.0, 1.0, 3.0]),
-            jnp.asarray([0.0, 1.0]),
-            jnp.asarray([0.0, 1.0]),
-        ),
-        center_physical=jnp.asarray([0.0, 0.0, 0.0]),
-    )
-
-    assert jnp.allclose(time_offset_E[0, :, 0, 0], jnp.asarray([-0.5, -2.0]))
 
 
 def test_calculate_time_offset_yee_4d_permeability_without_h_polarization():

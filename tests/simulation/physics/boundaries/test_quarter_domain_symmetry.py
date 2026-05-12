@@ -64,7 +64,7 @@ _STEPS_PER_PERIOD = round(_WAVELENGTH / (3e8 * _DT_APPROX))
 def _build_quarter_domain():
     """Build quarter-domain sim with PEC at min_y and PMC at min_z."""
     config = fdtdx.SimulationConfig(
-        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
+        resolution=_RESOLUTION,
         time=_SIM_TIME,
         dtype=jnp.float32,
     )
@@ -118,7 +118,7 @@ def _build_full_domain():
     the true full domain that the quarter domain (with PEC/PMC mirrors) models.
     """
     config = fdtdx.SimulationConfig(
-        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
+        resolution=_RESOLUTION,
         time=_SIM_TIME,
         dtype=jnp.float32,
     )

@@ -9,7 +9,6 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.colors import XKCD_LIGHT_GREY
-from fdtdx.core.grid import UniformGrid
 from fdtdx.core.jax.pytrees import autoinit
 from fdtdx.materials import Material
 from fdtdx.objects.static_material.static import (
@@ -79,7 +78,7 @@ class TestStaticMultiMaterialObject:
 
         return SimulationConfig(
             time=100e-15,
-            grid=UniformGrid(spacing=50e-9),
+            resolution=50e-9,
             backend="cpu",
             dtype=jnp.float32,
             gradient_config=None,
