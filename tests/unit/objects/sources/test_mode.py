@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 from fdtdx.config import SimulationConfig
@@ -427,6 +428,65 @@ class TestModePlaneSourceGetEHVariation:
         time_kwargs = mock_time_offset.call_args.kwargs
         assert time_kwargs["coordinate_edges"] is not None
         assert jnp.allclose(time_kwargs["center_physical"], jnp.asarray([3.0, 2.5, 0.0], dtype=jnp.float32))
+
+
+class TestModePlaneSourceJitSafety:
+    """Regression tests for TracerArrayConversionError under jax.jit."""
+
+    def test_local_edge_coordinates_returns_numpy_with_rectilinear_grid(self, jax_key):
+        """_local_edge_coordinates() must return numpy arrays, not JAX arrays.
+
+        Regression: edges came from grid.edges() which returns jax.Array.  Under
+        jax.jit those become abstract tracers; passing them to compute_mode's
+        np.asarray() call raised TracerArrayConversionError.
+        """
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1e-6, 3e-6, 6e-6]),
+            y_edges=jnp.asarray([0.0, 2e-6, 5e-6]),
+            z_edges=jnp.asarray([0.0, 1e-6]),
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu", dtype=jnp.float32)
+        source = ModePlaneSource(
+            partial_grid_shape=(3, 2, 1),
+            wave_character=WaveCharacter(wavelength=1.55e-6),
+            direction="-",
+        ).place_on_grid(((0, 3), (0, 2), (0, 1)), config, jax_key)
+
+        edges = source._local_edge_coordinates()
+        assert edges is not None
+        for coord in edges:
+            assert isinstance(coord, np.ndarray), (
+                f"Expected numpy.ndarray, got {type(coord)}. "
+                "JAX arrays become abstract tracers under jax.jit and cause "
+                "TracerArrayConversionError in compute_mode."
+            )
+
+    def test_rectilinear_grid_edges_np_concrete_under_jit_tracing(self):
+        """RectilinearGrid.edges_np() must stay concrete when the grid is a JIT-traced pytree leaf.
+
+        frozen_private_field values are excluded from pytree traversal, so JAX
+        never makes them abstract.  This is the mechanism that prevents
+        TracerArrayConversionError in compute_mode.
+        """
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1e-6, 3e-6, 6e-6]),
+            y_edges=jnp.asarray([0.0, 2e-6, 5e-6]),
+            z_edges=jnp.asarray([0.0, 1e-6]),
+        )
+
+        captured = {}
+
+        def fn(g):
+            captured["x_np"] = g.edges_np(0)
+            captured["y_np"] = g.edges_np(1)
+            return g.x_edges + g.y_edges[0]
+
+        jax.make_jaxpr(fn)(grid)
+
+        for key in ("x_np", "y_np"):
+            assert isinstance(captured[key], np.ndarray), (
+                f"edges_np({key}) must be numpy.ndarray under tracing, got {type(captured[key])}"
+            )
 
 
 class TestModePlaneSourceProperties:

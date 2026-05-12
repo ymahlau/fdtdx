@@ -3,6 +3,7 @@ from typing import Literal, Self
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 from matplotlib import pyplot as plt
 
 from fdtdx.core.grid import calculate_time_offset_yee
@@ -26,12 +27,15 @@ class ModePlaneSource(TFSFPlaneSource):
 
     _neff: jax.Array = private_field()  # not required for sim, used for inspection
 
-    def _local_edge_coordinates(self) -> tuple[jax.Array, jax.Array, jax.Array] | None:
-        """Return local physical edge coordinates for this source slice.
+    def _local_edge_coordinates(self) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+        """Return local physical edge coordinates for this source slice as numpy arrays.
 
         Non-uniform mode sources need edge coordinates for both Tidy3D mode
         solving and Yee time offsets.  Coordinates are shifted so the source
         slice lower corner is at zero on each axis.
+
+        Returns numpy arrays (not JAX arrays) so these coordinates remain
+        concrete when this method is called inside a jax.jit-traced function.
         """
         grid = self._config.resolved_grid
         if grid is None:
@@ -40,11 +44,11 @@ class ModePlaneSource(TFSFPlaneSource):
         local_edges = []
         for axis in range(3):
             lower, upper = self.grid_slice_tuple[axis]
-            edges = grid.edges(axis)[lower : upper + 1]
+            edges = grid.edges_np(axis)[lower : upper + 1]
             local_edges.append(edges - edges[0])
         return tuple(local_edges)
 
-    def _transverse_edge_coordinates(self) -> tuple[jax.Array, jax.Array] | None:
+    def _transverse_edge_coordinates(self) -> tuple[np.ndarray, np.ndarray] | None:
         """Return local transverse edge coordinates for Tidy3D mode solving."""
         local_edges = self._local_edge_coordinates()
         if local_edges is None:

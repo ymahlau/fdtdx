@@ -100,7 +100,7 @@ def compute_mode(
     dtype: jnp.dtype = jnp.float32,
     bend_radius: float | None = None,
     bend_axis: int | None = None,
-    transverse_coords: Sequence[ArrayLike] | None = None,
+    transverse_coords: Sequence[np.ndarray] | None = None,
 ) -> tuple[
     jax.Array,  # E
     jax.Array,  # H
