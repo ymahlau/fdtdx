@@ -93,7 +93,9 @@ def pad_fields_for_boundaries(
     Args:
         fields: Field array of shape (3, Nx, Ny, Nz)
         objects: Container with simulation objects including boundaries
-        config: Simulation configuration (provides resolution)
+        config: Simulation configuration. The scalar spacing argument is kept
+            for boundary API compatibility; grid-aware boundaries should read
+            physical metrics from ``config.grid`` when it is available.
 
     Returns:
         Padded fields of shape (3, Nx+2, Ny+2, Nz+2) with all corrections applied
@@ -103,8 +105,13 @@ def pad_fields_for_boundaries(
     boundaries = objects.boundary_objects
     if boundaries:
         volume_shape = objects.volume.grid_shape
+        if config.has_nonuniform_grid:
+            assert config.resolved_grid is not None
+            spacing = float(config.resolved_grid.min_spacing)
+        else:
+            spacing = config.uniform_spacing()
         for boundary in boundaries:
-            padded = boundary.apply_pad_correction(padded, volume_shape, config.resolution)
+            padded = boundary.apply_pad_correction(padded, volume_shape, spacing)
     return padded
 
 
@@ -643,6 +650,7 @@ def update_detector_states(
     interpolated_E, interpolated_H = interpolate_fields(
         E_pad=E_pad,
         H_pad=H_avg_pad,
+        config=config,
     )
 
     def helper_fn(E_input, H_input, detector: Detector):
