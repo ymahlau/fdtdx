@@ -46,6 +46,9 @@ def _get_full_coverage_objects(
     """
     full_coverage_objects = []
     total_area = plane_size[0] * plane_size[1]
+    # Guard against degenerate simulation volumes (zero area planes)
+    if total_area <= 0:
+        return []
 
     for obj in objects:
         if obj is volume:
