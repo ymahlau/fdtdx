@@ -11,7 +11,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from fdtdx.core.grid import polygons_to_mask
+from fdtdx.core.grid import polygon_to_mask_at_points, polygons_to_mask
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.materials import Material, compute_ordered_names
@@ -140,8 +140,6 @@ class GDSLayerObject(StaticMultiMaterialObject):
 
         n_h = self.grid_shape[self.horizontal_axis]
         n_v = self.grid_shape[self.vertical_axis]
-        res = self._config.resolution
-        half_res = 0.5 * res
 
         real_h = self.real_shape[self.horizontal_axis]
         real_v = self.real_shape[self.vertical_axis]
@@ -151,11 +149,30 @@ class GDSLayerObject(StaticMultiMaterialObject):
 
         local_polygons = [poly - np.array([origin_h, origin_v]) for poly in self.polygons]
 
-        mask_2d = polygons_to_mask(
-            boundary=(half_res, half_res, (n_h - 0.5) * res, (n_v - 0.5) * res),
-            resolution=res,
-            polygon_list=local_polygons,
-        )
+        grid = self._config.resolved_grid
+        if grid is None:
+            res = self._config.uniform_spacing()
+            half_res = 0.5 * res
+            mask_2d = polygons_to_mask(
+                boundary=(half_res, half_res, (n_h - 0.5) * res, (n_v - 0.5) * res),
+                resolution=res,
+                polygon_list=local_polygons,
+            )
+        else:
+            h_lower, h_upper = self.grid_slice_tuple[self.horizontal_axis]
+            v_lower, v_upper = self.grid_slice_tuple[self.vertical_axis]
+            h_edges = np.asarray(grid.edges(self.horizontal_axis))
+            v_edges = np.asarray(grid.edges(self.vertical_axis))
+            h_centers = 0.5 * (h_edges[h_lower:h_upper] + h_edges[h_lower + 1 : h_upper + 1]) - h_edges[h_lower]
+            v_centers = 0.5 * (v_edges[v_lower:v_upper] + v_edges[v_lower + 1 : v_upper + 1]) - v_edges[v_lower]
+            if len(local_polygons) == 0:
+                mask_2d = np.zeros((n_h, n_v), dtype=bool)
+            else:
+                masks = [
+                    polygon_to_mask_at_points(x_coords=h_centers, y_coords=v_centers, polygon_vertices=poly)
+                    for poly in local_polygons
+                ]
+                mask_2d = np.any(np.stack(masks, axis=0), axis=0)
 
         extrusion_height = self.grid_shape[self.axis]
         mask = jnp.repeat(

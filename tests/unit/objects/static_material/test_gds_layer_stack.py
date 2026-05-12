@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import RectilinearGrid, UniformGrid
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.materials import Material
 from fdtdx.objects.detectors.mode import ModeOverlapDetector
@@ -30,7 +31,21 @@ from fdtdx.objects.static_material.static import SimulationVolume
 def config():
     return SimulationConfig(
         time=100e-15,
-        resolution=50e-9,
+        grid=UniformGrid(spacing=50e-9),
+        backend="cpu",
+        dtype=jnp.float32,
+        gradient_config=None,
+    )
+
+
+@pytest.fixture
+def rectilinear_config():
+    """Config backed by an explicit RectilinearGrid (non-uniform-aware path)."""
+    res = 50e-9
+    grid = RectilinearGrid.uniform(shape=(20, 20, 4), spacing=res)
+    return SimulationConfig(
+        time=100e-15,
+        grid=grid,
         backend="cpu",
         dtype=jnp.float32,
         gradient_config=None,
@@ -247,6 +262,75 @@ class TestGetVoxelMaskForShape:
         placed = _place(obj, config, key, slices=((0, 4), (0, 20), (0, 20)))
         with pytest.raises(ValueError, match="axis=2"):
             placed.get_voxel_mask_for_shape()
+
+
+# ---------------------------------------------------------------------------
+# get_voxel_mask_for_shape — RectilinearGrid path
+# ---------------------------------------------------------------------------
+
+
+class TestGetVoxelMaskRectilinearGrid:
+    def test_mask_shape_matches_grid(self, rectilinear_config, key, two_materials):
+        obj = _make_layer_obj(two_materials, axis=2)
+        placed = _place(obj, rectilinear_config, key, slices=((0, 20), (0, 20), (0, 4)))
+        mask = placed.get_voxel_mask_for_shape()
+        assert mask.shape == (20, 20, 4)
+
+    def test_mask_is_bool(self, rectilinear_config, key, two_materials):
+        obj = _make_layer_obj(two_materials, axis=2)
+        placed = _place(obj, rectilinear_config, key)
+        mask = placed.get_voxel_mask_for_shape()
+        assert mask.dtype == jnp.bool_
+
+    def test_single_polygon_has_interior_voxels(self, rectilinear_config, key, two_materials):
+        obj = GDSLayerObject(
+            materials=two_materials,
+            polygons=[_square_polygon(half_side=100e-9)],
+            gds_center=(0.0, 0.0),
+            material_name="si",
+            axis=2,
+            thickness=200e-9,
+        )
+        placed = _place(obj, rectilinear_config, key, slices=((0, 20), (0, 20), (0, 4)))
+        mask = placed.get_voxel_mask_for_shape()
+        assert bool(jnp.any(mask))
+
+    def test_empty_polygon_list_all_false(self, rectilinear_config, key, two_materials):
+        obj = GDSLayerObject(
+            materials=two_materials,
+            polygons=[],
+            gds_center=(0.0, 0.0),
+            material_name="si",
+            axis=2,
+            thickness=200e-9,
+        )
+        placed = _place(obj, rectilinear_config, key, slices=((0, 20), (0, 20), (0, 4)))
+        mask = placed.get_voxel_mask_for_shape()
+        assert bool(jnp.all(~mask))
+
+    def test_mask_uniform_along_extrusion_axis(self, rectilinear_config, key, two_materials):
+        obj = _make_layer_obj(two_materials, axis=2)
+        placed = _place(obj, rectilinear_config, key, slices=((0, 20), (0, 20), (0, 4)))
+        mask = placed.get_voxel_mask_for_shape()
+        for z in range(mask.shape[2]):
+            assert jnp.array_equal(mask[:, :, z], mask[:, :, 0])
+
+    def test_rectilinear_matches_uniform_for_uniform_spacing(self, config, rectilinear_config, key, two_materials):
+        """With identical uniform spacing, both grid paths should yield the same mask."""
+        obj = GDSLayerObject(
+            materials=two_materials,
+            polygons=[_square_polygon(half_side=100e-9)],
+            gds_center=(0.0, 0.0),
+            material_name="si",
+            axis=2,
+            thickness=200e-9,
+        )
+        slices = ((0, 20), (0, 20), (0, 4))
+        placed_uniform = _place(obj, config, key, slices=slices)
+        placed_rect = _place(obj, rectilinear_config, key, slices=slices)
+        mask_uniform = placed_uniform.get_voxel_mask_for_shape()
+        mask_rect = placed_rect.get_voxel_mask_for_shape()
+        assert jnp.array_equal(mask_uniform, mask_rect)
 
 
 # ---------------------------------------------------------------------------
