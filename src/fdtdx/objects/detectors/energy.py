@@ -1,5 +1,4 @@
 import jax
-import numpy as np
 
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.physics.metrics import compute_energy
@@ -38,29 +37,6 @@ class EnergyDetector(Detector):
     #: If "mean", aggregates slices by averaging instead of using position.
     #: If None, mean is used. Defaults to None.
     aggregate: str | None = frozen_field(default=None)  # e.g., "mean"
-
-    def _slice_position_to_index(self, axis: int, real_pos: float | None, axis_len: int) -> int:
-        """Map a requested physical slice position to a local energy index.
-
-        Uniform grids keep the historical origin-plus-spacing conversion.  On a
-        rectilinear grid, slice positions are compared against cell centers in
-        the placed detector interval.  This avoids interpreting physical metres
-        through a single global resolution and makes the selected slice stable
-        under local grid stretching.
-        """
-        if real_pos is None:
-            return axis_len // 2
-        grid = self._config.resolved_grid
-        if grid is not None:
-            start, stop = self.grid_slice_tuple[axis]
-            centers = np.asarray(grid.centers(axis)[start:stop])
-            idx = int(np.argmin(np.abs(centers - real_pos)))
-            return max(0, min(idx, axis_len - 1))
-
-        spacing = self._config.uniform_spacing()
-        origin = self.grid_slice[axis].start * spacing
-        idx = int((real_pos - origin) / spacing)
-        return max(0, min(idx, axis_len - 1))
 
     def _shape_dtype_single_time_step(
         self,
@@ -114,9 +90,20 @@ class EnergyDetector(Detector):
                 energy_xz = energy.mean(axis=1)
                 energy_yz = energy.mean(axis=0)
             else:
-                x_idx = self._slice_position_to_index(0, self.x_slice, energy.shape[0])
-                y_idx = self._slice_position_to_index(1, self.y_slice, energy.shape[1])
-                z_idx = self._slice_position_to_index(2, self.z_slice, energy.shape[2])
+                # Convert real-world positions to indices
+                origin_x = self.grid_slice[0].start * self._config.resolution
+                origin_y = self.grid_slice[1].start * self._config.resolution
+                origin_z = self.grid_slice[2].start * self._config.resolution
+
+                def to_index(real_pos, origin, axis_len):
+                    if real_pos is not None:
+                        idx = int((real_pos - origin) / self._config.resolution)
+                        return max(0, min(idx, axis_len - 1))
+                    return axis_len // 2
+
+                x_idx = to_index(self.x_slice, origin_x, energy.shape[0])
+                y_idx = to_index(self.y_slice, origin_y, energy.shape[1])
+                z_idx = to_index(self.z_slice, origin_z, energy.shape[2])
 
                 energy_xy = energy[:, :, z_idx]
                 energy_xz = energy[:, y_idx, :]
@@ -133,7 +120,6 @@ class EnergyDetector(Detector):
             }
 
         if self.reduce_volume:
-            energy = energy * self._cell_volume_weights()
             total_energy = energy.sum()
             new_arr = state["energy"].at[arr_idx].set(total_energy)
             return {"energy": new_arr}

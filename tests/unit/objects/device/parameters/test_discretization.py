@@ -5,7 +5,6 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import UniformGrid
 from fdtdx.materials import Material
 from fdtdx.objects.device.parameters.discretization import (
     BrushConstraint2D,
@@ -93,7 +92,7 @@ class TestClosestIndex:
         """Minimal simulation config."""
         return SimulationConfig(
             time=100e-15,
-            grid=UniformGrid(spacing=500e-9),
+            resolution=500e-9,
             backend="cpu",
         )
 
@@ -201,7 +200,7 @@ class TestBrushConstraint2D:
         """Minimal simulation config."""
         return SimulationConfig(
             time=100e-15,
-            grid=UniformGrid(spacing=500e-9),
+            resolution=500e-9,
             backend="cpu",
         )
 
@@ -329,7 +328,7 @@ class TestPillarDiscretization:
         """Minimal simulation config."""
         return SimulationConfig(
             time=100e-15,
-            grid=UniformGrid(spacing=500e-9),
+            resolution=500e-9,
             backend="cpu",
         )
 

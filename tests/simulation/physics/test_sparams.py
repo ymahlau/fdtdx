@@ -59,7 +59,7 @@ def _build_waveguide_sparams():
     purely real TE mode that the ModePlaneSource can inject exactly.
     """
     config = fdtdx.SimulationConfig(
-        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
+        resolution=_RESOLUTION,
         time=_SIM_TIME,
         dtype=jnp.float32,
     )

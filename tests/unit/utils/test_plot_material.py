@@ -6,19 +6,16 @@ from unittest.mock import MagicMock
 
 import matplotlib
 import numpy as np
-import pytest
 
 matplotlib.use("Agg")
-import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
-from fdtdx.core.grid import RectilinearGrid
 from fdtdx.utils.plot_material import plot_material, plot_material_from_side
 
 
 def _make_config(resolution: float = 50e-9) -> MagicMock:
     config = MagicMock()
-    config.uniform_spacing.return_value = resolution
+    config.resolution = resolution
     return config
 
 
@@ -53,23 +50,6 @@ class TestPlotMaterialFromSide:
         _fig, ax = plt.subplots()
         result = plot_material_from_side(config=config, arrays=arrays, viewing_side="z", ax=ax)
         assert result is not None
-        plt.close("all")
-
-    def test_nonuniform_grid_uses_rectilinear_edges(self):
-        """Material plots use pcolormesh with RectilinearGrid physical extents."""
-        config = _make_config()
-        config.grid = RectilinearGrid(
-            x_edges=jnp.asarray([0.0, 1.0e-6, 4.0e-6]),
-            y_edges=jnp.asarray([0.0, 2.0e-6, 5.0e-6]),
-            z_edges=jnp.asarray([0.0, 1.0e-6, 3.0e-6]),
-        )
-        arrays = _make_arrays(shape=(1, 2, 2, 2))
-        _fig, ax = plt.subplots()
-        plot_material_from_side(config=config, arrays=arrays, viewing_side="z", ax=ax, plot_legend=False)
-
-        assert len(ax.collections) == 1
-        assert ax.get_xlim() == pytest.approx((0.0, 4.0))
-        assert ax.get_ylim() == pytest.approx((0.0, 5.0))
         plt.close("all")
 
     def test_viewing_side_y_returns_figure(self):
@@ -236,35 +216,6 @@ class TestPlotMaterialFromSide:
         _fig, ax = plt.subplots()
         plot_material_from_side(config=config, arrays=arrays, viewing_side="z", ax=ax, position=-100e-3)
         assert len(ax.get_images()) == 1
-        plt.close("all")
-
-    def test_nonuniform_position_selects_nearest_cell_center(self):
-        """Nonuniform slice positions are offsets from physical domain center."""
-        config = _make_config()
-        config.grid = RectilinearGrid(
-            x_edges=jnp.asarray([0.0, 1.0e-6]),
-            y_edges=jnp.asarray([0.0, 1.0e-6]),
-            z_edges=jnp.asarray([0.0, 1.0e-6, 4.0e-6, 10.0e-6]),
-        )
-        inv_perm = np.zeros((1, 1, 1, 3))
-        for z in range(3):
-            inv_perm[0, :, :, z] = 1.0 / (z + 1)
-        arrays = MagicMock()
-        arrays.inv_permittivities = inv_perm
-        arrays.inv_permeabilities = np.ones_like(inv_perm)
-        _fig, ax = plt.subplots()
-
-        plot_material_from_side(
-            config=config,
-            arrays=arrays,
-            viewing_side="z",
-            ax=ax,
-            position=-4.5e-6,
-            plot_legend=False,
-        )
-
-        plotted_values = np.asarray(ax.collections[0].get_array())
-        assert np.allclose(plotted_values, 1.0)
         plt.close("all")
 
     def test_saves_file_when_filename_given(self):

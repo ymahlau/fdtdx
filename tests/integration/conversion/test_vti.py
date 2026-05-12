@@ -1,11 +1,9 @@
 """Integration tests for fdtdx.conversion.vti module."""
 
 import jax
-import jax.numpy as jnp
 
 import fdtdx
-from fdtdx import export_arrays_snapshot_to_vti, export_vtr
-from fdtdx.core.grid import RectilinearGrid
+from fdtdx import export_arrays_snapshot_to_vti
 
 
 def test_export_arrays_snapshot_to_vti(tmp_path):
@@ -13,7 +11,7 @@ def test_export_arrays_snapshot_to_vti(tmp_path):
 
     config = fdtdx.SimulationConfig(
         time=100e-15,
-        grid=fdtdx.UniformGrid(spacing=100e-9),
+        resolution=100e-9,
     )
     volume = fdtdx.SimulationVolume(
         partial_real_shape=(2.0e-6, 2.0e-6, 2.0e-6),
@@ -34,7 +32,7 @@ def test_export_arrays_snapshot_to_vti(tmp_path):
     output_path = tmp_path / "snapshot.vti"
 
     # Run the snapshot export
-    export_arrays_snapshot_to_vti(arrays, output_path, config.uniform_spacing())
+    export_arrays_snapshot_to_vti(arrays, output_path, config.resolution)
 
     assert output_path.exists()
     assert output_path.stat().st_size > 0
@@ -49,38 +47,5 @@ def test_export_arrays_snapshot_to_vti(tmp_path):
     assert 'Name="H"' in content
 
     # Check spacing/resolution was passed correctly
-    res_str = f"{config.uniform_spacing()} {config.uniform_spacing()} {config.uniform_spacing()}"
+    res_str = f"{config.resolution} {config.resolution} {config.resolution}"
     assert res_str in content
-
-
-def test_export_vtr_uniform_grid(tmp_path):
-    grid = RectilinearGrid.uniform(shape=(4, 5, 6), spacing=50e-9)
-    cell_data = {"field": jnp.ones((4, 5, 6), dtype=jnp.float32)}
-    output_path = tmp_path / "uniform.vtr"
-
-    export_vtr(cell_data, output_path, grid)
-
-    assert output_path.exists()
-    assert output_path.stat().st_size > 0
-    with open(output_path, "r", encoding="utf-8", errors="ignore") as f:
-        content = f.read()
-    assert 'Name="field"' in content
-    assert "RectilinearGrid" in content
-
-
-def test_export_vtr_nonuniform_grid(tmp_path):
-    x_edges = jnp.array([0.0, 50e-9, 150e-9, 350e-9, 750e-9])
-    y_edges = jnp.linspace(0.0, 500e-9, 6)
-    z_edges = jnp.linspace(0.0, 300e-9, 4)
-    grid = RectilinearGrid(x_edges=x_edges, y_edges=y_edges, z_edges=z_edges)
-    cell_data = {"E": jnp.zeros((3, 4, 5, 3), dtype=jnp.float32)}
-    output_path = tmp_path / "nonuniform.vtr"
-
-    export_vtr(cell_data, output_path, grid)
-
-    assert output_path.exists()
-    assert output_path.stat().st_size > 0
-    with open(output_path, "r", encoding="utf-8", errors="ignore") as f:
-        content = f.read()
-    assert 'Name="E"' in content
-    assert "X_COORDINATES" in content

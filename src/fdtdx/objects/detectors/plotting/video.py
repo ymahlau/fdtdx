@@ -23,7 +23,6 @@ def plot_from_slices(
     maxvals: tuple[float, float, float],
     plot_dpi: int | None,
     plot_interpolation: str,
-    coordinate_edges_um: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
 ):
     xy_slice, xz_slice, yz_slice = slice_tuple
 
@@ -32,7 +31,6 @@ def plot_from_slices(
         xz_slice=xz_slice,
         yz_slice=yz_slice,
         resolutions=resolutions,
-        coordinate_edges_um=coordinate_edges_um,
         minvals=minvals,
         maxvals=maxvals,
         plot_dpi=plot_dpi,
@@ -79,7 +77,6 @@ def generate_video_from_slices(
     progress: Progress | None = None,
     minvals: tuple[float | None, float | None, float | None] = (None, None, None),
     maxvals: tuple[float | None, float | None, float | None] = (None, None, None),
-    coordinate_edges_um: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
 ) -> str:
     """Generates an MP4 video from time-series slice data using parallel processing.
 
@@ -92,8 +89,6 @@ def generate_video_from_slices(
         yz_slice (np.ndarray): 3D array containing YZ plane slice data over time
         plt_fn (Callable): Plotting function to generate each frame
         resolutions (tuple[float, float, float]): Tuple of (dx, dy, dz) spatial resolutions in meters
-        coordinate_edges_um: Optional rectilinear edge coordinates in micrometres
-            for plotting non-uniform grids without resampling.
         num_worker (int | None): Number of parallel worker processes. If None, frames are processes sequentially.
         plot_interpolation (str): Interpolation method for imshow ('gaussian', 'nearest', etc)
         plot_dpi (int | None): DPI resolution for the figures. None uses default.
@@ -132,7 +127,6 @@ def generate_video_from_slices(
         maxvals=maxvals,
         plot_dpi=plot_dpi,
         plot_interpolation=plot_interpolation,
-        coordinate_edges_um=coordinate_edges_um,
     )
     slice_arr_list = [(xy_slice[t], xz_slice[t], yz_slice[t]) for t in range(time_steps)]
     if num_worker is None:

@@ -1,13 +1,10 @@
-from typing import Literal, Self
+from typing import Literal
 
 import jax
-import jax.numpy as jnp
 
-from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.physics.metrics import compute_poynting_flux
 from fdtdx.objects.detectors.detector import Detector, DetectorState
-from fdtdx.typing import SliceTuple3D
 
 
 @autoinit
@@ -36,8 +33,6 @@ class PoyntingFluxDetector(Detector):
     #: is returned (scalar). If true, all three vector components are returned. Defaults to False.
     keep_all_components: bool = frozen_field(default=False)
 
-    _cached_face_area_weights: jax.Array = private_field()
-
     @property
     def propagation_axis(self) -> int:
         """Determines the axis along which Poynting flux is measured.
@@ -60,32 +55,6 @@ class PoyntingFluxDetector(Detector):
             raise Exception(f"Invalid poynting flux detector shape: {self.grid_shape}")
         return self.grid_shape.index(1)
 
-    def place_on_grid(
-        self: Self,
-        grid_slice_tuple: SliceTuple3D,
-        config: SimulationConfig,
-        key: jax.Array,
-    ) -> Self:
-        self = super().place_on_grid(grid_slice_tuple=grid_slice_tuple, config=config, key=key)
-        can_determine_axis = self.keep_all_components or (
-            self.fixed_propagation_axis is not None or sum(a == 1 for a in self.grid_shape) == 1
-        )
-        if can_determine_axis:
-            grid = self._config.resolved_grid
-            if grid is not None:
-                if self.keep_all_components:
-                    weights = jnp.stack(
-                        [grid.face_area(axis=axis, slice_tuple=self.grid_slice_tuple) for axis in range(3)]
-                    )
-                else:
-                    weights = grid.face_area(axis=self.propagation_axis, slice_tuple=self.grid_slice_tuple)
-            else:
-                spacing = self._config.uniform_spacing()
-                area = jnp.ones(self.grid_shape, dtype=self.dtype) * spacing * spacing
-                weights = jnp.stack([area, area, area]) if self.keep_all_components else area
-            self = self.aset("_cached_face_area_weights", weights, create_new_ok=True)
-        return self
-
     def _shape_dtype_single_time_step(
         self,
     ) -> dict[str, jax.ShapeDtypeStruct]:
@@ -94,10 +63,6 @@ class PoyntingFluxDetector(Detector):
         else:
             shape = (1,) if self.reduce_volume else self.grid_shape
         return {"poynting_flux": jax.ShapeDtypeStruct(shape, self.dtype)}
-
-    def _face_area_weights(self) -> jax.Array:
-        """Return face-area weights matching this detector's grid slice."""
-        return self._cached_face_area_weights
 
     def update(
         self,
@@ -118,7 +83,6 @@ class PoyntingFluxDetector(Detector):
         if self.direction == "-":
             pf = -pf
         if self.reduce_volume:
-            pf = pf * self._face_area_weights()
             if self.keep_all_components:
                 pf = pf.sum(axis=(1, 2, 3))
             else:

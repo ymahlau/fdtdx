@@ -8,7 +8,6 @@ from fdtdx import (
     WaveCharacter,
     Material,
     SimulationConfig,
-    UniformGrid,
     constants,
     ArrayContainer, 
     ParameterContainer, 
@@ -43,7 +42,7 @@ def main():
 
     config = SimulationConfig(
         time=50e-15,
-        grid=UniformGrid(spacing=20e-9),
+        resolution=20e-9,
         dtype=jnp.float32,
         courant_factor=0.99,
     )

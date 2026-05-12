@@ -69,22 +69,15 @@ class Cylinder(StaticMultiMaterialObject):
         return 2
 
     def get_voxel_mask_for_shape(self) -> jax.Array:
-        def local_centers(axis: int) -> jax.Array:
-            """Return physical cell centers relative to this object's lower edge."""
-            lower, upper = self.grid_slice_tuple[axis]
-            grid = self._config.resolved_grid
-            if grid is None:
-                spacing = self._config.uniform_spacing()
-                return (jnp.arange(self.grid_shape[axis]) + 0.5) * spacing
-            edges = grid.edges(axis)
-            return 0.5 * (edges[lower:upper] + edges[lower + 1 : upper + 1]) - edges[lower]
-
-        horizontal = local_centers(self.horizontal_axis)
-        vertical = local_centers(self.vertical_axis)
-        horizontal_grid, vertical_grid = jnp.meshgrid(horizontal, vertical, indexing="ij")
-        center_h = 0.5 * self.real_shape[self.horizontal_axis]
-        center_v = 0.5 * self.real_shape[self.vertical_axis]
-        grid = jnp.stack((horizontal_grid - center_h, vertical_grid - center_v), axis=-1) / self.radius
+        width = self.grid_shape[self.vertical_axis]
+        height = self.grid_shape[self.horizontal_axis]
+        center = (height / 2, width / 2)
+        grid_radius_exact = self.radius / self._config.resolution
+        grid = (
+            jnp.stack(jnp.meshgrid(*map(jnp.arange, (width, height)), indexing="xy"), axis=-1)
+            - jnp.asarray(center)
+            + 0.5
+        ) / jnp.asarray(grid_radius_exact)
 
         mask = (grid**2).sum(axis=-1) < 1
         mask = jnp.expand_dims(mask, axis=self.axis)

@@ -4,7 +4,6 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import UniformGrid
 from fdtdx.core.misc import PaddingConfig
 from fdtdx.materials import Material
 from fdtdx.objects.device.parameters.discrete import (
@@ -41,7 +40,7 @@ def dummy_config():
     """Minimal simulation config."""
     return SimulationConfig(
         time=100e-15,
-        grid=UniformGrid(spacing=500e-9),
+        resolution=500e-9,
         backend="cpu",
     )
 

@@ -7,7 +7,6 @@ import pytest
 from fdtdx.colors import PINK
 from fdtdx.config import SimulationConfig
 from fdtdx.conversion.json import JsonSetup, export_json, export_json_str, import_from_json
-from fdtdx.core.grid import UniformGrid
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, ParameterContainer
@@ -30,7 +29,7 @@ def setup_simulation_inputs():
     constraints = []
 
     # Simulation config — small domain to keep test runtime short
-    config = SimulationConfig(time=20e-15, grid=UniformGrid(spacing=100e-9), dtype=jnp.float32, courant_factor=0.99)
+    config = SimulationConfig(time=20e-15, resolution=100e-9, dtype=jnp.float32, courant_factor=0.99)
 
     # Volume: 3µm³ → 30x30x30 cells
     volume = SimulationVolume(
@@ -123,7 +122,7 @@ def test_config_json(setup_simulation_inputs):
     s = export_json_str(conf)
     rec = import_from_json(s)
     assert rec.time == 20e-15
-    assert rec.uniform_spacing() == 100e-9
+    assert rec.resolution == 100e-9
 
 
 def test_volume_json(setup_simulation_inputs):
