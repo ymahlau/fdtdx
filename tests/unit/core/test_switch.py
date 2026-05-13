@@ -165,9 +165,7 @@ class TestOnOffSwitch:
         N, dt = 20, 0.5
         on_list = switch.calculate_on_list(num_total_time_steps=N, time_step_duration=dt)
         for t in range(N):
-            assert on_list[t] == switch.is_on_at_time_step(time_step=t, time_step_duration=dt), (
-                f"mismatch at step {t}"
-            )
+            assert on_list[t] == switch.is_on_at_time_step(time_step=t, time_step_duration=dt), f"mismatch at step {t}"
 
 
 # ── is_on_at_time_step_from_switch ────────────────────────────────────────
