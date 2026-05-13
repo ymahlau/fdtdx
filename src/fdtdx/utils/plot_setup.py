@@ -109,7 +109,6 @@ def plot_setup_from_side(
     else:
         raise ValueError(f"Invalid viewing_side: {viewing_side}. Must be 'x', 'y', or 'z'")
 
-
     half_real_size_um = [N * resolution / 2 for N in plane_size] 
 
     # Filter objects for this plane
@@ -184,8 +183,8 @@ def plot_setup_from_side(
     ax.set_xlabel(axis_labels[0])
     ax.set_ylabel(axis_labels[1])
     ax.set_title(title)
-    ax.set_xlim((-plane_size[0] * resolution / 2, plane_size[0] * resolution / 2))
-    ax.set_ylim((-plane_size[1] * resolution / 2, plane_size[1] * resolution / 2))
+    ax.set_xlim((-half_real_size_um[0], half_real_size_um[0]))
+    ax.set_ylim((-half_real_size_um[1], half_real_size_um[1]))
     ax.set_aspect("equal")
     ax.grid(True)
 
