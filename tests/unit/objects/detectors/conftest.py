@@ -11,7 +11,7 @@ from fdtdx.config import SimulationConfig
 def simulation_config():
     """Create a minimal SimulationConfig for testing."""
     return SimulationConfig(
-        time=1e-12,  # 1 picosecond
+        time=2e-14,  # ~100 time steps at 100 nm spacing — keeps state arrays small for fast JIT
         resolution=1e-7,  # 100 nm
         backend="cpu",
     )
