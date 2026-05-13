@@ -87,11 +87,23 @@ class PerfectlyMatchedLayer(BaseBoundary):
         # Now calculate sigma_end if it wasn't provided by the user
         if self.sigma_end is None:
             assert self.sigma_order is not None, "sigma_order should be set by __post_init__"
-            pml_thickness = self.thickness * self._config.resolution
+            pml_thickness = self._physical_thickness()
             sigma_end_calculated = -(self.sigma_order + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * pml_thickness)
             self = self.aset("sigma_end", float(sigma_end_calculated))
 
         return self
+
+    def _physical_thickness(self) -> float:
+        """Return PML thickness in metres.
+
+        Uniform-grid simulations keep the historical ``cell_count * spacing``
+        behavior.  Non-uniform grids derive thickness from physical grid edges so
+        the same PML cell count can represent stretched physical layers.
+        """
+        grid = self._config.resolved_grid
+        if grid is not None:
+            return grid.axis_extent(self.axis, self.grid_slice_tuple[self.axis])
+        return self.thickness * self._config.uniform_spacing()
 
     @property
     @override
@@ -142,18 +154,22 @@ class PerfectlyMatchedLayer(BaseBoundary):
 
         # Create distance array along the PML axis
         # d varies from 0 (at interface) to L (at outer edge)
-        if self.direction == "-":
+        if self._config.has_nonuniform_grid:
+            dE, dH, norm = self._compute_nonuniform_pml_depths(dtype)
+        elif self.direction == "-":
             # For min boundary, distance increases as we go towards lower indices
             dE = jnp.arange(L - 1, -1, -1, dtype=dtype)
             dH = jnp.append(jnp.arange(L - 1.5, -0.5, -1, dtype=dtype), 0)
+            norm = L
         else:
             # For max boundary, distance increases as we go towards higher indices
             dE = jnp.insert(jnp.arange(0.5, L - 0.5, 1, dtype=dtype), 0, 0)
             dH = jnp.arange(0, L, 1, dtype=dtype)
+            norm = L
 
         # Compute polynomial grading: value_start + (value_end - value_start) * (d/L)^order
-        profileE_1d = value_start + (value_end - value_start) * jnp.power(dE / L, order)
-        profileH_1d = value_start + (value_end - value_start) * jnp.power(dH / L, order)
+        profileE_1d = value_start + (value_end - value_start) * jnp.power(dE / norm, order)
+        profileH_1d = value_start + (value_end - value_start) * jnp.power(dH / norm, order)
 
         # Create shape matching PML region with grading only along self.axis
         shape = [1, 1, 1]
@@ -165,6 +181,35 @@ class PerfectlyMatchedLayer(BaseBoundary):
         profileH = jnp.broadcast_to(profileH_reshaped, self.grid_shape)
 
         return profileE, profileH
+
+    def _compute_nonuniform_pml_depths(self, dtype) -> tuple[jax.Array, jax.Array, float]:
+        """Return E/H physical depths into a non-uniform PML.
+
+        Depth is measured from the interior PML interface toward the outer
+        boundary.  The E profile uses cell-edge depth so the interface cell has
+        zero depth, matching the existing uniform-grid endpoint convention.  The
+        H profile uses cell-center depth except at the interface cell, where it is
+        pinned to zero for continuity with the historical CPML staggering.
+        """
+        grid = self._config.resolved_grid
+        assert grid is not None
+        lower, upper = self.grid_slice_tuple[self.axis]
+        edges = grid.edges(self.axis)[lower : upper + 1].astype(dtype)
+        norm = float(edges[-1] - edges[0])
+        centers = 0.5 * (edges[:-1] + edges[1:])
+
+        if self.direction == "-":
+            interface = edges[-1]
+            dE = interface - edges[1:]
+            dH = interface - centers
+            dH = dH.at[-1].set(0)
+        else:
+            interface = edges[0]
+            dE = edges[:-1] - interface
+            dH = centers - interface
+            dH = dH.at[0].set(0)
+
+        return dE, dH, norm
 
     def modify_arrays(
         self,
