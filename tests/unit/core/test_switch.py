@@ -145,6 +145,30 @@ class TestOnOffSwitch:
         )
         assert result == [-1, 0, 1, 2, -1, -1]
 
+    @pytest.mark.parametrize(
+        "switch",
+        [
+            OnOffSwitch(),
+            OnOffSwitch(start_time=2.0),
+            OnOffSwitch(end_time=5.0),
+            OnOffSwitch(start_time=2.0, end_time=7.0),
+            OnOffSwitch(is_always_off=True),
+            OnOffSwitch(start_after_periods=1.0, period=3.0),
+            OnOffSwitch(end_after_periods=2.0, period=3.0),
+            OnOffSwitch(start_time=1.0, on_for_time=4.0),
+            OnOffSwitch(interval=3),
+            OnOffSwitch(start_time=2.0, end_time=7.0, interval=2),
+        ],
+    )
+    def test_calculate_on_list_agrees_with_is_on_at_time_step(self, switch):
+        """calculate_on_list and is_on_at_time_step must agree at every step."""
+        N, dt = 20, 0.5
+        on_list = switch.calculate_on_list(num_total_time_steps=N, time_step_duration=dt)
+        for t in range(N):
+            assert on_list[t] == switch.is_on_at_time_step(time_step=t, time_step_duration=dt), (
+                f"mismatch at step {t}"
+            )
+
 
 # ── is_on_at_time_step_from_switch ────────────────────────────────────────
 

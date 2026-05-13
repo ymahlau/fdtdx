@@ -145,9 +145,8 @@ class OnOffSwitch(TreeClass):
         time_step_duration: float,
     ) -> list[bool]:
         if self.fixed_on_time_steps is not None:
-            on_arr = np.zeros(num_total_time_steps, dtype=bool)
-            on_arr[list(self.fixed_on_time_steps)] = True
-            return on_arr.tolist()
+            fixed = set(self.fixed_on_time_steps)
+            return [t in fixed for t in range(num_total_time_steps)]
 
         if self.is_always_off:
             return [False] * num_total_time_steps
@@ -168,6 +167,8 @@ class OnOffSwitch(TreeClass):
             return time_step in self.fixed_on_time_steps
         start_time, end_time = self._resolve_window()
         if end_time < start_time:
+            return False
+        if self.interval != 1 and time_step % self.interval != 0:
             return False
         time_passed = time_step * time_step_duration
         return bool(start_time <= time_passed <= end_time)
