@@ -71,6 +71,7 @@ def plot_material_from_side(
     # material_array has shape (num_components, Nx, Ny, Nz)
     material_array = jnp.asarray(material_array)
     spatial_shape = material_array.shape[1:]  # (Nx, Ny, Nz)
+    half_real_shape_um = [N * resolution / 2 for N in spatial_shape] 
 
     # Determine slice parameters based on viewing side
     if viewing_side == "z":
@@ -81,7 +82,7 @@ def plot_material_from_side(
         material_slice = material_array[material_axis, :, :, slice_idx]
         axis_labels = ("x (µm)", "y (µm)")
         title = f"XY plane - {type} at z={position * 1e6:.2f} µm"
-        extent = [0, spatial_shape[0] * resolution, 0, spatial_shape[1] * resolution]
+        extent = [-half_real_shape_um[0], half_real_shape_um[0], -half_real_shape_um[1], half_real_shape_um[1]]
 
     elif viewing_side == "y":
         # XZ plane - slice through Y axis
@@ -91,7 +92,7 @@ def plot_material_from_side(
         material_slice = material_array[material_axis, :, slice_idx, :]
         axis_labels = ("x (µm)", "z (µm)")
         title = f"XZ plane - {type} at y={position * 1e6:.2f} µm"
-        extent = [0, spatial_shape[0] * resolution, 0, spatial_shape[2] * resolution]
+        extent = [-half_real_shape_um[0], half_real_shape_um[0], -half_real_shape_um[2], half_real_shape_um[2]]
 
     else:  # viewing_side == "x"
         # YZ plane - slice through X axis
@@ -101,7 +102,7 @@ def plot_material_from_side(
         material_slice = material_array[material_axis, slice_idx, :, :]
         axis_labels = ("y (µm)", "z (µm)")
         title = f"YZ plane - {type} at x={position * 1e6:.2f} µm"
-        extent = [0, spatial_shape[1] * resolution, 0, spatial_shape[2] * resolution]
+        extent = [-half_real_shape_um[1], half_real_shape_um[1], -half_real_shape_um[2], half_real_shape_um[2]]
 
     # Plot the material slice
     im = ax.imshow(
