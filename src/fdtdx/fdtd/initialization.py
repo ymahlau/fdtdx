@@ -725,20 +725,26 @@ def resolve_object_constraints(
     return resolved_slices, errors
 
 
-def _center_to_bounds(real_pos: float, resolution: float, size: int) -> tuple[int, int]:
-    """Convert a real-world center position and grid size to (lower, upper) grid bounds.
+def _center_to_bounds(
+    real_pos: float,
+    resolution: float,
+    size: int,
+    volume_size: int,
+) -> tuple[int, int]:
+    """Convert a center-relative real-space position into grid bounds.
 
-    Args:
-        real_pos: Center position in real-world coordinates.
-        resolution: Grid resolution (real-world units per grid cell).
-        size: Object size in grid cells.
-
-    Returns:
-        Tuple (lower, upper) of integer grid indices such that upper - lower == size.
+    The coordinate origin (0,0,0) is interpreted as the center of the
+    simulation volume, not the lower-left simulation corner.
     """
-    grid_center = round(real_pos / resolution)
+
+    # convert physical coordinate to grid coordinate relative to volume center
+    volume_center = volume_size / 2
+
+    grid_center = round(real_pos / resolution + volume_center)
+
     lower = round(grid_center - size / 2)
-    upper = lower + size  # derive upper from lower to guarantee exact size
+    upper = lower + size
+
     return lower, upper
 
 
@@ -751,24 +757,47 @@ def _resolve_static_positions_initial(
     """Fill in static or directly defined positions from partial_real_position during initial setup.
 
     The partial_real_position represents the center position of the object.
-    This function converts it to grid coordinates and computes the slice boundaries
-    if the object's size is known.
+
+    Coordinates are interpreted relative to the center of the simulation
+    volume, i.e. partial_real_position=(0,0,0) places an object at the
+    geometric center of the simulation domain.
+
+    This function converts center-relative real coordinates into positive
+    grid coordinates and computes slice boundaries if the object's size
+    is known.
     """
+
+    volume_name = _resolve_volume_name(object_map)
+
     for obj_name, obj in object_map.items():
-        # Check if the object has partial_real_position attribute
         if hasattr(obj, "partial_real_position") and obj.partial_real_position is not None:
             for axis in range(3):
-                if obj.partial_real_position[axis] is not None:
-                    # If we know the size, we can compute both boundaries from center
-                    size = shape_dict[obj_name][axis]
-                    if size is not None:
-                        lower, upper = _center_to_bounds(
-                            obj.partial_real_position[axis],  # type: ignore
-                            config.resolution,
-                            size,
-                        )
-                        slice_dict[obj_name][axis][0] = lower
-                        slice_dict[obj_name][axis][1] = upper
+                real_position = obj.partial_real_position[axis]
+
+                if real_position is None:
+                    continue
+
+                size = shape_dict[obj_name][axis]
+
+                # Need object size to compute centered bounds
+                if size is None:
+                    continue
+
+                volume_size = shape_dict[volume_name][axis]
+
+                if volume_size is None:
+                    raise ValueError(f"Simulation volume size for axis {axis} is unresolved.")
+
+                lower, upper = _center_to_bounds(
+                    real_pos=real_position,
+                    resolution=config.resolution,
+                    size=size,
+                    volume_size=volume_size,
+                )
+
+                slice_dict[obj_name][axis][0] = lower
+                slice_dict[obj_name][axis][1] = upper
+
     return slice_dict
 
 
@@ -781,50 +810,85 @@ def _resolve_static_positions_iterative(
 ):
     """Iteratively resolve positions from partial_real_position when size becomes known.
 
-    This is called in each iteration of constraint resolution, so that positions
-    can be computed as soon as the size is determined through constraints.
-    Returns True if any new positions were resolved.
+    The partial_real_position represents the center position of the object.
+
+    Coordinates are interpreted relative to the center of the simulation
+    volume, i.e. partial_real_position=(0,0,0) places an object at the
+    geometric center of the simulation domain.
+
+    This function is called in each iteration of constraint resolution so
+    that positions can be computed as soon as the object size becomes known.
+
+    Returns:
+        tuple:
+            - resolved_something: Whether new positions were resolved
+            - updated slice_dict
+            - updated errors
     """
+
     resolved_something = False
+
+    volume_name = _resolve_volume_name(object_map)
+
     for obj_name, obj in object_map.items():
-        # Check if the object has partial_real_position attribute
         if hasattr(obj, "partial_real_position") and obj.partial_real_position is not None:
             for axis in range(3):
-                if obj.partial_real_position[axis] is not None:
-                    # Check if position is already resolved
-                    b0, b1 = slice_dict[obj_name][axis]
-                    if b0 is not None and b1 is not None:
-                        continue  # Already resolved
+                real_position = obj.partial_real_position[axis]
 
-                    # If we know the size, we can compute both boundaries from center
-                    size = shape_dict[obj_name][axis]
-                    if size is not None:
-                        lower, upper = _center_to_bounds(
-                            obj.partial_real_position[axis],  # type: ignore
-                            config.resolution,
-                            size,
-                        )
+                if real_position is None:
+                    continue
 
-                        # Only set if not already set, and verify consistency if partially set
-                        if b0 is None:
-                            slice_dict[obj_name][axis][0] = lower
-                            resolved_something = True
-                        elif b0 != lower:
-                            errors[obj_name] = (
-                                f"Inconsistent position for {obj_name} axis {axis}: "
-                                f"partial_real_position implies lower bound {lower}, "
-                                f"but constraint set it to {b0}"
-                            )
+                # Current bounds
+                b0, b1 = slice_dict[obj_name][axis]
 
-                        if b1 is None:
-                            slice_dict[obj_name][axis][1] = upper
-                            resolved_something = True
-                        elif b1 != upper:
-                            errors[obj_name] = (
-                                f"Inconsistent position for {obj_name} axis {axis}: "
-                                f"partial_real_position implies upper bound {upper}, "
-                                f"but constraint set it to {b1}"
-                            )
+                # Already fully resolved
+                if b0 is not None and b1 is not None:
+                    continue
+
+                # Need object size to compute centered bounds
+                size = shape_dict[obj_name][axis]
+
+                if size is None:
+                    continue
+
+                volume_size = shape_dict[volume_name][axis]
+
+                if volume_size is None:
+                    raise ValueError(f"Simulation volume size for axis {axis} is unresolved.")
+
+                lower, upper = _center_to_bounds(
+                    real_pos=real_position,
+                    resolution=config.resolution,
+                    size=size,
+                    volume_size=volume_size,
+                )
+
+                # Set or validate lower bound
+                if b0 is None:
+                    slice_dict[obj_name][axis][0] = lower
+                    resolved_something = True
+
+                elif b0 != lower:
+                    errors[obj_name] = (
+                        f"Inconsistent position for {obj_name} "
+                        f"axis {axis}: partial_real_position implies "
+                        f"lower bound {lower}, but constraint set it "
+                        f"to {b0}"
+                    )
+
+                # Set or validate upper bound
+                if b1 is None:
+                    slice_dict[obj_name][axis][1] = upper
+                    resolved_something = True
+
+                elif b1 != upper:
+                    errors[obj_name] = (
+                        f"Inconsistent position for {obj_name} "
+                        f"axis {axis}: partial_real_position implies "
+                        f"upper bound {upper}, but constraint set it "
+                        f"to {b1}"
+                    )
+
     return resolved_something, slice_dict, errors
 
 

@@ -1218,7 +1218,7 @@ def test_resolve_constraints_with_partial_real_position(simple_material):
     # Object with real position (CENTER) specified
     obj = UniformMaterialObject(
         name="obj1",
-        partial_real_position=(10.0, 15.0, 20.0),  # Center positions in real-world coordinates
+        partial_real_position=(-15.0, -10.0, -5.0),  # Center positions in real-world coordinates
         partial_grid_shape=(10, 10, 10),  # Known size
         material=simple_material,
     )
@@ -1257,7 +1257,7 @@ def test_resolve_constraints_partial_real_position_with_grid_shape(simple_config
     """
     obj = UniformMaterialObject(
         name="obj1",
-        partial_real_position=(20.0, None, 30.0),  # Only x and z centers specified
+        partial_real_position=(-30.0, None, -20.0),  # Only x and z centers specified
         partial_grid_shape=(10, 10, 10),
         material=simple_material,
     )
@@ -1332,7 +1332,7 @@ def test_resolve_constraints_partial_real_position_with_real_shape(simple_materi
 
     obj = UniformMaterialObject(
         name="obj1",
-        partial_real_position=(10.0, 15.0, 20.0),  # Center positions
+        partial_real_position=(-15.0, -10.0, -5.0),  # Center positions
         partial_real_shape=(5.0, 10.0, 15.0),  # Sizes
         material=simple_material,
     )
@@ -1368,7 +1368,7 @@ def test_resolve_constraints_partial_real_position_mixed_with_constraints(
     """
     obj1 = UniformMaterialObject(
         name="obj1",
-        partial_real_position=(15.0, None, None),  # Center at 15, size 10 -> bounds (10, 20)
+        partial_real_position=(-35.0, None, None),  # Center at 15, size 10 -> bounds (10, 20)
         partial_grid_shape=(10, 10, 10),
         material=simple_material,
     )
@@ -1451,7 +1451,7 @@ def test_resolve_constraints_partial_real_position_single_axis(simple_config, si
     """
     obj = UniformMaterialObject(
         name="obj1",
-        partial_real_position=(None, 20.0, None),  # Only y-axis center specified
+        partial_real_position=(None, -30.0, None),  # Only y-axis center specified
         partial_grid_shape=(10, 10, 10),
         material=simple_material,
     )
@@ -1492,7 +1492,7 @@ def test_resolve_constraints_partial_real_position_with_different_resolutions(si
 
     obj = UniformMaterialObject(
         name="obj1",
-        partial_real_position=(5.0, 10.0, 15.0),  # Center positions
+        partial_real_position=(-20.0, -15.0, -10.0),  # Center positions
         partial_grid_shape=(20, 20, 20),  # Size 20
         material=simple_material,
     )
@@ -1550,7 +1550,7 @@ def test_resolve_constraints_partial_real_position_odd_size(simple_config, simpl
     """
     obj = UniformMaterialObject(
         name="obj1",
-        partial_real_position=(50.0, 50.0, 50.0),  # Center at 50
+        partial_real_position=(0.0, 0.0, 0.0),
         partial_grid_shape=(11, 13, 15),  # Odd sizes
         material=simple_material,
     )
@@ -1671,7 +1671,7 @@ def test_extend_to_inf_partial_real_position_sets_both_bounds(simple_config, sim
     """
     obj = UniformMaterialObject(
         name="obj1",
-        partial_real_position=(55.0, None, 55.0),  # Centers for x and z
+        partial_real_position=(5.0, None, 5.0),  # Centers for x and z
         partial_grid_shape=(20, 20, 20),
         material=simple_material,
     )
@@ -1899,14 +1899,14 @@ def test_size_dependent_position_with_partial_real_position(simple_config, simpl
     # Object 2: size depends on volume, position at center
     obj2 = UniformMaterialObject(
         name="obj2",
-        partial_real_position=(50.0, 50.0, 50.0),  # Center at (50, 50, 50)
+        partial_real_position=(0, 0, 0),
         material=simple_material,
     )
 
     # Object 3: size depends on obj2, position specified
     obj3 = UniformMaterialObject(
         name="obj3",
-        partial_real_position=(25.0, None, None),  # x-center at 25
+        partial_real_position=(-25.0, None, None),
         material=simple_material,
     )
 
@@ -2115,7 +2115,7 @@ def test_initial_position_skipped_when_size_unknown(simple_config, simple_volume
     """
     obj = UniformMaterialObject(
         name="obj1",
-        partial_real_position=(50.0, 50.0, 50.0),  # center known
+        partial_real_position=(0, 0, 0),  # center known
         # No partial_grid_shape / partial_real_shape -> size unknown at init time
         material=simple_material,
     )
@@ -2153,7 +2153,7 @@ def test_initial_position_skipped_when_axis_is_none(simple_config, simple_volume
     """
     obj = UniformMaterialObject(
         name="obj1",
-        partial_real_position=(30.0, None, 70.0),  # y intentionally absent
+        partial_real_position=(-20, None, 20),  # y intentionally absent
         partial_grid_shape=(10, 10, 10),
         material=simple_material,
     )
