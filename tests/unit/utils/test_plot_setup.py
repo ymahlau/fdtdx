@@ -8,8 +8,10 @@ import matplotlib
 import pytest
 
 matplotlib.use("Agg")
+import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.utils.plot_setup import plot_setup, plot_setup_from_side
 
 
@@ -54,7 +56,7 @@ def _make_container(objects=None, volume_grid_shape=(50, 50, 50)):
 
 def _make_config(resolution: float = 50e-9) -> MagicMock:
     config = MagicMock()
-    config.resolution = resolution
+    config.uniform_spacing.return_value = resolution
     return config
 
 
@@ -95,6 +97,28 @@ class TestPlotSetupFromSide:
         _fig, ax = plt.subplots()
         with pytest.raises(ValueError, match="Invalid viewing_side"):
             plot_setup_from_side(config=config, objects=container, viewing_side="w", ax=ax)
+        plt.close("all")
+
+    def test_nonuniform_grid_uses_physical_extents(self):
+        """Setup plots use RectilinearGrid edge coordinates for stretched cells."""
+        config = _make_config()
+        config.grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0e-6, 4.0e-6]),
+            y_edges=jnp.asarray([0.0, 2.0e-6, 5.0e-6]),
+            z_edges=jnp.asarray([0.0, 1.0e-6]),
+        )
+        obj = _MockObj("box", "blue", ((1, 2), (0, 2), (0, 1)))
+        container = _make_container(objects=[obj], volume_grid_shape=(2, 2, 1))
+        _fig, ax = plt.subplots()
+        plot_setup_from_side(config=config, objects=container, viewing_side="z", ax=ax, plot_legend=False)
+
+        patch = ax.patches[0]
+        assert patch.get_x() == pytest.approx(1.0)
+        assert patch.get_width() == pytest.approx(3.0)
+        assert patch.get_y() == pytest.approx(0.0)
+        assert patch.get_height() == pytest.approx(5.0)
+        assert ax.get_xlim() == pytest.approx((0.0, 4.0))
+        assert ax.get_ylim() == pytest.approx((0.0, 5.0))
         plt.close("all")
 
     def test_axis_labels_and_title_z(self):

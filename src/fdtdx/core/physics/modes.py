@@ -1,6 +1,6 @@
 from collections import namedtuple
 from types import SimpleNamespace
-from typing import List, Literal
+from typing import List, Literal, Sequence
 
 import jax
 import jax.numpy as jnp
@@ -93,13 +93,14 @@ def compute_mode(
     frequency: float,
     inv_permittivities: jax.Array,  # shape (nx, ny, nz)
     inv_permeabilities: jax.Array | float,
-    resolution: float,
-    direction: Literal["+", "-"],
+    resolution: float | None = None,
+    direction: Literal["+", "-"] = "+",
     mode_index: int = 0,
     filter_pol: Literal["te", "tm"] | None = None,
     dtype: jnp.dtype = jnp.float32,
     bend_radius: float | None = None,
     bend_axis: int | None = None,
+    transverse_coords: Sequence[ArrayLike] | None = None,
 ) -> tuple[
     jax.Array,  # E
     jax.Array,  # H
@@ -118,8 +119,8 @@ def compute_mode(
         inv_permittivities (jax.Array): 3D array of inverse relative permittivity values
         inv_permeabilities (jax.Array | float): 3D array of inverse relative permittivity values or single float for
             uniform permeability distribution.
-        resolution (float): resolution of the simulation grid in meter. For example a grid spacing of 10nm should be
-            given as 10e-9.
+        resolution (float | None): Uniform-grid spacing in metres. Required when ``transverse_coords`` is not
+            provided (uniform-grid path). Ignored when ``transverse_coords`` is given. Defaults to None.
         direction (Literal["+", "-"]): Propagation direction, either "+" or "-".
         mode_index (int, optional): Index of the mode to compute. Defaults to 0.
         filter_pol (Literal["te", "tm"] | None, optional). If not None, modes are filtered by polarization.
@@ -130,6 +131,9 @@ def compute_mode(
             None (straight waveguide).
         bend_axis (int | None, optional): Physical axis index (0/1/2) pointing from the waveguide toward the center
             of curvature. Must differ from the propagation axis. Required when bend_radius is set. Defaults to None.
+        transverse_coords: Optional pair of physical edge-coordinate arrays, in metres, for the two axes transverse
+            to propagation. Each array must have one more entry than the corresponding transverse cell count. When
+            provided, the Tidy3D mode solver receives the non-uniform rectilinear grid directly.
 
     Returns:
         Tuple[jax.Array, jax.Array, jax.Array]:
@@ -214,7 +218,31 @@ def compute_mode(
         permittivities = 1 / inv_permittivities
     other_axes = [a for a in range(1, 4) if permittivities.shape[a] != 1]
     propagation_axis = permittivities.shape[1:].index(1)
-    coords = [np.arange(permittivities.shape[dim] + 1) * resolution / 1e-6 for dim in other_axes]
+    if transverse_coords is None:
+        if resolution is None:
+            raise ValueError("resolution is required when transverse_coords is not provided")
+        coords = [np.arange(permittivities.shape[dim] + 1) * resolution / 1e-6 for dim in other_axes]
+        normalization_area_weights = None
+    else:
+        if len(transverse_coords) != 2:
+            raise ValueError(
+                f"transverse_coords must contain exactly two coordinate arrays, got {len(transverse_coords)}"
+            )
+        coords_meter = [np.asarray(coord, dtype=np.float64) for coord in transverse_coords]
+        expected_lengths = [permittivities.shape[dim] + 1 for dim in other_axes]
+        for axis_idx, (coord, expected_length) in enumerate(zip(coords_meter, expected_lengths, strict=True)):
+            if coord.ndim != 1 or coord.shape[0] != expected_length:
+                raise ValueError(
+                    f"transverse_coords[{axis_idx}] must be 1D with length {expected_length}, got {coord.shape}"
+                )
+            if np.any(np.diff(coord) <= 0):
+                raise ValueError(f"transverse_coords[{axis_idx}] must be strictly increasing")
+        coords = [coord / 1e-6 for coord in coords_meter]
+        area_2d = jnp.asarray(np.diff(coords_meter[0])[:, None] * np.diff(coords_meter[1])[None, :], dtype=dtype)
+        weight_shape = [1, 1, 1]
+        weight_shape[other_axes[0] - 1] = area_2d.shape[0]
+        weight_shape[other_axes[1] - 1] = area_2d.shape[1]
+        normalization_area_weights = area_2d.reshape(weight_shape)
     permittivity_squeezed = jnp.take(
         permittivities,
         indices=0,
@@ -289,7 +317,12 @@ def compute_mode(
     # Tidy3D uses different scaling internally, so convert back
     mode_H = mode_H * tidy3d.constants.ETA_0
 
-    mode_E_norm, mode_H_norm = normalize_by_poynting_flux(mode_E, mode_H, axis=propagation_axis)
+    mode_E_norm, mode_H_norm = normalize_by_poynting_flux(
+        mode_E,
+        mode_H,
+        axis=propagation_axis,
+        area_weights=normalization_area_weights,
+    )
 
     return mode_E_norm, mode_H_norm, eff_idx
 

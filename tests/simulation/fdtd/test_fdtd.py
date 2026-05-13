@@ -17,6 +17,7 @@ import pytest
 
 import fdtdx
 from fdtdx.config import GradientConfig, SimulationConfig
+from fdtdx.core.grid import UniformGrid
 from fdtdx.fdtd.container import ArrayContainer, FieldState
 from fdtdx.fdtd.fdtd import checkpointed_fdtd, reversible_fdtd
 from fdtdx.interfaces.recorder import Recorder
@@ -50,7 +51,7 @@ def _build_scene():
     """
     config = SimulationConfig(
         time=_SIM_TIME,
-        resolution=_RESOLUTION,
+        grid=UniformGrid(spacing=_RESOLUTION),
         backend="cpu",
         dtype=jnp.float32,
         courant_factor=0.99,
@@ -200,7 +201,7 @@ def _build_lossy_dispersive_scene(dtype):
     """
     config = SimulationConfig(
         time=_SIM_TIME,
-        resolution=_RESOLUTION,
+        grid=UniformGrid(spacing=_RESOLUTION),
         backend="cpu",
         dtype=dtype,
         courant_factor=0.99,
@@ -278,7 +279,7 @@ def _build_magnetic_lossy_scene(dtype):
     dispersive-lossy scene but on the magnetic branch."""
     config = SimulationConfig(
         time=_SIM_TIME,
-        resolution=_RESOLUTION,
+        grid=UniformGrid(spacing=_RESOLUTION),
         backend="cpu",
         dtype=dtype,
         courant_factor=0.99,
