@@ -167,7 +167,7 @@ def plot_setup_from_side(
             Rectangle(
                 (
                     slices[axis_indices[0]][0] * resolution - half_real_size_um[0],
-                    slices[axis_indices[1]][0] * resolution - half_real_size_um[0]
+                    slices[axis_indices[1]][0] * resolution - half_real_size_um[1]
                 ),
                 (slices[axis_indices[0]][1] - slices[axis_indices[0]][0]) * resolution,
                 (slices[axis_indices[1]][1] - slices[axis_indices[1]][0]) * resolution,
