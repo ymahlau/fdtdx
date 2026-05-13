@@ -657,3 +657,32 @@ def polygon_to_mask_at_points(
     polygon_path = Path(polygon_vertices)
     inside_polygon = polygon_path.contains_points(points)
     return inside_polygon.reshape(X.shape).astype(bool)
+
+
+def polygons_to_mask(
+    boundary: tuple[float, float, float, float],
+    resolution: float,
+    polygon_list: list[np.ndarray],
+) -> np.ndarray:
+    """
+    Generate a 2D binary mask from a list of polygons.
+
+    Args:
+        boundary (tuple[float, float, float, float]): tuple of (min_x, min_y, max_x, max_y)
+            Rectangular boundary in metrical units (meter).
+        resolution (float): float
+            Grid resolution (spacing between grid points) in metrical units.
+        polygon_list (list[np.ndarray]): list of polygon vertex arrays.
+            Each array must have shape (N, 2) with (x, y) vertices in metrical units.
+    Returns:
+        np.ndarray: 2D boolean mask where True indicates inside at least one polygon.
+    """
+    if len(polygon_list) == 0:
+        min_x, min_y, max_x, max_y = boundary
+        x_coords = np.arange(min_x, max_x + 0.5 * resolution, resolution)
+        y_coords = np.arange(min_y, max_y + 0.5 * resolution, resolution)
+        return np.zeros((len(x_coords), len(y_coords)), dtype=bool)
+    result = polygon_to_mask(boundary, resolution, polygon_list[0])
+    for poly in polygon_list[1:]:
+        result |= polygon_to_mask(boundary, resolution, poly)
+    return result

@@ -6,6 +6,8 @@ initialized — so they run without GPU resources and complete in milliseconds.
 Volume: 2 um x 2 um x 2 um at 100 nm resolution → 20 x 20 x 20 grid cells.
 """
 
+import gdstk
+
 import fdtdx
 from fdtdx.fdtd.initialization import resolve_object_constraints
 from fdtdx.objects.object import RealCoordinateConstraint
@@ -779,3 +781,163 @@ def test_extruded_polygon_auto_size_from_vertices():
     assert sl[0] == (N // 2 - expected // 2, N // 2 + expected // 2)
     assert sl[1] == (N // 2 - expected // 2, N // 2 + expected // 2)
     assert sl[2] == (0, N)
+
+
+# ---------------------------------------------------------------------------
+# GDS layer stack
+# ---------------------------------------------------------------------------
+
+
+def _gds_lib_with_square(half_um=0.5, layer=1, datatype=0):
+    """In-memory gdstk Library with a square polygon on the given layer."""
+    lib = gdstk.Library(unit=1e-6, precision=1e-9)
+    cell = lib.new_cell("TOP")
+    h = half_um
+    cell.add(gdstk.Polygon([(-h, -h), (h, -h), (h, h), (-h, h)], layer=layer, datatype=datatype))
+    return lib
+
+
+_STACK_MATS = {"si": fdtdx.Material(permittivity=12.25), "sio2": fdtdx.Material(permittivity=2.25)}
+
+
+def test_gds_layer_stack_single_layer_placement():
+    """Single GDS layer at z_base=0 with thickness 400 nm → z cells (0, 4)."""
+    vol = _volume()
+    lib = _gds_lib_with_square()
+    layers = [fdtdx.GDSLayerSpec(gds_layer=1, material_name="si", thickness=400e-9, z_base=0.0)]
+    objects, constraints = fdtdx.gds_layer_stack(
+        gds_source=lib,
+        cell_name="TOP",
+        layers=layers,
+        materials=_STACK_MATS,
+        simulation_volume=vol,
+        gds_center=(0.0, 0.0),
+    )
+    slices = _resolve(vol, objects, constraints)
+    z_slice = _sl(slices, objects[0])[2]
+    assert z_slice == (0, 4), f"expected z=(0,4), got {z_slice}"
+    # x/y should span the full volume
+    assert _sl(slices, objects[0])[0] == (0, N)
+    assert _sl(slices, objects[0])[1] == (0, N)
+
+
+def test_gds_layer_stack_two_layers_stacked():
+    """Two GDS layers: si at z=0..4, sio2 at z=4..10 (z_base=400nm, thickness=600nm)."""
+    vol = _volume()
+    lib = _gds_lib_with_square()
+    # Add a second polygon on layer 2 for sio2
+    cell = next(c for c in lib.cells if c.name == "TOP")
+    cell.add(gdstk.Polygon([(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)], layer=2, datatype=0))
+    layers = [
+        fdtdx.GDSLayerSpec(gds_layer=1, material_name="si", thickness=400e-9, z_base=0.0, name="si_layer"),
+        fdtdx.GDSLayerSpec(gds_layer=2, material_name="sio2", thickness=600e-9, z_base=400e-9, name="sio2_layer"),
+    ]
+    objects, constraints = fdtdx.gds_layer_stack(
+        gds_source=lib,
+        cell_name="TOP",
+        layers=layers,
+        materials=_STACK_MATS,
+        simulation_volume=vol,
+        gds_center=(0.0, 0.0),
+    )
+    assert len(objects) == 2
+    assert len(constraints) == 4  # 2 per layer
+    slices = _resolve(vol, objects, constraints)
+    si_z = _sl(slices, objects[0])[2]
+    sio2_z = _sl(slices, objects[1])[2]
+    assert si_z == (0, 4), f"si layer expected z=(0,4), got {si_z}"
+    assert sio2_z == (4, 10), f"sio2 layer expected z=(4,10), got {sio2_z}"
+
+
+def test_gds_layer_stack_missing_cell_raises():
+    """gds_layer_stack raises ValueError when cell_name is not found."""
+    import pytest
+
+    vol = _volume()
+    lib = _gds_lib_with_square()
+    layers = [fdtdx.GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9)]
+    with pytest.raises(ValueError, match="MISSING"):
+        fdtdx.gds_layer_stack(lib, "MISSING", layers, _STACK_MATS, vol, (0.0, 0.0))
+
+
+def test_gds_layer_stack_from_file():
+    """gds_layer_stack reads polygons from a real .gds file on disk."""
+    import pathlib
+
+    gds_path = pathlib.Path(__file__).parent.parent.parent / "data" / "simple_waveguide.gds"
+    vol = _volume()
+    layers = [
+        fdtdx.GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9, z_base=0.0, name="core"),
+        fdtdx.GDSLayerSpec(gds_layer=2, material_name="sio2", thickness=400e-9, z_base=0.0, name="clad"),
+    ]
+    objects, constraints = fdtdx.gds_layer_stack(
+        gds_source=gds_path,
+        cell_name="TOP",
+        layers=layers,
+        materials=_STACK_MATS,
+        simulation_volume=vol,
+        gds_center=(0.0, 0.0),
+    )
+    assert len(objects) == 2
+    assert objects[0].name == "core"
+    assert objects[1].name == "clad"
+    assert len(objects[0].polygons) == 1
+    assert len(objects[1].polygons) == 1
+    assert len(constraints) == 4
+
+
+def test_sources_from_gds_ports_from_file():
+    """sources_from_gds_ports reads port markers from a real .gds file on disk."""
+    import pathlib
+
+    gds_path = pathlib.Path(__file__).parent.parent.parent / "data" / "simple_waveguide.gds"
+    # Volume with x size set so port positions can be computed on propagation_axis=0.
+    vol = fdtdx.SimulationVolume(partial_real_shape=(VOL_SIDE, VOL_SIDE, VOL_SIDE))
+    spec = fdtdx.GDSPortSpec(gds_layer=10, propagation_axis=0, name_prefix="port")
+    wave = fdtdx.WaveCharacter(wavelength=1.55e-6)
+    sources, constraints = fdtdx.sources_from_gds_ports(
+        gds_source=gds_path,
+        cell_name="TOP",
+        port_specs=[spec],
+        wave_character=wave,
+        simulation_volume=vol,
+        gds_center=(0.0, 0.0),
+    )
+    assert len(sources) == 1
+    assert sources[0].name == "port_0"
+    assert len(constraints) == 4
+
+
+def test_sources_from_gds_ports_nonzero_gds_center():
+    """Non-zero gds_center shifts the source position in the simulation by the expected amount.
+
+    Port marker centroid is at GDS x = -0.4 µm = -4e-7 m.
+    Volume width on x = 2 µm. Grid: 20 cells at 100 nm.
+
+    gds_center=(0, 0)      → sim_prop_pos = -4e-7 + 1e-6 = 6e-7 m → left face at cell 6
+    gds_center=(-4e-7, 0)  → sim_prop_pos =  0    + 1e-6 = 1e-6 m → left face at cell 10
+    """
+    import pathlib
+
+    gds_path = pathlib.Path(__file__).parent.parent.parent / "data" / "simple_waveguide.gds"
+    vol = fdtdx.SimulationVolume(partial_real_shape=(VOL_SIDE, VOL_SIDE, VOL_SIDE))
+    spec = fdtdx.GDSPortSpec(gds_layer=10, propagation_axis=0)
+    wave = fdtdx.WaveCharacter(wavelength=1.55e-6)
+
+    def _port_x_cell(gds_center):
+        sources, constraints = fdtdx.sources_from_gds_ports(
+            gds_source=gds_path,
+            cell_name="TOP",
+            port_specs=[spec],
+            wave_character=wave,
+            simulation_volume=vol,
+            gds_center=gds_center,
+        )
+        slices = _resolve(vol, sources, constraints)
+        return _sl(slices, sources[0])[0]  # (x_lo, x_hi)
+
+    x_origin = _port_x_cell((0.0, 0.0))
+    x_shifted = _port_x_cell((-400e-9, 0.0))
+
+    assert x_origin == (6, 7), f"expected (6,7) got {x_origin}"
+    assert x_shifted == (10, 11), f"expected (10,11) got {x_shifted}"
