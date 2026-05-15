@@ -335,11 +335,11 @@ def test_plot_material_verify_values(simple_material_setup):
     # instead of Nx (40), collapsing the x-extent to ~0.15 µm instead of 2.0 µm.
     extent = im.get_extent()  # [xmin, xmax, ymin, ymax] in µm
     expected_size_um = 2.0  # 40 cells * 50nm = 2µm
-    assert abs(extent[1] - expected_size_um) < 0.1, (
+    assert abs((extent[1] - extent[0]) - expected_size_um) < 0.1, (
         f"X-extent should be ~{expected_size_um} µm but got {extent[1]:.4f} µm. "
         f"This likely means array_shape[0] is num_components instead of Nx."
     )
-    assert abs(extent[3] - expected_size_um) < 0.1, (
+    assert abs((extent[3] - extent[2]) - expected_size_um) < 0.1, (
         f"Y-extent should be ~{expected_size_um} µm but got {extent[3]:.4f} µm."
     )
 
@@ -601,11 +601,11 @@ def test_plot_material_material_axis(simple_material_setup):
         for ax in plot_axs:
             im = ax.get_images()[0]
             extent = im.get_extent()  # [xmin, xmax, ymin, ymax]
-            assert abs(extent[1] - expected_size_um) < 0.1, (
+            assert abs((extent[1] - extent[0]) - expected_size_um) < 0.1, (
                 f"material_axis={axis}: x-extent should be ~{expected_size_um} µm "
                 f"but got {extent[1]:.4f} µm in subplot '{ax.get_title()}'"
             )
-            assert abs(extent[3] - expected_size_um) < 0.1, (
+            assert abs((extent[3] - extent[2]) - expected_size_um) < 0.1, (
                 f"material_axis={axis}: y-extent should be ~{expected_size_um} µm "
                 f"but got {extent[3]:.4f} µm in subplot '{ax.get_title()}'"
             )
