@@ -38,7 +38,7 @@ def plot_field_slice_component(
     im = ax.imshow(
         field.T,  # Transpose for correct orientation
         origin="lower",
-        extent = [-w / 2, w / 2, -h / 2, h / 2],
+        extent=[-w / 2, w / 2, -h / 2, h / 2],
         aspect="equal",
         cmap="RdBu_r",  # Red-blue colormap, centered at zero
         interpolation="nearest",

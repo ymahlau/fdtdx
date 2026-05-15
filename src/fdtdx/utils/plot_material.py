@@ -71,7 +71,7 @@ def plot_material_from_side(
     # material_array has shape (num_components, Nx, Ny, Nz)
     material_array = jnp.asarray(material_array)
     spatial_shape = material_array.shape[1:]  # (Nx, Ny, Nz)
-    half_real_shape_um = [N * resolution / 2 for N in spatial_shape] 
+    half_real_shape_um = [N * resolution / 2 for N in spatial_shape]
 
     # Determine slice parameters based on viewing side
     if viewing_side == "z":
