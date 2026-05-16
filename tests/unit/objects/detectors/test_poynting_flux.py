@@ -311,7 +311,7 @@ class TestPoyntingFluxDetectorUpdate:
             y_edges=jnp.asarray([0.0, spacing, 2 * spacing]),
             z_edges=jnp.asarray([0.0, spacing]),
         )
-        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        config = SimulationConfig(time=1e-13, grid=grid, backend="cpu")
         E = jnp.zeros((3, 2, 2, 1), dtype=jnp.float32).at[0].set(1.0)
         H = jnp.zeros((3, 2, 2, 1), dtype=jnp.float32).at[1].set(1.0)
 

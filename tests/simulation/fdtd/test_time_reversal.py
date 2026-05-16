@@ -360,7 +360,7 @@ class TestTimeReversalDispersiveLorentz:
     def _build():
         config = SimulationConfig(
             time=_SIM_TIME,
-            resolution=_RESOLUTION,
+            grid=UniformGrid(spacing=_RESOLUTION),
             backend="cpu",
             dtype=jnp.float32,
             courant_factor=0.99,
@@ -508,7 +508,7 @@ class TestTimeReversalDispersiveLossy:
     def _build():
         config = SimulationConfig(
             time=_SIM_TIME,
-            resolution=_RESOLUTION,
+            grid=UniformGrid(spacing=_RESOLUTION),
             backend="cpu",
             dtype=jnp.float32,
             courant_factor=0.99,
@@ -649,7 +649,7 @@ class TestStrictReversibilityLossy:
     def _build():
         config = SimulationConfig(
             time=_SIM_TIME,
-            resolution=_RESOLUTION,
+            grid=UniformGrid(spacing=_RESOLUTION),
             backend="cpu",
             dtype=jnp.float64,
             courant_factor=0.99,
@@ -721,7 +721,7 @@ class TestTimeReversalMagneticConductivity:
     def _build():
         config = SimulationConfig(
             time=_SIM_TIME,
-            resolution=_RESOLUTION,
+            grid=UniformGrid(spacing=_RESOLUTION),
             backend="cpu",
             dtype=jnp.float64,
             courant_factor=0.99,
@@ -794,7 +794,7 @@ class TestTimeReversalDispersiveDrude:
     def _build():
         config = SimulationConfig(
             time=_SIM_TIME,
-            resolution=_RESOLUTION,
+            grid=UniformGrid(spacing=_RESOLUTION),
             backend="cpu",
             dtype=jnp.float64,
             courant_factor=0.99,
@@ -1027,7 +1027,7 @@ class TestGradientDispersiveLossy:
     def _build():
         config = SimulationConfig(
             time=_SIM_TIME,
-            resolution=_RESOLUTION,
+            grid=UniformGrid(spacing=_RESOLUTION),
             backend="cpu",
             dtype=jnp.float32,
             courant_factor=0.99,
@@ -1198,7 +1198,7 @@ class TestGradientDispersiveLossy:
         ~1e-12 and the tolerance can tighten by three orders of magnitude."""
         config = SimulationConfig(
             time=_SIM_TIME,
-            resolution=_RESOLUTION,
+            grid=UniformGrid(spacing=_RESOLUTION),
             backend="cpu",
             dtype=jnp.float64,
             courant_factor=0.99,
@@ -1325,7 +1325,7 @@ class TestGradientMagneticConductivity:
     def _build():
         config = SimulationConfig(
             time=_SIM_TIME,
-            resolution=_RESOLUTION,
+            grid=UniformGrid(spacing=_RESOLUTION),
             backend="cpu",
             dtype=jnp.float64,
             courant_factor=0.99,
@@ -1466,7 +1466,7 @@ class TestGradientPMLBlochComplex:
         """
         config = SimulationConfig(
             time=_SIM_TIME,
-            resolution=_RESOLUTION,
+            grid=UniformGrid(spacing=_RESOLUTION),
             backend="cpu",
             dtype=jnp.float32,
             courant_factor=0.99,

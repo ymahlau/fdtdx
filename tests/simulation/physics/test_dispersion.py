@@ -88,7 +88,7 @@ def _fresnel_transmission_semi_infinite(eps_complex: complex) -> float:
 
 def _build_base():
     config = fdtdx.SimulationConfig(
-        resolution=_RESOLUTION,
+        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
         time=_SIM_TIME,
         dtype=jnp.float32,
     )
@@ -262,7 +262,7 @@ def _build_embedded_source(source_z: int):
     """Same as ``_build_base`` but with the plane source placed at an arbitrary
     z-coordinate so it can be embedded inside a uniform medium."""
     config = fdtdx.SimulationConfig(
-        resolution=_RESOLUTION,
+        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
         time=_SIM_TIME,
         dtype=jnp.float32,
     )
