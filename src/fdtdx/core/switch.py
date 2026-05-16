@@ -1,5 +1,7 @@
 import math
 
+import numpy as np
+
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 
 
@@ -35,27 +37,59 @@ class OnOffSwitch(TreeClass):
     #: interval of the switch
     interval: int = frozen_field(default=1)
 
+    def _resolve_window(self) -> tuple[float, float]:
+        """Return (start_time, end_time) in seconds, resolving all period/duration params."""
+        if self.is_always_off:
+            return (0.0, -1.0)
+        need_period = any(
+            x is not None for x in [self.start_after_periods, self.end_after_periods, self.on_for_periods]
+        )
+        if need_period and self.period is None:
+            raise Exception("Need to specify period!")
+        start_time = self.start_time
+        end_time = self.end_time
+        on_for_time = self.on_for_time
+        on_for_periods = self.on_for_periods
+        start_after_periods = self.start_after_periods
+        end_after_periods = self.end_after_periods
+        period = self.period
+        assert period is not None or not need_period
+        if start_after_periods is not None:
+            assert period is not None
+            start_time = start_after_periods * period
+        if end_after_periods is not None:
+            assert period is not None
+            end_time = end_after_periods * period
+        if on_for_periods is not None:
+            assert period is not None
+            on_for_time = on_for_periods * period
+        if start_time is None and on_for_time is not None and end_time is not None:
+            start_time = end_time - on_for_time
+        if end_time is None and on_for_time is not None and start_time is not None:
+            end_time = start_time + on_for_time
+        if start_time is None:
+            start_time = 0.0
+        if end_time is None:
+            end_time = math.inf
+        return (float(start_time), float(end_time))
+
     def calculate_on_list(
         self,
         num_total_time_steps: int,
         time_step_duration: float,
     ) -> list[bool]:
-        # case 1: list with fixed time steps is provided
         if self.fixed_on_time_steps is not None:
-            on_list = [False for _ in range(num_total_time_steps)]
-            for t_idx in self.fixed_on_time_steps:
-                on_list[t_idx] = True
-            return on_list
-        # case 2: calculate on list from other parameters
-        on_list = []
-        for t in range(num_total_time_steps):
-            cur_on = self.is_on_at_time_step(
-                time_step=t,
-                time_step_duration=time_step_duration,
-            )
-            cur_on = cur_on and t % self.interval == 0
-            on_list.append(cur_on)
-        return on_list
+            on_arr = np.zeros(num_total_time_steps, dtype=bool)
+            on_arr[list(self.fixed_on_time_steps)] = True
+            return on_arr.tolist()
+        if self.is_always_off:
+            return [False] * num_total_time_steps
+        start_time, end_time = self._resolve_window()
+        t = np.arange(num_total_time_steps, dtype=np.float64) * time_step_duration
+        on = (start_time <= t) & (t <= end_time)
+        if self.interval != 1:
+            on = on & (np.arange(num_total_time_steps) % self.interval == 0)
+        return on.tolist()
 
     def is_on_at_time_step(
         self,
@@ -80,17 +114,16 @@ class OnOffSwitch(TreeClass):
         num_total_time_steps: int,
         time_step_duration: float,
     ) -> list[int]:
-        on_list = self.calculate_on_list(
-            num_total_time_steps=num_total_time_steps,
-            time_step_duration=time_step_duration,
+        on = np.asarray(
+            self.calculate_on_list(
+                num_total_time_steps=num_total_time_steps,
+                time_step_duration=time_step_duration,
+            )
         )
-        counter = 0
-        time_to_arr_idx_list = [-1 for _ in range(num_total_time_steps)]
-        for t in range(num_total_time_steps):
-            if on_list[t]:
-                time_to_arr_idx_list[t] = counter
-                counter += 1
-        return time_to_arr_idx_list
+        result = np.full(num_total_time_steps, -1, dtype=np.intp)
+        on_indices = np.where(on)[0]
+        result[on_indices] = np.arange(len(on_indices), dtype=np.intp)
+        return result.tolist()
 
 
 def is_on_at_time_step(

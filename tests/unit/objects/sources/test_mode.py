@@ -445,7 +445,7 @@ class TestModePlaneSourceJitSafety:
             y_edges=jnp.asarray([0.0, 2e-6, 5e-6]),
             z_edges=jnp.asarray([0.0, 1e-6]),
         )
-        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu", dtype=jnp.float32)
+        config = SimulationConfig(time=1e-13, grid=grid, backend="cpu", dtype=jnp.float32)
         source = ModePlaneSource(
             partial_grid_shape=(3, 2, 1),
             wave_character=WaveCharacter(wavelength=1.55e-6),

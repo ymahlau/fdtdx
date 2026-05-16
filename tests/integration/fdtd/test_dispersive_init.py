@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import UniformGrid
 from fdtdx.dispersion import DispersionModel, DrudePole, LorentzPole, compute_pole_coefficients
 from fdtdx.fdtd.initialization import apply_params, place_objects
 from fdtdx.materials import Material
@@ -30,7 +31,7 @@ def _placed(container, name):
 
 @pytest.fixture
 def simple_config():
-    return SimulationConfig(resolution=1e-7, time=1e-14, backend="cpu")
+    return SimulationConfig(grid=UniformGrid(spacing=1e-7), time=1e-14, backend="cpu")
 
 
 @pytest.fixture
@@ -265,7 +266,7 @@ def test_static_multi_material_dispersive(simple_config, simple_volume):
         name="sphere",
         materials=materials,
         material_name="drude",
-        radius=5.0 * simple_config.resolution,
+        radius=5.0 * simple_config.uniform_spacing(),
     )
     constraint = GridCoordinateConstraint(object="sphere", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[8, 8, 8])
     key = jax.random.PRNGKey(0)

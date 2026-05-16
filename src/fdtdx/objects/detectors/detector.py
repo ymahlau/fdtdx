@@ -167,6 +167,8 @@ class Detector(SimulationObject, ABC):
         Returns:
             int: Number of time steps where detector will be active.
         """
+        if self._num_time_steps_on is not None:
+            return self._num_time_steps_on
         on_list = self._calculate_on_list()
         return sum(on_list)
 
@@ -198,18 +200,15 @@ class Detector(SimulationObject, ABC):
         )
         # determine number of time steps on
         on_list = self._calculate_on_list()
-        on_arr = jnp.asarray(on_list, dtype=jnp.bool)
+        on_np = np.asarray(on_list, dtype=bool)
+        on_arr = jnp.asarray(on_np)
         self = self.aset("_is_on_at_time_step_arr", on_arr, create_new_ok=True)
-        self = self.aset("_num_time_steps_on", sum(on_list), create_new_ok=True)
-        # calculate mapping time step -> arr index
-        counter = 0
-        num_t = self._config.time_steps_total
-        time_to_arr_idx_list = [-1 for _ in range(num_t)]
-        for t in range(num_t):
-            if on_list[t]:
-                time_to_arr_idx_list[t] = counter
-                counter += 1
-        time_to_arr_idx_arr = jnp.asarray(time_to_arr_idx_list, dtype=jnp.int32)
+        self = self.aset("_num_time_steps_on", int(on_np.sum()), create_new_ok=True)
+        # calculate mapping time step -> arr index (vectorized)
+        time_to_arr_idx_np = np.full(len(on_np), -1, dtype=np.int32)
+        on_indices = np.where(on_np)[0]
+        time_to_arr_idx_np[on_indices] = np.arange(len(on_indices), dtype=np.int32)
+        time_to_arr_idx_arr = jnp.asarray(time_to_arr_idx_np)
         self = self.aset("_time_step_to_arr_idx", time_to_arr_idx_arr, create_new_ok=True)
         # compute cell volume weights now that config and grid_slice are available
         grid = self._config.resolved_grid
