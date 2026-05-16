@@ -100,7 +100,7 @@ def compute_mode(
     dtype: jnp.dtype = jnp.float32,
     bend_radius: float | None = None,
     bend_axis: int | None = None,
-    transverse_coords: Sequence[ArrayLike] | None = None,
+    transverse_coords: Sequence[jax.Array] | None = None,
 ) -> tuple[
     jax.Array,  # E
     jax.Array,  # H
@@ -132,8 +132,10 @@ def compute_mode(
         bend_axis (int | None, optional): Physical axis index (0/1/2) pointing from the waveguide toward the center
             of curvature. Must differ from the propagation axis. Required when bend_radius is set. Defaults to None.
         transverse_coords: Optional pair of physical edge-coordinate arrays, in metres, for the two axes transverse
-            to propagation. Each array must have one more entry than the corresponding transverse cell count. When
-            provided, the Tidy3D mode solver receives the non-uniform rectilinear grid directly.
+            to propagation. Each array must have one more entry than the corresponding transverse cell count.
+            When provided, the Tidy3D mode solver receives the non-uniform rectilinear grid directly.
+            JAX arrays are accepted; the numpy conversion happens inside the tidy3d callback so the function
+            remains compatible with ``jax.jit``.
 
     Returns:
         Tuple[jax.Array, jax.Array, jax.Array]:
@@ -156,7 +158,9 @@ def compute_mode(
 
     np_complex_dtype = np.complex128 if dtype == jnp.float64 else np.complex64
 
-    def mode_helper(permittivity, permeability):
+    def mode_helper(permittivity, permeability, c0_um, c1_um):
+        # c0_um, c1_um are concrete numpy arrays here (materialised by pure_callback)
+        coords = [np.asarray(c0_um), np.asarray(c1_um)]
         if bend_radius is not None:
             assert bend_axis is not None
             transverse_axes = [ax for ax in range(3) if ax != propagation_axis]
@@ -221,24 +225,29 @@ def compute_mode(
     if transverse_coords is None:
         if resolution is None:
             raise ValueError("resolution is required when transverse_coords is not provided")
-        coords = [np.arange(permittivities.shape[dim] + 1) * resolution / 1e-6 for dim in other_axes]
+        # Uniform grid: build concrete coordinate arrays in µm and pass as callback args.
+        c0_um = jnp.asarray(np.arange(permittivities.shape[other_axes[0]] + 1) * resolution / 1e-6)
+        c1_um = jnp.asarray(np.arange(permittivities.shape[other_axes[1]] + 1) * resolution / 1e-6)
         normalization_area_weights = None
     else:
         if len(transverse_coords) != 2:
             raise ValueError(
                 f"transverse_coords must contain exactly two coordinate arrays, got {len(transverse_coords)}"
             )
-        coords_meter = [np.asarray(coord, dtype=np.float64) for coord in transverse_coords]
+        # Shape validation uses .shape which is always concrete, even for JAX tracers.
         expected_lengths = [permittivities.shape[dim] + 1 for dim in other_axes]
-        for axis_idx, (coord, expected_length) in enumerate(zip(coords_meter, expected_lengths, strict=True)):
-            if coord.ndim != 1 or coord.shape[0] != expected_length:
+        for axis_idx, (coord, expected_length) in enumerate(zip(transverse_coords, expected_lengths, strict=True)):
+            if coord.shape[0] != expected_length:
                 raise ValueError(
                     f"transverse_coords[{axis_idx}] must be 1D with length {expected_length}, got {coord.shape}"
                 )
-            if np.any(np.diff(coord) <= 0):
-                raise ValueError(f"transverse_coords[{axis_idx}] must be strictly increasing")
-        coords = [coord / 1e-6 for coord in coords_meter]
-        area_2d = jnp.asarray(np.diff(coords_meter[0])[:, None] * np.diff(coords_meter[1])[None, :], dtype=dtype)
+        # Convert to µm for tidy3d; keep as JAX arrays so jax.jit can trace through.
+        c0_um = jnp.asarray(transverse_coords[0]) / 1e-6
+        c1_um = jnp.asarray(transverse_coords[1]) / 1e-6
+        # area_2d in m²: use jnp.diff so this works with traced JAX arrays.
+        area_2d = (
+            jnp.diff(jnp.asarray(transverse_coords[0]))[:, None] * jnp.diff(jnp.asarray(transverse_coords[1]))[None, :]
+        ).astype(dtype)
         weight_shape = [1, 1, 1]
         weight_shape[other_axes[0] - 1] = area_2d.shape[0]
         weight_shape[other_axes[1] - 1] = area_2d.shape[1]
@@ -304,12 +313,17 @@ def compute_mode(
     else:  # float
         permeability_squeezed = permeabilities
 
-    # pure callback to tidy3d is necessary to work in jitted environment
+    # pure callback to tidy3d is necessary to work in jitted environment.
+    # c0_um and c1_um are passed as explicit args so JAX materialises them to
+    # concrete numpy arrays before calling mode_helper, allowing np.asarray()
+    # inside the callback without raising TracerArrayConversionError.
     mode_E_raw, mode_H_raw, eff_idx = jax.pure_callback(
         mode_helper,
         result_shape_dtype,
         jax.lax.stop_gradient(permittivity_squeezed),
         jax.lax.stop_gradient(permeability_squeezed),
+        jax.lax.stop_gradient(c0_um),
+        jax.lax.stop_gradient(c1_um),
     )
     mode_E = jnp.expand_dims(mode_E_raw, axis=propagation_axis + 1)
     mode_H = jnp.expand_dims(mode_H_raw, axis=propagation_axis + 1)
