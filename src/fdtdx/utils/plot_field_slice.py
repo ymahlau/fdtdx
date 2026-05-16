@@ -34,9 +34,11 @@ def plot_field_slice_component(
         raise ValueError(f"{component_name} contains infinite values")
 
     # Plot the field component
+    h, w = field.T.shape
     im = ax.imshow(
         field.T,  # Transpose for correct orientation
         origin="lower",
+        extent=[-w / 2, w / 2, -h / 2, h / 2],
         aspect="equal",
         cmap="RdBu_r",  # Red-blue colormap, centered at zero
         interpolation="nearest",
