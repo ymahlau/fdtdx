@@ -156,7 +156,12 @@ def export_vti(
         all_encoded_data.append(encoded_data)
         current_offset += len(encoded_data)
 
-    origin = f"{offset[0] * resolution} {offset[1] * resolution} {offset[2] * resolution}"
+    if grid is not None:
+        edges = [np.asarray(grid.edges(ax)) for ax in range(3)]
+        ox, oy, oz = float(edges[0][offset[0]]), float(edges[1][offset[1]]), float(edges[2][offset[2]])
+        origin = f"{ox} {oy} {oz}"
+    else:
+        origin = f"{offset[0] * resolution} {offset[1] * resolution} {offset[2] * resolution}"
     extent = f"{offset[0]} {nx + offset[0]} {offset[1]} {ny + offset[1]} {offset[2]} {nz + offset[2]}"
     spacing = f"{resolution} {resolution} {resolution}"
 

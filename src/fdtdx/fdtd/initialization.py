@@ -998,6 +998,15 @@ def _real_length_to_grid_size(config: SimulationConfig, axis: int, length: float
     Non-uniform grids snap upward so objects always cover at least the
     requested metric length.  Uniform grids use the historical round-to-nearest
     rule for exact backwards compatibility.
+
+    Limitation: on a non-uniform (stretched) grid this helper measures from
+    the lower domain edge, so the returned count reflects the local cell density
+    at the origin rather than at the object's actual placement position.  Objects
+    placed in coarser regions may therefore span more physical length than
+    requested.  A fully location-aware conversion requires knowing the object's
+    anchor position before sizing it, which is not available at this call site.
+    Use ``partial_grid_shape`` to specify sizes in cell counts when exact metric
+    sizing is required on non-uniform grids.
     """
     snap = "upper" if config.has_nonuniform_grid else "nearest"
     return config.grid.length_to_cell_count(axis, length, snap=snap)

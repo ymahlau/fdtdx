@@ -1,5 +1,5 @@
 import jax
-import numpy as np
+import jax.numpy as jnp
 
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.physics.metrics import compute_energy
@@ -39,7 +39,7 @@ class EnergyDetector(Detector):
     #: If None, mean is used. Defaults to None.
     aggregate: str | None = frozen_field(default=None)  # e.g., "mean"
 
-    def _slice_position_to_index(self, axis: int, real_pos: float | None, axis_len: int) -> int:
+    def _slice_position_to_index(self, axis: int, real_pos: float | None, axis_len: int) -> int | jax.Array:
         """Map a requested physical slice position to a local energy index.
 
         Uniform grids keep the historical origin-plus-spacing conversion.  On a
@@ -47,15 +47,19 @@ class EnergyDetector(Detector):
         the placed detector interval.  This avoids interpreting physical metres
         through a single global resolution and makes the selected slice stable
         under local grid stretching.
+
+        Returns a plain Python int for uniform grids (safe as a static index
+        under jit) and a 0-d JAX array for non-uniform grids (safe as a
+        dynamic index under jit via JAX's dynamic indexing semantics).
         """
         if real_pos is None:
             return axis_len // 2
         grid = self._config.resolved_grid
         if grid is not None:
             start, stop = self.grid_slice_tuple[axis]
-            centers = np.asarray(grid.centers(axis)[start:stop])
-            idx = int(np.argmin(np.abs(centers - real_pos)))
-            return max(0, min(idx, axis_len - 1))
+            centers = grid.centers(axis)[start:stop]
+            idx = jnp.clip(jnp.argmin(jnp.abs(centers - real_pos)), 0, axis_len - 1)
+            return idx
 
         spacing = self._config.uniform_spacing()
         origin = self.grid_slice[axis].start * spacing

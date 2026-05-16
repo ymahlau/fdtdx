@@ -178,7 +178,13 @@ class Device(OrderableObject, ABC):
                     voxel_grid_shape.append(1)
                 else:
                     assert spacing is not None
-                    voxel_grid_shape.append(round(partial_real / spacing))
+                    cell_count = round(partial_real / spacing)
+                    if cell_count < 1:
+                        raise ValueError(
+                            f"Device voxel size {partial_real:.3e} m on axis {axis} rounds to 0 cells "
+                            f"at spacing {spacing:.3e} m. Increase the voxel size or reduce the grid spacing."
+                        )
+                    voxel_grid_shape.append(cell_count)
             else:
                 raise Exception(f"Multi-Material voxels not specified in axis: {axis=}")
 

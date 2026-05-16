@@ -237,7 +237,7 @@ def compute_mode(
         # Shape validation uses .shape which is always concrete, even for JAX tracers.
         expected_lengths = [permittivities.shape[dim] + 1 for dim in other_axes]
         for axis_idx, (coord, expected_length) in enumerate(zip(transverse_coords, expected_lengths, strict=True)):
-            if coord.shape[0] != expected_length:
+            if coord.ndim != 1 or coord.shape[0] != expected_length:
                 raise ValueError(
                     f"transverse_coords[{axis_idx}] must be 1D with length {expected_length}, got {coord.shape}"
                 )

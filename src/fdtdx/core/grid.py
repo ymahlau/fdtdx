@@ -480,9 +480,11 @@ def calculate_time_offset_yee(
         # the function has one physical-space code path.
         e = [jnp.arange(spatial_shape[ax] + 1, dtype=jnp.float32) * resolution for ax in range(3)]
         resolved_edges: tuple[jax.Array, jax.Array, jax.Array] = (e[0], e[1], e[2])
-        center_list: list = [float(center[0]) * resolution, float(center[1]) * resolution]
-        center_list.insert(propagation_axis, 0.0)
-        center_physical = jnp.asarray(center_list, dtype=wave_vector.dtype)
+        c0 = jnp.asarray(center[0], dtype=wave_vector.dtype) * resolution
+        c1 = jnp.asarray(center[1], dtype=wave_vector.dtype) * resolution
+        center_parts: list[jax.Array] = [c0, c1]
+        center_parts.insert(propagation_axis, jnp.zeros((), dtype=wave_vector.dtype))
+        center_physical = jnp.stack(center_parts)
     else:
         if center_physical is None:
             raise ValueError("center_physical must be provided with coordinate_edges")
