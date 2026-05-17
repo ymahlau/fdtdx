@@ -263,8 +263,10 @@ def calculate_sparam(
 
     Returns:
         A 2-tuple ``(sparams, detector_states)`` where *sparams* maps
-        ``(detector_name, input_port_name)`` to a complex scattering amplitude
-        and *detector_states* is the final :class:`~fdtdx.DetectorState` dict
+        ``(detector_name, input_port_name)`` to a complex array of shape
+        ``(num_freqs,)`` containing the scattering amplitude at each frequency
+        in ``wave_characters`` (``num_freqs = len(wave_characters)``), and
+        *detector_states* is the final :class:`~fdtdx.DetectorState` dict
         for every detector in the simulation.
     """
     if key is None:

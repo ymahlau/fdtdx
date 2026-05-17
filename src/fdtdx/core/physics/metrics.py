@@ -150,6 +150,60 @@ def normalize_by_poynting_flux(
     return E_norm, H_norm
 
 
+def bidirectional_mode_overlap(
+    mode_E: jax.Array,
+    mode_H: jax.Array,
+    sim_E: jax.Array,
+    sim_H: jax.Array,
+    propagation_axis: int,
+    area_EuHv: jax.Array | None = None,
+    area_EvHu: jax.Array | None = None,
+) -> jax.Array:
+    """Compute the bidirectional mode-overlap integral.
+
+    Returns ``sum((mode_E x sim_H* + sim_E* x mode_H) · ẑ * dA)``, where ẑ is
+    the unit vector along ``propagation_axis``.
+
+    On a Yee lattice the cross product decomposes into two independent terms
+    that sit at different spatial locations and therefore require separate area
+    weights on non-uniform grids:
+
+    * ``(mode_Eu x sim_Hv* + sim_Eu* x mode_Hv) * area_EuHv``
+    * ``-(mode_Ev x sim_Hu* + sim_Ev* x mode_Hu) * area_EvHu``
+
+    where ``(u, v)`` are the two transverse axes.  On a uniform grid
+    ``area_EuHv == area_EvHu`` and a single weight is sufficient.
+
+    Args:
+        mode_E: Mode electric field, shape ``(3, *spatial)``.
+        mode_H: Mode magnetic field, shape ``(3, *spatial)``.
+        sim_E: Simulation phasor electric field, shape ``(3, *spatial)``.
+        sim_H: Simulation phasor magnetic field, shape ``(3, *spatial)``.
+        propagation_axis: Physical axis (0, 1, or 2) of mode propagation.
+        area_EuHv: Per-cell area for the Eu/Hv cross term.  ``None`` treats
+            every cell as having unit area (uniform-grid raw sum).
+        area_EvHu: Per-cell area for the Ev/Hu cross term.  Defaults to
+            ``area_EuHv`` when ``None``.
+
+    Returns:
+        Complex scalar overlap coefficient (before the 1/4 prefactor).
+    """
+    # cyclic transverse axes for the given propagation axis
+    u, v = [(1, 2), (2, 0), (0, 1)][propagation_axis]
+
+    EuHv = mode_E[u] * jnp.conj(sim_H[v]) + jnp.conj(sim_E[u]) * mode_H[v]
+    EvHu = mode_E[v] * jnp.conj(sim_H[u]) + jnp.conj(sim_E[v]) * mode_H[u]
+
+    if area_EuHv is not None:
+        EuHv = EuHv * area_EuHv
+    if area_EvHu is not None:
+        EvHu = EvHu * area_EvHu
+    elif area_EuHv is not None:
+        EvHu = EvHu * area_EuHv
+
+    return jnp.sum(EuHv - EvHu)
+
+
 def resample_to_uniform_2d(
     field: jax.Array,
     x_centers: jax.Array,

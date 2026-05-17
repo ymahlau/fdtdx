@@ -350,6 +350,244 @@ def compute_mode(
     return mode_E_norm, mode_H_norm, eff_idx
 
 
+def compute_modes_multi_freq(
+    frequencies: list[float],
+    inv_permittivities: jax.Array,
+    inv_permeabilities: jax.Array | float,
+    resolution: float | None = None,
+    direction: Literal["+", "-"] = "+",
+    mode_index: int = 0,
+    filter_pol: Literal["te", "tm"] | None = None,
+    dtype: jnp.dtype = jnp.float32,
+    bend_radius: float | None = None,
+    bend_axis: int | None = None,
+    transverse_coords: Sequence[ArrayLike] | None = None,
+) -> tuple[jax.Array, jax.Array, jax.Array]:
+    """Compute waveguide modes at multiple frequencies with continuity tracking.
+
+    Solves all frequencies in a single :func:`jax.pure_callback` call.  Modes are
+    tracked across frequencies by **neff-proximity**: the anchor mode is selected at the
+    first frequency using ``filter_pol`` and ``mode_index``; at each subsequent
+    frequency the candidate mode whose ``real(neff)`` is closest to the previously
+    tracked neff is chosen.
+
+    **Tracking limitations.**  Neff-proximity is correct for the common case of
+    well-separated, non-degenerate modes over a moderate frequency range.  It can
+    silently fail in these situations:
+
+    * *Mode crossings* — if two neff curves come within ~0.01 of each other between
+      consecutive frequencies, the tracker may latch onto the wrong physical mode.
+      The symptom is a discontinuous jump in ``_mode_neff`` between adjacent
+      frequencies.
+    * *Degenerate modes* — e.g. TE11/TM11 in a circular waveguide where both modes
+      share the same neff.  Proximity tracking is undefined in this regime.
+    * *Large frequency sweeps* — a big enough step can drift even without a crossing
+      if the mode neff changes substantially between samples.
+
+    Args:
+        frequencies: Operating frequencies in Hz.
+        inv_permittivities: 3D array of inverse relative permittivity values.
+        inv_permeabilities: 3D array of inverse relative permeability values or scalar
+            float for uniform permeability.
+        resolution: Uniform-grid spacing in metres.  Required when ``transverse_coords``
+            is not provided.
+        direction: Propagation direction, ``"+"`` or ``"-"``.
+        mode_index: Index into the sorted+filtered mode list at the anchor frequency.
+        filter_pol: Polarisation filter — ``"te"``, ``"tm"``, or ``None``.
+        dtype: Float dtype of the simulation (controls complex64 vs complex128 output).
+        bend_radius: Bend radius in metres.  Must be set together with ``bend_axis``.
+        bend_axis: Physical axis (0/1/2) pointing toward the centre of curvature.
+        transverse_coords: Optional pair of physical edge-coordinate arrays in metres.
+
+    Returns:
+        Tuple ``(mode_Es, mode_Hs, mode_neffs)`` where ``mode_Es`` and ``mode_Hs``
+        have shape ``(num_freqs, 3, *spatial)`` and ``mode_neffs`` has shape
+        ``(num_freqs,)``.  The spatial dimensions include a singleton along the
+        propagation axis, matching :func:`compute_mode` output.
+    """
+    if (
+        not (inv_permittivities.ndim == 4 and inv_permittivities.shape[0] in [1, 3, 9])
+        or sum(dim == 1 for dim in inv_permittivities.shape[1:]) != 1
+    ):
+        raise Exception(f"Invalid shape of inv_permittivities: {inv_permittivities.shape}")
+    if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
+        if (
+            not (inv_permeabilities.ndim == 4 and inv_permeabilities.shape[0] in [1, 3, 9])
+            or sum(dim == 1 for dim in inv_permeabilities.shape[1:]) != 1
+        ):
+            raise Exception(f"Invalid shape of inv_permeabilities: {inv_permeabilities.shape}")
+    if (bend_radius is None) != (bend_axis is None):
+        raise ValueError("bend_radius and bend_axis must both be set or both be None")
+    if not frequencies:
+        raise ValueError("frequencies must be non-empty")
+
+    num_freqs = len(frequencies)
+    np_complex_dtype = np.complex128 if dtype == jnp.float64 else np.complex64
+
+    # Permittivity setup — identical to compute_mode
+    if inv_permittivities.shape[0] == 9:
+        eps = expand_to_3x3(inv_permittivities)
+        perm = (2, 3, 4, 0, 1)
+        inv_perm = (3, 4, 0, 1, 2)
+        permittivities = (
+            jnp.linalg.inv(eps.transpose(perm)).transpose(inv_perm).reshape(9, *inv_permittivities.shape[1:])
+        )
+    else:
+        permittivities = 1 / inv_permittivities
+    other_axes = [a for a in range(1, 4) if permittivities.shape[a] != 1]
+    propagation_axis = permittivities.shape[1:].index(1)
+    if transverse_coords is None:
+        if resolution is None:
+            raise ValueError("resolution is required when transverse_coords is not provided")
+        coords = [np.arange(permittivities.shape[dim] + 1) * resolution / 1e-6 for dim in other_axes]
+        normalization_area_weights = None
+    else:
+        if len(transverse_coords) != 2:
+            raise ValueError(
+                f"transverse_coords must contain exactly two coordinate arrays, got {len(transverse_coords)}"
+            )
+        coords_meter = [np.asarray(coord, dtype=np.float64) for coord in transverse_coords]
+        expected_lengths = [permittivities.shape[dim] + 1 for dim in other_axes]
+        for axis_idx, (coord, expected_length) in enumerate(zip(coords_meter, expected_lengths, strict=True)):
+            if coord.ndim != 1 or coord.shape[0] != expected_length:
+                raise ValueError(
+                    f"transverse_coords[{axis_idx}] must be 1D with length {expected_length}, got {coord.shape}"
+                )
+            if np.any(np.diff(coord) <= 0):
+                raise ValueError(f"transverse_coords[{axis_idx}] must be strictly increasing")
+        coords = [coord / 1e-6 for coord in coords_meter]
+        area_2d = jnp.asarray(np.diff(coords_meter[0])[:, None] * np.diff(coords_meter[1])[None, :], dtype=dtype)
+        weight_shape = [1, 1, 1]
+        weight_shape[other_axes[0] - 1] = area_2d.shape[0]
+        weight_shape[other_axes[1] - 1] = area_2d.shape[1]
+        normalization_area_weights = area_2d.reshape(weight_shape)
+    permittivity_squeezed = jnp.take(permittivities, indices=0, axis=propagation_axis + 1)
+
+    if propagation_axis == 0:
+        perm_idx = [1, 2, 0]
+        perm_idx_full_anisotropy = [4, 5, 3, 7, 8, 6, 1, 2, 0]
+    elif propagation_axis == 1:
+        perm_idx = [0, 2, 1]
+        perm_idx_full_anisotropy = [0, 2, 1, 6, 8, 7, 3, 5, 4]
+    else:
+        perm_idx = [0, 1, 2]
+        perm_idx_full_anisotropy = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+
+    if permittivity_squeezed.shape[0] == 3:
+        permittivity_squeezed = permittivity_squeezed[jnp.array(perm_idx), :, :]
+    if permittivity_squeezed.shape[0] == 9:
+        permittivity_squeezed = permittivity_squeezed[jnp.array(perm_idx_full_anisotropy), :, :]
+
+    jnp_complex_dtype = jnp.complex128 if dtype == jnp.float64 else jnp.complex64
+
+    # Permeability setup — identical to compute_mode
+    if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0 and inv_permeabilities.shape[0] == 9:
+        mu = expand_to_3x3(inv_permeabilities)
+        perm_t = (2, 3, 4, 0, 1)
+        inv_perm_t = (3, 4, 0, 1, 2)
+        permeabilities = (
+            jnp.linalg.inv(mu.transpose(perm_t)).transpose(inv_perm_t).reshape(9, *inv_permeabilities.shape[1:])
+        )
+    else:
+        permeabilities = 1 / inv_permeabilities
+    if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
+        permeability_squeezed = jnp.take(permeabilities, indices=0, axis=propagation_axis + 1)
+        if permeability_squeezed.shape[0] == 3:
+            permeability_squeezed = permeability_squeezed[jnp.array(perm_idx), :, :]
+        if permeability_squeezed.shape[0] == 9:
+            permeability_squeezed = permeability_squeezed[jnp.array(perm_idx_full_anisotropy), :, :]
+    else:
+        permeability_squeezed = permeabilities
+
+    def multi_freq_helper(permittivity, permeability):
+        if bend_radius is not None:
+            assert bend_axis is not None
+            transverse_axes = [ax for ax in range(3) if ax != propagation_axis]
+            tidy3d_bend_axis = transverse_axes.index(bend_axis)
+            bend_radius_um = bend_radius / 1e-6
+            plane_center = (
+                float(0.5 * (coords[0][0] + coords[0][-1])),
+                float(0.5 * (coords[1][0] + coords[1][-1])),
+            )
+        else:
+            tidy3d_bend_axis = None
+            bend_radius_um = None
+            plane_center = None
+
+        num_modes = 2 * (mode_index + 1) + 10
+
+        # Solve all candidate modes at every frequency
+        all_candidates = []
+        for freq in frequencies:
+            modes = tidy3d_mode_computation_wrapper(
+                frequency=freq,
+                permittivity_cross_section=permittivity,
+                permeability_cross_section=permeability,
+                coords=coords,
+                direction=direction,
+                num_modes=num_modes,
+                bend_radius=bend_radius_um,
+                bend_axis=tidy3d_bend_axis,
+                plane_center=plane_center,
+            )
+            all_candidates.append(modes)
+
+        # Anchor at first frequency: apply filter + sort, then select mode_index
+        anchor_candidates = sort_modes(all_candidates[0], filter_pol, (0, 1))
+        result_modes = [anchor_candidates[mode_index]]
+        prev_neff = float(np.real(anchor_candidates[mode_index].neff))
+
+        # Track subsequent frequencies by neff-proximity within filter_pol candidates
+        for candidates in all_candidates[1:]:
+            filtered = sort_modes(candidates, filter_pol, (0, 1))
+            mode = min(filtered, key=lambda m: abs(float(np.real(m.neff)) - prev_neff))
+            result_modes.append(mode)
+            prev_neff = float(np.real(mode.neff))
+
+        # Apply axis rotation (same as compute_mode's mode_helper) and stack
+        mode_Es, mode_Hs, mode_neffs = [], [], []
+        for mode in result_modes:
+            if propagation_axis == 0:
+                mode_E = np.stack([mode.Ez, mode.Ex, mode.Ey], axis=0).astype(np_complex_dtype)
+                mode_H = np.stack([mode.Hz, mode.Hx, mode.Hy], axis=0).astype(np_complex_dtype)
+            elif propagation_axis == 1:
+                mode_E = np.stack([mode.Ex, mode.Ez, mode.Ey], axis=0).astype(np_complex_dtype)
+                mode_H = -np.stack([mode.Hx, mode.Hz, mode.Hy], axis=0).astype(np_complex_dtype)
+            else:
+                mode_E = np.stack([mode.Ex, mode.Ey, mode.Ez], axis=0).astype(np_complex_dtype)
+                mode_H = np.stack([mode.Hx, mode.Hy, mode.Hz], axis=0).astype(np_complex_dtype)
+            mode_Es.append(mode_E)
+            mode_Hs.append(mode_H)
+            mode_neffs.append(np.asarray(mode.neff).astype(np_complex_dtype))
+
+        return np.stack(mode_Es), np.stack(mode_Hs), np.array(mode_neffs)
+
+    transverse_shape = permittivity_squeezed.shape[1:]
+    result_shape_dtype = (
+        jnp.zeros((num_freqs, 3, *transverse_shape), dtype=jnp_complex_dtype),
+        jnp.zeros((num_freqs, 3, *transverse_shape), dtype=jnp_complex_dtype),
+        jnp.zeros((num_freqs,), dtype=jnp_complex_dtype),
+    )
+
+    mode_Es_raw, mode_Hs_raw, eff_idxs = jax.pure_callback(
+        multi_freq_helper,
+        result_shape_dtype,
+        jax.lax.stop_gradient(permittivity_squeezed),
+        jax.lax.stop_gradient(permeability_squeezed),
+    )
+
+    # normalize_by_poynting_flux cannot handle a batch dim — apply per frequency
+    mode_Es_norm, mode_Hs_norm = [], []
+    for i in range(num_freqs):
+        me = jnp.expand_dims(mode_Es_raw[i], axis=propagation_axis + 1)
+        mh = jnp.expand_dims(mode_Hs_raw[i], axis=propagation_axis + 1) * tidy3d.constants.ETA_0
+        me_n, mh_n = normalize_by_poynting_flux(me, mh, axis=propagation_axis, area_weights=normalization_area_weights)
+        mode_Es_norm.append(me_n)
+        mode_Hs_norm.append(mh_n)
+
+    return jnp.stack(mode_Es_norm), jnp.stack(mode_Hs_norm), eff_idxs
+
+
 def tidy3d_mode_computation_wrapper(
     frequency: float,
     permittivity_cross_section: ArrayLike,

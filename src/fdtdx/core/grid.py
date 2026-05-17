@@ -487,6 +487,72 @@ class RectilinearGrid(TreeClass):
         shape[transverse_axes[1]] = area_2d.shape[1]
         return area_2d.reshape(shape)
 
+    def dual_widths(self, axis: int, lo: int, hi: int) -> jax.Array:
+        """Return dual-mesh cell widths for ``axis[lo:hi]``.
+
+        On a Yee grid the dual mesh is centred on primal cell edges.  Dual
+        width at index ``i`` is the distance between the centres of primal
+        cells ``i-1`` and ``i``.  At the domain boundary the adjacent primal
+        width is used as a zero-order approximation.
+
+        Args:
+            axis: Grid axis.
+            lo: Lower edge index of the slice.
+            hi: Upper edge index of the slice (exclusive).
+
+        Returns:
+            Array of dual widths with shape ``(hi - lo,)``.
+        """
+        edges = self.edges(axis)
+        # cell centers for the full domain
+        centers = 0.5 * (edges[:-1] + edges[1:])
+        left = edges[lo] if lo == 0 else centers[lo - 1]
+        dual = jnp.concatenate(
+            [
+                jnp.asarray([centers[lo] - left]),
+                centers[lo + 1 : hi] - centers[lo : hi - 1],
+            ]
+        )
+        return dual
+
+    def yee_face_areas(
+        self, propagation_axis: int, slice_tuple: tuple[tuple[int, int], tuple[int, int], tuple[int, int]]
+    ) -> tuple[jax.Array, jax.Array]:
+        """Return the two Yee-staggered face-area weight arrays for a detector plane.
+
+        On the Yee lattice the two tangential field cross-terms sit at different
+        physical locations and require different area elements on non-uniform grids:
+
+        * ``area_EuHv[i, j] = primal_u[i] * dual_v[j]``  — for the Eu x Hv term
+        * ``area_EvHu[i, j] = dual_u[i] * primal_v[j]``  — for the Ev x Hu term
+
+        On a uniform grid both arrays are identical and equal to ``dx * dy``.
+
+        Args:
+            propagation_axis: Normal axis of the detector plane.
+            slice_tuple: Grid slice of the detector.
+
+        Returns:
+            ``(area_EuHv, area_EvHu)`` each broadcast to the 3D slice shape.
+        """
+        u, v = [a for a in range(3) if a != propagation_axis]
+        u_lo, u_hi = slice_tuple[u]
+        v_lo, v_hi = slice_tuple[v]
+
+        primal_u = self.cell_widths(u)[u_lo:u_hi]
+        primal_v = self.cell_widths(v)[v_lo:v_hi]
+        dual_u = self.dual_widths(u, u_lo, u_hi)
+        dual_v = self.dual_widths(v, v_lo, v_hi)
+
+        def _broadcast(a1d_row, a1d_col):
+            area_2d = a1d_row[:, None] * a1d_col[None, :]
+            shape = [1, 1, 1]
+            shape[u] = area_2d.shape[0]
+            shape[v] = area_2d.shape[1]
+            return area_2d.reshape(shape)
+
+        return _broadcast(primal_u, dual_v), _broadcast(dual_u, primal_v)
+
     def cell_volume(self, slice_tuple: tuple[tuple[int, int], tuple[int, int], tuple[int, int]]) -> jax.Array:
         """Return per-cell volume weights broadcast to a 3D slice shape."""
         x0, x1 = slice_tuple[0]
