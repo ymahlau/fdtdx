@@ -13,6 +13,51 @@ from fdtdx.core.axis import get_transverse_axes
 from fdtdx.core.misc import expand_to_3x3
 from fdtdx.core.physics.metrics import normalize_by_poynting_flux
 
+
+def _yee_areas_from_edges(
+    edges_0: jax.Array,
+    edges_1: jax.Array,
+    phys_axis_0: int,
+    phys_axis_1: int,
+    propagation_axis: int,
+    dtype: jnp.dtype,
+) -> tuple[jax.Array, jax.Array]:
+    """Return Yee-staggered face-area arrays from physical edge coordinates.
+
+    Args:
+        edges_0: Edge coordinates (m) along the first transverse axis.
+        edges_1: Edge coordinates (m) along the second transverse axis.
+        phys_axis_0: Physical axis index (0/1/2) corresponding to edges_0.
+        phys_axis_1: Physical axis index (0/1/2) corresponding to edges_1.
+        propagation_axis: Physical propagation axis.
+        dtype: Output dtype.
+
+    Returns:
+        ``(area_EuHv, area_EvHu)`` broadcast-ready to 3D spatial shape with a
+        singleton along the propagation axis.
+    """
+    u, v = [(1, 2), (2, 0), (0, 1)][propagation_axis]
+    edges_u = jnp.asarray(edges_0) if phys_axis_0 == u else jnp.asarray(edges_1)
+    edges_v = jnp.asarray(edges_1) if phys_axis_0 == u else jnp.asarray(edges_0)
+
+    primal_u = jnp.diff(edges_u)
+    primal_v = jnp.diff(edges_v)
+    centers_u = 0.5 * (edges_u[:-1] + edges_u[1:])
+    centers_v = 0.5 * (edges_v[:-1] + edges_v[1:])
+    # Boundary approximation: half the first primal width (same as RectilinearGrid.dual_widths at lo=0)
+    dual_u = jnp.concatenate([jnp.array([centers_u[0] - edges_u[0]]), jnp.diff(centers_u)])
+    dual_v = jnp.concatenate([jnp.array([centers_v[0] - edges_v[0]]), jnp.diff(centers_v)])
+
+    def _expand(arr: jax.Array, phys_ax: int) -> jax.Array:
+        shape = [1, 1, 1]
+        shape[phys_ax] = arr.shape[0]
+        return arr.reshape(shape).astype(dtype)
+
+    area_EuHv = _expand(primal_u, u) * _expand(dual_v, v)
+    area_EvHu = _expand(dual_u, u) * _expand(primal_v, v)
+    return area_EuHv, area_EvHu
+
+
 ModeTupleType = namedtuple("ModeTupleType", ["neff", "Ex", "Ey", "Ez", "Hx", "Hy", "Hz"])
 """A named tuple containing the mode fields and effective index.
 
@@ -237,7 +282,8 @@ def compute_mode(
         # Uniform grid: build concrete coordinate arrays in µm and pass as callback args.
         c0_um = jnp.asarray(np.arange(permittivities.shape[other_axes[0]] + 1) * resolution / 1e-6)
         c1_um = jnp.asarray(np.arange(permittivities.shape[other_axes[1]] + 1) * resolution / 1e-6)
-        normalization_area_weights = None
+        normalization_area_EuHv = None
+        normalization_area_EvHu = None
     else:
         if len(transverse_coords) != 2:
             raise ValueError(
@@ -253,14 +299,15 @@ def compute_mode(
         # Convert to µm for tidy3d; keep as JAX arrays so jax.jit can trace through.
         c0_um = jnp.asarray(transverse_coords[0]) / 1e-6
         c1_um = jnp.asarray(transverse_coords[1]) / 1e-6
-        # area_2d in m²: use jnp.diff so this works with traced JAX arrays.
-        area_2d = (
-            jnp.diff(jnp.asarray(transverse_coords[0]))[:, None] * jnp.diff(jnp.asarray(transverse_coords[1]))[None, :]
-        ).astype(dtype)
-        weight_shape = [1, 1, 1]
-        weight_shape[other_axes[0] - 1] = area_2d.shape[0]
-        weight_shape[other_axes[1] - 1] = area_2d.shape[1]
-        normalization_area_weights = area_2d.reshape(weight_shape)
+        # Yee-staggered areas for normalization — consistent with bidirectional_mode_overlap.
+        normalization_area_EuHv, normalization_area_EvHu = _yee_areas_from_edges(
+            edges_0=jnp.asarray(transverse_coords[0]),
+            edges_1=jnp.asarray(transverse_coords[1]),
+            phys_axis_0=other_axes[0] - 1,
+            phys_axis_1=other_axes[1] - 1,
+            propagation_axis=propagation_axis,
+            dtype=dtype,
+        )
     permittivity_squeezed = jnp.take(
         permittivities,
         indices=0,
@@ -344,7 +391,8 @@ def compute_mode(
         mode_E,
         mode_H,
         axis=propagation_axis,
-        area_weights=normalization_area_weights,
+        area_EuHv=normalization_area_EuHv,
+        area_EvHu=normalization_area_EvHu,
     )
 
     return mode_E_norm, mode_H_norm, eff_idx
@@ -362,6 +410,7 @@ def compute_modes_multi_freq(
     bend_radius: float | None = None,
     bend_axis: int | None = None,
     transverse_coords: Sequence[ArrayLike] | None = None,
+    inv_permittivities_per_freq: list[jax.Array] | None = None,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Compute waveguide modes at multiple frequencies with continuity tracking.
 
@@ -398,6 +447,11 @@ def compute_modes_multi_freq(
         bend_radius: Bend radius in metres.  Must be set together with ``bend_axis``.
         bend_axis: Physical axis (0/1/2) pointing toward the centre of curvature.
         transverse_coords: Optional pair of physical edge-coordinate arrays in metres.
+        inv_permittivities_per_freq: Optional list of ``num_freqs`` inverse-permittivity
+            arrays, each with the same shape as ``inv_permittivities``.  When provided,
+            each frequency is solved with its own permittivity (e.g. after dispersive
+            correction via :func:`fdtdx.dispersion.effective_inv_permittivity`).
+            When ``None``, every frequency uses the shared ``inv_permittivities``.
 
     Returns:
         Tuple ``(mode_Es, mode_Hs, mode_neffs)`` where ``mode_Es`` and ``mode_Hs``
@@ -440,7 +494,8 @@ def compute_modes_multi_freq(
         if resolution is None:
             raise ValueError("resolution is required when transverse_coords is not provided")
         coords = [np.arange(permittivities.shape[dim] + 1) * resolution / 1e-6 for dim in other_axes]
-        normalization_area_weights = None
+        normalization_area_EuHv = None
+        normalization_area_EvHu = None
     else:
         if len(transverse_coords) != 2:
             raise ValueError(
@@ -456,11 +511,15 @@ def compute_modes_multi_freq(
             if np.any(np.diff(coord) <= 0):
                 raise ValueError(f"transverse_coords[{axis_idx}] must be strictly increasing")
         coords = [coord / 1e-6 for coord in coords_meter]
-        area_2d = jnp.asarray(np.diff(coords_meter[0])[:, None] * np.diff(coords_meter[1])[None, :], dtype=dtype)
-        weight_shape = [1, 1, 1]
-        weight_shape[other_axes[0] - 1] = area_2d.shape[0]
-        weight_shape[other_axes[1] - 1] = area_2d.shape[1]
-        normalization_area_weights = area_2d.reshape(weight_shape)
+        # Yee-staggered areas for normalization — consistent with bidirectional_mode_overlap.
+        normalization_area_EuHv, normalization_area_EvHu = _yee_areas_from_edges(
+            edges_0=jnp.asarray(coords_meter[0]),
+            edges_1=jnp.asarray(coords_meter[1]),
+            phys_axis_0=other_axes[0] - 1,
+            phys_axis_1=other_axes[1] - 1,
+            propagation_axis=propagation_axis,
+            dtype=dtype,
+        )
     permittivity_squeezed = jnp.take(permittivities, indices=0, axis=propagation_axis + 1)
 
     if propagation_axis == 0:
@@ -477,6 +536,34 @@ def compute_modes_multi_freq(
         permittivity_squeezed = permittivity_squeezed[jnp.array(perm_idx), :, :]
     if permittivity_squeezed.shape[0] == 9:
         permittivity_squeezed = permittivity_squeezed[jnp.array(perm_idx_full_anisotropy), :, :]
+
+    # Per-frequency permittivity (for dispersive correction).  When not provided,
+    # broadcast the base permittivity so the callback always receives a uniform
+    # (num_freqs, comp, ny, nz) array — one slice per frequency.
+    if inv_permittivities_per_freq is not None:
+        if len(inv_permittivities_per_freq) != num_freqs:
+            raise ValueError(
+                f"inv_permittivities_per_freq must have length {num_freqs}, got {len(inv_permittivities_per_freq)}"
+            )
+
+        def _squeeze_rotate(inv_perm_i: jax.Array) -> jax.Array:
+            if inv_perm_i.shape[0] == 9:
+                eps_i = expand_to_3x3(inv_perm_i)
+                perm_t = (2, 3, 4, 0, 1)
+                inv_perm_t = (3, 4, 0, 1, 2)
+                perm_i = jnp.linalg.inv(eps_i.transpose(perm_t)).transpose(inv_perm_t).reshape(9, *inv_perm_i.shape[1:])
+            else:
+                perm_i = 1 / inv_perm_i
+            sq = jnp.take(perm_i, indices=0, axis=propagation_axis + 1)
+            if sq.shape[0] == 3:
+                sq = sq[jnp.array(perm_idx), :, :]
+            if sq.shape[0] == 9:
+                sq = sq[jnp.array(perm_idx_full_anisotropy), :, :]
+            return sq
+
+        permittivity_squeezed_per_freq = jnp.stack([_squeeze_rotate(p) for p in inv_permittivities_per_freq])
+    else:
+        permittivity_squeezed_per_freq = jnp.stack([permittivity_squeezed] * num_freqs)
 
     jnp_complex_dtype = jnp.complex128 if dtype == jnp.float64 else jnp.complex64
 
@@ -499,7 +586,7 @@ def compute_modes_multi_freq(
     else:
         permeability_squeezed = permeabilities
 
-    def multi_freq_helper(permittivity, permeability):
+    def multi_freq_helper(permittivity_per_freq, permeability):
         if bend_radius is not None:
             assert bend_axis is not None
             transverse_axes = [ax for ax in range(3) if ax != propagation_axis]
@@ -516,12 +603,12 @@ def compute_modes_multi_freq(
 
         num_modes = 2 * (mode_index + 1) + 10
 
-        # Solve all candidate modes at every frequency
+        # Solve all candidate modes at every frequency using the per-frequency permittivity
         all_candidates = []
-        for freq in frequencies:
+        for i, freq in enumerate(frequencies):
             modes = tidy3d_mode_computation_wrapper(
                 frequency=freq,
-                permittivity_cross_section=permittivity,
+                permittivity_cross_section=permittivity_per_freq[i],
                 permeability_cross_section=permeability,
                 coords=coords,
                 direction=direction,
@@ -572,7 +659,7 @@ def compute_modes_multi_freq(
     mode_Es_raw, mode_Hs_raw, eff_idxs = jax.pure_callback(
         multi_freq_helper,
         result_shape_dtype,
-        jax.lax.stop_gradient(permittivity_squeezed),
+        jax.lax.stop_gradient(permittivity_squeezed_per_freq),
         jax.lax.stop_gradient(permeability_squeezed),
     )
 
@@ -581,7 +668,13 @@ def compute_modes_multi_freq(
     for i in range(num_freqs):
         me = jnp.expand_dims(mode_Es_raw[i], axis=propagation_axis + 1)
         mh = jnp.expand_dims(mode_Hs_raw[i], axis=propagation_axis + 1) * tidy3d.constants.ETA_0
-        me_n, mh_n = normalize_by_poynting_flux(me, mh, axis=propagation_axis, area_weights=normalization_area_weights)
+        me_n, mh_n = normalize_by_poynting_flux(
+            me,
+            mh,
+            axis=propagation_axis,
+            area_EuHv=normalization_area_EuHv,
+            area_EvHu=normalization_area_EvHu,
+        )
         mode_Es_norm.append(me_n)
         mode_Hs_norm.append(mh_n)
 

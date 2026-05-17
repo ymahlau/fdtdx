@@ -221,8 +221,13 @@ class TestComputeMode:
 
         normalize_kwargs = mock_normalize.call_args.kwargs
         assert normalize_kwargs["axis"] == 2
-        expected_area = jnp.asarray([[[2e-12], [3e-12]], [[4e-12], [6e-12]]], dtype=jnp.float32)
-        assert jnp.allclose(normalize_kwargs["area_weights"], expected_area)
+        # Yee-staggered areas: area_EuHv = primal_x x dual_y, area_EvHu = dual_x x primal_y
+        # primal_x = [1e-6, 2e-6], primal_y = [2e-6, 3e-6]
+        # dual_x   = [0.5e-6, 1.5e-6], dual_y = [1e-6, 2.5e-6]
+        expected_EuHv = jnp.asarray([[[1e-12], [2.5e-12]], [[2e-12], [5e-12]]], dtype=jnp.float32)
+        expected_EvHu = jnp.asarray([[[1e-12], [1.5e-12]], [[3e-12], [4.5e-12]]], dtype=jnp.float32)
+        assert jnp.allclose(normalize_kwargs["area_EuHv"], expected_EuHv)
+        assert jnp.allclose(normalize_kwargs["area_EvHu"], expected_EvHu)
 
 
 class TestAnisotropicModeComputation:

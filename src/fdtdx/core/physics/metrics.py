@@ -122,6 +122,8 @@ def normalize_by_poynting_flux(
     H: jax.Array,
     axis: int,
     area_weights: jax.Array | None = None,
+    area_EuHv: jax.Array | None = None,
+    area_EvHu: jax.Array | None = None,
 ) -> tuple[jax.Array, jax.Array]:
     """Normalize fields so the integrated Poynting flux along ``axis`` is one.
 
@@ -129,21 +131,30 @@ def normalize_by_poynting_flux(
         E: Electric field array with component axis first.
         H: Magnetic field array with component axis first.
         axis: Physical propagation axis whose Poynting component is integrated.
-        area_weights: Optional detector-plane area weights broadcastable to
-            ``E[axis]``.  Uniform-grid callers may omit this for the historical
-            raw-sum normalization; non-uniform callers should provide weights so
-            refinement alone does not change the normalization.
+        area_weights: Single area-weight array for both Poynting cross-terms.
+            Used on uniform grids where both Yee positions share the same area.
+            Ignored when ``area_EuHv`` is provided.
+        area_EuHv: Yee-staggered area for the Eu x Hv cross-term.  When
+            provided, enables the Yee-split power computation that is consistent
+            with :func:`bidirectional_mode_overlap`.
+        area_EvHu: Yee-staggered area for the Ev x Hu cross-term.  Defaults to
+            ``area_EuHv`` when ``None``.
     """
-    # Compute Poynting vector components
-    S_complex = jnp.cross(jnp.conj(E), H, axisa=0, axisb=0, axisc=0)
-    S_real = 0.5 * jnp.real(S_complex[axis])  # power flow in desired direction
-    if area_weights is not None:
-        S_real = S_real * area_weights
+    if area_EuHv is not None:
+        # Yee-split path: use separate area weights for each cross-term so that
+        # the power estimate is consistent with bidirectional_mode_overlap.
+        u, v = [(1, 2), (2, 0), (0, 1)][axis]
+        _area_EvHu = area_EvHu if area_EvHu is not None else area_EuHv
+        S_EuHv = 0.5 * jnp.real(jnp.conj(E[u]) * H[v]) * area_EuHv
+        S_EvHu = 0.5 * jnp.real(jnp.conj(E[v]) * H[u]) * _area_EvHu
+        power = jnp.abs(jnp.sum(S_EuHv - S_EvHu))
+    else:
+        S_complex = jnp.cross(jnp.conj(E), H, axisa=0, axisb=0, axisc=0)
+        S_real = 0.5 * jnp.real(S_complex[axis])
+        if area_weights is not None:
+            S_real = S_real * area_weights
+        power = jnp.abs(jnp.sum(S_real))
 
-    # Integrate over transverse plane (axis orthogonal to `axis`)
-    power = jnp.abs(jnp.sum(S_real))
-
-    # Normalize
     norm_factor = jnp.sqrt(power)
     E_norm = E / norm_factor
     H_norm = H / norm_factor

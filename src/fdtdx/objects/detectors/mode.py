@@ -2,12 +2,14 @@ from typing import Literal, Self, Sequence
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.null import Null
 from fdtdx.core.physics.metrics import bidirectional_mode_overlap
 from fdtdx.core.physics.modes import compute_modes_multi_freq
+from fdtdx.dispersion import effective_inv_permittivity
 from fdtdx.objects.detectors.detector import DetectorState
 from fdtdx.objects.detectors.phasor import PhasorDetector
 from fdtdx.typing import SliceTuple3D
@@ -161,6 +163,27 @@ class ModeOverlapDetector(PhasorDetector):
         else:
             inv_permeability_slice = inv_permeabilities
 
+        # Apply frequency-dependent dispersive correction for each wave character so
+        # the mode solver sees ε(ω) rather than ε∞.  Cells with no pole have
+        # c1=c2=c3=0, in which case effective_inv_permittivity returns inv_eps unchanged.
+        if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
+            c1_slice = dispersive_c1[:, :, *self.grid_slice]
+            c2_slice = dispersive_c2[:, :, *self.grid_slice]
+            c3_slice = dispersive_c3[:, :, *self.grid_slice]
+            inv_permittivities_per_freq = [
+                effective_inv_permittivity(
+                    inv_eps=inv_permittivity_slice,
+                    c1=c1_slice,
+                    c2=c2_slice,
+                    c3=c3_slice,
+                    omega=2.0 * np.pi * wc.get_frequency(),
+                    dt=self._config.time_step_duration,
+                )
+                for wc in self.wave_characters
+            ]
+        else:
+            inv_permittivities_per_freq = None
+
         # All frequencies solved in one call with neff-proximity continuity tracking.
         mode_Es, mode_Hs, mode_neffs = compute_modes_multi_freq(
             frequencies=[wc.get_frequency() for wc in self.wave_characters],
@@ -175,6 +198,7 @@ class ModeOverlapDetector(PhasorDetector):
             bend_axis=self.bend_axis,
             symmetry=self.symmetry,
             transverse_coords=self._transverse_edge_coordinates(),
+            inv_permittivities_per_freq=inv_permittivities_per_freq,
         )
 
         self = self.aset("_mode_E", mode_Es, create_new_ok=True)
