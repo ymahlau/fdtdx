@@ -154,6 +154,8 @@ def plot_setup_from_side(
         full_coverage_objects = _get_full_coverage_objects(object_list, axis_indices, plane_size, volume)
         plane_exclude_list.extend(full_coverage_objects)
 
+    half_real_size_um = [N * resolution / 2 for N in plane_size]
+
     # Filter objects for this plane
     colored_objects: list[SimulationObject] = [
         o for o in object_list if o.color is not None and (plane_exclude_list is None or o not in plane_exclude_list)
@@ -208,7 +210,10 @@ def plot_setup_from_side(
 
         ax.add_patch(
             Rectangle(
-                (slices[axis_indices[0]][0] * resolution, slices[axis_indices[1]][0] * resolution),
+                (
+                    slices[axis_indices[0]][0] * resolution - half_real_size_um[0],
+                    slices[axis_indices[1]][0] * resolution - half_real_size_um[1],
+                ),
                 (slices[axis_indices[0]][1] - slices[axis_indices[0]][0]) * resolution,
                 (slices[axis_indices[1]][1] - slices[axis_indices[1]][0]) * resolution,
                 color=color.to_mpl() if color is not None else "gray",
@@ -223,8 +228,8 @@ def plot_setup_from_side(
     ax.set_xlabel(axis_labels[0])
     ax.set_ylabel(axis_labels[1])
     ax.set_title(title)
-    ax.set_xlim((0, plane_size[0] * resolution))
-    ax.set_ylim((0, plane_size[1] * resolution))
+    ax.set_xlim((-half_real_size_um[0], half_real_size_um[0]))
+    ax.set_ylim((-half_real_size_um[1], half_real_size_um[1]))
     ax.set_aspect("equal")
     ax.grid(True)
 
