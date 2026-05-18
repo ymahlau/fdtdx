@@ -34,6 +34,15 @@ from fdtdx.core.physics.metrics import (
 from fdtdx.core.physics.modes import compute_mode
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
+from fdtdx.dispersion import (
+    DispersionModel,
+    DrudePole,
+    LorentzPole,
+    Pole,
+    compute_eps_spectrum_from_coefficients,
+    compute_impedance_corrected_temporal_profile,
+    compute_pole_coefficients,
+)
 from fdtdx.fdtd.backward import full_backward
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, ParameterContainer, SimulationState
 from fdtdx.fdtd.initialization import apply_params, place_objects, resolve_object_constraints
@@ -134,6 +143,8 @@ __all__ = [
     "Device",
     "DiagonalSymmetry2D",
     "DiagonalSymmetry3D",
+    "DispersionModel",
+    "DrudePole",
     "DtypeConversion",
     "EnergyDetector",
     "ExtrudedPolygon",
@@ -148,6 +159,7 @@ __all__ = [
     "HorizontalSymmetry3D",
     "LinearReconstructEveryK",
     "Logger",
+    "LorentzPole",
     "Material",
     "ModeOverlapDetector",
     "ModePlaneSource",
@@ -164,6 +176,7 @@ __all__ = [
     "PointDipoleSource",
     "PointSymmetry2D",
     "PointSymmetry3D",
+    "Pole",
     "PortSpec",
     "PositionConstraint",
     "PoyntingFluxDetector",
@@ -198,7 +211,10 @@ __all__ = [
     "calculate_sparams",
     "circular_brush",
     "compute_energy",
+    "compute_eps_spectrum_from_coefficients",
+    "compute_impedance_corrected_temporal_profile",
     "compute_mode",
+    "compute_pole_coefficients",
     "compute_poynting_flux",
     "constants",
     "export_arrays_snapshot_to_vti",

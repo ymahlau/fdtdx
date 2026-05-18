@@ -1,7 +1,10 @@
 import math
 from typing import cast
 
+import numpy as np
+
 from fdtdx.core.jax.pytrees import TreeClass, frozen_field
+from fdtdx.dispersion import DispersionModel, compute_pole_coefficients
 
 
 def _normalize_material_property(
@@ -142,6 +145,12 @@ class Material(TreeClass):
         on_setattr=[_normalize_material_property],
     )
 
+    #: Optional dispersion model. When set, :attr:`permittivity` represents the
+    #: high-frequency permittivity :math:`\varepsilon_\infty`; the full
+    #: :math:`\varepsilon(\omega)` is :math:`\varepsilon_\infty + \chi(\omega)`
+    #: from the dispersion model. Defaults to ``None`` (non-dispersive).
+    dispersion: DispersionModel | None = frozen_field(default=None)
+
     def __init__(
         self,
         *,
@@ -201,12 +210,14 @@ class Material(TreeClass):
             0.0,
             0.0,
         ),
+        dispersion: DispersionModel | None = None,
     ) -> None:
         # Normalize inputs and set attributes using object.__setattr__ for frozen fields
         object.__setattr__(self, "permittivity", _normalize_material_property(permittivity))
         object.__setattr__(self, "permeability", _normalize_material_property(permeability))
         object.__setattr__(self, "electric_conductivity", _normalize_material_property(electric_conductivity))
         object.__setattr__(self, "magnetic_conductivity", _normalize_material_property(magnetic_conductivity))
+        object.__setattr__(self, "dispersion", dispersion)
 
     @property
     def is_all_isotropic(self) -> bool:
@@ -371,6 +382,15 @@ class Material(TreeClass):
             and math.isclose(cond[8], 0.0)
         )
 
+    @property
+    def is_dispersive(self) -> bool:
+        """Check if the material has a non-trivial dispersion model.
+
+        Returns:
+            bool: True if a :class:`DispersionModel` with at least one pole is attached.
+        """
+        return self.dispersion is not None and self.dispersion.num_poles > 0
+
 
 def _is_property_isotropic(prop: tuple[float, float, float, float, float, float, float, float, float]) -> bool:
     return (
@@ -528,6 +548,65 @@ def compute_allowed_magnetic_conductivities(
         ]
     else:  # fully anisotropic
         return [o[1].magnetic_conductivity for o in ordered_materials]
+
+
+def compute_max_dispersive_poles(materials: dict[str, Material]) -> int:
+    """Return the maximum number of dispersive poles across a set of materials.
+
+    Args:
+        materials: Dictionary mapping material names to Material objects.
+
+    Returns:
+        int: ``max(m.dispersion.num_poles)`` over dispersive materials, or 0.
+    """
+    n = 0
+    for m in materials.values():
+        if m.dispersion is not None:
+            n = max(n, m.dispersion.num_poles)
+    return n
+
+
+def compute_allowed_dispersive_coefficients(
+    materials: dict[str, Material],
+    dt: float,
+    max_num_poles: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Compute per-material discrete-time dispersive recurrence coefficients.
+
+    For each material (in the canonical sorted order used elsewhere), returns
+    arrays of shape ``(num_materials, max_num_poles)`` containing the
+    ``c1``, ``c2``, ``c3`` coefficients from
+    :func:`fdtdx.dispersion.compute_pole_coefficients`. Materials with fewer
+    poles than ``max_num_poles``, or non-dispersive materials, get zero-padded
+    slots (so the polarization term automatically vanishes on those voxels).
+
+    Args:
+        materials: Dictionary mapping material names to Material objects.
+        dt: Simulation time step (seconds).
+        max_num_poles: Maximum pole count to pad every material to. When 0,
+            returns three ``(num_materials, 0)``-shaped arrays.
+
+    Returns:
+        Three numpy arrays of shape ``(num_materials, max_num_poles)``
+        with ``c1``, ``c2``, ``c3``.
+    """
+    ordered = compute_ordered_material_name_tuples(materials)
+    num_mats = len(ordered)
+    c1 = np.zeros((num_mats, max_num_poles), dtype=np.float64)
+    c2 = np.zeros((num_mats, max_num_poles), dtype=np.float64)
+    c3 = np.zeros((num_mats, max_num_poles), dtype=np.float64)
+    if max_num_poles == 0:
+        return c1, c2, c3
+    for m_idx, (_, mat) in enumerate(ordered):
+        if mat.dispersion is None:
+            continue
+        poles = mat.dispersion.poles
+        c1_vals, c2_vals, c3_vals = compute_pole_coefficients(poles, dt)
+        n = len(poles)
+        c1[m_idx, :n] = c1_vals
+        c2[m_idx, :n] = c2_vals
+        c3[m_idx, :n] = c3_vals
+    return c1, c2, c3
 
 
 def compute_ordered_names(
