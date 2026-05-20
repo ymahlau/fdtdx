@@ -3,14 +3,16 @@ from typing import Literal, Self
 
 import jax
 import jax.numpy as jnp
-from drinx import private_field, static_field
+import numpy as np
+from drinx import static_field, static_private_field
 from matplotlib import pyplot as plt
 
 from fdtdx.core.grid import calculate_time_offset_yee
 from fdtdx.core.linalg import get_wave_vector_raw
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.core.physics.modes import compute_mode
-from fdtdx.objects.sources.tfsf import TFSFPlaneSource
+from fdtdx.dispersion import effective_inv_permittivity
+from fdtdx.objects.sources.tfsf import TFSFPlaneSource, _build_dispersive_H_filter
 
 
 class ModePlaneSource(TFSFPlaneSource):
@@ -20,16 +22,19 @@ class ModePlaneSource(TFSFPlaneSource):
     #: a literal value 'te', 'tm' to filter
     filter_pol: Literal["te", "tm"] | None = static_field(default=None)
 
-    _inv_permittivity: jax.Array = private_field(default=None)
-    _inv_permeability: jax.Array | float = private_field(default=None)
+    _inv_permittivity: jax.Array | None = static_private_field(default=None)
+    _inv_permeability: jax.Array | float | None = static_private_field(default=None)
 
-    _neff: jax.Array = private_field(default=None)  # not required for sim, used for inspection
+    _neff: jax.Array | None = static_private_field(default=None)  # not required for sim, used for inspection
 
     def apply(
         self: Self,
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
+        dispersive_c1: jax.Array | None = None,
+        dispersive_c2: jax.Array | None = None,
+        dispersive_c3: jax.Array | None = None,
     ) -> Self:
         del key
         if (
@@ -48,6 +53,27 @@ class ModePlaneSource(TFSFPlaneSource):
             inv_permeability_slice = inv_permeabilities[:, *self.grid_slice]
         else:
             inv_permeability_slice = inv_permeabilities
+
+        # Preserve the raw ε∞ slice before the carrier-frequency correction —
+        # the broadband impedance filter needs ε∞ to reconstruct ε(ω).
+        inv_eps_inf_slice = inv_permittivity_slice
+
+        # Frequency-correct the permittivity seen by the mode solver so that
+        # mode profiles computed inside a dispersive medium reflect the true
+        # epsilon at the carrier frequency, not epsilon_infinity.
+        c1_slice = c2_slice = c3_slice = None
+        if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
+            c1_slice = dispersive_c1[:, :, *self.grid_slice]
+            c2_slice = dispersive_c2[:, :, *self.grid_slice]
+            c3_slice = dispersive_c3[:, :, *self.grid_slice]
+            inv_permittivity_slice = effective_inv_permittivity(
+                inv_eps=inv_permittivity_slice,
+                c1=c1_slice,
+                c2=c2_slice,
+                c3=c3_slice,
+                omega=2.0 * np.pi * self.wave_character.get_frequency(),
+                dt=self._config.time_step_duration,
+            )
 
         self = self.aset("_inv_permittivity", inv_permittivity_slice, create_new_ok=True)
         self = self.aset("_inv_permeability", inv_permeability_slice, create_new_ok=True)
@@ -93,6 +119,36 @@ class ModePlaneSource(TFSFPlaneSource):
 
         self = self.aset("_time_offset_E", time_offset_E, create_new_ok=True)
         self = self.aset("_time_offset_H", time_offset_H, create_new_ok=True)
+
+        # Broadband impedance correction for dispersive media. The mode solver
+        # above used ε(ω_c), so the resulting H profile already carries the
+        # correct scalar impedance at the carrier frequency. For a broadband
+        # pulse the medium's ε(ω) varies across the source spectrum, which
+        # mismatches η away from ω_c and radiates spurious reflections through
+        # the TFSF surface. Precompute a filtered H-side temporal profile
+        # whose spectrum is S(ω)·√(ε(ω)/ε(ω_c)) to bake in the frequency-
+        # dependent correction.
+        #
+        # Note: bulk ε(ω) is averaged uniformly over the source cells; this
+        # does not capture geometric modal dispersion (the fact that a
+        # waveguide mode's effective index also depends on frequency).
+        if c1_slice is not None and c2_slice is not None and c3_slice is not None:
+            filtered = _build_dispersive_H_filter(
+                temporal_profile=self.temporal_profile,
+                wave_character=self.wave_character,
+                dt=self._config.time_step_duration,
+                num_time_steps=self._config.time_steps_total,
+                c1_slice=c1_slice,
+                c2_slice=c2_slice,
+                c3_slice=c3_slice,
+                inv_eps_inf_slice=inv_eps_inf_slice,
+                dtype=self._config.dtype,
+            )
+            self = self.aset("_temporal_H_filter", filtered, create_new_ok=True)
+        else:
+            # Reused source applied in a non-dispersive context: clear any stale
+            # filter from a previous dispersive apply.
+            self = self.aset("_temporal_H_filter", None, create_new_ok=True)
 
         return self
 

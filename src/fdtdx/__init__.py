@@ -28,6 +28,15 @@ from fdtdx.core.physics.metrics import (
 from fdtdx.core.physics.modes import compute_mode
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
+from fdtdx.dispersion import (
+    DispersionModel,
+    DrudePole,
+    LorentzPole,
+    Pole,
+    compute_eps_spectrum_from_coefficients,
+    compute_impedance_corrected_temporal_profile,
+    compute_pole_coefficients,
+)
 from fdtdx.fdtd.backward import full_backward
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, ParameterContainer, SimulationState
 from fdtdx.fdtd.initialization import apply_params, place_objects, resolve_object_constraints
@@ -88,7 +97,12 @@ from fdtdx.objects.object import (
 from fdtdx.objects.sources.dipole import PointDipoleSource
 from fdtdx.objects.sources.linear_polarization import GaussianPlaneSource, UniformPlaneSource
 from fdtdx.objects.sources.mode import ModePlaneSource
-from fdtdx.objects.sources.profile import GaussianPulseProfile, SingleFrequencyProfile
+from fdtdx.objects.sources.profile import (
+    CustomTimeSignalProfile,
+    GaussianPulseProfile,
+    SingleFrequencyProfile,
+    TemporalProfile,
+)
 from fdtdx.objects.static_material.cylinder import Cylinder
 from fdtdx.objects.static_material.polygon import (
     ExtrudedPolygon,
@@ -116,12 +130,15 @@ __all__ = [
     "ClosestIndex",
     "Color",
     "ConnectHolesAndStructures",
+    "CustomTimeSignalProfile",
     "Cylinder",
     "Detector",
     "DetectorState",
     "Device",
     "DiagonalSymmetry2D",
     "DiagonalSymmetry3D",
+    "DispersionModel",
+    "DrudePole",
     "DtypeConversion",
     "EnergyDetector",
     "ExtrudedPolygon",
@@ -136,6 +153,7 @@ __all__ = [
     "HorizontalSymmetry3D",
     "LinearReconstructEveryK",
     "Logger",
+    "LorentzPole",
     "Material",
     "ModeOverlapDetector",
     "ModePlaneSource",
@@ -152,6 +170,7 @@ __all__ = [
     "PointDipoleSource",
     "PointSymmetry2D",
     "PointSymmetry3D",
+    "Pole",
     "PortSpec",
     "PositionConstraint",
     "PoyntingFluxDetector",
@@ -172,6 +191,7 @@ __all__ = [
     "StandardToPlusOneMinusOneRange",
     "SubpixelSmoothedProjection",
     "TanhProjection",
+    "TemporalProfile",
     "UniformMaterialObject",
     "UniformPlaneSource",
     "VerticalSymmetry2D",
@@ -183,7 +203,10 @@ __all__ = [
     "calculate_sparams",
     "circular_brush",
     "compute_energy",
+    "compute_eps_spectrum_from_coefficients",
+    "compute_impedance_corrected_temporal_profile",
     "compute_mode",
+    "compute_pole_coefficients",
     "compute_poynting_flux",
     "constants",
     "export_arrays_snapshot_to_vti",

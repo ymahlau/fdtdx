@@ -147,10 +147,10 @@ class BinaryMedianFilterModule(SameShapeTypeParameterTransform):
     """
 
     #: Configuration for padding behavior at boundaries.
-    padding_cfg: PaddingConfig = static_field(default=None)
+    padding_cfg: PaddingConfig | None = static_field(default=None)
 
     #:  3-tuple of kernel sizes for each dimension.
-    kernel_sizes: tuple[int, int, int] = static_field(default=None)
+    kernel_sizes: tuple[int, int, int] | None = static_field(default=None)
 
     def __post_init__(self) -> None:
         if self.padding_cfg is None:

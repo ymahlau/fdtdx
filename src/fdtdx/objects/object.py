@@ -197,7 +197,7 @@ class SimulationObject(DataClass, ABC):
         This is an abstract base class and cannot be instantiated directly.
     """
 
-    _config: SimulationConfig = private_field(default=None)
+    _config: SimulationConfig | None = private_field(default=None)
     #: The object's shape in real-world coordinates.
     #: Defaults to UNDEFINED_SHAPE_3D if not specified.
     partial_real_shape: PartialRealShape3D = static_field(default=UNDEFINED_SHAPE_3D)
@@ -216,7 +216,7 @@ class SimulationObject(DataClass, ABC):
 
     #: Unique identifier for the object. Automatically enforced to be unique through the UniqueName validator.
     #: The user can also set a name manually.
-    name: str = static_field(default=None)
+    name: str | None = static_field(default=None)
 
     #: Maximum random offset values that can be applied to the object's position in real coordinates
     #: for each axis (x, y, z). Defaults to (0, 0, 0) for no random offset.
@@ -295,8 +295,12 @@ class SimulationObject(DataClass, ABC):
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
+        dispersive_c1: jax.Array | None = None,
+        dispersive_c2: jax.Array | None = None,
+        dispersive_c3: jax.Array | None = None,
     ) -> Self:
         del key, inv_permittivities, inv_permeabilities
+        del dispersive_c1, dispersive_c2, dispersive_c3
         return self
 
     def place_relative_to(
