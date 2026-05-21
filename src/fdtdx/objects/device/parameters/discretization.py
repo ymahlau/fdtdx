@@ -140,7 +140,7 @@ class BrushConstraint2D(ParameterTransformation):
     ) -> dict[str, jax.Array]:
         del kwargs
 
-        single_key = list(params.keys())[0]
+        single_key = next(iter(params.keys()))
         param_arr = params[single_key]
         s = param_arr.shape
         if s[self.axis] != 1:
@@ -399,7 +399,7 @@ class PillarDiscretization(ParameterTransformation):
     ) -> dict[str, jax.Array]:
         del kwargs
 
-        single_key = list(params.keys())[0]
+        single_key = next(iter(params.keys()))
         params_arr = params[single_key]
 
         is_isotropic = all(mat.is_isotropic_permittivity for mat in self._materials.values())
@@ -409,7 +409,11 @@ class PillarDiscretization(ParameterTransformation):
                 self._materials, isotropic=is_isotropic, diagonally_anisotropic=is_diagonally_anisotropic
             )
         )
-        if is_isotropic or is_diagonally_anisotropic:
+        if is_isotropic:
+            # squeeze component dim (n_materials, 1) → (n_materials,) so
+            # nearest_index can broadcast correctly against (nx, ny, nz)
+            allowed_inv_perms = (1 / allowed_perm_array).squeeze(-1)
+        elif is_diagonally_anisotropic:
             allowed_inv_perms = 1 / allowed_perm_array
         else:
             # Fully anisotropic: reshape to 3x3 matrix, invert, and flatten back to 9 elements

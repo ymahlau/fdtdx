@@ -1,0 +1,65 @@
+---
+name: implement
+description: Plan-then-implement workflow — sketches a hypothesis, explores targeted areas, creates a concrete plan, gets user approval, then implements in parallel subagents. Use for non-trivial features or changes.
+allowed-tools: Agent Bash Read Grep Glob Edit Write EnterPlanMode ExitPlanMode TaskCreate TaskUpdate TaskList TaskGet
+---
+
+# Plan-Then-Implement Workflow
+
+You are executing a structured implementation workflow for: **$ARGUMENTS**
+
+Follow these phases strictly in order.
+
+## Phase 1: Sketch
+
+Before exploring the codebase, form a rough hypothesis based on what you already know (skills, CLAUDE.md, conversation context, the request itself):
+- What areas of the codebase likely need to change?
+- What is the rough approach?
+- What specific questions need answering before you can make a concrete plan?
+
+Write this sketch down briefly. It does NOT need to be correct — its purpose is to give exploration direction, not to commit to an approach.
+
+## Phase 2: Explore
+
+Use the `Explore` subagent (or multiple in parallel) to validate and refine the sketch. Focus exploration on:
+- Answering the specific questions from the sketch
+- Verifying that the files and patterns you hypothesized actually exist
+- Discovering anything the sketch missed — dependencies, constraints, edge cases
+- Checking existing patterns and conventions to follow
+- Identifying test patterns used for similar features
+
+Do NOT start writing code yet.
+
+## Phase 3: Plan
+
+Call `EnterPlanMode` first. This transitions you into plan mode; the system message for plan mode tells you the path of the plan file to write to (under `~/.claude/plans/`).
+
+Write your plan into that file using `Write`. Based on what exploration confirmed or revised, the plan must include:
+- Every file that needs to be created or modified
+- The specific changes for each file
+- Which changes are independent (parallelizable) vs sequential
+- Any risks or decisions that need user input
+- A test plan
+
+The plan file must be complete and self-contained — it will be the primary instruction visible to implementation after context is cleared. Include file paths, the specific edits, and the test plan in the file body itself, not just in surrounding conversation.
+
+Once the plan file is written, call `ExitPlanMode` (no arguments — it reads the plan from the file you wrote) to request approval. The user sees approve options that each include a "clear planning context" variant. Recommend they pick **approve + clear context + auto-accept edits** — this drops the exploration/search bloat from context while keeping the approved plan as the continuation, so implementation picks up in a fresh context automatically. No manual `/clear` or re-invocation is needed.
+
+## Phase 4: Implement
+
+This phase runs directly after plan approval, whether or not the user chose to clear context. If context was cleared, the approved plan from `ExitPlanMode` is still the active instruction — work from it.
+
+1. If a plan file path was saved under `~/.claude/plans/`, `Read` it to reload full detail. Otherwise work from the approved plan body.
+2. Skim `CLAUDE.md` and any skill docs referenced by the plan to reload project conventions.
+3. `TaskCreate` one task per work item in the plan.
+4. Launch implementation subagents in parallel for independent work items (use `isolation: worktree` for parallel edits to the same files).
+5. Handle sequential work items in order after parallel work completes.
+6. `TaskUpdate` each task to `completed` as it finishes — do not batch.
+
+## Phase 5: Verify
+
+After all implementation is done:
+1. Run the linter: `uv run pre-commit run -a`
+2. Run relevant tests: `uv run python -m pytest tests -m "unit or integration"` (adjust markers based on what was changed)
+3. Fix any issues found
+4. Summarize what was done

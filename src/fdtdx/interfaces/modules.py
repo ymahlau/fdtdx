@@ -119,6 +119,15 @@ class DtypeConversion(CompressionModule):
     ]:
         self = self.aset("_input_shape_dtypes", input_shape_dtypes)
         exclude = [] if self.exclude_filter is None else self.exclude_filter
+        for k, v in input_shape_dtypes.items():
+            if any(e in k for e in exclude):
+                continue
+            if jnp.issubdtype(v.dtype, jnp.complexfloating) and not jnp.issubdtype(self.dtype, jnp.complexfloating):
+                raise ValueError(
+                    f"DtypeConversion target dtype {self.dtype} is real but input '{k}' "
+                    f"has complex dtype {v.dtype}. This would silently discard the imaginary "
+                    f"component. Use a complex target dtype or add '{k}' to exclude_filter."
+                )
         out_shape_dtypes = {
             k: (jax.ShapeDtypeStruct(v.shape, self.dtype) if not any(e in k for e in exclude) else v)
             for k, v in input_shape_dtypes.items()

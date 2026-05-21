@@ -1,6 +1,6 @@
 [project]
 name = "fdtdx"
-version = "0.6.0"
+version = "0.6.1"
 description = "A JAX framework for the finite-difference time-domain (FDTD) method for solving Maxwell's equations with a focus on inverse design of photonic devices." 
 readme = "README.md"
 authors = [
@@ -21,6 +21,7 @@ dependencies = [
     "matplotlib>=3.9.4",
     "rich>=13.9.4",
     "typing-extensions>=4.14.1",
+    "gdstk>=0.9",
 ]
 
 [project.urls]
@@ -38,10 +39,17 @@ fix = true
 exclude = ["examples", "slurm", "checks", "docs"]
 
 [tool.ruff.lint]
-extend-select = ["I"]
+extend-select = ["I", "RUF"]
+ignore = []
+allowed-confusables = ["α", "β", "γ", "δ", "ε", "ζ", "η", "θ", "ι", "κ", "λ", "μ", "ν", "ξ", "π", "ρ", "σ", "τ", "υ", "φ", "χ", "ψ", "ω", "Α", "Β", "Γ", "Δ", "Ε", "Ζ", "Η", "Θ", "Ι", "Κ", "Λ", "Μ", "Ν", "Ξ", "Π", "Ρ", "Σ", "Τ", "Υ", "Φ", "Χ", "Ψ", "Ω"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "unit: marks tests as unit tests (deselect with '-m \"not unit\"')",
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "simulation: marks tests as simulation tests",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -62,6 +70,7 @@ dev = [
     "myst_nb>=1.3.0",
     "sphinx-copybutton>=0.5.2",
     "chex",
+    "sphinx-design",
 ]
 cuda12 = [
     "jax[cuda12]>=0.4.36",

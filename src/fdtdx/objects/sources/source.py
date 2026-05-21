@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Literal, Self
 
 import jax
@@ -8,6 +9,7 @@ from fdtdx.colors import XKCD_DARK_ORANGE, Color
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.misc import linear_interpolated_indexing, normalize_polarization_for_source
+from fdtdx.core.null import NULL
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.object import SimulationObject
@@ -45,17 +47,7 @@ class Source(SimulationObject, ABC):
         )
         return time_step
 
-    def place_on_grid(
-        self: Self,
-        grid_slice_tuple: SliceTuple3D,
-        config: SimulationConfig,
-        key: jax.Array,
-    ) -> Self:
-        self = super().place_on_grid(
-            grid_slice_tuple=grid_slice_tuple,
-            config=config,
-            key=key,
-        )
+    def _update_on_arrays(self) -> Self:
         # determine number of time steps on
         on_list = self.switch.calculate_on_list(
             time_step_duration=self._config.time_step_duration,
@@ -71,6 +63,103 @@ class Source(SimulationObject, ABC):
         time_to_arr_idx_arr = jnp.asarray(time_to_arr_idx_list, dtype=jnp.int32)
         self = self.aset("_time_step_to_on_idx", time_to_arr_idx_arr, create_new_ok=True)
         return self
+
+    def apply(
+        self,
+        key: jax.Array,
+        inv_permittivities: jax.Array,
+        inv_permeabilities: jax.Array | float,
+        dispersive_c1: jax.Array | None = None,
+        dispersive_c2: jax.Array | None = None,
+        dispersive_c3: jax.Array | None = None,
+    ) -> Self:
+        self = super().apply(
+            key=key,
+            inv_permittivities=inv_permittivities,
+            inv_permeabilities=inv_permeabilities,
+            dispersive_c1=dispersive_c1,
+            dispersive_c2=dispersive_c2,
+            dispersive_c3=dispersive_c3,
+        )
+        self = self._update_on_arrays()
+        return self
+
+    def place_on_grid(
+        self: Self,
+        grid_slice_tuple: SliceTuple3D,
+        config: SimulationConfig,
+        key: jax.Array,
+    ) -> Self:
+        self = super().place_on_grid(
+            grid_slice_tuple=grid_slice_tuple,
+            config=config,
+            key=key,
+        )
+        self = self._update_on_arrays()
+        return self
+
+    def _resolve_time_signal_config(self, config: SimulationConfig | None) -> SimulationConfig:
+        """Resolve the simulation config used for source time-signal sampling."""
+        if config is not None:
+            return config
+        if self._config is NULL:
+            raise ValueError(
+                "A SimulationConfig is required to sample or plot a source time signal. "
+                "Call place_objects(...) before calling this method, or pass config=... explicitly."
+            )
+        return self._config
+
+    def sample_time_signal(
+        self,
+        config: SimulationConfig | None = None,
+    ):
+        """Sample this source's time signal for plotting or analysis.
+
+        The returned signal uses the FDTD time grid from the supplied config, or
+        from self._config if the source has already been placed.
+        """
+        config = self._resolve_time_signal_config(config)
+        return self.temporal_profile.sample_time_signal(
+            period=self.wave_character.get_period(),
+            time_step_duration=config.time_step_duration,
+            num_time_steps=config.time_steps_total,
+            phase_shift=self.wave_character.phase_shift,
+        )
+
+    def frequency_spectrum(
+        self,
+        config: SimulationConfig | None = None,
+        normalize: bool = True,
+    ):
+        """Return the one-sided FFT magnitude of this source's sampled time signal.
+
+        This is intended for analyzing or visualizing its frequency spectrum.
+        """
+        config = self._resolve_time_signal_config(config)
+        return self.temporal_profile.frequency_spectrum(
+            period=self.wave_character.get_period(),
+            time_step_duration=config.time_step_duration,
+            num_time_steps=config.time_steps_total,
+            phase_shift=self.wave_character.phase_shift,
+            normalize=normalize,
+        )
+
+    def plot_time_signal_and_spectrum(
+        self,
+        config: SimulationConfig | None = None,
+        filename: str | Path | None = None,
+        **kwargs,
+    ):
+        """Plot this source's sampled time signal and one-sided frequency spectrum."""
+        config = self._resolve_time_signal_config(config)
+        return self.temporal_profile.plot_time_signal_and_spectrum(
+            period=self.wave_character.get_period(),
+            time_step_duration=config.time_step_duration,
+            num_time_steps=config.time_steps_total,
+            phase_shift=self.wave_character.phase_shift,
+            filename=filename,
+            **kwargs,
+        )
 
     @abstractmethod
     def update_E(
@@ -172,6 +261,7 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
             propagation_axis=self.propagation_axis,
             fixed_E_polarization_vector=self.fixed_E_polarization_vector,
             fixed_H_polarization_vector=self.fixed_E_polarization_vector,
+            dtype=self._config.dtype,
         )
         E_update = e_pol[:, None, None, None] * magnitude
 
@@ -200,6 +290,7 @@ class HardConstantAmplitudePlanceSource(DirectionalPlaneSourceBase):
             propagation_axis=self.propagation_axis,
             fixed_E_polarization_vector=self.fixed_E_polarization_vector,
             fixed_H_polarization_vector=self.fixed_E_polarization_vector,
+            dtype=self._config.dtype,
         )
         H_update = h_pol[:, None, None, None] * magnitude
 

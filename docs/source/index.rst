@@ -70,12 +70,13 @@ If you find this repository helpful for your work, please consider citing:
 
 .. toctree::
    :maxdepth: 1
-   :caption: Contents:
+   :hidden:
    
-   quickstart
-   examples
-   advanced
-   api
-   contributing
-   faq
+   01_quickstart
+   02_physics
+   03_components
+   04_advanced
+   05_contributing
+   06_faq
+   07_api
 

@@ -3,13 +3,15 @@ from typing import Self
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from fdtdx.core.grid import calculate_time_offset_yee
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.linalg import get_wave_vector_raw, rotate_vector
 from fdtdx.core.misc import expand_to_3x3, linear_interpolated_indexing, normalize_polarization_for_source
 from fdtdx.core.physics.metrics import compute_energy
-from fdtdx.objects.sources.tfsf import TFSFPlaneSource
+from fdtdx.dispersion import effective_inv_permittivity
+from fdtdx.objects.sources.tfsf import TFSFPlaneSource, _build_dispersive_H_filter
 
 
 @autoinit
@@ -28,6 +30,9 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
+        dispersive_c1: jax.Array | None = None,
+        dispersive_c2: jax.Array | None = None,
+        dispersive_c3: jax.Array | None = None,
     ):
         # inv_permittivities shape: (3, Nx, Ny, Nz) - slice with component dimension
         inv_permittivities = inv_permittivities[:, *self.grid_slice]
@@ -35,16 +40,42 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
             # inv_permeabilities shape: (3, Nx, Ny, Nz) - slice with component dimension
             inv_permeabilities = inv_permeabilities[:, *self.grid_slice]
 
+        # Keep a handle to the raw (ε∞) inverse permittivity before any
+        # carrier-frequency correction — the broadband impedance filter
+        # computed below needs ε∞ to reconstruct the full ε(ω) spectrum.
+        inv_eps_inf_slice = inv_permittivities
+
+        # If the simulation is dispersive, evaluate the real effective inverse
+        # permittivity at the source carrier frequency so that the impedance and
+        # energy normalization reflect the true medium the source sits in,
+        # not just the high-frequency permittivity epsilon_infinity.
+        c1_slice = c2_slice = c3_slice = None
+        if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
+            # dispersive_c* shape: (num_poles, 1, Nx, Ny, Nz) → slice spatial axes
+            c1_slice = dispersive_c1[:, :, *self.grid_slice]
+            c2_slice = dispersive_c2[:, :, *self.grid_slice]
+            c3_slice = dispersive_c3[:, :, *self.grid_slice]
+            inv_permittivities = effective_inv_permittivity(
+                inv_eps=inv_permittivities,
+                c1=c1_slice,
+                c2=c2_slice,
+                c3=c3_slice,
+                omega=2.0 * np.pi * self.wave_character.get_frequency(),
+                dt=self._config.time_step_duration,
+            )
+
         # determine E/H polarization
         e_pol_raw, h_pol_raw = normalize_polarization_for_source(
             direction=self.direction,
             propagation_axis=self.propagation_axis,
             fixed_E_polarization_vector=self.fixed_E_polarization_vector,
             fixed_H_polarization_vector=self.fixed_H_polarization_vector,
+            dtype=self._config.dtype,
         )
         wave_vector_raw = get_wave_vector_raw(
             direction=self.direction,
             propagation_axis=self.propagation_axis,
+            dtype=self._config.dtype,
         )
 
         center, azimuth, elevation = self._get_random_parts(key)
@@ -69,7 +100,7 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         # basis in plane
         h_list = [0, 0, 0]
         h_list[self.horizontal_axis] = 1
-        h_axis = jnp.asarray(h_list, dtype=jnp.float32)
+        h_axis = jnp.asarray(h_list, dtype=self._config.dtype)
         u_basis = h_axis - jnp.dot(h_axis, wave_vector) * wave_vector
         u_basis = u_basis / jnp.linalg.norm(u_basis)
         v_basis = jnp.cross(wave_vector, u_basis)
@@ -78,12 +109,12 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         def project(point):
             point_list = [point[0], point[1]]
             point_list.insert(self.propagation_axis, 0)
-            point = jnp.asarray(point_list, dtype=jnp.float32)
+            point = jnp.asarray(point_list, dtype=self._config.dtype)
             projection = point - jnp.dot(point, wave_vector) * wave_vector
             # Convert to plane coordinates
             u = jnp.dot(projection, u_basis)
             v = jnp.dot(projection, v_basis)
-            return jnp.asarray((u, v), dtype=jnp.float32)
+            return jnp.asarray((u, v), dtype=self._config.dtype)
 
         float_projected = jax.vmap(project)(wh_indices.reshape(-1, 2))
         float_projected += center
@@ -151,6 +182,32 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         self = self.aset("_H", H, create_new_ok=True)
         self = self.aset("_time_offset_E", time_offset_E, create_new_ok=True)
         self = self.aset("_time_offset_H", time_offset_H, create_new_ok=True)
+
+        # Broadband impedance correction. The carrier-frequency rescale above
+        # only matches η at ω_c; a wide-bandwidth pulse (e.g. GaussianPulseProfile)
+        # sees a frequency-dependent impedance in a dispersive medium and the
+        # TFSF boundary leaks unphysical reflections for frequencies away from
+        # ω_c. Precompute a filtered H-side temporal profile s_H(t) whose
+        # spectrum is S(ω)·√(ε(ω)/ε(ω_c)) so that the injected H field has
+        # the frequency-dependent impedance correction baked in.
+        if c1_slice is not None and c2_slice is not None and c3_slice is not None:
+            filtered = _build_dispersive_H_filter(
+                temporal_profile=self.temporal_profile,
+                wave_character=self.wave_character,
+                dt=self._config.time_step_duration,
+                num_time_steps=self._config.time_steps_total,
+                c1_slice=c1_slice,
+                c2_slice=c2_slice,
+                c3_slice=c3_slice,
+                inv_eps_inf_slice=inv_eps_inf_slice,
+                dtype=self._config.dtype,
+            )
+            self = self.aset("_temporal_H_filter", filtered, create_new_ok=True)
+        else:
+            # Reused source applied in a non-dispersive context: clear any stale
+            # H-side filter left over from a previous dispersive apply, otherwise
+            # the TFSF inner loop would keep injecting filtered amplitudes.
+            self = self.aset("_temporal_H_filter", None, create_new_ok=True)
 
         return self
 
@@ -223,5 +280,5 @@ class UniformPlaneSource(LinearlyPolarizedPlaneSource):
         center: jax.Array,
     ) -> jax.Array:
         del center
-        profile = jnp.ones(shape=self.grid_shape, dtype=jnp.float32)
+        profile = jnp.ones(shape=self.grid_shape, dtype=self._config.dtype)
         return self.amplitude * profile

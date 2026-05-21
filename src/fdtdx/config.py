@@ -60,6 +60,12 @@ class SimulationConfig(TreeClass):
     #:  Data type for numerical computations. Defaults to jnp.float32.
     dtype: jnp.dtype = frozen_field(default=jnp.float32)
 
+    #: Whether to use complex-valued field arrays.
+    #: None (default): auto-detect based on boundary conditions (e.g. Bloch).
+    #: True: force complex fields (complex64 if dtype=float32, complex128 if dtype=float64).
+    #: False: force real fields (raises error if Bloch boundaries are present).
+    use_complex_fields: bool | None = frozen_field(default=None)
+
     #: Safety factor for the Courant condition (default: 0.99).
     courant_factor: float = frozen_field(default=0.99)
 

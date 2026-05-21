@@ -7,11 +7,12 @@ import jax.numpy as jnp
 def get_wave_vector_raw(
     direction: Literal["+", "-"],
     propagation_axis: int,
+    dtype: jnp.dtype = jnp.float32,
 ) -> jax.Array:  # shape (3,)
     vec_list = [0, 0, 0]
     sign = 1 if direction == "+" else -1
     vec_list[propagation_axis] = sign
-    return jnp.array(vec_list, dtype=jnp.float32)
+    return jnp.array(vec_list, dtype=dtype)
 
 
 def get_orthogonal_vector(
@@ -20,6 +21,7 @@ def get_orthogonal_vector(
     wave_vector: jax.Array | None = None,
     direction: Literal["+", "-"] | None = None,
     propagation_axis: int | None = None,
+    dtype: jnp.dtype = jnp.float32,
 ) -> jax.Array:
     if (v_E is None) == (v_H is None):
         raise Exception(f"Invalid input to orthogonal vector computation: {v_E=}, {v_H=}")
@@ -31,6 +33,7 @@ def get_orthogonal_vector(
         wave_vector = get_wave_vector_raw(
             direction=direction,
             propagation_axis=propagation_axis,
+            dtype=dtype,
         )
     elif wave_vector is None:
         raise Exception("Need to specify either wave_vector or direction and propagation axis")
@@ -108,14 +111,11 @@ def rotate_vector(
 
     horizontal_axis, vertical_axis, propagation_axis = axes_tuple
 
-    # basis vectors
-    e1_list, e2_list, e3_list = [0, 0, 0], [0, 0, 0], [0, 0, 0]
-    e1_list[horizontal_axis] = 1
-    e2_list[vertical_axis] = 1
-    e3_list[propagation_axis] = 1
-    e1 = jnp.asarray(e1_list, dtype=jnp.float32)
-    e2 = jnp.asarray(e2_list, dtype=jnp.float32)
-    e3 = jnp.asarray(e3_list, dtype=jnp.float32)
+    # basis vectors — match the input vector's dtype to avoid implicit promotion warnings
+    _dtype = vector.dtype
+    e1 = jnp.zeros(3, dtype=_dtype).at[horizontal_axis].set(1)
+    e2 = jnp.zeros(3, dtype=_dtype).at[vertical_axis].set(1)
+    e3 = jnp.zeros(3, dtype=_dtype).at[propagation_axis].set(1)
     global_to_raw_basis = jnp.stack((e1, e2, e3), axis=0)
     raw_to_global_basis = jnp.transpose(global_to_raw_basis)
 
@@ -124,14 +124,14 @@ def rotate_vector(
         rotation_axis=1,
         angle_radians=azimuth_angle,
     )
-    u = az_matrix @ jnp.asarray([1, 0, 0], dtype=jnp.float32)
+    u = az_matrix @ jnp.array([1, 0, 0], dtype=_dtype)
 
     # elevation rotates vertical around horizontal axis
     el_matrix = get_single_directional_rotation_matrix(
         rotation_axis=0,
         angle_radians=elevation_angle,
     )
-    v = el_matrix @ jnp.asarray([0, 1, 0], dtype=jnp.float32)
+    v = el_matrix @ jnp.array([0, 1, 0], dtype=_dtype)
     w = jnp.cross(u, v)
     w = w / jnp.linalg.norm(w)
 

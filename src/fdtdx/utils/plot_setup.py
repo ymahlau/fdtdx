@@ -7,8 +7,10 @@ from matplotlib.patches import Patch, Rectangle
 
 from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.container import ObjectContainer
+from fdtdx.objects.boundaries.bloch import BlochBoundary
+from fdtdx.objects.boundaries.pec import PerfectElectricConductor
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
-from fdtdx.objects.boundaries.periodic import PeriodicBoundary
+from fdtdx.objects.boundaries.pmc import PerfectMagneticConductor
 from fdtdx.objects.object import SimulationObject
 
 
@@ -60,7 +62,9 @@ def plot_setup_from_side(
 
     # add boundaries to exclude lists
     for o in objects.objects:
-        if not isinstance(o, (PerfectlyMatchedLayer, PeriodicBoundary)):
+        if not isinstance(
+            o, (PerfectlyMatchedLayer, BlochBoundary, PerfectElectricConductor, PerfectMagneticConductor)
+        ):
             continue
         if o.axis == 0:
             exclude_yz_plane_object_list.append(o)
@@ -103,6 +107,8 @@ def plot_setup_from_side(
         plane_size = (volume.grid_shape[1], volume.grid_shape[2])
     else:
         raise ValueError(f"Invalid viewing_side: {viewing_side}. Must be 'x', 'y', or 'z'")
+
+    half_real_size_um = [N * resolution / 2 for N in plane_size]
 
     # Filter objects for this plane
     colored_objects: list[SimulationObject] = [
@@ -158,12 +164,17 @@ def plot_setup_from_side(
 
         ax.add_patch(
             Rectangle(
-                (slices[axis_indices[0]][0] * resolution, slices[axis_indices[1]][0] * resolution),
+                (
+                    slices[axis_indices[0]][0] * resolution - half_real_size_um[0],
+                    slices[axis_indices[1]][0] * resolution - half_real_size_um[1],
+                ),
                 (slices[axis_indices[0]][1] - slices[axis_indices[0]][0]) * resolution,
                 (slices[axis_indices[1]][1] - slices[axis_indices[1]][0]) * resolution,
                 color=color.to_mpl() if color is not None else "gray",
                 alpha=0.5,
-                linestyle="--" if isinstance(obj, PeriodicBoundary) else "-",
+                linestyle="--"
+                if isinstance(obj, (BlochBoundary, PerfectElectricConductor, PerfectMagneticConductor))
+                else "-",
             )
         )
 
@@ -171,8 +182,8 @@ def plot_setup_from_side(
     ax.set_xlabel(axis_labels[0])
     ax.set_ylabel(axis_labels[1])
     ax.set_title(title)
-    ax.set_xlim((0, plane_size[0] * resolution))
-    ax.set_ylim((0, plane_size[1] * resolution))
+    ax.set_xlim((-half_real_size_um[0], half_real_size_um[0]))
+    ax.set_ylim((-half_real_size_um[1], half_real_size_um[1]))
     ax.set_aspect("equal")
     ax.grid(True)
 

@@ -52,7 +52,7 @@ class RemoveFloatingMaterial(SameShapeTypeParameterTransform):
         ordered_name_list = compute_ordered_names(self._materials)
         background_idx = ordered_name_list.index(background_name)
 
-        single_key = list(params.keys())[0]
+        single_key = next(iter(params.keys()))
         param_arr = params[single_key]
         is_material_matrix = param_arr != background_idx
         is_material_after_removal = remove_floating_polymer(is_material_matrix)
@@ -101,7 +101,7 @@ class ConnectHolesAndStructures(SameShapeTypeParameterTransform):
         ordered_name_list = compute_ordered_names(self._materials)
         background_idx = ordered_name_list.index(background_name)
 
-        single_key = list(params.keys())[0]
+        single_key = next(iter(params.keys()))
         param_arr = params[single_key]
         is_material_matrix = param_arr != background_idx
         feasible_material_matrix = connect_holes_and_structures(is_material_matrix)
@@ -169,7 +169,7 @@ class BinaryMedianFilterModule(SameShapeTypeParameterTransform):
         **kwargs,
     ) -> dict[str, jax.Array]:
         del kwargs
-        single_key = list(params.keys())[0]
+        single_key = next(iter(params.keys()))
         param_arr = params[single_key]
         cur_arr = param_arr
         for _ in range(self.num_repeats):
