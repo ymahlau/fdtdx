@@ -6,12 +6,9 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
-from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.constants import MAX_SIMULATION_VOLUME_CELLS
+from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.initialization import (
-    _warn_if_simulation_volume_too_large,
-    apply_params,
-    place_objects,
     _apply_grid_coordinate_constraint,
     _apply_position_constraint,
     _apply_real_coordinate_constraint,
@@ -24,6 +21,7 @@ from fdtdx.fdtd.initialization import (
     _resolve_volume_name,
     _update_grid_shapes_from_slices,
     _update_grid_slices_from_shapes,
+    _warn_if_simulation_volume_too_large,
     apply_params,
     resolve_object_constraints,
 )
@@ -2457,8 +2455,8 @@ def test_extend_to_inf_lower_bound_only_already_removed_from_extension_obj(
 
 def test_warn_if_simulation_volume_too_large_emits_warning():
     """Volumes above MAX_SIMULATION_VOLUME_CELLS should warn before allocation."""
-    grid_shape = (2154, 2154, 2154)  # 2154**3 > 10e9
-    assert 2154**3 > MAX_SIMULATION_VOLUME_CELLS
+    grid_shape = (2200, 2200, 2200)  # 2154**3 > 10e9
+    assert 2200**3 > MAX_SIMULATION_VOLUME_CELLS
 
     with pytest.warns(UserWarning, match="exceeds the recommended limit"):
         _warn_if_simulation_volume_too_large(grid_shape)
