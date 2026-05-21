@@ -1,3 +1,4 @@
+import warnings
 from unittest.mock import MagicMock, Mock, patch
 
 import jax
@@ -6,7 +7,13 @@ import pytest
 
 from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
-from fdtdx.fdtd.initialization import apply_params, place_objects, resolve_object_constraints
+from fdtdx.constants import MAX_SIMULATION_VOLUME_CELLS
+from fdtdx.fdtd.initialization import (
+    _warn_if_simulation_volume_too_large,
+    apply_params,
+    place_objects,
+    resolve_object_constraints,
+)
 from fdtdx.materials import Material
 from fdtdx.objects.device.parameters.transform import ParameterType
 from fdtdx.objects.object import (
@@ -1965,3 +1972,22 @@ def test_extend_to_inf_lower_bound_only_already_removed_from_extension_obj(
     resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
 
     assert "obj1" in errors
+
+
+def test_warn_if_simulation_volume_too_large_emits_warning():
+    """Volumes above MAX_SIMULATION_VOLUME_CELLS should warn before allocation."""
+    grid_shape = (2154, 2154, 2154)  # 2154**3 > 10e9
+    assert 2154**3 > MAX_SIMULATION_VOLUME_CELLS
+
+    with pytest.warns(UserWarning, match="exceeds the recommended limit"):
+        _warn_if_simulation_volume_too_large(grid_shape)
+
+
+def test_warn_if_simulation_volume_at_limit_no_warning():
+    """Volumes at or below the limit should not warn."""
+    grid_shape = (2153, 2153, 2153)  # 2153**3 < 10e9
+    assert 2153**3 <= MAX_SIMULATION_VOLUME_CELLS
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        _warn_if_simulation_volume_too_large(grid_shape)
