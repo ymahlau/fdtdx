@@ -84,7 +84,7 @@ def cylinder_setup():
 
     cylinder = Cylinder(
         name="test_cylinder",
-        radius=0.5e-6,
+        radius=0.3e-6,  # 2*0.3e-6 / 30e-9 = 20 cells, matching the constraints below
         axis=2,
         materials={"dielectric": Material(permittivity=4.0, permeability=1.0)},
         material_name="dielectric",
@@ -335,11 +335,11 @@ def test_plot_material_verify_values(simple_material_setup):
     # instead of Nx (40), collapsing the x-extent to ~0.15 µm instead of 2.0 µm.
     extent = im.get_extent()  # [xmin, xmax, ymin, ymax] in µm
     expected_size_um = 2.0  # 40 cells * 50nm = 2µm
-    assert abs(extent[1] - expected_size_um) < 0.1, (
+    assert abs((extent[1] - extent[0]) - expected_size_um) < 0.1, (
         f"X-extent should be ~{expected_size_um} µm but got {extent[1]:.4f} µm. "
         f"This likely means array_shape[0] is num_components instead of Nx."
     )
-    assert abs(extent[3] - expected_size_um) < 0.1, (
+    assert abs((extent[3] - extent[2]) - expected_size_um) < 0.1, (
         f"Y-extent should be ~{expected_size_um} µm but got {extent[3]:.4f} µm."
     )
 
@@ -499,7 +499,7 @@ def test_plot_material_all_types_objects():
 
     cylinder = Cylinder(
         name="cylinder",
-        radius=0.5e-6,
+        radius=0.4e-6,  # 2*0.4e-6 / 40e-9 = 20 cells, matching the constraints below
         axis=2,
         materials={"silicon": Material(permittivity=11.7, permeability=1.0)},
         material_name="silicon",
@@ -507,7 +507,7 @@ def test_plot_material_all_types_objects():
 
     sphere = Sphere(
         name="sphere",
-        radius=0.5e-6,
+        radius=0.4e-6,  # 2*0.4e-6 / 40e-9 = 20 cells, matching the constraints below
         materials={"high_dielectric": Material(permittivity=9.0, permeability=1.0)},
         material_name="high_dielectric",
     )
@@ -601,13 +601,13 @@ def test_plot_material_material_axis(simple_material_setup):
         for ax in plot_axs:
             im = ax.get_images()[0]
             extent = im.get_extent()  # [xmin, xmax, ymin, ymax]
-            assert abs(extent[1] - expected_size_um) < 0.1, (
+            assert abs((extent[1] - extent[0]) - expected_size_um) < 0.1, (
                 f"material_axis={axis}: x-extent should be ~{expected_size_um} µm "
-                f"but got {extent[1]:.4f} µm in subplot '{ax.get_title()}'"
+                f"but got {(extent[1] - extent[0]):.4f} µm in subplot '{ax.get_title()}'"
             )
-            assert abs(extent[3] - expected_size_um) < 0.1, (
+            assert abs((extent[3] - extent[2]) - expected_size_um) < 0.1, (
                 f"material_axis={axis}: y-extent should be ~{expected_size_um} µm "
-                f"but got {extent[3]:.4f} µm in subplot '{ax.get_title()}'"
+                f"but got {(extent[3] - extent[2]):.4f} µm in subplot '{ax.get_title()}'"
             )
 
         plt.close("all")

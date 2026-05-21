@@ -4,6 +4,7 @@ import jax.numpy as jnp
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
+from fdtdx.typing import UNDEFINED_SHAPE_3D, PartialGridShape3D, PartialRealShape3D
 
 
 @autoinit
@@ -13,6 +14,11 @@ class Sphere(StaticMultiMaterialObject):
     This class represents a sphere or ellipsoid with customizable radius/radii and material.
     When all three radii are equal, the shape is a perfect sphere.
 
+    The bounding-box size (diameter = 2 * radius per axis) is automatically inferred
+    for all three axes from the radius parameters. ``partial_real_shape`` and
+    ``partial_grid_shape`` are not constructor parameters — they are set automatically.
+    Per-axis radii (``radius_x``, ``radius_y``, ``radius_z``) take precedence over the
+    default ``radius`` when present.
     """
 
     #: The default radius of the sphere in meter (used if specific axis radii are not provided).
@@ -20,7 +26,6 @@ class Sphere(StaticMultiMaterialObject):
 
     #: Name of the sphere material in the materials dictionary to be used for the object.
     material_name: str = frozen_field()
-    # Optional parameters for ellipsoid shape
 
     #: The radius along the x-axis in meter. If none, use radius. Defaults to None.
     radius_x: float | None = frozen_field(default=None)
@@ -30,6 +35,16 @@ class Sphere(StaticMultiMaterialObject):
 
     #: The radius along the z-axis in meter. If none, use radius. Defaults to None.
     radius_z: float | None = frozen_field(default=None)
+
+    # Derived from radius — not constructor parameters.
+    partial_real_shape: PartialRealShape3D = frozen_field(default=UNDEFINED_SHAPE_3D, init=False)
+    partial_grid_shape: PartialGridShape3D = frozen_field(default=UNDEFINED_SHAPE_3D, init=False)
+
+    def __post_init__(self):
+        rx = self.radius_x if self.radius_x is not None else self.radius
+        ry = self.radius_y if self.radius_y is not None else self.radius
+        rz = self.radius_z if self.radius_z is not None else self.radius
+        object.__setattr__(self, "partial_real_shape", (2.0 * rx, 2.0 * ry, 2.0 * rz))
 
     def get_voxel_mask_for_shape(self) -> jax.Array:
         """Generates a voxel mask for a sphere or ellipsoid shape.

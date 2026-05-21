@@ -8,10 +8,12 @@ from fdtdx.core.jax.sharding import create_named_sharded_matrix
 from fdtdx.core.jax.ste import straight_through_estimator
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, ParameterContainer
 from fdtdx.materials import (
+    compute_allowed_dispersive_coefficients,
     compute_allowed_electric_conductivities,
     compute_allowed_magnetic_conductivities,
     compute_allowed_permeabilities,
     compute_allowed_permittivities,
+    compute_pole_coefficients,
 )
 from fdtdx.objects.boundaries.bloch import BlochBoundary
 from fdtdx.objects.device.parameters.transform import ParameterType
@@ -160,6 +162,8 @@ def apply_params(
     isotropic = num_perm_components == 1
     diagonally_anisotropic = num_perm_components == 3
 
+    num_dispersive_poles = arrays.dispersive_c1.shape[0] if arrays.dispersive_c1 is not None else 0
+
     # apply parameter to devices
     for device in objects.devices:
         cur_material_indices = device(params[device.name], expand_to_sim_grid=True, **transform_kwargs)
@@ -177,24 +181,99 @@ def apply_params(
             # Fully anisotropic: reshape to 3x3 matrix, invert, and flatten back to 9 elements
             inv_allowed = jnp.array([jnp.linalg.inv(perm.reshape(3, 3)).flatten() for perm in allowed_perm_array])
 
+        # When any object in the sim is dispersive (num_dispersive_poles > 0) we
+        # always write the coefficient stack into the device's grid_slice — even
+        # when none of the device's materials are dispersive themselves. Otherwise
+        # stale coefficients from an underlying dispersive region would survive
+        # and keep evolving polarization in the device's voxels.
+        # compute_allowed_dispersive_coefficients zero-pads non-dispersive materials.
+        write_dispersive = num_dispersive_poles > 0
+        if write_dispersive:
+            assert (
+                arrays.dispersive_c1 is not None
+                and arrays.dispersive_c2 is not None
+                and arrays.dispersive_c3 is not None
+            )
+            dt = device._config.time_step_duration
+            allowed_c1_np, allowed_c2_np, allowed_c3_np = compute_allowed_dispersive_coefficients(
+                device.materials,
+                dt=dt,
+                max_num_poles=num_dispersive_poles,
+            )
+            allowed_c1_arr = jnp.asarray(allowed_c1_np, dtype=arrays.dispersive_c1.dtype)
+            allowed_c2_arr = jnp.asarray(allowed_c2_np, dtype=arrays.dispersive_c2.dtype)
+            allowed_c3_arr = jnp.asarray(allowed_c3_np, dtype=arrays.dispersive_c3.dtype)
+
         if device.output_type == ParameterType.CONTINUOUS:
             # Linear interpolation between two materials
             # Add spatial broadcast dims for element-wise multiplication
             inv_allowed_bc = inv_allowed[:, :, None, None, None]
             # cur_material_indices: (*grid_shape) broadcasts with (num_components, 1, 1, 1)
             new_perm_slice = (1 - cur_material_indices) * inv_allowed_bc[0] + cur_material_indices * inv_allowed_bc[1]
+            if write_dispersive:
+                # Linear interpolation of dispersive coefficients between the two bracketing materials.
+                # Note: this follows the same straight-through-estimator convention as the
+                # permittivity path above — it is *not* equivalent to a material whose
+                # epsilon and poles are linearly interpolated, but it is the same
+                # continuous relaxation used for inv_permittivities, so gradients still
+                # flow smoothly through the device parameters during inverse design.
+                # allowed_cN_arr: (num_materials, num_poles) — here num_materials == 2.
+                # reshape to (num_poles, 1, 1, 1, 1) for broadcast over (num_poles, 1, Nx, Ny, Nz)
+                w0 = (1 - cur_material_indices)[None, None, ...]  # (1, 1, Nx, Ny, Nz)
+                w1 = cur_material_indices[None, None, ...]
+                c1_0 = allowed_c1_arr[0][:, None, None, None, None]  # (num_poles, 1, 1, 1, 1)
+                c1_1 = allowed_c1_arr[1][:, None, None, None, None]
+                c2_0 = allowed_c2_arr[0][:, None, None, None, None]
+                c2_1 = allowed_c2_arr[1][:, None, None, None, None]
+                c3_0 = allowed_c3_arr[0][:, None, None, None, None]
+                c3_1 = allowed_c3_arr[1][:, None, None, None, None]
+                new_c1_slice = w0 * c1_0 + w1 * c1_1
+                new_c2_slice = w0 * c2_0 + w1 * c2_1
+                new_c3_slice = w0 * c3_0 + w1 * c3_1
         else:
             # Discrete material selection
             # inv_allowed[indices] -> (*grid_shape, num_components), then moveaxis -> (num_components, *grid_shape)
             component_values = jnp.moveaxis(inv_allowed[cur_material_indices.astype(jnp.int32)], -1, 0)
             component_values = straight_through_estimator(cur_material_indices, component_values)
             new_perm_slice = component_values
+            if write_dispersive:
+                int_idx = cur_material_indices.astype(jnp.int32)
+                # allowed_cN_arr[int_idx]: (Nx, Ny, Nz, num_poles) -> moveaxis -> (num_poles, Nx, Ny, Nz)
+                new_c1_slice = jnp.moveaxis(allowed_c1_arr[int_idx], -1, 0)[:, None, ...]
+                new_c2_slice = jnp.moveaxis(allowed_c2_arr[int_idx], -1, 0)[:, None, ...]
+                new_c3_slice = jnp.moveaxis(allowed_c3_arr[int_idx], -1, 0)[:, None, ...]
 
         # Update all components of inv_permittivities array at once
         new_perm = arrays.inv_permittivities.at[:, *device.grid_slice].set(new_perm_slice)
         arrays = arrays.at["inv_permittivities"].set(new_perm)
 
-    # apply random key to sources
+        if write_dispersive:
+            assert (
+                arrays.dispersive_c1 is not None
+                and arrays.dispersive_c2 is not None
+                and arrays.dispersive_c3 is not None
+            )
+            new_c1 = arrays.dispersive_c1.at[:, :, *device.grid_slice].set(new_c1_slice)
+            new_c2 = arrays.dispersive_c2.at[:, :, *device.grid_slice].set(new_c2_slice)
+            new_c3 = arrays.dispersive_c3.at[:, :, *device.grid_slice].set(new_c3_slice)
+            # Recompute inv_c2 from the post-interpolation c2. Do NOT interpolate
+            # inv_c2 directly: 1/avg(c2) != avg(1/c2), and the reverse-time ADE
+            # relies on inv_c2 being the exact reciprocal of the stored c2.
+            new_inv_c2 = jnp.where(new_c2 == 0, 0.0, 1.0 / new_c2)
+            arrays = arrays.at["dispersive_c1"].set(new_c1)
+            arrays = arrays.at["dispersive_c2"].set(new_c2)
+            arrays = arrays.at["dispersive_c3"].set(new_c3)
+            arrays = arrays.at["dispersive_inv_c2"].set(new_inv_c2)
+
+    # apply random key to sources. Source-side sampling of the dispersion
+    # coefficients (used only for carrier-frequency impedance / energy
+    # normalization) is stop_gradient'd to match the treatment of
+    # ``inv_permittivities`` — the FDTD VJP itself still propagates gradient
+    # through the coefficients, so this only avoids noise from the source
+    # amplitude path.
+    disp_c1 = None if arrays.dispersive_c1 is None else jax.lax.stop_gradient(arrays.dispersive_c1)
+    disp_c2 = None if arrays.dispersive_c2 is None else jax.lax.stop_gradient(arrays.dispersive_c2)
+    disp_c3 = None if arrays.dispersive_c3 is None else jax.lax.stop_gradient(arrays.dispersive_c3)
     new_objects = []
     for obj in objects.object_list:
         key, subkey = jax.random.split(key)
@@ -202,6 +281,9 @@ def apply_params(
             key=subkey,
             inv_permittivities=jax.lax.stop_gradient(arrays.inv_permittivities),
             inv_permeabilities=jax.lax.stop_gradient(arrays.inv_permeabilities),
+            dispersive_c1=disp_c1,
+            dispersive_c2=disp_c2,
+            dispersive_c3=disp_c3,
         )
         new_objects.append(new_obj)
     new_objects = ObjectContainer(
@@ -392,6 +474,56 @@ def _init_arrays(
             backend=config.backend,
         )
 
+    # dispersive ADE auxiliary arrays - all None unless any material is dispersive.
+    # Per-cell coefficients are broadcast over component via a size-1 axis.
+    num_dispersive_poles = objects.max_num_dispersive_poles
+    dispersive_P_curr = None
+    dispersive_P_prev = None
+    dispersive_c1 = None
+    dispersive_c2 = None
+    dispersive_c3 = None
+    if num_dispersive_poles > 0:
+        if not (isotropic_permittivity or diagonally_anisotropic_permittivity):
+            raise NotImplementedError(
+                "Dispersive materials cannot be combined with fully anisotropic "
+                "(off-diagonal) permittivity tensors in v1."
+            )
+        dispersive_P_curr = create_named_sharded_matrix(
+            (num_dispersive_poles, 3, *volume_shape),
+            value=0.0,
+            dtype=field_dtype,
+            sharding_axis=2,
+            backend=config.backend,
+        )
+        dispersive_P_prev = create_named_sharded_matrix(
+            (num_dispersive_poles, 3, *volume_shape),
+            value=0.0,
+            dtype=field_dtype,
+            sharding_axis=2,
+            backend=config.backend,
+        )
+        dispersive_c1 = create_named_sharded_matrix(
+            (num_dispersive_poles, 1, *volume_shape),
+            value=0.0,
+            dtype=config.dtype,
+            sharding_axis=2,
+            backend=config.backend,
+        )
+        dispersive_c2 = create_named_sharded_matrix(
+            (num_dispersive_poles, 1, *volume_shape),
+            value=0.0,
+            dtype=config.dtype,
+            sharding_axis=2,
+            backend=config.backend,
+        )
+        dispersive_c3 = create_named_sharded_matrix(
+            (num_dispersive_poles, 1, *volume_shape),
+            value=0.0,
+            dtype=config.dtype,
+            sharding_axis=2,
+            backend=config.backend,
+        )
+
     # set permittivity/permeability/conductivity of static objects
     sorted_obj = sorted(
         objects.static_material_objects,
@@ -482,6 +614,33 @@ def _init_arrays(
                 ]
                 magnetic_conductivity = magnetic_conductivity.at[:, *o.grid_slice].set(obj_magnetic_conductivity)
 
+            if num_dispersive_poles > 0:
+                # Always write the full pole-coefficient stack — zero-padded for
+                # non-dispersive materials — so later placements deterministically
+                # overwrite earlier coefficients across the object's grid_slice.
+                # Without this, a non-dispersive UniformMaterialObject stacked over
+                # a dispersive one would leave stale pole coefficients in the overlap
+                # and drive an ADE update on cells that shouldn't have one.
+                assert dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None
+                poles = o.material.dispersion.poles if o.material.dispersion is not None else ()
+                c1_vals, c2_vals, c3_vals = compute_pole_coefficients(poles, config.time_step_duration)
+                n = len(poles)
+                c1_padded = jnp.zeros(num_dispersive_poles, dtype=config.dtype)
+                c2_padded = jnp.zeros(num_dispersive_poles, dtype=config.dtype)
+                c3_padded = jnp.zeros(num_dispersive_poles, dtype=config.dtype)
+                if n > 0:
+                    c1_padded = c1_padded.at[:n].set(jnp.asarray(c1_vals, dtype=config.dtype))
+                    c2_padded = c2_padded.at[:n].set(jnp.asarray(c2_vals, dtype=config.dtype))
+                    c3_padded = c3_padded.at[:n].set(jnp.asarray(c3_vals, dtype=config.dtype))
+                # Broadcast (num_poles,) → (num_poles, 1, Nx, Ny, Nz) over grid_slice
+                slice_shape = dispersive_c1[:, :, *o.grid_slice].shape
+                c1_block = jnp.broadcast_to(c1_padded[:, None, None, None, None], slice_shape)
+                c2_block = jnp.broadcast_to(c2_padded[:, None, None, None, None], slice_shape)
+                c3_block = jnp.broadcast_to(c3_padded[:, None, None, None, None], slice_shape)
+                dispersive_c1 = dispersive_c1.at[:, :, *o.grid_slice].set(c1_block)
+                dispersive_c2 = dispersive_c2.at[:, :, *o.grid_slice].set(c2_block)
+                dispersive_c3 = dispersive_c3.at[:, :, *o.grid_slice].set(c3_block)
+
         elif isinstance(o, (StaticMultiMaterialObject)):
             indices = o.get_material_mapping()
             mask = o.get_voxel_mask_for_shape()
@@ -551,6 +710,34 @@ def _init_arrays(
                 component_values = jnp.moveaxis(allowed_conds[indices], -1, 0) * config.resolution
                 diff = component_values - magnetic_conductivity[:, *o.grid_slice]
                 magnetic_conductivity = magnetic_conductivity.at[:, *o.grid_slice].add(mask * diff)
+
+            # Always run when dispersive arrays exist in the sim: a non-dispersive
+            # StaticMultiMaterialObject layered over a dispersive region must
+            # zero the inherited coefficients in its mask. compute_allowed_dispersive_coefficients
+            # zero-pads non-dispersive materials, so this still cleanly overwrites.
+            if num_dispersive_poles > 0:
+                assert dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None
+                allowed_c1, allowed_c2, allowed_c3 = compute_allowed_dispersive_coefficients(
+                    o.materials,
+                    dt=config.time_step_duration,
+                    max_num_poles=num_dispersive_poles,
+                )
+                # Shape (num_materials, num_poles) -> index by (Nx, Ny, Nz) ->
+                # (Nx, Ny, Nz, num_poles) -> moveaxis -> (num_poles, Nx, Ny, Nz)
+                c1_voxels = jnp.moveaxis(jnp.asarray(allowed_c1, dtype=config.dtype)[indices], -1, 0)
+                c2_voxels = jnp.moveaxis(jnp.asarray(allowed_c2, dtype=config.dtype)[indices], -1, 0)
+                c3_voxels = jnp.moveaxis(jnp.asarray(allowed_c3, dtype=config.dtype)[indices], -1, 0)
+                # broadcast over component axis
+                c1_voxels = c1_voxels[:, None, ...]
+                c2_voxels = c2_voxels[:, None, ...]
+                c3_voxels = c3_voxels[:, None, ...]
+                mask_bc = mask[None, None, ...]
+                diff = c1_voxels - dispersive_c1[:, :, *o.grid_slice]
+                dispersive_c1 = dispersive_c1.at[:, :, *o.grid_slice].add(mask_bc * diff)
+                diff = c2_voxels - dispersive_c2[:, :, *o.grid_slice]
+                dispersive_c2 = dispersive_c2.at[:, :, *o.grid_slice].add(mask_bc * diff)
+                diff = c3_voxels - dispersive_c3[:, :, *o.grid_slice]
+                dispersive_c3 = dispersive_c3.at[:, :, *o.grid_slice].add(mask_bc * diff)
         else:
             raise Exception(f"Unknown object type: {o}")
 
@@ -598,6 +785,12 @@ def _init_arrays(
         )
         config = config.aset("gradient_config", grad_cfg)
 
+    # Cache 1/c2 with non-dispersive cells zeroed so update_E_reverse can replace
+    # its ``jnp.where(c2 == 0, ..., / c2)`` pair with a single multiply.
+    dispersive_inv_c2 = None
+    if dispersive_c2 is not None:
+        dispersive_inv_c2 = jnp.where(dispersive_c2 == 0, 0.0, 1.0 / dispersive_c2)
+
     arrays = ArrayContainer(
         fields=FieldState(E=E, H=H, psi_E=psi_E, psi_H=psi_H),
         alpha=alpha,
@@ -609,6 +802,12 @@ def _init_arrays(
         recording_state=recording_state,
         electric_conductivity=electric_conductivity,
         magnetic_conductivity=magnetic_conductivity,
+        dispersive_P_curr=dispersive_P_curr,
+        dispersive_P_prev=dispersive_P_prev,
+        dispersive_c1=dispersive_c1,
+        dispersive_c2=dispersive_c2,
+        dispersive_c3=dispersive_c3,
+        dispersive_inv_c2=dispersive_inv_c2,
     )
     return arrays, config, info
 
@@ -907,7 +1106,8 @@ def _apply_constraints_iteratively(
         )
         changed = changed or resolved
 
-        # update the grid slices based on static shape and partial known positions
+        # Slices-from-shapes: propagate a known shape to an open bound.
+        # Shapes-from-slices: lock the shape once both bounds are known.
         resolved, slice_dict, errors = _update_grid_slices_from_shapes(
             object_map=object_map,
             shape_dict=shape_dict,
@@ -1010,18 +1210,35 @@ def _resolve_static_shapes(
     object_map: dict[str, SimulationObject],
     shape_dict: dict[str, list[int | None]],
     config: SimulationConfig,
-):
-    """Fill in static or directly defined shapes."""
+) -> dict[str, list[int | None]]:
+    """Fill in shapes from each object's partial_real_shape and partial_grid_shape."""
     for obj_name, obj in object_map.items():
         for axis in range(3):
             if obj.partial_grid_shape[axis] is not None:
                 shape_dict[obj_name][axis] = obj.partial_grid_shape[axis]
             if obj.partial_real_shape[axis] is not None:
-                cur_grid_shape = round(
+                shape_dict[obj_name][axis] = round(
                     obj.partial_real_shape[axis] / config.resolution  # type: ignore
                 )
-                shape_dict[obj_name][axis] = cur_grid_shape
     return shape_dict
+
+
+def _record_shape_bound_conflict(
+    obj_name: str,
+    axis: int,
+    bound_size: int,
+    obj: SimulationObject,
+    shape_dict: dict[str, list[int | None]],
+    errors: dict[str, str | None],
+) -> bool:
+    """Record a conflict where shape_dict and bound-derived size disagree. Always an error."""
+    errors[obj_name] = (
+        f"Inconsistent grid shape for object: {shape_dict[obj_name][axis]} != {bound_size} "
+        f"for axis={axis}, {obj.name} ({obj.__class__.__name__}). "
+        f"Check partial_real_shape, partial_grid_shape, and any SizeConstraints for this object. "
+        f"If the shape is derived from geometry (e.g. radius), a conflicting constraint was applied."
+    )
+    return False
 
 
 def _update_grid_slices_from_shapes(
@@ -1042,9 +1259,7 @@ def _update_grid_slices_from_shapes(
                 continue
             elif b0 is not None and b1 is not None:
                 if s_axis != b1 - b0:
-                    errors[obj_name] = (
-                        f"Inconsistent grid shape for object: {s_axis} != {b1 - b0}, {obj.name} ({obj.__class__})."
-                    )
+                    resolved_something |= _record_shape_bound_conflict(obj_name, axis, b1 - b0, obj, shape_dict, errors)
             elif b0 is not None:
                 slice_dict[obj_name][axis][1] = b0 + s_axis
                 resolved_something = True
@@ -1071,10 +1286,8 @@ def _update_grid_shapes_from_slices(
                 if s_axis is None:
                     shape_dict[obj_name][axis] = b1 - b0
                     resolved_something = True
-                elif s_axis is not None and b1 - b0 != s_axis:
-                    errors[obj_name] = (
-                        f"Inconsistent grid shape for object: {s_axis} != {b1 - b0}, {obj.name} ({obj.__class__})."
-                    )
+                elif b1 - b0 != s_axis:
+                    resolved_something |= _record_shape_bound_conflict(obj_name, axis, b1 - b0, obj, shape_dict, errors)
     return resolved_something, shape_dict, errors
 
 
@@ -1223,9 +1436,11 @@ def _apply_size_constraint(
             resolved_something = True
         elif shape_dict[obj_name][axis] != object_shape:
             raise Exception(
-                "Inconsistent grid shape for object: ",
-                f"{shape_dict[obj_name][axis]} != {object_shape} for {axis=}, {obj.name} ({obj.__class__}). ",
-                "Please check if there are multiple constraints or sizes specified for the object.",
+                f"Inconsistent grid shape for object: "
+                f"{shape_dict[obj_name][axis]} != {object_shape} for axis={axis}, "
+                f"{obj.name} ({obj.__class__.__name__}). "
+                f"Check partial_real_shape, partial_grid_shape, and any SizeConstraints for this object. "
+                f"If the shape is derived from geometry (e.g. radius), a conflicting SizeConstraint was applied."
             )
     return resolved_something, shape_dict
 

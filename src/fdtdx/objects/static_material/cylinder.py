@@ -13,6 +13,10 @@ class Cylinder(StaticMultiMaterialObject):
     This class represents a cylindrical fiber with customizable radius, material,
     and orientation. The fiber can be positioned along any of the three principal axes.
 
+    The cross-section size (diameter = 2 * radius) is automatically inferred for the
+    two axes perpendicular to ``axis``, so ``partial_real_shape`` does not need to be
+    specified for those axes.  The extrusion axis size must still be determined by a
+    constraint or an explicit ``partial_real_shape`` entry.
     """
 
     #: The radius of the fiber in meter.
@@ -23,6 +27,24 @@ class Cylinder(StaticMultiMaterialObject):
 
     #: Name of the material in the materials dictionary to be used for the object.
     material_name: str = frozen_field()
+
+    def __post_init__(self):
+        diameter = 2.0 * self.radius
+        real_shape = list(self.partial_real_shape)
+        grid_shape = list(self.partial_grid_shape)
+        for ax in (self.horizontal_axis, self.vertical_axis):
+            if real_shape[ax] is not None:
+                raise Exception(
+                    f"Cylinder {self.name}: partial_real_shape for axis {ax} is derived from the radius "
+                    f"({diameter:.3e} m). Do not specify it explicitly."
+                )
+            if grid_shape[ax] is not None:
+                raise Exception(
+                    f"Cylinder {self.name}: partial_grid_shape for axis {ax} is derived from the radius. "
+                    f"Do not specify it explicitly."
+                )
+            real_shape[ax] = diameter
+        object.__setattr__(self, "partial_real_shape", tuple(real_shape))
 
     @property
     def horizontal_axis(self) -> int:

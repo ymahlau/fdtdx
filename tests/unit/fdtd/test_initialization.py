@@ -542,6 +542,11 @@ def _make_arrays_mock(shape=(10, 10, 10)):
     arrays = Mock(spec=ArrayContainer)
     arrays.inv_permittivities = inv_perm
     arrays.inv_permeabilities = inv_permeab
+    arrays.dispersive_c1 = None
+    arrays.dispersive_c2 = None
+    arrays.dispersive_c3 = None
+    arrays.dispersive_P_curr = None
+    arrays.dispersive_P_prev = None
     at_accessor = MagicMock()
 
     def at_getitem(key):
@@ -551,6 +556,11 @@ def _make_arrays_mock(shape=(10, 10, 10)):
             result = Mock(spec=ArrayContainer)
             result.inv_permittivities = value if key == "inv_permittivities" else inv_perm
             result.inv_permeabilities = inv_permeab
+            result.dispersive_c1 = None
+            result.dispersive_c2 = None
+            result.dispersive_c3 = None
+            result.dispersive_P_curr = None
+            result.dispersive_P_prev = None
             result.at = at_accessor
             return result
 
@@ -643,6 +653,11 @@ def test_apply_params_isotropic_components(mock_compute_perm):
     arrays = Mock(spec=ArrayContainer)
     arrays.inv_permittivities = inv_perm
     arrays.inv_permeabilities = inv_permeab
+    arrays.dispersive_c1 = None
+    arrays.dispersive_c2 = None
+    arrays.dispersive_c3 = None
+    arrays.dispersive_P_curr = None
+    arrays.dispersive_P_prev = None
     at_accessor = MagicMock()
 
     def at_getitem(key):
@@ -651,6 +666,11 @@ def test_apply_params_isotropic_components(mock_compute_perm):
             spec=ArrayContainer,
             inv_permittivities=v,
             inv_permeabilities=inv_permeab,
+            dispersive_c1=None,
+            dispersive_c2=None,
+            dispersive_c3=None,
+            dispersive_P_curr=None,
+            dispersive_P_prev=None,
             at=at_accessor,
         )
         return at_result
@@ -690,6 +710,11 @@ def test_apply_params_fully_anisotropic_continuous(mock_compute_perm):
     arrays = Mock(spec=ArrayContainer)
     arrays.inv_permittivities = inv_perm
     arrays.inv_permeabilities = inv_permeab
+    arrays.dispersive_c1 = None
+    arrays.dispersive_c2 = None
+    arrays.dispersive_c3 = None
+    arrays.dispersive_P_curr = None
+    arrays.dispersive_P_prev = None
     at_accessor = MagicMock()
 
     def at_getitem(key):
@@ -698,6 +723,11 @@ def test_apply_params_fully_anisotropic_continuous(mock_compute_perm):
             spec=ArrayContainer,
             inv_permittivities=v,
             inv_permeabilities=inv_permeab,
+            dispersive_c1=None,
+            dispersive_c2=None,
+            dispersive_c3=None,
+            dispersive_P_curr=None,
+            dispersive_P_prev=None,
             at=at_accessor,
         )
         return at_result
@@ -738,6 +768,11 @@ def test_apply_params_fully_anisotropic_discrete(mock_ste, mock_compute_perm):
     arrays = Mock(spec=ArrayContainer)
     arrays.inv_permittivities = inv_perm
     arrays.inv_permeabilities = inv_permeab
+    arrays.dispersive_c1 = None
+    arrays.dispersive_c2 = None
+    arrays.dispersive_c3 = None
+    arrays.dispersive_P_curr = None
+    arrays.dispersive_P_prev = None
     at_accessor = MagicMock()
 
     def at_getitem(key):
@@ -746,6 +781,11 @@ def test_apply_params_fully_anisotropic_discrete(mock_ste, mock_compute_perm):
             spec=ArrayContainer,
             inv_permittivities=v,
             inv_permeabilities=inv_permeab,
+            dispersive_c1=None,
+            dispersive_c2=None,
+            dispersive_c3=None,
+            dispersive_P_curr=None,
+            dispersive_P_prev=None,
             at=at_accessor,
         )
         return at_result
@@ -854,6 +894,88 @@ def test_apply_size_constraint_conflicting_shape_raises(simple_config, simple_vo
     )
     with pytest.raises(Exception):
         _apply_size_constraint(c, obj_map, simple_config, shape_dict)
+
+
+def test_apply_size_constraint_conflicting_shape_raises_descriptive(simple_config, simple_volume, simple_material):
+    """SizeConstraint that conflicts with an already-set shape raises an informative error."""
+    obj = UniformMaterialObject(name="obj1", material=simple_material)
+    obj_map = {"volume": simple_volume, "obj1": obj}
+    shape_dict = {"volume": [100, 100, 100], "obj1": [60, None, None]}
+    c = SizeConstraint(
+        object="obj1",
+        other_object="volume",
+        axes=[0],
+        other_axes=[0],
+        proportions=[0.5],  # computes 50, but shape is already 60
+        grid_offsets=[0],
+        offsets=[None],
+    )
+    with pytest.raises(Exception, match="geometry"):
+        _apply_size_constraint(c, obj_map, simple_config, shape_dict)
+
+
+# ---------------------------------------------------------------------------
+# Cylinder __post_init__ — derived axis conflict tests
+# ---------------------------------------------------------------------------
+
+
+def test_cylinder_partial_grid_shape_on_derived_axis_raises(simple_material):
+    """Cylinder rejects partial_grid_shape for a cross-section axis at construction time."""
+    from fdtdx.objects.static_material.cylinder import Cylinder
+
+    materials = {"mat": simple_material}
+    with pytest.raises(Exception, match="derived from the radius"):
+        Cylinder(
+            name="cyl",
+            radius=5.0,
+            axis=2,
+            material_name="mat",
+            materials=materials,
+            partial_grid_shape=(10, None, None),
+        )
+
+
+def test_cylinder_partial_real_shape_on_derived_axis_raises(simple_material):
+    """Cylinder rejects partial_real_shape for a cross-section axis at construction time."""
+    from fdtdx.objects.static_material.cylinder import Cylinder
+
+    materials = {"mat": simple_material}
+    with pytest.raises(Exception, match="derived from the radius"):
+        Cylinder(
+            name="cyl",
+            radius=5.0,
+            axis=2,
+            material_name="mat",
+            materials=materials,
+            partial_real_shape=(8.0, None, None),
+        )
+
+
+def test_cylinder_sets_cross_section_from_radius(simple_material):
+    """Cylinder.__post_init__ fills partial_real_shape for cross-section axes from radius."""
+    from fdtdx.objects.static_material.cylinder import Cylinder
+
+    materials = {"mat": simple_material}
+    cyl = Cylinder(name="cyl", radius=5.0, axis=2, material_name="mat", materials=materials)
+    assert cyl.partial_real_shape[0] == pytest.approx(10.0)
+    assert cyl.partial_real_shape[1] == pytest.approx(10.0)
+    assert cyl.partial_real_shape[2] is None  # extrusion axis still free
+
+
+def test_cylinder_extrusion_axis_partial_real_shape_accepted(simple_material):
+    """Cylinder accepts partial_real_shape for the extrusion axis."""
+    from fdtdx.objects.static_material.cylinder import Cylinder
+
+    materials = {"mat": simple_material}
+    cyl = Cylinder(
+        name="cyl",
+        radius=5.0,
+        axis=2,
+        material_name="mat",
+        materials=materials,
+        partial_real_shape=(None, None, 20.0),
+    )
+    assert cyl.partial_real_shape[2] == pytest.approx(20.0)
 
 
 # ---------------------------------------------------------------------------
@@ -1104,6 +1226,7 @@ def test_init_arrays_unknown_static_material_type_raises(mock_create_matrix):
     objects.all_objects_non_magnetic = True
     objects.all_objects_non_electrically_conductive = True
     objects.all_objects_non_magnetically_conductive = True
+    objects.max_num_dispersive_poles = 0
     objects.static_material_objects = [fake_obj]
     objects.detectors = []
     objects.boundary_objects = []

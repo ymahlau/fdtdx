@@ -2,11 +2,13 @@ from typing import Literal, Self, Sequence
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.null import Null
 from fdtdx.core.physics.modes import compute_mode
+from fdtdx.dispersion import effective_inv_permittivity
 from fdtdx.objects.detectors.detector import DetectorState
 from fdtdx.objects.detectors.phasor import PhasorDetector
 from fdtdx.typing import SliceTuple3D
@@ -92,14 +94,34 @@ class ModeOverlapDetector(PhasorDetector):
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
+        dispersive_c1: jax.Array | None = None,
+        dispersive_c2: jax.Array | None = None,
+        dispersive_c3: jax.Array | None = None,
     ) -> Self:
         del key
-
         inv_permittivity_slice = inv_permittivities[:, *self.grid_slice]
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
             inv_permeability_slice = inv_permeabilities[:, *self.grid_slice]
         else:
             inv_permeability_slice = inv_permeabilities
+
+        # Frequency-correct the permittivity seen by the mode solver so the
+        # reference mode profile reflects ε(ω_c) of any dispersive medium the
+        # detector sits in, not just ε∞. Matches the pattern in
+        # ModePlaneSource.apply. Cells with no pole have c1=c2=c3=0, in which
+        # case effective_inv_permittivity returns inv_eps unchanged.
+        if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
+            c1_slice = dispersive_c1[:, :, *self.grid_slice]
+            c2_slice = dispersive_c2[:, :, *self.grid_slice]
+            c3_slice = dispersive_c3[:, :, *self.grid_slice]
+            inv_permittivity_slice = effective_inv_permittivity(
+                inv_eps=inv_permittivity_slice,
+                c1=c1_slice,
+                c2=c2_slice,
+                c3=c3_slice,
+                omega=2.0 * np.pi * self.wave_characters[0].get_frequency(),
+                dt=self._config.time_step_duration,
+            )
 
         mode_E, mode_H, mode_neff = compute_mode(
             frequency=self.wave_characters[0].get_frequency(),
