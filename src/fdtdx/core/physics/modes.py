@@ -100,6 +100,7 @@ def compute_mode(
     dtype: jnp.dtype = jnp.float32,
     bend_radius: float | None = None,
     bend_axis: int | None = None,
+    symmetry: tuple[int, int] = (0, 0),
 ) -> tuple[
     jax.Array,  # E
     jax.Array,  # H
@@ -130,6 +131,12 @@ def compute_mode(
             None (straight waveguide).
         bend_axis (int | None, optional): Physical axis index (0/1/2) pointing from the waveguide toward the center
             of curvature. Must differ from the propagation axis. Required when bend_radius is set. Defaults to None.
+        symmetry (tuple[int, int], optional): Symmetry-plane condition at the *min* edge of each transverse axis,
+            in the order of the two non-propagation physical axes (increasing index). ``0`` imposes a PEC mirror
+            (electric wall — the tidy3d default), ``1`` imposes a PMC mirror (magnetic wall). Use this when the
+            waveguide sits on a symmetry plane of a reduced (half/quarter) domain so the mode solver reproduces the
+            same boundary the FDTD uses there. For a +x-propagating TE mode on a y/z quarter domain with PEC at y=0
+            and PMC at the z Si-mid plane, pass ``(0, 1)``. Defaults to ``(0, 0)`` (PEC on both, i.e. no symmetry).
 
     Returns:
         Tuple[jax.Array, jax.Array, jax.Array]:
@@ -173,6 +180,7 @@ def compute_mode(
             bend_radius=bend_radius_um,
             bend_axis=tidy3d_bend_axis,
             plane_center=plane_center,
+            symmetry=symmetry,
         )
 
         # sort modes by polarization
@@ -308,6 +316,7 @@ def tidy3d_mode_computation_wrapper(
     bend_radius: float | None = None,
     bend_axis: int | None = None,
     plane_center: tuple[float, float] | None = None,
+    symmetry: tuple[int, int] = (0, 0),
 ) -> List[ModeTupleType]:
     """Compute optical modes of a waveguide cross-section.
 
@@ -331,6 +340,9 @@ def tidy3d_mode_computation_wrapper(
             coordinate frame. Defaults to None.
         plane_center (tuple[float, float] | None, optional): Center of the mode plane in the same units as coords.
             Required by tidy3d when bend_radius is set. Defaults to None.
+        symmetry (tuple[int, int], optional): Per-transverse-axis symmetry condition at the min edge, forwarded to
+            the tidy3d mode solver. ``1`` imposes a PMC (magnetic) wall there; ``0`` (default) leaves the solver's
+            PEC (electric) wall. Order matches ``coords``. Defaults to ``(0, 0)``.
 
     Notes:
         tidy3d assumes propagation in z-direction. The output fields should be handled accordingly.
@@ -394,6 +406,7 @@ def tidy3d_mode_computation_wrapper(
         direction=direction,
         mu_cross=mu_cross,
         plane_center=plane_center,
+        symmetry=symmetry,
     )
     ((Ex, Ey, Ez), (Hx, Hy, Hz)) = EH.squeeze()
 

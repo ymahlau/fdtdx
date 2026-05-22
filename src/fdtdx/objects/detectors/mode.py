@@ -50,6 +50,14 @@ class ModeOverlapDetector(PhasorDetector):
     #: curvature. Must differ from the propagation axis. Required when bend_radius is set.
     bend_axis: int | None = frozen_field(default=None)
 
+    #: Symmetry-plane condition at the min edge of each transverse axis (the two non-propagation
+    #: physical axes, in increasing-index order): ``0`` = PEC mirror (electric wall, the default),
+    #: ``1`` = PMC mirror (magnetic wall). Set this when the detector plane's waveguide lies on a
+    #: symmetry plane of a reduced (half/quarter) domain so the reference mode is solved with the
+    #: same wall the FDTD uses (e.g. ``(0, 1)`` for PEC at y=0 and PMC at the z Si-mid plane).
+    #: Must match the corresponding ModePlaneSource for a consistent overlap.
+    symmetry: tuple[int, int] = frozen_field(default=(0, 0))
+
     #: Cannot be specified here since the detector needs all components.
     components: Sequence[Literal["Ex", "Ey", "Ez", "Hx", "Hy", "Hz"]] = frozen_field(
         default=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"),
@@ -134,6 +142,7 @@ class ModeOverlapDetector(PhasorDetector):
             dtype=self._config.dtype,
             bend_radius=self.bend_radius,
             bend_axis=self.bend_axis,
+            symmetry=self.symmetry,
         )
 
         self = self.aset("_mode_E", mode_E, create_new_ok=True)

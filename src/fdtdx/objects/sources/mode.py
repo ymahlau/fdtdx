@@ -23,6 +23,15 @@ class ModePlaneSource(TFSFPlaneSource):
     #: a literal value 'te', 'tm' to filter
     filter_pol: Literal["te", "tm"] | None = frozen_field(default=None)
 
+    #: Symmetry-plane condition at the min edge of each transverse axis (the two
+    #: non-propagation physical axes, in increasing-index order): ``0`` = PEC
+    #: mirror (electric wall, the default), ``1`` = PMC mirror (magnetic wall).
+    #: Set this when the source plane's waveguide lies on a symmetry plane of a
+    #: reduced (half/quarter) domain, so the mode solver imposes the same wall
+    #: the FDTD uses there (e.g. ``(0, 1)`` for PEC at y=0 and PMC at the z
+    #: Si-mid plane of a +x-propagating quarter domain).
+    symmetry: tuple[int, int] = frozen_field(default=(0, 0))
+
     _inv_permittivity: jax.Array = private_field()
     _inv_permeability: jax.Array | float = private_field()
 
@@ -89,6 +98,7 @@ class ModePlaneSource(TFSFPlaneSource):
             mode_index=self.mode_index,
             filter_pol=self.filter_pol,
             dtype=self._config.dtype,
+            symmetry=self.symmetry,
         )
         mode_E, mode_H = jnp.real(mode_E), jnp.real(mode_H)
 
