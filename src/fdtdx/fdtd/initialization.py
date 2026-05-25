@@ -2,11 +2,13 @@ from typing import Any, Sequence
 
 import jax
 import jax.numpy as jnp
+from loguru import logger
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
 from fdtdx.core.jax.ste import straight_through_estimator
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, ParameterContainer
+from fdtdx.fdtd.symmetry import apply_mode_symmetry, make_symmetry_walls, reduce_resolved_slices
 from fdtdx.materials import (
     compute_allowed_dispersive_coefficients,
     compute_allowed_electric_conductivities,
@@ -85,10 +87,24 @@ def place_objects(
     volume_name = _resolve_volume_name(object_map)
     volume_obj = object_map[volume_name]
 
+    # Step 3b: Mirror-symmetry reduction. When config.symmetry has a nonzero entry, clip every
+    # resolved slice onto the kept (upper) half along each symmetric axis, drop objects that fall
+    # entirely in the discarded half, and remember the reduced volume shape (used in Step 5b to
+    # build the PEC/PMC walls on the symmetry planes). The non-symmetric path is unchanged.
+    dropped_names: set[str] = set()
+    reduced_volume_shape = None
+    if config.has_symmetry:
+        resolved_slices, dropped_names, reduced_volume_shape = reduce_resolved_slices(
+            resolved_slices=resolved_slices,
+            object_map=object_map,
+            config=config,
+            volume_name=volume_name,
+        )
+
     # Step 4: Place objects on grid based on resolved slice tuples
     placed_objects = []
     for name, slice_tuple in resolved_slices.items():
-        if name == volume_obj.name:
+        if name == volume_obj.name or name in dropped_names:
             continue
         obj = object_map[name]
         key, subkey = jax.random.split(key)
@@ -110,6 +126,27 @@ def place_objects(
             key=subkey,
         ),
     )
+
+    # Step 5b: Insert the PEC/PMC symmetry walls and forward the per-axis condition to mode
+    # sources/detectors, then warn that the simulation now runs on the reduced domain.
+    if config.has_symmetry and reduced_volume_shape is not None:
+        key, subkey = jax.random.split(key)
+        walls = make_symmetry_walls(
+            config=config,
+            reduced_volume_shape=reduced_volume_shape,
+            key=subkey,
+            existing_names={o.name for o in placed_objects},
+        )
+        placed_objects.extend(walls)
+        placed_objects = apply_mode_symmetry(placed_objects, config)
+        # Volume is index 0 and may itself be a mode object in principle; keep it pinned.
+        wall_names = [w.name for w in walls]
+        logger.warning(
+            f"Symmetry {config.symmetry} reduces the simulation to grid shape {reduced_volume_shape} "
+            f"(walls added: {wall_names}; objects dropped: {sorted(dropped_names) or 'none'}). "
+            f"Results are on the reduced domain — call fdtdx.unfold_detector_states / "
+            f"fdtdx.unfold_fields to reconstruct the full domain."
+        )
 
     # Step 6: Create object container
     objects_container = ObjectContainer(

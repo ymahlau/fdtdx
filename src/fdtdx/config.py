@@ -69,11 +69,35 @@ class SimulationConfig(TreeClass):
     #: Safety factor for the Courant condition (default: 0.99).
     courant_factor: float = frozen_field(default=0.99)
 
+    #: Per-axis mirror symmetry of the simulation, in the order (x, y, z).
+    #: Each entry is one of ``{-1, 0, +1}``:
+    #: ``0`` = no symmetry on this axis (default),
+    #: ``-1`` = PEC (electric-wall) mirror on the axis center plane,
+    #: ``+1`` = PMC (magnetic-wall) mirror on the axis center plane.
+    #: When any entry is nonzero, :func:`fdtdx.place_objects` automatically reduces the
+    #: domain to the symmetric half/quarter/octant (keeping the upper half along each
+    #: symmetric axis), clips every object onto that reduced grid, inserts the PEC/PMC
+    #: wall on the symmetry plane, and forwards the matching per-axis condition to the
+    #: mode solver. The FDTD then runs on the reduced domain; call
+    #: :func:`fdtdx.unfold_fields` / :func:`fdtdx.unfold_detector_states` afterwards to
+    #: reconstruct the full-domain arrays. This is additive and independent of manually
+    #: specifying PEC/PMC as ordinary boundaries via :class:`fdtdx.BoundaryConfig`.
+    #: Each symmetric axis must resolve to an **even** number of grid cells (so the domain
+    #: splits exactly down the middle and the unfolded result matches the full domain
+    #: cell-for-cell); otherwise :func:`fdtdx.place_objects` raises a ``ValueError``.
+    symmetry: tuple[int, int, int] = frozen_field(default=(0, 0, 0))
+
     #: Optional configuration for gradient computation.
     gradient_config: GradientConfig | None = field(default=None)
 
     def __post_init__(self):
         from jax import extend
+
+        if len(self.symmetry) != 3 or any(s not in (-1, 0, 1) for s in self.symmetry):
+            raise ValueError(
+                f"config.symmetry must be a length-3 tuple with each entry in {{-1, 0, +1}} "
+                f"(0=none, -1=PEC, +1=PMC), got {self.symmetry!r}"
+            )
 
         current_platform = extend.backend.get_backend().platform
 
@@ -103,6 +127,16 @@ class SimulationConfig(TreeClass):
 
         if self.backend == "cpu":
             jax.config.update("jax_platform_name", "cpu")
+
+    @property
+    def has_symmetry(self) -> bool:
+        """Whether any axis requests mirror symmetry.
+
+        Returns:
+            bool: True if at least one entry of :attr:`symmetry` is nonzero, meaning the
+                domain will be reduced and a PEC/PMC wall placed on the symmetry plane(s).
+        """
+        return any(s != 0 for s in self.symmetry)
 
     @property
     def courant_number(self) -> float:
