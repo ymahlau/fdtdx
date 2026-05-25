@@ -75,9 +75,7 @@ def _build(symmetry):
         partial_grid_shape=(4, 4, 4),
         material=fdtdx.Material(permittivity=2.0),
     )
-    constraints.append(
-        dropme.set_grid_coordinates(axes=(0, 1, 2), sides=("-", "-", "-"), coordinates=(0, 0, 0))
-    )
+    constraints.append(dropme.set_grid_coordinates(axes=(0, 1, 2), sides=("-", "-", "-"), coordinates=(0, 0, 0)))
     objects.append(dropme)
 
     return objects, constraints, config
@@ -156,6 +154,4 @@ def test_odd_cell_count_on_symmetric_axis_raises():
     )
     objects = [volume, *bound_dict.values()]
     with pytest.raises(ValueError, match="even number of cells"):
-        fdtdx.place_objects(
-            object_list=objects, config=config, constraints=c_list, key=jax.random.PRNGKey(0)
-        )
+        fdtdx.place_objects(object_list=objects, config=config, constraints=c_list, key=jax.random.PRNGKey(0))
