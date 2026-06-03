@@ -35,9 +35,9 @@ class TetraMeshedObject(StaticMultiMaterialObject):
 
     #: If True, calculates exact analytical subpixel volume fractions for boundary voxels
     subpixel_smoothing: bool = frozen_field(default=False)
-    
+
     _ratio_inside: np.ndarray = frozen_private_field()
-    
+
     def place_on_grid(
         self: Self,
         grid_slice_tuple: SliceTuple3D,
@@ -74,7 +74,7 @@ class TetraMeshedObject(StaticMultiMaterialObject):
         all_names = compute_ordered_names(self.materials)
         idx = all_names.index(self.material_name)
         jax_ratio_arr = jnp.asarray(self._ratio_inside, dtype=jnp.int32)
-        result= idx * jax_ratio_arr + (1 - idx) * (1 - jax_ratio_arr)
+        result = idx * jax_ratio_arr + (1 - idx) * (1 - jax_ratio_arr)
         return jnp.asarray(result.reshape(self.grid_shape), dtype=jnp.int32)
 
 
