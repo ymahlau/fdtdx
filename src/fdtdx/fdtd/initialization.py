@@ -1,8 +1,11 @@
+import math
+import warnings
 from typing import Any, Sequence
 
 import jax
 import jax.numpy as jnp
 
+from fdtdx import constants
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.guards import check_not_tracing
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
@@ -29,6 +32,19 @@ from fdtdx.objects.object import (
 from fdtdx.objects.static_material.static import SimulationVolume, StaticMultiMaterialObject, UniformMaterialObject
 
 DEFAULT_MAX_ITER = 1000
+
+
+def _warn_if_simulation_volume_too_large(grid_shape: tuple[int, int, int]) -> None:
+    num_cells = math.prod(grid_shape)
+    if num_cells > constants.MAX_SIMULATION_VOLUME_CELLS:
+        warnings.warn(
+            f"Simulation volume has {num_cells:,} cells (grid shape {grid_shape}), "
+            f"which exceeds the recommended limit of {constants.MAX_SIMULATION_VOLUME_CELLS:,}. "
+            "Allocating FDTD field arrays may require excessive memory and fail.",
+            UserWarning,
+            stacklevel=3,
+        )
+
 
 AnyConstraint = (
     PositionConstraint | SizeConstraint | SizeExtensionConstraint | GridCoordinateConstraint | RealCoordinateConstraint
@@ -325,6 +341,7 @@ def _init_arrays(
     """
     # create E/H fields
     volume_shape = objects.volume.grid_shape
+    _warn_if_simulation_volume_too_large(volume_shape)
     ext_shape = (3, *volume_shape)
 
     # Determine whether to use complex-valued fields
