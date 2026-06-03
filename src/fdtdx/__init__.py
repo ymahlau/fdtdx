@@ -96,7 +96,7 @@ from fdtdx.objects.sources.linear_polarization import GaussianPlaneSource, Unifo
 from fdtdx.objects.sources.mode import ModePlaneSource
 from fdtdx.objects.sources.profile import GaussianPulseProfile, SingleFrequencyProfile
 from fdtdx.objects.static_material.cylinder import Cylinder
-from fdtdx.objects.static_material.meshed import TriangleMeshedObject, meshed_object_from_file
+from fdtdx.objects.static_material.meshed import TetraMeshedObject, TriangleMeshedObject, meshed_object_from_file
 from fdtdx.objects.static_material.polygon import (
     ExtrudedPolygon,
     extruded_polygon_from_gds,
@@ -178,6 +178,7 @@ __all__ = [
     "StandardToPlusOneMinusOneRange",
     "SubpixelSmoothedProjection",
     "TanhProjection",
+    "TetraMeshedObject",
     "TreeClass",
     "TriangleMeshedObject",
     "UniformMaterialObject",
