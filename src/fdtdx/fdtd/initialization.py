@@ -4,6 +4,7 @@ import jax
 import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.jax.guards import check_not_tracing
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
 from fdtdx.core.jax.ste import straight_through_estimator
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, ParameterContainer
@@ -66,6 +67,8 @@ def place_objects(
     Raises:
         ValueError: If constraint resolution fails for one or more objects.
     """
+    # Step 0: Check if called inside a JIT trace
+    check_not_tracing("fdtdx.place_objects")
 
     # Step 1: Resolve constraints into grid slices
     resolved_slices, errors = resolve_object_constraints(
@@ -188,6 +191,10 @@ def apply_params(
         # and keep evolving polarization in the device's voxels.
         # compute_allowed_dispersive_coefficients zero-pads non-dispersive materials.
         write_dispersive = num_dispersive_poles > 0
+
+        # Initialise dispersive slots; populated below when write_dispersive is True.
+        allowed_c1_arr = allowed_c2_arr = allowed_c3_arr = None
+        new_c1_slice = new_c2_slice = new_c3_slice = None
         if write_dispersive:
             assert (
                 arrays.dispersive_c1 is not None
@@ -211,6 +218,7 @@ def apply_params(
             # cur_material_indices: (*grid_shape) broadcasts with (num_components, 1, 1, 1)
             new_perm_slice = (1 - cur_material_indices) * inv_allowed_bc[0] + cur_material_indices * inv_allowed_bc[1]
             if write_dispersive:
+                assert allowed_c1_arr is not None and allowed_c2_arr is not None and allowed_c3_arr is not None
                 # Linear interpolation of dispersive coefficients between the two bracketing materials.
                 # Note: this follows the same straight-through-estimator convention as the
                 # permittivity path above — it is *not* equivalent to a material whose
@@ -237,6 +245,7 @@ def apply_params(
             component_values = straight_through_estimator(cur_material_indices, component_values)
             new_perm_slice = component_values
             if write_dispersive:
+                assert allowed_c1_arr is not None and allowed_c2_arr is not None and allowed_c3_arr is not None
                 int_idx = cur_material_indices.astype(jnp.int32)
                 # allowed_cN_arr[int_idx]: (Nx, Ny, Nz, num_poles) -> moveaxis -> (num_poles, Nx, Ny, Nz)
                 new_c1_slice = jnp.moveaxis(allowed_c1_arr[int_idx], -1, 0)[:, None, ...]
