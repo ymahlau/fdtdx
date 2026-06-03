@@ -14,6 +14,45 @@ from fdtdx.objects.boundaries.pmc import PerfectMagneticConductor
 from fdtdx.objects.object import SimulationObject
 
 
+def _get_full_coverage_objects(
+    objects: list[SimulationObject],
+    axis_indices: tuple[int, int],
+    plane_size: tuple[int, int],
+    volume: SimulationObject,
+) -> list[SimulationObject]:
+    """Detect objects that cover 100% of the viewing plane.
+
+    Args:
+        objects: List of simulation objects to check
+        axis_indices: Tuple of two axis indices defining the viewing plane
+        plane_size: Tuple of (width, height) of the viewing plane in grid cells
+        volume: The simulation volume object
+
+    Returns:
+        List of objects that cover 100% of the viewing plane
+    """
+    full_coverage_objects = []
+    total_area = plane_size[0] * plane_size[1]
+    # Guard against degenerate simulation volumes (zero area planes)
+    if total_area <= 0:
+        return []
+
+    for obj in objects:
+        if obj is volume:
+            continue
+
+        slices = obj.grid_slice_tuple
+        obj_width = slices[axis_indices[0]][1] - slices[axis_indices[0]][0]
+        obj_height = slices[axis_indices[1]][1] - slices[axis_indices[1]][0]
+        obj_area = obj_width * obj_height
+
+        # Check if object covers the entire plane (allowing for small floating point errors)
+        if obj_area >= total_area * 0.999:  # 99.9% threshold to account for numerical issues
+            full_coverage_objects.append(obj)
+
+    return full_coverage_objects
+
+
 def plot_setup_from_side(
     config: SimulationConfig,
     objects: ObjectContainer,
@@ -26,6 +65,7 @@ def plot_setup_from_side(
     exclude_yz_plane_object_list: list[SimulationObject] | None = None,
     exclude_xz_plane_object_list: list[SimulationObject] | None = None,
     exclude_large_object_ratio: float | None = None,
+    auto_exclude_full_coverage: bool = True,
 ) -> Figure:
     """Creates a visualization of the simulation setup from a single viewing side.
 
@@ -46,6 +86,7 @@ def plot_setup_from_side(
         exclude_xz_plane_object_list (list[SimulationObject] | None, optional): Objects to exclude from XZ plane plot
         exclude_large_object_ratio (float | None, optional): If provided, excludes objects that cover more than
             this ratio of the image (e.g., 1.0 excludes objects covering 100% of the image)
+        auto_exclude_full_coverage (bool, optional): Automatically exclude objects that cover 100% of the viewing plane
 
     Returns:
         Figure: The generated figure object
@@ -88,25 +129,30 @@ def plot_setup_from_side(
 
     # Determine which exclude list to use based on viewing side
     if viewing_side == "z":
-        plane_exclude_list = exclude_xy_plane_object_list
+        plane_exclude_list = list(exclude_xy_plane_object_list)  # Create a copy
         axis_indices = (0, 1)  # X, Y
         axis_labels = ("x (µm)", "y (µm)")
         title = "XY plane"
         plane_size = (volume.grid_shape[0], volume.grid_shape[1])
     elif viewing_side == "y":
-        plane_exclude_list = exclude_xz_plane_object_list
+        plane_exclude_list = list(exclude_xz_plane_object_list)  # Create a copy
         axis_indices = (0, 2)  # X, Z
         axis_labels = ("x (µm)", "z (µm)")
         title = "XZ plane"
         plane_size = (volume.grid_shape[0], volume.grid_shape[2])
     elif viewing_side == "x":
-        plane_exclude_list = exclude_yz_plane_object_list
+        plane_exclude_list = list(exclude_yz_plane_object_list)  # Create a copy
         axis_indices = (1, 2)  # Y, Z
         axis_labels = ("y (µm)", "z (µm)")
         title = "YZ plane"
         plane_size = (volume.grid_shape[1], volume.grid_shape[2])
     else:
         raise ValueError(f"Invalid viewing_side: {viewing_side}. Must be 'x', 'y', or 'z'")
+
+    # Auto-detect and exclude objects that cover 100% of the viewing plane
+    if auto_exclude_full_coverage:
+        full_coverage_objects = _get_full_coverage_objects(object_list, axis_indices, plane_size, volume)
+        plane_exclude_list.extend(full_coverage_objects)
 
     half_real_size_um = [N * resolution / 2 for N in plane_size]
 
@@ -205,6 +251,7 @@ def plot_setup(
     exclude_yz_plane_object_list: list[SimulationObject] | None = None,
     exclude_xz_plane_object_list: list[SimulationObject] | None = None,
     exclude_large_object_ratio: float | None = None,
+    auto_exclude_full_coverage: bool = True,
 ) -> Figure:
     """Creates a visualization of the simulation setup showing objects in XY, XZ and YZ planes.
 
@@ -224,6 +271,7 @@ def plot_setup(
         exclude_xz_plane_object_list (list[SimulationObject] | None, optional): Objects to exclude from XZ plane plot
         exclude_large_object_ratio (float | None, optional): If provided, excludes objects that cover more than
             this ratio of the image (e.g., 1.0 excludes objects covering 100% of the image)
+        auto_exclude_full_coverage (bool, optional): Automatically exclude objects that cover 100% of the viewing plane
 
     Returns:
         Figure: The generated figure object
@@ -231,6 +279,7 @@ def plot_setup(
     Note:
         The plots show object positions in micrometers, converting from simulation units.
         PML objects are automatically excluded from their respective boundary planes.
+        Objects covering 100% of a viewing plane are automatically excluded by default.
     """
     if axs is None:
         fig, axs = plt.subplots(1, 3, figsize=(15, 5))
@@ -250,6 +299,7 @@ def plot_setup(
         exclude_yz_plane_object_list=exclude_yz_plane_object_list,
         exclude_xz_plane_object_list=exclude_xz_plane_object_list,
         exclude_large_object_ratio=exclude_large_object_ratio,
+        auto_exclude_full_coverage=auto_exclude_full_coverage,
     )
 
     # Plot XZ plane (viewing from y direction)
@@ -265,6 +315,7 @@ def plot_setup(
         exclude_yz_plane_object_list=exclude_yz_plane_object_list,
         exclude_xz_plane_object_list=exclude_xz_plane_object_list,
         exclude_large_object_ratio=exclude_large_object_ratio,
+        auto_exclude_full_coverage=auto_exclude_full_coverage,
     )
 
     # Plot YZ plane (viewing from x direction)
@@ -280,6 +331,7 @@ def plot_setup(
         exclude_yz_plane_object_list=exclude_yz_plane_object_list,
         exclude_xz_plane_object_list=exclude_xz_plane_object_list,
         exclude_large_object_ratio=exclude_large_object_ratio,
+        auto_exclude_full_coverage=auto_exclude_full_coverage,
     )
 
     if filename is not None:
