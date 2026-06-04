@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
 import jax
+import numpy as np
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import TreeClass
@@ -201,6 +202,20 @@ def _export_json(obj: Any) -> dict | float | int | str | bool | None:
     if isinstance(obj, float | int | str | bool):
         # basic data types
         return obj
+    # numpy arrays — must be checked before JAX_DTYPES to avoid ndarray.__eq__ TypeError
+    if isinstance(obj, np.ndarray):
+        return {
+            "__module__": "numpy",
+            "__name__": "array",
+            "__value__": obj.tolist(),
+        }
+    # JAX arrays — serialize as numpy arrays; RectilinearGrid.__post_init__ re-wraps via jnp.asarray
+    if isinstance(obj, jax.Array):
+        return {
+            "__module__": "numpy",
+            "__name__": "array",
+            "__value__": np.asarray(obj).tolist(),
+        }
     # jax data types
     if obj in JAX_DTYPES:
         str_name = str(obj).split("'")[1]
@@ -272,11 +287,13 @@ def export_json_str(obj: Any) -> str:
     return _json_dict_to_str(d)
 
 
-def _import_obj_from_json(obj: dict | float | int | str | bool | None) -> Any:
+def _import_obj_from_json(obj: dict | list | float | int | str | bool | None) -> Any:
     if obj is None:
         return None
     if isinstance(obj, int | float | str | bool):
         return obj
+    if isinstance(obj, list):
+        return [_import_obj_from_json(v) for v in obj]
     assert isinstance(obj, dict)
     # jax data types
     if "__dtype__" in obj:
