@@ -3,8 +3,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
-
 # ---------------------------------------------------------------------------
 # Locate the RST file relative to this test file.
 # Adjust the path if the test lives in a different directory than docs/.
