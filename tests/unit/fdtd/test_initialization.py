@@ -323,7 +323,7 @@ def test_nonuniform_partial_real_position_uses_physical_interval_center(simple_m
     obj = UniformMaterialObject(
         name="obj1",
         partial_grid_shape=(2, 2, 2),
-        partial_real_position=(3.6, 3.6, 3.6),
+        partial_real_position=(0.6, 0.6, 0.6),
         material=simple_material,
     )
 

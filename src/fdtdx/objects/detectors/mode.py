@@ -119,7 +119,8 @@ class ModeOverlapDetector(PhasorDetector):
                 continue
             lower, upper = self.grid_slice_tuple[axis]
             transverse_edges.append(grid.edges(axis)[lower : upper + 1])
-        return tuple(transverse_edges)
+        e0, e1 = transverse_edges
+        return e0, e1
 
     def _mode_solver_resolution(self) -> float:
         """Return scalar resolution only for legacy uniform mode-solver setup.

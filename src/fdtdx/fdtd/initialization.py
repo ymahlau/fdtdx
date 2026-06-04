@@ -1017,9 +1017,21 @@ def _real_coord_to_edge_index(config: SimulationConfig, axis: int, coord: float)
     return config.grid.coord_to_index(axis, coord, snap="nearest")
 
 
-def _center_to_bounds_for_grid(config: SimulationConfig, axis: int, real_pos: float, size: int) -> tuple[int, int]:
-    """Convert a physical center and resolved grid size to edge bounds."""
-    return config.grid.bounds_for_center(axis, real_pos, size)
+def _center_to_bounds_for_grid(
+    config: SimulationConfig, axis: int, real_pos: float, size: int, volume_size: int
+) -> tuple[int, int]:
+    """Convert a center-relative position to edge bounds, accounting for grid geometry.
+
+    real_pos is interpreted relative to the simulation volume center (0 = center of domain).
+    Works for both uniform and non-uniform grids.
+    """
+    grid = config.grid
+    if isinstance(grid, RectilinearGrid):
+        edges = grid.edges(axis)
+        volume_center_coord = float(edges[0] + edges[-1]) / 2
+    else:
+        volume_center_coord = grid.origin[axis] + volume_size * grid.spacing / 2
+    return grid.bounds_for_center(axis, real_pos + volume_center_coord, size)
 
 
 def _raise_for_nonuniform_grid_offsets(config: SimulationConfig, values: Sequence[int | None], name: str):
@@ -1075,9 +1087,10 @@ def _resolve_static_positions_initial(
                 if volume_size is None:
                     raise ValueError(f"Simulation volume size for axis {axis} is unresolved.")
 
-                lower, upper = _center_to_bounds(
+                lower, upper = _center_to_bounds_for_grid(
+                    config=config,
+                    axis=axis,
                     real_pos=real_position,
-                    resolution=config.resolution,
                     size=size,
                     volume_size=volume_size,
                 )
@@ -1143,9 +1156,10 @@ def _resolve_static_positions_iterative(
                 if volume_size is None:
                     raise ValueError(f"Simulation volume size for axis {axis} is unresolved.")
 
-                lower, upper = _center_to_bounds(
+                lower, upper = _center_to_bounds_for_grid(
+                    config=config,
+                    axis=axis,
                     real_pos=real_position,
-                    resolution=config.resolution,
                     size=size,
                     volume_size=volume_size,
                 )

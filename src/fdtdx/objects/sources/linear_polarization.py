@@ -80,7 +80,8 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
             lower, upper = self.grid_slice_tuple[axis]
             edges = grid.edges(axis)[lower : upper + 1]
             local_edges.append(edges - edges[0])
-        return tuple(local_edges)
+        e0, e1, e2 = local_edges
+        return e0, e1, e2
 
     def _source_center_physical(self, source_center: jax.Array) -> jax.Array | None:
         """Return the physical center used for grid-aware Yee time offsets."""

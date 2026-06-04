@@ -165,7 +165,6 @@ def plot_setup_from_side(
         full_coverage_objects = _get_full_coverage_objects(object_list, axis_indices, plane_size, volume)
         plane_exclude_list.extend(full_coverage_objects)
 
-
     # Filter objects for this plane
     colored_objects: list[SimulationObject] = [
         o for o in object_list if o.color is not None and (plane_exclude_list is None or o not in plane_exclude_list)

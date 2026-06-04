@@ -117,7 +117,8 @@ class DiffractiveDetector(Detector):
         for axis in plane_dims:
             lower, upper = self.grid_slice_tuple[axis]
             centers.append(grid.centers(axis)[lower:upper])
-        return tuple(centers)  # type: ignore[return-value]
+        c0, c1 = centers
+        return c0, c1
 
     def update(
         self,

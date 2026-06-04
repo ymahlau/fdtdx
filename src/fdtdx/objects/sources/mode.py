@@ -44,7 +44,8 @@ class ModePlaneSource(TFSFPlaneSource):
             lower, upper = self.grid_slice_tuple[axis]
             edges = grid.edges(axis)[lower : upper + 1]
             local_edges.append(edges - edges[0])
-        return tuple(local_edges)
+        e0, e1, e2 = local_edges
+        return e0, e1, e2
 
     def _transverse_edge_coordinates(self) -> tuple[jax.Array, jax.Array] | None:
         """Return local transverse edge coordinates for Tidy3D mode solving."""
