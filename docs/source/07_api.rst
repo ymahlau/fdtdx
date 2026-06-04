@@ -24,7 +24,6 @@ API
     fdtdx.compute_pole_coefficients
     fdtdx.compute_poynting_flux
     fdtdx.ConnectHolesAndStructures
-    fdtdx.constants
     fdtdx.CustomTimeSignalProfile
     fdtdx.Cylinder
     fdtdx.Detector

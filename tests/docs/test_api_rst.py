@@ -1,35 +1,54 @@
 from __future__ import annotations
 
 import re
+import types
 from pathlib import Path
 
+
 # ---------------------------------------------------------------------------
-# Locate the RST file relative to this test file.
-# Adjust the path if the test lives in a different directory than docs/.
+# Path to the RST file.
+# This test lives at tests/docs/, so go up 3 levels to reach the repo root.
 # ---------------------------------------------------------------------------
 REPO_ROOT = Path(__file__).parent.parent.parent  # tests/docs/ -> tests/ -> repo root
 API_RST = REPO_ROOT / "docs" / "source" / "07_api.rst"
 
+# Submodules exported from fdtdx (e.g. fdtdx.constants) cannot be documented
+# by autosummary cleanly — they cause docutils errors from the built-in dict
+# docstring.  Exclude them from the RST and from this check.
+_SUBMODULE_EXCLUDES: frozenset[str] = frozenset({"constants"})
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 def _parse_rst_entries(rst_path: Path) -> set[str]:
     """Return the set of bare symbol names listed in the autosummary directive."""
     text = rst_path.read_text(encoding="utf-8")
-    # Match lines like "    fdtdx.SomeName" inside the autosummary block.
     return {
         m.group(1)
         for m in re.finditer(r"^\s+fdtdx\.(\S+)", text, re.MULTILINE)
     }
 
 
-# ---------------------------------------------------------------------------
-# Collect duplicates separately so we can report them clearly.
-# ---------------------------------------------------------------------------
-def _parse_rst_entries_with_duplicates(rst_path: Path) -> list[str]:
+def _parse_rst_entries_list(rst_path: Path) -> list[str]:
+    """Return all entries in order, including duplicates."""
     text = rst_path.read_text(encoding="utf-8")
     return [
         m.group(1)
         for m in re.finditer(r"^\s+fdtdx\.(\S+)", text, re.MULTILINE)
     ]
+
+
+def _documentable_exports() -> set[str]:
+    """Return fdtdx.__all__ minus any submodule entries that can't go in autosummary."""
+    import fdtdx  # noqa: PLC0415
+
+    return {
+        name for name in fdtdx.__all__
+        if name not in _SUBMODULE_EXCLUDES
+        and not isinstance(getattr(fdtdx, name, None), types.ModuleType)
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -46,11 +65,13 @@ class TestApiDocsCompleteness:
         )
 
     def test_all_init_exports_in_rst(self):
-        """Every name in fdtdx.__all__ must appear as fdtdx.<name> in the RST."""
-        import fdtdx  # noqa: PLC0415
+        """Every documentable name in fdtdx.__all__ must appear in the RST.
 
-        exported: set[str] = set(fdtdx.__all__)
-        documented: set[str] = _parse_rst_entries(API_RST)
+        Submodules are excluded because autosummary cannot document them
+        without triggering docutils errors from the built-in dict docstring.
+        """
+        exported = _documentable_exports()
+        documented = _parse_rst_entries(API_RST)
 
         missing = sorted(exported - documented)
         assert not missing, (
@@ -61,12 +82,10 @@ class TestApiDocsCompleteness:
     def test_no_extra_entries_in_rst(self):
         """Every fdtdx.<name> entry in the RST must correspond to a name in fdtdx.__all__.
 
-        This catches stale entries left after a symbol is removed from the package.
+        Catches stale entries left after a symbol is removed from the package.
         """
-        import fdtdx  # noqa: PLC0415
-
-        exported: set[str] = set(fdtdx.__all__)
-        documented: set[str] = _parse_rst_entries(API_RST)
+        exported = _documentable_exports()
+        documented = _parse_rst_entries(API_RST)
 
         extra = sorted(documented - exported)
         assert not extra, (
@@ -76,7 +95,7 @@ class TestApiDocsCompleteness:
 
     def test_no_duplicate_entries_in_rst(self):
         """The RST must not list any fdtdx.<name> entry more than once."""
-        entries = _parse_rst_entries_with_duplicates(API_RST)
+        entries = _parse_rst_entries_list(API_RST)
         seen: dict[str, int] = {}
         for name in entries:
             seen[name] = seen.get(name, 0) + 1
