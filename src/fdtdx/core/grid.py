@@ -4,6 +4,7 @@ import numpy as np
 from matplotlib.path import Path
 
 from fdtdx import constants
+from fdtdx.core.axis import get_transverse_axes
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field, frozen_private_field
 
 
@@ -411,7 +412,7 @@ class RectilinearGrid(TreeClass):
         Returns:
             Area weights broadcast to the detector's 3D slice shape.
         """
-        transverse_axes = [a for a in range(3) if a != axis]
+        transverse_axes = get_transverse_axes(axis)
         widths = []
         for transverse_axis in transverse_axes:
             lower, upper = slice_tuple[transverse_axis]

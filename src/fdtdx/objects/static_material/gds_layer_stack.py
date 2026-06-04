@@ -11,6 +11,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from fdtdx.core.axis import get_transverse_axes
 from fdtdx.core.grid import polygon_to_mask_at_points, polygons_to_mask
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.wavelength import WaveCharacter
@@ -97,21 +98,13 @@ class GDSLayerObject(StaticMultiMaterialObject):
 
     @property
     def horizontal_axis(self) -> int:
-        """Cross-section axis that is not the extrusion axis and not the vertical axis.
-
-        Returns:
-            int: 1 (y) when extrusion axis is 0 (x), otherwise 0 (x).
-        """
-        return 1 if self.axis == 0 else 0
+        """Cross-section axis that is not the extrusion axis and not the vertical axis."""
+        return get_transverse_axes(self.axis)[0]
 
     @property
     def vertical_axis(self) -> int:
-        """Second cross-section axis perpendicular to the extrusion axis.
-
-        Returns:
-            int: 1 (y) when extrusion axis is 2 (z), otherwise 2 (z).
-        """
-        return 1 if self.axis == 2 else 2
+        """Second cross-section axis perpendicular to the extrusion axis."""
+        return get_transverse_axes(self.axis)[1]
 
     def get_geometry_size_hint(self) -> tuple[float | None, float | None, float | None]:
         hints: list[float | None] = [None, None, None]
