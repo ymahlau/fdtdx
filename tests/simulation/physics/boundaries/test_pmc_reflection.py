@@ -45,7 +45,7 @@ _N_AVG_STEPS = 10 * _STEPS_PER_PERIOD
 
 def _build_base(z_max_type="pml"):
     config = fdtdx.SimulationConfig(
-        resolution=_RESOLUTION,
+        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
         time=_SIM_TIME,
         dtype=jnp.float32,
     )

@@ -75,7 +75,7 @@ _TOLERANCE = 0.05
 def _build_base(temporal_profile, wave_character):
     """Build base geometry: volume, PML+periodic boundaries, source."""
     config = fdtdx.SimulationConfig(
-        resolution=_RESOLUTION,
+        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
         time=_SIM_TIME,
         dtype=jnp.float32,
     )

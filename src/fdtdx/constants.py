@@ -65,6 +65,9 @@ relative_permittivity_ormo_prime: float = 1.817104
 SHARD_STR: str = "shard"
 """String constant used to identify sharded computations."""
 
+MAX_SIMULATION_VOLUME_CELLS: int = 10_000_000_000
+"""Recommended upper bound on simulation volume size."""
+
 
 def wavelength_to_period(wavelength: float) -> float:
     """Convert wavelength to time period using speed of light.

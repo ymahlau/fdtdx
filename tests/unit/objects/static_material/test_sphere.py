@@ -3,11 +3,14 @@
 Tests Sphere (and ellipsoid variant) shape generation and material mapping.
 """
 
+import math
+
 import jax
 import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import RectilinearGrid, UniformGrid
 from fdtdx.materials import Material
 from fdtdx.objects.static_material.sphere import Sphere
 
@@ -20,7 +23,7 @@ from fdtdx.objects.static_material.sphere import Sphere
 def config():
     return SimulationConfig(
         time=100e-15,
-        resolution=50e-9,
+        grid=UniformGrid(spacing=50e-9),
         backend="cpu",
         dtype=jnp.float32,
         gradient_config=None,
@@ -128,6 +131,42 @@ class TestGetVoxelMaskForShape:
         mask_d = placed_d.get_voxel_mask_for_shape()
         mask_e = placed_e.get_voxel_mask_for_shape()
         assert jnp.array_equal(mask_d, mask_e)
+
+    def test_nonuniform_grid_uses_physical_cell_centers(self, key, two_materials):
+        """Sphere masks use rectilinear cell-center coordinates instead of scalar spacing."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            z_edges=jnp.asarray([0.0, 1.0, 3.0]),
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        sphere = _make_sphere(two_materials, radius=0.9)
+        placed = _place(sphere, config, key, ((0, 2), (0, 2), (0, 2)))
+
+        mask = placed.get_voxel_mask_for_shape()
+
+        assert mask.shape == (2, 2, 2)
+        assert bool(jnp.any(mask))
+
+    def test_nonuniform_weighted_mask_volume_matches_sphere_volume(self, key, two_materials):
+        """A resolved stretched-grid sphere has the expected physical volume."""
+        n = 16
+        t = jnp.linspace(0.0, 1.0, n + 1)
+        grid = RectilinearGrid(
+            x_edges=2.0 * t**1.35,
+            y_edges=2.0 * t**1.15,
+            z_edges=2.0 * t**1.05,
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        radius = 0.75
+        sphere = _make_sphere(two_materials, radius=radius)
+        placed = _place(sphere, config, key, ((0, n), (0, n), (0, n)))
+
+        mask = placed.get_voxel_mask_for_shape()
+        measured_volume = jnp.sum(mask * grid.cell_volume(((0, n), (0, n), (0, n))))
+        analytic_volume = 4.0 / 3.0 * math.pi * radius**3
+
+        assert abs(float(measured_volume) - analytic_volume) / analytic_volume < 0.03
 
 
 # ---------------------------------------------------------------------------

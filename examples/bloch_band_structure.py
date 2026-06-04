@@ -90,7 +90,7 @@ def run_bloch_k(k_norm: float, key: jax.Array) -> tuple[np.ndarray, np.ndarray]:
     # Forward-only simulation; complex fields auto-promoted for non-zero Bloch k.
     config = fdtdx.SimulationConfig(
         time=SIM_TIME,
-        resolution=RESOLUTION,
+        grid=fdtdx.UniformGrid(spacing=RESOLUTION),
         dtype=jnp.float32,
         courant_factor=0.99,
     )
