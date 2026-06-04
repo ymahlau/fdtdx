@@ -116,13 +116,6 @@ def place_objects(
     dropped_names: set[str] = set()
     reduced_volume_shape = None
     if config.has_symmetry:
-        if isinstance(config.grid, RectilinearGrid):
-            raise NotImplementedError(
-                "config.symmetry is not supported together with an explicit RectilinearGrid: the "
-                "reduced domain would require clipping the non-uniform edge coordinates onto the kept "
-                "half, which is not implemented. Use a UniformGrid (the default) with symmetry, or run "
-                "the full domain without symmetry on a RectilinearGrid."
-            )
         resolved_slices, dropped_names, reduced_volume_shape = reduce_resolved_slices(
             resolved_slices=resolved_slices,
             object_map=object_map,
@@ -139,11 +132,18 @@ def place_objects(
         vol_slice[1][1] - vol_slice[1][0],
         vol_slice[2][1] - vol_slice[2][0],
     )
-    grid = config.resolve_grid(volume_shape)
+    if config.has_symmetry and isinstance(config.grid, RectilinearGrid):
+        # Explicit non-uniform grid + symmetry: slice the edge arrays onto the kept upper half
+        # (validating even cell count and mirror-symmetric widths) so the reduced grid matches the
+        # reduced domain. The UniformGrid path below builds a uniform reduced grid via resolve_grid.
+        grid = config.grid.reduce_symmetric(config.symmetry)
+        config = config.aset("grid", grid)
+    else:
+        grid = config.resolve_grid(volume_shape)
+        if not isinstance(config.grid, RectilinearGrid):
+            config = config.aset("grid", grid)
     if grid.shape != volume_shape:
         raise ValueError(f"Configured grid shape {grid.shape} does not match simulation volume shape {volume_shape}.")
-    if not isinstance(config.grid, RectilinearGrid):
-        config = config.aset("grid", grid)
 
     # Step 4: Place objects on grid based on resolved slice tuples
     placed_objects = []
@@ -1594,8 +1594,9 @@ def _apply_position_constraint(
         )
         if real_margin is not None:
             other_anchor += real_margin
-        if grid_margin is not None:
-            # grid_margin is in cell units; rejected for non-uniform grids above
+        if grid_margin:
+            # grid_margin is in cell units; nonzero values were rejected for non-uniform grids above,
+            # so a zero/None margin must not require uniform_spacing() (which raises on stretched grids).
             other_anchor += grid_margin * config.uniform_spacing()
         b0, b1 = config.grid.bounds_for_anchor(
             axis,
@@ -1661,8 +1662,9 @@ def _apply_size_constraint(
         target_length = other_length * proportion
         if constraint.offsets[axis_idx] is not None:
             target_length += constraint.offsets[axis_idx]
-        if constraint.grid_offsets[axis_idx] is not None:
-            # grid_offsets are in cell units; rejected for non-uniform grids above
+        if constraint.grid_offsets[axis_idx]:
+            # grid_offsets are in cell units; nonzero values were rejected for non-uniform grids above,
+            # so a zero/None offset must not require uniform_spacing() (which raises on stretched grids).
             target_length += constraint.grid_offsets[axis_idx] * config.uniform_spacing()
         object_shape = _real_length_to_grid_size(config, axis, target_length)
         # update or check consistency
@@ -1705,8 +1707,9 @@ def _apply_size_extension_constraint(
         )
         if constraint.offset is not None:
             other_anchor_coord += constraint.offset
-        if constraint.grid_offset is not None:
-            # grid_offset is in cell units; rejected for non-uniform grids above
+        if constraint.grid_offset:
+            # grid_offset is in cell units; nonzero values were rejected for non-uniform grids above,
+            # so a zero/None offset must not require uniform_spacing() (which raises on stretched grids).
             other_anchor_coord += constraint.grid_offset * config.uniform_spacing()
         other_anchor = config.grid.coord_to_index(constraint.axis, other_anchor_coord, snap="nearest")
     else:
