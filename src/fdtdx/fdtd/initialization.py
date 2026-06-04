@@ -107,7 +107,7 @@ def place_objects(
     volume_name = _resolve_volume_name(object_map)
     volume_obj = object_map[volume_name]
 
-    # Step 3b: Mirror-symmetry reduction. When config.symmetry has a nonzero entry, clip every
+    # Step 4: Mirror-symmetry reduction. When config.symmetry has a nonzero entry, clip every
     # resolved slice onto the kept (upper) half along each symmetric axis, drop objects that fall
     # entirely in the discarded half, and remember the reduced volume shape (used in Step 5b to
     # build the PEC/PMC walls on the symmetry planes). This runs BEFORE the grid is resolved/pinned
@@ -123,7 +123,7 @@ def place_objects(
             volume_name=volume_name,
         )
 
-    # Step 3c: Resolve the user's grid policy onto the (possibly symmetry-reduced) volume shape and
+    # Step 5: Resolve the user's grid policy onto the (possibly symmetry-reduced) volume shape and
     # pin a concrete RectilinearGrid into the config before objects see it, so compiled FDTD code has
     # exactly one metric source matching the domain that is actually simulated.
     vol_slice = resolved_slices[volume_obj.name]
@@ -145,7 +145,7 @@ def place_objects(
     if grid.shape != volume_shape:
         raise ValueError(f"Configured grid shape {grid.shape} does not match simulation volume shape {volume_shape}.")
 
-    # Step 4: Place objects on grid based on resolved slice tuples
+    # Step 6: Place objects on grid based on resolved slice tuples
     placed_objects = []
     for name, slice_tuple in resolved_slices.items():
         if name == volume_obj.name or name in dropped_names:
@@ -160,7 +160,7 @@ def place_objects(
             )
         )
 
-    # Step 5: Place volume first (index 0)
+    # Step 7: Place volume first (index 0)
     key, subkey = jax.random.split(key)
     placed_objects.insert(
         0,
@@ -171,7 +171,7 @@ def place_objects(
         ),
     )
 
-    # Step 5b: Insert the PEC/PMC symmetry walls and forward the per-axis condition to mode
+    # Step 8: Insert the PEC/PMC symmetry walls and forward the per-axis condition to mode
     # sources/detectors, then warn that the simulation now runs on the reduced domain.
     if config.has_symmetry and reduced_volume_shape is not None:
         key, subkey = jax.random.split(key)
@@ -192,17 +192,17 @@ def place_objects(
             f"fdtdx.unfold_fields to reconstruct the full domain."
         )
 
-    # Step 6: Create object container
+    # Step 9: Create object container
     objects_container = ObjectContainer(
         object_list=placed_objects,
         volume_idx=0,
     )
 
-    # Step 7: Initialize parameters and arrays
+    # Step 10: Initialize parameters and arrays
     params = _init_params(objects=objects_container, key=key)
     arrays, config, info = _init_arrays(objects=objects_container, config=config)
 
-    # Step 8: Update object configs with compiled configuration
+    # Step 11: Update object configs with compiled configuration
     new_object_list = []
     for o in objects_container.objects:
         o = o.aset("_config", config)
