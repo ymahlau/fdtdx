@@ -58,7 +58,7 @@ def _build_1d_base():
         objects, constraints, config, volume, wave
     """
     config = fdtdx.SimulationConfig(
-        resolution=_RESOLUTION,
+        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
         time=_SIM_TIME,
         dtype=jnp.float32,
     )

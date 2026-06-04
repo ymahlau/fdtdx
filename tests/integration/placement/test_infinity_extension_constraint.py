@@ -17,7 +17,7 @@ def test_place_at_center_of_infinite_object():
     pending PositionConstraint on the axis being extended. It eagerly locks position=0
     even when a constraint will later demand a different position.
     """
-    config = fdtdx.SimulationConfig(resolution=100e-9, time=10e-15)
+    config = fdtdx.SimulationConfig(grid=fdtdx.UniformGrid(spacing=100e-9), time=10e-15)
     constraints, objects = [], []
 
     volume = fdtdx.SimulationVolume(partial_real_shape=(2e-6, 2e-6, 2e-6))
