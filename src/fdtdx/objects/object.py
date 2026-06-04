@@ -256,13 +256,24 @@ class SimulationObject(TreeClass, ABC):
 
     @property
     def real_shape(self) -> RealShape3D:
+        """Physical side lengths covered by this object's placed grid slice.
+
+        The value is derived from ``SimulationConfig.grid`` when available.  That
+        keeps object geometry tied to physical edge coordinates instead of a
+        global scalar resolution.  During early placement, before a concrete grid
+        has been attached to the config, the legacy uniform-resolution fallback is
+        still used for compatibility.
+        """
+        grid = self._config.resolved_grid
+        if grid is not None:
+            return grid.slice_extent(self.grid_slice_tuple)
         grid_shape = self.grid_shape
-        real_shape = (
-            grid_shape[0] * self._config.resolution,
-            grid_shape[1] * self._config.resolution,
-            grid_shape[2] * self._config.resolution,
+        spacing = self._config.uniform_spacing()
+        return (
+            grid_shape[0] * spacing,
+            grid_shape[1] * spacing,
+            grid_shape[2] * spacing,
         )
-        return real_shape
 
     @property
     def grid_shape(self) -> GridShape3D:
