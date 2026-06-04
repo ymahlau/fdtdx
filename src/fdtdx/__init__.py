@@ -45,6 +45,7 @@ from fdtdx.dispersion import (
 from fdtdx.fdtd.backward import full_backward
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, ParameterContainer, SimulationState
 from fdtdx.fdtd.initialization import apply_params, place_objects, resolve_object_constraints
+from fdtdx.fdtd.symmetry import unfold_array, unfold_detector_states, unfold_fields, unfold_source_mode
 from fdtdx.fdtd.wrapper import run_fdtd
 from fdtdx.interfaces.modules import DtypeConversion
 from fdtdx.interfaces.recorder import Recorder, RecordingState
@@ -243,5 +244,9 @@ __all__ = [
     "resolve_object_constraints",
     "run_fdtd",
     "setup_sparams_simulation",
+    "unfold_array",
+    "unfold_detector_states",
+    "unfold_fields",
+    "unfold_source_mode",
     "wavelength_to_period",
 ]
