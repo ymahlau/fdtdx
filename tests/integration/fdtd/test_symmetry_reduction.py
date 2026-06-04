@@ -22,7 +22,7 @@ def _by_name(container, name):
 
 def _build(symmetry):
     config = fdtdx.SimulationConfig(
-        resolution=50e-9,
+        grid=fdtdx.UniformGrid(spacing=50e-9),
         time=20e-15,
         dtype=jnp.float32,
         symmetry=symmetry,
@@ -147,7 +147,9 @@ def test_no_symmetry_is_unchanged():
 
 def test_odd_cell_count_on_symmetric_axis_raises():
     # 21 cells on y (odd) cannot be split exactly down the middle -> hard error.
-    config = fdtdx.SimulationConfig(resolution=50e-9, time=20e-15, dtype=jnp.float32, symmetry=(0, -1, 0))
+    config = fdtdx.SimulationConfig(
+        grid=fdtdx.UniformGrid(spacing=50e-9), time=20e-15, dtype=jnp.float32, symmetry=(0, -1, 0)
+    )
     volume = fdtdx.SimulationVolume(partial_grid_shape=(20, 21, 20))
     bound_dict, c_list = fdtdx.boundary_objects_from_config(
         fdtdx.BoundaryConfig.from_uniform_bound(thickness=4), volume

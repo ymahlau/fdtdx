@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import RectilinearGrid, UniformGrid
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.sources.linear_polarization import GaussianPlaneSource
 
@@ -19,7 +20,7 @@ def micro_config():
     """Minimal simulation config for source testing."""
     return SimulationConfig(
         time=100e-15,
-        resolution=100e-9,
+        grid=UniformGrid(spacing=100e-9),
         backend="cpu",
         dtype=jnp.float32,
         courant_factor=0.99,
@@ -126,6 +127,32 @@ class TestTFSFPlaneSourceProperties:
         )
         # At 100nm resolution, 200nm offset = 2 grid points
         assert np.isclose(placed.max_horizontal_offset_grid, 2.0)
+
+    def test_nonuniform_random_offsets_use_physical_units(self, jax_key):
+        """Random offsets remain physical source-plane distances on stretched grids."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+            y_edges=jnp.asarray([0.0, 2.0, 5.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=1e-8, grid=grid, backend="cpu")
+        source = GaussianPlaneSource(
+            partial_grid_shape=(2, 2, 1),
+            wave_character=WaveCharacter(wavelength=1.55e-6),
+            direction="-",
+            radius=1.0,
+            max_horizontal_offset=0.5,
+            max_vertical_offset=0.5,
+        )
+        placed = source.place_on_grid(((0, 2), (0, 2), (0, 1)), config, jax_key)
+
+        center = placed._get_center(jax_key)
+
+        assert placed.max_horizontal_offset_grid == pytest.approx(0.5)
+        assert placed.max_vertical_offset_grid == pytest.approx(0.5)
+        assert center.shape == (2,)
+        assert jnp.abs(center[0] - 1.5) <= 0.5
+        assert jnp.abs(center[1] - 2.5) <= 0.5
 
 
 class TestTFSFPlaneSourceRandomization:

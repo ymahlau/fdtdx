@@ -36,7 +36,7 @@ _N_AVG = 10 * _STEPS_PER_PERIOD
 
 def _build(symmetry):
     config = fdtdx.SimulationConfig(
-        resolution=_RESOLUTION,
+        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
         time=_SIM_TIME,
         dtype=jnp.float32,
         symmetry=symmetry,

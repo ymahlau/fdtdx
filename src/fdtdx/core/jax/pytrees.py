@@ -100,7 +100,7 @@ class TreeClass(tc.TreeClass):
         setattr(self, attr_name, val)
 
     @staticmethod
-    def _parse_operations(s: str) -> list[tuple[str, str]]:
+    def _parse_operations(s: str):
         if not s:
             raise ValueError("Empty string is not valid")
 

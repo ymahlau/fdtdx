@@ -218,7 +218,7 @@ class TestUnfoldSourceMode:
 
     def test_matches_unfold_fields_on_transverse_axes(self):
         src = self._src()
-        cfg = fdtdx.SimulationConfig(resolution=1e-7, time=1e-15, symmetry=(0, -1, 1))
+        cfg = fdtdx.SimulationConfig(grid=fdtdx.UniformGrid(spacing=1e-7), time=1e-15, symmetry=(0, -1, 1))
         e_full, h_full = unfold_source_mode(src, cfg)
         assert e_full.shape == (3, 1, 8, 4) and h_full.shape == (3, 1, 8, 4)
         assert jnp.allclose(e_full, unfold_fields(src._E, (0, -1, 1), "E"))
@@ -226,7 +226,7 @@ class TestUnfoldSourceMode:
 
     def test_propagation_axis_symmetry_is_ignored(self):
         src = self._src()  # propagation axis = x (0)
-        cfg = fdtdx.SimulationConfig(resolution=1e-7, time=1e-15, symmetry=(-1, -1, 0))
+        cfg = fdtdx.SimulationConfig(grid=fdtdx.UniformGrid(spacing=1e-7), time=1e-15, symmetry=(-1, -1, 0))
         e_full, _ = unfold_source_mode(src, cfg)
         # x is the propagation axis -> masked out; only y is unfolded.
         assert e_full.shape == (3, 1, 8, 2)
@@ -234,12 +234,14 @@ class TestUnfoldSourceMode:
 
     def test_mode_not_computed_raises(self):
         src = _FakeModeSource(None, None, grid_shape=(1, 4, 2))
-        cfg = fdtdx.SimulationConfig(resolution=1e-7, time=1e-15, symmetry=(0, -1, 0))
+        cfg = fdtdx.SimulationConfig(grid=fdtdx.UniformGrid(spacing=1e-7), time=1e-15, symmetry=(0, -1, 0))
         with pytest.raises(ValueError, match="no computed mode profile"):
             unfold_source_mode(src, cfg)
 
     def test_no_transverse_symmetry_raises(self):
         src = self._src()  # propagation axis x
-        cfg = fdtdx.SimulationConfig(resolution=1e-7, time=1e-15, symmetry=(-1, 0, 0))  # only the prop axis
+        cfg = fdtdx.SimulationConfig(
+            grid=fdtdx.UniformGrid(spacing=1e-7), time=1e-15, symmetry=(-1, 0, 0)
+        )  # only the prop axis
         with pytest.raises(ValueError, match="No transverse symmetry"):
             unfold_source_mode(src, cfg)

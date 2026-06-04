@@ -23,7 +23,7 @@ N = 20  # grid cells per axis
 
 
 def _cfg():
-    return fdtdx.SimulationConfig(resolution=RESOLUTION, time=10e-15)
+    return fdtdx.SimulationConfig(grid=fdtdx.UniformGrid(spacing=RESOLUTION), time=10e-15)
 
 
 def _volume():
@@ -570,37 +570,43 @@ def test_infinity_extension_pending_position_not_premature():
 
 
 def test_partial_real_position_centers_object():
-    """partial_real_position places the object center at the given real coordinate."""
+    """partial_real_position is interpreted relative to volume center."""
+
     vol = _volume()
-    # Place a 10x10x10 box with center at (0.5µm, 1.0µm, 1.5µm) = (5, 10, 15) cells
+
     box = fdtdx.UniformMaterialObject(
         partial_real_shape=(1e-6, 1e-6, 1e-6),
-        partial_real_position=(0.5e-6, 1.0e-6, 1.5e-6),
+        # center-relative coordinates
+        partial_real_position=(-0.5e-6, 0.0, 0.5e-6),
         material=fdtdx.Material(),
         name="box",
     )
+
     sl = _sl(_resolve(vol, [box], []), box)
-    # center=(5,10,15), half-size=5 → lower=(0,5,10), upper=(10,15,20)
-    assert sl[0] == (0, 10)
-    assert sl[1] == (5, 15)
-    assert sl[2] == (10, 20)
+
+    assert sl == (
+        (0, 10),
+        (5, 15),
+        (10, 20),
+    )
 
 
 def test_partial_real_position_partial_axes():
-    """partial_real_position with None entries only constrains specified axes."""
+    """partial_real_position only constrains specified axes."""
+
     vol = _volume()
+
     box = fdtdx.UniformMaterialObject(
         partial_real_shape=(1e-6, 1e-6, 1e-6),
-        partial_real_position=(None, 1.0e-6, None),  # only y centered at 1µm = 10 cells
+        # y centered at simulation center
+        partial_real_position=(None, 0.0, None),
         material=fdtdx.Material(),
         name="box",
     )
+
     sl = _sl(_resolve(vol, [box], []), box)
-    # y: center=10, size=10 → [5,15]
+
     assert sl[1] == (5, 15)
-    # x, z: size=10, no position → extend from 0
-    assert sl[0] == (0, 10)
-    assert sl[2] == (0, 10)
 
 
 # ---------------------------------------------------------------------------

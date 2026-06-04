@@ -117,11 +117,28 @@ def compute_poynting_flux(E: jax.Array, H: jax.Array, axis: int = 0) -> jax.Arra
     )
 
 
-def normalize_by_poynting_flux(E: jax.Array, H: jax.Array, axis: int) -> tuple[jax.Array, jax.Array]:
-    """Normalize fields so that Poynting flux along given axis = 1."""
+def normalize_by_poynting_flux(
+    E: jax.Array,
+    H: jax.Array,
+    axis: int,
+    area_weights: jax.Array | None = None,
+) -> tuple[jax.Array, jax.Array]:
+    """Normalize fields so the integrated Poynting flux along ``axis`` is one.
+
+    Args:
+        E: Electric field array with component axis first.
+        H: Magnetic field array with component axis first.
+        axis: Physical propagation axis whose Poynting component is integrated.
+        area_weights: Optional detector-plane area weights broadcastable to
+            ``E[axis]``.  Uniform-grid callers may omit this for the historical
+            raw-sum normalization; non-uniform callers should provide weights so
+            refinement alone does not change the normalization.
+    """
     # Compute Poynting vector components
     S_complex = jnp.cross(jnp.conj(E), H, axisa=0, axisb=0, axisc=0)
     S_real = 0.5 * jnp.real(S_complex[axis])  # power flow in desired direction
+    if area_weights is not None:
+        S_real = S_real * area_weights
 
     # Integrate over transverse plane (axis orthogonal to `axis`)
     power = jnp.abs(jnp.sum(S_real))
@@ -131,3 +148,32 @@ def normalize_by_poynting_flux(E: jax.Array, H: jax.Array, axis: int) -> tuple[j
     E_norm = E / norm_factor
     H_norm = H / norm_factor
     return E_norm, H_norm
+
+
+def resample_to_uniform_2d(
+    field: jax.Array,
+    x_centers: jax.Array,
+    y_centers: jax.Array,
+) -> tuple[jax.Array, jax.Array | float, jax.Array | float]:
+    """Resample a ``(component, x, y)`` field onto a uniform transverse grid.
+
+    Interpolates each component from the given non-uniform physical center
+    coordinates onto a uniform grid with the same extent and number of points.
+    Returns the resampled field and the uniform grid spacings.
+    """
+    nx, ny = field.shape[1], field.shape[2]
+    target_x = jnp.linspace(x_centers[0], x_centers[-1], nx)
+    target_y = jnp.linspace(y_centers[0], y_centers[-1], ny)
+
+    def interp_x(component):
+        return jax.vmap(lambda column: jnp.interp(target_x, x_centers, column), in_axes=1, out_axes=1)(component)
+
+    def interp_y(component):
+        return jax.vmap(lambda row: jnp.interp(target_y, y_centers, row))(component)
+
+    field = jax.vmap(interp_x)(field)
+    field = jax.vmap(interp_y)(field)
+
+    dx = (target_x[1] - target_x[0]) if nx > 1 else 1.0
+    dy = (target_y[1] - target_y[0]) if ny > 1 else 1.0
+    return field, dx, dy
