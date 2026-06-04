@@ -1,10 +1,3 @@
-"""
-Test that every public symbol in fdtdx.__all__ is listed in the API docs RST.
-
-Run with:  pytest tests/test_api_docs_completeness.py
-or:        python -m pytest tests/test_api_docs_completeness.py -v
-"""
-
 from __future__ import annotations
 
 import re
