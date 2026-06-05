@@ -11,6 +11,7 @@ from fdtdx.core.grid import RectilinearGrid, UniformGrid
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.materials import Material
 from fdtdx.objects.detectors.mode import ModeOverlapDetector
+from fdtdx.objects.object import RealCoordinateConstraint
 from fdtdx.objects.sources.mode import ModePlaneSource
 from fdtdx.objects.static_material.gds_layer_stack import (
     GDSLayerObject,
@@ -718,6 +719,75 @@ class TestSourcesFromGdsPorts:
         )
         assert sources[0].name == "in_0"
 
+    def test_partial_grid_shape_one_cell_along_propagation_axis(self, port_lib, vol_with_x_size, wave_char):
+        """Source must be exactly 1 cell thick along the propagation axis, unconstrained on others."""
+        spec = GDSPortSpec(gds_layer=10, propagation_axis=0)
+        sources, _ = sources_from_gds_ports(
+            gds_source=port_lib,
+            cell_name="TOP",
+            port_specs=[spec],
+            wave_character=wave_char,
+            simulation_volume=vol_with_x_size,
+            gds_center=(0.0, 0.0),
+        )
+        assert sources[0].partial_grid_shape[0] == 1
+        assert sources[0].partial_grid_shape[1] is None
+        assert sources[0].partial_grid_shape[2] is None
+
+    def test_transverse_width_matches_port_polygon(self, port_lib, vol_with_x_size, wave_char):
+        """partial_real_shape on the transverse axis equals the port polygon bounding-box width.
+
+        Port polygon y ∈ [-200nm, 200nm] → transverse_width = 400nm.
+        """
+        spec = GDSPortSpec(gds_layer=10, propagation_axis=0)
+        sources, _ = sources_from_gds_ports(
+            gds_source=port_lib,
+            cell_name="TOP",
+            port_specs=[spec],
+            wave_character=wave_char,
+            simulation_volume=vol_with_x_size,
+            gds_center=(0.0, 0.0),
+        )
+        assert sources[0].partial_real_shape[1] == pytest.approx(400e-9)
+        assert sources[0].partial_real_shape[0] is None
+        assert sources[0].partial_real_shape[2] is None
+
+    def test_propagation_position_from_gds_centroid(self, port_lib, vol_with_x_size, wave_char):
+        """RealCoordinateConstraint positions source at port centroid in simulation coordinates.
+
+        Port centroid x=0 in GDS, gds_center=(0,0), vol_size=1µm → sim_prop_pos = 0.5µm.
+        """
+        spec = GDSPortSpec(gds_layer=10, propagation_axis=0)
+        _, constraints = sources_from_gds_ports(
+            gds_source=port_lib,
+            cell_name="TOP",
+            port_specs=[spec],
+            wave_character=wave_char,
+            simulation_volume=vol_with_x_size,
+            gds_center=(0.0, 0.0),
+        )
+        prop_constraint = constraints[0]
+        assert isinstance(prop_constraint, RealCoordinateConstraint)
+        assert prop_constraint.axes == (0,)
+        assert prop_constraint.coordinates[0] == pytest.approx(0.5e-6)
+
+    def test_gds_center_offset_shifts_position(self, port_lib, wave_char):
+        """Shifting gds_center shifts the source position by the same amount.
+
+        Port centroid x=0, gds_center=(200nm, 0), vol_size=1µm → sim_prop_pos = 300nm.
+        """
+        spec = GDSPortSpec(gds_layer=10, propagation_axis=0)
+        vol = SimulationVolume(name="volume", partial_real_shape=(1e-6, None, None))
+        _, constraints = sources_from_gds_ports(
+            gds_source=port_lib,
+            cell_name="TOP",
+            port_specs=[spec],
+            wave_character=wave_char,
+            simulation_volume=vol,
+            gds_center=(200e-9, 0.0),
+        )
+        assert constraints[0].coordinates[0] == pytest.approx(300e-9)
+
 
 @pytest.mark.unit
 class TestDetectorsFromGdsPorts:
@@ -801,3 +871,72 @@ class TestDetectorsFromGdsPorts:
             gds_center=(0.0, 0.0),
         )
         assert detectors[0].name == "out_0"
+
+    def test_partial_grid_shape_one_cell_along_propagation_axis(self, port_lib, vol_with_x_size, wave_char):
+        """Detector must be exactly 1 cell thick along the propagation axis, unconstrained on others."""
+        spec = GDSPortSpec(gds_layer=10, propagation_axis=0)
+        detectors, _ = detectors_from_gds_ports(
+            gds_source=port_lib,
+            cell_name="TOP",
+            port_specs=[spec],
+            wave_characters=[wave_char],
+            simulation_volume=vol_with_x_size,
+            gds_center=(0.0, 0.0),
+        )
+        assert detectors[0].partial_grid_shape[0] == 1
+        assert detectors[0].partial_grid_shape[1] is None
+        assert detectors[0].partial_grid_shape[2] is None
+
+    def test_transverse_width_matches_port_polygon(self, port_lib, vol_with_x_size, wave_char):
+        """partial_real_shape on the transverse axis equals the port polygon bounding-box width.
+
+        Port polygon y ∈ [-200nm, 200nm] → transverse_width = 400nm.
+        """
+        spec = GDSPortSpec(gds_layer=10, propagation_axis=0)
+        detectors, _ = detectors_from_gds_ports(
+            gds_source=port_lib,
+            cell_name="TOP",
+            port_specs=[spec],
+            wave_characters=[wave_char],
+            simulation_volume=vol_with_x_size,
+            gds_center=(0.0, 0.0),
+        )
+        assert detectors[0].partial_real_shape[1] == pytest.approx(400e-9)
+        assert detectors[0].partial_real_shape[0] is None
+        assert detectors[0].partial_real_shape[2] is None
+
+    def test_propagation_position_from_gds_centroid(self, port_lib, vol_with_x_size, wave_char):
+        """RealCoordinateConstraint positions detector at port centroid in simulation coordinates.
+
+        Port centroid x=0 in GDS, gds_center=(0,0), vol_size=1µm → sim_prop_pos = 0.5µm.
+        """
+        spec = GDSPortSpec(gds_layer=10, propagation_axis=0)
+        _, constraints = detectors_from_gds_ports(
+            gds_source=port_lib,
+            cell_name="TOP",
+            port_specs=[spec],
+            wave_characters=[wave_char],
+            simulation_volume=vol_with_x_size,
+            gds_center=(0.0, 0.0),
+        )
+        prop_constraint = constraints[0]
+        assert isinstance(prop_constraint, RealCoordinateConstraint)
+        assert prop_constraint.axes == (0,)
+        assert prop_constraint.coordinates[0] == pytest.approx(0.5e-6)
+
+    def test_gds_center_offset_shifts_position(self, port_lib, wave_char):
+        """Shifting gds_center shifts the detector position by the same amount.
+
+        Port centroid x=0, gds_center=(200nm, 0), vol_size=1µm → sim_prop_pos = 300nm.
+        """
+        spec = GDSPortSpec(gds_layer=10, propagation_axis=0)
+        vol = SimulationVolume(name="volume", partial_real_shape=(1e-6, None, None))
+        _, constraints = detectors_from_gds_ports(
+            gds_source=port_lib,
+            cell_name="TOP",
+            port_specs=[spec],
+            wave_characters=[wave_char],
+            simulation_volume=vol,
+            gds_center=(200e-9, 0.0),
+        )
+        assert constraints[0].coordinates[0] == pytest.approx(300e-9)
