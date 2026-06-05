@@ -8,7 +8,7 @@ from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.null import Null
 from fdtdx.core.physics.metrics import bidirectional_mode_overlap
-from fdtdx.core.physics.modes import compute_modes_multi_freq
+from fdtdx.core.physics.modes import compute_mode
 from fdtdx.dispersion import effective_inv_permittivity
 from fdtdx.objects.detectors.detector import DetectorState
 from fdtdx.objects.detectors.phasor import PhasorDetector
@@ -28,9 +28,8 @@ class ModeOverlapDetector(PhasorDetector):
     decomposition of electromagnetic fields.
 
     ``compute_overlap()`` returns a complex array of shape ``(num_freqs,)``, where
-    ``num_freqs = len(wave_characters)``.  All frequencies are solved in a single
-    ``jax.pure_callback`` call during ``apply()``, with neff-proximity tracking to
-    prevent mode hopping across frequencies.
+    ``num_freqs = len(wave_characters)``.  Modes are solved once per frequency during
+    ``apply()``, with neff-proximity tracking to prevent mode hopping across frequencies.
     """
 
     #: Direction of mode propagation, either "+" (forward) or "-" (backward).
@@ -163,15 +162,19 @@ class ModeOverlapDetector(PhasorDetector):
         else:
             inv_permeability_slice = inv_permeabilities
 
-        # Apply frequency-dependent dispersive correction for each wave character so
-        # the mode solver sees ε(ω) rather than ε∞.  Cells with no pole have
-        # c1=c2=c3=0, in which case effective_inv_permittivity returns inv_eps unchanged.
-        if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
-            c1_slice = dispersive_c1[:, :, *self.grid_slice]
-            c2_slice = dispersive_c2[:, :, *self.grid_slice]
-            c3_slice = dispersive_c3[:, :, *self.grid_slice]
-            inv_permittivities_per_freq = [
-                effective_inv_permittivity(
+        # Solve one mode per frequency.  apply() is always called eagerly (never under jax.jit),
+        # so a Python loop with concrete prev_neff values between iterations is safe.
+        mode_Es: list[jax.Array] = []
+        mode_Hs: list[jax.Array] = []
+        mode_neffs: list[jax.Array] = []
+        prev_neff: float | None = None
+        for wc in self.wave_characters:
+            # Apply dispersive correction so the mode solver sees ε(ω) rather than ε∞.
+            if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
+                c1_slice = dispersive_c1[:, :, *self.grid_slice]
+                c2_slice = dispersive_c2[:, :, *self.grid_slice]
+                c3_slice = dispersive_c3[:, :, *self.grid_slice]
+                inv_eps_i = effective_inv_permittivity(
                     inv_eps=inv_permittivity_slice,
                     c1=c1_slice,
                     c2=c2_slice,
@@ -179,31 +182,32 @@ class ModeOverlapDetector(PhasorDetector):
                     omega=2.0 * np.pi * wc.get_frequency(),
                     dt=self._config.time_step_duration,
                 )
-                for wc in self.wave_characters
-            ]
-        else:
-            inv_permittivities_per_freq = None
+            else:
+                inv_eps_i = inv_permittivity_slice
 
-        # All frequencies solved in one call with neff-proximity continuity tracking.
-        mode_Es, mode_Hs, mode_neffs = compute_modes_multi_freq(
-            frequencies=[wc.get_frequency() for wc in self.wave_characters],
-            inv_permittivities=inv_permittivity_slice,
-            inv_permeabilities=inv_permeability_slice,
-            resolution=self._mode_solver_resolution(),
-            direction=self.direction,
-            mode_index=self.mode_index,
-            filter_pol=self.filter_pol,
-            dtype=self._config.dtype,
-            bend_radius=self.bend_radius,
-            bend_axis=self.bend_axis,
-            symmetry=self.symmetry,
-            transverse_coords=self._transverse_edge_coordinates(),
-            inv_permittivities_per_freq=inv_permittivities_per_freq,
-        )
+            mode_E, mode_H, neff = compute_mode(
+                frequency=wc.get_frequency(),
+                inv_permittivities=inv_eps_i,
+                inv_permeabilities=inv_permeability_slice,
+                resolution=self._mode_solver_resolution(),
+                direction=self.direction,
+                mode_index=self.mode_index,
+                filter_pol=self.filter_pol,
+                dtype=self._config.dtype,
+                bend_radius=self.bend_radius,
+                bend_axis=self.bend_axis,
+                symmetry=self.symmetry,
+                transverse_coords=self._transverse_edge_coordinates(),
+                target_neff=prev_neff,
+            )
+            prev_neff = float(np.real(neff))  # requires eager execution — apply() must never be jit'd
+            mode_Es.append(mode_E)
+            mode_Hs.append(mode_H)
+            mode_neffs.append(neff)
 
-        self = self.aset("_mode_E", mode_Es, create_new_ok=True)
-        self = self.aset("_mode_H", mode_Hs, create_new_ok=True)
-        self = self.aset("_mode_neff", mode_neffs, create_new_ok=True)
+        self = self.aset("_mode_E", jnp.stack(mode_Es), create_new_ok=True)
+        self = self.aset("_mode_H", jnp.stack(mode_Hs), create_new_ok=True)
+        self = self.aset("_mode_neff", jnp.stack(mode_neffs), create_new_ok=True)
         return self
 
     def compute_overlap_to_mode(
@@ -260,13 +264,22 @@ class ModeOverlapDetector(PhasorDetector):
         """
         if isinstance(self._mode_E, Null) or isinstance(self._mode_H, Null):
             raise Exception("Need to call apply on ModeOverlapDetector before calling compute_mode_overlap!")
-        results = [
-            self.compute_overlap_to_mode(
-                state=state,
-                mode_E=self._mode_E[i],
-                mode_H=self._mode_H[i],
-                freq_idx=i,
+        phasors = state["phasor"]  # (1, num_freqs, 6, *spatial)
+        phasors_E = phasors[0, :, :3]  # (num_freqs, 3, *spatial)
+        phasors_H = phasors[0, :, 3:]
+
+        def overlap_one(mode_E, mode_H, sim_E, sim_H):
+            return bidirectional_mode_overlap(
+                mode_E=mode_E,
+                mode_H=mode_H,
+                sim_E=sim_E,
+                sim_H=sim_H,
+                propagation_axis=self.propagation_axis,
+                area_EuHv=self._cached_area_EuHv,
+                area_EvHu=self._cached_area_EvHu,
             )
-            for i in range(self._mode_E.shape[0])
-        ]
-        return jnp.stack(results)
+
+        results = jax.vmap(overlap_one)(self._mode_E, self._mode_H, phasors_E, phasors_H)
+        if self.scaling_mode != "pulse":
+            results = results / 4.0
+        return results

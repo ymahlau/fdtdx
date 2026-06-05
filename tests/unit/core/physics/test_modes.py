@@ -8,7 +8,6 @@ from fdtdx.core.physics.modes import (
     ModeTupleType,
     compute_mode,
     compute_mode_polarization_fraction,
-    compute_modes_multi_freq,
     sort_modes,
     tidy3d_mode_computation_wrapper,
 )
@@ -782,260 +781,101 @@ class TestComputeModeBendPassthrough:
         assert kwargs["plane_center"] == pytest.approx(expected)
 
 
-class TestComputeModesMultiFreq:
-    """Tests for compute_modes_multi_freq — multi-frequency mode solving with continuity tracking."""
+class TestComputeModeTargetNeff:
+    """Tests for the target_neff parameter in compute_mode."""
 
-    def _make_mock_mode(self, neff=1.5, shape=(5, 6)):
+    def _make_mock_mode(self, neff, shape=(5, 6)):
         return ModeTupleType(
-            neff=neff + 0.01j,
-            Ex=np.ones(shape, dtype=np.complex64),
-            Ey=np.ones(shape, dtype=np.complex64),
-            Ez=np.ones(shape, dtype=np.complex64),
-            Hx=np.ones(shape, dtype=np.complex64),
-            Hy=np.ones(shape, dtype=np.complex64),
-            Hz=np.ones(shape, dtype=np.complex64),
+            neff=float(neff),
+            Ex=np.ones(shape, dtype=np.complex64) * float(neff),
+            Ey=np.zeros(shape, dtype=np.complex64),
+            Ez=np.zeros(shape, dtype=np.complex64),
+            Hx=np.zeros(shape, dtype=np.complex64),
+            Hy=np.ones(shape, dtype=np.complex64) * float(neff),
+            Hz=np.zeros(shape, dtype=np.complex64),
         )
-
-    def test_empty_frequencies_raises(self):
-        """An empty frequencies list raises ValueError before any computation."""
-        inv_permittivities = jnp.ones((1, 5, 6, 1))
-        with pytest.raises(ValueError, match="non-empty"):
-            compute_modes_multi_freq([], inv_permittivities, 1.0, resolution=1e-8)
-
-    def test_invalid_permittivities_shape_raises(self):
-        """Invalid inv_permittivities shape raises the same exception as compute_mode."""
-        inv_permittivities = jnp.ones((3, 2, 2, 2))
-        with pytest.raises(Exception, match="Invalid shape of inv_permittivities"):
-            compute_modes_multi_freq([2e14], inv_permittivities, 1.0, resolution=1e-8)
-
-    def test_invalid_permeabilities_shape_raises(self):
-        """Invalid inv_permeabilities shape raises the same exception as compute_mode."""
-        inv_permittivities = jnp.ones((3, 1, 5, 5))
-        inv_permeabilities = jnp.ones((3, 2, 2, 2))
-        with pytest.raises(Exception, match="Invalid shape of inv_permeabilities"):
-            compute_modes_multi_freq([2e14], inv_permittivities, inv_permeabilities, resolution=1e-8)
-
-    def test_only_bend_radius_raises(self):
-        """Setting bend_radius without bend_axis raises ValueError."""
-        inv_permittivities = jnp.ones((1, 5, 6, 1))
-        with pytest.raises(ValueError, match="both be set or both be None"):
-            compute_modes_multi_freq([2e14], inv_permittivities, 1.0, resolution=1e-8, bend_radius=5e-6)
 
     @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
     @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
-    def test_single_frequency_returns_correct_shapes(self, mock_normalize, mock_wrapper):
-        """A single-element frequencies list returns shapes (1, 3, *spatial)."""
-        mock_wrapper.return_value = [self._make_mock_mode()]
-        mock_normalize.return_value = (
-            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
-            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
-        )
+    def test_target_neff_selects_closest_mode(self, mock_normalize, mock_wrapper):
+        """target_neff picks mode closest in real(neff), overriding mode_index ordering.
 
-        mode_Es, mode_Hs, mode_neffs = compute_modes_multi_freq(
-            frequencies=[2e14],
-            inv_permittivities=jnp.ones((1, 5, 6, 1)),
-            inv_permeabilities=1.0,
-            resolution=1e-8,
-        )
-
-        assert mode_Es.shape == (1, 3, 5, 6, 1)
-        assert mode_Hs.shape == (1, 3, 5, 6, 1)
-        assert mode_neffs.shape == (1,)
-
-    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
-    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
-    def test_two_frequencies_wrapper_called_twice(self, mock_normalize, mock_wrapper):
-        """With two frequencies, tidy3d_mode_computation_wrapper is called once per frequency."""
-        mock_wrapper.side_effect = [
-            [self._make_mock_mode(neff=1.5)],
-            [self._make_mock_mode(neff=1.48)],
-        ]
-        mock_normalize.return_value = (
-            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
-            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
-        )
-
-        compute_modes_multi_freq(
-            frequencies=[2e14, 1.9e14],
-            inv_permittivities=jnp.ones((1, 5, 6, 1)),
-            inv_permeabilities=1.0,
-            resolution=1e-8,
-        )
-
-        assert mock_wrapper.call_count == 2
-
-    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
-    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
-    def test_tracking_follows_neff_proximity(self, mock_normalize, mock_wrapper):
-        """At freq-1 the mode closest in neff to the freq-0 anchor is selected.
-
-        Setup: anchor at freq-0 has neff=3.0 (highest, mode_index=0).
-        At freq-1 two candidates: neff=2.8 and neff=2.0.
-        Proximity to 3.0: |3.0-2.8|=0.2 < |3.0-2.0|=1.0, so 2.8 should be tracked.
+        Three modes sorted highest-to-lowest: [3.0, 2.0, 1.0].
+        target_neff=1.9 is closest to 2.0 (|1.9-2.0|=0.1 vs |1.9-3.0|=1.1).
+        mode_index=0 would have returned the 3.0 mode; target_neff overrides this.
         """
-
-        def _make_mode_neff(neff, shape=(5, 6)):
-            return ModeTupleType(
-                neff=float(neff),
-                Ex=np.ones(shape, dtype=np.complex64) * float(neff),
-                Ey=np.zeros(shape, dtype=np.complex64),
-                Ez=np.zeros(shape, dtype=np.complex64),
-                Hx=np.zeros(shape, dtype=np.complex64),
-                Hy=np.ones(shape, dtype=np.complex64) * float(neff),
-                Hz=np.zeros(shape, dtype=np.complex64),
-            )
-
-        # freq-0: three candidates sorted by neff; mode_index=0 picks neff=3.0
-        # freq-1: two candidates; proximity to 3.0 picks 2.8 over 2.0
-        mock_wrapper.side_effect = [
-            [_make_mode_neff(3.0), _make_mode_neff(2.0), _make_mode_neff(1.0)],
-            [_make_mode_neff(2.0), _make_mode_neff(2.8)],
+        mock_wrapper.return_value = [
+            self._make_mock_mode(3.0),
+            self._make_mock_mode(2.0),
+            self._make_mock_mode(1.0),
         ]
         mock_normalize.return_value = (
             jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
             jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
         )
 
-        _, _, mode_neffs = compute_modes_multi_freq(
-            frequencies=[2e14, 1.9e14],
+        _, _, neff = compute_mode(
+            frequency=2e14,
+            inv_permittivities=jnp.ones((1, 5, 6, 1)),
+            inv_permeabilities=1.0,
+            resolution=1e-8,
+            target_neff=1.9,
+        )
+
+        assert abs(float(np.real(neff)) - 2.0) < 0.01, (
+            f"Expected neff≈2.0 with target_neff=1.9, got {float(np.real(neff)):.3f}"
+        )
+
+    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
+    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
+    def test_target_neff_none_uses_mode_index(self, mock_normalize, mock_wrapper):
+        """When target_neff is None, mode_index selects from the sorted list (default behaviour).
+
+        Three modes sorted highest-to-lowest: [3.0, 2.0, 1.0].
+        mode_index=0 picks the highest-neff mode (3.0).
+        """
+        mock_wrapper.return_value = [
+            self._make_mock_mode(3.0),
+            self._make_mock_mode(2.0),
+            self._make_mock_mode(1.0),
+        ]
+        mock_normalize.return_value = (
+            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
+            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
+        )
+
+        _, _, neff = compute_mode(
+            frequency=2e14,
             inv_permittivities=jnp.ones((1, 5, 6, 1)),
             inv_permeabilities=1.0,
             resolution=1e-8,
             mode_index=0,
-            filter_pol=None,
+            target_neff=None,
         )
 
-        # neff at freq-1 should be 2.8, not 2.0
-        assert abs(float(np.real(mode_neffs[1])) - 2.8) < 0.01, (
-            f"Expected tracked neff≈2.8 at freq-1, got {float(np.real(mode_neffs[1])):.3f}"
+        assert abs(float(np.real(neff)) - 3.0) < 0.01, (
+            f"Expected neff≈3.0 with mode_index=0 (no target_neff), got {float(np.real(neff)):.3f}"
         )
-
-    def test_resolution_required_without_transverse_coords(self):
-        """ValueError when neither resolution nor transverse_coords is provided."""
-        inv_permittivities = jnp.ones((1, 5, 6, 1))
-        with pytest.raises(ValueError, match="resolution is required"):
-            compute_modes_multi_freq([2e14], inv_permittivities, 1.0)
-
-    def test_transverse_coords_wrong_length_raises(self):
-        """ValueError when transverse_coords has != 2 arrays."""
-        inv_permittivities = jnp.ones((1, 5, 6, 1))
-        bad_coords = [np.linspace(0, 5e-6, 6), np.linspace(0, 6e-6, 7), np.linspace(0, 1e-6, 2)]
-        with pytest.raises(ValueError, match="exactly two coordinate arrays"):
-            compute_modes_multi_freq([2e14], inv_permittivities, 1.0, transverse_coords=bad_coords)
-
-    def test_transverse_coords_wrong_shape_raises(self):
-        """ValueError when a transverse_coords array has the wrong length."""
-        inv_permittivities = jnp.ones((1, 5, 6, 1))
-        bad_coords = [np.linspace(0, 5e-6, 4), np.linspace(0, 6e-6, 7)]  # x should have 6 edges
-        with pytest.raises(ValueError, match="must be 1D with length"):
-            compute_modes_multi_freq([2e14], inv_permittivities, 1.0, transverse_coords=bad_coords)
-
-    def test_transverse_coords_non_increasing_raises(self):
-        """ValueError when a transverse_coords array is not strictly increasing."""
-        inv_permittivities = jnp.ones((1, 5, 6, 1))
-        bad_coords = [np.array([0.0, 2e-6, 1e-6, 3e-6, 4e-6, 5e-6]), np.linspace(0, 6e-6, 7)]
-        with pytest.raises(ValueError, match="strictly increasing"):
-            compute_modes_multi_freq([2e14], inv_permittivities, 1.0, transverse_coords=bad_coords)
 
     @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
     @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
-    def test_transverse_coords_path(self, mock_normalize, mock_wrapper):
-        """Non-uniform transverse_coords are accepted and passed to the tidy3d wrapper."""
-        mock_wrapper.return_value = [self._make_mock_mode()]
-        mock_normalize.return_value = (
-            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
-            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
-        )
-        x_edges = np.array([0.0, 1e-6, 3e-6, 6e-6, 10e-6, 15e-6])  # non-uniform, 6 edges for 5 cells
-        y_edges = np.linspace(0, 6e-6, 7)  # 7 edges for 6 cells
-        inv_permittivities = jnp.ones((1, 5, 6, 1))
-
-        mode_Es, _, _ = compute_modes_multi_freq([2e14], inv_permittivities, 1.0, transverse_coords=[x_edges, y_edges])
-
-        assert mode_Es.shape == (1, 3, 5, 6, 1)
-        assert mock_wrapper.called
-
-    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
-    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
-    def test_propagation_axis_0(self, mock_normalize, mock_wrapper):
-        """Propagation along x (axis 0) — singleton on dim 1."""
-        mock_wrapper.return_value = [self._make_mock_mode(shape=(6, 7))]
-        mock_normalize.return_value = (
-            jnp.ones((3, 1, 6, 7), dtype=jnp.complex64),
-            jnp.ones((3, 1, 6, 7), dtype=jnp.complex64),
-        )
-        inv_permittivities = jnp.ones((1, 1, 6, 7))  # propagation_axis = 0
-
-        mode_Es, _, _ = compute_modes_multi_freq([2e14], inv_permittivities, 1.0, resolution=1e-8)
-
-        assert mode_Es.shape == (1, 3, 1, 6, 7)
-
-    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
-    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
-    def test_propagation_axis_1(self, mock_normalize, mock_wrapper):
-        """Propagation along y (axis 1) — singleton on dim 2."""
-        mock_wrapper.return_value = [self._make_mock_mode(shape=(5, 7))]
-        mock_normalize.return_value = (
-            jnp.ones((3, 5, 1, 7), dtype=jnp.complex64),
-            jnp.ones((3, 5, 1, 7), dtype=jnp.complex64),
-        )
-        inv_permittivities = jnp.ones((1, 5, 1, 7))  # propagation_axis = 1
-
-        mode_Es, _, _ = compute_modes_multi_freq([2e14], inv_permittivities, 1.0, resolution=1e-8)
-
-        assert mode_Es.shape == (1, 3, 5, 1, 7)
-
-    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
-    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
-    def test_3component_permittivity(self, mock_normalize, mock_wrapper):
-        """3-component (diagonal anisotropic) permittivity is permuted by propagation axis."""
-        mock_wrapper.return_value = [self._make_mock_mode()]
-        mock_normalize.return_value = (
-            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
-            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
-        )
-        inv_permittivities = jnp.ones((3, 5, 6, 1))  # 3-component, propagation_axis = 2
-
-        mode_Es, _, _ = compute_modes_multi_freq([2e14], inv_permittivities, 1.0, resolution=1e-8)
-
-        assert mode_Es.shape == (1, 3, 5, 6, 1)
-        assert mock_wrapper.called
-
-    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
-    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
-    def test_array_permeability(self, mock_normalize, mock_wrapper):
-        """Array (non-scalar) inv_permeabilities are accepted and sliced correctly."""
-        mock_wrapper.return_value = [self._make_mock_mode()]
-        mock_normalize.return_value = (
-            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
-            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
-        )
-        inv_permittivities = jnp.ones((1, 5, 6, 1))
-        inv_permeabilities = jnp.ones((1, 5, 6, 1))  # array permeability
-
-        mode_Es, _, _ = compute_modes_multi_freq([2e14], inv_permittivities, inv_permeabilities, resolution=1e-8)
-
-        assert mode_Es.shape == (1, 3, 5, 6, 1)
-
-    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
-    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
-    def test_bend_radius_passed_to_wrapper(self, mock_normalize, mock_wrapper):
-        """bend_radius and bend_axis are converted and forwarded to tidy3d wrapper."""
-        mock_wrapper.return_value = [self._make_mock_mode()]
+    def test_target_neff_passed_to_wrapper(self, mock_normalize, mock_wrapper):
+        """target_neff kwarg is forwarded to tidy3d_mode_computation_wrapper."""
+        mock_wrapper.return_value = [self._make_mock_mode(2.0)]
         mock_normalize.return_value = (
             jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
             jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
         )
 
-        compute_modes_multi_freq(
-            [2e14],
-            jnp.ones((1, 5, 6, 1)),
-            1.0,
+        compute_mode(
+            frequency=2e14,
+            inv_permittivities=jnp.ones((1, 5, 6, 1)),
+            inv_permeabilities=1.0,
             resolution=1e-8,
-            bend_radius=5e-6,
-            bend_axis=0,
+            target_neff=2.5,
         )
 
         kwargs = mock_wrapper.call_args.kwargs
-        assert kwargs["bend_radius"] == pytest.approx(5.0)  # metres → µm
-        assert kwargs["bend_axis"] == 0  # propagation_axis=2 → transverse [0,1] → bend_axis=0
+        assert "target_neff" in kwargs or any("target_neff" in str(a) for a in mock_wrapper.call_args.args), (
+            "target_neff should be forwarded to tidy3d_mode_computation_wrapper"
+        )

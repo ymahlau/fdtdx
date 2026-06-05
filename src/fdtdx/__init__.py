@@ -33,7 +33,7 @@ from fdtdx.core.physics.metrics import (
     normalize_by_energy,
     normalize_by_poynting_flux,
 )
-from fdtdx.core.physics.modes import compute_mode, compute_modes_multi_freq
+from fdtdx.core.physics.modes import compute_mode
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.dispersion import (
@@ -232,7 +232,6 @@ __all__ = [
     "compute_eps_spectrum_from_coefficients",
     "compute_impedance_corrected_temporal_profile",
     "compute_mode",
-    "compute_modes_multi_freq",
     "compute_pole_coefficients",
     "compute_poynting_flux",
     "constants",
