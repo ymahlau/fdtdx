@@ -22,8 +22,10 @@ _NCELLS_T = 8
 _PML = 3
 _TOTAL_T = _NCELLS_T + 2 * _PML  # 14 cells per transverse axis
 
-_WC_1550 = WaveCharacter(wavelength=1.55e-6)
+_WC_1200 = WaveCharacter(wavelength=1.20e-6)
 _WC_1300 = WaveCharacter(wavelength=1.30e-6)
+_WC_1450 = WaveCharacter(wavelength=1.45e-6)
+_WC_1550 = WaveCharacter(wavelength=1.55e-6)
 
 
 def _make_det_fixture(wave_characters):
@@ -87,6 +89,17 @@ def single_freq_det():
     Same geometry as two_freq_det so their modes can be compared directly.
     """
     return _make_det_fixture((_WC_1550,))
+
+
+@pytest.fixture(scope="module")
+def four_freq_det():
+    """Uniform-air domain: 4-wave-character detector (1200/1300/1450/1550 nm, z-plane).
+
+    Spans a wide wavelength range (350 nm) to stress-test the neff-proximity
+    loop and verify shapes, finiteness, and self-overlap normalization across
+    all four frequencies in a single apply() call.
+    """
+    return _make_det_fixture((_WC_1200, _WC_1300, _WC_1450, _WC_1550))
 
 
 class TestMultiFreqDetectorApply:
@@ -220,3 +233,63 @@ class TestSingleVsMultiFreqAgreement:
         assert overlap_multi == pytest.approx(overlap_single, abs=0.05), (
             f"Multi-freq overlap[0]={overlap_multi:.4f} vs single={overlap_single:.4f}"
         )
+
+
+class TestFourFreqDetectorApply:
+    """End-to-end tests for ModeOverlapDetector.apply() with four wave characters.
+
+    Spans 1200–1550 nm (350 nm range) in a single apply() call with neff-proximity
+    tracking across all four solver calls.
+    """
+
+    def test_mode_E_shape(self, four_freq_det):
+        """_mode_E has shape (4, 3, *spatial)."""
+        assert four_freq_det._mode_E.shape == (4, 3, _TOTAL_T, _TOTAL_T, 1)
+
+    def test_mode_H_shape(self, four_freq_det):
+        """_mode_H has shape (4, 3, *spatial)."""
+        assert four_freq_det._mode_H.shape == (4, 3, _TOTAL_T, _TOTAL_T, 1)
+
+    def test_neff_shape(self, four_freq_det):
+        """_mode_neff has shape (4,)."""
+        assert four_freq_det._mode_neff.shape == (4,)
+
+    def test_mode_fields_finite(self, four_freq_det):
+        """All mode field components are finite across all four frequencies."""
+        assert jnp.all(jnp.isfinite(four_freq_det._mode_E))
+        assert jnp.all(jnp.isfinite(four_freq_det._mode_H))
+
+    def test_neff_all_positive(self, four_freq_det):
+        """real(neff) > 0 at every frequency."""
+        neffs = np.real(np.array(four_freq_det._mode_neff))
+        assert np.all(neffs > 0), f"Non-positive neff: {neffs}"
+
+    def test_neff_continuity_no_large_jump(self, four_freq_det):
+        """No consecutive neff pair differs by more than 0.2 (no mode hopping)."""
+        neffs = np.real(np.array(four_freq_det._mode_neff))
+        diffs = np.abs(np.diff(neffs))
+        assert np.all(diffs < 0.2), (
+            f"Large neff jump across frequencies: {neffs}, diffs={diffs}"
+        )
+
+    def test_self_overlap_equals_one_at_each_frequency(self, four_freq_det):
+        """Feeding mode fields back as phasor gives |overlap| ≈ 1 at every frequency slot."""
+        state = four_freq_det.init_state()
+        phasor = state["phasor"]
+        for i in range(4):
+            phasor = phasor.at[0, i, :3].set(four_freq_det._mode_E[i])
+            phasor = phasor.at[0, i, 3:].set(four_freq_det._mode_H[i])
+        state = {"phasor": phasor}
+        result = four_freq_det.compute_overlap(state=state)
+        for i, wc in enumerate([_WC_1200, _WC_1300, _WC_1450, _WC_1550]):
+            mag = float(jnp.abs(result[i]))
+            assert mag == pytest.approx(1.0, abs=0.05), (
+                f"Self-overlap at {int(wc.wavelength * 1e9)} nm = {mag:.4f}, expected ≈ 1.0"
+            )
+
+    def test_compute_overlap_shape(self, four_freq_det):
+        """compute_overlap() on a zero phasor returns shape (4,), complex."""
+        state = four_freq_det.init_state()
+        result = four_freq_det.compute_overlap(state=state)
+        assert result.shape == (4,)
+        assert jnp.iscomplexobj(result)

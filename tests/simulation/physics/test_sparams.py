@@ -208,8 +208,12 @@ def test_waveguide_sparam_transmission():
 
 # ── Multi-frequency sparam test ───────────────────────────────────────────────
 
+_WC_1300 = fdtdx.WaveCharacter(wavelength=1.30e-6)
+_WC_1400 = fdtdx.WaveCharacter(wavelength=1.40e-6)
+_WC_1500 = fdtdx.WaveCharacter(wavelength=1.50e-6)
 _WC_1550 = fdtdx.WaveCharacter(wavelength=1.55e-6)
-_WC_1450 = fdtdx.WaveCharacter(wavelength=1.45e-6)
+
+_MULTIFREQ_WCS = (_WC_1300, _WC_1400, _WC_1500, _WC_1550)
 
 
 def _build_waveguide_sparams_multifreq():
@@ -275,10 +279,10 @@ def _build_waveguide_sparams_multifreq():
     ])
     objects.append(source)
 
-    # Input normalization detector — two frequencies
+    # Input normalization detector — four frequencies
     input_det = fdtdx.ModeOverlapDetector(
         name="det_source",
-        wave_characters=(_WC_1550, _WC_1450),
+        wave_characters=_MULTIFREQ_WCS,
         direction="+",
         mode_index=0,
         filter_pol="te",
@@ -287,11 +291,11 @@ def _build_waveguide_sparams_multifreq():
     constraints.extend([input_det.same_size(source), input_det.same_position(source, grid_margins=(1, 0, 0))])
     objects.append(input_det)
 
-    # One output detector — two frequencies
+    # One output detector — four frequencies
     det = fdtdx.ModeOverlapDetector(
         name="det_near",
         partial_grid_shape=(1, None, None),
-        wave_characters=(_WC_1550, _WC_1450),
+        wave_characters=_MULTIFREQ_WCS,
         direction="+",
         mode_index=0,
         filter_pol="te",
@@ -308,12 +312,13 @@ def _build_waveguide_sparams_multifreq():
 
 
 def test_waveguide_multifreq_sparam():
-    """S-parameters at both 1550 nm and 1450 nm exceed 0.90.
+    """S-parameters at all four wavelengths (1300/1400/1500/1550 nm) exceed 0.90.
 
     Uses the same lossless Si/SiO2 slab waveguide as test_waveguide_sparam_transmission
-    but with ModeOverlapDetectors that carry two wave characters.  Validates that
-    broadband multi-frequency mode overlap works end-to-end: the mode solver is called
-    once per frequency with neff-proximity tracking, and the DFT phasors at both
+    but with ModeOverlapDetectors carrying four wave characters.  Validates end-to-end
+    broadband overlap: the mode solver runs once per frequency with neff-proximity
+    tracking (critical at 1300/1400 nm where a second TE mode exists and the wrong
+    mode could be selected without tracking), and the DFT phasors at all four
     frequencies produce physically correct S-parameter magnitudes.
     """
     objects, constraints, config = _build_waveguide_sparams_multifreq()
@@ -334,7 +339,7 @@ def test_waveguide_multifreq_sparam():
 
     for (det_name, src_name), s_params in result.items():
         s_arr = np.array(s_params)  # shape (2,) — one entry per frequency
-        for freq_idx, (wc, s) in enumerate(zip([_WC_1550, _WC_1450], s_arr)):
+        for freq_idx, (wc, s) in enumerate(zip(_MULTIFREQ_WCS, s_arr)):
             power = float(abs(s) ** 2)
             wavelength_nm = int(wc.wavelength * 1e9)
             print(f"|S({det_name!r}, {wavelength_nm}nm)|² = {power:.4f}")
