@@ -26,12 +26,10 @@ _WC_1550 = WaveCharacter(wavelength=1.55e-6)
 _WC_1300 = WaveCharacter(wavelength=1.30e-6)
 
 
-@pytest.fixture(scope="module")
-def two_freq_det():
-    """Uniform-air domain with a 2-wave-character ModeOverlapDetector (z-plane).
+def _make_det_fixture(wave_characters):
+    """Build and apply a ModeOverlapDetector with the given wave characters.
 
-    Calls apply_params so compute_mode runs twice (once per frequency) through the
-    real tidy3d ARPACK solver.  Fixture is module-scoped so the expensive solve runs once.
+    Shared helper for the two_freq_det and single_freq_det fixtures.
     """
     total_t = _TOTAL_T * _RESOLUTION
     total_z = (1 + 2 * _PML) * _RESOLUTION
@@ -52,12 +50,11 @@ def two_freq_det():
 
     det = ModeOverlapDetector(
         name="det",
-        wave_characters=(_WC_1550, _WC_1300),
+        wave_characters=wave_characters,
         direction="+",
         filter_pol=None,
-        partial_grid_shape=(None, None, 1),  # z-plane → propagation_axis=2
+        partial_grid_shape=(None, None, 1),
     )
-
     config = fdtdx.SimulationConfig(
         time=1e-14,
         grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
@@ -68,18 +65,28 @@ def two_freq_det():
         det.same_size(volume, axes=(0, 1)),
         det.place_at_center(volume, axes=(0, 1, 2)),
     ]
-
     key = jax.random.PRNGKey(0)
     obj_container, arrays, _, config, _ = fdtdx.place_objects(
-        object_list=objects,
-        config=config,
-        constraints=constraints,
-        key=key,
+        object_list=objects, config=config, constraints=constraints, key=key,
     )
     arrays = fdtdx.extend_material_to_pml(objects=obj_container, arrays=arrays)
     _, obj_container, _ = apply_params(arrays, obj_container, {}, key)
-
     return obj_container["det"]
+
+
+@pytest.fixture(scope="module")
+def two_freq_det():
+    """Uniform-air domain: 2-wave-character detector (1550 nm + 1300 nm, z-plane)."""
+    return _make_det_fixture((_WC_1550, _WC_1300))
+
+
+@pytest.fixture(scope="module")
+def single_freq_det():
+    """Uniform-air domain: single-wave-character detector (1550 nm only, z-plane).
+
+    Same geometry as two_freq_det so their modes can be compared directly.
+    """
+    return _make_det_fixture((_WC_1550,))
 
 
 class TestMultiFreqDetectorApply:
@@ -161,3 +168,55 @@ class TestMultiFreqDetectorApply:
         # In air: neff ≈ 1 at all wavelengths
         assert np.all(neffs > 0.9), f"neffs below 0.9 in air: {neffs}"
         assert np.all(neffs < 1.1), f"neffs above 1.1 in air: {neffs}"
+
+
+class TestSingleVsMultiFreqAgreement:
+    """A single-frequency detector and the 1550 nm slot of a two-frequency detector
+    must return the same mode fields and the same overlap on identical phasors.
+
+    This validates that neff-proximity tracking at the first frequency (target_neff=None)
+    is equivalent to the standalone single-frequency path.
+    """
+
+    def test_mode_E_at_1550_matches(self, two_freq_det, single_freq_det):
+        """Mode E-field at 1550 nm is the same whether solved alone or as part of a sweep."""
+        mode_E_multi = np.array(two_freq_det._mode_E[0])   # (3, *spatial)
+        mode_E_single = np.array(single_freq_det._mode_E[0])
+
+        # Fields may differ by a global phase; compare normalised magnitudes
+        mag_multi = np.abs(mode_E_multi)
+        mag_single = np.abs(mode_E_single)
+        assert np.allclose(mag_multi, mag_single, atol=1e-4), (
+            f"Mode-E magnitude mismatch at 1550 nm: max diff = {np.max(np.abs(mag_multi - mag_single)):.2e}"
+        )
+
+    def test_overlap_at_1550_matches(self, two_freq_det, single_freq_det):
+        """compute_overlap()[0] on an identical synthetic phasor agrees between detectors.
+
+        We build a phasor whose slot 0 is the single-freq detector's own mode fields
+        (self-overlap = 1).  The two-freq detector with the same phasor slot 0 should
+        also return overlap ≈ 1.
+        """
+        # Build phasor from the single-freq mode fields
+        state_single = single_freq_det.init_state()
+        phasor_s = state_single["phasor"]
+        phasor_s = phasor_s.at[0, 0, :3].set(single_freq_det._mode_E[0])
+        phasor_s = phasor_s.at[0, 0, 3:].set(single_freq_det._mode_H[0])
+        state_single = {"phasor": phasor_s}
+
+        # Same phasor slot 0 in a two-freq phasor array
+        state_multi = two_freq_det.init_state()
+        phasor_m = state_multi["phasor"]
+        phasor_m = phasor_m.at[0, 0, :3].set(single_freq_det._mode_E[0])
+        phasor_m = phasor_m.at[0, 0, 3:].set(single_freq_det._mode_H[0])
+        state_multi = {"phasor": phasor_m}
+
+        overlap_single = float(jnp.abs(single_freq_det.compute_overlap(state_single)[0]))
+        overlap_multi = float(jnp.abs(two_freq_det.compute_overlap(state_multi)[0]))
+
+        assert overlap_single == pytest.approx(1.0, abs=0.05), (
+            f"Single-freq self-overlap = {overlap_single:.4f}"
+        )
+        assert overlap_multi == pytest.approx(overlap_single, abs=0.05), (
+            f"Multi-freq overlap[0]={overlap_multi:.4f} vs single={overlap_single:.4f}"
+        )

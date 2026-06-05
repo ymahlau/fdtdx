@@ -1,9 +1,11 @@
 """Test cases for electromagnetic field metrics and normalization utilities."""
 
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 from fdtdx.core.physics.metrics import (
+    bidirectional_mode_overlap,
     compute_energy,
     compute_poynting_flux,
     normalize_by_energy,
@@ -329,3 +331,95 @@ def test_normalize_by_poynting_flux_preservation():
 
     assert jnp.allclose(E_norm[1] / E_norm[0], E[1] / E[0])
     assert jnp.allclose(H_norm[1] / H_norm[0], H[1] / H[0])
+
+
+class TestBidirectionalModeOverlapVsTidy3d:
+    """Cross-validate bidirectional_mode_overlap against tidy3d's _dot_numpy.
+
+    Convention (propagation_axis=2, transverse u=0, v=1):
+
+        our_result = conj(4 * _dot_numpy(
+            E1=mode, H1=mode, E2=sim, H2=sim, dS=areas, conjugate=True
+        ))
+
+    Derivation: tidy3d conjugates E1/H1 while we conjugate the simulation fields.
+    Swapping which side is conjugated turns the result into its complex conjugate.
+    The factor of 4 accounts for tidy3d's built-in 1/4 prefactor.
+
+    For real-valued self-overlap the conjugate is a no-op, so |our| == 4 * |tidy3d|.
+    """
+
+    def test_random_complex_fields(self):
+        """Agrees with tidy3d _dot_numpy on random complex fields."""
+        from tidy3d.components.mode.solver import _dot_numpy
+
+        rng = np.random.default_rng(42)
+        nx, ny = 5, 6
+
+        def rand_field():
+            return jnp.asarray(
+                (rng.standard_normal((3, nx, ny, 1)) + 1j * rng.standard_normal((3, nx, ny, 1))).astype(np.complex64)
+            )
+
+        mode_E, mode_H = rand_field(), rand_field()
+        sim_E, sim_H = rand_field(), rand_field()
+        area_EuHv = jnp.asarray(rng.uniform(0.5, 2.0, (nx, ny, 1)).astype(np.float32))
+        area_EvHu = jnp.asarray(rng.uniform(0.5, 2.0, (nx, ny, 1)).astype(np.float32))
+
+        our = bidirectional_mode_overlap(
+            mode_E=mode_E,
+            mode_H=mode_H,
+            sim_E=sim_E,
+            sim_H=sim_H,
+            propagation_axis=2,
+            area_EuHv=area_EuHv,
+            area_EvHu=area_EvHu,
+        )
+
+        # tidy3d takes (Eu, Ev) tuples; fields squeezed to 2D (remove propagation dim)
+        tidy3d_result = _dot_numpy(
+            E1=(np.array(mode_E[0, :, :, 0]), np.array(mode_E[1, :, :, 0])),
+            H1=(np.array(mode_H[0, :, :, 0]), np.array(mode_H[1, :, :, 0])),
+            E2=(np.array(sim_E[0, :, :, 0]), np.array(sim_E[1, :, :, 0])),
+            H2=(np.array(sim_H[0, :, :, 0]), np.array(sim_H[1, :, :, 0])),
+            dS=(np.array(area_EuHv[:, :, 0]), np.array(area_EvHu[:, :, 0])),
+            conjugate=True,
+        )
+
+        expected = np.conj(4.0 * complex(tidy3d_result))
+        assert np.isclose(complex(our), expected, rtol=1e-4), (
+            f"our={complex(our):.6g}, expected conj(4*tidy3d)={expected:.6g}"
+        )
+
+    def test_self_overlap_magnitude_equals_four_times_tidy3d(self):
+        """Self-overlap: |our| == 4 * |tidy3d| (conjugate is no-op for real results)."""
+        from tidy3d.components.mode.solver import _dot_numpy
+
+        rng = np.random.default_rng(7)
+        nx, ny = 4, 4
+        mode_E = jnp.asarray(rng.standard_normal((3, nx, ny, 1)).astype(np.float32))
+        mode_H = jnp.asarray(rng.standard_normal((3, nx, ny, 1)).astype(np.float32))
+        area = jnp.ones((nx, ny, 1), dtype=jnp.float32)
+
+        our = bidirectional_mode_overlap(
+            mode_E=mode_E,
+            mode_H=mode_H,
+            sim_E=mode_E,
+            sim_H=mode_H,
+            propagation_axis=2,
+            area_EuHv=area,
+            area_EvHu=area,
+        )
+
+        tidy3d_result = _dot_numpy(
+            E1=(np.array(mode_E[0, :, :, 0]), np.array(mode_E[1, :, :, 0])),
+            H1=(np.array(mode_H[0, :, :, 0]), np.array(mode_H[1, :, :, 0])),
+            E2=(np.array(mode_E[0, :, :, 0]), np.array(mode_E[1, :, :, 0])),
+            H2=(np.array(mode_H[0, :, :, 0]), np.array(mode_H[1, :, :, 0])),
+            dS=(np.array(area[:, :, 0]), np.array(area[:, :, 0])),
+            conjugate=True,
+        )
+
+        assert np.isclose(abs(float(np.real(our))), 4.0 * abs(float(np.real(tidy3d_result))), rtol=1e-5), (
+            f"|our|={abs(float(np.real(our))):.6g}, 4*|tidy3d|={4.0*abs(float(np.real(tidy3d_result))):.6g}"
+        )

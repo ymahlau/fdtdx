@@ -196,10 +196,149 @@ def test_waveguide_sparam_transmission():
 
     for (det_name, src_name), s_param in result.items():
         assert src_name == "source", f"Unexpected source name in key: {src_name!r}"
-        power = float(abs(np.array(s_param)) ** 2)
+        # compute_overlap always returns (num_freqs,); index [0] for single-frequency detectors
+        power = float(abs(np.array(s_param)[0]) ** 2)
         print(f"{power=}")
         assert power > (1.0 - _TOLERANCE) and power <= 1.0001, (
             f"|S({det_name!r}, 'source')|² = {power}, "
             f"expected > {1.0 - _TOLERANCE:.2f} "
             f"(lossless Si/SiO2 slab waveguide should transmit large % of TE mode power)"
         )
+
+
+# ── Multi-frequency sparam test ───────────────────────────────────────────────
+
+_WC_1550 = fdtdx.WaveCharacter(wavelength=1.55e-6)
+_WC_1450 = fdtdx.WaveCharacter(wavelength=1.45e-6)
+
+
+def _build_waveguide_sparams_multifreq():
+    """Same Si/SiO2 slab geometry as _build_waveguide_sparams but detectors carry
+    two wave characters (1550 nm and 1450 nm) to validate broadband overlap.
+
+    The GaussianPulseProfile spectral width is unchanged (10x centre wavelength)
+    so both frequencies are well within the pulse bandwidth.
+    """
+    config = fdtdx.SimulationConfig(
+        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
+        time=_SIM_TIME,
+        dtype=jnp.float32,
+    )
+    objects, constraints = [], []
+
+    volume = fdtdx.SimulationVolume(
+        partial_real_shape=(_DOMAIN_X, _DOMAIN_Y, _DOMAIN_Z),
+    )
+    objects.append(volume)
+
+    bound_cfg = fdtdx.BoundaryConfig.from_uniform_bound(
+        thickness=_PML_CELLS,
+        override_types={"min_y": "periodic", "max_y": "periodic"},
+    )
+    bound_dict, c_list = fdtdx.boundary_objects_from_config(bound_cfg, volume)
+    constraints.extend(c_list)
+    objects.extend(bound_dict.values())
+
+    cladding = fdtdx.UniformMaterialObject(
+        name="cladding",
+        partial_real_shape=(None, None, None),
+        material=fdtdx.Material(permittivity=_EPS_SIO2),
+    )
+    constraints.extend(cladding.same_position_and_size(volume))
+    objects.append(cladding)
+
+    core = fdtdx.UniformMaterialObject(
+        name="core",
+        partial_real_shape=(None, None, _WG_HEIGHT),
+        material=fdtdx.Material(permittivity=_EPS_SI),
+    )
+    constraints.extend([core.same_size(volume, axes=(0, 1)), core.place_at_center(volume, axes=(0, 1, 2))])
+    objects.append(core)
+
+    center_wave = fdtdx.WaveCharacter(wavelength=_CENTER_WAVELENGTH)
+    wave_range = fdtdx.WaveCharacter(wavelength=_CENTER_WAVELENGTH * 10)
+    profile = fdtdx.GaussianPulseProfile(center_wave=center_wave, spectral_width=wave_range)
+
+    source = fdtdx.ModePlaneSource(
+        name="source",
+        partial_grid_shape=(1, None, None),
+        wave_character=center_wave,
+        temporal_profile=profile,
+        direction="+",
+        mode_index=0,
+        filter_pol="te",
+    )
+    constraints.extend([
+        source.same_size(volume, axes=(1, 2)),
+        source.place_at_center(volume, axes=(1, 2)),
+        source.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_SOURCE_X,)),
+    ])
+    objects.append(source)
+
+    # Input normalization detector — two frequencies
+    input_det = fdtdx.ModeOverlapDetector(
+        name="det_source",
+        wave_characters=(_WC_1550, _WC_1450),
+        direction="+",
+        mode_index=0,
+        filter_pol="te",
+        scaling_mode="pulse",
+    )
+    constraints.extend([input_det.same_size(source), input_det.same_position(source, grid_margins=(1, 0, 0))])
+    objects.append(input_det)
+
+    # One output detector — two frequencies
+    det = fdtdx.ModeOverlapDetector(
+        name="det_near",
+        partial_grid_shape=(1, None, None),
+        wave_characters=(_WC_1550, _WC_1450),
+        direction="+",
+        mode_index=0,
+        filter_pol="te",
+        scaling_mode="pulse",
+    )
+    constraints.extend([
+        det.same_size(volume, axes=(1, 2)),
+        det.place_at_center(volume, axes=(1, 2)),
+        det.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_DET1_X,)),
+    ])
+    objects.append(det)
+
+    return objects, constraints, config
+
+
+def test_waveguide_multifreq_sparam():
+    """S-parameters at both 1550 nm and 1450 nm exceed 0.90.
+
+    Uses the same lossless Si/SiO2 slab waveguide as test_waveguide_sparam_transmission
+    but with ModeOverlapDetectors that carry two wave characters.  Validates that
+    broadband multi-frequency mode overlap works end-to-end: the mode solver is called
+    once per frequency with neff-proximity tracking, and the DFT phasors at both
+    frequencies produce physically correct S-parameter magnitudes.
+    """
+    objects, constraints, config = _build_waveguide_sparams_multifreq()
+
+    key = jax.random.PRNGKey(0)
+    obj_container, arrays, _params, config, _ = fdtdx.place_objects(
+        object_list=objects, config=config, constraints=constraints, key=key,
+    )
+    arrays = fdtdx.extend_material_to_pml(objects=obj_container, arrays=arrays)
+
+    result, _ = fdtdx.calculate_sparam(
+        objects=obj_container,
+        arrays=arrays,
+        config=config,
+        input_port_name="source",
+        show_progress=False,
+    )
+
+    for (det_name, src_name), s_params in result.items():
+        s_arr = np.array(s_params)  # shape (2,) — one entry per frequency
+        for freq_idx, (wc, s) in enumerate(zip([_WC_1550, _WC_1450], s_arr)):
+            power = float(abs(s) ** 2)
+            wavelength_nm = int(wc.wavelength * 1e9)
+            print(f"|S({det_name!r}, {wavelength_nm}nm)|² = {power:.4f}")
+            assert power > (1.0 - _TOLERANCE), (
+                f"|S({det_name!r}, {wavelength_nm}nm)|² = {power:.4f}, "
+                f"expected > {1.0 - _TOLERANCE:.2f} (lossless waveguide)"
+            )
