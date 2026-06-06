@@ -662,7 +662,7 @@ def polygon_to_mask_at_points(
     return inside_polygon.reshape(X.shape).astype(bool)
 
 
-def polygons_to_mask(
+def multi_polygons_to_mask(
     boundary: tuple[float, float, float, float],
     resolution: float,
     polygon_list: list[np.ndarray],

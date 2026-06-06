@@ -12,7 +12,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from fdtdx.core.axis import get_transverse_axes
-from fdtdx.core.grid import polygon_to_mask_at_points, polygons_to_mask
+from fdtdx.core.grid import multi_polygons_to_mask, polygon_to_mask_at_points
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.materials import Material, compute_ordered_names
@@ -84,7 +84,11 @@ class GDSLayerObject(StaticMultiMaterialObject):
     #: Sequence of (N, 2) vertex arrays for each polygon, in GDS metres.
     polygons: Sequence[np.ndarray] = frozen_field()
 
-    #: GDS coordinate (horizontal, vertical) of the simulation x/y center.
+    #: GDS coordinate (horizontal, vertical) in metres that coincides with the x/y centre
+    #: of this object's grid region.  Use this to align the GDS origin (or any other
+    #: reference point in the layout) with a known simulation coordinate.  For example,
+    #: ``gds_center=(0.0, 0.0)`` maps the GDS origin to the centre of the simulation
+    #: volume, while ``gds_center=(500e-9, 0.0)`` shifts the layout 500 nm to the left.
     gds_center: tuple[float, float] = frozen_field()
 
     #: Key into the materials dictionary used for this object.
@@ -146,7 +150,7 @@ class GDSLayerObject(StaticMultiMaterialObject):
         if grid is None:
             res = self._config.uniform_spacing()
             half_res = 0.5 * res
-            mask_2d = polygons_to_mask(
+            mask_2d = multi_polygons_to_mask(
                 boundary=(half_res, half_res, (n_h - 0.5) * res, (n_v - 0.5) * res),
                 resolution=res,
                 polygon_list=local_polygons,
@@ -227,13 +231,20 @@ def _gds_to_sim(gds_val: float, gds_center_val: float, vol_size: float) -> float
 
 @dataclass(frozen=True)
 class _PortEntry:
-    name: str
-    dir_val: Literal["+", "-"]
-    pgshape: tuple[int | None, int | None, int | None]
-    prshape: tuple[float | None, float | None, float | None]
-    prop_axis: int
-    trans_axis: int
-    sim_prop_pos: float
+    """Placement data for one port polygon, computed by _iter_port_placements.
+
+    Collects the pre-computed shapes, axes, and simulation-space position so
+    that sources_from_gds_ports / detectors_from_gds_ports can construct objects
+    and constraints without re-reading the GDS geometry.
+    """
+
+    name: str  # generated object name, e.g. "port_0"
+    dir_val: Literal["+", "-"]  # propagation direction
+    pgshape: tuple[int | None, int | None, int | None]  # partial_grid_shape (1 on prop_axis)
+    prshape: tuple[float | None, float | None, float | None]  # partial_real_shape (width on trans_axis)
+    prop_axis: int  # simulation propagation axis (0 or 1)
+    trans_axis: int  # simulation transverse axis (the other of 0/1)
+    sim_prop_pos: float  # left-face position along prop_axis in simulation real-space (metres)
 
 
 def _iter_port_placements(
