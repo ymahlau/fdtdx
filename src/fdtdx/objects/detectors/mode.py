@@ -162,8 +162,7 @@ class ModeOverlapDetector(PhasorDetector):
         else:
             inv_permeability_slice = inv_permeabilities
 
-        # Solve one mode per frequency.  apply() is always called eagerly (never under jax.jit),
-        # so a Python loop with concrete prev_neff values between iterations is safe.
+        # Solve one mode per frequency with neff-proximity tracking.
         mode_Es: list[jax.Array] = []
         mode_Hs: list[jax.Array] = []
         mode_neffs: list[jax.Array] = []
@@ -205,6 +204,7 @@ class ModeOverlapDetector(PhasorDetector):
             mode_Hs.append(mode_H)
             mode_neffs.append(neff)
 
+        # Spatial dims are fixed at place_on_grid time, so all frequencies share the same shape.
         self = self.aset("_mode_E", jnp.stack(mode_Es), create_new_ok=True)
         self = self.aset("_mode_H", jnp.stack(mode_Hs), create_new_ok=True)
         self = self.aset("_mode_neff", jnp.stack(mode_neffs), create_new_ok=True)
@@ -243,10 +243,6 @@ class ModeOverlapDetector(PhasorDetector):
             area_EvHu=self._cached_area_EvHu,
         )
 
-        # in pulsed mode return unscaled coefficient
-        if self.scaling_mode != "pulse":
-            alpha_coeff = alpha_coeff / 4.0
-
         return alpha_coeff
 
     def compute_overlap(
@@ -258,9 +254,8 @@ class ModeOverlapDetector(PhasorDetector):
         Returns:
             Complex array of shape ``(num_freqs,)`` where ``num_freqs =
             len(wave_characters)``.  Each element is the overlap coefficient
-            at the corresponding frequency.  Callers that previously consumed a
-            scalar result (single-frequency case) must index the returned array,
-            e.g. ``result[0]``.
+            at the corresponding frequency.  For a single wave character, index
+            the result as ``result[0]``.
         """
         if isinstance(self._mode_E, Null) or isinstance(self._mode_H, Null):
             raise Exception("Need to call apply on ModeOverlapDetector before calling compute_mode_overlap!")
@@ -279,7 +274,4 @@ class ModeOverlapDetector(PhasorDetector):
                 area_EvHu=self._cached_area_EvHu,
             )
 
-        results = jax.vmap(overlap_one)(self._mode_E, self._mode_H, phasors_E, phasors_H)
-        if self.scaling_mode != "pulse":
-            results = results / 4.0
-        return results
+        return jax.vmap(overlap_one)(self._mode_E, self._mode_H, phasors_E, phasors_H)

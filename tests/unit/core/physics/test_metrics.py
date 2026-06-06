@@ -338,15 +338,13 @@ class TestBidirectionalModeOverlapVsTidy3d:
 
     Convention (propagation_axis=2, transverse u=0, v=1):
 
-        our_result = conj(4 * _dot_numpy(
+        our_result = _dot_numpy(
             E1=mode, H1=mode, E2=sim, H2=sim, dS=areas, conjugate=True
-        ))
+        )
 
-    Derivation: tidy3d conjugates E1/H1 while we conjugate the simulation fields.
-    Swapping which side is conjugated turns the result into its complex conjugate.
-    The factor of 4 accounts for tidy3d's built-in 1/4 prefactor.
-
-    For real-valued self-overlap the conjugate is a no-op, so |our| == 4 * |tidy3d|.
+    Both formulas conjugate the mode fields and include the 1/4 prefactor,
+    so self-overlap = 1 for unit-power modes and results are identical for
+    both real and complex fields.
     """
 
     def test_random_complex_fields(self):
@@ -386,13 +384,13 @@ class TestBidirectionalModeOverlapVsTidy3d:
             conjugate=True,
         )
 
-        expected = np.conj(4.0 * complex(tidy3d_result))
+        expected = complex(tidy3d_result)
         assert np.isclose(complex(our), expected, rtol=1e-4), (
-            f"our={complex(our):.6g}, expected conj(4*tidy3d)={expected:.6g}"
+            f"our={complex(our):.6g}, expected tidy3d={expected:.6g}"
         )
 
-    def test_self_overlap_magnitude_equals_four_times_tidy3d(self):
-        """Self-overlap: |our| == 4 * |tidy3d| (conjugate is no-op for real results)."""
+    def test_self_overlap_magnitude_equals_tidy3d(self):
+        """Self-overlap: |our| == |tidy3d| (both include 1/4; conjugate is no-op for real results)."""
         from tidy3d.components.mode.solver import _dot_numpy
 
         rng = np.random.default_rng(7)
@@ -420,6 +418,6 @@ class TestBidirectionalModeOverlapVsTidy3d:
             conjugate=True,
         )
 
-        assert np.isclose(abs(float(np.real(our))), 4.0 * abs(float(np.real(tidy3d_result))), rtol=1e-5), (
-            f"|our|={abs(float(np.real(our))):.6g}, 4*|tidy3d|={4.0*abs(float(np.real(tidy3d_result))):.6g}"
+        assert np.isclose(abs(float(np.real(our))), abs(float(np.real(tidy3d_result))), rtol=1e-5), (
+            f"|our|={abs(float(np.real(our))):.6g}, |tidy3d|={abs(float(np.real(tidy3d_result))):.6g}"
         )

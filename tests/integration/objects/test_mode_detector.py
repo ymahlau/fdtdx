@@ -187,8 +187,8 @@ class TestSingleVsMultiFreqAgreement:
     """A single-frequency detector and the 1550 nm slot of a two-frequency detector
     must return the same mode fields and the same overlap on identical phasors.
 
-    This validates that neff-proximity tracking at the first frequency (target_neff=None)
-    is equivalent to the standalone single-frequency path.
+    Validates that the first frequency in a multi-frequency sweep produces the same
+    mode as a standalone single-frequency detector at the same wavelength.
     """
 
     def test_mode_E_at_1550_matches(self, two_freq_det, single_freq_det):
@@ -238,8 +238,7 @@ class TestSingleVsMultiFreqAgreement:
 class TestFourFreqDetectorApply:
     """End-to-end tests for ModeOverlapDetector.apply() with four wave characters.
 
-    Spans 1200–1550 nm (350 nm range) in a single apply() call with neff-proximity
-    tracking across all four solver calls.
+    Spans 1200–1550 nm (350 nm range) with neff-proximity tracking across four frequencies.
     """
 
     def test_mode_E_shape(self, four_freq_det):

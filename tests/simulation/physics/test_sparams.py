@@ -314,12 +314,9 @@ def _build_waveguide_sparams_multifreq():
 def test_waveguide_multifreq_sparam():
     """S-parameters at all four wavelengths (1300/1400/1500/1550 nm) exceed 0.90.
 
-    Uses the same lossless Si/SiO2 slab waveguide as test_waveguide_sparam_transmission
-    but with ModeOverlapDetectors carrying four wave characters.  Validates end-to-end
-    broadband overlap: the mode solver runs once per frequency with neff-proximity
-    tracking (critical at 1300/1400 nm where a second TE mode exists and the wrong
-    mode could be selected without tracking), and the DFT phasors at all four
-    frequencies produce physically correct S-parameter magnitudes.
+    Lossless Si/SiO2 slab waveguide with ModeOverlapDetectors carrying four wave
+    characters.  At 1300/1400 nm a second TE mode exists; neff-proximity tracking
+    ensures the fundamental is selected consistently across the frequency sweep.
     """
     objects, constraints, config = _build_waveguide_sparams_multifreq()
 

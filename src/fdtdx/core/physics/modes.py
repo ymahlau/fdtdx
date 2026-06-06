@@ -190,9 +190,10 @@ def compute_mode(
             When provided, the Tidy3D mode solver receives the non-uniform rectilinear grid directly.
             JAX arrays are accepted; the numpy conversion happens inside the tidy3d callback so the function
             remains compatible with ``jax.jit``.
-        target_neff: When provided, selects the mode whose real(neff) is closest to this value instead of using
-            ``mode_index`` from the sorted list.  Pass the neff returned by the previous frequency's call to
-            maintain mode continuity across a frequency sweep.  Defaults to None (use mode_index).
+        target_neff: When set, selects the mode whose ``real(neff)`` is closest to this value.
+            Takes full precedence over ``mode_index`` — the index is ignored when ``target_neff``
+            is not ``None``.  Pass the neff returned by the previous frequency's call to maintain
+            mode continuity across a frequency sweep.
 
     Returns:
         Tuple[jax.Array, jax.Array, jax.Array]:
@@ -243,8 +244,7 @@ def compute_mode(
             target_neff=target_neff,
         )
 
-        # sort modes by polarization
-        # tidy3d assumes propagation in the z-direction. The tangential axes are therefore x and y.
+        # tidy3d assumes propagation in the z-direction; tangential axes are x and y.
         sorted_modes = sort_modes(modes, filter_pol, (0, 1))
         if target_neff is not None:
             mode = min(sorted_modes, key=lambda m: abs(float(np.real(m.neff)) - target_neff))

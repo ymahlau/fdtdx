@@ -133,13 +133,16 @@ def normalize_by_poynting_flux(
         axis: Physical propagation axis whose Poynting component is integrated.
         area_weights: Single area-weight array for both Poynting cross-terms.
             Used on uniform grids where both Yee positions share the same area.
-            Ignored when ``area_EuHv`` is provided.
+            Mutually exclusive with ``area_EuHv``.
         area_EuHv: Yee-staggered area for the Eu x Hv cross-term.  When
             provided, enables the Yee-split power computation that is consistent
-            with :func:`bidirectional_mode_overlap`.
+            with :func:`bidirectional_mode_overlap`.  Mutually exclusive with
+            ``area_weights``.
         area_EvHu: Yee-staggered area for the Ev x Hu cross-term.  Defaults to
             ``area_EuHv`` when ``None``.
     """
+    if area_EuHv is not None and area_weights is not None:
+        raise ValueError("area_weights and area_EuHv are mutually exclusive")
     if area_EuHv is not None:
         # Yee-split path: use separate area weights for each cross-term so that
         # the power estimate is consistent with bidirectional_mode_overlap.
@@ -172,15 +175,16 @@ def bidirectional_mode_overlap(
 ) -> jax.Array:
     """Compute the bidirectional mode-overlap integral.
 
-    Returns ``sum((mode_E x sim_H* + sim_E* x mode_H) · ẑ * dA)``, where ẑ is
-    the unit vector along ``propagation_axis``.
+    Returns ``0.25 * sum((mode_E* x sim_H + sim_E x mode_H*) · ẑ * dA)``, where ẑ is
+    the unit vector along ``propagation_axis``.  The mode fields are conjugated,
+    matching tidy3d's ``_dot_numpy(conjugate=True)`` convention exactly.
 
     On a Yee lattice the cross product decomposes into two independent terms
     that sit at different spatial locations and therefore require separate area
     weights on non-uniform grids:
 
-    * ``(mode_Eu x sim_Hv* + sim_Eu* x mode_Hv) * area_EuHv``
-    * ``-(mode_Ev x sim_Hu* + sim_Ev* x mode_Hu) * area_EvHu``
+    * ``(conj(mode_Eu) * sim_Hv + sim_Eu * conj(mode_Hv)) * area_EuHv``
+    * ``-(conj(mode_Ev) * sim_Hu + sim_Ev * conj(mode_Hu)) * area_EvHu``
 
     where ``(u, v)`` are the two transverse axes.  On a uniform grid
     ``area_EuHv == area_EvHu`` and a single weight is sufficient.
@@ -194,16 +198,20 @@ def bidirectional_mode_overlap(
         area_EuHv: Per-cell area for the Eu/Hv cross term.  ``None`` treats
             every cell as having unit area (uniform-grid raw sum).
         area_EvHu: Per-cell area for the Ev/Hu cross term.  Defaults to
-            ``area_EuHv`` when ``None``.
+            ``area_EuHv`` when ``None``.  Must not be set without ``area_EuHv``.
 
     Returns:
-        Complex scalar overlap coefficient (before the 1/4 prefactor).
+        Complex scalar overlap coefficient.  Equals 1 for a self-overlap of a
+        unit-power-normalised mode, matching the tidy3d ``_dot_numpy`` convention.
     """
+    if area_EvHu is not None and area_EuHv is None:
+        raise ValueError("area_EvHu requires area_EuHv to also be provided")
+
     # cyclic transverse axes for the given propagation axis
     u, v = [(1, 2), (2, 0), (0, 1)][propagation_axis]
 
-    EuHv = mode_E[u] * jnp.conj(sim_H[v]) + jnp.conj(sim_E[u]) * mode_H[v]
-    EvHu = mode_E[v] * jnp.conj(sim_H[u]) + jnp.conj(sim_E[v]) * mode_H[u]
+    EuHv = jnp.conj(mode_E[u]) * sim_H[v] + sim_E[u] * jnp.conj(mode_H[v])
+    EvHu = jnp.conj(mode_E[v]) * sim_H[u] + sim_E[v] * jnp.conj(mode_H[u])
 
     if area_EuHv is not None:
         EuHv = EuHv * area_EuHv
@@ -212,7 +220,7 @@ def bidirectional_mode_overlap(
     elif area_EuHv is not None:
         EvHu = EvHu * area_EuHv
 
-    return jnp.sum(EuHv - EvHu)
+    return 0.25 * jnp.sum(EuHv - EvHu)
 
 
 def resample_to_uniform_2d(

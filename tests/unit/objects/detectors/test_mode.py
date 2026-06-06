@@ -142,7 +142,7 @@ class TestModeOverlapDetectorPlaceOnGrid:
         assert placed is not None
 
     def test_multiple_wave_chars_succeeds(self, simulation_config, plane_grid_slice, random_key, two_frequencies):
-        """Multiple wave characters are now supported."""
+        """place_on_grid succeeds with multiple wave characters."""
         det = ModeOverlapDetector(wave_characters=two_frequencies, direction="+")
         placed = det.place_on_grid(plane_grid_slice, simulation_config, random_key)
         assert placed is not None
@@ -298,7 +298,7 @@ class TestModeOverlapDetectorComputeOverlap:
 
         assert jnp.isclose(jnp.abs(overlap), 0.0)
 
-    def test_compute_overlap_to_mode_scaled_quarter(
+    def test_compute_overlap_to_mode_matches_formula(
         self,
         simulation_config,
         plane_grid_slice,
@@ -309,7 +309,7 @@ class TestModeOverlapDetectorComputeOverlap:
         inv_permittivity,
         inv_permeability,
     ):
-        """Overlap coefficient includes the 1/4 normalization factor."""
+        """Overlap coefficient matches bidirectional_mode_overlap directly (1/4 is inside the formula)."""
         det = ModeOverlapDetector(wave_characters=single_frequency, direction="+")
         det = det.place_on_grid(plane_grid_slice, simulation_config, random_key)
         state = det.init_state()
@@ -329,17 +329,14 @@ class TestModeOverlapDetectorComputeOverlap:
         phasors = state["phasor"]
         phasors_E = phasors[0, 0, :3]
         phasors_H = phasors[0, 0, 3:]
-        expected = (
-            bidirectional_mode_overlap(
-                mode_E=mode_E,
-                mode_H=mode_H,
-                sim_E=phasors_E,
-                sim_H=phasors_H,
-                propagation_axis=det.propagation_axis,
-                area_EuHv=det._cached_area_EuHv,
-                area_EvHu=det._cached_area_EvHu,
-            )
-            / 4.0
+        expected = bidirectional_mode_overlap(
+            mode_E=mode_E,
+            mode_H=mode_H,
+            sim_E=phasors_E,
+            sim_H=phasors_H,
+            propagation_axis=det.propagation_axis,
+            area_EuHv=det._cached_area_EuHv,
+            area_EvHu=det._cached_area_EvHu,
         )
 
         overlap = det.compute_overlap_to_mode(state=state, mode_E=mode_E, mode_H=mode_H)
@@ -352,7 +349,7 @@ class TestModeOverlapDetectorComputeOverlap:
         Grid: x in [0,1,3] (widths 1, 2), y in [0,3,7] (widths 3, 4).
         Dual y-widths: [1.5, 3.5] (distance between adjacent y-cell centers).
         area_EuHv = outer([1, 2], [1.5, 3.5]) -> sum = 15.
-        With 1/4 normalization: 15 / 4 = 3.75.
+        bidirectional_mode_overlap includes 0.25: 0.25 * 15 = 3.75.
         """
         grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
@@ -438,7 +435,7 @@ class TestModeOverlapDetectorComputeOverlapPath:
         det = ModeOverlapDetector(wave_characters=single_frequency, direction="+")
         det = det.place_on_grid(plane_grid_slice, simulation_config, random_key)
 
-        # apply() now stacks modes along a leading freq axis: (num_freqs, 3, *spatial)
+        # stacked along a leading freq axis: (num_freqs, 3, *spatial)
         single_mode_E = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64) * 0.5
         single_mode_H = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64) * 0.5
         stacked_mode_E = jnp.stack([single_mode_E])  # (1, 3, 8, 8, 1)
@@ -514,8 +511,7 @@ class TestModeOverlapDetectorBentWaveguide:
 class TestModeOverlapDetectorMultiFrequency:
     """Tests for multi-frequency support in ModeOverlapDetector.
 
-    apply() now calls compute_mode once per frequency (not the deleted compute_modes_multi_freq),
-    with neff-proximity tracking between calls.
+    apply() calls compute_mode once per frequency with neff-proximity tracking between calls.
     """
 
     @patch("fdtdx.objects.detectors.mode.compute_mode")
