@@ -9,7 +9,6 @@ if sys.version_info >= (3, 14):
         stacklevel=2,
     )
 
-from fdtdx import constants
 from fdtdx.colors import Color
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.constants import wavelength_to_period
