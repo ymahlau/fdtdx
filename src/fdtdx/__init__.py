@@ -12,7 +12,6 @@ if sys.version_info >= (3, 14):
 from fdtdx.colors import Color
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.constants import wavelength_to_period
-wavelength_to_period.__module__ = "fdtdx"
 from fdtdx.conversion.json import export_json, export_json_str, import_from_json
 from fdtdx.conversion.stl import export_stl
 from fdtdx.conversion.vti import export_arrays_snapshot_to_vti, export_vti, export_vtr
@@ -133,6 +132,8 @@ from fdtdx.utils.plot_field_slice import plot_field_slice, plot_field_slice_comp
 from fdtdx.utils.plot_material import plot_material, plot_material_from_side
 from fdtdx.utils.plot_setup import plot_setup, plot_setup_from_side
 from fdtdx.utils.sparams import PortSpec, calculate_sparam, calculate_sparams, setup_sparams_simulation
+
+wavelength_to_period.__module__ = "fdtdx"
 
 # PeriodicBoundary is now an alias for BlochBoundary with bloch_vector=(0,0,0)
 PeriodicBoundary = BlochBoundary
