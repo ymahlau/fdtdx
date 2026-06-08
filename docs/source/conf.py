@@ -94,6 +94,24 @@ mathjax3_config = {
 }
 
 
+def _remove_constants_from_fdtdx_all() -> None:
+    """Remove the constants submodule from fdtdx.__all__ before Sphinx sees it.
+
+    autosummary scans __all__ at build time and generates stubs for every
+    member, including the `constants` submodule. That module's C-level
+    docstring (builtins.dict) causes RST parse errors. Removing it from
+    __all__ here prevents stub generation without touching source files.
+    """
+    try:
+        import fdtdx  # noqa: PLC0415
+        if hasattr(fdtdx, "__all__") and "constants" in fdtdx.__all__:
+            fdtdx.__all__ = [name for name in fdtdx.__all__ if name != "constants"]
+    except Exception:  # noqa: BLE001
+        pass
+
+
+_remove_constants_from_fdtdx_all()
+
 def _patch_pytreeclass() -> None:
     """Patch pytreeclass.Field.__repr__ to avoid infinite recursion.
 
