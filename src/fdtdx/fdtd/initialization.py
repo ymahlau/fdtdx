@@ -9,6 +9,7 @@ from loguru import logger
 from fdtdx import constants
 from fdtdx.config import SimulationConfig
 from fdtdx.core.grid import RectilinearGrid
+from fdtdx.core.jax.default_key import default_key
 from fdtdx.core.jax.guards import check_not_tracing
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
 from fdtdx.core.jax.ste import straight_through_estimator
@@ -58,7 +59,7 @@ def place_objects(
     object_list: Sequence[SimulationObject],
     config: SimulationConfig,
     constraints: Sequence[AnyConstraint],
-    key: jax.Array,
+    key: jax.Array | None = None,
 ) -> tuple[
     ObjectContainer,
     ArrayContainer,
@@ -72,7 +73,8 @@ def place_objects(
         objects (list[SimulationObject]): List of all simulation objects, including the simulation volume.
         config (SimulationConfig): Simulation configuration.
         constraints (Sequence[Constraint]): List of positioning/sizing constraints referencing object names.
-        key (jax.Array): JAX random key for initialization.
+        key (jax.Array | None): JAX random key for initialization.  When ``None``
+            (the default) a deterministic key is derived from ``_DEFAULT_KEY_SEED``.
 
     Returns:
         tuple[ObjectContainer, ArrayContainer, ParameterContainer, SimulationConfig, dict[str, Any]]:
@@ -86,6 +88,7 @@ def place_objects(
     Raises:
         ValueError: If constraint resolution fails for one or more objects.
     """
+    key = default_key(key)
     # Step 0: Check if called inside a JIT trace
     check_not_tracing("fdtdx.place_objects")
 
@@ -220,7 +223,7 @@ def apply_params(
     arrays: ArrayContainer,
     objects: ObjectContainer,
     params: ParameterContainer,
-    key: jax.Array,
+    key: jax.Array | None = None,
     **transform_kwargs,
 ) -> tuple[ArrayContainer, ObjectContainer, dict[str, Any]]:
     """Applies parameters to devices and updates source states.
@@ -229,7 +232,8 @@ def apply_params(
         arrays (ArrayContainer): Container with field arrays
         objects (ObjectContainer): Container with simulation objects
         params (ParameterContainer): Container with device parameters
-        key (jax.Array): JAX random key for source updates
+        key (jax.Array | None): JAX random key for source updates.  When ``None``
+            (the default) a deterministic key is derived from ``_DEFAULT_KEY_SEED``.
         **transform_kwargs: Keyword arguments passed to the parameter transformation.
     Returns:
         tuple[ArrayContainer, ObjectContainer, dict[str, Any]]: A tuple containing:
@@ -237,6 +241,7 @@ def apply_params(
             - Updated ObjectContainer with new source states
             - Dictionary with parameter application info
     """
+    key = default_key(key)
     info = {}
     # Determine number of components from existing array shape
     num_perm_components = arrays.inv_permittivities.shape[0]
@@ -1327,8 +1332,7 @@ def _apply_constraints_iteratively(
         )
         changed = changed or resolved
 
-        # Slices-from-shapes: propagate a known shape to an open bound.
-        # Shapes-from-slices: lock the shape once both bounds are known.
+        # update the grid slices based on static shape and partial known positions
         resolved, slice_dict, errors = _update_grid_slices_from_shapes(
             object_map=object_map,
             shape_dict=shape_dict,
@@ -1433,8 +1437,8 @@ def _resolve_static_shapes(
     object_map: dict[str, SimulationObject],
     shape_dict: dict[str, list[int | None]],
     config: SimulationConfig,
-) -> dict[str, list[int | None]]:
-    """Fill in shapes from each object's partial_real_shape and partial_grid_shape."""
+):
+    """Fill in static or directly defined shapes."""
     for obj_name, obj in object_map.items():
         for axis in range(3):
             if obj.partial_grid_shape[axis] is not None:
@@ -1481,7 +1485,9 @@ def _update_grid_slices_from_shapes(
                 continue
             elif b0 is not None and b1 is not None:
                 if s_axis != b1 - b0:
-                    resolved_something |= _record_shape_bound_conflict(obj_name, axis, b1 - b0, obj, shape_dict, errors)
+                    errors[obj_name] = (
+                        f"Inconsistent grid shape for object: {s_axis} != {b1 - b0}, {obj.name} ({obj.__class__})."
+                    )
             elif b0 is not None:
                 slice_dict[obj_name][axis][1] = b0 + s_axis
                 resolved_something = True
@@ -1508,8 +1514,10 @@ def _update_grid_shapes_from_slices(
                 if s_axis is None:
                     shape_dict[obj_name][axis] = b1 - b0
                     resolved_something = True
-                elif b1 - b0 != s_axis:
-                    resolved_something |= _record_shape_bound_conflict(obj_name, axis, b1 - b0, obj, shape_dict, errors)
+                elif s_axis is not None and b1 - b0 != s_axis:
+                    errors[obj_name] = (
+                        f"Inconsistent grid shape for object: {s_axis} != {b1 - b0}, {obj.name} ({obj.__class__})."
+                    )
     return resolved_something, shape_dict, errors
 
 

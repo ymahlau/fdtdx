@@ -6,6 +6,7 @@ import jax.numpy as jnp
 import numpy as np
 from matplotlib import pyplot as plt
 
+from fdtdx.core.axis import get_transverse_axes
 from fdtdx.core.grid import calculate_time_offset_yee
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.linalg import get_wave_vector_raw
@@ -61,7 +62,7 @@ class ModePlaneSource(TFSFPlaneSource):
         local_edges = self._local_edge_coordinates()
         if local_edges is None:
             return None
-        axes = [axis for axis in range(3) if axis != self.propagation_axis]
+        axes = get_transverse_axes(self.propagation_axis)
         return local_edges[axes[0]], local_edges[axes[1]]
 
     def _mode_solver_resolution(self) -> float:

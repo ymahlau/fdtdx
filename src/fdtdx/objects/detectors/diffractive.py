@@ -4,6 +4,7 @@ import jax
 import jax.numpy as jnp
 
 from fdtdx import constants
+from fdtdx.core.axis import get_transverse_axes
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.physics.metrics import resample_to_uniform_2d
 from fdtdx.objects.detectors.detector import Detector, DetectorState
@@ -101,7 +102,7 @@ class DiffractiveDetector(Detector):
     def _num_latent_time_steps(self) -> int:
         return 1
 
-    def _transverse_centers(self, plane_dims: list[int]) -> tuple[jax.Array, jax.Array] | None:
+    def _transverse_centers(self, plane_dims: tuple[int, int]) -> tuple[jax.Array, jax.Array] | None:
         """Return physical transverse cell centers for the detector plane.
 
         FFT order decomposition requires equally spaced samples.  On rectilinear
@@ -133,7 +134,7 @@ class DiffractiveDetector(Detector):
 
         # Get grid dimensions for the plane perpendicular to propagation axis
         prop_axis = self.propagation_axis
-        plane_dims = [i for i in range(3) if i != prop_axis]
+        plane_dims = get_transverse_axes(prop_axis)
         Nx, Ny = [self.grid_shape[i] for i in plane_dims]
 
         # Get current field values at the specified plane
