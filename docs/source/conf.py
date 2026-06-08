@@ -9,7 +9,7 @@
 import tomllib
 from pathlib import Path
 
-root_path = Path(__file__).parents[2] 
+root_path = Path(__file__).parents[2]
 
 with open(root_path / "pyproject.toml", "rb") as f:
     data = tomllib.load(f)
@@ -35,7 +35,9 @@ extensions = [
 ]
 
 templates_path = ['_templates']
-exclude_patterns = []
+exclude_patterns = [
+"api/fdtdx.constants.rst"
+]
 
 
 
@@ -71,11 +73,8 @@ autodoc_type_aliases = {
     'fdtdx.DetectorState': 'fdtdx.DetectorState',
 }
 
-autodoc_preserve_defaults = True   # prevents RecursionError from pytreeclass Field repr
-
 autodoc_default_options = {
     'undoc-members': False,  # Don't document members without docstrings
-    'exclude-members': 'constants',
 }
 
 
@@ -94,20 +93,29 @@ mathjax3_config = {
     }
 }
 
+
 def _patch_pytreeclass() -> None:
+    """Patch pytreeclass.Field.__repr__ to avoid infinite recursion.
+
+    pytreeclass.Field.__repr__ accesses its own slots recursively, which
+    causes a RecursionError when Sphinx calls repr() on Field instances
+    while building autodoc signatures. We replace __repr__ via setattr
+    so the patch is invisible to static type checkers.
+    """
     try:
-        import pytreeclass._src.code_build as cb
-        original_repr = cb.Field.__repr__
+        import pytreeclass._src.code_build as cb  # noqa: PLC0415
+
+        original_repr = getattr(cb.Field, "__repr__")
 
         def _safe_repr(self: object) -> str:
             try:
-                return original_repr(self)  # type: ignore[call-arg]
+                return original_repr(self)
             except RecursionError:
-                return 'Field(...)'
+                return "Field(...)"
 
-        cb.Field.__repr__ = _safe_repr  # type: ignore[method-assign]
-    except Exception:
-        pass
+        setattr(cb.Field, "__repr__", _safe_repr)
+    except Exception:  # noqa: BLE001
+        pass  # pytreeclass not present or internal structure changed
+
 
 _patch_pytreeclass()
-
