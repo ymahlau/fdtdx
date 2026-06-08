@@ -5,6 +5,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from fdtdx.core.axis import get_transverse_axes
 from fdtdx.core.grid import polygon_to_mask, polygon_to_mask_at_points
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.materials import compute_ordered_names
@@ -55,21 +56,13 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
 
     @property
     def horizontal_axis(self) -> int:
-        """Gets the horizontal axis perpendicular to the fiber axis.
-
-        Returns:
-            int: The index of the horizontal axis (0=x or 1=y).
-        """
-        return 1 if self.axis == 0 else 0
+        """Gets the horizontal axis perpendicular to the fiber axis."""
+        return get_transverse_axes(self.axis)[0]
 
     @property
     def vertical_axis(self) -> int:
-        """Gets the vertical axis perpendicular to the fiber axis.
-
-        Returns:
-            int: The index of the vertical axis (1=y or 2=z).
-        """
-        return 1 if self.axis == 2 else 2
+        """Gets the vertical axis perpendicular to the fiber axis."""
+        return get_transverse_axes(self.axis)[1]
 
     def get_voxel_mask_for_shape(self) -> jax.Array:
         n_horizontal = self.grid_shape[self.horizontal_axis]

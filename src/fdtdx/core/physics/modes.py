@@ -9,6 +9,7 @@ import tidy3d
 from jax.typing import ArrayLike
 from tidy3d.components.mode.solver import compute_modes as _compute_modes
 
+from fdtdx.core.axis import get_transverse_axes
 from fdtdx.core.misc import expand_to_3x3
 from fdtdx.core.physics.metrics import normalize_by_poynting_flux
 
@@ -163,7 +164,7 @@ def compute_mode(
         coords = [np.asarray(c0_um), np.asarray(c1_um)]
         if bend_radius is not None:
             assert bend_axis is not None
-            transverse_axes = [ax for ax in range(3) if ax != propagation_axis]
+            transverse_axes = get_transverse_axes(propagation_axis)
             tidy3d_bend_axis = transverse_axes.index(bend_axis)
             bend_radius_um = bend_radius / 1e-6
             plane_center = (float(0.5 * (coords[0][0] + coords[0][-1])), float(0.5 * (coords[1][0] + coords[1][-1])))

@@ -7,6 +7,7 @@ import jax.numpy as jnp
 
 from fdtdx.colors import XKCD_DARK_ORANGE, Color
 from fdtdx.config import SimulationConfig
+from fdtdx.core.axis import get_oriented_transverse_axes
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.misc import linear_interpolated_indexing, normalize_polarization_for_source
 from fdtdx.core.null import NULL
@@ -226,11 +227,11 @@ class DirectionalPlaneSourceBase(Source, ABC):
 
     @property
     def horizontal_axis(self) -> int:
-        return (self.propagation_axis + 1) % 3
+        return get_oriented_transverse_axes(self.propagation_axis)[0]
 
     @property
     def vertical_axis(self) -> int:
-        return (self.propagation_axis + 2) % 3
+        return get_oriented_transverse_axes(self.propagation_axis)[1]
 
 
 @autoinit
