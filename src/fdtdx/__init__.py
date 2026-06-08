@@ -219,7 +219,6 @@ __all__ = [
     "compute_mode",
     "compute_pole_coefficients",
     "compute_poynting_flux",
-    "constants",
     "export_arrays_snapshot_to_vti",
     "export_json",
     "export_json_str",
