@@ -9,6 +9,7 @@
 import tomllib
 from pathlib import Path
 from sphinx.util import inspect as sphinx_inspect
+from typing import Any
 
 root_path = Path(__file__).parents[2] 
 
@@ -101,11 +102,11 @@ mathjax3_config = {
 
 _original_object_description = sphinx_inspect.object_description
 
-def _safe_object_description(obj, *args, **kwargs):
+def _safe_object_description(obj: Any, *, _seen: frozenset[int] = frozenset()) -> str:
     try:
-        return _original_object_description(obj, *args, **kwargs)
+        return _original_object_description(obj, _seen=_seen)
     except (ValueError, RecursionError):
         return '...'
 
-sphinx_inspect.object_description = _safe_object_description # type: ignore[assignment]
+sphinx_inspect.object_description = _safe_object_description  # type: ignore[assignment]
 
