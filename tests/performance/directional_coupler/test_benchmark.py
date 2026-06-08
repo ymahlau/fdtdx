@@ -170,6 +170,7 @@ class SimConfig:
 
 
 _SIM_COARSE = SimConfig(cells_per_lambda=10)   # dx_si~44 nm, dx_sio2~107 nm, ~8.8 M cells
+_SIM_MED    = SimConfig(cells_per_lambda=12)   # dx_si~37 nm, dx_sio2~ 89 nm, ~15 M cells  (fits 8 GB VRAM)
 _SIM_FINE   = SimConfig(cells_per_lambda=15)   # dx_si~30 nm, dx_sio2~ 71 nm, ~28 M cells
 
 
@@ -213,6 +214,13 @@ def _build_scene(sim_time: float, sim_cfg: SimConfig, with_phasor_detectors: boo
 @pytest.mark.performance
 @pytest.mark.parametrize("sim_cfg", [
     pytest.param(_SIM_COARSE, id="cpl10"),
+    pytest.param(
+        _SIM_MED, id="cpl12",
+        marks=pytest.mark.skipif(
+            not os.environ.get("PERF_MED"),
+            reason="set PERF_MED=1 to run the 12 cells/lambda grid (~15 M cells)",
+        ),
+    ),
     pytest.param(
         _SIM_FINE, id="cpl15",
         marks=pytest.mark.skipif(
