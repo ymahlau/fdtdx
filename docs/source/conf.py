@@ -8,8 +8,6 @@
 
 import tomllib
 from pathlib import Path
-from sphinx.util import inspect as sphinx_inspect
-from typing import Any
 
 root_path = Path(__file__).parents[2] 
 
@@ -96,17 +94,20 @@ mathjax3_config = {
     }
 }
 
-# pytreeclass.Field.__repr__ has a recursive structure that causes
-# RecursionError when Sphinx calls repr() on it via object_description().
-# Patch object_description to catch this and return a safe fallback.
-
-_original_object_description = sphinx_inspect.object_description
-
-def _safe_object_description(obj: Any, *, _seen: frozenset[int] = frozenset()) -> str:
+def _patch_pytreeclass() -> None:
     try:
-        return _original_object_description(obj, _seen=_seen)
-    except (ValueError, RecursionError):
-        return '...'
+        import pytreeclass._src.code_build as cb
+        original_repr = cb.Field.__repr__
 
-sphinx_inspect.object_description = _safe_object_description  # type: ignore[assignment]
+        def _safe_repr(self: object) -> str:
+            try:
+                return original_repr(self)  # type: ignore[call-arg]
+            except RecursionError:
+                return 'Field(...)'
+
+        cb.Field.__repr__ = _safe_repr  # type: ignore[method-assign]
+    except Exception:
+        pass
+
+_patch_pytreeclass()
 
