@@ -12,6 +12,7 @@ if sys.version_info >= (3, 14):
 from fdtdx.colors import Color
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.constants import wavelength_to_period
+wavelength_to_period.__module__ = "fdtdx"
 from fdtdx.conversion.json import export_json, export_json_str, import_from_json
 from fdtdx.conversion.stl import export_stl
 from fdtdx.conversion.vti import export_arrays_snapshot_to_vti, export_vti, export_vtr
