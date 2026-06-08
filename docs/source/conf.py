@@ -94,35 +94,10 @@ mathjax3_config = {
 }
 
 
-def _remove_constants_from_fdtdx_all() -> None:
-    """Remove the constants submodule from fdtdx.__all__ before Sphinx sees it.
-
-    autosummary scans __all__ at build time and generates stubs for every
-    member, including the `constants` submodule. That module's C-level
-    docstring (builtins.dict) causes RST parse errors. Removing it from
-    __all__ here prevents stub generation without touching source files.
-    """
-    try:
-        import fdtdx  # noqa: PLC0415
-        if hasattr(fdtdx, "__all__") and "constants" in fdtdx.__all__:
-            fdtdx.__all__ = [name for name in fdtdx.__all__ if name != "constants"]
-    except Exception:  # noqa: BLE001
-        pass
-
-
-_remove_constants_from_fdtdx_all()
-
 def _patch_pytreeclass() -> None:
-    """Patch pytreeclass.Field.__repr__ to avoid infinite recursion.
-
-    pytreeclass.Field.__repr__ accesses its own slots recursively, which
-    causes a RecursionError when Sphinx calls repr() on Field instances
-    while building autodoc signatures. We replace __repr__ via setattr
-    so the patch is invisible to static type checkers.
-    """
+    """Patch pytreeclass.Field.__repr__ to avoid infinite recursion during autodoc."""
     try:
         import pytreeclass._src.code_build as cb  # noqa: PLC0415
-
         original_repr = getattr(cb.Field, "__repr__")
 
         def _safe_repr(self: object) -> str:
@@ -133,7 +108,20 @@ def _patch_pytreeclass() -> None:
 
         setattr(cb.Field, "__repr__", _safe_repr)
     except Exception:  # noqa: BLE001
-        pass  # pytreeclass not present or internal structure changed
+        pass
 
 
-_patch_pytreeclass()
+def setup(app):  # type: ignore[no-untyped-def]
+    """Sphinx startup hook.
+
+    Runs before autosummary scans fdtdx.__all__, so removals here
+    prevent stub generation entirely.
+    """
+    try:
+        import fdtdx  # noqa: PLC0415
+        if "constants" in fdtdx.__all__:
+            fdtdx.__all__ = [n for n in fdtdx.__all__ if n != "constants"]
+    except Exception:  # noqa: BLE001
+        pass
+
+    _patch_pytreeclass()
