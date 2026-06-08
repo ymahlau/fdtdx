@@ -5,6 +5,7 @@ from matplotlib.path import Path
 
 from fdtdx import constants
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field, frozen_private_field
+from fdtdx.core.misc import validate_symmetric_axis_cells
 
 
 @autoinit
@@ -249,12 +250,7 @@ class RectilinearGrid(TreeClass):
                 new_edges.append(edges)
                 continue
             n = self.shape[a]
-            if n < 2 or n % 2 != 0:
-                raise ValueError(
-                    f"Cannot apply symmetry on axis {axis_names[a]}: the grid must have an even number "
-                    f"of cells (>= 2) on a symmetric axis, got {n}. An even count splits exactly down "
-                    f"the middle so the unfolded result matches the full domain cell-for-cell."
-                )
+            validate_symmetric_axis_cells(n, axis_names[a], subject="grid")
             widths = self.cell_widths(a)
             # rtol is loose enough to tolerate the float32 cumsum/diff roundoff of a grid that is
             # mathematically symmetric, but far tighter than any genuinely asymmetric profile.

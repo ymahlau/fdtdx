@@ -225,7 +225,11 @@ Distinct from manually placing PEC/PMC via `BoundaryConfig` (that still works un
 
 **Usage:**
 ```python
-config = fdtdx.SimulationConfig(resolution=..., time=..., symmetry=(0, -1, 1))  # PEC y-plane, PMC z-plane
+config = fdtdx.SimulationConfig(
+    grid=fdtdx.UniformGrid(spacing=...),
+    time=...,
+    symmetry=(0, -1, 1),
+)  # PEC y-plane, PMC z-plane
 # ... build the FULL volume/sources/detectors/boundaries as usual ...
 objects, arrays, params, config, _ = fdtdx.place_objects(...)   # reduced internally
 arrays, objects, _ = fdtdx.apply_params(arrays, objects, params, key)
