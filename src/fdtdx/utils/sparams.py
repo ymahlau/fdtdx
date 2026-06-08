@@ -8,6 +8,7 @@ import jax
 
 from fdtdx import DetectorState, GaussianPulseProfile, extend_material_to_pml
 from fdtdx.config import SimulationConfig
+from fdtdx.core.axis import get_transverse_axes
 from fdtdx.core.grid import UniformGrid
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
@@ -53,7 +54,7 @@ class PortSpec:
 
 def _make_port_shape(axis: int, resolution: float, width: float, height: float) -> tuple[float, float, float]:
     """Return partial_real_shape with one-voxel thickness along the propagation axis."""
-    transverse = [i for i in range(3) if i != axis]
+    transverse = get_transverse_axes(axis)
     shape: list[float] = [resolution, resolution, resolution]
     shape[transverse[0]] = width
     shape[transverse[1]] = height

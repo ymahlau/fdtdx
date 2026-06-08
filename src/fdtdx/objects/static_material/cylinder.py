@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 
+from fdtdx.core.axis import get_transverse_axes
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
@@ -48,25 +49,13 @@ class Cylinder(StaticMultiMaterialObject):
 
     @property
     def horizontal_axis(self) -> int:
-        """Gets the horizontal axis perpendicular to the fiber axis.
-
-        Returns:
-            int: The index of the horizontal axis (0=x or 1=y).
-        """
-        if self.axis == 0:
-            return 1
-        return 0
+        """Gets the horizontal axis perpendicular to the fiber axis."""
+        return get_transverse_axes(self.axis)[0]
 
     @property
     def vertical_axis(self) -> int:
-        """Gets the vertical axis perpendicular to the fiber axis.
-
-        Returns:
-            int: The index of the vertical axis (1=y or 2=z).
-        """
-        if self.axis == 2:
-            return 1
-        return 2
+        """Gets the vertical axis perpendicular to the fiber axis."""
+        return get_transverse_axes(self.axis)[1]
 
     def get_voxel_mask_for_shape(self) -> jax.Array:
         def local_centers(axis: int) -> jax.Array:
