@@ -107,5 +107,5 @@ def _safe_object_description(obj, *args, **kwargs):
     except (ValueError, RecursionError):
         return '...'
 
-sphinx_inspect.object_description = _safe_object_description
+sphinx_inspect.object_description = _safe_object_description # type: ignore[assignment]
 
