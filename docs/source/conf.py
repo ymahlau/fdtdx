@@ -8,6 +8,7 @@
 
 import tomllib
 from pathlib import Path
+from sphinx.util import inspect as sphinx_inspect
 
 root_path = Path(__file__).parents[2] 
 
@@ -71,8 +72,11 @@ autodoc_type_aliases = {
     'fdtdx.DetectorState': 'fdtdx.DetectorState',
 }
 
+autodoc_preserve_defaults = True   # prevents RecursionError from pytreeclass Field repr
+
 autodoc_default_options = {
     'undoc-members': False,  # Don't document members without docstrings
+    'exclude-members': 'constants',
 }
 
 
@@ -90,4 +94,18 @@ mathjax3_config = {
         'displayMath': [['$$', '$$'], ['\\[', '\\]']],
     }
 }
+
+# pytreeclass.Field.__repr__ has a recursive structure that causes
+# RecursionError when Sphinx calls repr() on it via object_description().
+# Patch object_description to catch this and return a safe fallback.
+
+_original_object_description = sphinx_inspect.object_description
+
+def _safe_object_description(obj, *args, **kwargs):
+    try:
+        return _original_object_description(obj, *args, **kwargs)
+    except (ValueError, RecursionError):
+        return '...'
+
+sphinx_inspect.object_description = _safe_object_description
 
