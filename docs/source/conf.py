@@ -10,6 +10,8 @@ import tomllib
 from pathlib import Path
 import warnings as _warnings
 import traceback as _traceback
+from typing import TextIO
+
 
 root_path = Path(__file__).parents[2]
 
@@ -122,10 +124,15 @@ def setup(app):  # type: ignore[no-untyped-def]
     app.connect("autodoc-skip-member", skip_submodules)
     _patch_pytreeclass()
 
-_original_showwarning = _warnings.showwarning
-
-def _traced_showwarning(message, category, filename, lineno, file=None, line=None):
-    if "builtins.dict" in str(filename) or "strong start-string" in str(message):
+def _traced_showwarning(
+    message: Warning | str,
+    category: type[Warning],
+    filename: str,
+    lineno: int,
+    file: TextIO | None = None,
+    line: str | None = None,
+) -> None:
+    if "builtins.dict" in filename or "strong start-string" in str(message):
         import sys
         print("=== WARNING TRACE ===", flush=True, file=sys.stderr)
         _traceback.print_stack(file=sys.stderr)
@@ -133,4 +140,5 @@ def _traced_showwarning(message, category, filename, lineno, file=None, line=Non
         print("=== END TRACE ===", flush=True, file=sys.stderr)
     _original_showwarning(message, category, filename, lineno, file, line)
 
-_warnings.showwarning = _traced_showwarning
+_original_showwarning = _warnings.showwarning
+setattr(_warnings, "showwarning", _traced_showwarning)
