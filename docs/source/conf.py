@@ -111,10 +111,9 @@ def _patch_pytreeclass() -> None:
 
 
 def setup(app):  # type: ignore[no-untyped-def]
-    def skip_submodules(app, what, name, obj, skip, options):  # type: ignore[no-untyped-def]
-        import inspect
-        if what == "module" and inspect.ismodule(obj):
-            return True
-        return skip
-    app.connect("autodoc-skip-member", skip_submodules)
+    try:
+        import builtins
+        setattr(builtins.dict, "__doc__", "")
+    except (AttributeError, TypeError):
+        pass
     _patch_pytreeclass()

@@ -10,29 +10,6 @@ used in simulations.
 
 import math
 
-__all__ = [
-    "MAX_SIMULATION_VOLUME_CELLS",
-    "SHARD_STR",
-    "c",
-    "eps0",
-    "eta0",
-    "mu0",
-    "relative_permittivity_SZ_2080",
-    "relative_permittivity_air",
-    "relative_permittivity_bacteria",
-    "relative_permittivity_coated_silica",
-    "relative_permittivity_fused_silica",
-    "relative_permittivity_ma_N_1400_series",
-    "relative_permittivity_ormo_prime",
-    "relative_permittivity_polymer",
-    "relative_permittivity_resin",
-    "relative_permittivity_silica",
-    "relative_permittivity_silicon",
-    "relative_permittivity_substrate",
-    "relative_permittivity_water",
-    "wavelength_to_period",
-]
-
 c: float = 299792458.0
 """Speed of light in vacuum (m/s)."""
 
