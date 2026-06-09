@@ -1,8 +1,9 @@
 """Integration tests for ModeOverlapDetector with multiple wave characters.
 
 Exercises multi-frequency mode solving through the real tidy3d mode solver with a
-uniform air permittivity slice.  Verifies output shapes, finiteness, positive neff,
-and self-overlap normalization without mocking any external dependencies.
+Si/SiO2 waveguide cross-section (800 nm Si core, SiO2 cladding, z-propagation).
+Verifies output shapes, finiteness, guided-mode neff bounds, and self-overlap
+normalization without mocking any external dependencies.
 """
 
 import jax
@@ -22,6 +23,10 @@ _NCELLS_T = 8
 _PML = 3
 _TOTAL_T = _NCELLS_T + 2 * _PML  # 14 cells per transverse axis
 
+_EPS_SI = fdtdx.constants.relative_permittivity_silicon  # 12.25, n≈3.5
+_EPS_SIO2 = fdtdx.constants.relative_permittivity_silica  # 2.25,  n≈1.5
+_CORE_SIZE = 4 * _RESOLUTION  # 800 nm — 4 cells, well-guided at 1550 nm
+
 _WC_1200 = WaveCharacter(wavelength=1.20e-6)
 _WC_1300 = WaveCharacter(wavelength=1.30e-6)
 _WC_1450 = WaveCharacter(wavelength=1.45e-6)
@@ -29,7 +34,13 @@ _WC_1550 = WaveCharacter(wavelength=1.55e-6)
 
 
 def _make_det_fixture(wave_characters):
-    """Build and apply a ModeOverlapDetector with the given wave characters."""
+    """Build a ModeOverlapDetector over a Si/SiO2 waveguide cross-section.
+
+    The domain is SiO2 cladding with an 800x800 nm Si core centred in the
+    transverse (x-y) plane.  Propagation axis is z.  Using a real guided
+    structure makes test_self_overlap_equals_one a genuine physics test:
+    normalization errors that cancel in air will produce |overlap| != 1 here.
+    """
     total_t = _TOTAL_T * _RESOLUTION
     total_z = (1 + 2 * _PML) * _RESOLUTION
 
@@ -47,6 +58,20 @@ def _make_det_fixture(wave_characters):
     )
     bound_dict, bound_constraints = fdtdx.boundary_objects_from_config(bound_cfg, volume)
 
+    # SiO2 cladding fills the entire volume
+    cladding = fdtdx.UniformMaterialObject(
+        name="cladding",
+        partial_real_shape=(None, None, None),
+        material=fdtdx.Material(permittivity=_EPS_SIO2),
+    )
+
+    # Si core centred in the transverse plane, spanning full z extent
+    core = fdtdx.UniformMaterialObject(
+        name="core",
+        partial_real_shape=(_CORE_SIZE, _CORE_SIZE, None),
+        material=fdtdx.Material(permittivity=_EPS_SI),
+    )
+
     det = ModeOverlapDetector(
         name="det",
         wave_characters=wave_characters,
@@ -58,9 +83,12 @@ def _make_det_fixture(wave_characters):
         time=1e-14,
         grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
     )
-    objects = [volume, det, *list(bound_dict.values())]
+    objects = [volume, cladding, core, det, *list(bound_dict.values())]
     constraints = [
         *bound_constraints,
+        *cladding.same_position_and_size(volume),
+        core.same_size(volume, axes=(2,)),
+        core.place_at_center(volume, axes=(0, 1, 2)),
         det.same_size(volume, axes=(0, 1)),
         det.place_at_center(volume, axes=(0, 1, 2)),
     ]
@@ -78,13 +106,13 @@ def _make_det_fixture(wave_characters):
 
 @pytest.fixture(scope="module")
 def two_freq_det():
-    """Uniform-air domain: 2-wave-character detector (1550 nm + 1300 nm, z-plane)."""
+    """Si/SiO2 waveguide: 2-wave-character detector (1550 nm + 1300 nm, z-plane)."""
     return _make_det_fixture((_WC_1550, _WC_1300))
 
 
 @pytest.fixture(scope="module")
 def four_freq_det():
-    """Uniform-air domain: 4-wave-character detector (1200/1300/1450/1550 nm, z-plane)."""
+    """Si/SiO2 waveguide: 4-wave-character detector (1200/1300/1450/1550 nm, z-plane)."""
     return _make_det_fixture((_WC_1200, _WC_1300, _WC_1450, _WC_1550))
 
 
@@ -101,13 +129,21 @@ class TestModeOverlapDetectorApply:
         assert det._mode_E.shape == det._mode_H.shape
         assert det._mode_neff.shape == (n_freqs,)
 
-    def test_fields_finite_and_neff_positive(self, det_fixture, n_freqs, request):
-        """All mode field components are finite and real(neff) > 0 at every frequency."""
+    def test_fields_finite_and_neff_in_guided_range(self, det_fixture, n_freqs, request):
+        """All mode field components are finite and neff is in (n_clad, n_core) at every frequency.
+
+        For a guided mode in Si/SiO2, real(neff) must lie strictly between the cladding
+        index (sqrt(2.25)~1.5) and the core index (sqrt(12.25)~3.5).  Failure here
+        indicates wrong permittivity assignment or a solver returning a radiation mode.
+        """
         det = request.getfixturevalue(det_fixture)
         assert jnp.all(jnp.isfinite(det._mode_E))
         assert jnp.all(jnp.isfinite(det._mode_H))
         neffs = np.real(np.array(det._mode_neff))
-        assert np.all(neffs > 0), f"Non-positive neff: {neffs}"
+        n_clad = np.sqrt(_EPS_SIO2)  # ~1.5
+        n_core = np.sqrt(_EPS_SI)  # ~3.5
+        assert np.all(neffs > n_clad), f"neff below cladding index {n_clad:.3f}: {neffs}"
+        assert np.all(neffs < n_core), f"neff above core index {n_core:.3f}: {neffs}"
 
     def test_compute_overlap_shape_and_dtype(self, det_fixture, n_freqs, request):
         """compute_overlap() on a zero phasor returns complex array of shape (n_freqs,)."""
@@ -118,10 +154,12 @@ class TestModeOverlapDetectorApply:
         assert jnp.iscomplexobj(result)
 
     def test_self_overlap_equals_one(self, det_fixture, n_freqs, request):
-        """Feeding each mode back as its own phasor gives |overlap| ≈ 1 at every frequency.
+        """Feeding each mode back as its own phasor gives |overlap| ~= 1 at every frequency.
 
-        Validates Poynting-flux normalization end-to-end through the real tidy3d solver:
-        a unit-power mode must have self-overlap = 1 by the bidirectional formula.
+        Validates Poynting-flux normalization end-to-end through the real tidy3d solver
+        on a genuine guided mode: a unit-power mode must have self-overlap = 1 by the
+        bidirectional formula.  This test would fail with a wrong 1/4 factor, wrong
+        conjugation, or wrong area weights.
         """
         det = request.getfixturevalue(det_fixture)
         state = det.init_state()
@@ -133,4 +171,4 @@ class TestModeOverlapDetectorApply:
         result = det.compute_overlap(state=state)
         for i in range(n_freqs):
             mag = float(jnp.abs(result[i]))
-            assert mag == pytest.approx(1.0, abs=0.05), f"Self-overlap at freq {i} = {mag:.4f}, expected ≈ 1.0"
+            assert mag == pytest.approx(1.0, abs=0.05), f"Self-overlap at freq {i} = {mag:.4f}, expected ~= 1.0"
