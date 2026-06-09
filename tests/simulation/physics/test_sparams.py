@@ -319,8 +319,8 @@ def test_waveguide_multifreq_sparam():
     """S-parameters at all four wavelengths (1300/1400/1500/1550 nm) exceed 0.90.
 
     Lossless Si/SiO2 slab waveguide with ModeOverlapDetectors carrying four wave
-    characters.  At 1300/1400 nm a second TE mode exists; neff-proximity tracking
-    ensures the fundamental is selected consistently across the frequency sweep.
+    characters.  Validates that the multi-frequency phasor accumulation and overlap
+    computation produce physically correct broadband transmission in a single run.
     """
     objects, constraints, config = _build_waveguide_sparams_multifreq()
 
@@ -342,7 +342,7 @@ def test_waveguide_multifreq_sparam():
     )
 
     for (det_name, src_name), s_params in result.items():
-        s_arr = np.array(s_params)  # shape (2,) — one entry per frequency
+        s_arr = np.array(s_params)  # shape (num_freqs,)
         for freq_idx, (wc, s) in enumerate(zip(_MULTIFREQ_WCS, s_arr)):
             power = float(abs(s) ** 2)
             wavelength_nm = int(wc.wavelength * 1e9)
