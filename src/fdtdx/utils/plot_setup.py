@@ -55,15 +55,18 @@ def _get_full_coverage_objects(
 
 
 def _axis_edges_um(config: SimulationConfig, axis: int, bounds: tuple[int, int]) -> tuple[float, float]:
-    """Return local physical edge coordinates in micrometres for an index interval."""
+    """Return centered physical edge coordinates in micrometres for an index interval."""
     grid = getattr(config, "grid", None)
     if isinstance(grid, RectilinearGrid):
         edges = grid.edges(axis)
-        domain_origin = float(edges[0])
-        return (float(edges[bounds[0]] - domain_origin) / 1.0e-6, float(edges[bounds[1]] - domain_origin) / 1.0e-6)
-
+        domain_center = 0.5 * (float(edges[0]) + float(edges[-1]))
+        return (
+            (float(edges[bounds[0]]) - domain_center) / 1.0e-6,
+            (float(edges[bounds[1]]) - domain_center) / 1.0e-6,
+        )
     spacing = config.uniform_spacing()
-    return (bounds[0] * spacing / 1.0e-6, bounds[1] * spacing / 1.0e-6)
+    domain_center = 0.5 * (bounds[0] + bounds[1])
+    return ((bounds[0] - domain_center) * spacing / 1.0e-6, (bounds[1] - domain_center) * spacing / 1.0e-6)
 
 
 def plot_setup_from_side(
@@ -294,6 +297,7 @@ def plot_setup(
     """
     if axs is None:
         fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+        assert axs is not None
     else:
         fig = None
 
