@@ -8,10 +8,6 @@
 
 import tomllib
 from pathlib import Path
-import warnings as _warnings
-import traceback as _traceback
-from typing import TextIO
-
 
 root_path = Path(__file__).parents[2]
 
@@ -97,6 +93,9 @@ mathjax3_config = {
     }
 }
 
+# Prevent viewcode from attempting to highlight builtins source,
+# which causes docutils errors from the builtins.dict docstring.
+viewcode_follow_imported_members = False
 
 def _patch_pytreeclass() -> None:
     """Patch pytreeclass.Field.__repr__ to avoid infinite recursion during autodoc."""
@@ -123,22 +122,3 @@ def setup(app):  # type: ignore[no-untyped-def]
         return skip
     app.connect("autodoc-skip-member", skip_submodules)
     _patch_pytreeclass()
-
-def _traced_showwarning(
-    message: Warning | str,
-    category: type[Warning],
-    filename: str,
-    lineno: int,
-    file: TextIO | None = None,
-    line: str | None = None,
-) -> None:
-    if "builtins.dict" in filename or "strong start-string" in str(message):
-        import sys
-        print("=== WARNING TRACE ===", flush=True, file=sys.stderr)
-        _traceback.print_stack(file=sys.stderr)
-        print(f"WARNING: {filename}:{lineno}: {message}", flush=True, file=sys.stderr)
-        print("=== END TRACE ===", flush=True, file=sys.stderr)
-    _original_showwarning(message, category, filename, lineno, file, line)
-
-_original_showwarning = _warnings.showwarning
-setattr(_warnings, "showwarning", _traced_showwarning)
