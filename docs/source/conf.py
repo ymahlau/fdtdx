@@ -93,10 +93,6 @@ mathjax3_config = {
     }
 }
 
-# Prevent viewcode from attempting to highlight builtins source,
-# which causes docutils errors from the builtins.dict docstring.
-viewcode_follow_imported_members = False
-
 def _patch_pytreeclass() -> None:
     """Patch pytreeclass.Field.__repr__ to avoid infinite recursion during autodoc."""
     try:
