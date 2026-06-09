@@ -112,16 +112,10 @@ def _patch_pytreeclass() -> None:
 
 
 def setup(app):  # type: ignore[no-untyped-def]
-    """Sphinx startup hook.
-
-    Runs before autosummary scans fdtdx.__all__, so removals here
-    prevent stub generation entirely.
-    """
-    try:
-        import fdtdx  # noqa: PLC0415
-        if "constants" in fdtdx.__all__:
-            fdtdx.__all__ = [n for n in fdtdx.__all__ if n != "constants"]
-    except Exception:  # noqa: BLE001
-        pass
-
+    def skip_submodules(app, what, name, obj, skip, options):  # type: ignore[no-untyped-def]
+        import inspect
+        if what == "module" and inspect.ismodule(obj):
+            return True
+        return skip
+    app.connect("autodoc-skip-member", skip_submodules)
     _patch_pytreeclass()
