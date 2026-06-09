@@ -272,11 +272,13 @@ def _build_waveguide_sparams_multifreq():
         mode_index=0,
         filter_pol="te",
     )
-    constraints.extend([
-        source.same_size(volume, axes=(1, 2)),
-        source.place_at_center(volume, axes=(1, 2)),
-        source.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_SOURCE_X,)),
-    ])
+    constraints.extend(
+        [
+            source.same_size(volume, axes=(1, 2)),
+            source.place_at_center(volume, axes=(1, 2)),
+            source.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_SOURCE_X,)),
+        ]
+    )
     objects.append(source)
 
     # Input normalization detector — four frequencies
@@ -301,11 +303,13 @@ def _build_waveguide_sparams_multifreq():
         filter_pol="te",
         scaling_mode="pulse",
     )
-    constraints.extend([
-        det.same_size(volume, axes=(1, 2)),
-        det.place_at_center(volume, axes=(1, 2)),
-        det.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_DET1_X,)),
-    ])
+    constraints.extend(
+        [
+            det.same_size(volume, axes=(1, 2)),
+            det.place_at_center(volume, axes=(1, 2)),
+            det.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_DET1_X,)),
+        ]
+    )
     objects.append(det)
 
     return objects, constraints, config
@@ -322,7 +326,10 @@ def test_waveguide_multifreq_sparam():
 
     key = jax.random.PRNGKey(0)
     obj_container, arrays, _params, config, _ = fdtdx.place_objects(
-        object_list=objects, config=config, constraints=constraints, key=key,
+        object_list=objects,
+        config=config,
+        constraints=constraints,
+        key=key,
     )
     arrays = fdtdx.extend_material_to_pml(objects=obj_container, arrays=arrays)
 

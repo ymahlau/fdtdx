@@ -10,53 +10,9 @@ from jax.typing import ArrayLike
 from tidy3d.components.mode.solver import compute_modes as _compute_modes
 
 from fdtdx.core.axis import get_transverse_axes
+from fdtdx.core.grid import yee_face_areas_from_edges
 from fdtdx.core.misc import expand_to_3x3
 from fdtdx.core.physics.metrics import normalize_by_poynting_flux
-
-
-def _yee_areas_from_edges(
-    edges_0: jax.Array,
-    edges_1: jax.Array,
-    phys_axis_0: int,
-    phys_axis_1: int,
-    propagation_axis: int,
-    dtype: jnp.dtype,
-) -> tuple[jax.Array, jax.Array]:
-    """Return Yee-staggered face-area arrays from physical edge coordinates.
-
-    Args:
-        edges_0: Edge coordinates (m) along the first transverse axis.
-        edges_1: Edge coordinates (m) along the second transverse axis.
-        phys_axis_0: Physical axis index (0/1/2) corresponding to edges_0.
-        phys_axis_1: Physical axis index (0/1/2) corresponding to edges_1.
-        propagation_axis: Physical propagation axis.
-        dtype: Output dtype.
-
-    Returns:
-        ``(area_EuHv, area_EvHu)`` broadcast-ready to 3D spatial shape with a
-        singleton along the propagation axis.
-    """
-    u, v = [(1, 2), (2, 0), (0, 1)][propagation_axis]
-    edges_u = jnp.asarray(edges_0) if phys_axis_0 == u else jnp.asarray(edges_1)
-    edges_v = jnp.asarray(edges_1) if phys_axis_0 == u else jnp.asarray(edges_0)
-
-    primal_u = jnp.diff(edges_u)
-    primal_v = jnp.diff(edges_v)
-    centers_u = 0.5 * (edges_u[:-1] + edges_u[1:])
-    centers_v = 0.5 * (edges_v[:-1] + edges_v[1:])
-    # Boundary approximation: half the first primal width (same as RectilinearGrid.dual_widths at lo=0)
-    dual_u = jnp.concatenate([jnp.array([centers_u[0] - edges_u[0]]), jnp.diff(centers_u)])
-    dual_v = jnp.concatenate([jnp.array([centers_v[0] - edges_v[0]]), jnp.diff(centers_v)])
-
-    def _expand(arr: jax.Array, phys_ax: int) -> jax.Array:
-        shape = [1, 1, 1]
-        shape[phys_ax] = arr.shape[0]
-        return arr.reshape(shape).astype(dtype)
-
-    area_EuHv = _expand(primal_u, u) * _expand(dual_v, v)
-    area_EvHu = _expand(dual_u, u) * _expand(primal_v, v)
-    return area_EuHv, area_EvHu
-
 
 ModeTupleType = namedtuple("ModeTupleType", ["neff", "Ex", "Ey", "Ez", "Hx", "Hy", "Hz"])
 """A named tuple containing the mode fields and effective index.
@@ -309,12 +265,18 @@ def compute_mode(
         c0_um = jnp.asarray(transverse_coords[0]) / 1e-6
         c1_um = jnp.asarray(transverse_coords[1]) / 1e-6
         # Yee-staggered areas for normalization — consistent with bidirectional_mode_overlap.
-        normalization_area_EuHv, normalization_area_EvHu = _yee_areas_from_edges(
-            edges_0=jnp.asarray(transverse_coords[0]),
-            edges_1=jnp.asarray(transverse_coords[1]),
-            phys_axis_0=other_axes[0] - 1,
-            phys_axis_1=other_axes[1] - 1,
-            propagation_axis=propagation_axis,
+        # other_axes are tensor axes (1-indexed); subtract 1 to get physical axes (0-indexed).
+        # transverse_coords[i] corresponds to physical axis other_axes[i] - 1, which may not match
+        # the Yee u/v ordering, so we explicitly map to the correct edge arrays.
+        u, v = [(1, 2), (2, 0), (0, 1)][propagation_axis]
+        phys_axis_0 = other_axes[0] - 1
+        edges_u = jnp.asarray(transverse_coords[0] if phys_axis_0 == u else transverse_coords[1])
+        edges_v = jnp.asarray(transverse_coords[1] if phys_axis_0 == u else transverse_coords[0])
+        normalization_area_EuHv, normalization_area_EvHu = yee_face_areas_from_edges(
+            edges_u=edges_u,
+            edges_v=edges_v,
+            u_axis=u,
+            v_axis=v,
             dtype=dtype,
         )
     permittivity_squeezed = jnp.take(

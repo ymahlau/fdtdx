@@ -69,7 +69,10 @@ def _make_det_fixture(wave_characters):
     ]
     key = jax.random.PRNGKey(0)
     obj_container, arrays, _, config, _ = fdtdx.place_objects(
-        object_list=objects, config=config, constraints=constraints, key=key,
+        object_list=objects,
+        config=config,
+        constraints=constraints,
+        key=key,
     )
     arrays = fdtdx.extend_material_to_pml(objects=obj_container, arrays=arrays)
     _, obj_container, _ = apply_params(arrays, obj_container, {}, key)
@@ -193,7 +196,7 @@ class TestSingleVsMultiFreqAgreement:
 
     def test_mode_E_at_1550_matches(self, two_freq_det, single_freq_det):
         """Mode E-field at 1550 nm is the same whether solved alone or as part of a sweep."""
-        mode_E_multi = np.array(two_freq_det._mode_E[0])   # (3, *spatial)
+        mode_E_multi = np.array(two_freq_det._mode_E[0])  # (3, *spatial)
         mode_E_single = np.array(single_freq_det._mode_E[0])
 
         # Fields may differ by a global phase; compare normalised magnitudes
@@ -227,9 +230,7 @@ class TestSingleVsMultiFreqAgreement:
         overlap_single = float(jnp.abs(single_freq_det.compute_overlap(state_single)[0]))
         overlap_multi = float(jnp.abs(two_freq_det.compute_overlap(state_multi)[0]))
 
-        assert overlap_single == pytest.approx(1.0, abs=0.05), (
-            f"Single-freq self-overlap = {overlap_single:.4f}"
-        )
+        assert overlap_single == pytest.approx(1.0, abs=0.05), f"Single-freq self-overlap = {overlap_single:.4f}"
         assert overlap_multi == pytest.approx(overlap_single, abs=0.05), (
             f"Multi-freq overlap[0]={overlap_multi:.4f} vs single={overlap_single:.4f}"
         )
@@ -238,7 +239,7 @@ class TestSingleVsMultiFreqAgreement:
 class TestFourFreqDetectorApply:
     """End-to-end tests for ModeOverlapDetector.apply() with four wave characters.
 
-    Spans 1200–1550 nm (350 nm range) with neff-proximity tracking across four frequencies.
+    Spans 1200-1550 nm (350 nm range) with neff-proximity tracking across four frequencies.
     """
 
     def test_mode_E_shape(self, four_freq_det):
@@ -267,9 +268,7 @@ class TestFourFreqDetectorApply:
         """No consecutive neff pair differs by more than 0.2 (no mode hopping)."""
         neffs = np.real(np.array(four_freq_det._mode_neff))
         diffs = np.abs(np.diff(neffs))
-        assert np.all(diffs < 0.2), (
-            f"Large neff jump across frequencies: {neffs}, diffs={diffs}"
-        )
+        assert np.all(diffs < 0.2), f"Large neff jump across frequencies: {neffs}, diffs={diffs}"
 
     def test_self_overlap_equals_one_at_each_frequency(self, four_freq_det):
         """Feeding mode fields back as phasor gives |overlap| ≈ 1 at every frequency slot."""

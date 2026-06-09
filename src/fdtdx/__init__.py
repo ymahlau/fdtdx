@@ -27,7 +27,6 @@ from fdtdx.core.jax.pytrees import (
 )
 from fdtdx.core.physics.losses import metric_efficiency
 from fdtdx.core.physics.metrics import (
-    bidirectional_mode_overlap,
     compute_energy,
     compute_poynting_flux,
     normalize_by_energy,
@@ -223,7 +222,6 @@ __all__ = [
     "WaveCharacter",
     "apply_params",
     "autoinit",
-    "bidirectional_mode_overlap",
     "boundary_objects_from_config",
     "calculate_sparam",
     "calculate_sparams",

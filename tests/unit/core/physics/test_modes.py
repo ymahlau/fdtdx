@@ -913,12 +913,8 @@ class TestComputeModeTargetNeff:
         mock_wrapper.side_effect = [modes_freq0, modes_freq1, modes_freq1]
 
         _, _, neff0 = compute_mode(frequency=2e14, target_neff=None, mode_index=0, **base_args)
-        _, _, neff1_tracked = compute_mode(
-            frequency=3e14, target_neff=float(np.real(neff0)), **base_args
-        )
-        _, _, neff1_untracked = compute_mode(
-            frequency=3e14, target_neff=None, mode_index=0, **base_args
-        )
+        _, _, neff1_tracked = compute_mode(frequency=3e14, target_neff=float(np.real(neff0)), **base_args)
+        _, _, neff1_untracked = compute_mode(frequency=3e14, target_neff=None, mode_index=0, **base_args)
 
         assert float(np.real(neff0)) == pytest.approx(2.5, abs=0.01)
         assert float(np.real(neff1_tracked)) == pytest.approx(2.4, abs=0.01), (
@@ -970,17 +966,13 @@ class TestComputeModeTargetNeff:
             _, _, neff = compute_mode(frequency=freq, target_neff=None, mode_index=0, **base_args)
             untracked_neffs.append(float(np.real(neff)))
 
-        expected_tracked   = [3.0, 2.9, 2.8, 2.7]
+        expected_tracked = [3.0, 2.9, 2.8, 2.7]
         expected_untracked = [3.0, 3.5, 3.6, 3.7]
 
         for i, (got, exp) in enumerate(zip(tracked_neffs, expected_tracked)):
-            assert got == pytest.approx(exp, abs=0.01), (
-                f"Tracked freq {i}: expected neff≈{exp}, got {got:.3f}"
-            )
+            assert got == pytest.approx(exp, abs=0.01), f"Tracked freq {i}: expected neff≈{exp}, got {got:.3f}"
         for i, (got, exp) in enumerate(zip(untracked_neffs, expected_untracked)):
-            assert got == pytest.approx(exp, abs=0.01), (
-                f"Untracked freq {i}: expected neff≈{exp}, got {got:.3f}"
-            )
+            assert got == pytest.approx(exp, abs=0.01), f"Untracked freq {i}: expected neff≈{exp}, got {got:.3f}"
 
     @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
     @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
@@ -1030,14 +1022,10 @@ class TestComputeModeTargetNeff:
             _, _, neff = compute_mode(frequency=freq, target_neff=None, mode_index=0, **base_args)
             untracked_neffs.append(float(np.real(neff)))
 
-        expected_tracked   = [3.00, 2.85, 2.70, 2.55, 2.40, 2.25]
+        expected_tracked = [3.00, 2.85, 2.70, 2.55, 2.40, 2.25]
         expected_untracked = [3.00, 3.20, 3.50, 3.00, 2.40, 3.50]
 
         for i, (got, exp) in enumerate(zip(tracked_neffs, expected_tracked)):
-            assert got == pytest.approx(exp, abs=0.01), (
-                f"Tracked freq {i}: expected neff≈{exp}, got {got:.3f}"
-            )
+            assert got == pytest.approx(exp, abs=0.01), f"Tracked freq {i}: expected neff≈{exp}, got {got:.3f}"
         for i, (got, exp) in enumerate(zip(untracked_neffs, expected_untracked)):
-            assert got == pytest.approx(exp, abs=0.01), (
-                f"Untracked freq {i}: expected neff≈{exp}, got {got:.3f}"
-            )
+            assert got == pytest.approx(exp, abs=0.01), f"Untracked freq {i}: expected neff≈{exp}, got {got:.3f}"

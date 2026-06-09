@@ -385,9 +385,7 @@ class TestBidirectionalModeOverlapVsTidy3d:
         )
 
         expected = complex(tidy3d_result)
-        assert np.isclose(complex(our), expected, rtol=1e-4), (
-            f"our={complex(our):.6g}, expected tidy3d={expected:.6g}"
-        )
+        assert np.isclose(complex(our), expected, rtol=1e-4), f"our={complex(our):.6g}, expected tidy3d={expected:.6g}"
 
     def test_self_overlap_magnitude_equals_tidy3d(self):
         """Self-overlap: |our| == |tidy3d| (both include 1/4; conjugate is no-op for real results)."""

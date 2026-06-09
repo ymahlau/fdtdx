@@ -535,23 +535,15 @@ class RectilinearGrid(TreeClass):
         Returns:
             ``(area_EuHv, area_EvHu)`` each broadcast to the 3D slice shape.
         """
-        u, v = [a for a in range(3) if a != propagation_axis]
+        u, v = [(1, 2), (2, 0), (0, 1)][propagation_axis]
         u_lo, u_hi = slice_tuple[u]
         v_lo, v_hi = slice_tuple[v]
-
-        primal_u = self.cell_widths(u)[u_lo:u_hi]
-        primal_v = self.cell_widths(v)[v_lo:v_hi]
-        dual_u = self.dual_widths(u, u_lo, u_hi)
-        dual_v = self.dual_widths(v, v_lo, v_hi)
-
-        def _broadcast(a1d_row, a1d_col):
-            area_2d = a1d_row[:, None] * a1d_col[None, :]
-            shape = [1, 1, 1]
-            shape[u] = area_2d.shape[0]
-            shape[v] = area_2d.shape[1]
-            return area_2d.reshape(shape)
-
-        return _broadcast(primal_u, dual_v), _broadcast(dual_u, primal_v)
+        return yee_face_areas_from_edges(
+            edges_u=self.edges(u)[u_lo : u_hi + 1],
+            edges_v=self.edges(v)[v_lo : v_hi + 1],
+            u_axis=u,
+            v_axis=v,
+        )
 
     def cell_volume(self, slice_tuple: tuple[tuple[int, int], tuple[int, int], tuple[int, int]]) -> jax.Array:
         """Return per-cell volume weights broadcast to a 3D slice shape."""
@@ -559,6 +551,52 @@ class RectilinearGrid(TreeClass):
         y0, y1 = slice_tuple[1]
         z0, z1 = slice_tuple[2]
         return self.dx[x0:x1, None, None] * self.dy[None, y0:y1, None] * self.dz[None, None, z0:z1]
+
+
+def yee_face_areas_from_edges(
+    edges_u: jax.Array,
+    edges_v: jax.Array,
+    u_axis: int,
+    v_axis: int,
+    dtype: jnp.dtype | None = None,
+) -> tuple[jax.Array, jax.Array]:
+    """Return Yee-staggered face-area arrays from physical edge coordinates.
+
+    Computes the same quantities as :meth:`RectilinearGrid.yee_face_areas` but
+    accepts raw edge arrays rather than a grid slice, which is necessary when
+    a full ``RectilinearGrid`` is not available (e.g. inside the mode solver).
+
+    Args:
+        edges_u: Edge coordinates (m) along the u transverse axis, length ``n_u + 1``.
+        edges_v: Edge coordinates (m) along the v transverse axis, length ``n_v + 1``.
+        u_axis: Physical axis index (0/1/2) for the u direction.
+        v_axis: Physical axis index (0/1/2) for the v direction.
+        dtype: Optional output dtype; defaults to the input array dtype.
+
+    Returns:
+        ``(area_EuHv, area_EvHu)`` broadcast-ready to a 3D spatial shape with a
+        singleton along the propagation axis.
+    """
+    edges_u = jnp.asarray(edges_u)
+    edges_v = jnp.asarray(edges_v)
+
+    primal_u = jnp.diff(edges_u)
+    primal_v = jnp.diff(edges_v)
+    centers_u = 0.5 * (edges_u[:-1] + edges_u[1:])
+    centers_v = 0.5 * (edges_v[:-1] + edges_v[1:])
+    # Boundary dual width: distance from first edge to first cell center (same rule as dual_widths at lo=0)
+    dual_u = jnp.concatenate([jnp.array([centers_u[0] - edges_u[0]]), jnp.diff(centers_u)])
+    dual_v = jnp.concatenate([jnp.array([centers_v[0] - edges_v[0]]), jnp.diff(centers_v)])
+
+    def _broadcast(a1d: jax.Array, axis: int) -> jax.Array:
+        shape = [1, 1, 1]
+        shape[axis] = a1d.shape[0]
+        arr = a1d.reshape(shape)
+        return arr.astype(dtype) if dtype is not None else arr
+
+    area_EuHv = _broadcast(primal_u, u_axis) * _broadcast(dual_v, v_axis)
+    area_EvHu = _broadcast(dual_u, u_axis) * _broadcast(primal_v, v_axis)
+    return area_EuHv, area_EvHu
 
 
 def calculate_spatial_offsets_yee() -> tuple[jax.Array, jax.Array]:
