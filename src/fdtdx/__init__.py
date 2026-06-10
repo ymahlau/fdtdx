@@ -138,6 +138,16 @@ wavelength_to_period.__module__ = "fdtdx"
 # PeriodicBoundary is now an alias for BlochBoundary with bloch_vector=(0,0,0)
 PeriodicBoundary = BlochBoundary
 
+#: Type alias for detector state: maps detector output names to JAX arrays.
+DetectorState = DetectorState
+
+#: Type alias for parameter dictionaries. Maps parameter names to JAX arrays or
+#: nested dicts of JAX arrays.
+ParameterContainer = ParameterContainer
+
+#: Type alias for simulation state: a tuple of (time_step, ArrayContainer).
+SimulationState = SimulationState
+
 __all__ = [
     "ArrayContainer",
     "BinaryMedianFilterModule",
