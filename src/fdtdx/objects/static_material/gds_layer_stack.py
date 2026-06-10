@@ -11,6 +11,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from fdtdx.colors import XKCD_LIGHT_GREY, Color
 from fdtdx.core.axis import get_transverse_axes
 from fdtdx.core.grid import multi_polygons_to_mask, polygon_to_mask_at_points
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
@@ -35,6 +36,8 @@ class GDSLayerSpec:
         name: Optional name for the resulting object. Auto-generates "gds_{layer}_{datatype}" if None.
         etch_by: Tuple of (layer, datatype) pairs whose polygons are subtracted from this layer via
             a boolean NOT operation before voxelization. Useful for etched features such as via holes.
+        color: Display color for ``plot_set_up``. Defaults to ``XKCD_LIGHT_GREY``. Pass ``None``
+            to leave the object uncolored.
     """
 
     gds_layer: int
@@ -44,6 +47,7 @@ class GDSLayerSpec:
     z_base: float = 0.0
     name: str | None = None
     etch_by: tuple[tuple[int, int], ...] = ()
+    color: Color | None = XKCD_LIGHT_GREY
 
 
 @dataclass(frozen=True)
@@ -381,6 +385,7 @@ def gds_layer_stack(
         obj = GDSLayerObject(
             name=name,
             materials=materials,
+            color=spec.color,
             polygons=polygons,
             gds_center=gds_center,
             material_name=spec.material_name,
