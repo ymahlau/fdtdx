@@ -358,13 +358,14 @@ def gds_layer_stack(
         ValueError: If *cell_name* is not found in the library.
                     If *layers* is empty
     """
+    if not layers:
+        raise ValueError("*layers* list is empty, no objects to create.")
+
     lib, cell = _load_gds_cell(gds_source, cell_name, flatten)
 
     objects: list[GDSLayerObject] = []
     constraints: list[Any] = []
 
-    if len(layers) == 0:
-        raise ValueError("*layers* list is empty, no objects to create.")
     for spec in layers:
         matching = [p for p in cell.polygons if p.layer == spec.gds_layer and p.datatype == spec.gds_datatype]
 
