@@ -107,6 +107,11 @@ class TestPlotSetupFromSide:
             y_edges=jnp.asarray([-2.5e-6, -0.5e-6, 2.5e-6]),  # centered: total 5µm
             z_edges=jnp.asarray([-0.5e-6, 0.5e-6]),  # centered: total 1µm
         )
+        config.grid = RectilinearGrid(
+            x_edges=jnp.asarray([-2.0e-6, -1.0e-6, 2.0e-6]),  # centered: total 4µm
+            y_edges=jnp.asarray([-2.5e-6, -0.5e-6, 2.5e-6]),  # centered: total 5µm
+            z_edges=jnp.asarray([-0.5e-6, 0.5e-6]),  # centered: total 1µm
+        )
         obj = _MockObj("box", "blue", ((1, 2), (0, 2), (0, 1)))
         container = _make_container(objects=[obj], volume_grid_shape=(2, 2, 1))
         _fig, ax = plt.subplots()
