@@ -54,7 +54,9 @@ def _get_full_coverage_objects(
     return full_coverage_objects
 
 
-def _axis_edges_um(config: SimulationConfig, axis: int, bounds: tuple[int, int]) -> tuple[float, float]:
+def _axis_edges_um(
+    config: SimulationConfig, axis: int, bounds: tuple[int, int], axis_length: int
+) -> tuple[float, float]:
     """Return centered physical edge coordinates in micrometres for an index interval."""
     grid = getattr(config, "grid", None)
     if isinstance(grid, RectilinearGrid):
@@ -65,7 +67,7 @@ def _axis_edges_um(config: SimulationConfig, axis: int, bounds: tuple[int, int])
             (float(edges[bounds[1]]) - domain_center) / 1.0e-6,
         )
     spacing = config.uniform_spacing()
-    domain_center = 0.5 * (bounds[0] + bounds[1])
+    domain_center = 0.5 * axis_length
     return ((bounds[0] - domain_center) * spacing / 1.0e-6, (bounds[1] - domain_center) * spacing / 1.0e-6)
 
 
@@ -220,16 +222,14 @@ def plot_setup_from_side(
         slices = obj.grid_slice_tuple
         color = obj.color
 
+        x_edges = _axis_edges_um(config, axis_indices[0], slices[axis_indices[0]], plane_size[0])
+        y_edges = _axis_edges_um(config, axis_indices[1], slices[axis_indices[1]], plane_size[1])
+
         ax.add_patch(
             Rectangle(
-                (
-                    _axis_edges_um(config, axis_indices[0], slices[axis_indices[0]])[0],
-                    _axis_edges_um(config, axis_indices[1], slices[axis_indices[1]])[0],
-                ),
-                _axis_edges_um(config, axis_indices[0], slices[axis_indices[0]])[1]
-                - _axis_edges_um(config, axis_indices[0], slices[axis_indices[0]])[0],
-                _axis_edges_um(config, axis_indices[1], slices[axis_indices[1]])[1]
-                - _axis_edges_um(config, axis_indices[1], slices[axis_indices[1]])[0],
+                (x_edges[0], y_edges[0]),
+                x_edges[1] - x_edges[0],
+                y_edges[1] - y_edges[0],
                 color=color.to_mpl() if color is not None else "gray",
                 alpha=0.5,
                 linestyle="--"
@@ -242,8 +242,8 @@ def plot_setup_from_side(
     ax.set_xlabel(axis_labels[0])
     ax.set_ylabel(axis_labels[1])
     ax.set_title(title)
-    ax.set_xlim(_axis_edges_um(config, axis_indices[0], (0, plane_size[0])))
-    ax.set_ylim(_axis_edges_um(config, axis_indices[1], (0, plane_size[1])))
+    ax.set_xlim(_axis_edges_um(config, axis_indices[0], (0, plane_size[0]), plane_size[0]))
+    ax.set_ylim(_axis_edges_um(config, axis_indices[1], (0, plane_size[1]), plane_size[1]))
     ax.set_aspect("equal")
     ax.grid(True)
 
