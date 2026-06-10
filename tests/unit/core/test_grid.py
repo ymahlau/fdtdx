@@ -8,6 +8,7 @@ from fdtdx.core.grid import (
     calculate_spatial_offsets_yee,
     calculate_time_offset_yee,
     polygon_to_mask,
+    yee_face_areas_from_edges,
 )
 
 
@@ -193,6 +194,90 @@ class TestRectilinearGrid:
 
         with pytest.raises(ValueError, match="mirror-symmetric"):
             grid.reduce_symmetric((-1, 0, 0))
+
+
+class TestYeeFaceAreas:
+    """Tests for Yee-staggered face-area computation on non-uniform grids.
+
+    The Yee convention maps propagation_axis to (u, v) as:
+      0 (x-prop) -> u=1 (y),  v=2 (z)
+      1 (y-prop) -> u=2 (z),  v=0 (x)
+      2 (z-prop) -> u=0 (x),  v=1 (y)
+
+    Grid used throughout (2x2x2 cells, all spacings intentionally distinct
+    so that swapping any two axes produces a detectably wrong result):
+      x-edges: [0, 1, 3] um  ->  primal_x=[1,2],  dual_x=[0.5, 1.5]
+      y-edges: [0, 4, 7] um  ->  primal_y=[4,3],  dual_y=[2,   3.5]
+      z-edges: [0, 9, 10] um ->  primal_z=[9,1],  dual_z=[4.5, 5  ]
+    """
+
+    _X = jnp.asarray([0.0, 1e-6, 3e-6])
+    _Y = jnp.asarray([0.0, 4e-6, 7e-6])
+    _Z = jnp.asarray([0.0, 9e-6, 10e-6])
+
+    _px = jnp.asarray([1e-6, 2e-6])
+    _dx = jnp.asarray([0.5e-6, 1.5e-6])
+    _py = jnp.asarray([4e-6, 3e-6])
+    _dy = jnp.asarray([2e-6, 3.5e-6])
+    _pz = jnp.asarray([9e-6, 1e-6])
+    _dz = jnp.asarray([4.5e-6, 5e-6])
+
+    def test_z_propagation_area_ordering(self):
+        """propagation_axis=2: u=x, v=y — area_EuHv=primal_x*dual_y, area_EvHu=dual_x*primal_y."""
+        EuHv, EvHu = yee_face_areas_from_edges(
+            edges_u=self._X, edges_v=self._Y, u_axis=0, v_axis=1
+        )
+        assert EuHv.shape == (2, 2, 1)
+        expected_EuHv = (self._px[:, None, None] * self._dy[None, :, None]).astype(jnp.float32)
+        expected_EvHu = (self._dx[:, None, None] * self._py[None, :, None]).astype(jnp.float32)
+        assert jnp.allclose(EuHv, expected_EuHv)
+        assert jnp.allclose(EvHu, expected_EvHu)
+
+    def test_x_propagation_area_ordering(self):
+        """propagation_axis=0: u=y, v=z — area_EuHv=primal_y*dual_z, area_EvHu=dual_y*primal_z."""
+        EuHv, EvHu = yee_face_areas_from_edges(
+            edges_u=self._Y, edges_v=self._Z, u_axis=1, v_axis=2
+        )
+        assert EuHv.shape == (1, 2, 2)
+        expected_EuHv = (self._py[None, :, None] * self._dz[None, None, :]).astype(jnp.float32)
+        expected_EvHu = (self._dy[None, :, None] * self._pz[None, None, :]).astype(jnp.float32)
+        assert jnp.allclose(EuHv, expected_EuHv)
+        assert jnp.allclose(EvHu, expected_EvHu)
+
+    def test_y_propagation_area_ordering(self):
+        """propagation_axis=1: u=z, v=x — area_EuHv=primal_z*dual_x, area_EvHu=dual_z*primal_x.
+
+        For y-propagation the Yee convention gives u=z, v=x, which is non-sorted order.
+        Using sorted order (u=x, v=z) silently swaps the two area arrays on non-uniform grids.
+        """
+        EuHv, EvHu = yee_face_areas_from_edges(
+            edges_u=self._Z, edges_v=self._X, u_axis=2, v_axis=0
+        )
+        assert EuHv.shape == (2, 1, 2)
+        expected_EuHv = (self._pz[None, None, :] * self._dx[:, None, None]).astype(jnp.float32)
+        expected_EvHu = (self._dz[None, None, :] * self._px[:, None, None]).astype(jnp.float32)
+        assert jnp.allclose(EuHv, expected_EuHv)
+        assert jnp.allclose(EvHu, expected_EvHu)
+        # EuHv must not equal EvHu (they are the same only on uniform grids)
+        assert not jnp.array_equal(EuHv, expected_EvHu)
+
+    def test_rectilinear_grid_yee_face_areas_all_axes(self):
+        """RectilinearGrid.yee_face_areas agrees with yee_face_areas_from_edges for all three axes."""
+        grid = RectilinearGrid(x_edges=self._X, y_edges=self._Y, z_edges=self._Z)
+        full = ((0, 1), (0, 1), (0, 1))
+
+        for prop_axis in (0, 1, 2):
+            u, v = [(1, 2), (2, 0), (0, 1)][prop_axis]
+            slice_t = list(full)
+            slice_t[prop_axis] = (0, 0)
+            EuHv_grid, EvHu_grid = grid.yee_face_areas(prop_axis, tuple(slice_t))
+
+            edges = [self._X, self._Y, self._Z]
+            EuHv_ref, EvHu_ref = yee_face_areas_from_edges(
+                edges_u=edges[u], edges_v=edges[v], u_axis=u, v_axis=v
+            )
+            assert jnp.allclose(EuHv_grid, EuHv_ref), f"EuHv mismatch for propagation_axis={prop_axis}"
+            assert jnp.allclose(EvHu_grid, EvHu_ref), f"EvHu mismatch for propagation_axis={prop_axis}"
 
 
 def test_calculate_spatial_offsets_yee_basic():
