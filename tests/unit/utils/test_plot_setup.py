@@ -103,11 +103,6 @@ class TestPlotSetupFromSide:
         """Setup plots use RectilinearGrid edge coordinates for stretched cells."""
         config = _make_config()
         config.grid = RectilinearGrid(
-            x_edges=jnp.asarray([0.0, 1.0e-6, 4.0e-6]),
-            y_edges=jnp.asarray([0.0, 2.0e-6, 5.0e-6]),
-            z_edges=jnp.asarray([0.0, 1.0e-6]),
-        )
-        config.grid = RectilinearGrid(
             x_edges=jnp.asarray([-2.0e-6, -1.0e-6, 2.0e-6]),  # centered: total 4µm
             y_edges=jnp.asarray([-2.5e-6, -0.5e-6, 2.5e-6]),  # centered: total 5µm
             z_edges=jnp.asarray([-0.5e-6, 0.5e-6]),  # centered: total 1µm
