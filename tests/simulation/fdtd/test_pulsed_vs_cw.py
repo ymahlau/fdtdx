@@ -247,3 +247,182 @@ def test_pulsed_vs_cw_transmission():
             f"wl={wl * 1e6:.2f} µm: T_pulsed={T_pulsed[i]:.4f}, T_CW={T_cw[i]:.4f}, "
             f"relative error={rel_err:.3f} > {_TOLERANCE}"
         )
+
+
+# ── Mode overlap pulsed vs CW ─────────────────────────────────────────────────
+#
+# Si/SiO2 slab waveguide (propagation along x, periodic in y).
+# One broadband pulsed run with ModeOverlapDetector carrying all 3 wave_characters
+# is compared against 3 independent CW runs each with a single wave_character.
+# Agreement validates that multi-frequency phasor accumulation produces the same
+# S-parameter at each frequency as running the frequencies independently.
+#
+# Domain (50 nm resolution, x is propagation axis):
+#   x: 3 µm total (60 cells); PML 10 cells each side; active 40 cells
+#   y: 150 nm (3 cells), periodic — slab approximation
+#   z: 2 µm total (40 cells); PML 10 cells each side
+#   Si core: 250 nm (5 cells) centred in z
+#   Source: x-index 12; output detector: x-index 25
+
+_WG_RESOLUTION = 50e-9
+_WG_PML = 10
+_WG_DOMAIN_X = 3e-6
+_WG_DOMAIN_Y = 3 * _WG_RESOLUTION
+_WG_DOMAIN_Z = 2e-6
+_WG_CORE_HEIGHT = 250e-9
+_WG_SOURCE_X = _WG_PML + 2  # = 12
+_WG_DET_X = 25
+_WG_SIM_TIME = 300e-15  # 300 fs: ~69 periods at 1300 nm, enough for CW startup ramp to be negligible
+_WG_CENTER_WL = 1.45e-6
+
+_WG_EPS_SI = fdtdx.constants.relative_permittivity_silicon
+_WG_EPS_SIO2 = fdtdx.constants.relative_permittivity_silica
+
+_WG_TEST_WCS = [
+    fdtdx.WaveCharacter(wavelength=1.30e-6),
+    fdtdx.WaveCharacter(wavelength=1.45e-6),
+    fdtdx.WaveCharacter(wavelength=1.55e-6),
+]
+_WG_TOLERANCE = 0.05
+
+
+def _build_waveguide_scene(temporal_profile, source_wc, det_wave_characters):
+    """Return (objects, constraints, config) for the Si/SiO2 slab waveguide."""
+    config = fdtdx.SimulationConfig(
+        grid=fdtdx.UniformGrid(spacing=_WG_RESOLUTION),
+        time=_WG_SIM_TIME,
+        dtype=jnp.float32,
+    )
+    objects, constraints = [], []
+
+    volume = fdtdx.SimulationVolume(
+        partial_real_shape=(_WG_DOMAIN_X, _WG_DOMAIN_Y, _WG_DOMAIN_Z),
+    )
+    objects.append(volume)
+
+    bound_cfg = fdtdx.BoundaryConfig.from_uniform_bound(
+        thickness=_WG_PML,
+        override_types={"min_y": "periodic", "max_y": "periodic"},
+    )
+    bound_dict, c_list = fdtdx.boundary_objects_from_config(bound_cfg, volume)
+    constraints.extend(c_list)
+    objects.extend(bound_dict.values())
+
+    cladding = fdtdx.UniformMaterialObject(
+        name="cladding",
+        partial_real_shape=(None, None, None),
+        material=fdtdx.Material(permittivity=_WG_EPS_SIO2),
+    )
+    constraints.extend(cladding.same_position_and_size(volume))
+    objects.append(cladding)
+
+    core = fdtdx.UniformMaterialObject(
+        name="core",
+        partial_real_shape=(None, None, _WG_CORE_HEIGHT),
+        material=fdtdx.Material(permittivity=_WG_EPS_SI),
+    )
+    constraints.extend([core.same_size(volume, axes=(0, 1)), core.place_at_center(volume, axes=(0, 1, 2))])
+    objects.append(core)
+
+    source = fdtdx.ModePlaneSource(
+        name="source",
+        partial_grid_shape=(1, None, None),
+        wave_character=source_wc,
+        temporal_profile=temporal_profile,
+        direction="+",
+        mode_index=0,
+        filter_pol="te",
+    )
+    constraints.extend(
+        [
+            source.same_size(volume, axes=(1, 2)),
+            source.place_at_center(volume, axes=(1, 2)),
+            source.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_WG_SOURCE_X,)),
+        ]
+    )
+    objects.append(source)
+
+    input_det = fdtdx.ModeOverlapDetector(
+        name="det_source",
+        wave_characters=tuple(det_wave_characters),
+        direction="+",
+        mode_index=0,
+        filter_pol="te",
+        scaling_mode="pulse",
+    )
+    constraints.extend([input_det.same_size(source), input_det.same_position(source, grid_margins=(1, 0, 0))])
+    objects.append(input_det)
+
+    det_out = fdtdx.ModeOverlapDetector(
+        name="det_out",
+        partial_grid_shape=(1, None, None),
+        wave_characters=tuple(det_wave_characters),
+        direction="+",
+        mode_index=0,
+        filter_pol="te",
+        scaling_mode="pulse",
+    )
+    constraints.extend(
+        [
+            det_out.same_size(volume, axes=(1, 2)),
+            det_out.place_at_center(volume, axes=(1, 2)),
+            det_out.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_WG_DET_X,)),
+        ]
+    )
+    objects.append(det_out)
+
+    return objects, constraints, config
+
+
+def test_pulsed_vs_cw_mode_overlap():
+    """Multi-freq pulsed ModeOverlapDetector agrees with single-freq CW runs within 5 %.
+
+    One broadband pulsed run carries all 3 wave_characters on a single
+    ModeOverlapDetector.  Three independent CW runs each carry one wave_character.
+    |S_pulsed(wl)| must agree with |S_CW(wl)| at every wavelength, proving that
+    multi-frequency phasor accumulation does not cross-contaminate frequency channels
+    and that per-frequency normalization is correct.
+    """
+    center_wc = fdtdx.WaveCharacter(wavelength=_WG_CENTER_WL)
+    pulsed_profile = fdtdx.GaussianPulseProfile(
+        center_wave=center_wc,
+        spectral_width=fdtdx.WaveCharacter(wavelength=_WG_CENTER_WL * 10),
+    )
+    key = jax.random.PRNGKey(0)
+
+    # ── Pulsed run (all 3 frequencies at once) ────────────────────────────────
+    objs, cons, cfg = _build_waveguide_scene(pulsed_profile, center_wc, _WG_TEST_WCS)
+    obj_container, arrays, _, cfg, _ = fdtdx.place_objects(object_list=objs, config=cfg, constraints=cons, key=key)
+    arrays = fdtdx.extend_material_to_pml(objects=obj_container, arrays=arrays)
+    result_pulsed, _ = fdtdx.calculate_sparam(
+        objects=obj_container,
+        arrays=arrays,
+        config=cfg,
+        input_port_name="source",
+        show_progress=False,
+    )
+    s_pulsed = np.array(result_pulsed[("det_out", "source")])  # shape (3,)
+
+    # ── CW runs (one per frequency) ───────────────────────────────────────────
+    s_cw = []
+    for wc in _WG_TEST_WCS:
+        objs, cons, cfg = _build_waveguide_scene(fdtdx.SingleFrequencyProfile(), wc, [wc])
+        obj_container, arrays, _, cfg, _ = fdtdx.place_objects(object_list=objs, config=cfg, constraints=cons, key=key)
+        arrays = fdtdx.extend_material_to_pml(objects=obj_container, arrays=arrays)
+        result, _ = fdtdx.calculate_sparam(
+            objects=obj_container,
+            arrays=arrays,
+            config=cfg,
+            input_port_name="source",
+            show_progress=False,
+        )
+        s_cw.append(complex(np.array(result[("det_out", "source")])[0]))
+
+    # ── Comparison ────────────────────────────────────────────────────────────
+    for i, wc in enumerate(_WG_TEST_WCS):
+        wl_nm = int(wc.wavelength * 1e9)
+        rel_err = abs(abs(s_pulsed[i]) - abs(s_cw[i])) / abs(s_cw[i])
+        assert rel_err < _WG_TOLERANCE, (
+            f"wl={wl_nm} nm: |S_pulsed|={abs(s_pulsed[i]):.4f}, "
+            f"|S_CW|={abs(s_cw[i]):.4f}, rel_err={rel_err:.3f} > {_WG_TOLERANCE}"
+        )

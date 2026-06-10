@@ -224,9 +224,7 @@ class TestYeeFaceAreas:
 
     def test_z_propagation_area_ordering(self):
         """propagation_axis=2: u=x, v=y — area_EuHv=primal_x*dual_y, area_EvHu=dual_x*primal_y."""
-        EuHv, EvHu = yee_face_areas_from_edges(
-            edges_u=self._X, edges_v=self._Y, u_axis=0, v_axis=1
-        )
+        EuHv, EvHu = yee_face_areas_from_edges(edges_u=self._X, edges_v=self._Y, u_axis=0, v_axis=1)
         assert EuHv.shape == (2, 2, 1)
         expected_EuHv = (self._px[:, None, None] * self._dy[None, :, None]).astype(jnp.float32)
         expected_EvHu = (self._dx[:, None, None] * self._py[None, :, None]).astype(jnp.float32)
@@ -235,9 +233,7 @@ class TestYeeFaceAreas:
 
     def test_x_propagation_area_ordering(self):
         """propagation_axis=0: u=y, v=z — area_EuHv=primal_y*dual_z, area_EvHu=dual_y*primal_z."""
-        EuHv, EvHu = yee_face_areas_from_edges(
-            edges_u=self._Y, edges_v=self._Z, u_axis=1, v_axis=2
-        )
+        EuHv, EvHu = yee_face_areas_from_edges(edges_u=self._Y, edges_v=self._Z, u_axis=1, v_axis=2)
         assert EuHv.shape == (1, 2, 2)
         expected_EuHv = (self._py[None, :, None] * self._dz[None, None, :]).astype(jnp.float32)
         expected_EvHu = (self._dy[None, :, None] * self._pz[None, None, :]).astype(jnp.float32)
@@ -250,9 +246,7 @@ class TestYeeFaceAreas:
         For y-propagation the Yee convention gives u=z, v=x, which is non-sorted order.
         Using sorted order (u=x, v=z) silently swaps the two area arrays on non-uniform grids.
         """
-        EuHv, EvHu = yee_face_areas_from_edges(
-            edges_u=self._Z, edges_v=self._X, u_axis=2, v_axis=0
-        )
+        EuHv, EvHu = yee_face_areas_from_edges(edges_u=self._Z, edges_v=self._X, u_axis=2, v_axis=0)
         assert EuHv.shape == (2, 1, 2)
         expected_EuHv = (self._pz[None, None, :] * self._dx[:, None, None]).astype(jnp.float32)
         expected_EvHu = (self._dz[None, None, :] * self._px[:, None, None]).astype(jnp.float32)
@@ -273,9 +267,7 @@ class TestYeeFaceAreas:
             EuHv_grid, EvHu_grid = grid.yee_face_areas(prop_axis, tuple(slice_t))
 
             edges = [self._X, self._Y, self._Z]
-            EuHv_ref, EvHu_ref = yee_face_areas_from_edges(
-                edges_u=edges[u], edges_v=edges[v], u_axis=u, v_axis=v
-            )
+            EuHv_ref, EvHu_ref = yee_face_areas_from_edges(edges_u=edges[u], edges_v=edges[v], u_axis=u, v_axis=v)
             assert jnp.allclose(EuHv_grid, EuHv_ref), f"EuHv mismatch for propagation_axis={prop_axis}"
             assert jnp.allclose(EvHu_grid, EvHu_ref), f"EvHu mismatch for propagation_axis={prop_axis}"
 
