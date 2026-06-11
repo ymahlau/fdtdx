@@ -8,9 +8,22 @@ sources receive the derived mode-solver symmetry tuple.
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import fdtdx
+
+
+def _symmetric_y_edges(n_cells, base):
+    """Edge array of ``n_cells`` cells whose widths taper symmetrically about the center.
+
+    The taper amplitude is large enough that the grid is detected as genuinely non-uniform
+    (the uniformity check tolerates ~1e-8 m), so this exercises the rectilinear path.
+    """
+    idx = np.arange(n_cells)
+    center = (n_cells - 1) / 2.0
+    widths = base * (1.0 + 0.5 * np.abs(idx - center) / center)  # palindromic: widths[i]==widths[n-1-i]
+    return jnp.asarray(np.concatenate([[0.0], np.cumsum(widths)]))
 
 
 def _by_name(container, name):
@@ -22,7 +35,7 @@ def _by_name(container, name):
 
 def _build(symmetry):
     config = fdtdx.SimulationConfig(
-        resolution=50e-9,
+        grid=fdtdx.UniformGrid(spacing=50e-9),
         time=20e-15,
         dtype=jnp.float32,
         symmetry=symmetry,
@@ -147,11 +160,70 @@ def test_no_symmetry_is_unchanged():
 
 def test_odd_cell_count_on_symmetric_axis_raises():
     # 21 cells on y (odd) cannot be split exactly down the middle -> hard error.
-    config = fdtdx.SimulationConfig(resolution=50e-9, time=20e-15, dtype=jnp.float32, symmetry=(0, -1, 0))
+    config = fdtdx.SimulationConfig(
+        grid=fdtdx.UniformGrid(spacing=50e-9), time=20e-15, dtype=jnp.float32, symmetry=(0, -1, 0)
+    )
     volume = fdtdx.SimulationVolume(partial_grid_shape=(20, 21, 20))
     bound_dict, c_list = fdtdx.boundary_objects_from_config(
         fdtdx.BoundaryConfig.from_uniform_bound(thickness=4), volume
     )
     objects = [volume, *bound_dict.values()]
     with pytest.raises(ValueError, match="even number of cells"):
+        fdtdx.place_objects(object_list=objects, config=config, constraints=c_list, key=jax.random.PRNGKey(0))
+
+
+def test_symmetry_reduces_explicit_rectilinear_grid():
+    # Non-uniform grid symmetric about the y center, reduced under PEC y-symmetry.
+    base = 50e-9
+    grid = fdtdx.RectilinearGrid.custom(
+        x_edges=jnp.arange(21) * base,  # 20 uniform cells
+        y_edges=_symmetric_y_edges(20, base),  # 20 symmetric non-uniform cells
+        z_edges=jnp.arange(21) * base,  # 20 uniform cells
+    )
+    assert not grid.is_uniform  # exercise the rectilinear (not uniform) path
+    config = fdtdx.SimulationConfig(grid=grid, time=20e-15, dtype=jnp.float32, symmetry=(0, -1, 0))
+
+    volume = fdtdx.SimulationVolume(partial_grid_shape=(20, 20, 20))
+    bound_dict, c_list = fdtdx.boundary_objects_from_config(
+        fdtdx.BoundaryConfig.from_uniform_bound(thickness=4), volume
+    )
+    objects = [volume, *bound_dict.values()]
+
+    oc, arrays, _params, out_config, _info = fdtdx.place_objects(
+        object_list=objects, config=config, constraints=c_list, key=jax.random.PRNGKey(0)
+    )
+
+    # Volume + field arrays halved on y only.
+    assert oc.volume.grid_shape == (20, 10, 20)
+    assert arrays.fields.E.shape == (3, 20, 10, 20)
+
+    # The pinned grid is the reduced rectilinear grid: kept upper-half y widths, x/z unchanged.
+    reduced_grid = out_config.grid
+    assert isinstance(reduced_grid, fdtdx.RectilinearGrid)
+    assert reduced_grid.shape == (20, 10, 20)
+    assert np.allclose(np.asarray(reduced_grid.cell_widths(1)), np.asarray(grid.cell_widths(1))[10:])
+    assert np.allclose(np.asarray(reduced_grid.cell_widths(0)), np.asarray(grid.cell_widths(0)))
+
+    # PEC wall on the y symmetry plane (min edge).
+    pec = oc.pec_objects
+    assert len(pec) == 1 and pec[0].axis == 1 and pec[0]._grid_slice_tuple[1] == (0, 1)
+
+
+def test_symmetry_rejects_asymmetric_rectilinear_grid():
+    # Monotonically increasing y widths are not mirror-symmetric -> hard error.
+    base = 50e-9
+    y_widths = base * (1.0 + 0.05 * np.arange(20))  # strictly increasing, not palindromic
+    grid = fdtdx.RectilinearGrid.custom(
+        x_edges=jnp.arange(21) * base,
+        y_edges=jnp.asarray(np.concatenate([[0.0], np.cumsum(y_widths)])),
+        z_edges=jnp.arange(21) * base,
+    )
+    config = fdtdx.SimulationConfig(grid=grid, time=20e-15, dtype=jnp.float32, symmetry=(0, -1, 0))
+
+    volume = fdtdx.SimulationVolume(partial_grid_shape=(20, 20, 20))
+    bound_dict, c_list = fdtdx.boundary_objects_from_config(
+        fdtdx.BoundaryConfig.from_uniform_bound(thickness=4), volume
+    )
+    objects = [volume, *bound_dict.values()]
+    with pytest.raises(ValueError, match="mirror-symmetric"):
         fdtdx.place_objects(object_list=objects, config=config, constraints=c_list, key=jax.random.PRNGKey(0))

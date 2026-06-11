@@ -1,3 +1,4 @@
+import warnings
 from unittest.mock import MagicMock, Mock, patch
 
 import jax
@@ -5,6 +6,8 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.constants import MAX_SIMULATION_VOLUME_CELLS
+from fdtdx.core.grid import RectilinearGrid, UniformGrid
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.initialization import (
     _apply_grid_coordinate_constraint,
@@ -19,6 +22,7 @@ from fdtdx.fdtd.initialization import (
     _resolve_volume_name,
     _update_grid_shapes_from_slices,
     _update_grid_slices_from_shapes,
+    _warn_if_simulation_volume_too_large,
     apply_params,
     resolve_object_constraints,
 )
@@ -43,7 +47,7 @@ from fdtdx.objects.static_material.static import (
 
 @pytest.fixture
 def simple_config():
-    return SimulationConfig(resolution=1.0, time=100e-15)
+    return SimulationConfig(grid=UniformGrid(spacing=1.0), time=100e-15)
 
 
 @pytest.fixture
@@ -162,7 +166,7 @@ def test_resolve_constraints_with_real_margins(simple_config, simple_volume, sim
 
 
 def test_resolve_constraints_with_both_margins(simple_volume, simple_material):
-    config = SimulationConfig(resolution=0.5, time=100e-15)
+    config = SimulationConfig(grid=UniformGrid(spacing=0.5), time=100e-15)
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(10, 10, 10), material=simple_material)
     constraint = PositionConstraint(
         object="obj1",
@@ -179,7 +183,7 @@ def test_resolve_constraints_with_both_margins(simple_volume, simple_material):
 
 
 def test_resolve_constraints_with_real_offset_in_size(simple_volume, simple_material):
-    config = SimulationConfig(resolution=0.5, time=100e-15)
+    config = SimulationConfig(grid=UniformGrid(spacing=0.5), time=100e-15)
     obj = UniformMaterialObject(name="obj1", material=simple_material)
     constraint = SizeConstraint(
         object="obj1",
@@ -212,7 +216,7 @@ def test_resolve_constraints_with_grid_offset_in_size(simple_config, simple_volu
 
 
 def test_resolve_constraints_size_extension_with_real_offset(simple_volume, simple_material):
-    config = SimulationConfig(resolution=0.5, time=100e-15)
+    config = SimulationConfig(grid=UniformGrid(spacing=0.5), time=100e-15)
     obj1 = UniformMaterialObject(name="obj1", partial_grid_shape=(10, 10, 10), material=simple_material)
     obj2 = UniformMaterialObject(name="obj2", material=simple_material)
     pos_constraint = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[20])
@@ -273,7 +277,7 @@ def test_resolve_constraints_size_extension_to_volume_boundary(simple_config, si
 
 
 def test_resolve_constraints_with_partial_real_shape(simple_material):
-    config = SimulationConfig(resolution=0.5, time=100e-15)
+    config = SimulationConfig(grid=UniformGrid(spacing=0.5), time=100e-15)
     volume = SimulationVolume(name="volume", partial_grid_shape=(100, 100, 100))
     obj = UniformMaterialObject(name="obj1", partial_real_shape=(5.0, 5.0, 5.0), material=simple_material)
     constraints = [
@@ -285,6 +289,143 @@ def test_resolve_constraints_with_partial_real_shape(simple_material):
     if resolved_slices["obj1"][0][0] is not None:
         shape = resolved_slices["obj1"][0][1] - resolved_slices["obj1"][0][0]
         assert shape == 10
+
+
+def test_nonuniform_partial_real_shape_covers_metric_size(simple_material):
+    """Real object sizes use grid edges and cover the requested metric length."""
+    grid = RectilinearGrid(
+        x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
+        y_edges=jnp.asarray([0.0, 2.0, 5.0]),
+        z_edges=jnp.asarray([0.0, 1.5, 4.0]),
+    )
+    config = SimulationConfig(grid=grid, time=100e-15)
+    volume = SimulationVolume(name="volume", partial_grid_shape=grid.shape)
+    obj = UniformMaterialObject(name="obj1", partial_real_shape=(2.1, 2.1, 2.1), material=simple_material)
+    constraints = [
+        RealCoordinateConstraint(object="obj1", axes=(0, 1, 2), sides=("-", "-", "-"), coordinates=(0.0, 0.0, 0.0))
+    ]
+
+    resolved_slices, errors = resolve_object_constraints([volume, obj], constraints, config)
+
+    assert errors["obj1"] is None
+    assert resolved_slices["obj1"] == ((0, 2), (0, 2), (0, 2))
+
+
+def test_nonuniform_partial_real_position_uses_physical_interval_center(simple_material):
+    """Center placement chooses the grid interval with closest physical center."""
+    grid = RectilinearGrid(
+        x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
+        y_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
+        z_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
+    )
+    config = SimulationConfig(grid=grid, time=100e-15)
+    volume = SimulationVolume(name="volume", partial_grid_shape=grid.shape)
+    obj = UniformMaterialObject(
+        name="obj1",
+        partial_grid_shape=(2, 2, 2),
+        partial_real_position=(0.6, 0.6, 0.6),
+        material=simple_material,
+    )
+
+    resolved_slices, errors = resolve_object_constraints([volume, obj], [], config)
+
+    assert errors["obj1"] is None
+    assert resolved_slices["obj1"] == ((1, 3), (1, 3), (1, 3))
+
+
+def test_nonuniform_real_coordinate_constraint_snaps_to_nearest_edge(simple_material):
+    """Real coordinate constraints use physical edge coordinates on stretched grids."""
+    grid = RectilinearGrid(
+        x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
+        y_edges=jnp.asarray([0.0, 1.0]),
+        z_edges=jnp.asarray([0.0, 1.0]),
+    )
+    config = SimulationConfig(grid=grid, time=100e-15)
+    volume = SimulationVolume(name="volume", partial_grid_shape=grid.shape)
+    obj = UniformMaterialObject(name="obj1", partial_grid_shape=(1, 1, 1), material=simple_material)
+    constraint = RealCoordinateConstraint(object="obj1", axes=(0,), sides=("-",), coordinates=(2.7,))
+
+    resolved_slices, errors = resolve_object_constraints([volume, obj], [constraint], config)
+
+    assert errors["obj1"] is None
+    assert resolved_slices["obj1"][0] == (2, 3)
+
+
+def test_nonuniform_grid_coordinate_constraint_is_rejected(simple_material):
+    """Index-space placement coordinates are not allowed on non-uniform grids."""
+    grid = RectilinearGrid(
+        x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
+        y_edges=jnp.asarray([0.0, 1.0, 2.0, 3.0]),
+        z_edges=jnp.asarray([0.0, 1.0, 2.0, 3.0]),
+    )
+    config = SimulationConfig(grid=grid, time=100e-15)
+    volume = SimulationVolume(name="volume", partial_grid_shape=grid.shape)
+    obj = UniformMaterialObject(name="obj1", partial_grid_shape=(1, 1, 1), material=simple_material)
+    constraint = GridCoordinateConstraint(object="obj1", axes=(0,), sides=("-",), coordinates=(1,))
+
+    _resolved_slices, errors = resolve_object_constraints([volume, obj], [constraint], config)
+
+    assert "not supported on non-uniform grids" in errors["obj1"]
+
+
+def test_nonuniform_nonzero_grid_margin_is_rejected(simple_material):
+    """Grid margins are index-space distances and must be expressed in metres."""
+    grid = RectilinearGrid(
+        x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0, 10.0]),
+        y_edges=jnp.asarray([0.0, 1.0, 2.0, 3.0, 4.0]),
+        z_edges=jnp.asarray([0.0, 1.0, 2.0, 3.0, 4.0]),
+    )
+    config = SimulationConfig(grid=grid, time=100e-15)
+    volume = SimulationVolume(name="volume", partial_grid_shape=grid.shape)
+    parent = UniformMaterialObject(name="parent", partial_grid_shape=(1, 1, 1), material=simple_material)
+    child = UniformMaterialObject(name="child", partial_grid_shape=(1, 1, 1), material=simple_material)
+    constraints = [
+        RealCoordinateConstraint(object="parent", axes=(0, 1, 2), sides=("-", "-", "-"), coordinates=(0.0, 0.0, 0.0)),
+        child.face_to_face_positive_direction(parent, axes=(0,), grid_margins=(1,)),
+    ]
+
+    _resolved_slices, errors = resolve_object_constraints([volume, parent, child], constraints, config)
+
+    assert "grid_margins" in errors["child"]
+
+
+def test_nonuniform_size_constraint_uses_physical_proportion(simple_material):
+    """SizeConstraint proportions resolve using metric extents on stretched grids.
+
+    Grid x has widths [1, 2, 3] so three cells span 6 m.  A 50 % proportion
+    targets 3 m, which covers the first two cells (edges 0→1→3).
+    """
+    grid = RectilinearGrid(
+        x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),  # widths 1, 2, 3 → total 6 m
+        y_edges=jnp.asarray([0.0, 1.0]),
+        z_edges=jnp.asarray([0.0, 1.0]),
+    )
+    config = SimulationConfig(grid=grid, time=100e-15)
+    volume = SimulationVolume(name="volume", partial_grid_shape=grid.shape)
+    parent = UniformMaterialObject(name="parent", partial_grid_shape=(3, 1, 1), material=simple_material)
+    child = UniformMaterialObject(name="child", material=simple_material)
+    constraints = [
+        RealCoordinateConstraint(object="parent", axes=(0, 1, 2), sides=("-", "-", "-"), coordinates=(0.0, 0.0, 0.0)),
+        RealCoordinateConstraint(object="child", axes=(0, 1, 2), sides=("-", "-", "-"), coordinates=(0.0, 0.0, 0.0)),
+        SizeConstraint(
+            object="child",
+            other_object="parent",
+            axes=[0],
+            other_axes=[0],
+            proportions=[0.5],
+            grid_offsets=[None],
+            offsets=[None],
+        ),
+    ]
+
+    resolved_slices, errors = resolve_object_constraints([volume, parent, child], constraints, config)
+
+    assert errors["parent"] is None
+    assert errors["child"] is None
+    assert resolved_slices["parent"][0] == (0, 3)
+    # 50 % of 6 m = 3 m; upper-snap from lower edge gives 2 cells (0→1→3)
+    child_size = resolved_slices["child"][0][1] - resolved_slices["child"][0][0]
+    assert child_size == 2
 
 
 def test_resolve_constraints_extend_to_infinity(simple_config, simple_volume, simple_material):
@@ -370,7 +511,7 @@ def test_resolve_static_shapes_grid_shape(simple_config, simple_volume, simple_m
 
 
 def test_resolve_static_shapes_real_shape(simple_material):
-    config = SimulationConfig(resolution=0.5, time=100e-15)
+    config = SimulationConfig(grid=UniformGrid(spacing=0.5), time=100e-15)
     volume = SimulationVolume(name="volume", partial_grid_shape=(100, 100, 100))
     obj = UniformMaterialObject(name="obj1", partial_real_shape=(5.0, 10.0, 15.0), material=simple_material)
     obj_map = {"volume": volume, "obj1": obj}
@@ -451,7 +592,7 @@ def test_apply_real_coordinate_constraint_converts_to_grid(simple_config, simple
 
 
 def test_apply_real_coordinate_constraint_sub_resolution(simple_material):
-    config = SimulationConfig(resolution=0.5, time=100e-15)
+    config = SimulationConfig(grid=UniformGrid(spacing=0.5), time=100e-15)
     volume = SimulationVolume(name="volume", partial_grid_shape=(100, 100, 100))
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(10, 10, 10), material=simple_material)
     obj_map = {"volume": volume, "obj1": obj}
@@ -901,6 +1042,7 @@ def test_apply_size_constraint_conflicting_shape_raises_descriptive(simple_confi
     obj = UniformMaterialObject(name="obj1", material=simple_material)
     obj_map = {"volume": simple_volume, "obj1": obj}
     shape_dict = {"volume": [100, 100, 100], "obj1": [60, None, None]}
+    slice_dict = {"volume": [[0, 100], [0, 100], [0, 100]], "obj1": [[0, 60], [None, None], [None, None]]}
     c = SizeConstraint(
         object="obj1",
         other_object="volume",
@@ -911,7 +1053,7 @@ def test_apply_size_constraint_conflicting_shape_raises_descriptive(simple_confi
         offsets=[None],
     )
     with pytest.raises(Exception, match="geometry"):
-        _apply_size_constraint(c, obj_map, simple_config, shape_dict)
+        _apply_size_constraint(c, obj_map, simple_config, shape_dict, slice_dict)
 
 
 # ---------------------------------------------------------------------------
@@ -1208,9 +1350,12 @@ def test_init_arrays_unknown_static_material_type_raises(mock_create_matrix):
 
     config = Mock(spec=SimulationConfig)
     config.dtype = jnp.float32
-    config.resolution = 1.0
+    config.uniform_spacing.return_value = 1.0
     config.backend = "cpu"
     config.gradient_config = None
+    config.grid = UniformGrid(spacing=1.0)
+    config.resolve_grid.return_value = RectilinearGrid.uniform(shape=(2, 2, 2), spacing=1.0)
+    config.uniform_spacing.return_value = 1.0
 
     objects = Mock(spec=ObjectContainer)
     objects.volume = Mock()
@@ -1249,7 +1394,7 @@ def test_resolve_constraints_with_partial_real_position(simple_material):
     - The conversion uses the simulation resolution correctly
     - Boundaries are computed from center position and size
     """
-    config = SimulationConfig(resolution=0.5, time=100e-15)
+    config = SimulationConfig(grid=UniformGrid(spacing=0.5), time=100e-15)
 
     volume = SimulationVolume(
         name="volume",
@@ -1259,7 +1404,7 @@ def test_resolve_constraints_with_partial_real_position(simple_material):
     # Object with real position (CENTER) specified
     obj = UniformMaterialObject(
         name="obj1",
-        partial_real_position=(10.0, 15.0, 20.0),  # Center positions in real-world coordinates
+        partial_real_position=(-15.0, -10.0, -5.0),  # Center positions in real-world coordinates
         partial_grid_shape=(10, 10, 10),  # Known size
         material=simple_material,
     )
@@ -1298,7 +1443,7 @@ def test_resolve_constraints_partial_real_position_with_grid_shape(simple_config
     """
     obj = UniformMaterialObject(
         name="obj1",
-        partial_real_position=(20.0, None, 30.0),  # Only x and z centers specified
+        partial_real_position=(-30.0, None, -20.0),  # Only x and z centers specified
         partial_grid_shape=(10, 10, 10),
         material=simple_material,
     )
@@ -1364,7 +1509,7 @@ def test_resolve_constraints_partial_real_position_with_real_shape(simple_materi
     - Objects can be fully specified using only real-world coordinates
     - The conversion to grid coordinates is accurate for both position and size
     """
-    config = SimulationConfig(resolution=0.25, time=100e-15)
+    config = SimulationConfig(grid=UniformGrid(spacing=0.25), time=100e-15)
 
     volume = SimulationVolume(
         name="volume",
@@ -1373,7 +1518,7 @@ def test_resolve_constraints_partial_real_position_with_real_shape(simple_materi
 
     obj = UniformMaterialObject(
         name="obj1",
-        partial_real_position=(10.0, 15.0, 20.0),  # Center positions
+        partial_real_position=(-15.0, -10.0, -5.0),  # Center positions
         partial_real_shape=(5.0, 10.0, 15.0),  # Sizes
         material=simple_material,
     )
@@ -1409,7 +1554,7 @@ def test_resolve_constraints_partial_real_position_mixed_with_constraints(
     """
     obj1 = UniformMaterialObject(
         name="obj1",
-        partial_real_position=(15.0, None, None),  # Center at 15, size 10 -> bounds (10, 20)
+        partial_real_position=(-35.0, None, None),  # Center at 15, size 10 -> bounds (10, 20)
         partial_grid_shape=(10, 10, 10),
         material=simple_material,
     )
@@ -1492,7 +1637,7 @@ def test_resolve_constraints_partial_real_position_single_axis(simple_config, si
     """
     obj = UniformMaterialObject(
         name="obj1",
-        partial_real_position=(None, 20.0, None),  # Only y-axis center specified
+        partial_real_position=(None, -30.0, None),  # Only y-axis center specified
         partial_grid_shape=(10, 10, 10),
         material=simple_material,
     )
@@ -1524,7 +1669,7 @@ def test_resolve_constraints_partial_real_position_with_different_resolutions(si
     - Fine resolutions work properly with non-integer real positions
     """
     # Test with very fine resolution
-    config_fine = SimulationConfig(resolution=0.1, time=100e-15)
+    config_fine = SimulationConfig(grid=UniformGrid(spacing=0.1), time=100e-15)
 
     volume = SimulationVolume(
         name="volume",
@@ -1533,7 +1678,7 @@ def test_resolve_constraints_partial_real_position_with_different_resolutions(si
 
     obj = UniformMaterialObject(
         name="obj1",
-        partial_real_position=(5.0, 10.0, 15.0),  # Center positions
+        partial_real_position=(-20.0, -15.0, -10.0),  # Center positions
         partial_grid_shape=(20, 20, 20),  # Size 20
         material=simple_material,
     )
@@ -1591,7 +1736,7 @@ def test_resolve_constraints_partial_real_position_odd_size(simple_config, simpl
     """
     obj = UniformMaterialObject(
         name="obj1",
-        partial_real_position=(50.0, 50.0, 50.0),  # Center at 50
+        partial_real_position=(0.0, 0.0, 0.0),
         partial_grid_shape=(11, 13, 15),  # Odd sizes
         material=simple_material,
     )
@@ -1712,7 +1857,7 @@ def test_extend_to_inf_partial_real_position_sets_both_bounds(simple_config, sim
     """
     obj = UniformMaterialObject(
         name="obj1",
-        partial_real_position=(55.0, None, 55.0),  # Centers for x and z
+        partial_real_position=(5.0, None, 5.0),  # Centers for x and z
         partial_grid_shape=(20, 20, 20),
         material=simple_material,
     )
@@ -1940,14 +2085,14 @@ def test_size_dependent_position_with_partial_real_position(simple_config, simpl
     # Object 2: size depends on volume, position at center
     obj2 = UniformMaterialObject(
         name="obj2",
-        partial_real_position=(50.0, 50.0, 50.0),  # Center at (50, 50, 50)
+        partial_real_position=(0, 0, 0),
         material=simple_material,
     )
 
     # Object 3: size depends on obj2, position specified
     obj3 = UniformMaterialObject(
         name="obj3",
-        partial_real_position=(25.0, None, None),  # x-center at 25
+        partial_real_position=(-25.0, None, None),
         material=simple_material,
     )
 
@@ -2156,7 +2301,7 @@ def test_initial_position_skipped_when_size_unknown(simple_config, simple_volume
     """
     obj = UniformMaterialObject(
         name="obj1",
-        partial_real_position=(50.0, 50.0, 50.0),  # center known
+        partial_real_position=(0, 0, 0),  # center known
         # No partial_grid_shape / partial_real_shape -> size unknown at init time
         material=simple_material,
     )
@@ -2194,7 +2339,7 @@ def test_initial_position_skipped_when_axis_is_none(simple_config, simple_volume
     """
     obj = UniformMaterialObject(
         name="obj1",
-        partial_real_position=(30.0, None, 70.0),  # y intentionally absent
+        partial_real_position=(-20, None, 20),  # y intentionally absent
         partial_grid_shape=(10, 10, 10),
         material=simple_material,
     )
@@ -2448,3 +2593,22 @@ def test_extend_to_inf_lower_bound_only_already_removed_from_extension_obj(
     _resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
 
     assert "obj1" in errors
+
+
+def test_warn_if_simulation_volume_too_large_emits_warning():
+    """Volumes above MAX_SIMULATION_VOLUME_CELLS should warn before allocation."""
+    grid_shape = (2200, 2200, 2200)  # 2154**3 > 10e9
+    assert 2200**3 > MAX_SIMULATION_VOLUME_CELLS
+
+    with pytest.warns(UserWarning, match="exceeds the recommended limit"):
+        _warn_if_simulation_volume_too_large(grid_shape)
+
+
+def test_warn_if_simulation_volume_at_limit_no_warning():
+    """Volumes at or below the limit should not warn."""
+    grid_shape = (2153, 2153, 2153)  # 2153**3 < 10e9
+    assert 2153**3 <= MAX_SIMULATION_VOLUME_CELLS
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        _warn_if_simulation_volume_too_large(grid_shape)

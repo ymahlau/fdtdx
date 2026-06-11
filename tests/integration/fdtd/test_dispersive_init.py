@@ -30,7 +30,9 @@ def _placed(container, name):
 
 @pytest.fixture
 def simple_config():
-    return SimulationConfig(resolution=1e-7, time=1e-14, backend="cpu")
+    from fdtdx.core.grid import UniformGrid
+
+    return SimulationConfig(grid=UniformGrid(spacing=1e-7), time=1e-14, backend="cpu")
 
 
 @pytest.fixture
@@ -265,7 +267,7 @@ def test_static_multi_material_dispersive(simple_config, simple_volume):
         name="sphere",
         materials=materials,
         material_name="drude",
-        radius=5.0 * simple_config.resolution,
+        radius=5.0 * simple_config.uniform_spacing(),
     )
     constraint = GridCoordinateConstraint(object="sphere", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[8, 8, 8])
     key = jax.random.PRNGKey(0)

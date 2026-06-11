@@ -66,9 +66,11 @@ class ModeOverlapDetector(PhasorDetector):
 
     #: Cannot be specified here since plotting a single scalar is useless.
     plot: bool = frozen_field(default=False, init=False)  # single scalar is useless for plotting
+
     _mode_E: jax.Array = private_field()
     _mode_H: jax.Array = private_field()
     _mode_neff: jax.Array = private_field()  # not required for detection, used for inspection
+    _cached_face_area_weights: jax.Array = private_field()
 
     @property
     def propagation_axis(self) -> int:
@@ -95,7 +97,50 @@ class ModeOverlapDetector(PhasorDetector):
             raise ValueError(
                 f"bend_axis ({self.bend_axis}) must differ from the propagation axis ({self.propagation_axis})"
             )
+        grid = self._config.resolved_grid
+        if grid is not None:
+            weights = grid.face_area(axis=self.propagation_axis, slice_tuple=self.grid_slice_tuple)
+        else:
+            spacing = self._config.uniform_spacing()
+            weights = jnp.ones(self.grid_shape, dtype=jnp.float32) * spacing * spacing
+        self = self.aset("_cached_face_area_weights", weights, create_new_ok=True)
         return self
+
+    def _face_area_weights(self) -> jax.Array:
+        """Return detector-plane face areas for mode-overlap integration."""
+        return self._cached_face_area_weights
+
+    def _transverse_edge_coordinates(self) -> tuple[jax.Array, jax.Array] | None:
+        """Return physical transverse edge coordinates for the mode solver.
+
+        Tidy3D can solve modes on rectilinear non-uniform grids when supplied
+        with edge-coordinate arrays.  Returning ``None`` keeps the uniform scalar
+        spacing path for legacy configurations and older tests.
+        """
+        grid = self._config.resolved_grid
+        if grid is None:
+            return None
+
+        transverse_edges = []
+        for axis in range(3):
+            if axis == self.propagation_axis:
+                continue
+            lower, upper = self.grid_slice_tuple[axis]
+            transverse_edges.append(grid.edges(axis)[lower : upper + 1])
+        e0, e1 = transverse_edges
+        return e0, e1
+
+    def _mode_solver_resolution(self) -> float:
+        """Return scalar resolution only for legacy uniform mode-solver setup.
+
+        ``compute_mode`` ignores this value when explicit transverse coordinates
+        are supplied.  For non-uniform grids we pass a harmless finite value so
+        the compatibility argument does not force a uniform-grid check.
+        """
+        if self._config.has_nonuniform_grid:
+            assert self._config.resolved_grid is not None
+            return self._config.resolved_grid.min_spacing
+        return self._config.uniform_spacing()
 
     def apply(
         self,
@@ -135,7 +180,7 @@ class ModeOverlapDetector(PhasorDetector):
             frequency=self.wave_characters[0].get_frequency(),
             inv_permittivities=inv_permittivity_slice,
             inv_permeabilities=inv_permeability_slice,
-            resolution=self._config.resolution,
+            resolution=self._mode_solver_resolution(),
             direction=self.direction,
             mode_index=self.mode_index,
             filter_pol=self.filter_pol,
@@ -143,6 +188,7 @@ class ModeOverlapDetector(PhasorDetector):
             bend_radius=self.bend_radius,
             bend_axis=self.bend_axis,
             symmetry=self.symmetry,
+            transverse_coords=self._transverse_edge_coordinates(),
         )
 
         self = self.aset("_mode_E", mode_E, create_new_ok=True)
@@ -173,7 +219,9 @@ class ModeOverlapDetector(PhasorDetector):
             axis=0,
         )[self.propagation_axis]
 
-        alpha_coeff = jnp.sum(E_cross_H_star_sim + E_star_cross_H_sim)
+        integrand = E_cross_H_star_sim + E_star_cross_H_sim
+        integrand = integrand * self._face_area_weights()
+        alpha_coeff = jnp.sum(integrand)
 
         # in pulsed mode return unscaled coefficient
         if self.scaling_mode != "pulse":

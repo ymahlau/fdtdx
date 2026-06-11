@@ -72,7 +72,7 @@ _T_ANALYTIC = (_N2 * _COS_T) / (_N1 * _COS_I) * (2 * _N1 * _COS_I / (_N1 * _COS_
 def _build_base():
     """Domain with Bloch x, periodic y, PML z, oblique TE source."""
     config = fdtdx.SimulationConfig(
-        resolution=_RESOLUTION,
+        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
         time=_SIM_TIME,
         dtype=jnp.float32,
     )

@@ -1,6 +1,6 @@
 from collections import namedtuple
 from types import SimpleNamespace
-from typing import List, Literal
+from typing import List, Literal, Sequence
 
 import jax
 import jax.numpy as jnp
@@ -9,6 +9,7 @@ import tidy3d
 from jax.typing import ArrayLike
 from tidy3d.components.mode.solver import compute_modes as _compute_modes
 
+from fdtdx.core.axis import get_transverse_axes
 from fdtdx.core.misc import expand_to_3x3
 from fdtdx.core.physics.metrics import normalize_by_poynting_flux
 
@@ -93,14 +94,15 @@ def compute_mode(
     frequency: float,
     inv_permittivities: jax.Array,  # shape (nx, ny, nz)
     inv_permeabilities: jax.Array | float,
-    resolution: float,
-    direction: Literal["+", "-"],
+    resolution: float | None = None,
+    direction: Literal["+", "-"] = "+",
     mode_index: int = 0,
     filter_pol: Literal["te", "tm"] | None = None,
     dtype: jnp.dtype = jnp.float32,
     bend_radius: float | None = None,
     bend_axis: int | None = None,
     symmetry: tuple[int, int] = (0, 0),
+    transverse_coords: Sequence[jax.Array] | None = None,
 ) -> tuple[
     jax.Array,  # E
     jax.Array,  # H
@@ -119,8 +121,8 @@ def compute_mode(
         inv_permittivities (jax.Array): 3D array of inverse relative permittivity values
         inv_permeabilities (jax.Array | float): 3D array of inverse relative permittivity values or single float for
             uniform permeability distribution.
-        resolution (float): resolution of the simulation grid in meter. For example a grid spacing of 10nm should be
-            given as 10e-9.
+        resolution (float | None): Uniform-grid spacing in metres. Required when ``transverse_coords`` is not
+            provided (uniform-grid path). Ignored when ``transverse_coords`` is given. Defaults to None.
         direction (Literal["+", "-"]): Propagation direction, either "+" or "-".
         mode_index (int, optional): Index of the mode to compute. Defaults to 0.
         filter_pol (Literal["te", "tm"] | None, optional). If not None, modes are filtered by polarization.
@@ -137,6 +139,11 @@ def compute_mode(
             waveguide sits on a symmetry plane of a reduced (half/quarter) domain so the mode solver reproduces the
             same boundary the FDTD uses there. For a +x-propagating TE mode on a y/z quarter domain with PEC at y=0
             and PMC at the z Si-mid plane, pass ``(0, 1)``. Defaults to ``(0, 0)`` (PEC on both, i.e. no symmetry).
+        transverse_coords: Optional pair of physical edge-coordinate arrays, in metres, for the two axes transverse
+            to propagation. Each array must have one more entry than the corresponding transverse cell count.
+            When provided, the Tidy3D mode solver receives the non-uniform rectilinear grid directly.
+            JAX arrays are accepted; the numpy conversion happens inside the tidy3d callback so the function
+            remains compatible with ``jax.jit``.
 
     Returns:
         Tuple[jax.Array, jax.Array, jax.Array]:
@@ -159,10 +166,12 @@ def compute_mode(
 
     np_complex_dtype = np.complex128 if dtype == jnp.float64 else np.complex64
 
-    def mode_helper(permittivity, permeability):
+    def mode_helper(permittivity, permeability, c0_um, c1_um):
+        # c0_um, c1_um are concrete numpy arrays here (materialised by pure_callback)
+        coords = [np.asarray(c0_um), np.asarray(c1_um)]
         if bend_radius is not None:
             assert bend_axis is not None
-            transverse_axes = [ax for ax in range(3) if ax != propagation_axis]
+            transverse_axes = get_transverse_axes(propagation_axis)
             tidy3d_bend_axis = transverse_axes.index(bend_axis)
             bend_radius_um = bend_radius / 1e-6
             plane_center = (float(0.5 * (coords[0][0] + coords[0][-1])), float(0.5 * (coords[1][0] + coords[1][-1])))
@@ -222,7 +231,36 @@ def compute_mode(
         permittivities = 1 / inv_permittivities
     other_axes = [a for a in range(1, 4) if permittivities.shape[a] != 1]
     propagation_axis = permittivities.shape[1:].index(1)
-    coords = [np.arange(permittivities.shape[dim] + 1) * resolution / 1e-6 for dim in other_axes]
+    if transverse_coords is None:
+        if resolution is None:
+            raise ValueError("resolution is required when transverse_coords is not provided")
+        # Uniform grid: build concrete coordinate arrays in µm and pass as callback args.
+        c0_um = jnp.asarray(np.arange(permittivities.shape[other_axes[0]] + 1) * resolution / 1e-6)
+        c1_um = jnp.asarray(np.arange(permittivities.shape[other_axes[1]] + 1) * resolution / 1e-6)
+        normalization_area_weights = None
+    else:
+        if len(transverse_coords) != 2:
+            raise ValueError(
+                f"transverse_coords must contain exactly two coordinate arrays, got {len(transverse_coords)}"
+            )
+        # Shape validation uses .shape which is always concrete, even for JAX tracers.
+        expected_lengths = [permittivities.shape[dim] + 1 for dim in other_axes]
+        for axis_idx, (coord, expected_length) in enumerate(zip(transverse_coords, expected_lengths, strict=True)):
+            if coord.ndim != 1 or coord.shape[0] != expected_length:
+                raise ValueError(
+                    f"transverse_coords[{axis_idx}] must be 1D with length {expected_length}, got {coord.shape}"
+                )
+        # Convert to µm for tidy3d; keep as JAX arrays so jax.jit can trace through.
+        c0_um = jnp.asarray(transverse_coords[0]) / 1e-6
+        c1_um = jnp.asarray(transverse_coords[1]) / 1e-6
+        # area_2d in m²: use jnp.diff so this works with traced JAX arrays.
+        area_2d = (
+            jnp.diff(jnp.asarray(transverse_coords[0]))[:, None] * jnp.diff(jnp.asarray(transverse_coords[1]))[None, :]
+        ).astype(dtype)
+        weight_shape = [1, 1, 1]
+        weight_shape[other_axes[0] - 1] = area_2d.shape[0]
+        weight_shape[other_axes[1] - 1] = area_2d.shape[1]
+        normalization_area_weights = area_2d.reshape(weight_shape)
     permittivity_squeezed = jnp.take(
         permittivities,
         indices=0,
@@ -284,12 +322,17 @@ def compute_mode(
     else:  # float
         permeability_squeezed = permeabilities
 
-    # pure callback to tidy3d is necessary to work in jitted environment
+    # pure callback to tidy3d is necessary to work in jitted environment.
+    # c0_um and c1_um are passed as explicit args so JAX materialises them to
+    # concrete numpy arrays before calling mode_helper, allowing np.asarray()
+    # inside the callback without raising TracerArrayConversionError.
     mode_E_raw, mode_H_raw, eff_idx = jax.pure_callback(
         mode_helper,
         result_shape_dtype,
         jax.lax.stop_gradient(permittivity_squeezed),
         jax.lax.stop_gradient(permeability_squeezed),
+        jax.lax.stop_gradient(c0_um),
+        jax.lax.stop_gradient(c1_um),
     )
     mode_E = jnp.expand_dims(mode_E_raw, axis=propagation_axis + 1)
     mode_H = jnp.expand_dims(mode_H_raw, axis=propagation_axis + 1)
@@ -297,7 +340,12 @@ def compute_mode(
     # Tidy3D uses different scaling internally, so convert back
     mode_H = mode_H * tidy3d.constants.ETA_0
 
-    mode_E_norm, mode_H_norm = normalize_by_poynting_flux(mode_E, mode_H, axis=propagation_axis)
+    mode_E_norm, mode_H_norm = normalize_by_poynting_flux(
+        mode_E,
+        mode_H,
+        axis=propagation_axis,
+        area_weights=normalization_area_weights,
+    )
 
     return mode_E_norm, mode_H_norm, eff_idx
 

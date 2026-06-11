@@ -4,7 +4,9 @@ import jax
 import jax.numpy as jnp
 
 from fdtdx import constants
+from fdtdx.core.axis import get_transverse_axes
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
+from fdtdx.core.physics.metrics import resample_to_uniform_2d
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 
@@ -100,6 +102,25 @@ class DiffractiveDetector(Detector):
     def _num_latent_time_steps(self) -> int:
         return 1
 
+    def _transverse_centers(self, plane_dims: tuple[int, int]) -> tuple[jax.Array, jax.Array] | None:
+        """Return physical transverse cell centers for the detector plane.
+
+        FFT order decomposition requires equally spaced samples.  On rectilinear
+        non-uniform grids, fields are first resampled onto a uniform grid spanning
+        the same detector-center extent.  Uniform grids keep the legacy direct
+        FFT path.
+        """
+        if not self._config.has_nonuniform_grid:
+            return None
+        grid = self._config.resolved_grid
+        assert grid is not None
+        centers = []
+        for axis in plane_dims:
+            lower, upper = self.grid_slice_tuple[axis]
+            centers.append(grid.centers(axis)[lower:upper])
+        c0, c1 = centers
+        return c0, c1
+
     def update(
         self,
         time_step: jax.Array,
@@ -113,7 +134,7 @@ class DiffractiveDetector(Detector):
 
         # Get grid dimensions for the plane perpendicular to propagation axis
         prop_axis = self.propagation_axis
-        plane_dims = [i for i in range(3) if i != prop_axis]
+        plane_dims = get_transverse_axes(prop_axis)
         Nx, Ny = [self.grid_shape[i] for i in plane_dims]
 
         # Get current field values at the specified plane
@@ -123,6 +144,13 @@ class DiffractiveDetector(Detector):
         # Remove the normal axis dimension since it should be 1
         cur_E = jnp.squeeze(cur_E, axis=prop_axis + 1)  # Shape: (3, nx, ny)
         cur_H = jnp.squeeze(cur_H, axis=prop_axis + 1)  # Shape: (3, nx, ny)
+
+        transverse_centers = self._transverse_centers(plane_dims)
+        if transverse_centers is None:
+            dx = dy = self._config.uniform_spacing()
+        else:
+            cur_E, dx, dy = resample_to_uniform_2d(cur_E, transverse_centers[0], transverse_centers[1])
+            cur_H, _, _ = resample_to_uniform_2d(cur_H, transverse_centers[0], transverse_centers[1])
 
         # Compute FFT of each field component.
         # After the squeeze, cur_E/cur_H always have shape (3, dim1, dim2), so the
@@ -138,7 +166,6 @@ class DiffractiveDetector(Detector):
         ky_indices = jnp.where(orders[:, 1] >= 0, orders[:, 1], Ny + orders[:, 1])
 
         # Compute wavevectors
-        dx = dy = self._config.resolution
         kx = 2 * jnp.pi * jnp.fft.fftfreq(Nx, dx)
         ky = 2 * jnp.pi * jnp.fft.fftfreq(Ny, dy)
         k0 = 2 * jnp.pi * self.frequencies[0] / constants.c  # Use first frequency for now

@@ -4,7 +4,9 @@ import jax
 import jax.numpy as jnp
 import pytest
 
+from fdtdx import constants
 from fdtdx.config import GradientConfig, SimulationConfig
+from fdtdx.core.grid import RectilinearGrid, UniformGrid
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.initialization import place_objects
 from fdtdx.interfaces.recorder import Recorder
@@ -22,7 +24,7 @@ from fdtdx.objects.static_material.static import SimulationVolume, UniformMateri
 
 @pytest.fixture
 def simple_config():
-    return SimulationConfig(resolution=1.0, time=100e-15, backend="cpu")
+    return SimulationConfig(grid=UniformGrid(spacing=1.0), time=100e-15, backend="cpu")
 
 
 @pytest.fixture
@@ -85,7 +87,7 @@ def test_place_objects_updates_config(simple_config, simple_volume, simple_mater
         [simple_volume, obj], simple_config, [constraint], key
     )
     assert config is not None
-    assert config.resolution == simple_config.resolution
+    assert config.uniform_spacing() == simple_config.uniform_spacing()
 
 
 def test_place_objects_initializes_arrays(simple_config, simple_volume, simple_material):
@@ -150,6 +152,72 @@ def test_diagonally_anisotropic_material(simple_config, simple_volume):
     # electric and magnetic conductivity arrays created
     assert arrays.electric_conductivity is not None
     assert arrays.magnetic_conductivity is not None
+
+
+def test_nonuniform_grid_initializes_conductive_volume():
+    """Conductivity scaling uses the update reference spacing, not a uniform grid size."""
+    grid = RectilinearGrid(
+        x_edges=jnp.asarray([0.0, 1.0, 3.0]),
+        y_edges=jnp.asarray([0.0, 1.5, 4.0]),
+        z_edges=jnp.asarray([0.0, 2.0, 5.0]),
+    )
+    mat = Material(
+        permittivity=1.0,
+        permeability=1.0,
+        electric_conductivity=0.2,
+        magnetic_conductivity=0.4,
+    )
+    volume = SimulationVolume(name="volume", partial_grid_shape=(2, 2, 2), material=mat)
+    config = SimulationConfig(grid=grid, time=1e-8, backend="cpu")
+
+    _obj_container, arrays, _params, updated_config, _info = place_objects([volume], config, [], jax.random.PRNGKey(0))
+
+    conductivity_spacing = constants.c * updated_config.time_step_duration / updated_config.courant_number
+    assert arrays.electric_conductivity is not None
+    assert arrays.magnetic_conductivity is not None
+    assert jnp.allclose(arrays.electric_conductivity, 0.2 * conductivity_spacing)
+    assert jnp.allclose(arrays.magnetic_conductivity, 0.4 * conductivity_spacing)
+
+
+def test_uniform_rectilinear_grid_initialization_matches_scalar_resolution(simple_material):
+    """Explicit uniform RectilinearGrid initialization is equivalent to scalar resolution."""
+    resolution = 1.0
+    volume = SimulationVolume(name="volume", partial_grid_shape=(4, 4, 4))
+    obj = UniformMaterialObject(name="obj1", partial_grid_shape=(2, 2, 2), material=simple_material)
+    constraint = GridCoordinateConstraint(
+        object="obj1",
+        axes=[0, 1, 2],
+        sides=["-", "-", "-"],
+        coordinates=[1, 1, 1],
+    )
+
+    scalar_config = SimulationConfig(grid=UniformGrid(spacing=resolution), time=100e-15, backend="cpu")
+    grid_config = SimulationConfig(
+        grid=RectilinearGrid.uniform(shape=(4, 4, 4), spacing=resolution),
+        time=100e-15,
+        backend="cpu",
+    )
+
+    _, scalar_arrays, _, scalar_updated_config, _ = place_objects(
+        [volume, obj],
+        scalar_config,
+        [constraint],
+        jax.random.PRNGKey(0),
+    )
+    _, grid_arrays, _, grid_updated_config, _ = place_objects(
+        [volume, obj],
+        grid_config,
+        [constraint],
+        jax.random.PRNGKey(0),
+    )
+
+    assert jnp.array_equal(grid_arrays.inv_permittivities, scalar_arrays.inv_permittivities)
+    assert jnp.array_equal(grid_arrays.inv_permeabilities, scalar_arrays.inv_permeabilities)
+    assert grid_updated_config.grid is not None
+    assert scalar_updated_config.grid is not None
+    assert jnp.allclose(grid_updated_config.grid.x_edges, scalar_updated_config.grid.x_edges)
+    assert jnp.allclose(grid_updated_config.grid.y_edges, scalar_updated_config.grid.y_edges)
+    assert jnp.allclose(grid_updated_config.grid.z_edges, scalar_updated_config.grid.z_edges)
 
 
 def test_fully_anisotropic_material(simple_config, simple_volume):
@@ -260,7 +328,7 @@ def test_recording_state_with_gradient_config(simple_volume, simple_material):
     recorder = Recorder(modules=[])
     gradient_config = GradientConfig(recorder=recorder)
     config = SimulationConfig(
-        resolution=1.0,
+        grid=UniformGrid(spacing=1.0),
         time=100e-15,
         backend="cpu",
         gradient_config=gradient_config,

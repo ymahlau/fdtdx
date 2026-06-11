@@ -4,6 +4,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from fdtdx.core.axis import get_oriented_transverse_axes
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.linalg import rotate_vector
 from fdtdx.core.null import Null
@@ -106,8 +107,7 @@ class PointDipoleSource(Source):
         base = jnp.zeros(3, dtype=self._config.dtype).at[self.polarization].set(1.0)
         if self.azimuth_angle == 0.0 and self.elevation_angle == 0.0:
             return base
-        horizontal_axis = (self.polarization + 1) % 3
-        vertical_axis = (self.polarization + 2) % 3
+        horizontal_axis, vertical_axis = get_oriented_transverse_axes(self.polarization)
         axes_tuple = (horizontal_axis, vertical_axis, self.polarization)
         return rotate_vector(
             base,

@@ -85,6 +85,27 @@ def is_float_divisible(a: float, b: float, tolerance: float = 1e-15) -> bool:
     return abs(remainder) <= tolerance or abs(remainder - b) <= tolerance
 
 
+def validate_symmetric_axis_cells(n: int, axis_name: str, subject: str = "grid") -> None:
+    """Raise a ``ValueError`` if a symmetric axis has an odd (or < 2) cell count.
+
+    A symmetric axis must split exactly down the middle so the unfolded result matches the full
+    domain cell-for-cell, which requires an even count of at least two.
+
+    Args:
+        n: Number of cells on the axis.
+        axis_name: Axis label used in the error message (e.g. ``"x"``).
+        subject: What is being validated, used in the message (e.g. ``"grid"`` or
+            ``"simulation volume"``).
+    """
+    if n < 2 or n % 2 != 0:
+        raise ValueError(
+            f"Cannot apply symmetry on axis {axis_name}: the {subject} must have an even number of "
+            f"cells (>= 2) on a symmetric axis, got {n}. An even count splits exactly down the middle "
+            f"so the unfolded result matches the full domain cell-for-cell; adjust the size or "
+            f"resolution on axis {axis_name} so it resolves to an even cell count."
+        )
+
+
 def is_index_in_slice(index, slice, seq_length):
     start, stop, _ = slice.indices(seq_length)
     return start <= index < stop

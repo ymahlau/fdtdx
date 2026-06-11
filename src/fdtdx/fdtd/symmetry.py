@@ -24,6 +24,8 @@ import jax.numpy as jnp
 from loguru import logger
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.misc import validate_symmetric_axis_cells
+from fdtdx.core.null import Null
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.objects.boundaries.bloch import BlochBoundary
 from fdtdx.objects.boundaries.boundary import BaseBoundary
@@ -128,14 +130,7 @@ def reduce_resolved_slices(
         vs0, vs1 = vol_slice[a]
         n = vs1 - vs0
         if symmetry[a] != 0:
-            if n < 2 or n % 2 != 0:
-                raise ValueError(
-                    f"Cannot apply symmetry on axis {_AXIS_NAMES[a]}: the simulation volume must have "
-                    f"an even number of cells (>= 2) on a symmetric axis, got {n}. An even count splits "
-                    f"exactly down the middle so the unfolded result matches the full domain cell-for-cell; "
-                    f"adjust the volume size or resolution so axis {_AXIS_NAMES[a]} resolves to an even "
-                    f"cell count."
-                )
+            validate_symmetric_axis_cells(n, _AXIS_NAMES[a], subject="simulation volume")
             mid_abs[a] = vs0 + n // 2
             new_vol.append((0, vs1 - mid_abs[a]))
         else:
@@ -391,7 +386,7 @@ def unfold_source_mode(
     """
     mode_E = getattr(source, "_E", None)
     mode_H = getattr(source, "_H", None)
-    if mode_E is None or mode_H is None:
+    if mode_E is None or mode_H is None or isinstance(mode_E, Null) or isinstance(mode_H, Null):
         raise ValueError(
             f"Source '{getattr(source, 'name', source)}' has no computed mode profile yet. Run "
             "fdtdx.apply_params (which invokes the source's mode solver) before unfolding."
