@@ -176,8 +176,7 @@ def bidirectional_mode_overlap(
     """Compute the bidirectional mode-overlap integral.
 
     Returns ``0.25 * sum((mode_E* x sim_H + sim_E x mode_H*) · ẑ * dA)``, where ẑ is
-    the unit vector along ``propagation_axis``.  The mode fields are conjugated,
-    matching tidy3d's ``_dot_numpy(conjugate=True)`` convention exactly.
+    the unit vector along ``propagation_axis``.
 
     On a Yee lattice the cross product decomposes into two independent terms
     that sit at different spatial locations and therefore require separate area
@@ -202,7 +201,7 @@ def bidirectional_mode_overlap(
 
     Returns:
         Complex scalar overlap coefficient.  Equals 1 for a self-overlap of a
-        unit-power-normalised mode, matching the tidy3d ``_dot_numpy`` convention.
+        unit-power-normalised mode.
     """
     if area_EvHu is not None and area_EuHv is None:
         raise ValueError("area_EvHu requires area_EuHv to also be provided")

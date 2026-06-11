@@ -511,7 +511,8 @@ class TestModeOverlapDetectorBentWaveguide:
 class TestModeOverlapDetectorMultiFrequency:
     """Tests for multi-frequency support in ModeOverlapDetector.
 
-    apply() calls compute_mode once per frequency with neff-proximity tracking between calls.
+    apply() calls compute_mode once per frequency. Each call is independent so
+    apply() is fully jit-compatible.
     """
 
     @patch("fdtdx.objects.detectors.mode.compute_mode")
@@ -524,29 +525,6 @@ class TestModeOverlapDetectorMultiFrequency:
         det = det.place_on_grid(plane_grid_slice, simulation_config, random_key)
         det.apply(random_key, jnp.ones((1, 8, 8, 1), dtype=jnp.float32), 1.0)
         assert mock_compute_mode.call_count == 2
-
-    @patch("fdtdx.objects.detectors.mode.compute_mode")
-    def test_apply_passes_target_neff_to_second_call(
-        self, mock_compute_mode, simulation_config, plane_grid_slice, random_key, two_frequencies
-    ):
-        """First call gets target_neff=None; second call gets float(real(neff)) from first call.
-
-        This ensures neff-proximity tracking across frequencies to prevent mode hopping.
-        """
-        neff_from_first = jnp.asarray(2.5 + 0.01j, dtype=jnp.complex64)
-        result_f0 = _make_mock_mode()
-        result_f0 = (result_f0[0], result_f0[1], neff_from_first)
-        result_f1 = _make_mock_mode()
-        mock_compute_mode.side_effect = [result_f0, result_f1]
-
-        det = ModeOverlapDetector(wave_characters=two_frequencies, direction="+")
-        det = det.place_on_grid(plane_grid_slice, simulation_config, random_key)
-        det.apply(random_key, jnp.ones((1, 8, 8, 1), dtype=jnp.float32), 1.0)
-
-        first_call_kwargs = mock_compute_mode.call_args_list[0].kwargs
-        second_call_kwargs = mock_compute_mode.call_args_list[1].kwargs
-        assert first_call_kwargs["target_neff"] is None
-        assert second_call_kwargs["target_neff"] == pytest.approx(float(jnp.real(neff_from_first)))
 
     @patch("fdtdx.objects.detectors.mode.compute_mode")
     def test_apply_stores_stacked_mode_fields(

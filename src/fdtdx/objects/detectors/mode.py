@@ -29,7 +29,7 @@ class ModeOverlapDetector(PhasorDetector):
 
     ``compute_overlap()`` returns a complex array of shape ``(num_freqs,)``, where
     ``num_freqs = len(wave_characters)``.  Modes are solved once per frequency during
-    ``apply()``, with neff-proximity tracking to prevent mode hopping across frequencies.
+    ``apply()``, which is fully compatible with ``jax.jit``.
     """
 
     #: Direction of mode propagation, either "+" (forward) or "-" (backward).
@@ -162,11 +162,11 @@ class ModeOverlapDetector(PhasorDetector):
         else:
             inv_permeability_slice = inv_permeabilities
 
-        # Solve one mode per frequency with neff-proximity tracking.
+        # Solve one mode per frequency. Each compute_mode call is a jax.pure_callback
+        # and is fully jit-compatible.
         mode_Es: list[jax.Array] = []
         mode_Hs: list[jax.Array] = []
         mode_neffs: list[jax.Array] = []
-        prev_neff: float | None = None
         for wc in self.wave_characters:
             # Apply dispersive correction so the mode solver sees ε(ω) rather than ε∞.
             if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
@@ -197,9 +197,7 @@ class ModeOverlapDetector(PhasorDetector):
                 bend_axis=self.bend_axis,
                 symmetry=self.symmetry,
                 transverse_coords=self._transverse_edge_coordinates(),
-                target_neff=prev_neff,
             )
-            prev_neff = float(np.real(neff))  # requires eager execution — apply() must never be jit'd
             mode_Es.append(mode_E)
             mode_Hs.append(mode_H)
             mode_neffs.append(neff)
