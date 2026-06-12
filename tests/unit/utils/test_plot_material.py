@@ -66,10 +66,9 @@ class TestPlotMaterialFromSide:
         arrays = _make_arrays(shape=(1, 2, 2, 2))
         _fig, ax = plt.subplots()
         plot_material_from_side(config=config, arrays=arrays, viewing_side="z", ax=ax, plot_legend=False)
-
         assert len(ax.collections) == 1
-        assert ax.get_xlim() == pytest.approx((0.0, 4.0))
-        assert ax.get_ylim() == pytest.approx((0.0, 5.0))
+        assert ax.get_xlim() == pytest.approx((-2.0, 2.0))  # centered: 4µm wide → (-2, 2)
+        assert ax.get_ylim() == pytest.approx((-2.5, 2.5))  # centered: 5µm tall → (-2.5, 2.5)
         plt.close("all")
 
     def test_viewing_side_y_returns_figure(self):
