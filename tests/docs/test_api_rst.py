@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-import types
 from pathlib import Path
 
 
@@ -11,11 +10,6 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 REPO_ROOT = Path(__file__).parent.parent.parent  # tests/docs/ -> tests/ -> repo root
 API_RST = REPO_ROOT / "docs" / "source" / "07_api.rst"
-
-# Submodules exported from fdtdx (e.g. fdtdx.constants) cannot be documented
-# by autosummary cleanly — they cause docutils errors from the built-in dict
-# docstring.  Exclude them from the RST and from this check.
-#_SUBMODULE_EXCLUDES: frozenset[str] = frozenset({"constants"})
 
 
 # ---------------------------------------------------------------------------
