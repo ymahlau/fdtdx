@@ -12,7 +12,7 @@ dependencies = [
     "loguru>=0.7.3",
     "pytreeclass>=0.11",
     "jax>=0.4.36",
-    "moviepy>=2.1.1",
+    "moviepy@git+https://github.com/Zulko/moviepy@7ffa4f00376237137a25fe1c777355c37753e9af",
     "optax>=0.2.4",
     "equinox>=0.11.10",
     "trimesh>=4.5.3",
@@ -83,3 +83,6 @@ exclude = ["tests"]
 
 [tool.ty.environment]
 python-version = "3.14"
+
+[tool.hatch.metadata]
+allow-direct-references = true
