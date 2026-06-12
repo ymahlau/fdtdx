@@ -114,6 +114,86 @@ class TestRectilinearGrid:
         expected = 0.99 / (constants.c * np.sqrt(1 / 2.0**2 + 1 / 1.0**2 + 1 / 4.0**2))
         assert np.isclose(grid.cfl_time_step(0.99), expected)
 
+    def test_is_uniform_uses_relative_tolerance_at_physical_scale(self):
+        """Uniformity is detected relatively, so it is correct at nanometre scales and large sizes."""
+        base = 25e-9  # photonic scale: absolute widths are ~1e-8, comparable to np.allclose's atol
+
+        # A genuinely non-uniform nm-scale grid must NOT be classified uniform (the regression).
+        idx = np.arange(40)
+        widths = base * (1.0 + 0.05 * np.abs(idx - 19.5) / 19.5)  # 5% variation
+        non_uniform = RectilinearGrid.custom(
+            x_edges=jnp.asarray(np.concatenate([[0.0], np.cumsum(widths)]), dtype=jnp.float32),
+            y_edges=jnp.arange(3) * base,
+            z_edges=jnp.arange(3) * base,
+        )
+        assert not non_uniform.is_uniform
+
+        # Truly uniform grids stay uniform at both fine spacing and large cell counts (float32
+        # edge jitter must not flip them to non-uniform, which would break uniform_spacing()).
+        assert RectilinearGrid.uniform((4000, 2, 2), base).is_uniform
+        assert RectilinearGrid.uniform((40, 40, 40), base).uniform_spacing == base
+
+    @staticmethod
+    def _symmetric_edges(widths):
+        """Edge array from a palindromic width profile (mirror-symmetric about the center)."""
+        widths = jnp.asarray(widths)
+        return jnp.concatenate([jnp.zeros(1), jnp.cumsum(widths)])
+
+    def test_reduce_symmetric_keeps_upper_half(self):
+        """Reduction halves the symmetric axis and keeps the upper-half cell widths."""
+        # palindromic widths about the center: [3, 2, 1, 1, 2, 3]
+        x_edges = self._symmetric_edges([3.0, 2.0, 1.0, 1.0, 2.0, 3.0])
+        grid = RectilinearGrid.custom(
+            x_edges=x_edges,
+            y_edges=jnp.asarray([0.0, 1.0, 2.0, 3.0, 4.0]),
+            z_edges=jnp.asarray([0.0, 0.5, 1.5]),
+        )
+
+        reduced = grid.reduce_symmetric((-1, 0, 0))
+
+        # only x is reduced (6 -> 3); other axes unchanged
+        assert reduced.shape == (3, 4, 2)
+        assert np.allclose(np.asarray(reduced.cell_widths(0)), [1.0, 2.0, 3.0])
+        assert np.allclose(np.asarray(reduced.cell_widths(0)), np.asarray(grid.cell_widths(0))[3:])
+        assert np.allclose(np.asarray(reduced.y_edges), np.asarray(grid.y_edges))
+        assert np.allclose(np.asarray(reduced.z_edges), np.asarray(grid.z_edges))
+
+    def test_reduce_symmetric_no_symmetry_is_noop(self):
+        """symmetry=(0, 0, 0) returns an equivalent grid."""
+        grid = RectilinearGrid.custom(
+            x_edges=self._symmetric_edges([2.0, 1.0, 1.0, 2.0]),
+            y_edges=jnp.asarray([0.0, 1.0, 2.0]),
+            z_edges=jnp.asarray([0.0, 1.0, 2.0]),
+        )
+
+        reduced = grid.reduce_symmetric((0, 0, 0))
+
+        assert reduced.shape == grid.shape
+        for axis in range(3):
+            assert np.allclose(np.asarray(reduced.edges(axis)), np.asarray(grid.edges(axis)))
+
+    def test_reduce_symmetric_odd_cell_count_raises(self):
+        """An odd cell count on a symmetric axis cannot split down the middle."""
+        grid = RectilinearGrid.custom(
+            x_edges=jnp.asarray([0.0, 1.0, 2.0, 3.0]),  # 3 cells (odd)
+            y_edges=jnp.asarray([0.0, 1.0, 2.0]),
+            z_edges=jnp.asarray([0.0, 1.0, 2.0]),
+        )
+
+        with pytest.raises(ValueError, match="even number"):
+            grid.reduce_symmetric((-1, 0, 0))
+
+    def test_reduce_symmetric_asymmetric_widths_raise(self):
+        """A non-palindromic width profile cannot be mirror-reconstructed."""
+        grid = RectilinearGrid.custom(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0, 10.0]),  # widths 1,2,3,4 (not symmetric)
+            y_edges=jnp.asarray([0.0, 1.0, 2.0]),
+            z_edges=jnp.asarray([0.0, 1.0, 2.0]),
+        )
+
+        with pytest.raises(ValueError, match="mirror-symmetric"):
+            grid.reduce_symmetric((-1, 0, 0))
+
 
 def test_calculate_spatial_offsets_yee_basic():
     """Test basic functionality of calculate_spatial_offsets_yee"""

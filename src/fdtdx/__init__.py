@@ -1,10 +1,9 @@
 import sys
 import warnings
 
-if sys.version_info >= (3, 14):
+if sys.version_info >= (3, 15):
     warnings.warn(
-        "Python 3.14+ is not supported by fdtdx. Expect crashes and unknown errors. "
-        "Support for Python 3.14 will be added in the coming months.",
+        "Python 3.15+ is not supported by fdtdx. Expect crashes and unknown errors.",
         UserWarning,
         stacklevel=2,
     )
@@ -46,6 +45,7 @@ from fdtdx.dispersion import (
 from fdtdx.fdtd.backward import full_backward
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, ParameterContainer, SimulationState
 from fdtdx.fdtd.initialization import apply_params, place_objects, resolve_object_constraints
+from fdtdx.fdtd.symmetry import unfold_array, unfold_detector_states, unfold_fields, unfold_source_mode
 from fdtdx.fdtd.wrapper import run_fdtd
 from fdtdx.interfaces.modules import DtypeConversion
 from fdtdx.interfaces.recorder import Recorder, RecordingState
@@ -274,5 +274,9 @@ __all__ = [
     "run_fdtd",
     "setup_sparams_simulation",
     "sources_from_gds_ports",
+    "unfold_array",
+    "unfold_detector_states",
+    "unfold_fields",
+    "unfold_source_mode",
     "wavelength_to_period",
 ]

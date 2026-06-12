@@ -6,6 +6,7 @@ from matplotlib.path import Path
 from fdtdx import constants
 from fdtdx.core.axis import get_transverse_axes
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field, frozen_private_field
+from fdtdx.core.misc import validate_symmetric_axis_cells
 
 
 @autoinit
@@ -162,7 +163,21 @@ class RectilinearGrid(TreeClass):
         width_arrays = tuple(np.diff(edges) for edges in edge_arrays_np)
         min_spacings = tuple(float(np.min(widths)) for widths in width_arrays)
         spacing = float(width_arrays[0][0])
-        is_uniform = all(np.allclose(widths, spacing) for widths in width_arrays)
+        # Uniformity is a *relative* property. The absolute width jitter of a perfectly uniform
+        # float grid grows with the edge-coordinate magnitude (~eps * max|edge|), so a fixed
+        # absolute tolerance (np.allclose's default atol=1e-8) is wrong at physical scales: it
+        # labels nanometre-spaced grids "uniform" even with tens-of-percent variation, and could
+        # label very large coarse grids "non-uniform". Compare widths to the grid spacing with a
+        # small relative tolerance plus a roundoff floor that tracks the float dtype and domain
+        # size, so genuine (>~0.01%) non-uniformity is detected at any scale while a truly uniform
+        # grid stays uniform regardless of cell count.
+        is_uniform = True
+        for edges_np, widths in zip(edge_arrays_np, width_arrays):
+            eps = float(np.finfo(edges_np.dtype).eps) if np.issubdtype(edges_np.dtype, np.floating) else 0.0
+            roundoff = 8.0 * eps * float(np.max(np.abs(edges_np)))
+            if float(np.max(np.abs(widths - spacing))) > 1e-4 * abs(spacing) + roundoff:
+                is_uniform = False
+                break
         object.__setattr__(self, "_min_spacings", min_spacings)
         object.__setattr__(self, "_is_uniform", is_uniform)
         object.__setattr__(self, "_uniform_spacing", float(np.round(spacing, decimals=14)) if is_uniform else None)
@@ -200,6 +215,55 @@ class RectilinearGrid(TreeClass):
         supplying the final grid coordinates, not an automatic meshing policy.
         """
         return cls(x_edges=x_edges, y_edges=y_edges, z_edges=z_edges)
+
+    def reduce_symmetric(self, symmetry: tuple[int, int, int]) -> "RectilinearGrid":
+        """Return the grid reduced onto the kept (upper) half along each symmetric axis.
+
+        Used by ``place_objects`` when ``config.symmetry`` is set on a non-uniform grid: the
+        simulation runs on the reduced (half/quarter/octant) domain and the result is unfolded
+        afterwards. For every axis with ``symmetry[a] != 0`` this keeps the upper-half edges
+        ``edges(a)[n // 2:]`` (absolute coordinates preserved — the FDTD metrics depend only on
+        cell widths, which are translation-invariant). Non-symmetric axes are returned unchanged.
+
+        Two conditions must hold on each symmetric axis so that mirroring the kept half exactly
+        reconstructs the full domain:
+
+        * an even cell count, so the split lands on a cell edge, and
+        * mirror-symmetric cell widths about the center (``dx[i] == dx[n - 1 - i]``), so the
+          discarded lower half is the exact mirror of the kept half.
+
+        Args:
+            symmetry (tuple[int, int, int]): Per-axis symmetry condition ``(x, y, z)``; ``0`` means
+                no reduction on that axis (any nonzero value reduces it).
+
+        Returns:
+            RectilinearGrid: The reduced grid (a new instance; the original is unchanged).
+
+        Raises:
+            ValueError: If a symmetric axis has an odd (or < 2) cell count, or cell widths that are
+                not mirror-symmetric about the center.
+        """
+        axis_names = ("x", "y", "z")
+        new_edges = []
+        for a in range(3):
+            edges = self.edges(a)
+            if symmetry[a] == 0:
+                new_edges.append(edges)
+                continue
+            n = self.shape[a]
+            validate_symmetric_axis_cells(n, axis_names[a], subject="grid")
+            widths = self.cell_widths(a)
+            # rtol is loose enough to tolerate the float32 cumsum/diff roundoff of a grid that is
+            # mathematically symmetric, but far tighter than any genuinely asymmetric profile.
+            if not bool(jnp.allclose(widths, widths[::-1], rtol=1e-4, atol=0.0)):
+                raise ValueError(
+                    f"Cannot apply symmetry on axis {axis_names[a]}: the cell widths must be "
+                    f"mirror-symmetric about the center (dx[i] == dx[n-1-i]) so the discarded half is "
+                    f"the exact mirror of the kept half. Provide a grid whose spacing is symmetric "
+                    f"about the {axis_names[a]} center plane, or drop symmetry on this axis."
+                )
+            new_edges.append(edges[n // 2 :])
+        return RectilinearGrid.custom(x_edges=new_edges[0], y_edges=new_edges[1], z_edges=new_edges[2])
 
     @property
     def shape(self) -> tuple[int, int, int]:

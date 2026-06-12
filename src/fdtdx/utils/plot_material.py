@@ -18,10 +18,12 @@ def _axis_edges_um(config: SimulationConfig, axis: int, length: int) -> np.ndarr
     grid = getattr(config, "grid", None)
     if isinstance(grid, RectilinearGrid):
         edges = np.asarray(grid.edges(axis)[: length + 1])
-        return (edges - edges[0]) / 1.0e-6
+        center = 0.5 * (edges[0] + edges[-1])
+        return (edges - center) / 1.0e-6  # centered at 0
 
     spacing = config.uniform_spacing()
-    return np.arange(length + 1) * spacing / 1.0e-6
+    n = length + 1
+    return (np.arange(n) - n // 2) * spacing / 1.0e-6  # symmetric around 0
 
 
 def _slice_index_from_position(config: SimulationConfig, axis: int, length: int, position: float) -> int:
@@ -196,6 +198,7 @@ def plot_material(
     """
     if axs is None:
         fig, axs = plt.subplots(1, 3, figsize=(18, 5))
+        assert axs is not None
     else:
         fig = None
 

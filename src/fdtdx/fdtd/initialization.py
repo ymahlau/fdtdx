@@ -4,6 +4,7 @@ from typing import Any, Sequence
 
 import jax
 import jax.numpy as jnp
+from loguru import logger
 
 from fdtdx import constants
 from fdtdx.config import SimulationConfig
@@ -13,6 +14,7 @@ from fdtdx.core.jax.guards import check_not_tracing
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
 from fdtdx.core.jax.ste import straight_through_estimator
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, ParameterContainer
+from fdtdx.fdtd.symmetry import apply_mode_symmetry, make_symmetry_walls, reduce_resolved_slices
 from fdtdx.materials import (
     compute_allowed_dispersive_coefficients,
     compute_allowed_electric_conductivities,
@@ -107,17 +109,49 @@ def place_objects(
     object_map = {obj.name: obj for obj in object_list}
     volume_name = _resolve_volume_name(object_map)
     volume_obj = object_map[volume_name]
-    volume_shape = tuple(s1 - s0 for s0, s1 in resolved_slices[volume_obj.name])
-    grid = config.resolve_grid(volume_shape)  # Resolve user grid policy before objects see the config.
+
+    # Step 4: Mirror-symmetry reduction. When config.symmetry has a nonzero entry, clip every
+    # resolved slice onto the kept (upper) half along each symmetric axis, drop objects that fall
+    # entirely in the discarded half, and remember the reduced volume shape (used in Step 5b to
+    # build the PEC/PMC walls on the symmetry planes). This runs BEFORE the grid is resolved/pinned
+    # so config.grid describes the reduced domain the FDTD actually runs on, not the full one. The
+    # non-symmetric path is unchanged.
+    dropped_names: set[str] = set()
+    reduced_volume_shape = None
+    if config.has_symmetry:
+        resolved_slices, dropped_names, reduced_volume_shape = reduce_resolved_slices(
+            resolved_slices=resolved_slices,
+            object_map=object_map,
+            config=config,
+            volume_name=volume_name,
+        )
+
+    # Step 5: Resolve the user's grid policy onto the (possibly symmetry-reduced) volume shape and
+    # pin a concrete RectilinearGrid into the config before objects see it, so compiled FDTD code has
+    # exactly one metric source matching the domain that is actually simulated.
+    vol_slice = resolved_slices[volume_obj.name]
+    volume_shape: tuple[int, int, int] = (
+        vol_slice[0][1] - vol_slice[0][0],
+        vol_slice[1][1] - vol_slice[1][0],
+        vol_slice[2][1] - vol_slice[2][0],
+    )
+    if config.has_symmetry and isinstance(config.grid, RectilinearGrid):
+        # Explicit non-uniform grid + symmetry: slice the edge arrays onto the kept upper half
+        # (validating even cell count and mirror-symmetric widths) so the reduced grid matches the
+        # reduced domain. The UniformGrid path below builds a uniform reduced grid via resolve_grid.
+        grid = config.grid.reduce_symmetric(config.symmetry)
+        config = config.aset("grid", grid)
+    else:
+        grid = config.resolve_grid(volume_shape)
+        if not isinstance(config.grid, RectilinearGrid):
+            config = config.aset("grid", grid)
     if grid.shape != volume_shape:
         raise ValueError(f"Configured grid shape {grid.shape} does not match simulation volume shape {volume_shape}.")
-    if not isinstance(config.grid, RectilinearGrid):
-        config = config.aset("grid", grid)
 
-    # Step 4: Place objects on grid based on resolved slice tuples
+    # Step 6: Place objects on grid based on resolved slice tuples
     placed_objects = []
     for name, slice_tuple in resolved_slices.items():
-        if name == volume_obj.name:
+        if name == volume_obj.name or name in dropped_names:
             continue
         obj = object_map[name]
         key, subkey = jax.random.split(key)
@@ -129,7 +163,7 @@ def place_objects(
             )
         )
 
-    # Step 5: Place volume first (index 0)
+    # Step 7: Place volume first (index 0)
     key, subkey = jax.random.split(key)
     placed_objects.insert(
         0,
@@ -140,17 +174,38 @@ def place_objects(
         ),
     )
 
-    # Step 6: Create object container
+    # Step 8: Insert the PEC/PMC symmetry walls and forward the per-axis condition to mode
+    # sources/detectors, then warn that the simulation now runs on the reduced domain.
+    if config.has_symmetry and reduced_volume_shape is not None:
+        key, subkey = jax.random.split(key)
+        walls = make_symmetry_walls(
+            config=config,
+            reduced_volume_shape=reduced_volume_shape,
+            key=subkey,
+            existing_names={o.name for o in placed_objects},
+        )
+        placed_objects.extend(walls)
+        placed_objects = apply_mode_symmetry(placed_objects, config)
+        # Volume is index 0 and may itself be a mode object in principle; keep it pinned.
+        wall_names = [w.name for w in walls]
+        logger.warning(
+            f"Symmetry {config.symmetry} reduces the simulation to grid shape {reduced_volume_shape} "
+            f"(walls added: {wall_names}; objects dropped: {sorted(dropped_names) or 'none'}). "
+            f"Results are on the reduced domain — call fdtdx.unfold_detector_states / "
+            f"fdtdx.unfold_fields to reconstruct the full domain."
+        )
+
+    # Step 9: Create object container
     objects_container = ObjectContainer(
         object_list=placed_objects,
         volume_idx=0,
     )
 
-    # Step 7: Initialize parameters and arrays
+    # Step 10: Initialize parameters and arrays
     params = _init_params(objects=objects_container, key=key)
     arrays, config, info = _init_arrays(objects=objects_container, config=config)
 
-    # Step 8: Update object configs with compiled configuration
+    # Step 11: Update object configs with compiled configuration
     new_object_list = []
     for o in objects_container.objects:
         o = o.aset("_config", config)
@@ -1547,8 +1602,9 @@ def _apply_position_constraint(
         )
         if real_margin is not None:
             other_anchor += real_margin
-        if grid_margin is not None:
-            # grid_margin is in cell units; rejected for non-uniform grids above
+        if grid_margin:
+            # grid_margin is in cell units; nonzero values were rejected for non-uniform grids above,
+            # so a zero/None margin must not require uniform_spacing() (which raises on stretched grids).
             other_anchor += grid_margin * config.uniform_spacing()
         b0, b1 = config.grid.bounds_for_anchor(
             axis,
@@ -1614,8 +1670,9 @@ def _apply_size_constraint(
         target_length = other_length * proportion
         if constraint.offsets[axis_idx] is not None:
             target_length += constraint.offsets[axis_idx]
-        if constraint.grid_offsets[axis_idx] is not None:
-            # grid_offsets are in cell units; rejected for non-uniform grids above
+        if constraint.grid_offsets[axis_idx]:
+            # grid_offsets are in cell units; nonzero values were rejected for non-uniform grids above,
+            # so a zero/None offset must not require uniform_spacing() (which raises on stretched grids).
             target_length += constraint.grid_offsets[axis_idx] * config.uniform_spacing()
         object_shape = _real_length_to_grid_size(config, axis, target_length)
         # update or check consistency
@@ -1658,8 +1715,9 @@ def _apply_size_extension_constraint(
         )
         if constraint.offset is not None:
             other_anchor_coord += constraint.offset
-        if constraint.grid_offset is not None:
-            # grid_offset is in cell units; rejected for non-uniform grids above
+        if constraint.grid_offset:
+            # grid_offset is in cell units; nonzero values were rejected for non-uniform grids above,
+            # so a zero/None offset must not require uniform_spacing() (which raises on stretched grids).
             other_anchor_coord += constraint.grid_offset * config.uniform_spacing()
         other_anchor = config.grid.coord_to_index(constraint.axis, other_anchor_coord, snap="nearest")
     else:

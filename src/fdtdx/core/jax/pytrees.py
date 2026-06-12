@@ -1,7 +1,10 @@
+import inspect
+import sys
 from dataclasses import dataclass, fields
 from typing import Any, Callable, Literal, Self, Sequence, TypeVar, overload
 
 import pytreeclass as tc
+from pytreeclass._src import code_build as _ptc_code_build
 from pytreeclass._src.code_build import (
     ArgKindType,
     Field,
@@ -15,6 +18,60 @@ from pytreeclass._src.code_build import (
 from pytreeclass._src.tree_base import TreeClassIndexer
 
 from fdtdx.core.null import NULL
+
+if sys.version_info >= (3, 14):
+    # PEP 649 (deferred annotations) changed how class annotations are stored:
+    # they are no longer placed in ``cls.__dict__`` as ``__annotations__``, but
+    # produced lazily by ``cls.__annotate_func__``. ``pytreeclass`` reads
+    # ``vars(klass).get("__annotations__")`` in two hot paths, which silently
+    # returns ``None`` on 3.14 and yields field-less classes (so ``autoinit``
+    # builds an empty ``__init__``).
+    #
+    # We patch the two affected functions in-place so every caller — including
+    # those inside ``pytreeclass`` itself — uses ``inspect.get_annotations``,
+    # which returns only the locally-declared annotations and matches the
+    # upstream semantics.
+    _PTC_NULL = _ptc_code_build.NULL
+    _ptc_check_excluded_type = _ptc_code_build.check_excluded_type
+
+    def _patched_build_field_map(klass: type) -> dict[str, Field]:
+        field_map: dict[str, Field] = dict()
+        excluded = {"self", "__post_init__", "__annotations__"}
+
+        if klass is object:
+            return dict(field_map)
+
+        for base in reversed(klass.__mro__[1:]):
+            field_map.update(_patched_build_field_map(base))
+
+        hint_map = inspect.get_annotations(klass)
+        if not hint_map:
+            return dict(field_map)
+
+        if excluded.intersection(hint_map):
+            raise ValueError(f"`Field` name cannot be in {excluded=}")
+
+        for key, hint in hint_map.items():
+            value = vars(klass).get(key, _PTC_NULL)
+            if not isinstance(value, Field):
+                continue
+            _ptc_check_excluded_type(value.default)
+            field_map[key] = value.replace(name=key, type=hint)
+
+        return field_map
+
+    def _patched_convert_hints_to_fields(klass):
+        hint_map = inspect.get_annotations(klass)
+        if not hint_map:
+            return klass
+        for key, hint in hint_map.items():
+            if not isinstance(value := vars(klass).get(key, _PTC_NULL), Field):
+                setattr(klass, key, Field(default=value, type=hint, name=key))
+        return klass
+
+    _ptc_code_build.build_field_map = _patched_build_field_map
+    _ptc_code_build.convert_hints_to_fields = _patched_convert_hints_to_fields
+    convert_hints_to_fields = _patched_convert_hints_to_fields
 
 
 def safe_hasattr(obj, name) -> bool:
