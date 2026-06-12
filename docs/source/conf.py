@@ -35,9 +35,7 @@ extensions = [
 ]
 
 templates_path = ['_templates']
-exclude_patterns = [
-"api/fdtdx.constants.rst"
-]
+exclude_patterns = []
 
 
 
@@ -92,28 +90,3 @@ mathjax3_config = {
         'displayMath': [['$$', '$$'], ['\\[', '\\]']],
     }
 }
-
-def _patch_pytreeclass() -> None:
-    """Patch pytreeclass.Field.__repr__ to avoid infinite recursion during autodoc."""
-    try:
-        import pytreeclass._src.code_build as cb  # noqa: PLC0415
-        original_repr = getattr(cb.Field, "__repr__")
-
-        def _safe_repr(self: object) -> str:
-            try:
-                return original_repr(self)
-            except RecursionError:
-                return "Field(...)"
-
-        setattr(cb.Field, "__repr__", _safe_repr)
-    except Exception:  # noqa: BLE001
-        pass
-
-
-def setup(app):  # type: ignore[no-untyped-def]
-    try:
-        import builtins
-        setattr(builtins.dict, "__doc__", "")
-    except (AttributeError, TypeError):
-        pass
-    _patch_pytreeclass()

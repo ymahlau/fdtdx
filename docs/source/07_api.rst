@@ -123,3 +123,10 @@ API
     fdtdx.VerticalSymmetry3D
     fdtdx.WaveCharacter
     fdtdx.wavelength_to_period
+    fdtdx.GDSLayerObject
+    fdtdx.GDSLayerSpec
+    fdtdx.GDSPortSpec
+    fdtdx.detectors_from_gds_ports
+    fdtdx.gds_layer_stack
+    fdtdx.gds_layer_stack_from_component
+    fdtdx.sources_from_gds_ports

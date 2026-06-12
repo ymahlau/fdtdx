@@ -15,7 +15,7 @@ API_RST = REPO_ROOT / "docs" / "source" / "07_api.rst"
 # Submodules exported from fdtdx (e.g. fdtdx.constants) cannot be documented
 # by autosummary cleanly — they cause docutils errors from the built-in dict
 # docstring.  Exclude them from the RST and from this check.
-_SUBMODULE_EXCLUDES: frozenset[str] = frozenset({"constants"})
+#_SUBMODULE_EXCLUDES: frozenset[str] = frozenset({"constants"})
 
 
 # ---------------------------------------------------------------------------
@@ -46,8 +46,6 @@ def _documentable_exports() -> set[str]:
 
     return {
         name for name in fdtdx.__all__
-        if name not in _SUBMODULE_EXCLUDES
-        and not isinstance(getattr(fdtdx, name, None), types.ModuleType)
     }
 
 
