@@ -85,3 +85,6 @@ exclude = ["**/.venv"]
 
 [tool.ty.src]
 exclude = ["tests"]
+
+[tool.ty.environment]
+python-version = "3.14"
