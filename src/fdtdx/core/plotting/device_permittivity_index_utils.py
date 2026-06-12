@@ -108,7 +108,7 @@ def device_matrix_index_figure(
     if indices.ndim == 1:
         legend_elements = [
             Patch(
-                facecolor=cax.cmap(cax.norm(int(i))),
+                facecolor=cax.cmap(cax.norm(int(i))),  # type: ignore
                 label=f"({i}) {ordered_name_list[int(i)]}",
             )
             for i in indices
@@ -116,7 +116,7 @@ def device_matrix_index_figure(
     else:
         legend_elements = [
             Patch(
-                facecolor=cax.cmap(cax.norm(int(i))),
+                facecolor=cax.cmap(cax.norm(int(i))),  # type: ignore
                 label=f"({i}) " + "|".join([ordered_name_list[int(e)] for e in indices[i]]),
             )
             for i in np.unique(matrix_inverse_permittivity_indices_sorted)

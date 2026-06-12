@@ -69,14 +69,9 @@ dev = [
     "sphinx-autodoc-typehints>=3.2.0",
     "myst_nb>=1.3.0",
     "sphinx-copybutton>=0.5.2",
-    "chex",
+    "chex>=0.1.91",
     "sphinx-design",
-]
-cuda12 = [
-    "jax[cuda12]>=0.4.36",
-]
-rocm = [
-    "jax[rocm]>=0.4.36",
+    "ty>=0.0.49",
 ]
 
 [tool.pyright]
@@ -85,3 +80,6 @@ exclude = ["**/.venv"]
 
 [tool.ty.src]
 exclude = ["tests"]
+
+[tool.ty.environment]
+python-version = "3.14"

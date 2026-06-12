@@ -19,6 +19,8 @@ from pytreeclass._src.tree_base import TreeClassIndexer
 
 from fdtdx.core.null import NULL
 
+_KlassT = TypeVar("_KlassT")
+
 if sys.version_info >= (3, 14):
     # PEP 649 (deferred annotations) changed how class annotations are stored:
     # they are no longer placed in ``cls.__dict__`` as ``__annotations__``, but
@@ -60,7 +62,7 @@ if sys.version_info >= (3, 14):
 
         return field_map
 
-    def _patched_convert_hints_to_fields(klass):
+    def _patched_convert_hints_to_fields(klass: type[_KlassT]) -> type[_KlassT]:
         hint_map = inspect.get_annotations(klass)
         if not hint_map:
             return klass
@@ -69,9 +71,11 @@ if sys.version_info >= (3, 14):
                 setattr(klass, key, Field(default=value, type=hint, name=key))
         return klass
 
-    _ptc_code_build.build_field_map = _patched_build_field_map
-    _ptc_code_build.convert_hints_to_fields = _patched_convert_hints_to_fields
-    convert_hints_to_fields = _patched_convert_hints_to_fields
+    setattr(_ptc_code_build, "build_field_map", _patched_build_field_map)
+    setattr(_ptc_code_build, "convert_hints_to_fields", _patched_convert_hints_to_fields)
+    _convert_hints_to_fields = _patched_convert_hints_to_fields
+else:
+    _convert_hints_to_fields = convert_hints_to_fields
 
 
 def safe_hasattr(obj, name) -> bool:
@@ -610,5 +614,5 @@ def autoinit(klass: type[T]) -> type[T]:
         # first convert the current class hints to fields
         # then build the __init__ method from the fields of the current class
         # and any base classes that are decorated with `autoinit`
-        else build_init_method(convert_hints_to_fields(klass))
+        else build_init_method(_convert_hints_to_fields(klass))
     )
