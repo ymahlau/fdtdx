@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 import fdtdx
-from fdtdx.core.physics.modes import compute_mode_multiple_frequencies
+from fdtdx.core.physics.modes import compute_mode
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.initialization import apply_params
 from fdtdx.materials import Material
@@ -170,7 +170,7 @@ class TestModeOverlapDetectorApply:
             assert mag == pytest.approx(1.0, abs=0.05), f"Self-overlap at freq {i} = {mag:.4f}, expected ~= 1.0"
 
 
-class TestComputeModeMultipleFrequenciesJitCompatibility:
+class TestComputeModeJitCompatibility:
     """``compute_mode_multiple_frequencies`` is callable from inside ``jax.jit``."""
 
     def test_callable_under_jit(self):
@@ -184,7 +184,7 @@ class TestComputeModeMultipleFrequenciesJitCompatibility:
 
         @jax.jit
         def fn(stack: jax.Array) -> jax.Array:
-            mode_Es, _mode_Hs, _neffs = compute_mode_multiple_frequencies(
+            mode_Es, _mode_Hs, _neffs = compute_mode(
                 frequencies=frequencies,
                 inv_permittivities=stack,
                 inv_permeabilities=1.0,

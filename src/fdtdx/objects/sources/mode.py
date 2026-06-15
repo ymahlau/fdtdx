@@ -11,7 +11,7 @@ from fdtdx.core.grid import calculate_time_offset_yee
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.linalg import get_wave_vector_raw
 from fdtdx.core.physics.metrics import compute_energy
-from fdtdx.core.physics.modes import compute_mode_one_frequency
+from fdtdx.core.physics.modes import compute_mode
 from fdtdx.dispersion import effective_inv_permittivity
 from fdtdx.objects.sources.tfsf import TFSFPlaneSource, _build_dispersive_H_filter
 
@@ -68,7 +68,7 @@ class ModePlaneSource(TFSFPlaneSource):
     def _mode_solver_resolution(self) -> float:
         """Return scalar resolution only for legacy uniform mode-solver setup.
 
-        ``compute_mode_one_frequency`` ignores this value when explicit transverse coordinates
+        ``compute_mode`` ignores this value when explicit transverse coordinates
         are provided, but the argument remains part of the compatibility API.
         """
         if self._config.has_nonuniform_grid:
@@ -141,9 +141,10 @@ class ModePlaneSource(TFSFPlaneSource):
         self = self.aset("_inv_permeability", inv_permeability_slice, create_new_ok=True)
 
         # compute mode
-        mode_E, mode_H, eff_index = compute_mode_one_frequency(
-            frequency=self.wave_character.get_frequency(),
-            inv_permittivities=inv_permittivity_slice,
+        freq = self.wave_character.get_frequency()
+        mode_Es, mode_Hs, neffs = compute_mode(
+            frequencies=[freq],
+            inv_permittivities=jnp.expand_dims(inv_permittivity_slice, 0),
             inv_permeabilities=inv_permeability_slice,
             resolution=self._mode_solver_resolution(),
             direction=self.direction,
@@ -153,6 +154,7 @@ class ModePlaneSource(TFSFPlaneSource):
             symmetry=self.symmetry,
             transverse_coords=self._transverse_edge_coordinates(),
         )
+        mode_E, mode_H, eff_index = mode_Es[0], mode_Hs[0], neffs[0]
         mode_E, mode_H = jnp.real(mode_E), jnp.real(mode_H)
 
         self = self.aset("_E", mode_E, create_new_ok=True)

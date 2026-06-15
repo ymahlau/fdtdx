@@ -217,12 +217,12 @@ class TestModePlaneSourceApply:
         with pytest.raises(NotImplementedError):
             placed.apply(jax_key, inv_perm, 1.0)
 
-    @patch("fdtdx.objects.sources.mode.compute_mode_one_frequency")
+    @patch("fdtdx.objects.sources.mode.compute_mode")
     def test_apply_stores_inv_permittivity(self, mock_compute_mode, micro_config, jax_key):
         """Test that apply() stores inv_permittivity slice."""
-        mock_E = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64)
-        mock_H = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64)
-        mock_neff = jnp.array(1.5 + 0j, dtype=jnp.complex64)
+        mock_E = jnp.ones((1, 3, 8, 8, 1), dtype=jnp.complex64)
+        mock_H = jnp.ones((1, 3, 8, 8, 1), dtype=jnp.complex64)
+        mock_neff = jnp.array([1.5 + 0j], dtype=jnp.complex64)
         mock_compute_mode.return_value = (mock_E, mock_H, mock_neff)
 
         source = ModePlaneSource(
@@ -243,12 +243,12 @@ class TestModePlaneSourceApply:
         assert applied._inv_permittivity is not None
         assert applied._inv_permittivity.shape == (1, 8, 8, 1)
 
-    @patch("fdtdx.objects.sources.mode.compute_mode_one_frequency")
+    @patch("fdtdx.objects.sources.mode.compute_mode")
     def test_apply_with_anisotropic_permeability(self, mock_compute_mode, micro_config, jax_key):
         """Test apply() with anisotropic permeability array."""
-        mock_E = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64)
-        mock_H = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64)
-        mock_neff = jnp.array(1.5 + 0j, dtype=jnp.complex64)
+        mock_E = jnp.ones((1, 3, 8, 8, 1), dtype=jnp.complex64)
+        mock_H = jnp.ones((1, 3, 8, 8, 1), dtype=jnp.complex64)
+        mock_neff = jnp.array([1.5 + 0j], dtype=jnp.complex64)
         mock_compute_mode.return_value = (mock_E, mock_H, mock_neff)
 
         source = ModePlaneSource(
@@ -286,12 +286,12 @@ class TestModePlaneSourcePlot:
             placed.plot(save_path)
 
     @patch("fdtdx.objects.sources.mode.plt")
-    @patch("fdtdx.objects.sources.mode.compute_mode_one_frequency")
+    @patch("fdtdx.objects.sources.mode.compute_mode")
     def test_plot_calls_matplotlib(self, mock_compute_mode, mock_plt, mode_source, micro_config, jax_key, tmp_path):
         """Test that plot() calls matplotlib functions correctly."""
-        mock_E = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64)
-        mock_H = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64)
-        mock_neff = jnp.array(1.5 + 0j, dtype=jnp.complex64)
+        mock_E = jnp.ones((1, 3, 8, 8, 1), dtype=jnp.complex64)
+        mock_H = jnp.ones((1, 3, 8, 8, 1), dtype=jnp.complex64)
+        mock_neff = jnp.array([1.5 + 0j], dtype=jnp.complex64)
         mock_compute_mode.return_value = (mock_E, mock_H, mock_neff)
 
         mock_fig = MagicMock()
@@ -319,13 +319,13 @@ class TestModePlaneSourcePlot:
 class TestModePlaneSourceGetEHVariation:
     """Tests for get_EH_variation method with mocks."""
 
-    @patch("fdtdx.objects.sources.mode.compute_mode_one_frequency")
+    @patch("fdtdx.objects.sources.mode.compute_mode")
     @patch("fdtdx.objects.sources.mode.calculate_time_offset_yee")
     def test_get_EH_variation_returns_correct_shapes(self, mock_time_offset, mock_compute_mode, micro_config, jax_key):
         """Test that get_EH_variation returns arrays with correct shapes."""
-        mock_E = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64) * 2.0
-        mock_H = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64) * 0.5
-        mock_neff = jnp.array(1.5 + 0j, dtype=jnp.complex64)
+        mock_E = jnp.ones((1, 3, 8, 8, 1), dtype=jnp.complex64) * 2.0
+        mock_H = jnp.ones((1, 3, 8, 8, 1), dtype=jnp.complex64) * 0.5
+        mock_neff = jnp.array([1.5 + 0j], dtype=jnp.complex64)
         mock_compute_mode.return_value = (mock_E, mock_H, mock_neff)
 
         mock_time_offset.return_value = (
@@ -353,13 +353,13 @@ class TestModePlaneSourceGetEHVariation:
         assert time_E.shape == (3, 8, 8, 1)
         assert time_H.shape == (3, 8, 8, 1)
 
-    @patch("fdtdx.objects.sources.mode.compute_mode_one_frequency")
+    @patch("fdtdx.objects.sources.mode.compute_mode")
     @patch("fdtdx.objects.sources.mode.calculate_time_offset_yee")
     def test_get_EH_variation_calls_compute_mode(self, mock_time_offset, mock_compute_mode, micro_config, jax_key):
         """Test that get_EH_variation calls compute_mode with correct args."""
-        mock_E = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64)
-        mock_H = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64)
-        mock_neff = jnp.array(1.5 + 0j, dtype=jnp.complex64)
+        mock_E = jnp.ones((1, 3, 8, 8, 1), dtype=jnp.complex64)
+        mock_H = jnp.ones((1, 3, 8, 8, 1), dtype=jnp.complex64)
+        mock_neff = jnp.array([1.5 + 0j], dtype=jnp.complex64)
         mock_compute_mode.return_value = (mock_E, mock_H, mock_neff)
 
         mock_time_offset.return_value = (
@@ -390,7 +390,7 @@ class TestModePlaneSourceGetEHVariation:
         assert call_kwargs["filter_pol"] == "te"
         assert call_kwargs["direction"] == "-"
 
-    @patch("fdtdx.objects.sources.mode.compute_mode_one_frequency")
+    @patch("fdtdx.objects.sources.mode.compute_mode")
     @patch("fdtdx.objects.sources.mode.calculate_time_offset_yee")
     def test_nonuniform_grid_passes_mode_and_time_coordinates(self, mock_time_offset, mock_compute_mode, jax_key):
         """Non-uniform mode sources pass local edge coordinates to both mode helpers."""
@@ -401,9 +401,9 @@ class TestModePlaneSourceGetEHVariation:
         )
         config = SimulationConfig(time=1e-8, grid=grid, backend="cpu", dtype=jnp.float32)
         mock_compute_mode.return_value = (
-            jnp.ones((3, 3, 2, 1), dtype=jnp.complex64),
-            jnp.ones((3, 3, 2, 1), dtype=jnp.complex64),
-            jnp.array(1.5 + 0j, dtype=jnp.complex64),
+            jnp.ones((1, 3, 3, 2, 1), dtype=jnp.complex64),
+            jnp.ones((1, 3, 3, 2, 1), dtype=jnp.complex64),
+            jnp.array([1.5 + 0j], dtype=jnp.complex64),
         )
         mock_time_offset.return_value = (
             jnp.zeros((3, 3, 2, 1)),
