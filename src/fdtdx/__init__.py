@@ -32,7 +32,7 @@ from fdtdx.core.physics.metrics import (
     normalize_by_energy,
     normalize_by_poynting_flux,
 )
-from fdtdx.core.physics.modes import compute_mode, compute_modes_tracked
+from fdtdx.core.physics.modes import compute_mode
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.dispersion import (

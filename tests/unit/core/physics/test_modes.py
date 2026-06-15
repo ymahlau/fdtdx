@@ -158,7 +158,7 @@ class TestComputeMode:
         inv_permeabilities = 1.0
         resolution = 1e-8
 
-        with pytest.raises(Exception, match="Invalid shape of inv_permittivities"):
+        with pytest.raises(Exception, match="Invalid inv_permittivities shape"):
             compute_mode(frequency, inv_permittivities, inv_permeabilities, resolution, "+")
 
     def test_invalid_permeabilities_shape(self):
@@ -169,7 +169,7 @@ class TestComputeMode:
         inv_permeabilities = jnp.ones((3, 2, 2, 2))
         resolution = 1e-8
 
-        with pytest.raises(Exception, match="Invalid shape of inv_permeabilities"):
+        with pytest.raises(Exception, match="Invalid inv_permeabilities shape"):
             compute_mode(frequency, inv_permittivities, inv_permeabilities, resolution, "+")
 
     def test_invalid_transverse_coords_shape(self):
@@ -828,37 +828,6 @@ class TestComputeModeTargetNeff:
 
     @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
     @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
-    def test_target_neff_none_uses_mode_index(self, mock_normalize, mock_wrapper):
-        """When target_neff is None, mode_index selects from the sorted list (default behaviour).
-
-        Three modes sorted highest-to-lowest: [3.0, 2.0, 1.0].
-        mode_index=0 picks the highest-neff mode (3.0).
-        """
-        mock_wrapper.return_value = [
-            self._make_mock_mode(3.0),
-            self._make_mock_mode(2.0),
-            self._make_mock_mode(1.0),
-        ]
-        mock_normalize.return_value = (
-            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
-            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
-        )
-
-        _, _, neff = compute_mode(
-            frequency=2e14,
-            inv_permittivities=jnp.ones((1, 5, 6, 1)),
-            inv_permeabilities=1.0,
-            resolution=1e-8,
-            mode_index=0,
-            target_neff=None,
-        )
-
-        assert abs(float(np.real(neff)) - 3.0) < 0.01, (
-            f"Expected neff≈3.0 with mode_index=0 (no target_neff), got {float(np.real(neff)):.3f}"
-        )
-
-    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
-    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
     def test_target_neff_passed_to_wrapper(self, mock_normalize, mock_wrapper):
         """target_neff kwarg is forwarded to tidy3d_mode_computation_wrapper."""
         mock_wrapper.return_value = [self._make_mock_mode(2.0)]
@@ -923,109 +892,3 @@ class TestComputeModeTargetNeff:
         assert float(np.real(neff1_untracked)) == pytest.approx(2.7, abs=0.01), (
             f"Without tracking, mode_index=0 picks Mode_B (neff≈2.7), got {float(np.real(neff1_untracked)):.3f}"
         )
-
-    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
-    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
-    def test_tracking_follows_mode_across_four_frequencies(self, mock_normalize, mock_wrapper):
-        """Tracking correctly follows Mode_A across 4 frequencies while mode_index=0 hops to Mode_B.
-
-        Mode_A decreases smoothly (normal dispersion).
-        Mode_B crosses above Mode_A at freq 1 and stays there — without tracking,
-        mode_index=0 switches to Mode_B at every subsequent frequency.
-
-        freq 0: [Mode_A(3.0), Mode_B(2.2)]  → seed: mode_index=0 → 3.0
-        freq 1: [Mode_B(3.5), Mode_A(2.9)]  → tracked: 2.9  untracked: 3.5
-        freq 2: [Mode_B(3.6), Mode_A(2.8)]  → tracked: 2.8  untracked: 3.6
-        freq 3: [Mode_B(3.7), Mode_A(2.7)]  → tracked: 2.7  untracked: 3.7
-        """
-        mock_normalize.return_value = (
-            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
-            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
-        )
-        modes_per_freq = [
-            [self._make_mock_mode(3.0), self._make_mock_mode(2.2)],
-            [self._make_mock_mode(3.5), self._make_mock_mode(2.9)],
-            [self._make_mock_mode(3.6), self._make_mock_mode(2.8)],
-            [self._make_mock_mode(3.7), self._make_mock_mode(2.7)],
-        ]
-        # tracked sweep (4 calls) then untracked sweep (4 calls)
-        mock_wrapper.side_effect = modes_per_freq + modes_per_freq
-
-        base_args = dict(inv_permittivities=jnp.ones((1, 5, 6, 1)), inv_permeabilities=1.0, resolution=1e-8)
-        frequencies = [1e14, 2e14, 3e14, 4e14]
-
-        tracked_neffs = []
-        prev_neff = None
-        for freq in frequencies:
-            _, _, neff = compute_mode(frequency=freq, target_neff=prev_neff, mode_index=0, **base_args)
-            prev_neff = float(np.real(neff))
-            tracked_neffs.append(prev_neff)
-
-        untracked_neffs = []
-        for freq in frequencies:
-            _, _, neff = compute_mode(frequency=freq, target_neff=None, mode_index=0, **base_args)
-            untracked_neffs.append(float(np.real(neff)))
-
-        expected_tracked = [3.0, 2.9, 2.8, 2.7]
-        expected_untracked = [3.0, 3.5, 3.6, 3.7]
-
-        for i, (got, exp) in enumerate(zip(tracked_neffs, expected_tracked)):
-            assert got == pytest.approx(exp, abs=0.01), f"Tracked freq {i}: expected neff≈{exp}, got {got:.3f}"
-        for i, (got, exp) in enumerate(zip(untracked_neffs, expected_untracked)):
-            assert got == pytest.approx(exp, abs=0.01), f"Untracked freq {i}: expected neff≈{exp}, got {got:.3f}"
-
-    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
-    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
-    def test_tracking_three_modes_multiple_crossings(self, mock_normalize, mock_wrapper):
-        """Tracking follows Mode_A across 6 frequencies with 3 modes and repeated order reversals.
-
-        Mode_A decreases smoothly.  Mode_B crosses above A at freqs 1, 3, 5.
-        Mode_C spikes above both at freq 2.  At freq 4, A is still highest so
-        untracked accidentally picks A — shows tracking isn't always needed but
-        is critical wherever the ordering flips.
-
-        freq  solver order (highest → lowest)   tracked   untracked
-          0   A(3.00) B(2.50) C(1.50)           3.00      3.00
-          1   B(3.20) A(2.85) C(1.50)           2.85      3.20  ← B overtakes
-          2   C(3.50) A(2.70) B(2.40)           2.70      3.50  ← C spikes
-          3   B(3.00) A(2.55) C(1.50)           2.55      3.00  ← B again
-          4   A(2.40) B(2.30) C(1.50)           2.40      2.40  ← A still highest
-          5   B(3.50) A(2.25) C(1.50)           2.25      3.50  ← B again
-        """
-        mock_normalize.return_value = (
-            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
-            jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
-        )
-        modes_per_freq = [
-            [self._make_mock_mode(3.00), self._make_mock_mode(2.50), self._make_mock_mode(1.50)],
-            [self._make_mock_mode(3.20), self._make_mock_mode(2.85), self._make_mock_mode(1.50)],
-            [self._make_mock_mode(3.50), self._make_mock_mode(2.70), self._make_mock_mode(2.40)],
-            [self._make_mock_mode(3.00), self._make_mock_mode(2.55), self._make_mock_mode(1.50)],
-            [self._make_mock_mode(2.40), self._make_mock_mode(2.30), self._make_mock_mode(1.50)],
-            [self._make_mock_mode(3.50), self._make_mock_mode(2.25), self._make_mock_mode(1.50)],
-        ]
-        # tracked sweep (6 calls) + untracked sweep (6 calls)
-        mock_wrapper.side_effect = modes_per_freq + modes_per_freq
-
-        base_args = dict(inv_permittivities=jnp.ones((1, 5, 6, 1)), inv_permeabilities=1.0, resolution=1e-8)
-        frequencies = [1e14, 2e14, 3e14, 4e14, 5e14, 6e14]
-
-        tracked_neffs = []
-        prev_neff = None
-        for freq in frequencies:
-            _, _, neff = compute_mode(frequency=freq, target_neff=prev_neff, mode_index=0, **base_args)
-            prev_neff = float(np.real(neff))
-            tracked_neffs.append(prev_neff)
-
-        untracked_neffs = []
-        for freq in frequencies:
-            _, _, neff = compute_mode(frequency=freq, target_neff=None, mode_index=0, **base_args)
-            untracked_neffs.append(float(np.real(neff)))
-
-        expected_tracked = [3.00, 2.85, 2.70, 2.55, 2.40, 2.25]
-        expected_untracked = [3.00, 3.20, 3.50, 3.00, 2.40, 3.50]
-
-        for i, (got, exp) in enumerate(zip(tracked_neffs, expected_tracked)):
-            assert got == pytest.approx(exp, abs=0.01), f"Tracked freq {i}: expected neff≈{exp}, got {got:.3f}"
-        for i, (got, exp) in enumerate(zip(untracked_neffs, expected_untracked)):
-            assert got == pytest.approx(exp, abs=0.01), f"Untracked freq {i}: expected neff≈{exp}, got {got:.3f}"

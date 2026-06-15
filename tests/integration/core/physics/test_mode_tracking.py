@@ -1,20 +1,19 @@
-"""Integration tests for field-overlap mode tracking in compute_mode and compute_modes_tracked.
+"""Integration tests for field-overlap mode tracking in compute_mode.
 
-Geometry: three-layer waveguide (eps=4 core, eps=8 top/bottom slabs) in a 6 µm × 6 µm
+Geometry: three-layer waveguide (eps=4 core, eps=8 top/bottom slabs) in a 6 um x 6 um
 cross-section, propagation along z.  At mode_index=9 and frequencies spanning
-lambda ≈ 1.5–2.5 µm, neff branches cross: independent per-frequency neff-rank sorting
-returns a different physical mode at the crossing step (field overlap ≈ 0.63).
+lambda ~1.5-2.5 um, neff branches cross: independent per-frequency neff-rank sorting
+returns a different physical mode at the crossing step (field overlap ~0.63).
 
-``reference_E`` field-overlap selection in ``compute_mode`` and the internal tracking
-in ``compute_modes_tracked`` both maintain physical continuity across the crossing
-(consecutive overlap > 0.70).
+``reference_E`` (scalar frequency) and automatic tracking (list frequency) both
+maintain physical continuity across the crossing (consecutive overlap > 0.70).
 """
 
+import jax.numpy as jnp
 import numpy as np
 import pytest
-import jax.numpy as jnp
 
-from fdtdx.core.physics.modes import compute_mode, compute_modes_tracked
+from fdtdx.core.physics.modes import compute_mode
 
 _C0 = 299_792_458.0
 
@@ -75,8 +74,11 @@ def inv_eps():
 @pytest.fixture(scope="module")
 def mode_before_crossing(inv_eps):
     E, H, neff = compute_mode(
-        _FREQ_BEFORE_CROSSING, inv_eps, 1.0,
-        resolution=_RES, mode_index=_CROSSING_MODE,
+        _FREQ_BEFORE_CROSSING,
+        inv_eps,
+        1.0,
+        resolution=_RES,
+        mode_index=_CROSSING_MODE,
     )
     return np.array(E), np.array(H), neff
 
@@ -93,8 +95,11 @@ class TestFieldOverlapModeTracking:
         """neff-rank selection alone gives field overlap < 0.70 at the crossing step."""
         E_before, _, _ = mode_before_crossing
         E_after, _, _ = compute_mode(
-            _FREQ_AT_CROSSING, inv_eps, 1.0,
-            resolution=_RES, mode_index=_CROSSING_MODE,
+            _FREQ_AT_CROSSING,
+            inv_eps,
+            1.0,
+            resolution=_RES,
+            mode_index=_CROSSING_MODE,
         )
         overlap = _field_overlap(E_before, np.array(E_after))
         assert overlap < 0.70, (
@@ -106,18 +111,19 @@ class TestFieldOverlapModeTracking:
         """``reference_E`` raises field overlap above 0.70 at the crossing step."""
         E_before, _, _ = mode_before_crossing
         E_tracked, _, _ = compute_mode(
-            _FREQ_AT_CROSSING, inv_eps, 1.0,
-            resolution=_RES, mode_index=_CROSSING_MODE,
+            _FREQ_AT_CROSSING,
+            inv_eps,
+            1.0,
+            resolution=_RES,
+            mode_index=_CROSSING_MODE,
             reference_E=E_before,
         )
         overlap = _field_overlap(E_before, np.array(E_tracked))
-        assert overlap > 0.70, (
-            f"Expected reference_E tracking to raise overlap above 0.70, got {overlap:.3f}"
-        )
+        assert overlap > 0.70, f"Expected reference_E tracking to raise overlap above 0.70, got {overlap:.3f}"
 
 
-class TestComputeModesTrackedFullSweep:
-    """``compute_modes_tracked`` maintains field continuity across all 11 frequencies.
+class TestComputeModeMultiFreqFullSweep:
+    """``compute_mode`` with list frequency maintains field continuity across all 11 frequencies.
 
     Each consecutive pair of mode fields must have overlap > 0.70, including
     the crossing at steps 8→9 where neff-rank sorting alone drops to ~0.63.
@@ -125,9 +131,9 @@ class TestComputeModesTrackedFullSweep:
 
     def test_all_consecutive_overlaps_above_threshold(self, inv_eps):
         inv_eps_stack = jnp.stack([inv_eps] * len(_FREQS), axis=0)
-        mode_Es, _, _ = compute_modes_tracked(
-            frequencies=list(_FREQS),
-            inv_permittivities_stack=inv_eps_stack,
+        mode_Es, _, _ = compute_mode(
+            frequency=list(_FREQS),
+            inv_permittivities=inv_eps_stack,
             inv_permeabilities=1.0,
             resolution=_RES,
             mode_index=_CROSSING_MODE,
@@ -135,6 +141,4 @@ class TestComputeModesTrackedFullSweep:
         mode_Es_np = np.array(mode_Es)
         for i in range(len(_FREQS) - 1):
             overlap = _field_overlap(mode_Es_np[i], mode_Es_np[i + 1])
-            assert overlap > 0.70, (
-                f"Steps {i}→{i + 1}: overlap {overlap:.3f} < 0.70"
-            )
+            assert overlap > 0.70, f"Steps {i}→{i + 1}: overlap {overlap:.3f} < 0.70"
