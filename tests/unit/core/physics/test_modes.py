@@ -6,7 +6,7 @@ import pytest
 
 from fdtdx.core.physics.modes import (
     ModeTupleType,
-    compute_mode,
+    compute_mode_one_frequency,
     compute_mode_polarization_fraction,
     sort_modes,
     tidy3d_mode_computation_wrapper,
@@ -135,20 +135,20 @@ class TestSortModes:
         # The other modes should follow
 
 
-class TestComputeMode:
-    """Test the compute_mode function."""
+class TestComputeModeOneFrequency:
+    """Test the compute_mode_one_frequency function."""
 
     def test_only_bend_radius_raises(self):
         """Setting bend_radius without bend_axis raises ValueError."""
         inv_permittivities = jnp.ones((1, 5, 6, 1))
         with pytest.raises(ValueError, match="both be set or both be None"):
-            compute_mode(2e14, inv_permittivities, 1.0, 1e-8, "+", bend_radius=5e-6)
+            compute_mode_one_frequency(2e14, inv_permittivities, 1.0, 1e-8, "+", bend_radius=5e-6)
 
     def test_only_bend_axis_raises(self):
         """Setting bend_axis without bend_radius raises ValueError."""
         inv_permittivities = jnp.ones((1, 5, 6, 1))
         with pytest.raises(ValueError, match="both be set or both be None"):
-            compute_mode(2e14, inv_permittivities, 1.0, 1e-8, "+", bend_axis=1)
+            compute_mode_one_frequency(2e14, inv_permittivities, 1.0, 1e-8, "+", bend_axis=1)
 
     def test_invalid_permittivities_shape(self):
         """Test that invalid permittivities shape raises exception."""
@@ -159,7 +159,7 @@ class TestComputeMode:
         resolution = 1e-8
 
         with pytest.raises(Exception, match="Invalid inv_permittivities shape"):
-            compute_mode(frequency, inv_permittivities, inv_permeabilities, resolution, "+")
+            compute_mode_one_frequency(frequency, inv_permittivities, inv_permeabilities, resolution, "+")
 
     def test_invalid_permeabilities_shape(self):
         """Test that invalid permeabilities shape raises exception."""
@@ -170,14 +170,14 @@ class TestComputeMode:
         resolution = 1e-8
 
         with pytest.raises(Exception, match="Invalid inv_permeabilities shape"):
-            compute_mode(frequency, inv_permittivities, inv_permeabilities, resolution, "+")
+            compute_mode_one_frequency(frequency, inv_permittivities, inv_permeabilities, resolution, "+")
 
     def test_invalid_transverse_coords_shape(self):
         """Transverse coordinate arrays must match the mode cross-section shape."""
         inv_permittivities = jnp.ones((1, 2, 2, 1))
 
         with pytest.raises(ValueError, match="length 3"):
-            compute_mode(
+            compute_mode_one_frequency(
                 frequency=2e14,
                 inv_permittivities=inv_permittivities,
                 inv_permeabilities=1.0,
@@ -205,7 +205,7 @@ class TestComputeMode:
             jnp.ones((3, 2, 2, 1), dtype=jnp.complex64),
         )
 
-        compute_mode(
+        compute_mode_one_frequency(
             frequency=2e14,
             inv_permittivities=jnp.ones((1, 2, 2, 1)),
             inv_permeabilities=1.0,
@@ -262,7 +262,7 @@ class TestAnisotropicModeComputation:
         inv_permittivities = inv_permittivities.at[1].set(1 / 3.0)  # eps_y = 3
         inv_permittivities = inv_permittivities.at[2].set(1 / 4.0)  # eps_z = 4
 
-        compute_mode(
+        compute_mode_one_frequency(
             frequency=2e14,
             inv_permittivities=inv_permittivities,
             inv_permeabilities=1.0,
@@ -311,7 +311,7 @@ class TestAnisotropicModeComputation:
         inv_permittivities = inv_permittivities.at[1].set(1 / 3.0)  # eps_y = 3
         inv_permittivities = inv_permittivities.at[2].set(1 / 4.0)  # eps_z = 4
 
-        compute_mode(
+        compute_mode_one_frequency(
             frequency=2e14,
             inv_permittivities=inv_permittivities,
             inv_permeabilities=1.0,
@@ -360,7 +360,7 @@ class TestAnisotropicModeComputation:
         inv_permittivities = inv_permittivities.at[1].set(1 / 3.0)  # eps_y = 3
         inv_permittivities = inv_permittivities.at[2].set(1 / 4.0)  # eps_z = 4
 
-        compute_mode(
+        compute_mode_one_frequency(
             frequency=2e14,
             inv_permittivities=inv_permittivities,
             inv_permeabilities=1.0,
@@ -410,7 +410,7 @@ class TestAnisotropicModeComputation:
         inv_permeabilities = inv_permeabilities.at[1].set(1 / 1.2)  # mu_y = 1.2
         inv_permeabilities = inv_permeabilities.at[2].set(1 / 1.3)  # mu_z = 1.3
 
-        compute_mode(
+        compute_mode_one_frequency(
             frequency=2e14,
             inv_permittivities=inv_permittivities,
             inv_permeabilities=inv_permeabilities,
@@ -452,7 +452,7 @@ class TestAnisotropicModeComputation:
         # Shape: (1, 1, 5, 6) - propagation along axis 0
         inv_permittivities = jnp.ones((1, 1, 5, 6)) * 0.25  # eps = 4.0
 
-        compute_mode(
+        compute_mode_one_frequency(
             frequency=2e14,
             inv_permittivities=inv_permittivities,
             inv_permeabilities=1.0,
@@ -495,7 +495,7 @@ class TestAnisotropicModeComputation:
         inv_permittivities = inv_permittivities.at[4].set(1 / 3.0)  # inv_eps_yy
         inv_permittivities = inv_permittivities.at[8].set(1 / 4.0)  # inv_eps_zz
 
-        compute_mode(
+        compute_mode_one_frequency(
             frequency=2e14,
             inv_permittivities=inv_permittivities,
             inv_permeabilities=1.0,
@@ -555,7 +555,7 @@ class TestAnisotropicModeComputation:
         inv_permeabilities = inv_permeabilities.at[4].set(1 / 1.2)  # inv_mu_yy
         inv_permeabilities = inv_permeabilities.at[8].set(1 / 1.3)  # inv_mu_zz
 
-        compute_mode(
+        compute_mode_one_frequency(
             frequency=2e14,
             inv_permittivities=inv_permittivities,
             inv_permeabilities=inv_permeabilities,
@@ -706,7 +706,7 @@ class TestComputeModeBendPassthrough:
             jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
         )
 
-        compute_mode(2e14, jnp.ones((1, 5, 6, 1)), 1.0, 1e-8, "+")
+        compute_mode_one_frequency(2e14, jnp.ones((1, 5, 6, 1)), 1.0, 1e-8, "+")
 
         kwargs = mock_wrapper.call_args.kwargs
         assert kwargs["bend_radius"] is None
@@ -723,7 +723,7 @@ class TestComputeModeBendPassthrough:
             jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
         )
 
-        compute_mode(2e14, jnp.ones((1, 5, 6, 1)), 1.0, 1e-8, "+", bend_radius=5e-6, bend_axis=0)
+        compute_mode_one_frequency(2e14, jnp.ones((1, 5, 6, 1)), 1.0, 1e-8, "+", bend_radius=5e-6, bend_axis=0)
 
         kwargs = mock_wrapper.call_args.kwargs
         assert kwargs["bend_radius"] == pytest.approx(5.0)  # 5e-6 m = 5.0 µm
@@ -739,7 +739,7 @@ class TestComputeModeBendPassthrough:
         )
 
         # z-propagation: inv_permittivities shape (1, 5, 6, 1), singleton at dim 3
-        compute_mode(2e14, jnp.ones((1, 5, 6, 1)), 1.0, 1e-8, "+", bend_radius=10e-6, bend_axis=1)
+        compute_mode_one_frequency(2e14, jnp.ones((1, 5, 6, 1)), 1.0, 1e-8, "+", bend_radius=10e-6, bend_axis=1)
 
         kwargs = mock_wrapper.call_args.kwargs
         assert kwargs["bend_axis"] == 1  # transverse_axes=[0,1], index(1)=1
@@ -755,7 +755,7 @@ class TestComputeModeBendPassthrough:
         )
 
         # x-propagation: inv_permittivities shape (1, 1, 5, 6), singleton at dim 1
-        compute_mode(2e14, jnp.ones((1, 1, 5, 6)), 1.0, 1e-8, "+", bend_radius=10e-6, bend_axis=2)
+        compute_mode_one_frequency(2e14, jnp.ones((1, 1, 5, 6)), 1.0, 1e-8, "+", bend_radius=10e-6, bend_axis=2)
 
         kwargs = mock_wrapper.call_args.kwargs
         assert kwargs["bend_axis"] == 1  # transverse_axes=[1,2], index(2)=1
@@ -774,7 +774,7 @@ class TestComputeModeBendPassthrough:
         # z-propagation with transverse dims 5 (x) and 6 (y)
         # coords[0] = np.arange(6) * resolution/1e-6, so last = 5 * resolution/1e-6
         # coords[1] = np.arange(7) * resolution/1e-6, so last = 6 * resolution/1e-6
-        compute_mode(2e14, jnp.ones((1, 5, 6, 1)), 1.0, resolution, "+", bend_radius=5e-6, bend_axis=0)
+        compute_mode_one_frequency(2e14, jnp.ones((1, 5, 6, 1)), 1.0, resolution, "+", bend_radius=5e-6, bend_axis=0)
 
         kwargs = mock_wrapper.call_args.kwargs
         expected = (0.5 * 5 * resolution / 1e-6, 0.5 * 6 * resolution / 1e-6)
@@ -782,7 +782,7 @@ class TestComputeModeBendPassthrough:
 
 
 class TestComputeModeTargetNeff:
-    """Tests for the target_neff parameter in compute_mode."""
+    """Tests for the target_neff parameter in compute_mode_one_frequency."""
 
     def _make_mock_mode(self, neff, shape=(5, 6)):
         return ModeTupleType(
@@ -814,7 +814,7 @@ class TestComputeModeTargetNeff:
             jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
         )
 
-        _, _, neff = compute_mode(
+        _, _, neff = compute_mode_one_frequency(
             frequency=2e14,
             inv_permittivities=jnp.ones((1, 5, 6, 1)),
             inv_permeabilities=1.0,
@@ -836,7 +836,7 @@ class TestComputeModeTargetNeff:
             jnp.ones((3, 5, 6, 1), dtype=jnp.complex64),
         )
 
-        compute_mode(
+        compute_mode_one_frequency(
             frequency=2e14,
             inv_permittivities=jnp.ones((1, 5, 6, 1)),
             inv_permeabilities=1.0,
@@ -881,9 +881,9 @@ class TestComputeModeTargetNeff:
         #   call 3 (no tracking)  → modes_freq1 → mode_index=0 picks 2.7 (wrong mode)
         mock_wrapper.side_effect = [modes_freq0, modes_freq1, modes_freq1]
 
-        _, _, neff0 = compute_mode(frequency=2e14, target_neff=None, mode_index=0, **base_args)
-        _, _, neff1_tracked = compute_mode(frequency=3e14, target_neff=float(np.real(neff0)), **base_args)
-        _, _, neff1_untracked = compute_mode(frequency=3e14, target_neff=None, mode_index=0, **base_args)
+        _, _, neff0 = compute_mode_one_frequency(frequency=2e14, target_neff=None, mode_index=0, **base_args)
+        _, _, neff1_tracked = compute_mode_one_frequency(frequency=3e14, target_neff=float(np.real(neff0)), **base_args)
+        _, _, neff1_untracked = compute_mode_one_frequency(frequency=3e14, target_neff=None, mode_index=0, **base_args)
 
         assert float(np.real(neff0)) == pytest.approx(2.5, abs=0.01)
         assert float(np.real(neff1_tracked)) == pytest.approx(2.4, abs=0.01), (

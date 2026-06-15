@@ -386,7 +386,7 @@ class TestModeOverlapDetectorComputeOverlap:
         assert jnp.allclose(x_edges, jnp.asarray([0.0, 1.0, 3.0]))
         assert jnp.allclose(y_edges, jnp.asarray([0.0, 3.0, 7.0]))
 
-    @patch("fdtdx.objects.detectors.mode.compute_mode")
+    @patch("fdtdx.objects.detectors.mode.compute_mode_multiple_frequencies")
     def test_apply_passes_nonuniform_mode_coordinates(self, mock_compute_mode, random_key, single_frequency):
         """Mode detector apply should not require a scalar grid spacing on stretched grids."""
         grid = RectilinearGrid(
@@ -529,7 +529,7 @@ class TestModeOverlapDetectorMultiFrequency:
             jnp.zeros((n,), dtype=jnp.complex64),
         )
 
-    @patch("fdtdx.objects.detectors.mode.compute_mode")
+    @patch("fdtdx.objects.detectors.mode.compute_mode_multiple_frequencies")
     def test_apply_calls_compute_mode_once(
         self, mock_compute, simulation_config, plane_grid_slice, random_key, two_frequencies
     ):
@@ -540,7 +540,7 @@ class TestModeOverlapDetectorMultiFrequency:
         det.apply(random_key, jnp.ones((1, 8, 8, 1), dtype=jnp.float32), 1.0)
         assert mock_compute.call_count == 1
 
-    @patch("fdtdx.objects.detectors.mode.compute_mode")
+    @patch("fdtdx.objects.detectors.mode.compute_mode_multiple_frequencies")
     def test_apply_passes_frequency_list(
         self, mock_compute, simulation_config, plane_grid_slice, random_key, two_frequencies
     ):
@@ -551,9 +551,9 @@ class TestModeOverlapDetectorMultiFrequency:
         det.apply(random_key, jnp.ones((1, 8, 8, 1), dtype=jnp.float32), 1.0)
         kwargs = mock_compute.call_args.kwargs
         expected = [wc.get_frequency() for wc in two_frequencies]
-        assert kwargs["frequency"] == expected
+        assert kwargs["frequencies"] == expected
 
-    @patch("fdtdx.objects.detectors.mode.compute_mode")
+    @patch("fdtdx.objects.detectors.mode.compute_mode_multiple_frequencies")
     def test_apply_stores_stacked_mode_fields(
         self, mock_compute, simulation_config, plane_grid_slice, random_key, two_frequencies
     ):
@@ -565,7 +565,7 @@ class TestModeOverlapDetectorMultiFrequency:
         assert det._mode_E.shape == (2, 3, 8, 8, 1)
         assert det._mode_H.shape == (2, 3, 8, 8, 1)
 
-    @patch("fdtdx.objects.detectors.mode.compute_mode")
+    @patch("fdtdx.objects.detectors.mode.compute_mode_multiple_frequencies")
     def test_freq0_overlap_independent_of_freq1_phasor(
         self, mock_compute, simulation_config, plane_grid_slice, random_key, two_frequencies
     ):
@@ -580,7 +580,7 @@ class TestModeOverlapDetectorMultiFrequency:
         result = det.compute_overlap(state=state)
         assert jnp.isclose(jnp.abs(result[0]), 0.0)
 
-    @patch("fdtdx.objects.detectors.mode.compute_mode")
+    @patch("fdtdx.objects.detectors.mode.compute_mode_multiple_frequencies")
     def test_freq1_overlap_independent_of_freq0_phasor(
         self, mock_compute, simulation_config, plane_grid_slice, random_key, two_frequencies
     ):
@@ -595,7 +595,7 @@ class TestModeOverlapDetectorMultiFrequency:
         result = det.compute_overlap(state=state)
         assert jnp.isclose(jnp.abs(result[1]), 0.0)
 
-    @patch("fdtdx.objects.detectors.mode.compute_mode")
+    @patch("fdtdx.objects.detectors.mode.compute_mode_multiple_frequencies")
     def test_mode_frequency_correspondence(
         self, mock_compute, simulation_config, plane_grid_slice, random_key, two_frequencies
     ):

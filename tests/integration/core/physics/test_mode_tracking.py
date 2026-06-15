@@ -1,4 +1,4 @@
-"""Integration tests for field-overlap mode tracking in compute_mode.
+"""Integration tests for field-overlap mode tracking in compute_mode_one_frequency and compute_mode_multiple_frequencies.
 
 Geometry: three-layer waveguide (eps=4 core, eps=8 top/bottom slabs) in a 6 um x 6 um
 cross-section, propagation along z.  At mode_index=9 and frequencies spanning
@@ -13,7 +13,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from fdtdx.core.physics.modes import compute_mode
+from fdtdx.core.physics.modes import compute_mode_multiple_frequencies, compute_mode_one_frequency
 
 _C0 = 299_792_458.0
 
@@ -73,7 +73,7 @@ def inv_eps():
 
 @pytest.fixture(scope="module")
 def mode_before_crossing(inv_eps):
-    E, H, neff = compute_mode(
+    E, H, neff = compute_mode_one_frequency(
         _FREQ_BEFORE_CROSSING,
         inv_eps,
         1.0,
@@ -84,7 +84,7 @@ def mode_before_crossing(inv_eps):
 
 
 class TestFieldOverlapModeTracking:
-    """``reference_E`` in ``compute_mode`` prevents mode hopping at a branch crossing.
+    """``reference_E`` in ``compute_mode_one_frequency`` prevents mode hopping at a branch crossing.
 
     At the crossing step, neff-rank sorting alone returns a different physical mode
     (field overlap ≈ 0.63).  Passing the previous step's mode_E as ``reference_E``
@@ -94,7 +94,7 @@ class TestFieldOverlapModeTracking:
     def test_without_reference_E_overlap_is_low_at_crossing(self, inv_eps, mode_before_crossing):
         """neff-rank selection alone gives field overlap < 0.70 at the crossing step."""
         E_before, _, _ = mode_before_crossing
-        E_after, _, _ = compute_mode(
+        E_after, _, _ = compute_mode_one_frequency(
             _FREQ_AT_CROSSING,
             inv_eps,
             1.0,
@@ -110,7 +110,7 @@ class TestFieldOverlapModeTracking:
     def test_with_reference_E_overlap_is_higher_at_crossing(self, inv_eps, mode_before_crossing):
         """``reference_E`` raises field overlap above 0.70 at the crossing step."""
         E_before, _, _ = mode_before_crossing
-        E_tracked, _, _ = compute_mode(
+        E_tracked, _, _ = compute_mode_one_frequency(
             _FREQ_AT_CROSSING,
             inv_eps,
             1.0,
@@ -123,7 +123,7 @@ class TestFieldOverlapModeTracking:
 
 
 class TestComputeModeMultiFreqFullSweep:
-    """``compute_mode`` with list frequency maintains field continuity across all 11 frequencies.
+    """``compute_mode_multiple_frequencies`` maintains field continuity across all 11 frequencies.
 
     Each consecutive pair of mode fields must have overlap > 0.70, including
     the crossing at steps 8→9 where neff-rank sorting alone drops to ~0.63.
@@ -131,8 +131,8 @@ class TestComputeModeMultiFreqFullSweep:
 
     def test_all_consecutive_overlaps_above_threshold(self, inv_eps):
         inv_eps_stack = jnp.stack([inv_eps] * len(_FREQS), axis=0)
-        mode_Es, _, _ = compute_mode(
-            frequency=list(_FREQS),
+        mode_Es, _, _ = compute_mode_multiple_frequencies(
+            frequencies=list(_FREQS),
             inv_permittivities=inv_eps_stack,
             inv_permeabilities=1.0,
             resolution=_RES,

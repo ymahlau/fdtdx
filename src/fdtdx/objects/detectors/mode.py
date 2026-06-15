@@ -8,7 +8,7 @@ from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.null import Null
 from fdtdx.core.physics.metrics import bidirectional_mode_overlap
-from fdtdx.core.physics.modes import compute_mode
+from fdtdx.core.physics.modes import compute_mode_multiple_frequencies
 from fdtdx.dispersion import effective_inv_permittivity
 from fdtdx.objects.detectors.detector import DetectorState
 from fdtdx.objects.detectors.phasor import PhasorDetector
@@ -137,7 +137,7 @@ class ModeOverlapDetector(PhasorDetector):
     def _mode_solver_resolution(self) -> float:
         """Return scalar resolution only for legacy uniform mode-solver setup.
 
-        ``compute_mode`` ignores this value when explicit transverse coordinates
+        ``compute_mode_multiple_frequencies`` ignores this value when explicit transverse coordinates
         are supplied.  For non-uniform grids we pass a harmless finite value so
         the compatibility argument does not force a uniform-grid check.
         """
@@ -189,8 +189,8 @@ class ModeOverlapDetector(PhasorDetector):
         inv_eps_stack = jnp.stack(inv_eps_per_freq, axis=0)
         frequencies = [wc.get_frequency() for wc in self.wave_characters]
 
-        mode_Es, mode_Hs, mode_neffs = compute_mode(
-            frequency=frequencies,
+        mode_Es, mode_Hs, mode_neffs = compute_mode_multiple_frequencies(
+            frequencies=frequencies,
             inv_permittivities=inv_eps_stack,
             inv_permeabilities=inv_permeability_slice,
             resolution=self._mode_solver_resolution(),
