@@ -18,14 +18,16 @@ from fdtdx.typing import SliceTuple3D
 class ModeOverlapDetector(PhasorDetector):
     """
     Detector for measuring the overlap of a waveguide mode with the simulation fields.
-    This detector computes the overlap of a mode with the phasor fields at a specified
-    frequency, enabling frequency-domain analysis of the electromagnetic fields.
+    This detector computes the overlap integral at every frequency in ``wave_characters``,
+    enabling broadband frequency-domain analysis of the electromagnetic fields.
 
     The mode overlap is calculated by integrating the cross product of the mode fields
     with the simulation fields over a cross-sectional plane. This is useful for
     analyzing waveguide coupling efficiency, transmission coefficients, and modal
     decomposition of electromagnetic fields.
 
+    ``compute_overlap()`` returns a complex array of shape ``(num_freqs,)``, where
+    ``num_freqs = len(wave_characters)``.
     """
 
     #: Direction of mode propagation, either "+" (forward) or "-" (backward).
@@ -89,8 +91,6 @@ class ModeOverlapDetector(PhasorDetector):
             config=config,
             key=key,
         )
-        if len(self.wave_characters) > 1:
-            raise NotImplementedError()
         if (self.bend_radius is None) != (self.bend_axis is None):
             raise ValueError("bend_radius and bend_axis must both be set or both be None")
         if self.bend_axis is not None and self.bend_axis == self.propagation_axis:
@@ -158,42 +158,47 @@ class ModeOverlapDetector(PhasorDetector):
         else:
             inv_permeability_slice = inv_permeabilities
 
-        # Frequency-correct the permittivity seen by the mode solver so the
-        # reference mode profile reflects ε(ω_c) of any dispersive medium the
-        # detector sits in, not just ε∞. Matches the pattern in
-        # ModePlaneSource.apply. Cells with no pole have c1=c2=c3=0, in which
-        # case effective_inv_permittivity returns inv_eps unchanged.
+        c1_slice = c2_slice = c3_slice = None
         if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
             c1_slice = dispersive_c1[:, :, *self.grid_slice]
             c2_slice = dispersive_c2[:, :, *self.grid_slice]
             c3_slice = dispersive_c3[:, :, *self.grid_slice]
-            inv_permittivity_slice = effective_inv_permittivity(
-                inv_eps=inv_permittivity_slice,
-                c1=c1_slice,
-                c2=c2_slice,
-                c3=c3_slice,
-                omega=2.0 * np.pi * self.wave_characters[0].get_frequency(),
-                dt=self._config.time_step_duration,
+
+        all_mode_Es: list[jax.Array] = []
+        all_mode_Hs: list[jax.Array] = []
+        all_mode_neffs: list[jax.Array] = []
+        for wc in self.wave_characters:
+            inv_eps_i = inv_permittivity_slice
+            if c1_slice is not None and c2_slice is not None and c3_slice is not None:
+                inv_eps_i = effective_inv_permittivity(
+                    inv_eps=inv_permittivity_slice,
+                    c1=c1_slice,
+                    c2=c2_slice,
+                    c3=c3_slice,
+                    omega=2.0 * np.pi * wc.get_frequency(),
+                    dt=self._config.time_step_duration,
+                )
+            mode_E, mode_H, mode_neff = compute_mode(
+                frequency=wc.get_frequency(),
+                inv_permittivities=inv_eps_i,
+                inv_permeabilities=inv_permeability_slice,
+                resolution=self._mode_solver_resolution(),
+                direction=self.direction,
+                mode_index=self.mode_index,
+                filter_pol=self.filter_pol,
+                dtype=self._config.dtype,
+                bend_radius=self.bend_radius,
+                bend_axis=self.bend_axis,
+                symmetry=self.symmetry,
+                transverse_coords=self._transverse_edge_coordinates(),
             )
+            all_mode_Es.append(mode_E)
+            all_mode_Hs.append(mode_H)
+            all_mode_neffs.append(mode_neff)
 
-        mode_E, mode_H, mode_neff = compute_mode(
-            frequency=self.wave_characters[0].get_frequency(),
-            inv_permittivities=inv_permittivity_slice,
-            inv_permeabilities=inv_permeability_slice,
-            resolution=self._mode_solver_resolution(),
-            direction=self.direction,
-            mode_index=self.mode_index,
-            filter_pol=self.filter_pol,
-            dtype=self._config.dtype,
-            bend_radius=self.bend_radius,
-            bend_axis=self.bend_axis,
-            symmetry=self.symmetry,
-            transverse_coords=self._transverse_edge_coordinates(),
-        )
-
-        self = self.aset("_mode_E", mode_E, create_new_ok=True)
-        self = self.aset("_mode_H", mode_H, create_new_ok=True)
-        self = self.aset("_mode_neff", mode_neff, create_new_ok=True)
+        self = self.aset("_mode_E", jnp.stack(all_mode_Es, axis=0), create_new_ok=True)
+        self = self.aset("_mode_H", jnp.stack(all_mode_Hs, axis=0), create_new_ok=True)
+        self = self.aset("_mode_neff", jnp.stack(all_mode_neffs, axis=0), create_new_ok=True)
         return self
 
     def compute_overlap_to_mode(
@@ -201,11 +206,24 @@ class ModeOverlapDetector(PhasorDetector):
         state: DetectorState,
         mode_E: jax.Array,
         mode_H: jax.Array,
+        freq_idx: int = 0,
     ) -> jax.Array:
+        """Compute the overlap integral of *one* mode against phasors at ``freq_idx``.
+
+        Args:
+            state: Detector state holding the phasor array of shape
+                ``(1, num_freqs, 6, *spatial)``.
+            mode_E: Electric mode field of shape ``(3, *spatial)``.
+            mode_H: Magnetic mode field of shape ``(3, *spatial)``.
+            freq_idx: Index into the phasor frequency axis to use.
+
+        Returns:
+            Complex scalar overlap coefficient.
+        """
         # shape (time step, num_freqs, num_components, *spatial)
         # time steps is always 1 and num_components always 6
         phasors = state["phasor"]
-        phasors_E, phasors_H = phasors[0, 0, :3], phasors[0, 0, 3:]
+        phasors_E, phasors_H = phasors[0, freq_idx, :3], phasors[0, freq_idx, 3:]
 
         E_cross_H_star_sim = jnp.cross(
             mode_E,
@@ -233,10 +251,20 @@ class ModeOverlapDetector(PhasorDetector):
         self,
         state: DetectorState,
     ) -> jax.Array:
+        """Compute mode overlaps at every frequency in ``wave_characters``.
+
+        Returns:
+            Complex array of shape ``(num_freqs,)``.
+        """
         if isinstance(self._mode_E, Null) or isinstance(self._mode_H, Null):
             raise Exception("Need to call apply on ModeOverlapDetector before calling compute_mode_overlap!")
-        return self.compute_overlap_to_mode(
-            state=state,
-            mode_E=self._mode_E,
-            mode_H=self._mode_H,
-        )
+        overlaps = [
+            self.compute_overlap_to_mode(
+                state=state,
+                mode_E=self._mode_E[i],
+                mode_H=self._mode_H[i],
+                freq_idx=i,
+            )
+            for i in range(len(self.wave_characters))
+        ]
+        return jnp.stack(overlaps, axis=0)
