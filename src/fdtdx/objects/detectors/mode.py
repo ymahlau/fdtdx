@@ -1,14 +1,14 @@
+import math
 from typing import Literal, Self, Sequence
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.null import Null
 from fdtdx.core.physics.metrics import bidirectional_mode_overlap
-from fdtdx.core.physics.modes import compute_mode
+from fdtdx.core.physics.modes import compute_modes_tracked
 from fdtdx.dispersion import effective_inv_permittivity
 from fdtdx.objects.detectors.detector import DetectorState
 from fdtdx.objects.detectors.phasor import PhasorDetector
@@ -162,13 +162,11 @@ class ModeOverlapDetector(PhasorDetector):
         else:
             inv_permeability_slice = inv_permeabilities
 
-        # Solve one mode per frequency. Each compute_mode call is a jax.pure_callback
-        # and is fully jit-compatible.
-        mode_Es: list[jax.Array] = []
-        mode_Hs: list[jax.Array] = []
-        mode_neffs: list[jax.Array] = []
+        # Build per-frequency inverse permittivities (applies dispersive correction
+        # per frequency if needed). This is a Python loop over wave characters but
+        # the body is pure JAX ops — safe under jax.jit.
+        inv_eps_per_freq: list[jax.Array] = []
         for wc in self.wave_characters:
-            # Apply dispersive correction so the mode solver sees ε(ω) rather than ε∞.
             if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
                 c1_slice = dispersive_c1[:, :, *self.grid_slice]
                 c2_slice = dispersive_c2[:, :, *self.grid_slice]
@@ -178,34 +176,37 @@ class ModeOverlapDetector(PhasorDetector):
                     c1=c1_slice,
                     c2=c2_slice,
                     c3=c3_slice,
-                    omega=2.0 * np.pi * wc.get_frequency(),
+                    omega=2.0 * math.pi * wc.get_frequency(),
                     dt=self._config.time_step_duration,
                 )
             else:
                 inv_eps_i = inv_permittivity_slice
+            inv_eps_per_freq.append(inv_eps_i)
 
-            mode_E, mode_H, neff = compute_mode(
-                frequency=wc.get_frequency(),
-                inv_permittivities=inv_eps_i,
-                inv_permeabilities=inv_permeability_slice,
-                resolution=self._mode_solver_resolution(),
-                direction=self.direction,
-                mode_index=self.mode_index,
-                filter_pol=self.filter_pol,
-                dtype=self._config.dtype,
-                bend_radius=self.bend_radius,
-                bend_axis=self.bend_axis,
-                symmetry=self.symmetry,
-                transverse_coords=self._transverse_edge_coordinates(),
-            )
-            mode_Es.append(mode_E)
-            mode_Hs.append(mode_H)
-            mode_neffs.append(neff)
+        # All frequencies solved in a single jax.pure_callback with field-overlap
+        # tracking inside — safe under jax.jit because concrete numpy arrays are
+        # only accessed within the callback, never between traced operations.
+        inv_eps_stack = jnp.stack(inv_eps_per_freq, axis=0)
+        frequencies = [wc.get_frequency() for wc in self.wave_characters]
 
-        # Spatial dims are fixed at place_on_grid time, so all frequencies share the same shape.
-        self = self.aset("_mode_E", jnp.stack(mode_Es), create_new_ok=True)
-        self = self.aset("_mode_H", jnp.stack(mode_Hs), create_new_ok=True)
-        self = self.aset("_mode_neff", jnp.stack(mode_neffs), create_new_ok=True)
+        mode_Es, mode_Hs, mode_neffs = compute_modes_tracked(
+            frequencies=frequencies,
+            inv_permittivities_stack=inv_eps_stack,
+            inv_permeabilities=inv_permeability_slice,
+            resolution=self._mode_solver_resolution(),
+            direction=self.direction,
+            mode_index=self.mode_index,
+            filter_pol=self.filter_pol,
+            dtype=self._config.dtype,
+            bend_radius=self.bend_radius,
+            bend_axis=self.bend_axis,
+            symmetry=self.symmetry,
+            transverse_coords=self._transverse_edge_coordinates(),
+        )
+
+        self = self.aset("_mode_E", mode_Es, create_new_ok=True)
+        self = self.aset("_mode_H", mode_Hs, create_new_ok=True)
+        self = self.aset("_mode_neff", mode_neffs, create_new_ok=True)
         return self
 
     def compute_overlap_to_mode(

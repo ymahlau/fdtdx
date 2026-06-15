@@ -1,9 +1,8 @@
 """Integration tests for ModeOverlapDetector with multiple wave characters.
 
-Exercises multi-frequency mode solving through the real tidy3d mode solver with a
-Si/SiO2 waveguide cross-section (800 nm Si core, SiO2 cladding, z-propagation).
-Verifies output shapes, finiteness, guided-mode neff bounds, and self-overlap
-normalization without mocking any external dependencies.
+Geometry: Si/SiO2 waveguide (800 nm Si core, SiO2 cladding, z-propagation).
+Covers output shapes, field finiteness, guided-mode neff bounds, self-overlap
+normalization, and JIT compatibility of the multi-frequency mode solver.
 """
 
 import jax
@@ -12,12 +11,13 @@ import numpy as np
 import pytest
 
 import fdtdx
+from fdtdx.core.physics.modes import compute_modes_tracked
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.initialization import apply_params
 from fdtdx.materials import Material
 from fdtdx.objects.detectors.mode import ModeOverlapDetector
 
-# Minimum cross-section for tidy3d's ARPACK solver is 8x8 cells.
+# Minimum transverse cross-section for the ARPACK mode solver is 8x8 cells.
 _RESOLUTION = 200e-9
 _NCELLS_T = 8
 _PML = 3
@@ -34,12 +34,9 @@ _WC_1550 = WaveCharacter(wavelength=1.55e-6)
 
 
 def _make_det_fixture(wave_characters):
-    """Build a ModeOverlapDetector over a Si/SiO2 waveguide cross-section.
-
-    The domain is SiO2 cladding with an 800x800 nm Si core centred in the
-    transverse (x-y) plane.  Propagation axis is z.  Using a real guided
-    structure makes test_self_overlap_equals_one a genuine physics test:
-    normalization errors that cancel in air will produce |overlap| != 1 here.
+    """ModeOverlapDetector over a Si/SiO2 waveguide: SiO2 cladding, 800x800 nm Si core,
+    propagation along z.  The guided structure produces non-uniform field profiles
+    that expose normalization errors invisible in uniform-medium geometries.
     """
     total_t = _TOTAL_T * _RESOLUTION
     total_z = (1 + 2 * _PML) * _RESOLUTION
@@ -154,12 +151,11 @@ class TestModeOverlapDetectorApply:
         assert jnp.iscomplexobj(result)
 
     def test_self_overlap_equals_one(self, det_fixture, n_freqs, request):
-        """Feeding each mode back as its own phasor gives |overlap| ~= 1 at every frequency.
+        """Self-overlap of each mode field is ~1.0 at every frequency.
 
-        Validates Poynting-flux normalization end-to-end through the real tidy3d solver
-        on a genuine guided mode: a unit-power mode must have self-overlap = 1 by the
-        bidirectional formula.  This test would fail with a wrong 1/4 factor, wrong
-        conjugation, or wrong area weights.
+        A unit-power mode fed back as its own phasor must satisfy |overlap| = 1
+        by the bidirectional formula.  Catches incorrect normalization factors,
+        conjugation errors, or wrong area weights.
         """
         det = request.getfixturevalue(det_fixture)
         state = det.init_state()
@@ -172,3 +168,29 @@ class TestModeOverlapDetectorApply:
         for i in range(n_freqs):
             mag = float(jnp.abs(result[i]))
             assert mag == pytest.approx(1.0, abs=0.05), f"Self-overlap at freq {i} = {mag:.4f}, expected ~= 1.0"
+
+
+class TestComputeModesTrackedJitCompatibility:
+    """``compute_modes_tracked`` is callable from inside ``jax.jit``."""
+
+    def test_compute_modes_tracked_callable_under_jit(self):
+        """``jax.jit`` traces through ``compute_modes_tracked`` without raising."""
+        frequencies = [
+            _WC_1550.get_frequency(),
+            _WC_1300.get_frequency(),
+        ]
+        # Minimal 8x8 SiO2 cross-section, z-propagation (last dim == 1).
+        inv_eps_stack = jnp.ones((2, 1, 8, 8, 1), dtype=jnp.float32) / _EPS_SIO2
+
+        @jax.jit
+        def fn(stack: jax.Array) -> jax.Array:
+            mode_Es, _mode_Hs, _neffs = compute_modes_tracked(
+                frequencies=frequencies,
+                inv_permittivities_stack=stack,
+                inv_permeabilities=1.0,
+                resolution=_RESOLUTION,
+            )
+            return mode_Es
+
+        result = fn(inv_eps_stack)
+        assert result.shape == (2, 3, 8, 8, 1)
