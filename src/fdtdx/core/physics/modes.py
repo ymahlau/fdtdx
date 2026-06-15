@@ -209,6 +209,7 @@ def _validate_mode_inputs(
     bend_radius: float | None,
     bend_axis: int | None,
 ) -> None:
+    """Validate per-frequency permittivity slice, permeability, and bend arg consistency."""
     if not (sample.ndim == 4 and sample.shape[0] in [1, 3, 9]) or sum(s == 1 for s in sample.shape[1:]) != 1:
         raise ValueError(f"Invalid inv_permittivities shape: {sample.shape}")
     if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
@@ -227,6 +228,7 @@ def _build_bend_params(
     propagation_axis: int,
     coords: list[np.ndarray],
 ) -> tuple[float | None, int | None, tuple[float, float] | None]:
+    """Convert bend_radius/bend_axis to tidy3d units and frame; returns (None, None, None) when straight."""
     if bend_radius is None:
         return None, None, None
     transverse_axes = get_transverse_axes(propagation_axis)
@@ -242,6 +244,7 @@ def _select_by_field_overlap(
     propagation_axis: int,
     np_complex_dtype,
 ) -> ModeTupleType:
+    """Return the candidate with highest |<conj(ref_E_4d), candidate_E>| overlap."""
     return max(
         sorted_modes,
         key=lambda m: float(
