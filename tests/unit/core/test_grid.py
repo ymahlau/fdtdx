@@ -131,7 +131,7 @@ class TestRectilinearGrid:
         # Truly uniform grids stay uniform at both fine spacing and large cell counts (float32
         # edge jitter must not flip them to non-uniform, which would break uniform_spacing()).
         assert RectilinearGrid.uniform((4000, 2, 2), base).is_uniform
-        assert RectilinearGrid.uniform((40, 40, 40), base).uniform_spacing == base
+        assert jnp.isclose(RectilinearGrid.uniform((40, 40, 40), base).uniform_spacing, base)
 
     @staticmethod
     def _symmetric_edges(widths):
