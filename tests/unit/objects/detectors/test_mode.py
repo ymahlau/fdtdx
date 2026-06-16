@@ -5,9 +5,9 @@ from unittest.mock import patch
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from tidy3d.constants import C_0
 
 from fdtdx.config import SimulationConfig
+from fdtdx.constants import c
 from fdtdx.core.grid import RectilinearGrid
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.detectors.mode import ModeOverlapDetector
@@ -415,7 +415,8 @@ class TestModeOverlapDetectorComputeOverlapPath:
         )
         config = SimulationConfig(time=1e-12, grid=grid, backend="cpu")
 
-        frequency_center = C_0 / 2.0
+        center_wavelength = 2.0e-6
+        frequency_center = c / center_wavelength
         frequency_width = frequency_center / 3.0
         frequencies = np.linspace(
             frequency_center - frequency_width,
