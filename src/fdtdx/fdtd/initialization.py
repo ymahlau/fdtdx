@@ -1105,8 +1105,7 @@ def _real_length_to_grid_size(config: SimulationConfig, axis: int, length: float
     """Convert a physical length to a grid-cell count.
 
     Non-uniform grids snap upward so objects always cover at least the
-    requested metric length.  Uniform grids use the historical round-to-nearest
-    rule for exact backwards compatibility.
+    requested metric length.
 
     Requires ``config.grid`` to already be a resolved ``RectilinearGrid``.
     ``place_objects`` guarantees this by resolving the grid from the volume's
@@ -1118,7 +1117,7 @@ def _real_length_to_grid_size(config: SimulationConfig, axis: int, length: float
             "_real_length_to_grid_size requires a resolved RectilinearGrid. "
             "Ensure place_objects has resolved the grid before constraint solving."
         )
-    snap = "upper" if config.has_nonuniform_grid else "nearest"
+    snap = "upper"  # if config.has_nonuniform_grid else "nearest"
     return grid.length_to_cell_count(axis, length, snap=snap)
 
 

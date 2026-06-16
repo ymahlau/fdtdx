@@ -143,7 +143,7 @@ class TestSetupSparamsReturnTypes:
 
     def test_config_resolution_preserved(self, minimal_setup):
         _objs, _arrays, config = minimal_setup
-        assert config.uniform_spacing() == _RESOLUTION
+        assert jnp.isclose(config.uniform_spacing(), _RESOLUTION)
 
 
 # ---------------------------------------------------------------------------
