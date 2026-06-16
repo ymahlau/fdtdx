@@ -2,7 +2,6 @@ multirun
 outputs
 tmp
 slurm-*
-uv.lock
 .jax_cache
 .vscode
 .pytest_cache
