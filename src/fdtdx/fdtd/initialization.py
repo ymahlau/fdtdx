@@ -92,7 +92,28 @@ def place_objects(
     # Step 0: Check if called inside a JIT trace
     check_not_tracing("fdtdx.place_objects")
 
-    # Step 1: Resolve constraints into grid slices
+    # Step 1a: Extract the volume's grid shape from its partial_grid_shape and resolve the grid
+    # policy to a concrete RectilinearGrid before constraint solving.  The SimulationVolume always
+    # specifies its size in cell counts (partial_grid_shape), so this is always available statically
+    # — no chicken-and-egg with constraint resolution.  Pinning the grid here means every constraint
+    # helper receives a config whose resolved_grid is non-None, so they can call RectilinearGrid
+    # methods directly without falling back to policy-level approximations.
+    object_map_pre = {obj.name: obj for obj in object_list}
+    volume_name_pre = _resolve_volume_name(object_map_pre)
+    volume_obj_pre = object_map_pre[volume_name_pre]
+    pre_shape = volume_obj_pre.partial_grid_shape
+    if any(s is None for s in pre_shape):
+        raise ValueError(
+            "SimulationVolume must have a fully specified partial_grid_shape (all three axes) "
+            "before place_objects is called. At least one axis is None."
+        )
+    assert pre_shape[0] is not None and pre_shape[1] is not None and pre_shape[2] is not None
+    pre_volume_shape: tuple[int, int, int] = (pre_shape[0], pre_shape[1], pre_shape[2])
+    if not isinstance(config.grid, RectilinearGrid):
+        pre_grid = config.grid.resolve(pre_volume_shape)
+        config = config.aset("grid", pre_grid)
+
+    # Step 1b: Resolve constraints into grid slices
     resolved_slices, errors = resolve_object_constraints(
         objects=object_list,
         constraints=constraints,
@@ -126,9 +147,10 @@ def place_objects(
             volume_name=volume_name,
         )
 
-    # Step 5: Resolve the user's grid policy onto the (possibly symmetry-reduced) volume shape and
-    # pin a concrete RectilinearGrid into the config before objects see it, so compiled FDTD code has
-    # exactly one metric source matching the domain that is actually simulated.
+    # Step 5: Re-resolve the grid onto the (possibly symmetry-reduced) volume shape and pin it.
+    # For an explicit RectilinearGrid + symmetry, slice the edge arrays onto the kept upper half.
+    # For policy grids, the pre-resolved grid from Step 1a already matches unless symmetry reduced
+    # the shape, in which case we re-resolve onto the smaller domain.
     vol_slice = resolved_slices[volume_obj.name]
     volume_shape: tuple[int, int, int] = (
         vol_slice[0][1] - vol_slice[0][0],
@@ -143,7 +165,7 @@ def place_objects(
         config = config.aset("grid", grid)
     else:
         grid = config.resolve_grid(volume_shape)
-        if not isinstance(config.grid, RectilinearGrid):
+        if not isinstance(config.grid, RectilinearGrid) or config.grid.shape != volume_shape:
             config = config.aset("grid", grid)
     if grid.shape != volume_shape:
         raise ValueError(f"Configured grid shape {grid.shape} does not match simulation volume shape {volume_shape}.")
@@ -154,6 +176,7 @@ def place_objects(
         if name == volume_obj.name or name in dropped_names:
             continue
         obj = object_map[name]
+        assert key is not None
         key, subkey = jax.random.split(key)
         placed_objects.append(
             obj.place_on_grid(
@@ -164,6 +187,7 @@ def place_objects(
         )
 
     # Step 7: Place volume first (index 0)
+    assert key is not None
     key, subkey = jax.random.split(key)
     placed_objects.insert(
         0,
@@ -177,6 +201,7 @@ def place_objects(
     # Step 8: Insert the PEC/PMC symmetry walls and forward the per-axis condition to mode
     # sources/detectors, then warn that the simulation now runs on the reduced domain.
     if config.has_symmetry and reduced_volume_shape is not None:
+        assert key is not None
         key, subkey = jax.random.split(key)
         walls = make_symmetry_walls(
             config=config,
@@ -202,6 +227,7 @@ def place_objects(
     )
 
     # Step 10: Initialize parameters and arrays
+    assert key is not None
     params = _init_params(objects=objects_container, key=key)
     arrays, config, info = _init_arrays(objects=objects_container, config=config)
 
@@ -368,6 +394,7 @@ def apply_params(
     disp_c3 = None if arrays.dispersive_c3 is None else jax.lax.stop_gradient(arrays.dispersive_c3)
     new_objects = []
     for obj in objects.object_list:
+        assert key is not None
         key, subkey = jax.random.split(key)
         new_obj = obj.apply(
             key=subkey,
@@ -1059,39 +1086,50 @@ def _real_length_to_grid_size(config: SimulationConfig, axis: int, length: float
     requested metric length.  Uniform grids use the historical round-to-nearest
     rule for exact backwards compatibility.
 
-    Limitation: on a non-uniform (stretched) grid this helper measures from
-    the lower domain edge, so the returned count reflects the local cell density
-    at the origin rather than at the object's actual placement position.  Objects
-    placed in coarser regions may therefore span more physical length than
-    requested.  A fully location-aware conversion requires knowing the object's
-    anchor position before sizing it, which is not available at this call site.
-    Use ``partial_grid_shape`` to specify sizes in cell counts when exact metric
-    sizing is required on non-uniform grids.
+    Requires ``config.grid`` to already be a resolved ``RectilinearGrid``.
+    ``place_objects`` guarantees this by resolving the grid from the volume's
+    ``partial_grid_shape`` before constraint solving begins.
     """
+    grid = config.resolved_grid
+    if grid is None:
+        raise ValueError(
+            "_real_length_to_grid_size requires a resolved RectilinearGrid. "
+            "Ensure place_objects has resolved the grid before constraint solving."
+        )
     snap = "upper" if config.has_nonuniform_grid else "nearest"
-    return config.grid.length_to_cell_count(axis, length, snap=snap)
+    return grid.length_to_cell_count(axis, length, snap=snap)
 
 
 def _real_coord_to_edge_index(config: SimulationConfig, axis: int, coord: float) -> int:
-    """Snap a physical coordinate to a grid edge index."""
-    return config.grid.coord_to_index(axis, coord, snap="nearest")
+    """Snap a physical coordinate to a grid edge index.
 
-
-def _center_to_bounds_for_grid(
-    config: SimulationConfig, axis: int, real_pos: float, size: int, volume_size: int
-) -> tuple[int, int]:
-    """Convert a center-relative position to edge bounds, accounting for grid geometry.
-
-    real_pos is interpreted relative to the simulation volume center (0 = center of domain).
-    Works for both uniform and non-uniform grids.
+    Requires ``config.grid`` to already be a resolved ``RectilinearGrid``.
     """
-    grid = config.grid
-    if isinstance(grid, RectilinearGrid):
-        edges = grid.edges(axis)
-        volume_center_coord = float(edges[0] + edges[-1]) / 2
-    else:
-        volume_center_coord = grid.origin[axis] + volume_size * grid.spacing / 2
-    return grid.bounds_for_center(axis, real_pos + volume_center_coord, size)
+    grid = config.resolved_grid
+    if grid is None:
+        raise ValueError(
+            "_real_coord_to_edge_index requires a resolved RectilinearGrid. "
+            "Ensure place_objects has resolved the grid before constraint solving."
+        )
+    return grid.coord_to_index(axis, coord, snap="nearest")
+
+
+def _center_to_bounds_for_grid(config: SimulationConfig, axis: int, real_pos: float, size: int) -> tuple[int, int]:
+    """Convert a center-relative position to edge bounds on the resolved grid.
+
+    ``real_pos`` is a physical coordinate relative to the simulation domain
+    center (0 = center, negative = lower half, positive = upper half).
+    ``config.grid`` must already be a resolved ``RectilinearGrid``.
+    """
+    grid = config.resolved_grid
+    if grid is None:
+        raise ValueError(
+            "_center_to_bounds_for_grid requires a resolved RectilinearGrid. "
+            "Ensure place_objects has resolved the grid before constraint solving."
+        )
+    edges = grid.edges(axis)
+    domain_center = (float(edges[0]) + float(edges[-1])) / 2.0
+    return grid.bounds_for_center(axis, real_pos + domain_center, size)
 
 
 def _raise_for_nonuniform_grid_offsets(config: SimulationConfig, values: Sequence[int | None], name: str):
@@ -1126,8 +1164,6 @@ def _resolve_static_positions_initial(
     is known.
     """
 
-    volume_name = _resolve_volume_name(object_map)
-
     for obj_name, obj in object_map.items():
         if hasattr(obj, "partial_real_position") and obj.partial_real_position is not None:
             for axis in range(3):
@@ -1142,17 +1178,11 @@ def _resolve_static_positions_initial(
                 if size is None:
                     continue
 
-                volume_size = shape_dict[volume_name][axis]
-
-                if volume_size is None:
-                    raise ValueError(f"Simulation volume size for axis {axis} is unresolved.")
-
                 lower, upper = _center_to_bounds_for_grid(
                     config=config,
                     axis=axis,
                     real_pos=real_position,
                     size=size,
-                    volume_size=volume_size,
                 )
 
                 slice_dict[obj_name][axis][0] = lower
@@ -1188,8 +1218,6 @@ def _resolve_static_positions_iterative(
 
     resolved_something = False
 
-    volume_name = _resolve_volume_name(object_map)
-
     for obj_name, obj in object_map.items():
         if hasattr(obj, "partial_real_position") and obj.partial_real_position is not None:
             for axis in range(3):
@@ -1211,17 +1239,11 @@ def _resolve_static_positions_iterative(
                 if size is None:
                     continue
 
-                volume_size = shape_dict[volume_name][axis]
-
-                if volume_size is None:
-                    raise ValueError(f"Simulation volume size for axis {axis} is unresolved.")
-
                 lower, upper = _center_to_bounds_for_grid(
                     config=config,
                     axis=axis,
                     real_pos=real_position,
                     size=size,
-                    volume_size=volume_size,
                 )
 
                 # Set or validate lower bound
@@ -1579,6 +1601,12 @@ def _apply_position_constraint(
     slice_dict: dict[str, list[list[int | None]]],
 ):
     """Apply a position constraint between two objects."""
+    grid = config.resolved_grid
+    if grid is None:
+        raise ValueError(
+            "_apply_position_constraint requires a resolved RectilinearGrid. "
+            "Ensure place_objects has resolved the grid before constraint solving."
+        )
     obj_name, other_name = constraint.object, constraint.other_object
     obj = object_map[obj_name]
     resolved_something = False
@@ -1595,7 +1623,7 @@ def _apply_position_constraint(
         object_size = shape_dict[obj_name][axis]
         if object_size is None:
             continue
-        other_anchor = config.grid.anchor_coordinate(
+        other_anchor = grid.anchor_coordinate(
             axis,
             (other_b0, other_b1),
             constraint.other_object_positions[axis_idx],
@@ -1606,7 +1634,7 @@ def _apply_position_constraint(
             # grid_margin is in cell units; nonzero values were rejected for non-uniform grids above,
             # so a zero/None margin must not require uniform_spacing() (which raises on stretched grids).
             other_anchor += grid_margin * config.uniform_spacing()
-        b0, b1 = config.grid.bounds_for_anchor(
+        b0, b1 = grid.bounds_for_anchor(
             axis,
             object_size,
             other_anchor,
@@ -1649,6 +1677,12 @@ def _apply_size_constraint(
     slice_dict: dict[str, list[list[int | None]]] | None = None,
 ):
     """Resolve a size relationship between objects."""
+    grid = config.resolved_grid
+    if grid is None:
+        raise ValueError(
+            "_apply_size_constraint requires a resolved RectilinearGrid. "
+            "Ensure place_objects has resolved the grid before constraint solving."
+        )
     obj_name, other_name = constraint.object, constraint.other_object
     obj = object_map[obj_name]
     resolved_something = False
@@ -1666,7 +1700,7 @@ def _apply_size_constraint(
         other_b0, other_b1 = slice_dict[other_name][other_axes]
         if other_b0 is None or other_b1 is None:
             continue
-        other_length = config.grid.axis_extent(other_axes, (other_b0, other_b1))
+        other_length = grid.axis_extent(other_axes, (other_b0, other_b1))
         target_length = other_length * proportion
         if constraint.offsets[axis_idx] is not None:
             target_length += constraint.offsets[axis_idx]
@@ -1697,6 +1731,12 @@ def _apply_size_extension_constraint(
     slice_dict: dict[str, list[list[int | None]]],
     volume_name: str,
 ):
+    grid = config.resolved_grid
+    if grid is None:
+        raise ValueError(
+            "_apply_size_extension_constraint requires a resolved RectilinearGrid. "
+            "Ensure place_objects has resolved the grid before constraint solving."
+        )
     obj_name, other_name = constraint.object, constraint.other_object
     obj = object_map[obj_name]
     dir_idx = 0 if constraint.direction == "-" else 1
@@ -1708,7 +1748,7 @@ def _apply_size_extension_constraint(
         other_b0, other_b1 = slice_dict[other_name][constraint.axis]
         if other_b0 is None or other_b1 is None:
             return False, slice_dict
-        other_anchor_coord = config.grid.anchor_coordinate(
+        other_anchor_coord = grid.anchor_coordinate(
             constraint.axis,
             (other_b0, other_b1),
             constraint.other_position,
@@ -1719,7 +1759,7 @@ def _apply_size_extension_constraint(
             # grid_offset is in cell units; nonzero values were rejected for non-uniform grids above,
             # so a zero/None offset must not require uniform_spacing() (which raises on stretched grids).
             other_anchor_coord += constraint.grid_offset * config.uniform_spacing()
-        other_anchor = config.grid.coord_to_index(constraint.axis, other_anchor_coord, snap="nearest")
+        other_anchor = grid.coord_to_index(constraint.axis, other_anchor_coord, snap="nearest")
     else:
         # if other is not specified, extend to boundary of simulation volume
         other_anchor = slice_dict[volume_name][constraint.axis][dir_idx]

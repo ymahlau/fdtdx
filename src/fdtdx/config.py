@@ -6,7 +6,7 @@ import jax.numpy as jnp
 from loguru import logger
 
 from fdtdx import constants
-from fdtdx.core.grid import RectilinearGrid, UniformGrid
+from fdtdx.core.grid import QuasiUniformGrid, RectilinearGrid, UniformGrid
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field
 from fdtdx.interfaces.recorder import Recorder
 from fdtdx.typing import BackendOption
@@ -58,7 +58,7 @@ class SimulationConfig(TreeClass):
     #: is still being inferred.  ``RectilinearGrid`` is the realized solver grid
     #: with explicit physical edge coordinates.  Placement resolves policies to
     #: ``RectilinearGrid`` so compiled FDTD code has exactly one metric source.
-    grid: UniformGrid | RectilinearGrid = field()
+    grid: UniformGrid | QuasiUniformGrid | RectilinearGrid = field()
 
     #: Computation backend ('gpu', 'tpu', 'cpu' or 'METAL'). Defaults to "gpu".
     backend: BackendOption = frozen_field(default="gpu")
@@ -200,7 +200,15 @@ class SimulationConfig(TreeClass):
         """
         if isinstance(self.grid, UniformGrid):
             return self.grid.spacing
-        return self.grid.uniform_spacing
+        if isinstance(self.grid, QuasiUniformGrid):
+            if self.grid.is_uniform:
+                return self.grid.dx
+            else:
+                raise ValueError(
+                    "QuasiUniformGrid has no single uniform spacing:"
+                    f" ({self.grid.dx}, {self.grid.dy}, {self.grid.dz} differ). "
+                )
+        return self.grid.uniform_spacing  # RectilinearGrid — raises internally if non-uniform
 
     @property
     def time_step_duration(self) -> float:
@@ -209,7 +217,8 @@ class SimulationConfig(TreeClass):
         The time step duration is determined by the Courant condition to ensure
         numerical stability. Realized rectilinear grids use their smallest
         per-axis spacings. Unresolved uniform grids use their configured scalar
-        spacing.
+        spacing; unresolved quasi-uniform grids use their smallest per-axis
+        spacing as a conservative CFL bound.
 
         Returns:
             float: Time step duration in seconds, calculated using the Courant
@@ -217,7 +226,11 @@ class SimulationConfig(TreeClass):
         """
         if isinstance(self.grid, RectilinearGrid):
             return self.grid.cfl_time_step(self.courant_factor)
-        return self.courant_number * self.grid.spacing / constants.c
+        if isinstance(self.grid, UniformGrid):
+            return self.courant_number * self.grid.spacing / constants.c
+        if isinstance(self.grid, QuasiUniformGrid):
+            return self.courant_number * self.grid.min_spacing / constants.c
+        raise NotImplementedError(f"time_step_duration is not implemented for grid type {type(self.grid).__name__}.")
 
     @property
     def time_steps_total(self) -> int:
