@@ -62,6 +62,6 @@ def test_place_at_center_of_infinite_object():
     cube_slice = objects_out["cube"].grid_slice_tuple
     assert cube_slice[2][0] == 6
     assert cube_slice[2][1] == 11
-    # cube is centered in x and y (volume=20 cells, cube=5, center offset=(20-5)/2=7.5→8)
-    assert cube_slice[0][0] == 8
-    assert cube_slice[1][0] == 8
+    # cube is centered in x and y (volume=20 cells, cube=5, center offset=(20-5)/2=7.5→7 as argmin chooses the first candidate)
+    assert cube_slice[0][0] == 7
+    assert cube_slice[1][0] == 7

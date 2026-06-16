@@ -8,7 +8,7 @@ from loguru import logger
 
 from fdtdx import constants
 from fdtdx.config import SimulationConfig
-from fdtdx.core.grid import RectilinearGrid
+from fdtdx.core.grid import QuasiUniformGrid, RectilinearGrid
 from fdtdx.core.jax.default_key import default_key
 from fdtdx.core.jax.guards import check_not_tracing
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
@@ -55,6 +55,42 @@ AnyConstraint = (
 )
 
 
+def _resolve_grid_from_volume(
+    objects: Sequence[SimulationObject],
+    config: SimulationConfig,
+) -> SimulationConfig:
+    """Resolve an unresolved grid policy using the volume's declared shape.
+
+    If ``config.grid`` is already a ``RectilinearGrid`` this is a no-op.
+    The volume's ``partial_grid_shape`` takes priority; ``partial_real_shape``
+    is converted using the policy's per-axis spacing as a fallback.
+    """
+    if isinstance(config.grid, RectilinearGrid):
+        return config
+    object_map = {obj.name: obj for obj in objects}
+    volume_obj = object_map[_resolve_volume_name(object_map)]
+    pre_shape_list: list[int] = []
+    for axis in range(3):
+        n = volume_obj.partial_grid_shape[axis]
+        if n is not None:
+            pre_shape_list.append(n)
+            continue
+        length = volume_obj.partial_real_shape[axis]
+        if length is not None:
+            spacing = (
+                config.grid.axis_spacing(axis) if isinstance(config.grid, QuasiUniformGrid) else config.grid.spacing
+            )
+            pre_shape_list.append(round(length / spacing))
+            continue
+        raise ValueError(
+            f"SimulationVolume axis {axis} has neither partial_grid_shape nor "
+            f"partial_real_shape. At least one must be specified so the grid "
+            f"can be resolved before constraint solving."
+        )
+    pre_volume_shape: tuple[int, int, int] = (pre_shape_list[0], pre_shape_list[1], pre_shape_list[2])
+    return config.aset("grid", config.grid.resolve(pre_volume_shape))
+
+
 def place_objects(
     object_list: Sequence[SimulationObject],
     config: SimulationConfig,
@@ -92,26 +128,11 @@ def place_objects(
     # Step 0: Check if called inside a JIT trace
     check_not_tracing("fdtdx.place_objects")
 
-    # Step 1a: Extract the volume's grid shape from its partial_grid_shape and resolve the grid
-    # policy to a concrete RectilinearGrid before constraint solving.  The SimulationVolume always
-    # specifies its size in cell counts (partial_grid_shape), so this is always available statically
-    # — no chicken-and-egg with constraint resolution.  Pinning the grid here means every constraint
-    # helper receives a config whose resolved_grid is non-None, so they can call RectilinearGrid
-    # methods directly without falling back to policy-level approximations.
-    object_map_pre = {obj.name: obj for obj in object_list}
-    volume_name_pre = _resolve_volume_name(object_map_pre)
-    volume_obj_pre = object_map_pre[volume_name_pre]
-    pre_shape = volume_obj_pre.partial_grid_shape
-    if any(s is None for s in pre_shape):
-        raise ValueError(
-            "SimulationVolume must have a fully specified partial_grid_shape (all three axes) "
-            "before place_objects is called. At least one axis is None."
-        )
-    assert pre_shape[0] is not None and pre_shape[1] is not None and pre_shape[2] is not None
-    pre_volume_shape: tuple[int, int, int] = (pre_shape[0], pre_shape[1], pre_shape[2])
-    if not isinstance(config.grid, RectilinearGrid):
-        pre_grid = config.grid.resolve(pre_volume_shape)
-        config = config.aset("grid", pre_grid)
+    # Step 1a: Extract the volume's shape before constraint solving to resolve the grid early.
+    # The volume defines the domain, so its shape must be determinable from its own fields alone —
+    # either from partial_grid_shape (cell counts, direct) or partial_real_shape (metres, converted
+    # using the policy spacing, which is available without knowing shape).
+    config = _resolve_grid_from_volume(object_list, config)
 
     # Step 1b: Resolve constraints into grid slices
     resolved_slices, errors = resolve_object_constraints(
@@ -972,6 +993,7 @@ def resolve_object_constraints(
     max_iter: int = DEFAULT_MAX_ITER,
 ) -> tuple[dict, dict]:
     """Resolve object constraints into grid slices and shapes."""
+    config = _resolve_grid_from_volume(objects, config)
     # Sanity check: Ensure all objects have unique names
     object_names = [obj.name for obj in objects]
     duplicates = {name for name in object_names if object_names.count(name) > 1}

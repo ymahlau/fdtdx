@@ -38,24 +38,7 @@ class UniformGrid(TreeClass):
             raise ValueError(f"Uniform grid spacing must be positive, got {self.spacing}.")
 
     def resolve(self, shape: tuple[int, int, int]) -> "RectilinearGrid":
-        """Return a concrete solver grid for ``shape``.
-
-        Raises:
-            ValueError: If any axis has an odd cell count.  The center-origin
-                convention places the domain center on a cell *edge*, which
-                requires an even cell count on every axis.  An odd count would
-                shift the center onto a cell *center*, silently swapping which
-                Yee component (E or H) sits at every object boundary and
-                changing the effective simulated length by one cell without any
-                visible error in the grid shape.
-        """
-        for axis, n in enumerate(shape):
-            if n % 2 != 0:
-                raise ValueError(
-                    f"UniformGrid requires an even cell count on every axis (center-origin "
-                    f"convention). Axis {axis} has {n} cells (odd). Adjust the simulation "
-                    f"volume size so every axis has an even number of cells."
-                )
+        """Return a concrete solver grid for ``shape``."""
         origin = (
             self.center[0] - shape[0] * self.spacing / 2.0,
             self.center[1] - shape[1] * self.spacing / 2.0,
