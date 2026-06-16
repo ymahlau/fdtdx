@@ -1117,7 +1117,7 @@ def _real_length_to_grid_size(config: SimulationConfig, axis: int, length: float
             "_real_length_to_grid_size requires a resolved RectilinearGrid. "
             "Ensure place_objects has resolved the grid before constraint solving."
         )
-    snap = "upper"  # if config.has_nonuniform_grid else "nearest"
+    snap = "upper" if config.has_nonuniform_grid else "nearest"
     return grid.length_to_cell_count(axis, length, snap=snap)
 
 
