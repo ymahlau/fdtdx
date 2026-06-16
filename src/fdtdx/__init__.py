@@ -1,10 +1,9 @@
 import sys
 import warnings
 
-if sys.version_info >= (3, 14):
+if sys.version_info >= (3, 15):
     warnings.warn(
-        "Python 3.14+ is not supported by fdtdx. Expect crashes and unknown errors. "
-        "Support for Python 3.14 will be added in the coming months.",
+        "Python 3.15+ is not supported by fdtdx. Expect crashes and unknown errors.",
         UserWarning,
         stacklevel=2,
     )

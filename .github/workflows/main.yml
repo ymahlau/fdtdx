@@ -43,7 +43,7 @@ jobs:
       id-token: write
     strategy:
       matrix:
-        python-version: ["3.11"]
+        python-version: ["3.11", "3.14"]
       fail-fast: false
     defaults:
       run:
