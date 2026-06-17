@@ -153,9 +153,10 @@ class GDSLayerObject(StaticMultiMaterialObject):
         grid = self._config.resolved_grid
         if grid is None:
             res = self._config.uniform_spacing()
-            # Adjust boundary to be centered around the origin
+            half = res / 2.0
+            # Use cell centers boundaries
             mask_2d = multi_polygons_to_mask(
-                boundary=(-real_h / 2, -real_v / 2, real_h / 2, real_v / 2),
+                boundary=(-real_h / 2 + half, -real_v / 2 + half, real_h / 2 - half, real_v / 2 - half),
                 resolution=res,
                 polygon_list=local_polygons,
             )
