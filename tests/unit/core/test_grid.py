@@ -470,11 +470,11 @@ class TestQuasiUniformGrid:
     # ---------------------------------------------------------------------------
 
     @pytest.fixture
-    def material():
+    def material(self):
         return Material()
 
     @pytest.fixture
-    def anisotropic_config():
+    def anisotropic_config(self):
         """dx=dy=100 nm, dz=200 nm — genuinely anisotropic."""
         return SimulationConfig(
             grid=QuasiUniformGrid(dx=100e-9, dy=100e-9, dz=200e-9),
@@ -482,7 +482,7 @@ class TestQuasiUniformGrid:
         )
 
     @pytest.fixture
-    def isotropic_quasi_config():
+    def isotropic_quasi_config(self):
         """QuasiUniformGrid with equal spacings — treated as uniform by the grid guards."""
         return SimulationConfig(
             grid=QuasiUniformGrid(dx=100e-9, dy=100e-9, dz=100e-9),
