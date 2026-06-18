@@ -8,7 +8,6 @@ if sys.version_info >= (3, 15):
         stacklevel=2,
     )
 
-from fdtdx import constants
 from fdtdx.colors import Color
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.constants import wavelength_to_period
@@ -137,6 +136,16 @@ from fdtdx.utils.sparams import PortSpec, calculate_sparam, calculate_sparams, s
 # PeriodicBoundary is now an alias for BlochBoundary with bloch_vector=(0,0,0)
 PeriodicBoundary = BlochBoundary
 
+#: Type alias for detector state: maps detector output names to JAX arrays.
+DetectorState = DetectorState
+
+#: Type alias for parameter dictionaries. Maps parameter names to JAX arrays or
+#: nested dicts of JAX arrays.
+ParameterContainer = ParameterContainer
+
+#: Type alias for simulation state: a tuple of (time_step, ArrayContainer).
+SimulationState = SimulationState
+
 __all__ = [
     "ArrayContainer",
     "BinaryMedianFilterModule",
@@ -231,7 +240,6 @@ __all__ = [
     "compute_mode",
     "compute_pole_coefficients",
     "compute_poynting_flux",
-    "constants",
     "detectors_from_gds_ports",
     "export_arrays_snapshot_to_vti",
     "export_json",
