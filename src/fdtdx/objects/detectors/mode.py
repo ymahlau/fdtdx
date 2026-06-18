@@ -206,16 +206,16 @@ class ModeOverlapDetector(PhasorDetector):
         state: DetectorState,
         mode_E: jax.Array,
         mode_H: jax.Array,
-        freq_idx: int = 0,
+        wave_character_index: int = 0,
     ) -> jax.Array:
-        """Compute the overlap integral of *one* mode against phasors at ``freq_idx``.
+        """Compute the overlap integral of *one* mode against phasors at ``wave_character_index``.
 
         Args:
             state: Detector state holding the phasor array of shape
                 ``(1, num_freqs, 6, *spatial)``.
             mode_E: Electric mode field of shape ``(3, *spatial)``.
             mode_H: Magnetic mode field of shape ``(3, *spatial)``.
-            freq_idx: Index into the phasor frequency axis to use.
+            wave_character_index: Index into the phasor frequency axis to use.
 
         Returns:
             Complex scalar overlap coefficient.
@@ -223,7 +223,7 @@ class ModeOverlapDetector(PhasorDetector):
         # shape (time step, num_freqs, num_components, *spatial)
         # time steps is always 1 and num_components always 6
         phasors = state["phasor"]
-        phasors_E, phasors_H = phasors[0, freq_idx, :3], phasors[0, freq_idx, 3:]
+        phasors_E, phasors_H = phasors[0, wave_character_index, :3], phasors[0, wave_character_index, 3:]
 
         E_cross_H_star_sim = jnp.cross(
             mode_E,
@@ -263,7 +263,7 @@ class ModeOverlapDetector(PhasorDetector):
                 state=state,
                 mode_E=self._mode_E[i],
                 mode_H=self._mode_H[i],
-                freq_idx=i,
+                wave_character_index=i,
             )
             for i in range(len(self.wave_characters))
         ]
