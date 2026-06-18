@@ -993,7 +993,6 @@ def resolve_object_constraints(
     max_iter: int = DEFAULT_MAX_ITER,
 ) -> tuple[dict, dict]:
     """Resolve object constraints into grid slices and shapes."""
-    config = _resolve_grid_from_volume(objects, config)
     # Sanity check: Ensure all objects have unique names
     object_names = [obj.name for obj in objects]
     duplicates = {name for name in object_names if object_names.count(name) > 1}
@@ -1012,6 +1011,9 @@ def resolve_object_constraints(
         constraints=constraints,
         object_names=object_names,
     )
+
+    # Resolve grid before applying constraints
+    config = _resolve_grid_from_volume(objects, config)
 
     # Apply constraints iteratively
     resolved, errors = _apply_constraints_iteratively(
@@ -1486,7 +1488,7 @@ def _resolve_static_shapes(
         for axis in range(3):
             if obj.partial_grid_shape[axis] is not None:
                 shape_dict[obj_name][axis] = obj.partial_grid_shape[axis]
-            if obj.partial_real_shape[axis] is not None:
+            elif obj.partial_real_shape[axis] is not None:
                 cur_grid_shape = _real_length_to_grid_size(config, axis, obj.partial_real_shape[axis])  # type: ignore
                 shape_dict[obj_name][axis] = cur_grid_shape
     return shape_dict

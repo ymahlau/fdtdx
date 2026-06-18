@@ -80,13 +80,11 @@ class UniformGrid(TreeClass):
     def coord_to_index(self, axis: int, coord: float, snap: str = "nearest") -> int:
         """Map a physical coordinate to a uniform-grid edge index.
 
-        The grid is centered at ``self.center``, so index 0 corresponds to the
-        lower domain edge at ``center[axis] - shape[axis] * spacing / 2``.
-        Because the shape is not yet known at policy time, this method assumes
-        the caller is working with a coordinate that is already relative to the
-        lower edge (i.e. it measures the offset from the lower corner, not from
-        the center).  Use :meth:`RectilinearGrid.coord_to_index` on the resolved
-        grid for center-aware snapping.
+        Because unresolved policies do not yet know ``shape``, this helper uses
+        a center-relative basis: ``coord`` is interpreted relative to
+        ``self.center[axis]`` and the returned index is a center-relative edge
+        offset. Use :meth:`RectilinearGrid.coord_to_index` on the resolved grid
+        when you need absolute edge indices.
         """
         origin_offset = coord - self.center[axis]
         scaled = origin_offset / self.spacing
