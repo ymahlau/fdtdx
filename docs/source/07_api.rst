@@ -8,21 +8,31 @@ API
     fdtdx.ArrayContainer
     fdtdx.autoinit
     fdtdx.BinaryMedianFilterModule
+    fdtdx.BlochBoundary
     fdtdx.boundary_objects_from_config
     fdtdx.BoundaryConfig
     fdtdx.BrushConstraint2D
+    fdtdx.calculate_sparam
+    fdtdx.calculate_sparams
     fdtdx.circular_brush
     fdtdx.ClosestIndex
-    fdtdx.colors.Color
+    fdtdx.Color
     fdtdx.compute_energy
+    fdtdx.compute_eps_spectrum_from_coefficients
+    fdtdx.compute_impedance_corrected_temporal_profile
     fdtdx.compute_mode
+    fdtdx.compute_pole_coefficients
     fdtdx.compute_poynting_flux
     fdtdx.ConnectHolesAndStructures
     fdtdx.CustomTimeSignalProfile
     fdtdx.Cylinder
     fdtdx.Detector
+    fdtdx.DetectorState
     fdtdx.Device
     fdtdx.DiagonalSymmetry2D
+    fdtdx.DiagonalSymmetry3D
+    fdtdx.DispersionModel
+    fdtdx.DrudePole
     fdtdx.DtypeConversion
     fdtdx.EnergyDetector
     fdtdx.export_arrays_snapshot_to_vti
@@ -30,9 +40,14 @@ API
     fdtdx.export_json_str
     fdtdx.export_stl
     fdtdx.export_vti
+    fdtdx.export_vtr
+    fdtdx.extend_material_to_pml
     fdtdx.ExtrudedPolygon
+    fdtdx.extruded_polygon_from_gds
+    fdtdx.extruded_polygon_from_gds_path
     fdtdx.field
     fdtdx.FieldDetector
+    fdtdx.FieldState
     fdtdx.frozen_field
     fdtdx.frozen_private_field
     fdtdx.full_backward
@@ -41,9 +56,12 @@ API
     fdtdx.GaussianSmoothing2D
     fdtdx.GradientConfig
     fdtdx.GridCoordinateConstraint
+    fdtdx.HorizontalSymmetry2D
+    fdtdx.HorizontalSymmetry3D
     fdtdx.import_from_json
     fdtdx.LinearReconstructEveryK
     fdtdx.Logger
+    fdtdx.LorentzPole
     fdtdx.Material
     fdtdx.metric_efficiency
     fdtdx.ModeOverlapDetector
@@ -52,28 +70,37 @@ API
     fdtdx.normalize_by_poynting_flux
     fdtdx.ObjectContainer
     fdtdx.OnOffSwitch
+    fdtdx.ParameterContainer
     fdtdx.ParameterTransformation
+    fdtdx.PerfectElectricConductor
+    fdtdx.PerfectMagneticConductor
     fdtdx.PerfectlyMatchedLayer
     fdtdx.PeriodicBoundary
     fdtdx.PhasorDetector
     fdtdx.PillarDiscretization
     fdtdx.place_objects
+    fdtdx.plot_field_slice
+    fdtdx.plot_field_slice_component
+    fdtdx.plot_material
+    fdtdx.plot_material_from_side
     fdtdx.plot_setup
     fdtdx.plot_setup_from_side
-    fdtdx.plot_setup_from_side
-    fdtdx.plot_material_from_side
-    fdtdx.plot_material
-    fdtdx.plot_field_slice_component
-    fdtdx.plot_field_slice
+    fdtdx.PointDipoleSource
+    fdtdx.PointSymmetry2D
+    fdtdx.PointSymmetry3D
+    fdtdx.Pole
+    fdtdx.PortSpec
     fdtdx.PositionConstraint
     fdtdx.PoyntingFluxDetector
     fdtdx.private_field
     fdtdx.RealCoordinateConstraint
     fdtdx.Recorder
     fdtdx.RecordingState
+    fdtdx.RectilinearGrid
     fdtdx.RemoveFloatingMaterial
-    fdtdx.run_fdtd
     fdtdx.resolve_object_constraints
+    fdtdx.run_fdtd
+    fdtdx.setup_sparams_simulation
     fdtdx.SimulationConfig
     fdtdx.SimulationObject
     fdtdx.SimulationState
@@ -89,7 +116,17 @@ API
     fdtdx.TanhProjection
     fdtdx.TemporalProfile
     fdtdx.TreeClass
+    fdtdx.UniformGrid
     fdtdx.UniformMaterialObject
     fdtdx.UniformPlaneSource
+    fdtdx.VerticalSymmetry2D
+    fdtdx.VerticalSymmetry3D
     fdtdx.WaveCharacter
     fdtdx.wavelength_to_period
+    fdtdx.GDSLayerObject
+    fdtdx.GDSLayerSpec
+    fdtdx.GDSPortSpec
+    fdtdx.detectors_from_gds_ports
+    fdtdx.gds_layer_stack
+    fdtdx.gds_layer_stack_from_component
+    fdtdx.sources_from_gds_ports

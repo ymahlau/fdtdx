@@ -500,7 +500,8 @@ class TestCalculateSparamMultiSource:
 
         result, _states, _objs = two_source_sparam_result
         for (det_name, _), s_param in result.items():
-            assert jnp.isfinite(jnp.abs(s_param)), f"S-param for {det_name!r} is not finite"
+            assert s_param.shape == (1,)
+            assert jnp.all(jnp.isfinite(jnp.abs(s_param))), f"S-param for {det_name!r} is not finite"
 
 
 # ---------------------------------------------------------------------------
@@ -611,4 +612,5 @@ class TestCalculateSparamsWrapper:
     def test_s_params_are_finite(self, sparams_wrapper_result):
         result, _states, _objs = sparams_wrapper_result
         for (det_name, _), s_param in result.items():
-            assert jnp.isfinite(jnp.abs(s_param)), f"S-param for {det_name!r} is not finite"
+            assert s_param.shape == (1,)
+            assert jnp.all(jnp.isfinite(jnp.abs(s_param))), f"S-param for {det_name!r} is not finite"

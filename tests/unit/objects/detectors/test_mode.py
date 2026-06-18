@@ -3,9 +3,11 @@
 from unittest.mock import patch
 
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.constants import c
 from fdtdx.core.grid import RectilinearGrid
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.detectors.mode import ModeOverlapDetector
@@ -132,13 +134,13 @@ class TestModeOverlapDetectorPlaceOnGrid:
         placed = det.place_on_grid(plane_grid_slice, simulation_config, random_key)
         assert placed is not None
 
-    def test_multiple_wave_chars_raises_not_implemented(
+    def test_multiple_wave_chars_placement_succeeds(
         self, simulation_config, plane_grid_slice, random_key, two_frequencies
     ):
-        """Multiple wave characters raise NotImplementedError (not yet supported)."""
+        """Multiple wave characters placement succeeds."""
         det = ModeOverlapDetector(wave_characters=two_frequencies, direction="+")
-        with pytest.raises(NotImplementedError):
-            det.place_on_grid(plane_grid_slice, simulation_config, random_key)
+        placed = det.place_on_grid(plane_grid_slice, simulation_config, random_key)
+        assert placed is not None
 
 
 class TestModeOverlapDetectorComputeOverlap:
@@ -395,6 +397,78 @@ class TestModeOverlapDetectorComputeOverlap:
 class TestModeOverlapDetectorComputeOverlapPath:
     """Tests for compute_overlap() - the stored-mode path (via aset)."""
 
+    @staticmethod
+    def _layered_waveguide_detector(mode_index, random_key):
+        """Build an asymmetric layered waveguide with frequency-dependent mode ordering.
+
+        The unequal upper and lower high-index layers support higher-order mode
+        families with different dispersion. Their effective-index curves cross
+        over this sweep, so sorting each frequency only by effective index swaps
+        the modes stored at indices 5 and 6.
+        """
+        spacing = 0.1e-6
+        transverse_edges = jnp.arange(-5e-6, 5e-6 + spacing / 2, spacing)
+        grid = RectilinearGrid(
+            x_edges=transverse_edges,
+            y_edges=jnp.asarray([0.0, spacing]),
+            z_edges=transverse_edges,
+        )
+        config = SimulationConfig(time=1e-12, grid=grid, backend="cpu")
+
+        center_wavelength = 2.0e-6
+        frequency_center = c / center_wavelength
+        frequency_width = frequency_center / 3.0
+        frequencies = np.linspace(
+            frequency_center - frequency_width,
+            frequency_center + frequency_width,
+            7,
+        )
+        det = ModeOverlapDetector(
+            wave_characters=[WaveCharacter(frequency=float(frequency)) for frequency in frequencies],
+            direction="+",
+            mode_index=mode_index,
+        )
+        det = det.place_on_grid(((0, 100), (0, 1), (0, 100)), config, random_key)
+
+        centers_um = 0.5 * (np.asarray(transverse_edges[:-1]) + np.asarray(transverse_edges[1:])) / 1e-6
+        x, z = np.meshgrid(centers_um, centers_um, indexing="ij")
+        permittivity = np.ones_like(x)
+        permittivity[(np.abs(x) <= 0.75) & (np.abs(z) <= 0.5)] = 4.0
+        permittivity[(np.abs(x) <= 0.75) & (z >= -1.3) & (z <= -0.3)] = 8.0
+        permittivity[(np.abs(x) <= 0.75) & (z >= 0.3) & (z <= 1.1)] = 8.0
+        inv_permittivity = jnp.asarray(1.0 / permittivity, dtype=jnp.float32)[None, :, None, :]
+
+        return det.apply(random_key, inv_permittivity, 1.0)
+
+    @staticmethod
+    def _minimum_consecutive_mode_overlap(det):
+        consecutive_overlaps = []
+        for mode_a, mode_b in zip(det._mode_E[:-1], det._mode_E[1:], strict=True):
+            mode_a = mode_a.ravel()
+            mode_b = mode_b.ravel()
+            overlap = jnp.abs(jnp.vdot(mode_a, mode_b)) / jnp.sqrt(
+                jnp.real(jnp.vdot(mode_a, mode_a)) * jnp.real(jnp.vdot(mode_b, mode_b))
+            )
+            consecutive_overlaps.append(overlap)
+
+        return jnp.min(jnp.asarray(consecutive_overlaps))
+
+    def test_multifrequency_apply_keeps_fundamental_mode_identity(self, random_key):
+        """The real fundamental mode remains continuous across the frequency sweep."""
+        det = self._layered_waveguide_detector(mode_index=0, random_key=random_key)
+
+        assert self._minimum_consecutive_mode_overlap(det) > 0.9
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason="ModeOverlapDetector solves each frequency independently and does not track physical mode identity",
+    )
+    def test_multifrequency_apply_tracks_higher_order_mode_identity(self, random_key):
+        """The real higher-order mode requires overlap tracking across frequencies."""
+        det = self._layered_waveguide_detector(mode_index=5, random_key=random_key)
+
+        assert self._minimum_consecutive_mode_overlap(det) > 0.9
+
     def test_compute_overlap_without_apply_raises(
         self, single_frequency, simulation_config, plane_grid_slice, random_key
     ):
@@ -421,21 +495,23 @@ class TestModeOverlapDetectorComputeOverlapPath:
         det = ModeOverlapDetector(wave_characters=single_frequency, direction="+")
         det = det.place_on_grid(plane_grid_slice, simulation_config, random_key)
 
-        # Manually set mode fields (simulating what apply() would do)
-        mode_E = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64) * 0.5
-        mode_H = jnp.ones((3, 8, 8, 1), dtype=jnp.complex64) * 0.5
+        # Manually set mode fields (simulating what apply() would do).
+        # Shape is (N, 3, *spatial) where N=len(wave_characters)=1.
+        mode_E = jnp.ones((1, 3, 8, 8, 1), dtype=jnp.complex64) * 0.5
+        mode_H = jnp.ones((1, 3, 8, 8, 1), dtype=jnp.complex64) * 0.5
         det = det.aset("_mode_E", mode_E, create_new_ok=True)
         det = det.aset("_mode_H", mode_H, create_new_ok=True)
 
         state = det.init_state()
         state = det.update(jnp.array(0), constant_E_field, constant_H_field, state, inv_permittivity, inv_permeability)
 
-        # compute_overlap() should work and give same result as compute_overlap_to_mode()
+        # compute_overlap() returns (N,); compute_overlap_to_mode returns a scalar.
         result_stored = det.compute_overlap(state=state)
-        result_explicit = det.compute_overlap_to_mode(state=state, mode_E=mode_E, mode_H=mode_H)
+        result_explicit = det.compute_overlap_to_mode(state=state, mode_E=mode_E[0], mode_H=mode_H[0])
 
         assert jnp.iscomplexobj(result_stored)
-        assert jnp.isclose(result_stored, result_explicit)
+        assert result_stored.shape == (1,)
+        assert jnp.isclose(result_stored[0], result_explicit)
 
 
 class TestModeOverlapDetectorBentWaveguide:
