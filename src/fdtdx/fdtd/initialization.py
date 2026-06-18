@@ -202,14 +202,32 @@ def place_objects(
     )
 
     # Step 10: Initialize parameters and arrays
-    params = _init_params(objects=objects_container, key=key)
+    key, subkey = jax.random.split(key)
+    params = _init_params(objects=objects_container, key=subkey)
     arrays, config, info = _init_arrays(objects=objects_container, config=config)
 
-    # Step 11: Update object configs with compiled configuration
+    # Step 11: Update object configs and apply objects if possible
+    disp_c1 = None if arrays.dispersive_c1 is None else jax.lax.stop_gradient(arrays.dispersive_c1)
+    disp_c2 = None if arrays.dispersive_c2 is None else jax.lax.stop_gradient(arrays.dispersive_c2)
+    disp_c3 = None if arrays.dispersive_c3 is None else jax.lax.stop_gradient(arrays.dispersive_c3)
     new_object_list = []
-    for o in objects_container.objects:
-        o = o.aset("_config", config)
-        new_object_list.append(o)
+    devices = objects_container.devices
+    for obj in objects_container.objects:
+        # Update object configs with compiled configuration
+        obj = obj.aset("_config", config)
+
+        # Apply objects which do not depend on any devices
+        if not any([d.check_overlap(obj) for d in devices]):
+            key, subkey = jax.random.split(key)
+            obj = obj.apply(
+                key=subkey,
+                inv_permittivities=jax.lax.stop_gradient(arrays.inv_permittivities),
+                inv_permeabilities=jax.lax.stop_gradient(arrays.inv_permeabilities),
+                dispersive_c1=disp_c1,
+                dispersive_c2=disp_c2,
+                dispersive_c3=disp_c3,
+            )
+        new_object_list.append(obj)
 
     objects_container = ObjectContainer(
         object_list=new_object_list,
@@ -367,17 +385,20 @@ def apply_params(
     disp_c2 = None if arrays.dispersive_c2 is None else jax.lax.stop_gradient(arrays.dispersive_c2)
     disp_c3 = None if arrays.dispersive_c3 is None else jax.lax.stop_gradient(arrays.dispersive_c3)
     new_objects = []
+    devices = objects.devices
     for obj in objects.object_list:
-        key, subkey = jax.random.split(key)
-        new_obj = obj.apply(
-            key=subkey,
-            inv_permittivities=jax.lax.stop_gradient(arrays.inv_permittivities),
-            inv_permeabilities=jax.lax.stop_gradient(arrays.inv_permeabilities),
-            dispersive_c1=disp_c1,
-            dispersive_c2=disp_c2,
-            dispersive_c3=disp_c3,
-        )
-        new_objects.append(new_obj)
+        # Only need to apply objects that overlap with devices, the others were applied in place_objects
+        if any([d.check_overlap(obj) for d in devices]):
+            key, subkey = jax.random.split(key)
+            obj = obj.apply(
+                key=subkey,
+                inv_permittivities=jax.lax.stop_gradient(arrays.inv_permittivities),
+                inv_permeabilities=jax.lax.stop_gradient(arrays.inv_permeabilities),
+                dispersive_c1=disp_c1,
+                dispersive_c2=disp_c2,
+                dispersive_c3=disp_c3,
+            )
+        new_objects.append(obj)
     new_objects = ObjectContainer(
         object_list=new_objects,
         volume_idx=objects.volume_idx,
