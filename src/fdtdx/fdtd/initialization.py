@@ -1128,7 +1128,7 @@ def _real_length_to_grid_size(config: SimulationConfig, axis: int, length: float
 
     # If the object's end lands exactly on a grid edge, use the nearest index
     # to avoid upper-snap overshooting (e.g., 2.0 in [0.0, 2.0, 5.0] -> index 1, not 2)
-    if abs(end_coord - edges[end_index]) < 1e-10:
+    if abs(end_coord - edges[end_index]) < 1e-6 * grid.min_spacing:
         return end_index
 
     # Otherwise, use upper snapping to ensure coverage, then clamp to grid size
@@ -1593,15 +1593,15 @@ def _apply_grid_coordinate_constraint(
     obj = object_map[obj_name]
     resolved_something = False
     for axis_idx, axis in enumerate(constraint.axes):
-        cur_size = constraint.coordinates[axis_idx]
+        edge_index = constraint.coordinates[axis_idx]
         b_idx = 0 if constraint.sides[axis_idx] == "-" else 1
         if slice_dict[obj_name][axis][b_idx] is None:
-            slice_dict[obj_name][axis][b_idx] = cur_size
+            slice_dict[obj_name][axis][b_idx] = edge_index
             resolved_something = True
-        elif slice_dict[obj_name][axis][b_idx] != cur_size:
+        elif slice_dict[obj_name][axis][b_idx] != edge_index:
             raise Exception(
                 f"Inconsistent grid coordinates for object: "
-                f"{slice_dict[obj_name][axis][b_idx]} != {cur_size} for {axis=} {obj.name} ({obj.__class__}). "
+                f"{slice_dict[obj_name][axis][b_idx]} != {edge_index} for {axis=} {obj.name} ({obj.__class__}). "
             )
     return resolved_something, slice_dict
 
@@ -1616,15 +1616,15 @@ def _apply_real_coordinate_constraint(
     obj = object_map[obj_name]
     resolved_something = False
     for axis_idx, axis in enumerate(constraint.axes):
-        cur_size = _real_coord_to_edge_index(config, axis, constraint.coordinates[axis_idx])
+        edge_index = _real_coord_to_edge_index(config, axis, constraint.coordinates[axis_idx])
         b_idx = 0 if constraint.sides[axis_idx] == "-" else 1
         if slice_dict[obj_name][axis][b_idx] is None:
-            slice_dict[obj_name][axis][b_idx] = cur_size
+            slice_dict[obj_name][axis][b_idx] = edge_index
             resolved_something = True
-        elif slice_dict[obj_name][axis][b_idx] != cur_size:
+        elif slice_dict[obj_name][axis][b_idx] != edge_index:
             raise Exception(
                 f"Inconsistent grid coordinates for object: "
-                f"{slice_dict[obj_name][axis][b_idx]} != {cur_size} for {axis=} {obj.name} ({obj.__class__}). "
+                f"{slice_dict[obj_name][axis][b_idx]} != {edge_index} for {axis=} {obj.name} ({obj.__class__}). "
             )
     return resolved_something, slice_dict
 
