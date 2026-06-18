@@ -25,27 +25,22 @@ from fdtdx.objects.static_material.static import SimulationVolume, StaticMultiMa
 
 @dataclass(frozen=True)
 class GDSLayerSpec:
-    """Specification for a single GDS layer to be imported as a simulation object.
+    """Specification for a single GDS layer to be imported as a simulation object."""
 
-    Attributes:
-        gds_layer: GDS layer number.
-        material_name: Key into the materials dictionary to use for this layer.
-        thickness: Layer thickness in metres.
-        gds_datatype: GDS datatype number (default 0).
-        z_base: Distance from the simulation volume bottom face to the base of this layer, in metres.
-        name: Optional name for the resulting object. Auto-generates "gds_{layer}_{datatype}" if None.
-        etch_by: Tuple of (layer, datatype) pairs whose polygons are subtracted from this layer via
-            a boolean NOT operation before voxelization. Useful for etched features such as via holes.
-        color: Display color for ``plot_set_up``. Defaults to ``XKCD_LIGHT_GREY``. Pass ``None``
-            to leave the object uncolored.
-    """
-
+    #: GDS layer number.
     gds_layer: int
+    #: Key into the materials dictionary to use for this layer.
     material_name: str
+    #: Layer thickness in metres.
     thickness: float
+    #: GDS datatype number (default 0).
     gds_datatype: int = 0
+    #: Distance from the simulation volume bottom face to the base of this layer, in metres.
     z_base: float = 0.0
+    #: Optional name for the resulting object. Auto-generates ``"gds_{layer}_{datatype}"`` if None.
     name: str | None = None
+    #: Tuple of (layer, datatype) pairs whose polygons are subtracted from this layer via
+    #: a boolean NOT operation before voxelization. Useful for etched features such as via holes.
     etch_by: tuple[tuple[int, int], ...] = ()
     color: Color | None = XKCD_LIGHT_GREY
 
@@ -58,19 +53,16 @@ class GDSPortSpec:
     Its centroid determines the x/y position of the source or detector plane inside the
     simulation.  The source/detector is made 1 grid cell thick along ``propagation_axis``
     and spans the full simulation cross-section on the remaining two axes.
-
-    Attributes:
-        gds_layer: GDS layer containing the port marker polygons.
-        gds_datatype: GDS datatype of the port markers (default 0).
-        propagation_axis: Simulation axis along which the mode propagates (0=x, 1=y).
-            Must be 0 or 1; the GDS layout encodes x/y positions only.
-        name_prefix: Prefix for generated object names. Objects are named
-            ``"{name_prefix}_{index}"``.
     """
 
+    #: GDS layer containing the port marker polygons.
     gds_layer: int
+    #: GDS datatype of the port markers (default 0).
     gds_datatype: int = 0
+    #: Simulation axis along which the mode propagates (0=x, 1=y).
+    #: Must be 0 or 1; the GDS layout encodes x/y positions only.
     propagation_axis: int = 0
+    #: Prefix for generated object names. Objects are named ``"{name_prefix}_{index}"``.
     name_prefix: str = "port"
 
 
