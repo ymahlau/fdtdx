@@ -1106,12 +1106,9 @@ def _center_to_bounds(
 def _real_length_to_grid_size(config: SimulationConfig, axis: int, length: float) -> int:
     """Convert a physical length to a grid-cell count.
 
-    Non-uniform grids snap upward so objects always cover at least the
-    requested metric length.
-
-    Requires ``config.grid`` to already be a resolved ``RectilinearGrid``.
-    ``place_objects`` guarantees this by resolving the grid from the volume's
-    ``partial_grid_shape`` before constraint solving begins.
+    For uniform grids, uses nearest snapping.
+    For non-uniform grids, uses upper snapping but adjusts for exact edge alignment
+    to avoid off-by-one errors while ensuring coverage of the requested length.
     """
     grid = config.resolved_grid
     if grid is None:
@@ -1119,8 +1116,24 @@ def _real_length_to_grid_size(config: SimulationConfig, axis: int, length: float
             "_real_length_to_grid_size requires a resolved RectilinearGrid. "
             "Ensure place_objects has resolved the grid before constraint solving."
         )
-    snap = "upper" if config.has_nonuniform_grid else "nearest"
-    return grid.length_to_cell_count(axis, length, snap=snap)
+
+    # Uniform grids: use nearest snapping (no edge alignment issues)
+    if not config.has_nonuniform_grid:
+        return grid.length_to_cell_count(axis, length, snap="nearest")
+
+    # Non-uniform grids: handle edge alignment and coverage
+    edges = grid.edges(axis)
+    end_coord = float(edges[0] + length)  # Object starts at the first edge
+    end_index = grid.coord_to_index(axis, end_coord, snap="nearest")
+
+    # If the object's end lands exactly on a grid edge, use the nearest index
+    # to avoid upper-snap overshooting (e.g., 2.0 in [0.0, 2.0, 5.0] -> index 1, not 2)
+    if abs(end_coord - edges[end_index]) < 1e-10:
+        return end_index
+
+    # Otherwise, use upper snapping to ensure coverage, then clamp to grid size
+    cell_count = grid.length_to_cell_count(axis, length, snap="upper")
+    return min(cell_count, grid.shape[axis])
 
 
 def _real_coord_to_edge_index(config: SimulationConfig, axis: int, coord: float) -> int:
