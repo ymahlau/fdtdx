@@ -93,6 +93,7 @@ API
     fdtdx.PositionConstraint
     fdtdx.PoyntingFluxDetector
     fdtdx.private_field
+    fdtdx.QuasiUniformGrid
     fdtdx.RealCoordinateConstraint
     fdtdx.Recorder
     fdtdx.RecordingState
