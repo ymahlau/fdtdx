@@ -77,7 +77,7 @@ class UniformGrid(TreeClass):
             self.axis_extent(2, slice_tuple[2]),
         )
 
-    def coord_to_index(self, axis: int, coord: float | jnp.ndarray, snap: str = "nearest") -> int:
+    def coord_to_index(self, axis: int, coord: float, snap: str = "nearest") -> int:
         """Map a physical coordinate to a uniform-grid edge index.
 
         Because unresolved policies do not yet know ``shape``, this helper uses
@@ -89,11 +89,11 @@ class UniformGrid(TreeClass):
         origin_offset = coord - self.center[axis]
         scaled = origin_offset / self.spacing
         if snap == "nearest":
-            return int(jnp.round(scaled))
+            return round(scaled)
         if snap == "lower":
-            return int(jnp.floor(scaled))
+            return int(np.floor(scaled))
         if snap == "upper":
-            return int(jnp.ceil(scaled))
+            return int(np.ceil(scaled))
         raise ValueError(f"Unknown snapping rule: {snap}")
 
     def length_to_cell_count(self, axis: int, length: float, snap: str = "nearest") -> int:
