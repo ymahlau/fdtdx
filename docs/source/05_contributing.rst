@@ -50,7 +50,6 @@ This is a checklist that you should go through before making a PR. The individua
 * [ ] Implement your feature and unit tests for your new feature
 * [ ] Check if all unit tests run: ``pytest tests/``
 * [ ] Check if all pre-commit checks are passing: ``uv run pre-commit run --all``
-* [ ] Add an entry of your changes / fixes / new features to the ``changelog.md`` file
 * [ ] If you added any new features, that should be top-level imported, add them to ``__all__`` in ``src/fdtdx/__init__.py``
 * [ ] If you want your new feature to be present in the documentation, add an entry to ``docs/source/api.rst``
 * [ ] Optional: If you want to go above and beyond, add a notebook showcasing your feature in the `notebooks repository <https://github.com/ymahlau/fdtdx-notebooks/>`__. Afterwards you can add an entry in the docs to include your new notebook.
