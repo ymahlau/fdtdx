@@ -152,13 +152,6 @@ class QuasiUniformGrid(TreeClass):
         grid = QuasiUniformGrid(dx=10e-9, dy=10e-9, dz=20e-9)
         resolved = grid.resolve(shape=(100, 100, 50))
         # x, y edges span [-500 nm, +500 nm]; z edges span [-500 nm, +500 nm]
-
-    Attributes:
-        dx: Cell width along x in metres. Must be positive.
-        dy: Cell width along y in metres. Must be positive.
-        dz: Cell width along z in metres. Must be positive.
-        center: Physical coordinate of the domain center in metres.
-            Defaults to ``(0, 0, 0)``.
     """
 
     #: Cell width along x in metres. Must be positive.
