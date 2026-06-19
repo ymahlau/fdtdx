@@ -22,6 +22,7 @@ uv run python -m pytest tests
 ```bash
 uv run python -m pytest tests -m unit
 uv run python -m pytest tests -m integration
+uv run python -m pytest tests -m docs
 uv run python -m pytest tests -m simulation
 ```
 
@@ -33,7 +34,7 @@ uv run python -m pytest tests/unit/test_example.py::test_name
 
 ### Run tests with coverage (as CI does)
 ```bash
-uv run python -m pytest tests -m "unit or integration" --cov --cov-branch --cov-config=pyproject.toml --cov-report=xml
+uv run python -m pytest tests -m "unit or integration or docs" --cov --cov-branch --cov-config=pyproject.toml --cov-report=xml
 ```
 
 ### Lint and format
