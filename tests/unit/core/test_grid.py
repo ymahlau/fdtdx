@@ -3,12 +3,18 @@ import numpy as np
 import pytest
 
 from fdtdx import constants
+from fdtdx.config import SimulationConfig
 from fdtdx.core.grid import (
+    QuasiUniformGrid,
     RectilinearGrid,
     calculate_spatial_offsets_yee,
     calculate_time_offset_yee,
     polygon_to_mask,
 )
+from fdtdx.fdtd.initialization import resolve_object_constraints
+from fdtdx.materials import Material
+from fdtdx.objects.object import GridCoordinateConstraint
+from fdtdx.objects.static_material.static import SimulationVolume, UniformMaterialObject
 
 
 class TestRectilinearGrid:
@@ -131,7 +137,7 @@ class TestRectilinearGrid:
         # Truly uniform grids stay uniform at both fine spacing and large cell counts (float32
         # edge jitter must not flip them to non-uniform, which would break uniform_spacing()).
         assert RectilinearGrid.uniform((4000, 2, 2), base).is_uniform
-        assert RectilinearGrid.uniform((40, 40, 40), base).uniform_spacing == base
+        assert jnp.isclose(RectilinearGrid.uniform((40, 40, 40), base).uniform_spacing, base)
 
     @staticmethod
     def _symmetric_edges(widths):
@@ -193,6 +199,395 @@ class TestRectilinearGrid:
 
         with pytest.raises(ValueError, match="mirror-symmetric"):
             grid.reduce_symmetric((-1, 0, 0))
+
+
+class TestQuasiUniformGrid:
+    """Tests for QuasiUniformGrid.
+
+    Covers:
+    - Construction validation
+    - resolve() edge arrays and parity guard
+    - Per-axis convenience methods
+    - Integration with SimulationConfig
+    - Constraint placement via resolve_object_constraints
+    """
+
+    # ---------------------------------------------------------------------------
+    # Construction
+    # ---------------------------------------------------------------------------
+
+    def test_construction_stores_spacings(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=20e-9, dz=30e-9)
+        assert g.dx == pytest.approx(10e-9)
+        assert g.dy == pytest.approx(20e-9)
+        assert g.dz == pytest.approx(30e-9)
+
+    def test_construction_default_center_is_origin(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=10e-9, dz=10e-9)
+        assert g.center == (0, 0, 0)
+
+    def test_construction_custom_center(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=10e-9, dz=10e-9, center=(1e-6, 2e-6, 3e-6))
+        assert g.center == (1e-6, 2e-6, 3e-6)
+
+    def test_construction_nonpositive_dx_raises(self):
+        with pytest.raises(ValueError, match="dx"):
+            QuasiUniformGrid(dx=0.0, dy=10e-9, dz=10e-9)
+
+    def test_construction_negative_dy_raises(self):
+        with pytest.raises(ValueError, match="dy"):
+            QuasiUniformGrid(dx=10e-9, dy=-5e-9, dz=10e-9)
+
+    def test_construction_negative_dz_raises(self):
+        with pytest.raises(ValueError, match="dz"):
+            QuasiUniformGrid(dx=10e-9, dy=10e-9, dz=-1e-9)
+
+    # ---------------------------------------------------------------------------
+    # resolve() — edge arrays
+    # ---------------------------------------------------------------------------
+
+    def test_resolve_returns_rectilinear_grid(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=20e-9, dz=40e-9)
+        r = g.resolve((4, 6, 8))
+        assert isinstance(r, RectilinearGrid)
+
+    def test_resolve_shape_matches_request(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=20e-9, dz=40e-9)
+        r = g.resolve((4, 6, 8))
+        assert r.shape == (4, 6, 8)
+
+    def test_resolve_x_edges_centered_at_origin(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=20e-9, dz=40e-9)
+        r = g.resolve((4, 6, 8))
+        x = np.asarray(r.x_edges)
+        assert x[0] == pytest.approx(-20e-9)  # -4*10e-9/2
+        assert x[-1] == pytest.approx(+20e-9)
+        assert (x[0] + x[-1]) / 2 == pytest.approx(0.0)
+
+    def test_resolve_y_edges_centered_at_origin(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=20e-9, dz=40e-9)
+        r = g.resolve((4, 6, 8))
+        y = np.asarray(r.y_edges)
+        assert y[0] == pytest.approx(-60e-9)  # -6*20e-9/2
+        assert y[-1] == pytest.approx(+60e-9)
+
+    def test_resolve_z_edges_centered_at_origin(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=20e-9, dz=40e-9)
+        r = g.resolve((4, 6, 8))
+        z = np.asarray(r.z_edges)
+        assert z[0] == pytest.approx(-160e-9)  # -8*40e-9/2
+        assert z[-1] == pytest.approx(+160e-9)
+
+    def test_resolve_x_spacing_is_uniform(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=20e-9, dz=40e-9)
+        r = g.resolve((4, 6, 8))
+        dx = np.diff(np.asarray(r.x_edges))
+        assert np.allclose(dx, 10e-9)
+
+    def test_resolve_axes_independent(self):
+        """Each axis uses its own spacing, not a shared one."""
+        g = QuasiUniformGrid(dx=10e-9, dy=20e-9, dz=40e-9)
+        r = g.resolve((4, 6, 8))
+        assert np.allclose(np.diff(np.asarray(r.x_edges)), 10e-9)
+        assert np.allclose(np.diff(np.asarray(r.y_edges)), 20e-9)
+        assert np.allclose(np.diff(np.asarray(r.z_edges)), 40e-9)
+
+    def test_resolve_with_nonzero_center(self):
+        cx, cy, cz = 1e-6, 2e-6, 3e-6
+        g = QuasiUniformGrid(dx=100e-9, dy=100e-9, dz=100e-9, center=(cx, cy, cz))
+        r = g.resolve((4, 4, 4))
+        x = np.asarray(r.x_edges)
+        assert (x[0] + x[-1]) / 2 == pytest.approx(cx)
+        y = np.asarray(r.y_edges)
+        assert (y[0] + y[-1]) / 2 == pytest.approx(cy)
+        z = np.asarray(r.z_edges)
+        assert (z[0] + z[-1]) / 2 == pytest.approx(cz)
+
+    # ---------------------------------------------------------------------------
+    # resolve() — parity guard
+    # ---------------------------------------------------------------------------
+
+    def test_resolve_odd_x_raises(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=10e-9, dz=10e-9)
+        with pytest.raises(ValueError, match="Axis 0"):
+            g.resolve((3, 4, 4))
+
+    def test_resolve_odd_y_raises(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=10e-9, dz=10e-9)
+        with pytest.raises(ValueError, match="Axis 1"):
+            g.resolve((4, 5, 4))
+
+    def test_resolve_odd_z_raises(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=10e-9, dz=10e-9)
+        with pytest.raises(ValueError, match="Axis 2"):
+            g.resolve((4, 4, 7))
+
+    def test_resolve_all_even_does_not_raise(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=10e-9, dz=10e-9)
+        g.resolve((2, 4, 6))  # should not raise
+
+    # ---------------------------------------------------------------------------
+    # is_uniform / min_spacing
+    # ---------------------------------------------------------------------------
+
+    def test_is_uniform_true_when_all_equal(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=10e-9, dz=10e-9)
+        assert g.is_uniform is True
+
+    def test_is_uniform_false_when_unequal(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=20e-9, dz=10e-9)
+        assert g.is_uniform is False
+
+    def test_min_spacing_returns_smallest(self):
+        g = QuasiUniformGrid(dx=30e-9, dy=10e-9, dz=20e-9)
+        assert g.min_spacing == pytest.approx(10e-9)
+
+    def test_axis_spacing_returns_per_axis(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=20e-9, dz=30e-9)
+        assert g.axis_spacing(0) == pytest.approx(10e-9)
+        assert g.axis_spacing(1) == pytest.approx(20e-9)
+        assert g.axis_spacing(2) == pytest.approx(30e-9)
+
+    # ---------------------------------------------------------------------------
+    # axis_extent / slice_extent
+    # ---------------------------------------------------------------------------
+
+    def test_axis_extent_correct(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=20e-9, dz=30e-9)
+        assert g.axis_extent(0, (0, 5)) == pytest.approx(5 * 10e-9)
+        assert g.axis_extent(1, (2, 8)) == pytest.approx(6 * 20e-9)
+        assert g.axis_extent(2, (1, 4)) == pytest.approx(3 * 30e-9)
+
+    def test_slice_extent_correct(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=20e-9, dz=30e-9)
+        ex, ey, ez = g.slice_extent(((0, 4), (0, 6), (0, 8)))
+        assert ex == pytest.approx(4 * 10e-9)
+        assert ey == pytest.approx(6 * 20e-9)
+        assert ez == pytest.approx(8 * 30e-9)
+
+    # ---------------------------------------------------------------------------
+    # coord_to_index / length_to_cell_count
+    # ---------------------------------------------------------------------------
+
+    def test_coord_to_index_at_center_is_zero(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=20e-9, dz=30e-9)
+        assert g.coord_to_index(0, 0.0) == 0
+        assert g.coord_to_index(1, 0.0) == 0
+        assert g.coord_to_index(2, 0.0) == 0
+
+    def test_coord_to_index_positive_offset(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=20e-9, dz=30e-9)
+        assert g.coord_to_index(0, 50e-9) == 5  # 50e-9 / 10e-9
+        assert g.coord_to_index(1, 60e-9) == 3  # 60e-9 / 20e-9
+
+    def test_coord_to_index_negative_offset(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=20e-9, dz=30e-9)
+        assert g.coord_to_index(0, -30e-9) == -3
+
+    def test_coord_to_index_snap_lower(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=10e-9, dz=10e-9)
+        assert g.coord_to_index(0, 15e-9, snap="lower") == 1  # floor(1.5)
+
+    def test_coord_to_index_snap_upper(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=10e-9, dz=10e-9)
+        assert g.coord_to_index(0, 15e-9, snap="upper") == 2  # ceil(1.5)
+
+    def test_coord_to_index_invalid_snap_raises(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=10e-9, dz=10e-9)
+        with pytest.raises(ValueError, match="snap"):
+            g.coord_to_index(0, 0.0, snap="invalid")
+
+    def test_length_to_cell_count(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=20e-9, dz=30e-9)
+        assert g.length_to_cell_count(0, 50e-9) == 5
+        assert g.length_to_cell_count(1, 60e-9) == 3
+        assert g.length_to_cell_count(2, 90e-9) == 3
+
+    # ---------------------------------------------------------------------------
+    # cell_volume / face_area
+    # ---------------------------------------------------------------------------
+
+    def test_cell_volume_shape_and_value(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=20e-9, dz=30e-9)
+        vol = g.cell_volume(((0, 2), (0, 3), (0, 4)))
+        assert vol.shape == (2, 3, 4)
+        assert jnp.allclose(vol, 10e-9 * 20e-9 * 30e-9)
+
+    def test_face_area_normal_to_z(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=20e-9, dz=30e-9)
+        area = g.face_area(2, ((0, 2), (0, 3), (0, 4)))
+        # transverse axes are 0 and 1 → dx * dy
+        assert area.shape == (2, 3)
+        assert jnp.allclose(area, 10e-9 * 20e-9)
+
+    def test_face_area_normal_to_x(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=20e-9, dz=30e-9)
+        area = g.face_area(0, ((0, 2), (0, 3), (0, 4)))
+        # transverse axes are 1 and 2 → dy * dz
+        assert area.shape == (3, 4)
+        assert jnp.allclose(area, 20e-9 * 30e-9)
+
+    # ---------------------------------------------------------------------------
+    # SimulationConfig integration
+    # ---------------------------------------------------------------------------
+
+    def test_config_time_step_uses_min_spacing(self):
+        import math
+
+        from fdtdx import constants
+
+        g = QuasiUniformGrid(dx=10e-9, dy=20e-9, dz=30e-9)
+        config = SimulationConfig(grid=g, time=10e-15)
+        courant = config.courant_factor / math.sqrt(3)
+        expected = courant * 10e-9 / constants.c
+        assert config.time_step_duration == pytest.approx(expected)
+
+    def test_config_uniform_spacing_raises_when_anisotropic(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=20e-9, dz=10e-9)
+        config = SimulationConfig(grid=g, time=10e-15)
+        with pytest.raises(ValueError, match="no single uniform spacing"):
+            config.uniform_spacing()
+
+    def test_config_uniform_spacing_succeeds_when_isotropic(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=10e-9, dz=10e-9)
+        config = SimulationConfig(grid=g, time=10e-15)
+        assert config.uniform_spacing() == pytest.approx(10e-9)
+
+    def test_config_resolved_grid_none_before_placement(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=20e-9, dz=30e-9)
+        config = SimulationConfig(grid=g, time=10e-15)
+        assert config.resolved_grid is None
+
+    def test_config_resolve_grid_returns_rectilinear(self):
+        g = QuasiUniformGrid(dx=10e-9, dy=20e-9, dz=30e-9)
+        config = SimulationConfig(grid=g, time=10e-15)
+        r = config.resolve_grid((4, 6, 8))
+        assert isinstance(r, RectilinearGrid)
+        assert r.shape == (4, 6, 8)
+
+    # ---------------------------------------------------------------------------
+    # resolve_object_constraints integration
+    # ---------------------------------------------------------------------------
+
+    @pytest.fixture
+    def material(self):
+        return Material()
+
+    @pytest.fixture
+    def anisotropic_config(self):
+        """dx=dy=100 nm, dz=200 nm — genuinely anisotropic."""
+        return SimulationConfig(
+            grid=QuasiUniformGrid(dx=100e-9, dy=100e-9, dz=200e-9),
+            time=10e-15,
+        )
+
+    @pytest.fixture
+    def isotropic_quasi_config(self):
+        """QuasiUniformGrid with equal spacings — treated as uniform by the grid guards."""
+        return SimulationConfig(
+            grid=QuasiUniformGrid(dx=100e-9, dy=100e-9, dz=100e-9),
+            time=10e-15,
+        )
+
+    def test_placement_resolves_grid(self, anisotropic_config, material):
+        """resolve_object_constraints pins a RectilinearGrid onto config.
+
+        Using partial_grid_shape for the volume bypasses the real→cell conversion
+        that would call coord_to_index with a length larger than the domain on a
+        non-uniform grid.
+        """
+        volume = SimulationVolume(partial_grid_shape=(20, 20, 10))
+        slices, errors = resolve_object_constraints(objects=[volume], constraints=[], config=anisotropic_config)
+        assert errors[volume.name] is None
+        assert slices[volume.name] == ((0, 20), (0, 20), (0, 10))
+
+    def test_placement_object_sizes_in_cells(self, anisotropic_config, material):
+        """Objects sized in metres resolve to different cell counts per axis.
+
+        1 µm along z = 1e-6 / 200e-9 = 5 cells.
+        """
+        volume = SimulationVolume(partial_grid_shape=(20, 20, 10))
+        slab = UniformMaterialObject(
+            name="slab",
+            partial_real_shape=(None, None, 1e-6),
+            material=material,
+        )
+        constraints = [slab.place_relative_to(volume, axes=2, own_positions=-1, other_positions=-1)]
+        slices, errors = resolve_object_constraints(
+            objects=[volume, slab], constraints=constraints, config=anisotropic_config
+        )
+        assert errors["slab"] is None
+        assert slices["slab"][2] == (0, 5)
+
+    def test_placement_object_sizes_xy(self, anisotropic_config, material):
+        """x/y sizes resolve using dx=dy=100e-9.
+
+        1 µm along x/y = 1e-6 / 100e-9 = 10 cells.
+        """
+        volume = SimulationVolume(partial_grid_shape=(20, 20, 10))
+        rod = UniformMaterialObject(
+            name="rod",
+            partial_real_shape=(1e-6, 1e-6, None),
+            material=material,
+        )
+        constraints = [rod.place_at_center(volume, axes=(0, 1, 2))]
+        slices, errors = resolve_object_constraints(
+            objects=[volume, rod], constraints=constraints, config=anisotropic_config
+        )
+        assert errors["rod"] is None
+        x0, x1 = slices["rod"][0]
+        y0, y1 = slices["rod"][1]
+        assert x1 - x0 == 10
+        assert y1 - y0 == 10
+
+    def test_placement_centered_domain(self, anisotropic_config, material):
+        """A box filling the volume occupies [0, N] on every axis."""
+        volume = SimulationVolume(partial_grid_shape=(20, 20, 10))
+        box = UniformMaterialObject(
+            name="box",
+            partial_grid_shape=(20, 20, 10),
+            material=material,
+        )
+        pos_c, size_c = box.same_position_and_size(volume)
+        slices, errors = resolve_object_constraints(
+            objects=[volume, box], constraints=[pos_c, size_c], config=anisotropic_config
+        )
+        assert errors["box"] is None
+        assert slices["box"] == ((0, 20), (0, 20), (0, 10))
+
+    def test_placement_grid_coordinate_constraint(self, isotropic_quasi_config, material):
+        """GridCoordinateConstraint works when all spacings are equal.
+
+        The non-uniform guard rejects index-space constraints on stretched grids;
+        an isotropic QuasiUniformGrid passes as uniform.
+        """
+        volume = SimulationVolume(partial_grid_shape=(20, 20, 20))
+        obj = UniformMaterialObject(
+            name="obj",
+            partial_grid_shape=(4, 4, 4),
+            material=material,
+        )
+        c = GridCoordinateConstraint(object="obj", axes=(0, 2), sides=("-", "-"), coordinates=(6, 3))
+        slices, errors = resolve_object_constraints(
+            objects=[volume, obj], constraints=[c], config=isotropic_quasi_config
+        )
+        assert errors["obj"] is None
+        assert slices["obj"][0] == (6, 10)
+        assert slices["obj"][2] == (3, 7)
+
+    def test_isotropic_quasi_uniform_matches_uniform_grid(self):
+        """QuasiUniformGrid with equal spacings resolves identically to UniformGrid."""
+        from fdtdx.core.grid import UniformGrid
+
+        spacing = 100e-9
+        shape = (4, 4, 4)
+        quasi = QuasiUniformGrid(dx=spacing, dy=spacing, dz=spacing)
+        uniform = UniformGrid(spacing=spacing)
+        r_quasi = quasi.resolve(shape)
+        r_uniform = uniform.resolve(shape)
+        assert jnp.allclose(r_quasi.x_edges, r_uniform.x_edges)
+        assert jnp.allclose(r_quasi.y_edges, r_uniform.y_edges)
+        assert jnp.allclose(r_quasi.z_edges, r_uniform.z_edges)
 
 
 def test_calculate_spatial_offsets_yee_basic():
