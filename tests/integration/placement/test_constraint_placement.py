@@ -474,7 +474,7 @@ def test_real_coordinate_constraint_lower():
         object=box.name,
         axes=(0,),
         sides=("-",),
-        coordinates=(0.5e-6,),  # 5 cells
+        coordinates=(-0.5e-6,),  # 5 cells
     )
     sl = _sl(_resolve(vol, [box], [c]), box)
     assert sl[0] == (5, 15)
@@ -488,7 +488,7 @@ def test_real_coordinate_constraint_upper():
         object=box.name,
         axes=(2,),
         sides=("+",),
-        coordinates=(1.8e-6,),  # 18 cells
+        coordinates=(0.8e-6,),  # 18 cells
     )
     sl = _sl(_resolve(vol, [box], [c]), box)
     assert sl[2] == (8, 18)
@@ -502,7 +502,7 @@ def test_real_coordinate_constraint_multiple_axes():
         object=box.name,
         axes=(0, 1),
         sides=("-", "+"),
-        coordinates=(0.3e-6, 1.5e-6),  # x lower=3, y upper=15
+        coordinates=(-0.7e-6, 0.5e-6),  # x lower=3, y upper=15
     )
     sl = _sl(_resolve(vol, [box], [c]), box)
     assert sl[0] == (3, 13)
@@ -560,10 +560,10 @@ def test_infinity_extension_pending_position_not_premature():
         cube.place_at_center(substrate, axes=(0, 1)),
     ]
     sl_cube = _sl(_resolve(vol, [substrate, cube], constraints), cube)
-    # substrate x/y fills volume [0,20], cube (5 cells) centered → 8
+    # substrate x/y fills volume [0,20], cube (5 cells) centered → 7 (argmin chooses first candidate)
     assert sl_cube[2] == (6, 11)
-    assert sl_cube[0] == (8, 13)
-    assert sl_cube[1] == (8, 13)
+    assert sl_cube[0] == (7, 12)
+    assert sl_cube[1] == (7, 12)
 
 
 # ---------------------------------------------------------------------------

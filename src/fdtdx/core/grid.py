@@ -21,12 +21,17 @@ class UniformGrid(TreeClass):
     Keeping uniform spacing here avoids a second scalar discretization source on
     ``SimulationConfig``.  Uniform grids and explicitly non-uniform grids both
     enter the solver through the same realized ``RectilinearGrid`` structure.
+
+    The grid origin is at the **center** of the simulation domain.  Edge arrays
+    therefore span ``[-N/2 * spacing, +N/2 * spacing]`` along each axis, giving
+    the domain symmetric negative and positive coordinates.  ``center`` shifts
+    this physical center away from the geometric origin when non-zero.
     """
 
     #: Physical cell spacing in metres. Must be positive.
     spacing: float = frozen_field()
-    #: Physical coordinate of the lower domain corner in metres. Defaults to the origin.
-    origin: tuple[float, float, float] = frozen_field(default=(0, 0, 0))
+    #: Physical coordinate of the domain center in metres. Defaults to (0, 0, 0).
+    center: tuple[float, float, float] = frozen_field(default=(0, 0, 0))
 
     def __post_init__(self):
         if self.spacing <= 0:
@@ -34,7 +39,12 @@ class UniformGrid(TreeClass):
 
     def resolve(self, shape: tuple[int, int, int]) -> "RectilinearGrid":
         """Return a concrete solver grid for ``shape``."""
-        return RectilinearGrid.uniform(shape=shape, spacing=self.spacing, origin=self.origin)
+        origin = (
+            self.center[0] - shape[0] * self.spacing / 2.0,
+            self.center[1] - shape[1] * self.spacing / 2.0,
+            self.center[2] - shape[2] * self.spacing / 2.0,
+        )
+        return RectilinearGrid.uniform(shape=shape, spacing=self.spacing, origin=origin)
 
     @property
     def is_uniform(self) -> bool:
@@ -68,9 +78,16 @@ class UniformGrid(TreeClass):
         )
 
     def coord_to_index(self, axis: int, coord: float, snap: str = "nearest") -> int:
-        """Map a physical coordinate to a uniform-grid edge index."""
-        origin = self.origin[axis]
-        scaled = (coord - origin) / self.spacing
+        """Map a physical coordinate to a uniform-grid edge index.
+
+        Because unresolved policies do not yet know ``shape``, this helper uses
+        a center-relative basis: ``coord`` is interpreted relative to
+        ``self.center[axis]`` and the returned index is a center-relative edge
+        offset. Use :meth:`RectilinearGrid.coord_to_index` on the resolved grid
+        when you need absolute edge indices.
+        """
+        origin_offset = coord - self.center[axis]
+        scaled = origin_offset / self.spacing
         if snap == "nearest":
             return round(scaled)
         if snap == "lower":
@@ -81,7 +98,7 @@ class UniformGrid(TreeClass):
 
     def length_to_cell_count(self, axis: int, length: float, snap: str = "nearest") -> int:
         """Convert a physical length to a uniform-grid cell count."""
-        return self.coord_to_index(axis, self.origin[axis] + length, snap=snap)
+        return self.coord_to_index(axis, self.center[axis] + length, snap=snap)
 
     def bounds_for_center(self, axis: int, center: float, size: int) -> tuple[int, int]:
         """Convert a physical center and grid size to edge bounds."""
@@ -92,8 +109,8 @@ class UniformGrid(TreeClass):
     def anchor_coordinate(self, axis: int, bounds: tuple[int, int], position: float) -> float:
         """Return a physical anchor coordinate inside a uniform interval."""
         lower, upper = bounds
-        lower_coord = self.origin[axis] + lower * self.spacing
-        upper_coord = self.origin[axis] + upper * self.spacing
+        lower_coord = self.center[axis] + lower * self.spacing
+        upper_coord = self.center[axis] + upper * self.spacing
         return lower_coord + 0.5 * (position + 1.0) * (upper_coord - lower_coord)
 
     def bounds_for_anchor(self, axis: int, size: int, anchor: float, position: float) -> tuple[int, int]:
@@ -113,6 +130,154 @@ class UniformGrid(TreeClass):
         shape = tuple(upper - lower for lower, upper in slice_tuple)
         area_shape = tuple(shape[i] for i in range(3) if i != axis)
         return jnp.ones(area_shape) * self.spacing**2
+
+
+@autoinit
+class QuasiUniformGrid(TreeClass):
+    """Unresolved policy for a rectilinear grid with independent per-axis spacings.
+
+    ``QuasiUniformGrid`` generalises ``UniformGrid`` to allow different cell
+    widths along x, y, and z while keeping each axis internally uniform.  This
+    is sometimes called a *quasi-uniform* or *anisotropic-uniform* mesh: the
+    grid is rectilinear and axis-aligned, but the aspect ratio is not 1 : 1 : 1.
+
+    Like ``UniformGrid``, this is user intent rather than the solver mesh.
+    Calling :meth:`resolve` converts the policy to a concrete
+    ``RectilinearGrid`` once the simulation shape is known.  The resulting grid
+    is centered at ``center`` so that coordinates span symmetrically into both
+    negative and positive values along every axis.
+
+    Example::
+
+        grid = QuasiUniformGrid(dx=10e-9, dy=10e-9, dz=20e-9)
+        resolved = grid.resolve(shape=(100, 100, 50))
+        # x, y edges span [-500 nm, +500 nm]; z edges span [-500 nm, +500 nm]
+    """
+
+    #: Cell width along x in metres. Must be positive.
+    dx: float = frozen_field()
+    #: Cell width along y in metres. Must be positive.
+    dy: float = frozen_field()
+    #: Cell width along z in metres. Must be positive.
+    dz: float = frozen_field()
+    #: Physical coordinate of the domain center in metres. Defaults to (0, 0, 0).
+    center: tuple[float, float, float] = frozen_field(default=(0, 0, 0))
+
+    def __post_init__(self):
+        for name, val in (("dx", self.dx), ("dy", self.dy), ("dz", self.dz)):
+            if val <= 0:
+                raise ValueError(f"QuasiUniformGrid spacing {name} must be positive, got {val}.")
+
+    # ------------------------------------------------------------------
+    # Resolution
+    # ------------------------------------------------------------------
+
+    def resolve(self, shape: tuple[int, int, int]) -> "RectilinearGrid":
+        """Return a concrete ``RectilinearGrid`` for ``shape``.
+
+        Edge arrays are built independently for each axis using the per-axis
+        spacing and the requested number of cells.  The domain is centered at
+        ``self.center``.
+
+        Args:
+            shape: Number of cells in ``(x, y, z)``.
+
+        Returns:
+            A ``RectilinearGrid`` whose edge arrays are piecewise-uniform (one
+            constant spacing per axis) and span symmetrically around
+            ``self.center``.
+
+        Raises:
+            ValueError: If any axis has an odd cell count.  The center-origin
+                convention requires even cell counts on every axis so the domain
+                center always lands on a cell edge.  An odd count silently shifts
+                which Yee component sits at object boundaries, changing the
+                effective simulated length by one cell.
+        """
+        for axis, n in enumerate(shape):
+            if n % 2 != 0:
+                raise ValueError(
+                    f"QuasiUniformGrid requires an even cell count on every axis (center-origin "
+                    f"convention). Axis {axis} has {n} cells (odd). Adjust the simulation "
+                    f"volume size so every axis has an even number of cells."
+                )
+        spacings = (self.dx, self.dy, self.dz)
+        edge_arrays = []
+        for a in range(3):
+            s = spacings[a]
+            n = shape[a]
+            lower = self.center[a] - n * s / 2.0
+            edge_arrays.append(lower + s * jnp.arange(n + 1))
+        return RectilinearGrid(
+            x_edges=edge_arrays[0],
+            y_edges=edge_arrays[1],
+            z_edges=edge_arrays[2],
+        )
+
+    # ------------------------------------------------------------------
+    # Convenience properties (mirror UniformGrid's interface)
+    # ------------------------------------------------------------------
+
+    @property
+    def is_uniform(self) -> bool:
+        """True only when all three spacings are equal."""
+        return self.dx == self.dy == self.dz
+
+    @property
+    def min_spacing(self) -> float:
+        """Smallest cell width across all three axes in metres."""
+        return min(self.dx, self.dy, self.dz)
+
+    def axis_spacing(self, axis: int) -> float:
+        """Return the cell width for a single axis."""
+        return (self.dx, self.dy, self.dz)[axis]
+
+    def axis_extent(self, axis: int, bounds: tuple[int, int]) -> float:
+        """Physical length covered by an index interval on one axis."""
+        lower, upper = bounds
+        return (upper - lower) * self.axis_spacing(axis)
+
+    def slice_extent(
+        self, slice_tuple: tuple[tuple[int, int], tuple[int, int], tuple[int, int]]
+    ) -> tuple[float, float, float]:
+        """Physical side lengths covered by a 3D grid slice."""
+        return (
+            self.axis_extent(0, slice_tuple[0]),
+            self.axis_extent(1, slice_tuple[1]),
+            self.axis_extent(2, slice_tuple[2]),
+        )
+
+    def coord_to_index(self, axis: int, coord: float, snap: str = "nearest") -> int:
+        """Map a physical coordinate to a grid edge index along ``axis``.
+
+        Coordinates are measured from ``self.center[axis]``.
+        """
+        s = self.axis_spacing(axis)
+        scaled = (coord - self.center[axis]) / s
+        if snap == "nearest":
+            return round(scaled)
+        if snap == "lower":
+            return int(np.floor(scaled))
+        if snap == "upper":
+            return int(np.ceil(scaled))
+        raise ValueError(f"Unknown snapping rule: {snap}")
+
+    def length_to_cell_count(self, axis: int, length: float, snap: str = "nearest") -> int:
+        """Convert a physical length to a cell count along ``axis``."""
+        return self.coord_to_index(axis, self.center[axis] + length, snap=snap)
+
+    def cell_volume(self, slice_tuple: tuple[tuple[int, int], tuple[int, int], tuple[int, int]]) -> jax.Array:
+        """Return per-cell volume weights broadcast to a 3D slice shape."""
+        shape = tuple(upper - lower for lower, upper in slice_tuple)
+        return jnp.ones(shape) * (self.dx * self.dy * self.dz)
+
+    def face_area(self, axis: int, slice_tuple: tuple[tuple[int, int], tuple[int, int], tuple[int, int]]) -> jax.Array:
+        """Return per-face area weights for a detector plane normal to ``axis``."""
+        spacings = (self.dx, self.dy, self.dz)
+        transverse = [a for a in range(3) if a != axis]
+        shape = tuple(slice_tuple[a][1] - slice_tuple[a][0] for a in range(3))
+        area_shape = tuple(shape[a] for a in transverse)
+        return jnp.ones(area_shape) * spacings[transverse[0]] * spacings[transverse[1]]
 
 
 @autoinit
@@ -183,22 +348,47 @@ class RectilinearGrid(TreeClass):
         object.__setattr__(self, "_uniform_spacing", float(np.round(spacing, decimals=14)) if is_uniform else None)
 
     @classmethod
-    def uniform(cls, shape: tuple[int, int, int], spacing: float, origin: tuple[float, float, float] = (0, 0, 0)):
+    def uniform(
+        cls,
+        shape: tuple[int, int, int],
+        spacing: float,
+        origin: tuple[float, float, float] | None = None,
+        center: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    ):
         """Create a realized rectilinear grid for a uniform grid.
+
+        The grid is centered at ``center`` by default, so edge arrays span
+        ``[center[a] - shape[a] * spacing / 2, center[a] + shape[a] * spacing / 2]``
+        along each axis.  Negative and positive coordinates are used symmetrically
+        around the center of the simulation domain.
+
+        Passing an explicit ``origin`` (lower-corner coordinate) overrides
+        ``center`` and restores the legacy lower-corner behaviour.  This is used
+        internally by ``UniformGrid.resolve`` after it has already computed the
+        lower corner from the center.
 
         Args:
             shape: Number of cells in ``(x, y, z)``.
             spacing: Uniform cell width in metres.
-            origin: Physical coordinate of the lower domain corner.
+            center: Physical coordinate of the domain center. Defaults to
+                ``(0, 0, 0)`` so the domain spans equally into negative and
+                positive coordinates.
+            origin: Physical coordinate of the **lower** domain corner.  When
+                provided this takes priority over ``center``.
 
         Returns:
-            A grid whose edge arrays are equally spaced.
+            A grid whose edge arrays are equally spaced and centered on
+            ``center`` (or anchored at ``origin`` when given).
         """
         if spacing <= 0:
             raise ValueError(f"Uniform grid spacing must be positive, got {spacing}.")
         if any(n <= 0 for n in shape):
             raise ValueError(f"Uniform grid shape entries must be positive, got {shape}.")
-        edge_arrays = tuple(origin[axis] + spacing * jnp.arange(shape[axis] + 1) for axis in range(3))
+        if origin is not None:
+            lower_corner = origin
+        else:
+            lower_corner = tuple(center[a] - shape[a] * spacing / 2.0 for a in range(3))
+        edge_arrays = tuple(lower_corner[axis] + spacing * jnp.arange(shape[axis] + 1) for axis in range(3))
         return cls(x_edges=edge_arrays[0], y_edges=edge_arrays[1], z_edges=edge_arrays[2])
 
     @classmethod
