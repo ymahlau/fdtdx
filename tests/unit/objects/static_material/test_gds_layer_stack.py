@@ -401,9 +401,14 @@ class TestSidewallAngle:
 
         def build(angle):
             obj = GDSLayerObject(
-                materials=two_materials, polygons=[_square_polygon(half_side=self.HALF)],
-                gds_center=(0.0, 0.0), material_name="si", axis=2,
-                thickness=self.SPACING, sidewall_angle=angle, reference_plane="middle",
+                materials=two_materials,
+                polygons=[_square_polygon(half_side=self.HALF)],
+                gds_center=(0.0, 0.0),
+                material_name="si",
+                axis=2,
+                thickness=self.SPACING,
+                sidewall_angle=angle,
+                reference_plane="middle",
             )
             placed = obj.place_on_grid(grid_slice_tuple=((0, n_xy), (0, n_xy), (0, 1)), config=cfg, key=key)
             return np.array(placed.get_voxel_mask_for_shape())
@@ -480,9 +485,7 @@ class TestSidewallVsTidy3D:
             sidewall_angle=gds_angle,
             reference_plane="bottom",
         )
-        placed = obj.place_on_grid(
-            grid_slice_tuple=((0, n_xy), (0, n_xy), (0, nz)), config=config, key=key
-        )
+        placed = obj.place_on_grid(grid_slice_tuple=((0, n_xy), (0, n_xy), (0, nz)), config=config, key=key)
         mask = np.array(placed.get_voxel_mask_for_shape())
 
         # Build the equivalent Tidy3D PolySlab and query ITS OWN geometry (inside()), rather than

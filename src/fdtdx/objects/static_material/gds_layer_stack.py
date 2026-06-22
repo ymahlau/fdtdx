@@ -119,13 +119,9 @@ class GDSLayerObject(StaticMultiMaterialObject):
 
     def __post_init__(self):
         if not 0.0 < self.sidewall_angle < 180.0:
-            raise ValueError(
-                f"sidewall_angle must lie in (0, 180) degrees (90 = vertical), got {self.sidewall_angle}."
-            )
+            raise ValueError(f"sidewall_angle must lie in (0, 180) degrees (90 = vertical), got {self.sidewall_angle}.")
         if self.reference_plane not in ("bottom", "middle", "top"):
-            raise ValueError(
-                f"reference_plane must be one of 'bottom', 'middle', 'top'; got {self.reference_plane!r}."
-            )
+            raise ValueError(f"reference_plane must be one of 'bottom', 'middle', 'top'; got {self.reference_plane!r}.")
 
     @property
     def horizontal_axis(self) -> int:
