@@ -266,6 +266,261 @@ class TestGetVoxelMaskForShape:
 
 
 # ---------------------------------------------------------------------------
+# get_voxel_mask_for_shape — sidewall_angle (trapezoidal extrusion)
+# ---------------------------------------------------------------------------
+
+
+def _sidewall_config(spacing, nz):
+    """Config with a tall-enough z stack to resolve a sidewall taper."""
+    return SimulationConfig(
+        time=100e-15,
+        grid=UniformGrid(spacing=spacing),
+        backend="cpu",
+        dtype=jnp.float32,
+        gradient_config=None,
+    )
+
+
+def _half_width_per_slice(mask, axis_h, axis_v):
+    """Measured half-width (metres-agnostic, in cells) of a centred square per z-slice.
+
+    Returns the count of True cells along the central horizontal row of each z-slice.
+    """
+    nz = mask.shape[2]
+    mid_v = mask.shape[axis_v] // 2
+    widths = []
+    for z in range(nz):
+        row = np.array(mask[:, mid_v, z])
+        widths.append(int(row.sum()))
+    return np.array(widths)
+
+
+class TestSidewallAngle:
+    """Trapezoidal extrusion: each z-slice is eroded/dilated by (z - z_ref) * tan(90deg - angle)."""
+
+    SPACING = 25e-9
+    NZ = 20  # 500 nm tall stack
+    HALF = 300e-9  # 600 nm square footprint
+
+    def _build(self, materials, key, sidewall_angle, reference_plane="bottom"):
+        config = _sidewall_config(self.SPACING, self.NZ)
+        obj = GDSLayerObject(
+            materials=materials,
+            polygons=[_square_polygon(half_side=self.HALF)],
+            gds_center=(0.0, 0.0),
+            material_name="si",
+            axis=2,
+            thickness=self.NZ * self.SPACING,
+            sidewall_angle=sidewall_angle,
+            reference_plane=reference_plane,
+        )
+        n_xy = 40  # 1 µm cross-section at 25 nm
+        slices = ((0, n_xy), (0, n_xy), (0, self.NZ))
+        placed = obj.place_on_grid(grid_slice_tuple=slices, config=config, key=key)
+        return placed.get_voxel_mask_for_shape()
+
+    def test_vertical_angle_is_uniform(self, key, two_materials):
+        """sidewall_angle=90 (vertical) reproduces the plain vertical extrusion (all slices identical)."""
+        mask = self._build(two_materials, key, sidewall_angle=90.0)
+        for z in range(mask.shape[2]):
+            assert jnp.array_equal(mask[:, :, z], mask[:, :, 0])
+
+    def test_angle_below_90_tapers_inward_from_bottom(self, key, two_materials):
+        """Angle < 90, reference_plane='bottom': width shrinks monotonically with z."""
+        angle = 75.0  # degrees from substrate (15 deg off vertical)
+        mask = self._build(two_materials, key, sidewall_angle=angle, reference_plane="bottom")
+        widths = _half_width_per_slice(mask, 0, 1)
+        # bottom slice is the widest, top the narrowest, monotone non-increasing
+        assert widths[0] >= widths[-1]
+        assert widths[-1] < widths[0]
+        assert np.all(np.diff(widths) <= 0)
+
+    def test_width_matches_analytical_trapezoid(self, key, two_materials):
+        """Measured half-width per slice matches a - (z - z_base) * tan(90deg - angle) within one cell.
+
+        This is the core validation: the discrete erosion reproduces the analytical
+        linear sidewall (the same model Tidy3D.PolySlab uses).
+        """
+        angle = 80.0  # degrees from substrate (10 deg off vertical)
+        mask = self._build(two_materials, key, sidewall_angle=angle, reference_plane="bottom")
+        widths_cells = _half_width_per_slice(mask, 0, 1)  # full width in cells along central row
+
+        tan = np.tan(np.deg2rad(90.0 - angle))
+        z_centers = (np.arange(self.NZ) + 0.5) * self.SPACING
+        z_ref = z_centers[0]
+        for z in range(self.NZ):
+            expected_half = self.HALF - (z_centers[z] - z_ref) * tan
+            expected_half = max(expected_half, 0.0)
+            expected_full_cells = 2.0 * expected_half / self.SPACING
+            # discretization rounds to whole cells -> tolerate ~+/-2 cells (one per edge)
+            assert abs(widths_cells[z] - expected_full_cells) <= 2.0, (
+                f"z={z}: measured {widths_cells[z]} cells, expected ~{expected_full_cells:.1f}"
+            )
+
+    def test_reference_plane_top_keeps_top_footprint(self, key, two_materials):
+        """reference_plane='top' keeps the *top* footprint nominal; the base is wider.
+
+        For an angle < 90 the slab still narrows toward the top; changing the
+        reference plane only shifts which z-plane equals the input polygon, so here the bottom is
+        dilated and the top is nominal -> width still decreases with z, but every slice is wider than
+        the matching 'bottom'-reference slice.
+        """
+        angle = 75.0  # degrees from substrate
+        mask_top = self._build(two_materials, key, sidewall_angle=angle, reference_plane="top")
+        mask_bot = self._build(two_materials, key, sidewall_angle=angle, reference_plane="bottom")
+        w_top = _half_width_per_slice(mask_top, 0, 1)
+        w_bot = _half_width_per_slice(mask_bot, 0, 1)
+        # still narrows toward the top
+        assert w_top[-1] <= w_top[0]
+        # 'top' reference is uniformly wider-or-equal than 'bottom' reference (footprint shifted up)
+        assert np.all(w_top >= w_bot)
+        # the top slice of the 'top' reference equals the nominal bottom slice of 'bottom' reference
+        assert abs(int(w_top[-1]) - int(w_bot[0])) <= 2
+
+    def test_reference_plane_middle_symmetric(self, key, two_materials):
+        """reference_plane='middle': the mid-slice is nominal, base wider, top narrower, symmetric."""
+        angle = 75.0  # degrees from substrate
+        mask = self._build(two_materials, key, sidewall_angle=angle, reference_plane="middle")
+        widths = _half_width_per_slice(mask, 0, 1)
+        mid = self.NZ // 2
+        # monotone narrowing with z; mid-slice ~ halfway between the extremes
+        assert widths[0] >= widths[mid] >= widths[-1]
+        assert abs((int(widths[0]) - int(widths[-1])) - 2 * (int(widths[0]) - int(widths[mid]))) <= 3
+
+    def test_angle_above_90_dilates(self, key, two_materials):
+        """Angle > 90 (re-entrant / undercut): width grows with z from the bottom reference."""
+        angle = 105.0  # degrees from substrate (15 deg past vertical, re-entrant)
+        mask = self._build(two_materials, key, sidewall_angle=angle, reference_plane="bottom")
+        widths = _half_width_per_slice(mask, 0, 1)
+        assert widths[-1] >= widths[0]
+
+    def test_single_slice_middle_keeps_nominal_width(self, key, two_materials):
+        """A 1-cell-tall layer with reference_plane='middle' keeps the nominal footprint (offset ~ 0)."""
+        cfg = _sidewall_config(self.SPACING, 1)
+        n_xy = 40
+
+        def build(angle):
+            obj = GDSLayerObject(
+                materials=two_materials, polygons=[_square_polygon(half_side=self.HALF)],
+                gds_center=(0.0, 0.0), material_name="si", axis=2,
+                thickness=self.SPACING, sidewall_angle=angle, reference_plane="middle",
+            )
+            placed = obj.place_on_grid(grid_slice_tuple=((0, n_xy), (0, n_xy), (0, 1)), config=cfg, key=key)
+            return np.array(placed.get_voxel_mask_for_shape())
+
+        # a single mid-plane slice must match the vertical footprint regardless of angle
+        assert np.array_equal(build(70.0), build(90.0))
+
+    def test_invalid_angle_raises(self, key, two_materials):
+        """An angle outside (0, 180) degrees is rejected (validated eagerly in __post_init__)."""
+        with pytest.raises(ValueError, match="degrees"):
+            self._build(two_materials, key, sidewall_angle=200.0)
+
+    def test_spec_threads_sidewall_through_stack(self, square_lib, sim_volume, two_materials):
+        """GDSLayerSpec.sidewall_angle / reference_plane are forwarded onto the GDSLayerObject."""
+        spec = GDSLayerSpec(
+            gds_layer=1,
+            material_name="si",
+            thickness=200e-9,
+            sidewall_angle=82.0,
+            reference_plane="middle",
+        )
+        objects, _ = gds_layer_stack(
+            gds_source=square_lib,
+            cell_name="TOP",
+            layers=[spec],
+            materials=two_materials,
+            simulation_volume=sim_volume,
+            gds_center=(0.0, 0.0),
+        )
+        assert objects[0].sidewall_angle == pytest.approx(82.0)
+        assert objects[0].reference_plane == "middle"
+
+
+@pytest.mark.unit
+class TestSidewallVsTidy3D:
+    """Cross-check the discrete sidewall mask footprint against Tidy3D.PolySlab geometry.
+
+    Tidy3D is a hard dependency of fdtdx, but we still guard the import so the test degrades
+    gracefully if it is ever made optional. This compares the *geometry* (which cells lie inside the
+    slanted slab at a given height) rather than n_eff, keeping the test fast and solver-free; the
+    n_eff agreement (max|Δ| ~= 0.005 at 90/88/86 deg) is checked by the in-tree example
+    examples/validate_sidewall_neff.py.
+    """
+
+    def test_footprint_matches_polyslab_cross_sections(self, key, two_materials):
+        td = pytest.importorskip("tidy3d")
+
+        spacing = 20e-9
+        nz = 20
+        half = 400e-9  # 800 nm square
+        gds_angle = 82.0  # degrees from substrate (8 deg off vertical)
+        polyslab_angle = np.deg2rad(90.0 - gds_angle)  # Tidy3D PolySlab: deviation-from-vertical (rad)
+
+        config = SimulationConfig(
+            time=100e-15,
+            grid=UniformGrid(spacing=spacing),
+            backend="cpu",
+            dtype=jnp.float32,
+            gradient_config=None,
+        )
+        n_xy = 60
+        obj = GDSLayerObject(
+            materials=two_materials,
+            polygons=[_square_polygon(half_side=half)],
+            gds_center=(0.0, 0.0),
+            material_name="si",
+            axis=2,
+            thickness=nz * spacing,
+            sidewall_angle=gds_angle,
+            reference_plane="bottom",
+        )
+        placed = obj.place_on_grid(
+            grid_slice_tuple=((0, n_xy), (0, n_xy), (0, nz)), config=config, key=key
+        )
+        mask = np.array(placed.get_voxel_mask_for_shape())
+
+        # Build the equivalent Tidy3D PolySlab and query ITS OWN geometry (inside()), rather than
+        # re-deriving the taper. Tidy3D coordinates are dimensionless (µm by convention), so the whole
+        # comparison is done in microns; the taper relation is scale-free.
+        um = 1e6
+        h = half * um
+        verts = [(-h, -h), (h, -h), (h, h), (-h, h)]
+        slab = td.PolySlab(
+            vertices=verts,
+            slab_bounds=(0.0, nz * spacing * um),
+            axis=2,
+            sidewall_angle=float(polyslab_angle),
+            reference_plane="bottom",
+        )
+
+        # Cross-section centres (microns); PolySlab.inside meshes the 1D coord vectors into a 3D grid.
+        x_centers = ((np.arange(n_xy) + 0.5) * spacing - n_xy * spacing / 2) * um
+        y_centers = x_centers.copy()
+        z_centers = (np.arange(nz) + 0.5) * spacing * um
+        pitch_um = spacing * um
+
+        X, Y, Z = np.meshgrid(x_centers, y_centers, z_centers, indexing="ij")
+        inside_td = np.asarray(slab.inside(X, Y, Z))  # (n_xy, n_xy, nz)
+
+        max_edge_err_cells = 0.0
+        for kz, z in enumerate(z_centers):
+            inside_row = inside_td[:, n_xy // 2, kz]
+            mask_row = mask[:, n_xy // 2, kz]
+            disagree = np.where(mask_row != inside_row)[0]
+            # disagreement is only allowed within one cell of the slanted edge; the analytical
+            # half-width locates the edge to measure the discretization error against.
+            half_z = h - z * np.tan(polyslab_angle)
+            for idx in disagree:
+                edge_dist_cells = (abs(x_centers[idx]) - half_z) / pitch_um
+                max_edge_err_cells = max(max_edge_err_cells, abs(edge_dist_cells))
+
+        assert max_edge_err_cells <= 1.0, (
+            f"sidewall footprint disagrees with Tidy3D PolySlab by {max_edge_err_cells:.2f} cells"
+        )
+
+
+# ---------------------------------------------------------------------------
 # get_voxel_mask_for_shape — RectilinearGrid path
 # ---------------------------------------------------------------------------
 

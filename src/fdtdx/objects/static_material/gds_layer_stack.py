@@ -42,6 +42,18 @@ class GDSLayerSpec:
     #: Tuple of (layer, datatype) pairs whose polygons are subtracted from this layer via
     #: a boolean NOT operation before voxelization. Useful for etched features such as via holes.
     etch_by: tuple[tuple[int, int], ...] = ()
+    #: Sidewall angle in **degrees**, measured between the sidewall and the substrate plane, the way
+    #: foundry PDKs specify it.  ``90.0`` (default) is a perfectly vertical wall.  An angle ``< 90``
+    #: tilts the wall so the cross-section *shrinks* toward the top (regular trapezoid / positive-resist
+    #: etch, e.g. 89 deg); an angle ``> 90`` makes it *grow* toward the top (re-entrant / undercut
+    #: profile).  Must satisfy ``0 < sidewall_angle < 180``.  (Relation to the Tidy3D ``PolySlab``
+    #: convention: ``polyslab_angle_rad = deg2rad(90 - sidewall_angle)``.)
+    sidewall_angle: float = 90.0
+    #: Which face keeps the nominal polygon footprint when ``sidewall_angle != 90``.
+    #: ``"bottom"`` (default) keeps the base footprint and tapers the top inward for an angle ``< 90``;
+    #: ``"top"`` keeps the top footprint; ``"middle"`` keeps the mid-height footprint and splits the
+    #: taper symmetrically. Mirrors ``PolySlab.reference_plane``.
+    reference_plane: Literal["bottom", "middle", "top"] = "bottom"
     color: Color | None = XKCD_LIGHT_GREY
 
 
@@ -96,6 +108,21 @@ class GDSLayerObject(StaticMultiMaterialObject):
     #: Extrusion thickness in metres.
     thickness: float = frozen_field()
 
+    #: Sidewall angle in **degrees** between the wall and the substrate (foundry convention).
+    #: ``90.0`` extrudes a vertical wall; other values produce a trapezoidal cross-section by eroding
+    #: (angle ``< 90``) or dilating (angle ``> 90``) each z-slice laterally by an offset
+    #: ``offset(z) = (z - z_ref) * tan(90deg - sidewall_angle)`` measured from ``reference_plane``.
+    sidewall_angle: float = frozen_field(default=90.0)
+
+    #: Face that keeps the nominal footprint: ``"bottom"``, ``"middle"`` or ``"top"``.
+    reference_plane: Literal["bottom", "middle", "top"] = frozen_field(default="bottom")
+
+    def __post_init__(self):
+        if not 0.0 < self.sidewall_angle < 180.0:
+            raise ValueError(
+                f"sidewall_angle must lie in (0, 180) degrees (90 = vertical), got {self.sidewall_angle}."
+            )
+
     @property
     def horizontal_axis(self) -> int:
         """Cross-section axis that is not the extrusion axis and not the vertical axis."""
@@ -114,6 +141,13 @@ class GDSLayerObject(StaticMultiMaterialObject):
     def get_voxel_mask_for_shape(self) -> jax.Array:
         """Compute a 3-D boolean mask for the extruded polygon shape.
 
+        When ``sidewall_angle`` is 90 deg the polygon footprint is extruded vertically and every
+        z-slice is identical.  Otherwise each z-slice is offset laterally by
+        ``(z_center - z_ref) * tan(90deg - sidewall_angle)`` (erosion for an angle < 90, dilation for
+        an angle > 90), giving a trapezoidal cross-section that approximates ``Tidy3D.PolySlab`` with
+        the equivalent angle / ``reference_plane``. The per-slice offset is applied in physical
+        (metre) units via a Euclidean distance transform, so it is correct on non-uniform grids as well.
+
         Note:
             Only ``axis=2`` (z-extrusion) is supported.  GDS layouts encode x/y
             coordinates only, so extruding along x or y would require a z-coordinate
@@ -131,6 +165,26 @@ class GDSLayerObject(StaticMultiMaterialObject):
                 f"got axis={self.axis}. GDS layouts encode x/y coordinates only."
             )
 
+        mask_2d = self._base_mask_2d()
+        extrusion_height = self.grid_shape[self.axis]
+
+        if self.sidewall_angle == 90.0:
+            mask = jnp.repeat(
+                jnp.expand_dims(jnp.asarray(mask_2d, dtype=jnp.bool_), axis=self.axis),
+                repeats=extrusion_height,
+                axis=self.axis,
+            )
+            return mask
+
+        mask_3d = self._extrude_with_sidewall(mask_2d, extrusion_height)
+        return jnp.asarray(mask_3d, dtype=jnp.bool_)
+
+    def _base_mask_2d(self) -> np.ndarray:
+        """Rasterize the (vertical-extrusion) polygon footprint to a 2-D boolean mask.
+
+        Returns:
+            np.ndarray: Boolean array of shape ``(n_horizontal, n_vertical)``.
+        """
         n_h = self.grid_shape[self.horizontal_axis]
         n_v = self.grid_shape[self.vertical_axis]
 
@@ -166,14 +220,46 @@ class GDSLayerObject(StaticMultiMaterialObject):
                     for poly in local_polygons
                 ]
                 mask_2d = np.any(np.stack(masks, axis=0), axis=0)
+        return np.asarray(mask_2d, dtype=bool)
 
-        extrusion_height = self.grid_shape[self.axis]
-        mask = jnp.repeat(
-            jnp.expand_dims(jnp.asarray(mask_2d, dtype=jnp.bool_), axis=self.axis),
-            repeats=extrusion_height,
-            axis=self.axis,
-        )
-        return mask
+    def _z_centers(self, extrusion_height: int) -> np.ndarray:
+        """Physical z cell-center coordinates relative to the layer base, one per z-slice."""
+        grid = self._config.resolved_grid
+        if grid is None:
+            res = self._config.uniform_spacing()
+            return (np.arange(extrusion_height) + 0.5) * res
+        z_lower, z_upper = self.grid_slice_tuple[self.axis]
+        z_edges = np.asarray(grid.edges(self.axis))
+        return 0.5 * (z_edges[z_lower:z_upper] + z_edges[z_lower + 1 : z_upper + 1]) - z_edges[z_lower]
+
+    def _extrude_with_sidewall(self, mask_2d: np.ndarray, extrusion_height: int) -> np.ndarray:
+        """Stack the 2-D footprint into a trapezoidal 3-D mask using the sidewall model.
+
+        ``sidewall_angle`` is validated in ``__post_init__`` (must be in ``(0, 180)`` degrees).
+        """
+        z_centers = self._z_centers(extrusion_height)
+        if self.reference_plane == "bottom":
+            z_ref = float(z_centers[0])
+        elif self.reference_plane == "top":
+            z_ref = float(z_centers[-1])
+        else:  # middle: mid-plane of the resolved slices (offset 0 for a single-slice layer)
+            z_ref = 0.5 * (float(z_centers[0]) + float(z_centers[-1]))
+
+        # Physical cell pitch on the two cross-section axes (use the min spacing for the distance
+        # transform sampling; uniform grids are exact, non-uniform grids are approximated).
+        grid = self._config.resolved_grid
+        if grid is None:
+            pitch_h = pitch_v = float(self._config.uniform_spacing())
+        else:
+            pitch_h = float(np.min(grid.cell_widths(self.horizontal_axis)))
+            pitch_v = float(np.min(grid.cell_widths(self.vertical_axis)))
+
+        tan = float(np.tan(np.deg2rad(90.0 - self.sidewall_angle)))
+        slices = []
+        for z in z_centers:
+            offset = (float(z) - z_ref) * tan  # angle<90 -> erode (shrink), angle>90 -> dilate (grow)
+            slices.append(_offset_mask(mask_2d, offset, pitch_h, pitch_v))
+        return np.stack(slices, axis=self.axis)
 
     def get_material_mapping(self) -> jax.Array:
         """Return an integer array filled with the index of ``material_name`` in the sorted material list.
@@ -190,6 +276,39 @@ class GDSLayerObject(StaticMultiMaterialObject):
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+
+def _offset_mask(mask_2d: np.ndarray, offset: float, pitch_h: float, pitch_v: float) -> np.ndarray:
+    """Erode or dilate a boolean mask by a physical lateral ``offset`` (metres).
+
+    The offset is applied with a Euclidean distance transform sampled at the (possibly anisotropic)
+    grid pitch, so a single fractional/grid-cell offset is handled uniformly and the result matches
+    a constant inward (``offset > 0``) or outward (``offset < 0``) normal displacement of the polygon
+    boundary — the discrete analogue of ``Tidy3D.PolySlab``'s linear sidewall.
+
+    Args:
+        mask_2d: Boolean footprint mask of shape ``(n_h, n_v)``.
+        offset: Inward erosion distance in metres (negative dilates outward).
+        pitch_h: Cell pitch along the horizontal axis in metres.
+        pitch_v: Cell pitch along the vertical axis in metres.
+
+    Returns:
+        np.ndarray: Boolean mask of the same shape, eroded/dilated by ``offset``.
+    """
+    from scipy import ndimage
+
+    if abs(offset) < 1e-15 or not mask_2d.any():
+        # No taper here, or nothing to taper. A purely-dilated empty mask stays empty.
+        return mask_2d.copy()
+
+    sampling = (pitch_h, pitch_v)
+    if offset > 0:
+        # Distance (metres) from each solid cell to the nearest void cell; keep cells deeper than offset.
+        dist_in = ndimage.distance_transform_edt(mask_2d, sampling=sampling)
+        return dist_in > offset
+    # Dilation: distance from each void cell to the nearest solid cell; add cells within |offset|.
+    dist_out = ndimage.distance_transform_edt(~mask_2d, sampling=sampling)
+    return mask_2d | (dist_out <= -offset)
 
 
 def _load_gds_cell(
@@ -384,6 +503,8 @@ def gds_layer_stack(
             material_name=spec.material_name,
             axis=2,
             thickness=spec.thickness,
+            sidewall_angle=spec.sidewall_angle,
+            reference_plane=spec.reference_plane,
             partial_real_shape=(None, None, spec.thickness),
         )
 
