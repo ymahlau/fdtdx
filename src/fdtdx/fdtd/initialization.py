@@ -296,34 +296,16 @@ def apply_params(
             # Linear interpolation between two materials via their permittivities
             # Add spatial broadcast dims for element-wise multiplication
             perm_bc = allowed_perm_array[:, :, None, None, None]
-            # cur_material_indices: (*grid_shape) broadcasts with (num_components, 1, 1, 1)
             if device.use_etching:
-                old_inv_perm_slice = arrays.inv_permittivities[:, *device.grid_slice]
-
-                # Invert inv_permittivites back to permittivities.
-                # When using a single etched device, the outcome is static
-                if isotropic or diagonally_anisotropic:
-                    old_perm_slice = 1 / old_inv_perm_slice
-                else:
-                    grid_shape = old_inv_perm_slice.shape[1:]
-                    mat_slice = jnp.moveaxis(old_inv_perm_slice.reshape(3, 3, *grid_shape), (0, 1), (-2, -1))
-                    inv_mat_slice = jnp.linalg.inv(mat_slice) # Inverts over the last two dimensions
-                    old_perm_slice = jnp.moveaxis(inv_mat_slice, (-2, -1), (0, 1)).reshape(9, *grid_shape)
-
-                interp_perm = (1 - cur_material_indices) * old_perm_slice + cur_material_indices * perm_bc[0]
+                # interpolate between existing background material and etch material
+                perm_slice = _invert_property(arrays.inv_permittivities[:, *device.grid_slice])
+                perm_slice = perm_slice + cur_material_indices * (perm_bc[0] - perm_slice)
             else:
-                interp_perm = (1 - cur_material_indices) * perm_bc[0] + cur_material_indices * perm_bc[1]
+                # interpolate between two device materials
+                # cur_material_indices: (*grid_shape) broadcasts with (num_components, 1, 1, 1)
+                perm_slice = perm_bc[0] + cur_material_indices * (perm_bc[1] - perm_bc[0])
 
-            # Compute inverse permittivities from the interpolated actual permittivities
-            if isotropic or diagonally_anisotropic:
-                new_inv_perm_slice = 1.0 / interp_perm
-            else:
-                # Fully anisotropic: interp_perm shape is (9, Nx, Ny, Nz)
-                # Reshape and move spatial axes to invert the 3x3 matrix at each voxel via jnp.linalg.inv
-                grid_shape = interp_perm.shape[1:]
-                mat_slice = jnp.moveaxis(interp_perm.reshape(3, 3, *grid_shape), (0, 1), (-2, -1))
-                inv_mat_slice = jnp.linalg.inv(mat_slice) # Inverts over the last two dimensions
-                new_inv_perm_slice = jnp.moveaxis(inv_mat_slice, (-2, -1), (0, 1)).reshape(9, *grid_shape)
+            new_inv_perm_slice = _invert_property(perm_slice)
 
             if write_dispersive:
                 assert allowed_c1_arr is not None and allowed_c2_arr is not None and allowed_c3_arr is not None
@@ -783,17 +765,15 @@ def _init_arrays(
                     diagonally_anisotropic=diagonally_anisotropic_permittivity,
                 )
             )
-            if num_perm_components == 1 or num_perm_components == 3:
-                allowed_inv_perms = 1 / allowed_perms  # shape: (num_materials, num_components)
-            else:
-                # Fully anisotropic: reshape to 3x3 matrix, invert, and flatten back to 9 elements
-                allowed_inv_perms = jnp.array([jnp.linalg.inv(perm.reshape(3, 3)).flatten() for perm in allowed_perms])
 
-            # allowed_inv_perms[indices] -> (*grid_shape, num_components)
+            # allowed_perms[indices] -> (*grid_shape, num_components)
             # After moveaxis -> (num_components, *grid_shape)
-            component_values = jnp.moveaxis(allowed_inv_perms[indices], -1, 0)
-            diff = component_values - inv_permittivities[:, *o.grid_slice]
-            inv_permittivities = inv_permittivities.at[:, *o.grid_slice].add(mask * diff)
+            component_values = jnp.moveaxis(allowed_perms[indices], -1, 0)
+            perm_slice = _invert_property(inv_permittivities[:, *o.grid_slice])
+
+            # Linearly interpolate in the forward domain
+            perm_slice = perm_slice + mask * (component_values - perm_slice)
+            inv_permittivities = inv_permittivities.at[:, *o.grid_slice].set(_invert_property(perm_slice))
 
             if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
                 allowed_perms = jnp.asarray(
@@ -803,17 +783,12 @@ def _init_arrays(
                         diagonally_anisotropic=diagonally_anisotropic_permeability,
                     )
                 )
-                if num_permeability_components == 1 or num_permeability_components == 3:
-                    allowed_inv_perms = 1 / allowed_perms
-                else:
-                    # Fully anisotropic: reshape to 3x3 matrix, invert, and flatten back to 9 elements
-                    allowed_inv_perms = jnp.array(
-                        [jnp.linalg.inv(perm.reshape(3, 3)).flatten() for perm in allowed_perms]
-                    )
 
-                component_values = jnp.moveaxis(allowed_inv_perms[indices], -1, 0)
-                diff = component_values - inv_permeabilities[:, *o.grid_slice]
-                inv_permeabilities = inv_permeabilities.at[:, *o.grid_slice].add(mask * diff)
+                component_values = jnp.moveaxis(allowed_perms[indices], -1, 0)
+                perm_slice = _invert_property(inv_permeabilities[:, *o.grid_slice])
+
+                perm_slice = perm_slice + mask * (component_values - perm_slice)
+                inv_permeabilities = inv_permeabilities.at[:, *o.grid_slice].set(_invert_property(perm_slice))
 
             if electric_conductivity is not None:
                 allowed_conds = jnp.asarray(
@@ -1856,3 +1831,20 @@ def _handle_unresolved_objects(
         if any([slice_dict[obj_name][a][0] is None or slice_dict[obj_name][a][1] is None for a in range(3)]):
             errors[obj_name] = f"Could not resolve position/size of {obj.name} ({obj.__class__})."
     return errors
+
+
+def _invert_property(arr: jax.Array):
+    """Inverts a property array, e.g. inv_permittivities of shape (num_comp, *grid_shape)."""
+    num_components = arr.shape[0]
+    assert arr.ndim == 4 and num_components in [1, 3, 9], f"Expecting shape (num_comp, *grid_shape), got shape {arr.shape}"
+
+    if num_components in (1, 3):
+        return 1.0 / arr
+    else:
+        # Full tensor inversion: move 9-component axis to the end, reshape, invert, and flatten back
+        arr_reshaped = jnp.moveaxis(arr, 0, -1)
+        spatial_shape = arr_reshaped.shape[:-1]
+        matrices = arr_reshaped.reshape(*spatial_shape, 3, 3)
+        inv_matrices = jnp.linalg.inv(matrices)
+        inv_flattened = inv_matrices.reshape(*spatial_shape, 9)
+        return jnp.moveaxis(inv_flattened, -1, 0)
