@@ -416,6 +416,11 @@ class TestSidewallAngle:
         with pytest.raises(ValueError, match="degrees"):
             self._build(two_materials, key, sidewall_angle=200.0)
 
+    def test_invalid_reference_plane_raises(self, key, two_materials):
+        """An unknown reference_plane is rejected eagerly (not silently treated as 'middle')."""
+        with pytest.raises(ValueError, match="reference_plane"):
+            self._build(two_materials, key, sidewall_angle=80.0, reference_plane="center")
+
     def test_spec_threads_sidewall_through_stack(self, square_lib, sim_volume, two_materials):
         """GDSLayerSpec.sidewall_angle / reference_plane are forwarded onto the GDSLayerObject."""
         spec = GDSLayerSpec(

@@ -122,6 +122,10 @@ class GDSLayerObject(StaticMultiMaterialObject):
             raise ValueError(
                 f"sidewall_angle must lie in (0, 180) degrees (90 = vertical), got {self.sidewall_angle}."
             )
+        if self.reference_plane not in ("bottom", "middle", "top"):
+            raise ValueError(
+                f"reference_plane must be one of 'bottom', 'middle', 'top'; got {self.reference_plane!r}."
+            )
 
     @property
     def horizontal_axis(self) -> int:
@@ -146,7 +150,8 @@ class GDSLayerObject(StaticMultiMaterialObject):
         ``(z_center - z_ref) * tan(90deg - sidewall_angle)`` (erosion for an angle < 90, dilation for
         an angle > 90), giving a trapezoidal cross-section that approximates ``Tidy3D.PolySlab`` with
         the equivalent angle / ``reference_plane``. The per-slice offset is applied in physical
-        (metre) units via a Euclidean distance transform, so it is correct on non-uniform grids as well.
+        (metre) units via a Euclidean distance transform; on a non-uniform cross-section grid it uses a
+        constant per-axis pitch (the minimum cell width), which is an approximation.
 
         Note:
             Only ``axis=2`` (z-extrusion) is supported.  GDS layouts encode x/y
@@ -238,6 +243,10 @@ class GDSLayerObject(StaticMultiMaterialObject):
         ``sidewall_angle`` is validated in ``__post_init__`` (must be in ``(0, 180)`` degrees).
         """
         z_centers = self._z_centers(extrusion_height)
+        if z_centers.size == 0:  # zero-height layer: nothing to extrude (parity with the 90deg fast path)
+            empty_shape = list(mask_2d.shape)
+            empty_shape.insert(self.axis, 0)
+            return np.zeros(empty_shape, dtype=bool)
         if self.reference_plane == "bottom":
             z_ref = float(z_centers[0])
         elif self.reference_plane == "top":
