@@ -73,18 +73,16 @@ class GDSLayerObject(StaticMultiMaterialObject):
     Each instance represents one GDS layer (layer/datatype pair) extruded uniformly
     along ``axis``. The cross-sectional shape is described by ``polygons``, given in
     GDS coordinate space (metres). The mapping from GDS space to the local grid is
-    controlled by ``gds_center``, which gives the GDS coordinate that coincides with
-    the x/y center of the simulation object.
+    controlled by ``gds_center``, which gives the GDS coordinate that coincides with the x/y centre
+    of the simulation volume. For example, ``gds_center=(0.0, 0.0)`` maps the GDS origin to the
+    centre of the simulation volume, while ``gds_center=(500e-9, 0.0)`` shifts the layout 500 nm to the left.
     """
 
     #: Sequence of (N, 2) vertex arrays for each polygon, in GDS metres.
     polygons: Sequence[np.ndarray] = frozen_field()
 
     #: GDS coordinate (horizontal, vertical) in metres that coincides with the x/y centre
-    #: of this object's grid region.  Use this to align the GDS origin (or any other
-    #: reference point in the layout) with a known simulation coordinate.  For example,
-    #: ``gds_center=(0.0, 0.0)`` maps the GDS origin to the centre of the simulation
-    #: volume, while ``gds_center=(500e-9, 0.0)`` shifts the layout 500 nm to the left.
+    #: of the simulation volume.
     gds_center: tuple[float, float] = frozen_field()
 
     #: Key into the materials dictionary used for this object.
@@ -137,17 +135,19 @@ class GDSLayerObject(StaticMultiMaterialObject):
         real_h = self.real_shape[self.horizontal_axis]
         real_v = self.real_shape[self.vertical_axis]
 
-        origin_h = self.gds_center[0] - real_h / 2
-        origin_v = self.gds_center[1] - real_v / 2
+        # Origin is now at the center of the simulation volume
+        origin_h = self.gds_center[0]
+        origin_v = self.gds_center[1]
 
         local_polygons = [poly - np.array([origin_h, origin_v]) for poly in self.polygons]
 
         grid = self._config.resolved_grid
         if grid is None:
             res = self._config.uniform_spacing()
-            half_res = 0.5 * res
+            half = res / 2.0
+            # Use cell centers boundaries
             mask_2d = multi_polygons_to_mask(
-                boundary=(half_res, half_res, (n_h - 0.5) * res, (n_v - 0.5) * res),
+                boundary=(-real_h / 2 + half, -real_v / 2 + half, real_h / 2 - half, real_v / 2 - half),
                 resolution=res,
                 polygon_list=local_polygons,
             )
@@ -156,8 +156,9 @@ class GDSLayerObject(StaticMultiMaterialObject):
             v_lower, v_upper = self.grid_slice_tuple[self.vertical_axis]
             h_edges = np.asarray(grid.edges(self.horizontal_axis))
             v_edges = np.asarray(grid.edges(self.vertical_axis))
-            h_centers = 0.5 * (h_edges[h_lower:h_upper] + h_edges[h_lower + 1 : h_upper + 1]) - h_edges[h_lower]
-            v_centers = 0.5 * (v_edges[v_lower:v_upper] + v_edges[v_lower + 1 : v_upper + 1]) - v_edges[v_lower]
+            # Compute cell centers relative to the origin at the center of the simulation volume
+            h_centers = 0.5 * (h_edges[h_lower:h_upper] + h_edges[h_lower + 1 : h_upper + 1])
+            v_centers = 0.5 * (v_edges[v_lower:v_upper] + v_edges[v_lower + 1 : v_upper + 1])
             if len(local_polygons) == 0:
                 mask_2d = np.zeros((n_h, n_v), dtype=bool)
             else:
@@ -219,10 +220,9 @@ def _load_gds_cell(
 def _gds_to_sim(gds_val: float, gds_center_val: float, vol_size: float) -> float:
     """Convert a GDS coordinate (metres) to a simulation real-space coordinate (metres).
 
-    Simulation real-space coordinates are measured from the lower-left corner of the
-    simulation volume (grid index 0).
+    Simulation real-space coordinates are now measured from the center of the simulation volume.
     """
-    return gds_val - gds_center_val + vol_size / 2
+    return gds_val - gds_center_val
 
 
 @dataclass(frozen=True)

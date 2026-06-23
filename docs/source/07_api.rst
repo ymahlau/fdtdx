@@ -93,6 +93,7 @@ API
     fdtdx.PositionConstraint
     fdtdx.PoyntingFluxDetector
     fdtdx.private_field
+    fdtdx.QuasiUniformGrid
     fdtdx.RealCoordinateConstraint
     fdtdx.Recorder
     fdtdx.RecordingState
@@ -116,6 +117,10 @@ API
     fdtdx.TanhProjection
     fdtdx.TemporalProfile
     fdtdx.TreeClass
+    fdtdx.unfold_array
+    fdtdx.unfold_detector_states
+    fdtdx.unfold_fields
+    fdtdx.unfold_source_mode
     fdtdx.UniformGrid
     fdtdx.UniformMaterialObject
     fdtdx.UniformPlaneSource
