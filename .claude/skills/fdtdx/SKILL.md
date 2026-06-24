@@ -58,11 +58,32 @@ time_step, arrays = state
 _, arrays = fdtdx.full_backward(state=state, objects=objects, config=config, key=key)
 ```
 
-**`place_objects()`** resolves all constraints iteratively (up to 1000 iterations), places objects on the grid, initializes E/H/PML field arrays, material arrays, detector states, and recording state.
+**`place_objects()`** first resolves the grid policy into a concrete `RectilinearGrid` from the volume shape (so constraints solve against real edge coordinates — see Grid Policies), then resolves all constraints iteratively (up to 1000 iterations), places objects on the grid, initializes E/H/PML field arrays, material arrays, detector states, and recording state.
 
 **`apply_params()`** runs the device parameter transformation pipeline and writes resulting permittivities into the array container. For CONTINUOUS output, uses linear interpolation between materials. For DISCRETE output, uses straight-through estimator (STE).
 
 **`run_fdtd()`** dispatches to either `reversible_fdtd()` or `checkpointed_fdtd()` based on `config.gradient_config`.
+
+## Grid Policies & Coordinate System
+
+**The coordinate origin is at the CENTER of the simulation domain** (changed in #363, Jun 2026 — previously the lower-left corner). Real-space coordinates span symmetrically: an axis of physical length `L` runs from `-L/2` to `+L/2`. All `partial_real_position` / real-coordinate-constraint values are measured from the domain center (0 = center, negative = lower half, positive = upper half). Any pre-#363 code that placed objects in corner-relative `[0, L]` coordinates must be shifted by `-L/2`.
+
+**Three grid representations** (`src/fdtdx/core/grid.py`):
+- `UniformGrid(spacing, center=(0,0,0))` — *policy*. Cubic cells of one scalar `spacing`; user intent before the volume shape is known.
+- `QuasiUniformGrid(dx, dy, dz, center=(0,0,0))` — *policy* (new in #363, exported as `fdtdx.QuasiUniformGrid`). Independent per-axis spacing (rectangular-parallelepiped cells); each axis internally uniform. `is_uniform` is True only when `dx==dy==dz`.
+- `RectilinearGrid(x_edges, y_edges, z_edges)` — *realized* solver grid: explicit strictly-increasing edge arrays (`nx+1` per axis). The single canonical metric source the FDTD loop reads. Build directly, via `.uniform(shape, spacing, center=...)`, or `.custom(...)`.
+
+Policies `.resolve(shape)` → `RectilinearGrid`, centered on `center`. **`QuasiUniformGrid.resolve` requires an even cell count on every axis** (raises `ValueError` otherwise — the center must land on a cell edge); `UniformGrid` does not enforce this.
+
+**The grid is resolved FIRST, before constraint solving** (#363 reordered `place_objects`). The volume's `partial_grid_shape` (or `partial_real_shape ÷ policy spacing`) pins a concrete `RectilinearGrid` into `config.grid` up front, so every object sees resolved physical edge coordinates during placement (no temporary-coordinate handling). Under `config.symmetry` the grid is re-resolved/sliced onto the reduced upper half.
+
+**Config grid helpers:**
+- `config.resolved_grid` → `RectilinearGrid | None` (`None` while still an unresolved policy).
+- `config.has_nonuniform_grid` → True only once resolved to genuinely non-uniform edges.
+- `config.resolve_grid(shape)` → concrete grid; `config.uniform_spacing()` → scalar (raises for non-uniform / unequal `QuasiUniformGrid`).
+- `config.time_step_duration` uses the grid's CFL bound: uniform → `courant_factor/√3 · spacing/c`; non-uniform `RectilinearGrid` → `courant_factor / (c·√(1/dx_min²+1/dy_min²+1/dz_min²))`.
+
+There is no longer a global `config.resolution` scalar — ask the grid for physical distances (`cell_widths(axis)`, `centers(axis)`, `edges(axis)`, `face_area(...)`, `cell_volume(...)`, `min_spacing`).
 
 ## Yee Grid Conventions
 
@@ -125,7 +146,7 @@ Materials store **inverse** permittivity/permeability (`inv_permittivities`, `in
 
 This is determined globally — if ANY object is anisotropic, ALL material arrays expand. The detection happens in `ObjectContainer` properties like `all_objects_isotropic_permittivity`.
 
-**Conductivity is scaled by resolution** during initialization in `_init_arrays` (`src/fdtdx/fdtd/initialization.py`).
+**Conductivity is scaled by the grid cell spacing** during initialization in `_init_arrays` (`src/fdtdx/fdtd/initialization.py`) — the scale factor is `constants.c * config.time_step_duration / config.courant_number` (equal to the cell width for a uniform grid). There is no `config.resolution` to pre-scale against.
 
 **Material fields:**
 - `permittivity`, `permeability`, `electric_conductivity`, `magnetic_conductivity` — 9-tuples (scalar/3-tuple/nested-3x3 inputs auto-normalized).
@@ -298,6 +319,15 @@ device = fdtdx.Device(
 
 **Voxel indirection:** Devices have their own voxel grid independent of the simulation grid, allowing coarse optimization on a fine simulation mesh.
 
+## GDS Import
+
+`fdtdx.gds_layer_stack(gds_source, cell_name, layers, materials, simulation_volume, gds_center, ...)` builds `GDSLayerObject`s (one per `GDSLayerSpec`) from a GDS layout (`src/fdtdx/objects/static_material/gds_layer_stack.py`).
+
+- `gds_center: tuple[float, float]` is the GDS coordinate (metres) that maps to the **center** of the simulation volume (center-origin convention, #363). `gds_center=(0, 0)` puts the GDS origin at the domain center; `(500e-9, 0)` shifts the layout 500 nm.
+- `GDSLayerSpec` fields: `gds_layer`, `material_name`, `thickness`, `gds_datatype=0`, `z_base`, `name`, `etch_by` (layer/datatype pairs subtracted via boolean NOT before voxelization), and `color: Color | None = XKCD_LIGHT_GREY` — display color for `plot_set_up`; `None` leaves the object uncolored (#357).
+- An empty `layers` list raises `ValueError` (#357/#363).
+- `sources_from_gds_ports` / `detectors_from_gds_ports` place mode sources/detectors from GDS port markers (port `propagation_axis` must be 0 or 1).
+
 ## Sources
 
 **TFSF (Total-Field/Scattered-Field):** Plane sources inject fields at a boundary offset +0.25 on the Yee grid along the propagation axis.
@@ -334,7 +364,7 @@ All detectors use `OnOffSwitch` for temporal gating. State is stored as `Detecto
 - `PoyntingFluxDetector` — records directional power flow (key for transmission/reflection)
 - `PhasorDetector` — records complex phasor amplitudes at specific frequencies
 - `DiffractiveDetector` — records complex diffraction efficiencies per order
-- `ModeOverlapDetector` — computes overlap integral with a guided mode (inherits from PhasorDetector)
+- `ModeOverlapDetector` — computes overlap integral with a guided mode (inherits from PhasorDetector); frequency-indexed (one reference mode per `wave_characters` entry)
 
 **Accessing results:** `arrays.detector_states["name"]["key"]`
 
@@ -364,7 +394,12 @@ All state arrays have a leading time dimension: `(num_time_steps_on, ...)`. Use 
 - Time dim is always 1
 - Shape: `(1, num_frequencies, num_orders)`
 
-**ModeOverlapDetector** — inherits PhasorDetector, always uses all 6 field components. Use `compute_overlap_to_mode()` to get the scalar overlap. In a dispersive medium, the reference mode is solved against `effective_inv_permittivity` at the detector's carrier frequency (same correction as `ModePlaneSource`), so the overlap compares against ε(ω_c) rather than ε∞.
+**ModeOverlapDetector** — inherits PhasorDetector, always uses all 6 field components. **Multi-frequency (#362):** solves and stores one reference mode per entry in `wave_characters` (`_mode_E`/`_mode_H` stacked as `(num_freqs, 3, *spatial)`).
+- `compute_overlap(state)` → complex array of shape `(num_freqs,)`. This was a bare scalar before #362, so single-frequency detectors now return shape `(1,)` — index `[0]` for the scalar.
+- `compute_overlap_to_mode(state, mode_E, mode_H, wave_character_index=0)` → scalar overlap for one frequency (the per-frequency helper `compute_overlap` loops over).
+- In a dispersive medium each reference mode is solved against `effective_inv_permittivity` at its own carrier frequency (same correction as `ModePlaneSource`), so the overlap compares against ε(ω_c) rather than ε∞.
+
+**S-parameters** (`fdtdx.calculate_sparam` / `calculate_sparams`, `src/fdtdx/utils/sparams.py`) are **frequency-indexed (#362):** the returned `{(detector_name, input_port_name): amplitude}` maps to a complex array indexed by frequency — shape `(1,)` for the single-frequency detectors `setup_sparams_simulation` builds (was a bare complex scalar pre-#362).
 
 ## Testing Patterns
 
@@ -416,7 +451,7 @@ assert jnp.all(jnp.isfinite(grads))
 - **Material array sizing is global**: Adding one anisotropic object forces ALL material arrays to expand. Check `ObjectContainer` isotropy properties.
 - **PML + reversible gradients**: PML breaks time-reversal. Must set up `Recorder` and `recording_state` for boundary interfaces.
 - **Complex fields**: Bloch boundaries with nonzero k-vector automatically require complex fields. Check `config.use_complex_fields`. When complex fields are in effect, ADE polarization arrays (`dispersive_P_curr/prev`) are also allocated as complex.
-- **Conductivity scaling**: Conductivity values are multiplied by `config.resolution` during `_init_arrays()`. Don't pre-scale.
+- **Conductivity scaling**: Conductivity values are multiplied by the grid cell spacing (`constants.c * config.time_step_duration / config.courant_number`) during `_init_arrays()`. Don't pre-scale. There is no `config.resolution` scalar anymore — derive distances from the grid.
 - **Inverse storage**: Material arrays store `1/epsilon` and `1/mu`, not epsilon and mu directly. For dispersive materials, `Material.permittivity` represents ε∞ only — the full ε(ω) must be reconstructed via the dispersion model.
 - **Detector timing**: Detectors only record at timesteps where their `OnOffSwitch` is active. Check `switch` configuration if data appears missing.
 - **donate_argnames**: When JIT-compiling simulation functions, use `donate_argnames=["arrays"]` to allow JAX to reuse array memory.
@@ -426,3 +461,6 @@ assert jnp.all(jnp.isfinite(grads))
 - **Stacking objects with mixed dispersion**: `UniformMaterialObject` always writes a full zero-padded pole-coefficient stack into its `grid_slice`, so placing a non-dispersive object over a dispersive one cleanly overwrites stale coefficients. Rely on this rather than assuming "no dispersion = leave coefficients alone".
 - **Symmetry results look wrong / are half-size**: with `config.symmetry` set, `run_fdtd` returns *reduced-domain* arrays — you must call `fdtdx.unfold_detector_states` / `fdtdx.unfold_fields` to get full-domain results (see Simulation Symmetry). `place_objects` warns about this. Unfolding a non-symmetric model raises.
 - **Symmetry needs even cells + symmetric model**: each symmetric axis must resolve to an even cell count (`place_objects` raises otherwise), and the user's full model must actually be mirror-symmetric about the center plane — asymmetric objects are only warned about. Use PML (not periodic) on the far side of a symmetric axis.
+- **Coordinate origin is the domain center** (#363): real positions / real-coordinate constraints run from `-L/2` to `+L/2` with 0 at the center, not the lower-left corner. Shift any corner-relative coordinates by `-L/2`. GDS `gds_center` maps a GDS coordinate to the domain center, not the corner.
+- **QuasiUniformGrid needs even cell counts**: every axis must resolve to an even number of cells or `QuasiUniformGrid.resolve` raises (center lands on a cell edge). `UniformGrid` does *not* enforce this, so migrating an odd-shaped uniform sim to `QuasiUniformGrid` can surprise you with a `ValueError`.
+- **Mode-overlap / S-param results are frequency-indexed** (#362): `ModeOverlapDetector.compute_overlap` and `calculate_sparam` return arrays indexed by frequency (shape `(1,)` for single-frequency setups), not bare scalars. Index `[0]` if you want the scalar.
