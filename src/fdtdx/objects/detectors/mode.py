@@ -8,10 +8,9 @@ import numpy as np
 
 from fdtdx.config import SimulationConfig
 from fdtdx.constants import c
-from fdtdx.core.axis import get_oriented_transverse_axes, get_transverse_axes
+from fdtdx.core.axis import get_transverse_axes
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
-from fdtdx.core.linalg import get_wave_vector_raw, rotate_vector
-from fdtdx.core.misc import normalize_polarization_for_source
+from fdtdx.core.misc import tilted_polarization_vectors
 from fdtdx.core.null import Null
 from fdtdx.core.physics.metrics import normalize_by_poynting_flux
 from fdtdx.core.physics.modes import compute_mode
@@ -91,26 +90,18 @@ def gaussian_mode_fields(
         e_vec[pol_axis] = 1.0
         fixed_E_polarization_vector = (e_vec[0], e_vec[1], e_vec[2])
 
-    # Raw E/H polarization vectors (and their default orthogonal partner), exactly as the
-    # plane sources derive them.
-    e_pol, h_pol = normalize_polarization_for_source(
+    # E/H polarization unit vectors and the (tilted) wave vector — same derivation as the
+    # plane sources (degrees -> radians; a zero angle is the identity rotation).
+    e_pol, h_pol, wave_vector = tilted_polarization_vectors(
         direction=direction,
         propagation_axis=propagation_axis,
         fixed_E_polarization_vector=fixed_E_polarization_vector,
         fixed_H_polarization_vector=fixed_H_polarization_vector,
+        azimuth_radians=jnp.asarray(np.deg2rad(azimuth_angle), dtype=dtype),
+        elevation_radians=jnp.asarray(np.deg2rad(elevation_angle), dtype=dtype),
         dtype=dtype,
     )
-    wave_vector = get_wave_vector_raw(direction=direction, propagation_axis=propagation_axis, dtype=dtype)
-
-    # Tilt the propagation/polarization off the plane normal (degrees -> radians).
     is_tilted = azimuth_angle != 0.0 or elevation_angle != 0.0
-    if is_tilted:
-        axes_tpl = (*get_oriented_transverse_axes(propagation_axis), propagation_axis)
-        az = jnp.asarray(np.deg2rad(azimuth_angle), dtype=dtype)
-        el = jnp.asarray(np.deg2rad(elevation_angle), dtype=dtype)
-        e_pol = rotate_vector(e_pol, az, el, axes_tpl)
-        h_pol = rotate_vector(h_pol, az, el, axes_tpl)
-        wave_vector = rotate_vector(wave_vector, az, el, axes_tpl)
 
     t0, t1 = get_transverse_axes(propagation_axis)
     transverse_0 = coordinates[t0] - center[0]

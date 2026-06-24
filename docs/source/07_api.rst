@@ -7,6 +7,7 @@ API
     fdtdx.apply_params
     fdtdx.ArrayContainer
     fdtdx.autoinit
+    fdtdx.BaseModeOverlapDetector
     fdtdx.BinaryMedianFilterModule
     fdtdx.BlochBoundary
     fdtdx.boundary_objects_from_config
@@ -24,6 +25,7 @@ API
     fdtdx.compute_pole_coefficients
     fdtdx.compute_poynting_flux
     fdtdx.ConnectHolesAndStructures
+    fdtdx.CustomModeOverlapDetector
     fdtdx.CustomTimeSignalProfile
     fdtdx.Cylinder
     fdtdx.Detector
@@ -51,6 +53,8 @@ API
     fdtdx.frozen_field
     fdtdx.frozen_private_field
     fdtdx.full_backward
+    fdtdx.gaussian_mode_function
+    fdtdx.GaussianModeOverlapDetector
     fdtdx.GaussianPlaneSource
     fdtdx.GaussianPulseProfile
     fdtdx.GaussianSmoothing2D
