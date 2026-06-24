@@ -162,6 +162,40 @@ class Source(SimulationObject, ABC):
             **kwargs,
         )
 
+    def injected_power_spectrum(
+        self,
+        frequencies: jax.Array,
+        *,
+        apodization: TemporalProfile | None = None,
+    ) -> jax.Array:
+        """Analytic power injected by this source as a function of frequency.
+
+        Returns the per-frequency injected power ("source power"), computed analytically
+        from the source's spatial profile and temporal signal — no simulation run. For the
+        *measured* radiated power (which includes the environment / Purcell effect), use
+        :func:`~fdtdx.radiated_power_spectrum`.
+
+        The result shares the DFT convention of a co-located all-component
+        :class:`~fdtdx.PhasorDetector` (``scaling_mode="pulse"``), so it can divide a
+        :func:`~fdtdx.flux_spectrum` to form a :func:`~fdtdx.transmission`. In that ratio
+        the temporal pulse spectrum cancels (so transmission is independent of pulse shape);
+        the absolute value does depend on the temporal profile.
+
+        Args:
+            frequencies: Frequencies (Hz) at which to evaluate the injected power.
+            apodization: Optional temporal window (a :class:`TemporalProfile`) applied to the
+                source signal — must match the output detector's ``apodization`` for a
+                consistent :func:`~fdtdx.transmission`.
+
+        Returns:
+            Real-valued ``jax.Array`` of shape ``(len(frequencies),)``.
+        """
+        del frequencies, apodization
+        raise NotImplementedError(
+            f"injected_power_spectrum is not implemented for {type(self).__name__}. "
+            "Use radiated_power_spectrum (a measured flux-box) for this source type."
+        )
+
     @abstractmethod
     def update_E(
         self,

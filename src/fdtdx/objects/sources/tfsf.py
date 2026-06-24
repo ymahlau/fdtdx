@@ -5,7 +5,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from fdtdx.core.axis import get_transverse_axes
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
+from fdtdx.core.null import Null
+from fdtdx.core.physics.temporal_windows import windowed_dft
 from fdtdx.dispersion import (
     compute_eps_spectrum_from_coefficients,
     compute_impedance_corrected_temporal_profile,
@@ -148,6 +151,66 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
     # loop reads the filtered profile with a fractional-index lookup so the
     # existing half-step Yee time offsets are preserved.
     _temporal_H_filter: jax.Array | None = private_field(default=None)
+
+    def injected_power_spectrum(
+        self,
+        frequencies: jax.Array,
+        *,
+        apodization: TemporalProfile | None = None,
+    ) -> jax.Array:
+        """Injected power per frequency for a plane / mode source (see base docstring).
+
+        Uses the exact separability of the TFSF injection, ``E(r,n)=_E(r)·s_E(n+δ_E(r))``
+        and ``H(r,n)=_H(r)·s_H(n+δ_H(r))``, so the injected power factorizes into a temporal
+        cross-spectrum and a spatial Poynting integral:
+        ``P(f) = ½ Re[ Ŝ_E(f)·conj(Ŝ_H(f)) · G(f) ]``.
+        """
+        if isinstance(self._E, Null) or isinstance(self._H, Null):
+            raise Exception("Call apply_params on the source before injected_power_spectrum().")
+        frequencies = jnp.asarray(frequencies)
+        dt = self._config.time_step_duration
+        num_steps = self._config.time_steps_total
+        period = self.wave_character.get_period()
+        phase_shift = self.wave_character.phase_shift
+        time = jnp.arange(num_steps) * dt
+
+        # E-side and H-side temporal signals (same per-axis scaling the inner loop uses).
+        s_E = self.temporal_profile.get_amplitude(time, period, phase_shift) * self.static_amplitude_factor
+        if self._temporal_H_filter is not None and not isinstance(self._temporal_H_filter, Null):
+            s_H = self._temporal_H_filter * self.static_amplitude_factor
+        else:
+            s_H = s_E
+
+        if apodization is not None:
+            window = jnp.real(apodization.get_amplitude(time, period, phase_shift))
+        else:
+            window = jnp.ones((num_steps,), dtype=jnp.asarray(s_E).real.dtype)
+
+        spectrum_E = windowed_dft(jnp.asarray(s_E), window, frequencies, dt)  # (num_freqs,)
+        spectrum_H = windowed_dft(jnp.asarray(s_H), window, frequencies, dt)
+
+        # Spatial Poynting factor G(f), including per-cell Yee time-offset phases.
+        prop = self.propagation_axis
+        t0, t1 = get_transverse_axes(prop)
+        grid = self._config.resolved_grid
+        if grid is not None:
+            area = grid.face_area(axis=prop, slice_tuple=self.grid_slice_tuple)
+        else:
+            spacing = self._config.uniform_spacing()
+            area = jnp.ones(self.grid_shape, dtype=jnp.float32) * spacing * spacing
+
+        offset_E = self._time_offset_E  # (3, *spatial), units of time steps
+        offset_H = self._time_offset_H
+        omega = 2.0 * jnp.pi * frequencies  # (num_freqs,)
+
+        def g_at(w: jax.Array) -> jax.Array:
+            # E(r,f)=_E·Ŝ_E·exp(-i w δ_E dt); conj(H(r,f))=_H·conj(Ŝ_H)·exp(+i w δ_H dt)
+            term1 = self._E[t0] * self._H[t1] * jnp.exp(-1j * w * (offset_E[t0] - offset_H[t1]) * dt)
+            term2 = self._E[t1] * self._H[t0] * jnp.exp(-1j * w * (offset_E[t1] - offset_H[t0]) * dt)
+            return jnp.sum((term1 - term2) * area)
+
+        g = jax.vmap(g_at)(omega)  # (num_freqs,)
+        return 0.5 * jnp.real(spectrum_E * jnp.conj(spectrum_H) * g)
 
     @property
     def azimuth_radians(self) -> float:

@@ -1,11 +1,14 @@
-from typing import Literal, Sequence
+from typing import Literal, Self, Sequence
 
 import jax
 import jax.numpy as jnp
 
-from fdtdx.core.jax.pytrees import autoinit, field, frozen_field
+from fdtdx.config import SimulationConfig
+from fdtdx.core.jax.pytrees import autoinit, field, frozen_field, frozen_private_field, private_field
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.detectors.detector import Detector, DetectorState
+from fdtdx.objects.sources.profile import TemporalProfile
+from fdtdx.typing import SliceTuple3D
 
 
 @autoinit
@@ -41,11 +44,43 @@ class PhasorDetector(Detector):
     #: In pulse mode, the result is not scaled.
     scaling_mode: Literal["continuous", "pulse"] = frozen_field(default="continuous")
 
+    #: Optional smooth temporal **apodization** window applied before the DFT, given as a
+    #: :class:`~fdtdx.objects.sources.profile.TemporalProfile` (e.g. ``TukeyWindowProfile`` /
+    #: ``GaussianWindowProfile``, evaluated as a carrier-free envelope). ``None`` (default) is
+    #: the historical hard rectangular gate. The continuous-mode amplitude scale is corrected
+    #: by the window's coherent gain (``2 / sum(w)``) so reconstructed amplitudes stay correct.
+    apodization: TemporalProfile | None = frozen_field(default=None)
+
+    #: Per-time-step window weights (on-mask times apodization), length ``time_steps_total``.
+    _window_at_time_step_arr: jax.Array = private_field()
+    #: Sum of the window weights over the recorded steps (coherent gain times N).
+    _window_sum: float = frozen_private_field()
+
     def __post_init__(
         self,
     ):
         if self.dtype not in [jnp.complex64, jnp.complex128]:
             raise Exception(f"Invalid dtype in PhasorDetector: {self.dtype}")
+
+    def place_on_grid(
+        self: Self,
+        grid_slice_tuple: SliceTuple3D,
+        config: SimulationConfig,
+        key: jax.Array,
+    ) -> Self:
+        self = super().place_on_grid(grid_slice_tuple=grid_slice_tuple, config=config, key=key)
+        on_arr = self._is_on_at_time_step_arr  # bool, (time_steps_total,)
+        if self.apodization is not None:
+            num_steps = self._config.time_steps_total
+            wc = self.wave_characters[0]
+            time = jnp.arange(num_steps) * self._config.time_step_duration
+            window = jnp.real(self.apodization.get_amplitude(time, wc.get_period(), wc.phase_shift))
+            window = window * on_arr.astype(window.dtype)
+        else:
+            window = on_arr.astype(jnp.float32)
+        self = self.aset("_window_at_time_step_arr", window, create_new_ok=True)
+        self = self.aset("_window_sum", float(jnp.sum(window)), create_new_ok=True)
+        return self
 
     @property
     def _angular_frequencies(self) -> jax.Array:
@@ -77,11 +112,14 @@ class PhasorDetector(Detector):
         del inv_permeability, inv_permittivity
         time_passed = time_step * self._config.time_step_duration
         if self.scaling_mode == "continuous":
-            static_scale = 2 / self.num_time_steps_recorded
+            # Coherent-gain correction: sum(w) == num_time_steps_recorded when no apodization.
+            static_scale = 2 / self._window_sum
         elif self.scaling_mode == "pulse":
             static_scale = 1
         else:
             raise Exception(f"Invalid scaling mode: {self.scaling_mode=}")
+
+        window_weight = self._window_at_time_step_arr[time_step]
 
         E, H = E[:, *self.grid_slice], H[:, *self.grid_slice]
         fields = []
@@ -105,7 +143,7 @@ class PhasorDetector(Detector):
         phasors = jnp.exp(1j * phase_angles)  # Shape: (num_freqs,)
         # Reshape phasors to (num_freqs, 1, 1, 1, 1) for proper broadcasting with EH (num_components, x, y, z)
         phasors = phasors.reshape((len(self._angular_frequencies),) + (1,) * EH.ndim)
-        new_phasors = EH * phasors * static_scale  # Shape: (num_freqs, num_components, *grid_shape)
+        new_phasors = EH * phasors * static_scale * window_weight  # (num_freqs, num_components, *grid_shape)
 
         if self.reduce_volume:
             # Average over spatial dimensions using physical cell volumes.

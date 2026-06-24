@@ -338,7 +338,11 @@ device = fdtdx.Device(
 - `ModePlaneSource` — injects a computed waveguide mode profile
 - `PointDipoleSource` — point dipole with configurable `polarization` axis (0/1/2) plus optional `azimuth_angle`/`elevation_angle` (degrees) to tilt off-axis; also `source_type` ∈ {"electric","magnetic"}.
 
-**Temporal profiles:** `SingleFrequencyProfile` (CW) or `GaussianPulseProfile` (pulsed).
+**Temporal profiles** (`src/fdtdx/objects/sources/profile.py`, all subclass `TemporalProfile`): `SingleFrequencyProfile` (CW, with a linear startup ramp), `GaussianPulseProfile` (pulsed), `CustomTimeSignalProfile` (arbitrary sampled waveform), and the carrier-free *window* profiles `GaussianWindowProfile`/`TukeyWindowProfile` (used as detector apodization — see Temporal Apodization). The window/envelope shapes are shared functions in `src/fdtdx/core/physics/temporal_windows.py` (`gaussian_envelope`, `linear_rampup`, `tukey_envelope`, `windowed_dft`) — `GaussianPulseProfile`/`SingleFrequencyProfile` build their envelope/ramp from them, so there is one implementation. `TemporalProfile.sample_time_signal` / `frequency_spectrum` sample the signal at the FDTD cadence.
+
+**Polarization & off-normal incidence (shared helper):** `LinearlyPolarizedPlaneSource` (→ `UniformPlaneSource`/`GaussianPlaneSource`) takes `fixed_E_polarization_vector`/`fixed_H_polarization_vector` plus `azimuth_angle`/`elevation_angle` (degrees) to tilt the wave vector off the plane normal. The resolve-polarization → wave-vector → tilt sequence lives in **`tilted_polarization_vectors`** (`src/fdtdx/core/misc.py`), reused by both the plane sources and `GaussianModeOverlapDetector`/`gaussian_mode_fields` (so an analytic Gaussian *reference mode* and an injected Gaussian *source* derive polarization/tilt identically). It returns `(e_pol, h_pol, wave_vector)` via `normalize_polarization_for_source` + `get_wave_vector_raw` + `rotate_vector` with `axes_tpl = (horizontal_axis, vertical_axis, propagation_axis)`.
+
+**Injected power spectrum** (`Source.injected_power_spectrum(frequencies, *, apodization=None)`): analytic per-frequency source power, no run. For `TFSFPlaneSource` (plane/mode) it uses the exact separable injection `E(r,n)=_E(r)·s_E(n+δ_E)`, `H(r,n)=_H(r)·s_H(n+δ_H)` → `P(f)=½ Re[Ŝ_E·conj(Ŝ_H)·G]` (`Ŝ` = windowed DFT of the temporal signal, `G` = spatial Poynting factor of `_E/_H` with per-cell Yee-offset phases). `PointDipoleSource.injected_power_spectrum` **raises** — a dipole's radiated power is environment-dependent (Purcell), so use the *measured* `radiated_power_spectrum` (homogeneous run → nominal, real run → actual). See Spectral Power & Transmission.
 
 **On/Off control:** `OnOffSwitch` pre-computes boolean arrays for the entire simulation duration during `place_on_grid()`.
 
@@ -362,9 +366,9 @@ All detectors use `OnOffSwitch` for temporal gating. State is stored as `Detecto
 - `FieldDetector` — records raw E/H field components
 - `EnergyDetector` — records electromagnetic energy density
 - `PoyntingFluxDetector` — records directional power flow (key for transmission/reflection)
-- `PhasorDetector` — records complex phasor amplitudes at specific frequencies
+- `PhasorDetector` — records complex phasor amplitudes at specific frequencies; supports smooth temporal `apodization` (see Temporal Apodization)
 - `DiffractiveDetector` — records complex diffraction efficiencies per order
-- `ModeOverlapDetector` — computes overlap integral with a guided mode (inherits from PhasorDetector); frequency-indexed (one reference mode per `wave_characters` entry)
+- `BaseModeOverlapDetector` (abstract) — owns the overlap-integral machinery; `_compute_mode_fields` is the only abstract hook. Subclasses: `ModeOverlapDetector` (solver-based reference mode), `CustomModeOverlapDetector` (user `mode_function` callable), `GaussianModeOverlapDetector` (analytic Gaussian). All frequency-indexed (one reference mode per `wave_characters` entry).
 
 **Accessing results:** `arrays.detector_states["name"]["key"]`
 
@@ -389,17 +393,37 @@ All state arrays have a leading time dimension: `(num_time_steps_on, ...)`. Use 
 - `reduce_volume=False`: `(1, num_wavelengths, num_components, nx, ny, nz)`
 - `reduce_volume=True`: `(1, num_wavelengths, num_components)`
 - Component index matches order of the `components` tuple
+- `scaling_mode="continuous"` (default, scale `2/Σw`) reconstructs CW amplitude; `"pulse"` (scale 1) is the raw windowed DFT — use `"pulse"` for `flux_spectrum`/`transmission`.
 
 **DiffractiveDetector** — key: `"diffractive"`, dtype: complex
 - Time dim is always 1
 - Shape: `(1, num_frequencies, num_orders)`
 
-**ModeOverlapDetector** — inherits PhasorDetector, always uses all 6 field components. **Multi-frequency (#362):** solves and stores one reference mode per entry in `wave_characters` (`_mode_E`/`_mode_H` stacked as `(num_freqs, 3, *spatial)`).
-- `compute_overlap(state)` → complex array of shape `(num_freqs,)`. This was a bare scalar before #362, so single-frequency detectors now return shape `(1,)` — index `[0]` for the scalar.
-- `compute_overlap_to_mode(state, mode_E, mode_H, wave_character_index=0)` → scalar overlap for one frequency (the per-frequency helper `compute_overlap` loops over).
-- In a dispersive medium each reference mode is solved against `effective_inv_permittivity` at its own carrier frequency (same correction as `ModePlaneSource`), so the overlap compares against ε(ω_c) rather than ε∞.
+**Mode-overlap detector family** (`src/fdtdx/objects/detectors/mode.py`) — all inherit `BaseModeOverlapDetector(PhasorDetector, ABC)`, always use all 6 components. The base owns the overlap integral, the stored reference modes (`_mode_E`/`_mode_H` stacked as `(num_freqs, 3, *spatial)`), the face-area weights, and the `apply()` skeleton (slice ε/μ → per-freq dispersive `effective_inv_permittivity` correction → call the abstract `_compute_mode_fields` hook → stack). **Multi-frequency (#362):** one reference mode per `wave_characters` entry.
+- `compute_overlap(state)` → complex `(num_freqs,)`. Bare scalar pre-#362, so single-frequency → shape `(1,)` (index `[0]`).
+- `compute_overlap_to_mode(state, mode_E, mode_H, wave_character_index=0)` → scalar per frequency.
+- Subclasses implement `_compute_mode_fields`: **`ModeOverlapDetector`** calls the tidy3d mode solver (`direction`/`mode_index`/`filter_pol`/`bend_*`/`symmetry`). **`CustomModeOverlapDetector`** evaluates a user `mode_function(coordinates, frequency, propagation_axis, inv_permittivity) -> (E, H)` callable on the detector plane (`normalize=True` re-Poynting-normalizes). **`GaussianModeOverlapDetector`** builds an analytic Gaussian via `gaussian_mode_fields` with the *same* polarization/angle knobs as the source (`fixed_E/H_polarization_vector`, `azimuth_angle`/`elevation_angle`, `polarization_axis`, `mode_radius`, `center`); tilt adds an `exp(ik·r)` transverse phase ramp (normal incidence stays real). `gaussian_mode_function(...)` returns a `mode_function` for the custom detector.
+- The slice handed to `_compute_mode_fields` is already the dispersion-corrected `effective_inv_permittivity` at each carrier frequency, so Custom/Gaussian detectors are dispersion-aware automatically (their `n`/wavenumber use ε(ω_c), not ε∞).
 
-**S-parameters** (`fdtdx.calculate_sparam` / `calculate_sparams`, `src/fdtdx/utils/sparams.py`) are **frequency-indexed (#362):** the returned `{(detector_name, input_port_name): amplitude}` maps to a complex array indexed by frequency — shape `(1,)` for the single-frequency detectors `setup_sparams_simulation` builds (was a bare complex scalar pre-#362).
+**S-parameters** (`fdtdx.calculate_sparam` / `calculate_sparams`, `src/fdtdx/utils/sparams.py`) are **frequency-indexed (#362):** the returned `{(detector_name, input_port_name): amplitude}` maps to a complex array indexed by frequency — shape `(1,)` for the single-frequency detectors `setup_sparams_simulation` builds. The isinstance gate is `BaseModeOverlapDetector`, so custom/Gaussian detectors work in S-param calculations too.
+
+## Temporal Apodization
+
+`PhasorDetector` (and the whole mode-overlap family) accept `apodization: TemporalProfile | None` — a smooth window applied per-step before the running DFT, replacing the leaky hard-rectangular `OnOffSwitch` gate alone. Reuse the temporal-profile abstraction: pass a carrier-free `TukeyWindowProfile(start_time, end_time, alpha)` (Hann at `alpha=1`), `GaussianWindowProfile(center_time, sigma_time)`, or any `CustomTimeSignalProfile`/`TemporalProfile`.
+
+- Precomputed in `PhasorDetector.place_on_grid`: `_window_at_time_step_arr = on_mask · w[n]`, `_window_sum = Σ w`. `update` multiplies the per-step contribution by `w[time_step]` and the continuous-mode scale becomes `2/_window_sum` (coherent-gain correction → CW amplitude stays ~1).
+- **`apodization=None` is bit-identical to before** (`w≡1` on on-steps, `_window_sum=num_time_steps_on=N`).
+- For `transmission` to cancel correctly the source signal must be windowed with the **same** apodization — `transmission` forwards `out_detector.apodization` to `injected_power_spectrum`.
+
+## Spectral Power & Transmission
+
+`src/fdtdx/utils/spectra.py` — Per-frequency results under distinct names. All share the raw windowed-DFT convention (`flux_spectrum` un-scales the detector's `static_scale`), so ratios are unit-consistent.
+- `flux_spectrum(detector, arrays)` → real `(num_freqs,)`: net Poynting flux `½ Re ∮ (E×H*)·n̂ dA` from a **plane** `PhasorDetector` recording all 6 components (`reduce_volume=False`).
+- `injected_power_spectrum(source, frequencies, *, apodization=None)` → wraps `source.injected_power_spectrum` (analytic; validated to match a co-located source-plane `flux_spectrum` within ~3% in a homogeneous medium).
+- `transmission(out_detector, arrays, source, *, frequencies=None)` = `flux_spectrum / injected_power_spectrum` — the transmitted power fraction. The pulse spectrum and matching apodization window cancel, so it is pulse-shape-independent.
+- `radiated_power_spectrum(face_detectors, arrays)` → sums signed `flux_spectrum` over `(detector, outward_sign)` box faces: the **measured** actual/total radiated power (any source/count, Purcell-aware) — the dipole power tool and the validation oracle for the analytic path.
+
+**Use a pulse, not CW, for transmission:** a ramped CW under-integrates the steady state at far planes over finite time, so `transmission` drifts below 1. A `GaussianPulseProfile` fully transits every plane, making the recorded spectrum (hence the transmitted fraction) position-independent.
 
 ## Testing Patterns
 
@@ -464,3 +488,6 @@ assert jnp.all(jnp.isfinite(grads))
 - **Coordinate origin is the domain center** (#363): real positions / real-coordinate constraints run from `-L/2` to `+L/2` with 0 at the center, not the lower-left corner. Shift any corner-relative coordinates by `-L/2`. GDS `gds_center` maps a GDS coordinate to the domain center, not the corner.
 - **QuasiUniformGrid needs even cell counts**: every axis must resolve to an even number of cells or `QuasiUniformGrid.resolve` raises (center lands on a cell edge). `UniformGrid` does *not* enforce this, so migrating an odd-shaped uniform sim to `QuasiUniformGrid` can surprise you with a `ValueError`.
 - **Mode-overlap / S-param results are frequency-indexed** (#362): `ModeOverlapDetector.compute_overlap` and `calculate_sparam` return arrays indexed by frequency (shape `(1,)` for single-frequency setups), not bare scalars. Index `[0]` if you want the scalar.
+- **`transmission` needs a pulse + a matching window**: with a CW source `transmission` drifts below 1 at far planes (finite-time steady-state under-integration) — use a `GaussianPulseProfile`. The output detector and the source must use the **same** `apodization` (forwarded automatically by `transmission`) or the window won't cancel. `flux_spectrum` needs a plane `PhasorDetector` with all 6 components and `reduce_volume=False`.
+- **Dipole power is measured, not analytic**: `PointDipoleSource.injected_power_spectrum` raises — radiated power is Purcell/environment-dependent. Enclose the dipole in a phasor-detector box and use `radiated_power_spectrum` (homogeneous background → nominal, real structure → actual power).
+- **Apodization reuses `TemporalProfile`, isn't a new class**: a detector's `apodization` is a (carrier-free) `TemporalProfile` — `TukeyWindowProfile`/`GaussianWindowProfile`. Window shapes live once in `core/physics/temporal_windows.py`; don't re-implement Hann/Gaussian. `apodization=None` stays bit-identical to the old hard gate.

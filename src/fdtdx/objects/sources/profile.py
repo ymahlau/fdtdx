@@ -8,6 +8,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field
+from fdtdx.core.physics.temporal_windows import gaussian_envelope, linear_rampup, tukey_envelope
 from fdtdx.core.wavelength import WaveCharacter
 
 
@@ -268,7 +269,7 @@ class SingleFrequencyProfile(TemporalProfile):
         time_phase = 2 * jnp.pi * time / period + phase_shift + self.phase_shift
         raw_amplitude = jnp.real(jnp.exp(-1j * time_phase))
         startup_time = self.num_startup_periods * period
-        factor = jnp.clip(time / startup_time, 0, 1)
+        factor = linear_rampup(time, startup_time)
         return factor * raw_amplitude
 
 
@@ -335,7 +336,7 @@ class GaussianPulseProfile(TemporalProfile):
         t0 = 6 * sigma_t  # Offset peak to avoid discontinuity at t=0
 
         # Gaussian envelope
-        envelope = jnp.exp(-((time - t0) ** 2) / (2 * sigma_t**2))
+        envelope = gaussian_envelope(time, t0, sigma_t)
 
         # Carrier wave (including phase shift from center_wave)
         carrier_phase = 2 * jnp.pi * center_frequency_hz * time + phase_shift + self.center_wave.phase_shift
@@ -436,3 +437,58 @@ class CustomTimeSignalProfile(TemporalProfile):
             y = (1.0 - frac) * y0 + frac * y1
 
         return jnp.where(valid, y, self.outside_value)
+
+
+@autoinit
+class GaussianWindowProfile(TemporalProfile):
+    """Carrier-free Gaussian window (apodization).
+
+    ``get_amplitude`` returns the pure Gaussian envelope ``exp(-(t - center_time)^2 /
+    (2 sigma_time^2))`` with **no** oscillating carrier — intended as a ``PhasorDetector``
+    ``apodization`` window (it can also be used as a source envelope). Shares its shape with
+    :class:`GaussianPulseProfile` via :func:`~fdtdx.core.physics.temporal_windows.gaussian_envelope`.
+    """
+
+    #: Center of the Gaussian window in seconds.
+    center_time: float = frozen_field()
+
+    #: Standard deviation of the Gaussian window in seconds.
+    sigma_time: float = frozen_field()
+
+    def get_amplitude(
+        self,
+        time: jax.Array,
+        period: float,
+        phase_shift: float = 0.0,
+    ) -> jax.Array:
+        del period, phase_shift
+        return gaussian_envelope(time, self.center_time, self.sigma_time)
+
+
+@autoinit
+class TukeyWindowProfile(TemporalProfile):
+    """Carrier-free Tukey (tapered-cosine) window over ``[start_time, end_time]`` (apodization).
+
+    Flat top of value 1 with cosine-tapered edges occupying a fraction ``alpha`` of the
+    window (``alpha=1`` → Hann, ``alpha=0`` → rectangular). ``get_amplitude`` returns the
+    pure window — intended as a ``PhasorDetector`` ``apodization`` to suppress spectral
+    leakage from the recording-window edges.
+    """
+
+    #: Start of the window in seconds.
+    start_time: float = frozen_field()
+
+    #: End of the window in seconds.
+    end_time: float = frozen_field()
+
+    #: Fraction of the window occupied by the cosine tapers (0 = rectangular, 1 = Hann).
+    alpha: float = frozen_field(default=0.5)
+
+    def get_amplitude(
+        self,
+        time: jax.Array,
+        period: float,
+        phase_shift: float = 0.0,
+    ) -> jax.Array:
+        del period, phase_shift
+        return tukey_envelope(time, self.start_time, self.end_time, self.alpha)

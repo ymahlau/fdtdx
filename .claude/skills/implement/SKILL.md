@@ -62,4 +62,15 @@ After all implementation is done:
 1. Run the linter: `uv run pre-commit run -a`
 2. Run relevant tests: `uv run python -m pytest tests -m "unit or integration"` (adjust markers based on what was changed)
 3. Fix any issues found
-4. Summarize what was done
+
+## Phase 6: Document — update skill docs and the API surface
+
+If the change added/renamed/removed **public API**, or established a non-obvious pattern, framework convention, or pitfall, propagate it so it isn't lost:
+
+1. **Project API docs:** add every new public export to the project's generated API reference (e.g. an autosummary list like `docs/source/07_api.rst`). Many repos have a test that fails if `__all__` and the docs list drift (e.g. `tests/docs/test_api_rst.py`) — run the docs tests (`pytest -m docs`), which the default `-m "unit or integration"` run skips.
+2. **Project skill doc:** update the relevant skill (e.g. `.claude/skills/<framework>/SKILL.md`) so future sessions know about the new classes/functions, the design seam, and any gotcha. Match the doc's existing density and section style; add a one-line entry to its pitfalls list when there's an easy-to-get-wrong behavior. Skip only for trivial internal-only changes.
+3. Re-run lint/type checks if you touched code while documenting.
+
+## Phase 7: Summarize
+
+Summarize what was done, what was verified (with results), and anything deferred or assumed.

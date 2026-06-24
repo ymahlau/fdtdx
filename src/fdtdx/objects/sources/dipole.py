@@ -96,6 +96,22 @@ class PointDipoleSource(Source):
         if self.polarization not in (0, 1, 2):
             raise ValueError(f"polarization must be 0, 1, or 2, got {self.polarization}")
 
+    def injected_power_spectrum(self, frequencies, *, apodization=None):
+        """A dipole's radiated power is environment-dependent (the Purcell effect): the
+        actual power depends on the local density of states, so it cannot be computed
+        analytically from the source alone the way a plane/mode source's can.
+
+        Use :func:`~fdtdx.radiated_power_spectrum` with a closed box of phasor detectors
+        around the dipole: in a homogeneous background it yields the *nominal* (free-space)
+        power, and in the real structure the *actual* (Purcell-affected) radiated power.
+        """
+        del frequencies, apodization
+        raise NotImplementedError(
+            "PointDipoleSource radiated power is environment-dependent (Purcell). Use "
+            "radiated_power_spectrum(...) with a closed phasor-detector box around the dipole "
+            "(homogeneous background -> nominal power; real structure -> actual power)."
+        )
+
     @property
     def _orientation(self) -> jnp.ndarray:
         """Normalized orientation vector as a (3,) JAX array.

@@ -50,6 +50,7 @@ API
     fdtdx.field
     fdtdx.FieldDetector
     fdtdx.FieldState
+    fdtdx.flux_spectrum
     fdtdx.frozen_field
     fdtdx.frozen_private_field
     fdtdx.full_backward
@@ -58,11 +59,13 @@ API
     fdtdx.GaussianPlaneSource
     fdtdx.GaussianPulseProfile
     fdtdx.GaussianSmoothing2D
+    fdtdx.GaussianWindowProfile
     fdtdx.GradientConfig
     fdtdx.GridCoordinateConstraint
     fdtdx.HorizontalSymmetry2D
     fdtdx.HorizontalSymmetry3D
     fdtdx.import_from_json
+    fdtdx.injected_power_spectrum
     fdtdx.LinearReconstructEveryK
     fdtdx.Logger
     fdtdx.LorentzPole
@@ -98,6 +101,7 @@ API
     fdtdx.PoyntingFluxDetector
     fdtdx.private_field
     fdtdx.QuasiUniformGrid
+    fdtdx.radiated_power_spectrum
     fdtdx.RealCoordinateConstraint
     fdtdx.Recorder
     fdtdx.RecordingState
@@ -120,7 +124,9 @@ API
     fdtdx.SubpixelSmoothedProjection
     fdtdx.TanhProjection
     fdtdx.TemporalProfile
+    fdtdx.transmission
     fdtdx.TreeClass
+    fdtdx.TukeyWindowProfile
     fdtdx.unfold_array
     fdtdx.unfold_detector_states
     fdtdx.unfold_fields
