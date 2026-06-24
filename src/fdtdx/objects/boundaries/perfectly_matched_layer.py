@@ -198,16 +198,15 @@ class PerfectlyMatchedLayer(BaseBoundary):
         norm = float(edges[-1] - edges[0])
         centers = 0.5 * (edges[:-1] + edges[1:])
 
+        zero = jnp.asarray(0.0, dtype=dtype)
         if self.direction == "-":
             interface = edges[-1]
             dE = interface - edges[1:]
-            dH = interface - centers
-            dH = dH.at[-1].set(0)
+            dH = jnp.concatenate([interface - centers[1:], zero.reshape(1)])
         else:
             interface = edges[0]
-            dE = edges[:-1] - interface
-            dH = centers - interface
-            dH = dH.at[0].set(0)
+            dE = jnp.concatenate([zero.reshape(1), centers[:-1] - interface])
+            dH = edges[:-1] - interface
 
         return dE, dH, norm
 
