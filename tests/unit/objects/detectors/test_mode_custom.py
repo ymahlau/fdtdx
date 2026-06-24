@@ -8,7 +8,6 @@ that accept a user-provided mode instead of the waveguide mode solver:
 
 import inspect
 
-import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
@@ -146,9 +145,7 @@ class TestCustomModeOverlapDetector:
         det = det.apply(random_key, jnp.ones((3, 8, 8, 8), dtype=jnp.float32), 1.0)
         assert _weighted_flux(det, det._mode_E[0], det._mode_H[0]) == pytest.approx(1.0, rel=1e-4)
 
-    def test_no_normalize_keeps_raw_amplitude(
-        self, simulation_config, plane_grid_slice, random_key, single_frequency
-    ):
+    def test_no_normalize_keeps_raw_amplitude(self, simulation_config, plane_grid_slice, random_key, single_frequency):
         det = CustomModeOverlapDetector(
             wave_characters=single_frequency,
             mode_function=_constant_mode_function,
@@ -186,9 +183,7 @@ class TestGaussianModeOverlapDetector:
         assert overlap.shape == (1,)
         assert jnp.all(jnp.isfinite(jnp.abs(overlap)))
 
-    def test_only_expected_components_nonzero(
-        self, simulation_config, plane_grid_slice, random_key, single_frequency
-    ):
+    def test_only_expected_components_nonzero(self, simulation_config, plane_grid_slice, random_key, single_frequency):
         """Default polarization: E along the first transverse axis, H along the second."""
         det = GaussianModeOverlapDetector(
             wave_characters=single_frequency,
@@ -203,9 +198,7 @@ class TestGaussianModeOverlapDetector:
         assert jnp.any(mode_E[0] != 0) and not jnp.any(mode_E[1] != 0) and not jnp.any(mode_E[2] != 0)
         assert jnp.any(mode_H[1] != 0) and not jnp.any(mode_H[0] != 0) and not jnp.any(mode_H[2] != 0)
 
-    def test_matches_gaussian_mode_function(
-        self, simulation_config, plane_grid_slice, random_key, single_frequency
-    ):
+    def test_matches_gaussian_mode_function(self, simulation_config, plane_grid_slice, random_key, single_frequency):
         """The detector class and the standalone factory produce the same mode."""
         det_cls = GaussianModeOverlapDetector(
             wave_characters=single_frequency,
@@ -234,13 +227,14 @@ class TestDispersionHandling:
     @staticmethod
     def _dispersive_coeffs(det, pole):
         dt = det._config.time_step_duration
-        c1, c2, c3 = compute_pole_coefficients((pole,), dt)
-        mk = lambda a: jnp.full((1, 1, 8, 8, 8), float(a[0]), dtype=jnp.float32)  # (num_poles, 1, Nx, Ny, Nz)
-        return mk(c1), mk(c2), mk(c3), dt
+        c1, c2, c3, c4 = compute_pole_coefficients((pole,), dt)
 
-    def test_gaussian_and_custom_use_effective_permittivity(
-        self, simulation_config, plane_grid_slice, random_key
-    ):
+        def mk(a):  # broadcast a per-pole scalar to (num_poles, 1, Nx, Ny, Nz)
+            return jnp.full((1, 1, 8, 8, 8), float(a[0]), dtype=jnp.float32)
+
+        return mk(c1), mk(c2), mk(c3), mk(c4), dt
+
+    def test_gaussian_and_custom_use_effective_permittivity(self, simulation_config, plane_grid_slice, random_key):
         wc = WaveCharacter(wavelength=1e-6)
         omega = 2.0 * np.pi * wc.get_frequency()
         eps_inf = 2.0
@@ -249,20 +243,20 @@ class TestDispersionHandling:
 
         det = GaussianModeOverlapDetector(wave_characters=[wc], mode_radius=3e-7, direction="+")
         det = det.place_on_grid(plane_grid_slice, simulation_config, random_key)
-        c1, c2, c3, dt = self._dispersive_coeffs(det, pole)
+        c1, c2, c3, c4, dt = self._dispersive_coeffs(det, pole)
 
         # Independently compute the expected effective index on the detector plane slice,
         # using the very same helper apply() calls internally.
         sl = (slice(None), slice(0, 8), slice(0, 8), slice(0, 1))
         csl = (slice(None), slice(None), slice(0, 8), slice(0, 8), slice(0, 1))
-        inv_eps_eff = effective_inv_permittivity(inv_eps[sl], c1[csl], c2[csl], c3[csl], omega, dt)
+        inv_eps_eff = effective_inv_permittivity(inv_eps[sl], c1[csl], c2[csl], c3[csl], omega, dt, c4=c4[csl])
         n_eff_expected = float(jnp.sqrt(jnp.mean(1.0 / inv_eps_eff)))
         assert abs(n_eff_expected - eps_inf**0.5) > 1e-3  # the pole genuinely shifts the index
 
         # Gaussian: without dispersion args -> ε∞; with them -> ε(ω_c).
         n_inf = det.apply(random_key, inv_eps, 1.0)._mode_neff[0]
         n_disp = det.apply(
-            random_key, inv_eps, 1.0, dispersive_c1=c1, dispersive_c2=c2, dispersive_c3=c3
+            random_key, inv_eps, 1.0, dispersive_c1=c1, dispersive_c2=c2, dispersive_c3=c3, dispersive_c4=c4
         )._mode_neff[0]
         assert float(jnp.real(n_inf)) == pytest.approx(eps_inf**0.5, rel=1e-5)
         assert float(jnp.real(n_disp)) == pytest.approx(n_eff_expected, rel=1e-4)
@@ -270,7 +264,9 @@ class TestDispersionHandling:
         # Custom detector reports the same effective index (its callable saw ε(ω_c)).
         cdet = CustomModeOverlapDetector(wave_characters=[wc], mode_function=_constant_mode_function)
         cdet = cdet.place_on_grid(plane_grid_slice, simulation_config, random_key)
-        cdet = cdet.apply(random_key, inv_eps, 1.0, dispersive_c1=c1, dispersive_c2=c2, dispersive_c3=c3)
+        cdet = cdet.apply(
+            random_key, inv_eps, 1.0, dispersive_c1=c1, dispersive_c2=c2, dispersive_c3=c3, dispersive_c4=c4
+        )
         assert float(jnp.real(cdet._mode_neff[0])) == pytest.approx(n_eff_expected, rel=1e-4)
 
 
@@ -326,9 +322,7 @@ class TestGaussianModeFields:
         # propagation axis 2 -> transverse (0, 1); force E along axis 1 instead of default 0.
         line = jnp.linspace(-1e-7, 1e-7, 6)
         coordinates = jnp.meshgrid(line, line, jnp.array([0.0]), indexing="ij")
-        mode_E, mode_H = gaussian_mode_fields(
-            coordinates, 2, radius=5e-7, direction="+", polarization_axis=1
-        )
+        mode_E, mode_H = gaussian_mode_fields(coordinates, 2, radius=5e-7, direction="+", polarization_axis=1)
         assert jnp.any(mode_E[1] != 0) and not jnp.any(mode_E[0] != 0)
         assert jnp.any(mode_H[0] != 0) and not jnp.any(mode_H[1] != 0)
 
@@ -371,14 +365,12 @@ class TestGaussianModeGeneralization:
 
     def test_normal_incidence_is_real(self):
         """No tilt -> the reference mode stays real-valued (regression)."""
-        mode_E, _ = gaussian_mode_fields(
-            self._plane_coords(), 2, radius=5e-7, direction="+", wavenumber=1e7
-        )
+        mode_E, _ = gaussian_mode_fields(self._plane_coords(), 2, radius=5e-7, direction="+", wavenumber=1e7)
         assert not jnp.iscomplexobj(mode_E)
 
     def test_tilt_adds_phase_ramp_and_longitudinal_component(self):
         """A tilted beam becomes complex, gains a propagation-axis E component, and ramps."""
-        mode_E, mode_H = gaussian_mode_fields(
+        mode_E, _ = gaussian_mode_fields(
             self._plane_coords(),
             2,
             radius=5e-7,

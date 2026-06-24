@@ -9,10 +9,9 @@ import numpy as np
 from fdtdx import constants
 from fdtdx.config import SimulationConfig
 from fdtdx.constants import c
-from fdtdx.core.axis import get_oriented_transverse_axes, get_transverse_axes
+from fdtdx.core.axis import get_transverse_axes
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
-from fdtdx.core.linalg import get_wave_vector_raw, rotate_vector
-from fdtdx.core.misc import normalize_polarization_for_source
+from fdtdx.core.misc import tilted_polarization_vectors
 from fdtdx.core.null import Null
 from fdtdx.core.physics.metrics import normalize_by_poynting_flux
 from fdtdx.core.physics.modes import compute_mode
@@ -92,26 +91,18 @@ def gaussian_mode_fields(
         e_vec[pol_axis] = 1.0
         fixed_E_polarization_vector = (e_vec[0], e_vec[1], e_vec[2])
 
-    # Raw E/H polarization vectors (and their default orthogonal partner), exactly as the
-    # plane sources derive them.
-    e_pol, h_pol = normalize_polarization_for_source(
+    # E/H polarization unit vectors and the (tilted) wave vector — same derivation as the
+    # plane sources (degrees -> radians; a zero angle is the identity rotation).
+    e_pol, h_pol, wave_vector = tilted_polarization_vectors(
         direction=direction,
         propagation_axis=propagation_axis,
         fixed_E_polarization_vector=fixed_E_polarization_vector,
         fixed_H_polarization_vector=fixed_H_polarization_vector,
+        azimuth_radians=jnp.asarray(np.deg2rad(azimuth_angle), dtype=dtype),
+        elevation_radians=jnp.asarray(np.deg2rad(elevation_angle), dtype=dtype),
         dtype=dtype,
     )
-    wave_vector = get_wave_vector_raw(direction=direction, propagation_axis=propagation_axis, dtype=dtype)
-
-    # Tilt the propagation/polarization off the plane normal (degrees -> radians).
     is_tilted = azimuth_angle != 0.0 or elevation_angle != 0.0
-    if is_tilted:
-        axes_tpl = (*get_oriented_transverse_axes(propagation_axis), propagation_axis)
-        az = jnp.asarray(np.deg2rad(azimuth_angle), dtype=dtype)
-        el = jnp.asarray(np.deg2rad(elevation_angle), dtype=dtype)
-        e_pol = rotate_vector(e_pol, az, el, axes_tpl)
-        h_pol = rotate_vector(h_pol, az, el, axes_tpl)
-        wave_vector = rotate_vector(wave_vector, az, el, axes_tpl)
 
     t0, t1 = get_transverse_axes(propagation_axis)
     transverse_0 = coordinates[t0] - center[0]
@@ -260,6 +251,21 @@ class BaseModeOverlapDetector(PhasorDetector, ABC):
         x_coords, y_coords, z_coords = jnp.meshgrid(*axis_centers, indexing="ij")
         return x_coords, y_coords, z_coords
 
+    @staticmethod
+    def _as_real_inv_permittivity(inv_permittivity_slice: jax.Array) -> jax.Array:
+        """Reduce a (possibly complex) effective inverse permittivity to ``1/Re(eps)``.
+
+        :meth:`apply` hands subclasses the full complex ``1/eps(omega_c)`` so the waveguide
+        mode solver can model material loss. Analytic reference modes only use the real
+        index (loss is integrated by the ADE / conductivity updates, not by the reference
+        profile), so they reduce to ``1/Re(eps)`` — the same value
+        :func:`~fdtdx.dispersion.effective_inv_permittivity` returns. Real input is
+        returned unchanged.
+        """
+        if jnp.iscomplexobj(inv_permittivity_slice):
+            return 1.0 / jnp.real(1.0 / inv_permittivity_slice)
+        return inv_permittivity_slice
+
     @abstractmethod
     def _compute_mode_fields(
         self,
@@ -273,8 +279,9 @@ class BaseModeOverlapDetector(PhasorDetector, ABC):
         ``mode_E`` / ``mode_H`` must have shape ``(3, *grid_shape)`` (singleton on the
         propagation axis); ``mode_neff`` is a complex/real scalar used only for
         inspection. ``inv_permittivity_slice`` is already restricted to the detector plane
-        and, in a dispersive medium, corrected to the effective permittivity at the
-        frequency's carrier (see :meth:`apply`).
+        and, in a dispersive or conductive medium, corrected to the full complex effective
+        permittivity at the frequency's carrier (see :meth:`apply`). Subclasses that only
+        support a real index reduce it via :meth:`_as_real_inv_permittivity`.
         """
         raise NotImplementedError
 
@@ -585,6 +592,7 @@ class CustomModeOverlapDetector(BaseModeOverlapDetector):
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
         del inv_permeability_slice
         coordinates = self._plane_coordinates()
+        inv_permittivity_slice = self._as_real_inv_permittivity(inv_permittivity_slice)
         mode_E, mode_H = self.mode_function(
             coordinates=coordinates,
             frequency=wave_character.get_frequency(),
@@ -660,6 +668,7 @@ class GaussianModeOverlapDetector(BaseModeOverlapDetector):
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
         del inv_permeability_slice
         coordinates = self._plane_coordinates()
+        inv_permittivity_slice = self._as_real_inv_permittivity(inv_permittivity_slice)
         refractive_index = jnp.sqrt(jnp.mean(1.0 / inv_permittivity_slice))
         wavenumber = refractive_index * 2.0 * jnp.pi * wave_character.get_frequency() / c
         mode_E, mode_H = gaussian_mode_fields(
