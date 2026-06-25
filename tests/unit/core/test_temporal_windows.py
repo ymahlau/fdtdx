@@ -4,19 +4,19 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from fdtdx.core.physics.temporal_windows import (
+from fdtdx.core.temporal.profile import (
+    GaussianPulseProfile,
+    GaussianWindowProfile,
+    SingleFrequencyProfile,
+    TukeyWindowProfile,
+)
+from fdtdx.core.temporal.window import (
     gaussian_envelope,
     linear_rampup,
     tukey_envelope,
     windowed_dft,
 )
 from fdtdx.core.wavelength import WaveCharacter
-from fdtdx.objects.sources.profile import (
-    GaussianPulseProfile,
-    GaussianWindowProfile,
-    SingleFrequencyProfile,
-    TukeyWindowProfile,
-)
 
 
 class TestWindowShapes:

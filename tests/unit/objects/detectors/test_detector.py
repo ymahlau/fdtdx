@@ -10,7 +10,7 @@ from matplotlib.figure import Figure
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.grid import RectilinearGrid
-from fdtdx.core.switch import OnOffSwitch
+from fdtdx.core.temporal.switch import OnOffSwitch
 from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.detectors.field import FieldDetector
 from fdtdx.objects.detectors.poynting_flux import PoyntingFluxDetector

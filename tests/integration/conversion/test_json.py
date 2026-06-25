@@ -8,7 +8,7 @@ from fdtdx.colors import PINK
 from fdtdx.config import SimulationConfig
 from fdtdx.conversion.json import JsonSetup, export_json, export_json_str, import_from_json
 from fdtdx.core.grid import UniformGrid
-from fdtdx.core.switch import OnOffSwitch
+from fdtdx.core.temporal.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, ParameterContainer
 from fdtdx.fdtd.initialization import apply_params, place_objects

@@ -8,12 +8,12 @@ import numpy as np
 from fdtdx.core.axis import get_transverse_axes
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.null import Null
-from fdtdx.core.physics.temporal_windows import windowed_dft
+from fdtdx.core.temporal.profile import TemporalProfile
+from fdtdx.core.temporal.window import windowed_dft
 from fdtdx.dispersion import (
     compute_eps_spectrum_from_coefficients,
     compute_impedance_corrected_temporal_profile,
 )
-from fdtdx.objects.sources.profile import TemporalProfile
 from fdtdx.objects.sources.source import DirectionalPlaneSourceBase
 
 

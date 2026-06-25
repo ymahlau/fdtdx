@@ -11,7 +11,7 @@ import pytest
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.grid import UniformGrid
-from fdtdx.core.switch import OnOffSwitch
+from fdtdx.core.temporal.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.sources.source import (
     HardConstantAmplitudePlanceSource,

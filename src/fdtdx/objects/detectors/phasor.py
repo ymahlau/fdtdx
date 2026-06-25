@@ -5,9 +5,9 @@ import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, field, frozen_field, frozen_private_field, private_field
+from fdtdx.core.temporal.profile import TemporalProfile
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.detectors.detector import Detector, DetectorState
-from fdtdx.objects.sources.profile import TemporalProfile
 from fdtdx.typing import SliceTuple3D
 
 
@@ -45,7 +45,7 @@ class PhasorDetector(Detector):
     scaling_mode: Literal["continuous", "pulse"] = frozen_field(default="continuous")
 
     #: Optional smooth temporal **apodization** window applied before the DFT, given as a
-    #: :class:`~fdtdx.objects.sources.profile.TemporalProfile` (e.g. ``TukeyWindowProfile`` /
+    #: :class:`~fdtdx.core.temporal.profile.TemporalProfile` (e.g. ``TukeyWindowProfile`` /
     #: ``GaussianWindowProfile``, evaluated as a carrier-free envelope). ``None`` (default) is
     #: the historical hard rectangular gate. The continuous-mode amplitude scale is corrected
     #: by the window's coherent gain (``2 / sum(w)``) so reconstructed amplitudes stay correct.

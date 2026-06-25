@@ -4,7 +4,7 @@ These pure functions are the single source of truth for the time-domain envelope
 the source temporal profiles (``GaussianPulseProfile`` Gaussian envelope,
 ``SingleFrequencyProfile`` linear ramp) *and* by detector apodization windows and the
 analytic source power spectrum.  Keeping them here avoids duplicating the window math across
-``objects/sources/profile.py`` and the spectral utilities.
+``core/temporal/profile.py`` and the spectral utilities.
 """
 
 import jax

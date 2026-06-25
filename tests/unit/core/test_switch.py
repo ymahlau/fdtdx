@@ -1,6 +1,6 @@
 import pytest
 
-from fdtdx.core.switch import OnOffSwitch, is_on_at_time_step, is_on_at_time_step_from_switch
+from fdtdx.core.temporal.switch import OnOffSwitch, is_on_at_time_step, is_on_at_time_step_from_switch
 
 # ── is_on_at_time_step (standalone function) ──────────────────────────────
 

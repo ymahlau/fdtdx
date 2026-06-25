@@ -7,9 +7,9 @@ import pytest
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.grid import UniformGrid
+from fdtdx.core.temporal.profile import TukeyWindowProfile
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.detectors.phasor import PhasorDetector
-from fdtdx.objects.sources.profile import TukeyWindowProfile
 
 
 @pytest.fixture

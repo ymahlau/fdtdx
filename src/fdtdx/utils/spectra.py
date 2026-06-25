@@ -14,9 +14,9 @@ import jax
 import jax.numpy as jnp
 
 from fdtdx.core.physics.metrics import compute_poynting_flux
+from fdtdx.core.temporal.profile import TemporalProfile
 from fdtdx.fdtd.container import ArrayContainer
 from fdtdx.objects.detectors.phasor import PhasorDetector
-from fdtdx.objects.sources.profile import TemporalProfile
 from fdtdx.objects.sources.source import Source
 
 

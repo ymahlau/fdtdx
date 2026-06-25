@@ -8,7 +8,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field
-from fdtdx.core.physics.temporal_windows import gaussian_envelope, linear_rampup, tukey_envelope
+from fdtdx.core.temporal.window import gaussian_envelope, linear_rampup, tukey_envelope
 from fdtdx.core.wavelength import WaveCharacter
 
 
@@ -446,7 +446,7 @@ class GaussianWindowProfile(TemporalProfile):
     ``get_amplitude`` returns the pure Gaussian envelope ``exp(-(t - center_time)^2 /
     (2 sigma_time^2))`` with **no** oscillating carrier — intended as a ``PhasorDetector``
     ``apodization`` window (it can also be used as a source envelope). Shares its shape with
-    :class:`GaussianPulseProfile` via :func:`~fdtdx.core.physics.temporal_windows.gaussian_envelope`.
+    :class:`GaussianPulseProfile` via :func:`~fdtdx.core.temporal.window.gaussian_envelope`.
     """
 
     #: Center of the Gaussian window in seconds.

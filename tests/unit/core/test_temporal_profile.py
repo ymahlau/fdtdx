@@ -8,14 +8,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-from fdtdx.core.wavelength import WaveCharacter
-from fdtdx.objects.sources.profile import (
+from fdtdx.core.temporal.profile import (
     CustomTimeSignalProfile,
     GaussianPulseProfile,
     SingleFrequencyProfile,
     _auto_range,
     _unit_scale,
 )
+from fdtdx.core.wavelength import WaveCharacter
 
 
 class TestSingleFrequencyProfile:

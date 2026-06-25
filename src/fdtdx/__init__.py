@@ -31,7 +31,15 @@ from fdtdx.core.physics.metrics import (
     normalize_by_poynting_flux,
 )
 from fdtdx.core.physics.modes import compute_mode
-from fdtdx.core.switch import OnOffSwitch
+from fdtdx.core.temporal.profile import (
+    CustomTimeSignalProfile,
+    GaussianPulseProfile,
+    GaussianWindowProfile,
+    SingleFrequencyProfile,
+    TemporalProfile,
+    TukeyWindowProfile,
+)
+from fdtdx.core.temporal.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.dispersion import (
     DispersionModel,
@@ -109,14 +117,6 @@ from fdtdx.objects.object import (
 from fdtdx.objects.sources.dipole import PointDipoleSource
 from fdtdx.objects.sources.linear_polarization import GaussianPlaneSource, UniformPlaneSource
 from fdtdx.objects.sources.mode import ModePlaneSource
-from fdtdx.objects.sources.profile import (
-    CustomTimeSignalProfile,
-    GaussianPulseProfile,
-    GaussianWindowProfile,
-    SingleFrequencyProfile,
-    TemporalProfile,
-    TukeyWindowProfile,
-)
 from fdtdx.objects.static_material.cylinder import Cylinder
 from fdtdx.objects.static_material.gds_layer_stack import (
     GDSLayerObject,
