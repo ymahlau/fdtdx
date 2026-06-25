@@ -12,6 +12,34 @@ from fdtdx.core.linalg import get_orthogonal_vector, get_wave_vector_raw, rotate
 from fdtdx.materials import Material
 
 
+def gaussian_amplitude(
+    transverse_0: jax.Array,
+    transverse_1: jax.Array,
+    radius: float | jax.Array,
+    center: tuple[float | jax.Array, float | jax.Array] = (0.0, 0.0),
+) -> jax.Array:
+    """Transverse Gaussian beam amplitude ``exp(-r^2 / radius^2)``.
+
+    The single shared Gaussian-beam profile used by both :class:`~fdtdx.GaussianPlaneSource`
+    (injected aperture weighting) and :func:`gaussian_mode_fields` (analytic reference mode), so
+    the two stay on one convention: ``radius`` is the ``1/e`` amplitude radius and the profile has
+    a smooth (un-truncated) tail. ``transverse_0``/``transverse_1`` and ``radius``/``center`` must
+    share units (physical metres, or grid cells with a grid-cell radius).
+
+    Args:
+        transverse_0: Coordinate grid along the first transverse axis.
+        transverse_1: Coordinate grid along the second transverse axis (same shape).
+        radius: ``1/e`` amplitude radius (same units as the coordinates).
+        center: Transverse beam center ``(c0, c1)`` (same units as the coordinates).
+
+    Returns:
+        Real amplitude array (peak ``1`` at the center), same shape as the inputs.
+    """
+    t0 = transverse_0 - center[0]
+    t1 = transverse_1 - center[1]
+    return jnp.exp(-(t0**2 + t1**2) / radius**2)
+
+
 def expand_matrix(matrix: jax.Array, grid_points_per_voxel: tuple[int, ...]) -> jax.Array:
     """Expands a matrix by repeating values along spatial dimensions and optionally adding channels.
 

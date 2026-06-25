@@ -14,6 +14,7 @@ import jax
 import jax.numpy as jnp
 import pytreeclass as tc
 from loguru import logger
+
 import fdtdx
 
 polarization = 'X' #'Y'
@@ -108,7 +109,6 @@ def main():
         fixed_E_polarization_vector=(1, 0, 0) if polarization == 'X' else (0, 1, 0),
         wave_character=fdtdx.WaveCharacter(wavelength=1.550e-6),
         radius=4e-6,
-        std=1 / 3,
         direction="-",
         elevation_angle=0.0,
     )

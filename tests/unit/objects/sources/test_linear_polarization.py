@@ -12,6 +12,7 @@ import pytest
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.grid import RectilinearGrid, UniformGrid
+from fdtdx.core.misc import gaussian_amplitude
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.sources.linear_polarization import (
     GaussianPlaneSource,
@@ -49,22 +50,9 @@ class TestGaussianPlaneSource:
             direction="-",
             radius=1e-6,
         )
-        assert source.std == 1 / 3
         assert source.radius == 1e-6
         assert source.direction == "-"
         assert source.normalize_by_energy is True
-
-    def test_initialization_custom_std(self):
-        """Test initialization with custom std."""
-        source = GaussianPlaneSource(
-            partial_grid_shape=(8, 8, 1),
-            wave_character=WaveCharacter(wavelength=1.55e-6),
-            direction="+",
-            radius=2e-6,
-            std=0.5,
-        )
-        assert source.std == 0.5
-        assert source.radius == 2e-6
 
     def test_initialization_with_polarization(self):
         """Test initialization with E polarization vector."""
@@ -99,68 +87,30 @@ class TestGaussianPlaneSource:
         )
         assert source.normalize_by_energy is False
 
-    def test_gauss_profile_shape(self):
-        """Test _gauss_profile returns correct shape."""
-        profile = GaussianPlaneSource._gauss_profile(
-            width=8,
-            height=8,
-            axis=2,
-            center=(4.0, 4.0),
-            radii=(3.0, 3.0),
-            std=1 / 3,
-        )
-        assert profile.shape == (8, 8, 1)
+    def test_gaussian_amplitude_peak_at_center(self):
+        """gaussian_amplitude peaks at 1 at the center and decays away from it."""
+        coords = jnp.arange(9.0)
+        t0, t1 = jnp.meshgrid(coords, coords, indexing="ij")
+        profile = gaussian_amplitude(t0, t1, radius=3.0, center=(4.0, 4.0))
+        assert jnp.isclose(profile[4, 4], 1.0)
+        assert float(profile[4, 4]) > float(profile[0, 0])
 
-    def test_gauss_profile_normalized(self):
-        """Test _gauss_profile sums to 1."""
-        profile = GaussianPlaneSource._gauss_profile(
-            width=16,
-            height=16,
-            axis=2,
-            center=(8.0, 8.0),
-            radii=(6.0, 6.0),
-            std=1 / 3,
-        )
-        assert jnp.isclose(profile.sum(), 1.0, atol=1e-5)
+    def test_gaussian_amplitude_1e_radius(self):
+        """At r = radius the amplitude is exp(-1) (radius = 1/e amplitude radius)."""
+        profile = gaussian_amplitude(jnp.array([3.0]), jnp.array([0.0]), radius=3.0, center=(0.0, 0.0))
+        assert jnp.isclose(profile[0], jnp.exp(-1.0), atol=1e-6)
 
-    def test_gauss_profile_centered(self):
-        """Test _gauss_profile is centered correctly."""
-        profile = GaussianPlaneSource._gauss_profile(
-            width=9,
-            height=9,
-            axis=2,
-            center=(4.0, 4.0),
-            radii=(3.0, 3.0),
-            std=1 / 3,
-        )
-        # Center should have highest value
-        center_val = profile[4, 4, 0]
-        corner_val = profile[0, 0, 0]
-        assert center_val > corner_val
+    def test_gaussian_amplitude_smooth_tail_no_aperture(self):
+        """Unified convention has no hard aperture — amplitude stays > 0 past r = radius."""
+        profile = gaussian_amplitude(jnp.array([5.0]), jnp.array([0.0]), radius=3.0, center=(0.0, 0.0))
+        assert float(profile[0]) > 0.0
 
-    def test_gauss_profile_different_axes(self):
-        """Test _gauss_profile with different axis positions."""
-        # Axis at position 0
-        profile0 = GaussianPlaneSource._gauss_profile(
-            width=8,
-            height=8,
-            axis=0,
-            center=(4.0, 4.0),
-            radii=(3.0, 3.0),
-            std=1 / 3,
-        )
-        assert profile0.shape == (1, 8, 8)
-
-        # Axis at position 1
-        profile1 = GaussianPlaneSource._gauss_profile(
-            width=8,
-            height=8,
-            axis=1,
-            center=(4.0, 4.0),
-            radii=(3.0, 3.0),
-            std=1 / 3,
-        )
-        assert profile1.shape == (8, 1, 8)
+    def test_gaussian_amplitude_shape(self):
+        """Output shape matches the input coordinate grids."""
+        coords = jnp.arange(8.0)
+        t0, t1 = jnp.meshgrid(coords, coords, indexing="ij")
+        profile = gaussian_amplitude(t0, t1, radius=3.0)
+        assert profile.shape == (8, 8)
 
     def test_place_on_grid(self, micro_config, jax_key):
         """Test placing source on grid."""

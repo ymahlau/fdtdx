@@ -28,13 +28,14 @@ _DET_Z = _SOURCE_Z + 4  # 4 cells downstream (200 nm)
 _SIM_TIME = 120e-15
 
 # ── Per-test beam geometry ────────────────────────────────────────────────────
-# Profile test: large beam so σ₀ = 500 nm >> λ/(2π) — Fresnel formula valid
+# Profile test: beam chosen so the waist σ₀ = radius/√2 = 500 nm >> λ/(2π) — Fresnel valid
 _PROFILE_DOMAIN_XY = 5e-6  # 100 cells at 50 nm
-_PROFILE_BEAM_RADIUS = 1.5e-6
+_PROFILE_BEAM_RADIUS = 0.5e-6 * np.sqrt(2)  # radius/√2 = 500 nm waist
 
-# Power test: narrow beam so Gaussian flux << uniform flux
+# Power test: narrow waist (σ₀ ≈ 167 nm, σ₀/λ ≈ 0.17) so its high-angle/evanescent content
+# diffracts away over the short gap and less forward flux reaches the detector than a uniform source.
 _POWER_DOMAIN_XY = 4e-6  # 80 cells at 50 nm
-_POWER_BEAM_RADIUS = 0.5e-6
+_POWER_BEAM_RADIUS = (0.5e-6 / 3) * np.sqrt(2)  # σ₀ = radius/√2 ≈ 167 nm
 
 _DT_APPROX = 0.99 * _RESOLUTION / (3e8 * np.sqrt(3))
 _STEPS_PER_PERIOD = round(_WAVELENGTH / (3e8 * _DT_APPROX))
@@ -149,9 +150,9 @@ def test_gaussian_source_spatial_profile():
 
     GaussianPlaneSource injects a Gaussian-weighted field with uniform phase::
 
-        |E(r)| ∝ exp(-r² / (2 σ₀²))  for r < radius,  0 outside
+        |E(r)| ∝ exp(-r² / radius²) = exp(-r² / (2 σ₀²))   (smooth, no aperture)
 
-    where σ₀ = std x radius = radius/3 = 500 nm (default std = 1/3).
+    where σ₀ = radius/√2 = 500 nm (the unified gaussian_amplitude convention).
 
     With σ₀/λ = 0.5, only ~0.3 % of the source's k-space power is evanescent,
     so the paraxial Fresnel propagation formula is accurate::
@@ -193,9 +194,8 @@ def test_gaussian_source_spatial_profile():
     assert center_amp > 0, "Center amplitude should be positive"
 
     # --- RMS beam width vs. propagated Gaussian formula ---
-    # GaussianPlaneSource default: std = 1/3  →  σ₀ = std x radius = radius/3
-    _GAUSS_STD = 1 / 3  # matches GaussianPlaneSource.std default
-    sigma0 = _GAUSS_STD * _PROFILE_BEAM_RADIUS
+    # Unified convention: |E| ∝ exp(-r²/radius²) = exp(-r²/(2σ₀²))  →  σ₀ = radius/√2
+    sigma0 = _PROFILE_BEAM_RADIUS / np.sqrt(2)
 
     z_det = (_DET_Z - _SOURCE_Z) * _RESOLUTION  # physical propagation distance
     # Free-space second-moment propagation for a Gaussian aperture source

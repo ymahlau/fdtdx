@@ -10,7 +10,7 @@ from fdtdx.config import SimulationConfig
 from fdtdx.constants import c
 from fdtdx.core.axis import get_transverse_axes
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
-from fdtdx.core.misc import tilted_polarization_vectors
+from fdtdx.core.misc import gaussian_amplitude, tilted_polarization_vectors
 from fdtdx.core.null import Null
 from fdtdx.core.physics.metrics import normalize_by_poynting_flux
 from fdtdx.core.physics.modes import compute_mode
@@ -106,7 +106,7 @@ def gaussian_mode_fields(
     t0, t1 = get_transverse_axes(propagation_axis)
     transverse_0 = coordinates[t0] - center[0]
     transverse_1 = coordinates[t1] - center[1]
-    amplitude = jnp.exp(-(transverse_0**2 + transverse_1**2) / (radius**2))
+    amplitude = gaussian_amplitude(coordinates[t0], coordinates[t1], radius, center=(center[0], center[1]))
 
     if is_tilted:
         # Transverse phase ramp matching a tilted wavefront (phase 0 at the plane center).

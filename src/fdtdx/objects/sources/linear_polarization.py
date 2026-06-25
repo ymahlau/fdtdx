@@ -7,7 +7,12 @@ import numpy as np
 
 from fdtdx.core.grid import calculate_time_offset_yee
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
-from fdtdx.core.misc import expand_to_3x3, linear_interpolated_indexing, tilted_polarization_vectors
+from fdtdx.core.misc import (
+    expand_to_3x3,
+    gaussian_amplitude,
+    linear_interpolated_indexing,
+    tilted_polarization_vectors,
+)
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.dispersion import effective_inv_permittivity
 from fdtdx.objects.sources.tfsf import TFSFPlaneSource, _build_dispersive_H_filter
@@ -328,36 +333,10 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
 
 @autoinit
 class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
-    #: the radius of the gaussian source
+    #: the ``1/e`` amplitude radius of the gaussian beam (``exp(-r^2 / radius^2)``), in metres.
+    #: Shares the convention of :func:`~fdtdx.gaussian_mode_fields` via
+    #: :func:`~fdtdx.core.misc.gaussian_amplitude` (smooth tail, no hard aperture).
     radius: float = frozen_field()
-
-    #:  the standard deviation of the gaussian source
-    std: float = frozen_field(default=1 / 3)  # relative to radius
-
-    @staticmethod
-    def _gauss_profile(
-        width: int,
-        height: int,
-        axis: int,
-        center: tuple[float, float] | jax.Array,
-        radii: tuple[float, float],
-        std: float,
-    ) -> jax.Array:  # shape (*grid_shape)
-        grid = (
-            jnp.stack(jnp.meshgrid(*map(jnp.arange, (height, width)), indexing="xy"), axis=-1) - jnp.asarray(center)
-        ) / jnp.asarray(radii)
-        euc_dist = (grid**2).sum(axis=-1)
-
-        mask = euc_dist < 1
-        mask = jnp.expand_dims(mask, axis=axis)
-
-        exp_part = jnp.exp(-0.5 * euc_dist / std**2)
-        exp_part = jnp.expand_dims(exp_part, axis=axis)
-
-        profile = jnp.where(mask, exp_part, 0)
-        profile = profile / profile.sum()
-
-        return profile
 
     def _get_amplitude_raw(
         self,
@@ -371,30 +350,15 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
             horizontal_centers = 0.5 * (horizontal_edges[:-1] + horizontal_edges[1:])
             vertical_centers = 0.5 * (vertical_edges[:-1] + vertical_edges[1:])
             h_grid, v_grid = jnp.meshgrid(horizontal_centers, vertical_centers, indexing="ij")
-            h_center = center[0]
-            v_center = center[1]
-            normalized_radius_squared = ((h_grid - h_center) / self.radius) ** 2 + (
-                (v_grid - v_center) / self.radius
-            ) ** 2
-            mask = normalized_radius_squared < 1
-            exp_part = jnp.exp(-0.5 * normalized_radius_squared / self.std**2)
-            profile_2d = jnp.where(mask, exp_part, 0)
-            h_widths = horizontal_edges[1:] - horizontal_edges[:-1]
-            v_widths = vertical_edges[1:] - vertical_edges[:-1]
-            cell_areas = h_widths[:, None] * v_widths[None, :]
-            profile_2d = profile_2d / (profile_2d * cell_areas).sum()
+            profile_2d = gaussian_amplitude(h_grid, v_grid, self.radius, center=(center[0], center[1]))
             return jnp.expand_dims(profile_2d, axis=self.propagation_axis)
 
         grid_radius = self.radius / self._config.uniform_spacing()
-        profile = self._gauss_profile(
-            width=self.grid_shape[self.horizontal_axis],
-            height=self.grid_shape[self.vertical_axis],
-            axis=self.propagation_axis,
-            center=center,
-            radii=(grid_radius, grid_radius),
-            std=self.std,
-        )
-        return profile
+        height = self.grid_shape[self.vertical_axis]
+        width = self.grid_shape[self.horizontal_axis]
+        coords = jnp.stack(jnp.meshgrid(jnp.arange(height), jnp.arange(width), indexing="xy"), axis=-1)
+        profile = gaussian_amplitude(coords[..., 0], coords[..., 1], grid_radius, center=(center[0], center[1]))
+        return jnp.expand_dims(profile, axis=self.propagation_axis)
 
 
 @autoinit
