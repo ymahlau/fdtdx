@@ -19,7 +19,13 @@ Domain layout (50 nm resolution = 20 cells/λ, z is propagation axis):
 
 Transverse (x, y): 3 cells each with periodic boundaries.
 
-Tolerance: 5 % relative error. At 20 cells/λ FDTD dispersion is ~0.6% for n=2.
+Tolerances (per-test, scaled to achievable FDTD numerical dispersion at
+Courant ≈ 0.99/√3):
+  - vacuum k         : 1 %   (achieved ≈ 0.02 % at 20 cells/λ)
+  - dielectric k     : 3 %   (achieved ≈ 1.6 % at 10 cells/λ_medium)
+  - vacuum impedance : 2 %   (achieved ≈ 0.8 %)
+  - dielectric imped.: 2 %   (after folding the cos(k·Δz/2) Yee half-step bias
+                              into the prediction; raw bias ≈ 4.9 % for n=2)
 """
 
 import jax
@@ -45,7 +51,27 @@ _DET_SEP_VAC = 5 * _RESOLUTION  # 0.25 µm
 _DET_SEP_DIEL = 3 * _RESOLUTION  # 0.15 µm
 
 _SIM_TIME = 120e-15  # 120 fs ≈ 36 optical periods at λ = 1 µm
-_TOLERANCE = 0.05  # 5 % relative tolerance
+
+# Per-test tolerances, scaled to the achievable FDTD numerical dispersion rather
+# than a single loose shared value (see module docstring for achieved errors).
+_K_TOL_VACUUM = 0.01  # vacuum wave vector (achieved ≈ 0.02 %)
+_K_TOL_DIEL = 0.03  # dielectric wave vector at 10 cells/λ_medium (achieved ≈ 1.6 %)
+_AMP_TOL = 0.02  # vacuum amplitude equality between the two detectors (achieved ≈ 1.0 %)
+_Z_TOL_VACUUM = 0.02  # vacuum wave impedance (achieved ≈ 0.8 %)
+_Z_TOL_DIEL = 0.02  # dielectric impedance, cos(k·Δz/2)-folded prediction (achieved ≈ 0.3 %)
+_RATIO_TOL = 0.02  # Z_vacuum/Z_dielectric vs n (half-step-corrected; achieved ≈ 0.2 %)
+
+
+def _yee_halfstep_factor(n: float) -> float:
+    """cos(k·Δz/2) Yee half-step interpolation factor for a +z wave of index n.
+
+    A PhasorDetector samples E_x on a z-forward half-step relative to H_y, so the
+    measured |Ex|/|Hy| acquires a cos(k·Δz/2) bias with k = 2πn/λ. Folding this
+    documented bias into the analytic prediction turns the half-step into a tested
+    quantity instead of consuming the tolerance budget.
+    """
+    k = 2.0 * np.pi * n / _WAVELENGTH
+    return float(np.cos(k * _RESOLUTION / 2.0))
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -189,16 +215,16 @@ def test_phase_velocity_vacuum():
 
     # Amplitudes should be equal (no attenuation in lossless vacuum)
     rel_amp_diff = abs(abs(p1) - abs(p2)) / abs(p1)
-    assert rel_amp_diff < _TOLERANCE, (
-        f"Amplitude mismatch: |d1|={abs(p1):.4e}, |d2|={abs(p2):.4e}, relative diff={rel_amp_diff:.3f} > {_TOLERANCE}"
+    assert rel_amp_diff < _AMP_TOL, (
+        f"Amplitude mismatch: |d1|={abs(p1):.4e}, |d2|={abs(p2):.4e}, relative diff={rel_amp_diff:.3f} > {_AMP_TOL}"
     )
 
     # Wave vector must match analytic value
     k_measured = _measure_k(p1, p2, _DET_SEP_VAC)
     k_analytic = 2 * np.pi / _WAVELENGTH
     rel_err = abs(k_measured - k_analytic) / k_analytic
-    assert rel_err < _TOLERANCE, (
-        f"k_measured={k_measured:.4e} m⁻¹, k_analytic={k_analytic:.4e} m⁻¹, relative error={rel_err:.3f} > {_TOLERANCE}"
+    assert rel_err < _K_TOL_VACUUM, (
+        f"k_measured={k_measured:.4e} m⁻¹, k_analytic={k_analytic:.4e} m⁻¹, relative error={rel_err:.3f} > {_K_TOL_VACUUM}"
     )
 
 
@@ -209,7 +235,7 @@ def test_phase_velocity_dielectric():
     interface.  Detector separation: 3 cells = 0.15 µm.  With n=2 and
     λ=1 µm, the medium wavelength is 0.5 µm, so 0.15 µm < 0.5 µm avoids
     the 2π ambiguity.  Expected Δφ = 2π·2·0.15/1 ≈ 1.88 rad.
-    At 20 cells/λ_vacuum (10 cells/λ_medium) FDTD dispersion is ~0.6%.
+    At 20 cells/λ_vacuum (10 cells/λ_medium) FDTD dispersion is ~1.6%.
     """
     epsilon_r = 4.0
     n = np.sqrt(epsilon_r)  # = 2.0
@@ -239,9 +265,9 @@ def test_phase_velocity_dielectric():
     k_measured = _measure_k(p1, p2, _DET_SEP_DIEL)
     k_analytic = 2 * np.pi * n / _WAVELENGTH
     rel_err = abs(k_measured - k_analytic) / k_analytic
-    assert rel_err < _TOLERANCE, (
+    assert rel_err < _K_TOL_DIEL, (
         f"ε_r={epsilon_r} (n={n}): k_measured={k_measured:.4e} m⁻¹, "
-        f"k_analytic={k_analytic:.4e} m⁻¹, relative error={rel_err:.3f} > {_TOLERANCE}"
+        f"k_analytic={k_analytic:.4e} m⁻¹, relative error={rel_err:.3f} > {_K_TOL_DIEL}"
     )
 
 
@@ -265,25 +291,15 @@ def test_wave_impedance_vacuum():
 
     Z_measured = abs(p_ex) / abs(p_hy)
     rel_err = abs(Z_measured - Z_analytic) / Z_analytic
-    assert rel_err < _TOLERANCE, (
+    assert rel_err < _Z_TOL_VACUUM, (
         f"Z_measured={Z_measured:.4f} (normalized), Z_analytic={Z_analytic:.4f}, "
-        f"relative error={rel_err:.3f} > {_TOLERANCE}"
+        f"relative error={rel_err:.3f} > {_Z_TOL_VACUUM}"
     )
 
 
-def test_wave_impedance_dielectric():
-    """Wave impedance in ε_r=4 (n=2) dielectric: |Ex|/|Hy| = 1/n within 5 %.
-
-    In fdtdx normalized units: Z_analytic = Z_SI / η₀ = (Z₀/n) / Z₀ = 1/n.
-    The entire domain is filled with the dielectric (no interface) to avoid
-    standing-wave artifacts.
-    """
-    epsilon_r = 4.0
-    n = float(np.sqrt(epsilon_r))  # = 2.0
-    Z_analytic = 1.0 / n  # = 0.5 in fdtdx normalized units
-
+def _run_dielectric_impedance(epsilon_r: float):
+    """Fill the whole domain with ε_r, run, and return |Ex|/|Hy| at d1."""
     objects, constraints, config, volume, wave = _build_1d_base()
-
     diel = fdtdx.UniformMaterialObject(
         partial_real_shape=(None, None, None),
         material=fdtdx.Material(permittivity=epsilon_r),
@@ -291,19 +307,51 @@ def test_wave_impedance_dielectric():
     pos_c, size_c = diel.same_position_and_size(volume)
     constraints.extend([pos_c, size_c])
     objects.append(diel)
-
     _add_phasor_det("d1", _DET1_Z, wave, volume, objects, constraints)
-
     arrays = _run(objects, constraints, config)
     p_ex = _ex_phasor(arrays, "d1")
     p_hy = _hy_phasor(arrays, "d1")
-
     assert abs(p_ex) > 0, "Detector d1 measured zero Ex amplitude"
     assert abs(p_hy) > 0, "Detector d1 measured zero Hy amplitude"
+    return abs(p_ex) / abs(p_hy)
 
-    Z_measured = abs(p_ex) / abs(p_hy)
+
+def test_wave_impedance_dielectric():
+    """Wave impedance in ε_r=4 (n=2) dielectric: |Ex|/|Hy| = (1/n)·cos(k·Δz/2) within 2 %.
+
+    In fdtdx normalized units the ideal value is Z_SI/η₀ = (Z₀/n)/Z₀ = 1/n. The
+    PhasorDetector samples E_x a z-forward half-step from H_y, so the *measured*
+    impedance carries a cos(k·Δz/2) Yee-staggering bias (≈ 4.9 % for n=2 at 50 nm).
+    Rather than absorb this into a loose 5 % bound, we FOLD the documented half-step
+    factor into the analytic prediction and tighten to 2 % (achieved ≈ 0.3 %).
+
+    The n-dependence is additionally pinned head-to-head: a vacuum reference run
+    gives Z_vacuum, and Z_vacuum/Z_dielectric must equal n up to the (different)
+    half-step factors. A bug that ignored the dielectric would give a ratio ≈ 1.
+    """
+    epsilon_r = 4.0
+    n = float(np.sqrt(epsilon_r))  # = 2.0
+    # Ideal 1/n, with the cos(k·Δz/2) half-step bias folded into the prediction.
+    Z_analytic = (1.0 / n) * _yee_halfstep_factor(n)
+
+    Z_measured = _run_dielectric_impedance(epsilon_r)
     rel_err = abs(Z_measured - Z_analytic) / Z_analytic
-    assert rel_err < _TOLERANCE, (
+    assert rel_err < _Z_TOL_DIEL, (
         f"ε_r={epsilon_r} (n={n}): Z_measured={Z_measured:.4f} (normalized), "
-        f"Z_analytic={Z_analytic:.4f}, relative error={rel_err:.3f} > {_TOLERANCE}"
+        f"Z_analytic={Z_analytic:.4f} (cos-folded), relative error={rel_err:.3f} > {_Z_TOL_DIEL}"
+    )
+
+    # Vacuum reference run to pin the n-dependence head-to-head.
+    objects_v, constraints_v, config_v, volume_v, wave_v = _build_1d_base()
+    _add_phasor_det("d1", _DET1_Z, wave_v, volume_v, objects_v, constraints_v)
+    arrays_v = _run(objects_v, constraints_v, config_v)
+    Z_vacuum = abs(_ex_phasor(arrays_v, "d1")) / abs(_hy_phasor(arrays_v, "d1"))
+
+    ratio_measured = Z_vacuum / Z_measured
+    # Z_vacuum/Z_dielectric = n, scaled by the ratio of the two half-step factors.
+    ratio_analytic = n * _yee_halfstep_factor(1.0) / _yee_halfstep_factor(n)
+    ratio_err = abs(ratio_measured - ratio_analytic) / ratio_analytic
+    assert ratio_err < _RATIO_TOL, (
+        f"Z_vacuum/Z_dielectric={ratio_measured:.4f}, expected ≈ n·cos-ratio={ratio_analytic:.4f} "
+        f"(n={n}), relative error={ratio_err:.3f} > {_RATIO_TOL}"
     )

@@ -163,31 +163,41 @@ class TestReversibleFdtdGradients:
         _, out = reversible_fdtd(arrays, objects, config, key, show_progress=False)
         return jnp.sum(out.fields.E**2) + jnp.sum(out.fields.H**2)
 
-    def test_gradients_are_finite(self, scene, key):
-        obj, arrays, config = scene
-        loss, grads = jax.value_and_grad(self._loss_fn)(arrays.inv_permittivities, arrays, obj, config, key)
-        assert jnp.isfinite(loss), f"Loss is not finite: {loss}"
-        assert jnp.all(jnp.isfinite(grads)), "Gradients contain NaN or Inf"
+    def test_gradient_matches_finite_difference(self, scene, key):
+        """The reversible-VJP gradient w.r.t. ``inv_permittivities`` matches a
+        central finite-difference estimate at the highest-sensitivity voxel.
 
-    def test_loss_is_finite(self, scene, key):
-        obj, arrays, config = scene
-        loss = self._loss_fn(arrays.inv_permittivities, arrays, obj, config, key)
-        assert jnp.isfinite(loss)
-
-    def test_gradients_are_non_trivial(self, scene, key):
-        """Gradient of an E-field loss w.r.t. inv_permittivities must be nonzero.
-
-        A loss built only from ``out.inv_permittivities`` would produce
-        ``2 * inv_eps`` regardless of whether the time-step VJP fires, so
-        this test targets an E-field loss instead: a nonzero gradient proves
-        the backward pass genuinely propagates through the Maxwell update.
+        This subsumes the former finite/positive/nonzero trio: a finite,
+        positive, nonzero — but *numerically wrong* — gradient (e.g. a dropped
+        algebraic factor in the reverse step) would pass those three and fail
+        here. The asserts on loss/grad finiteness and nonzero gradient are kept
+        as cheap preconditions; the FD comparison is the real correctness check.
         """
         obj, arrays, config = scene
-        loss, grads = jax.value_and_grad(self._loss_fn)(arrays.inv_permittivities, arrays, obj, config, key)
-        assert jnp.isfinite(loss)
-        assert jnp.all(jnp.isfinite(grads))
+        inv_eps = arrays.inv_permittivities
+        loss, grads = jax.value_and_grad(self._loss_fn)(inv_eps, arrays, obj, config, key)
+
+        # Preconditions (formerly three separate tests).
+        assert jnp.isfinite(loss), f"Loss is not finite: {loss}"
         assert loss > 0, "Loss should be positive with nonzero propagating fields"
+        assert jnp.all(jnp.isfinite(grads)), "Gradients contain NaN or Inf"
         assert jnp.any(grads != 0), "Gradients should be nonzero — VJP must flow through Maxwell updates"
+
+        # FD vs AD at the most sensitive voxel — the strongest signal, so
+        # float32 FD round-off is least likely to swamp the comparison.
+        idx = tuple(int(i) for i in jnp.unravel_index(int(jnp.argmax(jnp.abs(grads))), grads.shape))
+        h = 1e-3 * float(jnp.abs(inv_eps[idx])) + 1e-5
+        loss_plus = self._loss_fn(inv_eps.at[idx].add(h), arrays, obj, config, key)
+        loss_minus = self._loss_fn(inv_eps.at[idx].add(-h), arrays, obj, config, key)
+        fd = (loss_plus - loss_minus) / (2.0 * h)
+        ad = grads[idx]
+        diff = float(jnp.abs(ad - fd))
+        rel_err = diff / (float(jnp.abs(fd) + jnp.abs(ad)) + 1e-12)
+        # Measured rel_err ≈ 1.5e-4 (float32, full reversible pipeline). 1e-2
+        # leaves margin for FD round-off but catches an O(1%) factor error.
+        assert rel_err < 1e-2 or diff < 1e-5, (
+            f"AD vs FD mismatch at {idx}: AD={float(ad):.6e}, FD={float(fd):.6e}, rel_err={rel_err:.3e}"
+        )
 
 
 # ──────────────────────────────────────────────────────────────────────────────

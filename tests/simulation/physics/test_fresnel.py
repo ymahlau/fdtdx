@@ -22,15 +22,17 @@ Analytic coefficients (n₁=1, n₂=2, normal incidence):
 
 Note: PoyntingFluxDetector always uses raw Yee-grid fields. The E_x and H_y fields are spatially staggered by Δz/2
 on the Yee grid, so the time-averaged cross product acquires a medium-dependent
-bias factor ∝ Δz². At 25 nm resolution this bias is ≲ 0.5 % in T, translating
-to ≲ 3 % relative error in R (well within the 5 % tolerance).
+bias factor ∝ Δz². At 25 nm resolution this bias is ≲ 0.5 % in T, which the
+energy-conservation relation R = 1 - T amplifies by T_analytic/R_analytic ≈ 8
+into a ≲ 3 % relative error in R.
 
 The vacuum-side (reflection) detector is intentionally omitted because standing-
 wave cross-terms (E_incxH_ref + E_refxH_inc) are non-zero when the E/H temporal
 staggering (ωΔt/2 ≈ 0.09 rad) biases the time-averaged flux. R is derived from
-energy conservation: R = 1 - T.
+energy conservation: R = 1 - T_measured (it is NOT measured independently).
 
-Tolerance: 5 % relative error.
+Tolerances: T within 2 % (achieved ≈ 0.3 %); the R = 1 - T check, which amplifies
+the T error ≈ 8x, is the genuinely binding constraint at 3 % (achieved ≈ 2.5 %).
 """
 
 import jax
@@ -54,7 +56,10 @@ _DET_T_Z = 140  # transmission-side detector (dielectric)
 _DIEL_CELLS_Z = _Z_CELLS - _INTERFACE_Z  # = 100 cells = 2.5 µm
 
 _SIM_TIME = 120e-15  # 120 fs ≈ 36 optical periods
-_TOLERANCE = 0.05
+# Per-observable tolerances. T is measured directly (≈ 0.3 % error); R = 1 - T
+# amplifies that error ≈ 8x (≈ 2.5 %), so R carries the tighter, more useful bound.
+_T_TOLERANCE = 0.02
+_R_TOLERANCE = 0.03
 
 # Approximate time step and steps per optical period (3D Courant, factor 0.99)
 _DT_APPROX = 0.99 * _RESOLUTION / (3e8 * np.sqrt(3))  # ≈ 4.76e-17 s
@@ -197,8 +202,8 @@ def test_fresnel_transmission():
 
     T_measured = S_T / S0
     rel_err = abs(T_measured - T_analytic) / T_analytic
-    assert rel_err < _TOLERANCE, (
-        f"T_measured={T_measured:.4f}, T_analytic={T_analytic:.4f}, relative error={rel_err:.3f} > {_TOLERANCE}"
+    assert rel_err < _T_TOLERANCE, (
+        f"T_measured={T_measured:.4f}, T_analytic={T_analytic:.4f}, relative error={rel_err:.3f} > {_T_TOLERANCE}"
     )
 
 
@@ -228,20 +233,21 @@ def test_fresnel_power_conservation():
     assert S0 > 0, f"Reference flux zero: {S0}"
 
     T_measured = S_T / S0
-    # R is derived from energy conservation; an independent reflection measurement
-    # is intentionally omitted due to standing-wave cross-term bias (see module docstring).
+    # R is inferred from energy conservation as R = 1 - T_measured; it is NOT an
+    # independent reflection measurement (the vacuum-side detector is omitted due to
+    # standing-wave cross-term bias, see module docstring).
     R_measured = 1.0 - T_measured
 
     T_err = abs(T_measured - T_analytic) / T_analytic
-    # R_err amplifies T error by T_analytic/R_analytic ≈ 8, providing a tighter
-    # constraint than T_err alone despite R being derived from T.
+    # R_err amplifies the T error by T_analytic/R_analytic ≈ 8, so despite R being
+    # derived from T it is the genuinely binding constraint (≈ 2.5 % vs ≈ 0.3 % for T).
     R_err = abs(R_measured - R_analytic) / R_analytic
 
-    assert T_err < _TOLERANCE, (
-        f"T_measured={T_measured:.4f}, T_analytic={T_analytic:.4f}, relative error={T_err:.3f} > {_TOLERANCE}"
+    assert T_err < _T_TOLERANCE, (
+        f"T_measured={T_measured:.4f}, T_analytic={T_analytic:.4f}, relative error={T_err:.3f} > {_T_TOLERANCE}"
     )
-    assert R_err < _TOLERANCE, (
-        f"R_measured={R_measured:.4f}, R_analytic={R_analytic:.4f}, relative error={R_err:.3f} > {_TOLERANCE}"
+    assert R_err < _R_TOLERANCE, (
+        f"R_measured={R_measured:.4f}, R_analytic={R_analytic:.4f}, relative error={R_err:.3f} > {_R_TOLERANCE}"
     )
     # Note: T_measured + R_measured = 1.0 is an algebraic identity (R = 1 - T),
     # not an independent physics check, so the RT_sum assertion is omitted.

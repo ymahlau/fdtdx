@@ -25,12 +25,13 @@ Test strategy:
   PEC: |Ex_near| << |Ex_far|   (node at wall, antinode at λ/4)
   PMC: |Ex_near| >> |Ex_far|   (antinode at wall, node at λ/4)
 
-  Quantitative check (using two-run normalization):
-    near/far ratio for PEC should be < 0.2
-    near/far ratio for PMC should be > 5.0
+  Quantitative check, derived from the analytic sin(k·Δ)/cos(k·Δ) envelope at
+  the detector offsets (Δ_near = 1 cell, Δ_far = λ/4 = 20 cells at 80 cells/λ):
+    PEC near/far = sin(2π/80)/sin(π/2) ≈ 0.078  → assert < 0.12
+    PMC near/far = cos(2π/80)/cos(π/2) → ∞ (far at node) → assert > 8.0
 
 Domain: periodic xy, PML z-min, PEC/PMC z-max.
-Resolution: 25 nm = 40 cells/λ for accurate near-wall measurement.
+Resolution: 12.5 nm = 80 cells/λ for accurate near-wall measurement.
 """
 
 import jax
@@ -168,9 +169,10 @@ def _ex_amplitude(arrays, name) -> float:
 def test_pec_standing_wave():
     """PEC wall: E_x node at wall (near << far).
 
-    Near-wall Ex should be close to zero (sin-like envelope with
-    node at wall).  Far detector at λ/4 is at the antinode.
-    Ratio near/far should be < 0.2.
+    Near-wall Ex should be close to zero (sin-like envelope with node at wall).
+    Far detector at λ/4 is at the antinode.  The analytic envelope gives
+    near/far = sin(k·1cell)/sin(k·20cells) = sin(2π/80)/sin(π/2) ≈ 0.078, so the
+    ratio should be < 0.12 (the bound leaves headroom for numerical dispersion).
     """
     obj, con, cfg = _build("pec")
     arrays = _run(obj, con, cfg)
@@ -181,8 +183,8 @@ def test_pec_standing_wave():
     assert amp_far > 0, "Far detector measured zero Ex"
 
     ratio = amp_near / amp_far
-    assert ratio < 0.2, (
-        f"PEC standing wave: near/far ratio={ratio:.3f} (expected < 0.2). "
+    assert ratio < 0.12, (
+        f"PEC standing wave: near/far ratio={ratio:.3f} (expected < 0.12). "
         f"|Ex_near|={amp_near:.4e}, |Ex_far|={amp_far:.4e}"
     )
 
@@ -190,9 +192,10 @@ def test_pec_standing_wave():
 def test_pmc_standing_wave():
     """PMC wall: E_x antinode at wall (near >> far).
 
-    Near-wall Ex should be at maximum (cos-like envelope with antinode
-    at wall).  Far detector at λ/4 is at the node.
-    Ratio near/far should be > 5.0.
+    Near-wall Ex should be at maximum (cos-like envelope with antinode at wall).
+    Far detector at λ/4 is at the node.  Analytically near/far =
+    cos(k·1cell)/cos(k·20cells) = cos(2π/80)/cos(π/2) → ∞ (far sits on the node),
+    so numerically the ratio is large; assert > 8.0.
     """
     obj, con, cfg = _build("pmc")
     arrays = _run(obj, con, cfg)
@@ -203,7 +206,7 @@ def test_pmc_standing_wave():
     assert amp_near > 0, "Near detector measured zero Ex"
 
     ratio = amp_near / amp_far if amp_far > 0 else float("inf")
-    assert ratio > 5.0, (
-        f"PMC standing wave: near/far ratio={ratio:.3f} (expected > 5.0). "
+    assert ratio > 8.0, (
+        f"PMC standing wave: near/far ratio={ratio:.3f} (expected > 8.0). "
         f"|Ex_near|={amp_near:.4e}, |Ex_far|={amp_far:.4e}"
     )

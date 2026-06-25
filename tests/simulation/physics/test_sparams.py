@@ -161,6 +161,29 @@ def _build_waveguide_sparams():
         )
         objects.append(det)
 
+    # Discriminating "wrong-mode" detector co-located with det_near: the *backward*-propagating
+    # fundamental TE mode. A forward-injected, matched (reflection-free) waveguide carries almost
+    # no backward power, so |S(det_back)|^2 must be ~0 even though the field magnitude at this
+    # plane is large. This makes the overlap's directional/modal selectivity an asserted property
+    # rather than something the self-normalizing |S|^2~1 checks could pass trivially.
+    det_back = fdtdx.ModeOverlapDetector(
+        name="det_back",
+        partial_grid_shape=(1, None, None),
+        wave_characters=(center_wave,),
+        direction="-",
+        mode_index=0,
+        filter_pol="te",
+        scaling_mode="pulse",
+    )
+    constraints.extend(
+        [
+            det_back.same_size(volume, axes=(1, 2)),
+            det_back.place_at_center(volume, axes=(1, 2)),
+            det_back.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_DET1_X,)),
+        ]
+    )
+    objects.append(det_back)
+
     return objects, constraints, config
 
 
@@ -168,12 +191,20 @@ def _build_waveguide_sparams():
 
 
 def test_waveguide_sparam_transmission():
-    """S-parameters at multiple detector positions are all close to 1.0.
+    """Forward TE transmission is ~1, with verified mode/direction selectivity and propagation.
 
-    A ModePlaneSource injects the fundamental TE mode into a Si/SiO2 slab
-    waveguide (periodic in y).  Three ModeOverlapDetectors at x-cells 20,
-    25, and 30 measure the mode overlap.  Since the waveguide is lossless
-    at 1550 nm, all |S|² values should exceed 0.90.
+    A ModePlaneSource injects the fundamental TE mode into a lossless Si/SiO2 slab waveguide
+    (periodic in y). Because ``calculate_sparam`` self-normalizes (S = raw_overlap/input_overlap,
+    both measured from the same recorded fields against the same eigenmode), the input-port
+    self-entry ``(det_source, source)`` is exactly 1.0 by construction and is *excluded* from the
+    asserted set so it cannot make the test pass trivially. The remaining checks are:
+
+    * The three forward detectors (x-cells 20, 25, 30) transmit |S|² ~ 1 (lossless guide).
+    * A co-located *backward*-TE overlap detector reads |S|² ~ 0 — the matched forward wave
+      carries essentially no backward modal power, so the overlap is genuinely direction-selective.
+    * The S-parameter *phase* advances linearly with detector position, giving a guided-mode
+      effective index between the cladding (n_SiO2) and core (n_Si) — i.e. the field actually
+      propagated rather than merely being present.
     """
     objects, constraints, config = _build_waveguide_sparams()
 
@@ -193,15 +224,49 @@ def test_waveguide_sparam_transmission():
         input_port_name="source",
         show_progress=False,
     )
-
-    for (det_name, src_name), s_param in result.items():
+    s = {det_name: np.asarray(s_param) for (det_name, _src), s_param in result.items()}
+    for (det_name, src_name), _s_param in result.items():
         assert src_name == "source", f"Unexpected source name in key: {src_name!r}"
-        s_param = np.asarray(s_param)
-        assert s_param.shape == (1,)
-        power = float(abs(s_param[0]) ** 2)
-        print(f"{power=}")
+
+    # Forward transmission ~ 1 at every forward detector (self-entry det_source excluded).
+    for det_name in ("det_near", "det_mid", "det_far"):
+        power = float(abs(s[det_name][0]) ** 2)
+        print(f"{det_name} {power=}")
         assert power > (1.0 - _TOLERANCE) and power <= 1.0001, (
             f"|S({det_name!r}, 'source')|² = {power}, "
             f"expected > {1.0 - _TOLERANCE:.2f} "
             f"(lossless Si/SiO2 slab waveguide should transmit large % of TE mode power)"
         )
+
+    # Direction selectivity: backward-mode coupling must be ≪ 1 (no significant reflected power).
+    back_power = float(abs(s["det_back"][0]) ** 2)
+    print(f"det_back {back_power=}")
+    assert back_power < 0.01, (
+        f"|S(backward-TE)|² = {back_power} is not ≪ 1; the overlap is not direction-selective "
+        f"(would be ~1 if it merely measured field magnitude)."
+    )
+
+    # Genuine propagation: linear phase accumulation between equally spaced detectors.
+    # Δφ per step (5 cells = 250 nm) must be nonzero, equal between consecutive gaps, and imply a
+    # physical guided-mode index n_clad < n_eff < n_core.
+    def _wrapped(delta: float) -> float:
+        return float(np.angle(np.exp(1j * delta)))
+
+    phi_near = float(np.angle(s["det_near"][0]))
+    phi_mid = float(np.angle(s["det_mid"][0]))
+    phi_far = float(np.angle(s["det_far"][0]))
+    d12 = _wrapped(phi_mid - phi_near)
+    d23 = _wrapped(phi_far - phi_mid)
+    print(f"phase steps d12={d12:.4f} d23={d23:.4f}")
+    assert abs(d12) > 0.5, f"no phase accumulation between detectors (d12={d12:.4f}); field did not propagate"
+    assert abs(d12 - d23) < 0.2, f"phase accumulation not linear: d12={d12:.4f} d23={d23:.4f}"
+
+    dx = (_DET2_X - _DET1_X) * _RESOLUTION  # spacing between consecutive detectors
+    n_eff = abs(d12) * _CENTER_WAVELENGTH / (2.0 * np.pi * dx)
+    n_clad = float(np.sqrt(_EPS_SIO2))
+    n_core = float(np.sqrt(_EPS_SI))
+    print(f"n_eff={n_eff:.4f} (n_clad={n_clad:.3f}, n_core={n_core:.3f})")
+    assert n_clad < n_eff < n_core, (
+        f"recovered effective index {n_eff:.4f} not bracketed by cladding/core indices "
+        f"({n_clad:.3f}, {n_core:.3f}) — phase slope inconsistent with a guided mode"
+    )

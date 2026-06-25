@@ -138,7 +138,23 @@ def test_planar_directivity_shape_and_positive():
     d = proj.directivity(arrays, theta, phi)
     assert d.shape == (1, 49, 13)
     assert float(jnp.min(d)) >= 0.0
-    assert float(jnp.max(d)) > 1.0  # a forward-directed aperture is more directive than isotropic
+
+    # Physical magnitude check: a uniformly-illuminated aperture of area A radiates with on-axis
+    # directivity D0 ~ 4*pi*A/lambda^2. The normally-incident plane wave on the full transverse
+    # unit cell (1.5um x 1.5um) approximates exactly that, so the measured theta=0 directivity must
+    # land within a factor of a few of D0 (not merely exceed the isotropic value 1.0).
+    aperture_area = 1.5e-6 * 1.5e-6
+    lam_medium = _WL / 1.0  # background_index = 1.0
+    d0_uniform = 4.0 * np.pi * aperture_area / lam_medium**2
+    d_on_axis = float(jnp.mean(d[0, 0, :]))  # theta=0 pole: phi-degenerate, average over phi
+    assert 0.3 * d0_uniform <= d_on_axis <= 3.0 * d0_uniform, (
+        f"on-axis directivity {d_on_axis:.3f} not within 0.3-3x of uniform-aperture D0={d0_uniform:.3f}"
+    )
+    # ...and it is strongly forward-directed: on-axis >> broadside (theta=90 deg).
+    d_broadside = float(jnp.max(d[0, 24, :]))  # theta index 24 of 49 -> pi/2
+    assert d_on_axis > 5.0 * d_broadside, (
+        f"aperture not forward-directed: on-axis={d_on_axis:.3f} broadside={d_broadside:.3f}"
+    )
 
 
 def test_diffraction_orders_normal_incidence():
@@ -209,23 +225,36 @@ def test_box_dipole_radiation_pattern():
 
 
 def test_box_power_conservation():
-    """Integrated far-field power equals the near-field surface flux (radiated_power)."""
+    """Integrated far-field power equals the near-field surface flux (radiated_power).
+
+    Self-consistency check of the NTFF transform: ``p_far`` (sphere integral of
+    ``box.spherical``) and ``p_surface`` (``box.radiated_power``) derive from the *same*
+    recorded face phasors and share the same eta0-normalized phasor convention, so they are
+    directly commensurate (a common global normalization error would cancel and go unseen).
+    What the tight tolerance does check is the angular-spectrum projection itself: that the
+    surface-equivalence radiation integral conserves power.
+    """
     objects, constraints, config = _build_dipole_box(pol=2)
     oc, arrays = _run(objects, constraints, config)
     box = oc["ff_box"]
 
     p_surface = float(box.radiated_power(arrays)[0])
-    nth, nph = 61, 48
+    # Proper spherical quadrature. The earlier ``sum * dth * dph`` over phi = linspace(0, 2*pi, nph)
+    # double-counted the phi=0==2*pi endpoint (a ~1/(nph-1) ~ 2% bias). Sampling phi on [0, 2*pi)
+    # with endpoint=False makes the uniform Riemann sum the exact periodic trapezoid rule, removing
+    # that bias instead of hiding it in a loose tolerance. The theta endpoints carry sin(theta)=0,
+    # so the Riemann sum there already coincides with the trapezoid.
+    nth, nph = 121, 96
     theta = jnp.linspace(0.0, jnp.pi, nth)
-    phi = jnp.linspace(0.0, 2 * jnp.pi, nph)
+    phi = jnp.linspace(0.0, 2 * jnp.pi, nph + 1)[:-1]  # [0, 2*pi), no duplicated endpoint
     TH, PH = jnp.meshgrid(theta, phi, indexing="ij")
     e_theta, e_phi = box.spherical(arrays, TH, PH)
     u = np.asarray(far_field_power_density(e_theta[0], e_phi[0], 1.0))  # r=1 -> radiant intensity
     sin_theta = np.sin(np.asarray(theta))[:, None]
     dth = float(theta[1] - theta[0])
-    dph = float(phi[1] - phi[0])
+    dph = 2.0 * np.pi / nph
     p_far = float(np.sum(u * sin_theta) * dth * dph)
 
     assert p_surface > 0 and p_far > 0
     rel = abs(p_far - p_surface) / p_surface
-    assert rel < 0.2, f"p_far={p_far:.3e} p_surface={p_surface:.3e} rel_err={rel:.3f}"
+    assert rel < 0.05, f"p_far={p_far:.3e} p_surface={p_surface:.3e} rel_err={rel:.3f}"

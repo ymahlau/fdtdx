@@ -189,17 +189,80 @@ def _total_unsigned_flux(arrays, name):
     return float(np.sum(np.abs(flux)))
 
 
-def test_broadband_correction_reduces_backward_reflection():
-    """The FIR-filtered H profile must reduce the pulse-integrated
-    backward flux relative to the scalar ω_c-only correction.
+def _impedance_filter_response(frequencies_hz: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Measured vs analytic broadband impedance shaping ``G(ω)`` at given frequencies.
 
-    We do not require an absolute near-zero backward flux — off-center
-    spectral components passing through a TFSF boundary in a dispersive
-    medium always leak a little due to numerical discretization. The
-    claim under test is comparative: adding the convolution filter
-    should leave LESS backward energy than the legacy single-frequency
-    correction.
+    Rebuilds the (corrected) dispersive source via place + apply (no FDTD run) and compares the
+    spectrum of its precomputed H-side temporal profile (``_temporal_H_filter``) to the raw E-side
+    profile. That ratio is the impedance-matching filter the source bakes in; analytically it must
+    equal ``G(ω) = √(ε(ω)/ε(ω_c))`` with ``ε(ω)`` from the medium's Lorentz dispersion model
+    (``eps_inf = 1.0``). Returns ``(|G_measured|, |G_analytic|)`` at ``frequencies_hz``.
     """
+    key = jax.random.PRNGKey(0)
+    objects, constraints, config = _build_scene()
+    obj, arrays, params, config, _ = fdtdx.place_objects(
+        object_list=objects, config=config, constraints=constraints, key=key
+    )
+    arrays, obj, _ = fdtdx.apply_params(arrays, obj, params, key)
+    src = next(s for s in obj.sources if isinstance(s, TFSFPlaneSource))
+
+    dt = config.time_step_duration
+    n = config.time_steps_total
+    period = src.wave_character.get_period()
+    phase_shift = src.wave_character.phase_shift
+    times = np.arange(n) * dt
+    s_E = np.asarray(src.temporal_profile.get_amplitude(jnp.asarray(times), period, phase_shift), dtype=np.float64)
+    s_H = np.asarray(src._temporal_H_filter, dtype=np.float64)
+    # The Gaussian pulse is fully contained in the window, so the zero-padded linear-convolution
+    # FFT used to build the filter is reproduced here exactly (same M as _build_dispersive_H_filter).
+    m = 1
+    while m < 2 * n:
+        m *= 2
+    omegas = 2.0 * np.pi * np.fft.rfftfreq(m, d=dt)
+    G_meas = np.fft.rfft(s_H, n=m) / np.fft.rfft(s_E, n=m)
+
+    model = _wide_lorentz_model()
+    eps_c = complex(model.permittivity(_OMEGA, eps_inf=1.0))
+    g_meas_at = np.empty(len(frequencies_hz))
+    g_an_at = np.empty(len(frequencies_hz))
+    for i, f in enumerate(frequencies_hz):
+        w = 2.0 * np.pi * f
+        eps_w = complex(model.permittivity(w, eps_inf=1.0))
+        k = int(np.argmin(np.abs(omegas - w)))
+        g_meas_at[i] = abs(G_meas[k])
+        g_an_at[i] = abs(np.sqrt(eps_w / eps_c))
+    return g_meas_at, g_an_at
+
+
+def test_broadband_correction_reduces_backward_reflection():
+    """The FIR-filtered H profile must reduce the pulse-integrated backward flux relative to the
+    scalar ω_c-only correction, AND shape the injected spectrum by the analytic impedance ratio.
+
+    Two complementary claims:
+
+    1. **Comparative** (end-to-end): off-center spectral components passing through a TFSF boundary
+       in a dispersive medium leak a little backward power due to numerical discretization; adding
+       the convolution filter must leave materially LESS backward energy than the single-frequency
+       correction. (We do not require near-zero absolute backward flux.)
+
+    2. **Absolute** (the mechanism): the injected H-side spectrum follows the analytic impedance
+       shaping ``G(ω) = √(ε(ω)/ε(ω_c))`` at off-carrier frequencies to within a few percent, with
+       ``ε(ω)`` taken from the source's Lorentz dispersion model — confirming the leakage drop comes
+       from correct frequency-dependent impedance matching, not an unrelated amplitude change.
+    """
+    # --- Absolute impedance-shaping check on the injected H-side spectrum ---
+    center_freq = c0 / _WAVELENGTH
+    # Off-carrier frequencies spanning ±10% of the carrier, inside the pulse band, where the
+    # analytic G ranges ~0.93..1.10 (a non-trivial shape, not just ~1).
+    probe_freqs = center_freq * np.array([0.90, 0.95, 1.05, 1.10])
+    g_meas, g_an = _impedance_filter_response(probe_freqs)
+    for f, gm, ga in zip(probe_freqs, g_meas, g_an):
+        rel = abs(gm - ga) / ga
+        assert rel < 0.03, (
+            f"injected H-side impedance shaping off analytic √(ε(ω)/ε(ω_c)) at f={f:.3e} Hz: "
+            f"|G_meas|={gm:.4f} |G_analytic|={ga:.4f} rel_err={rel:.4f}"
+        )
+
     arrays_corrected = _run(disable_filter=False)
     arrays_uncorrected = _run(disable_filter=True)
 
@@ -217,11 +280,14 @@ def test_broadband_correction_reduces_backward_reflection():
     leakage_corrected = bwd_corrected / fwd_corrected
     leakage_uncorrected = bwd_uncorrected / fwd_uncorrected
     ratio = leakage_corrected / leakage_uncorrected
-    assert ratio < 0.85, (
-        f"Broadband correction did not reduce normalized backward leakage: "
+    # Tightened from the original 0.85 toward the observed reduction (measured ratio ~ 0.07, i.e.
+    # the broadband filter removes ~93% of the normalized backward leakage). 0.2 keeps a robust
+    # margin over the measured value while being >4x tighter than the near-vacuous 0.85 bound.
+    assert ratio < 0.2, (
+        f"Broadband correction did not sufficiently reduce normalized backward leakage: "
         f"leakage_corrected={leakage_corrected:.4e}, "
         f"leakage_uncorrected={leakage_uncorrected:.4e}, "
-        f"ratio={ratio:.3f} (expected < 0.85)"
+        f"ratio={ratio:.3f} (expected < 0.2)"
     )
 
 

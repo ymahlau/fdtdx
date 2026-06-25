@@ -16,6 +16,7 @@ import fdtdx
 
 # ── Domain constants ─────────────────────────────────────────────────────────
 _WAVELENGTH = 1e-6
+_C = 3e8
 _RESOLUTION = 50e-9
 _PML_CELLS = 10
 _DOMAIN_XY = 5 * _RESOLUTION
@@ -26,11 +27,17 @@ _DET_Z = _SOURCE_Z + 10
 
 _SIM_TIME = 120e-15
 
+#: Optical periods to skip before the steady-state amplitude measurement. The default
+#: SingleFrequencyProfile ramps over 4 periods and the wave then needs ~1 period to reach
+#: the detector, so gating after 8 periods isolates the settled CW amplitude (the full-window
+#: DFT otherwise under-reads it by ~8 % because the ramp/arrival transient is averaged in).
+_STEADY_STATE_GATE_PERIODS = 8
+
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 
-def _build_and_run(amplitude_factor=1.0, reduce_volume=True):
+def _build_and_run(amplitude_factor=1.0, reduce_volume=True, normalize_by_energy=True, gate_periods=None):
     config = fdtdx.SimulationConfig(
         grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
         time=_SIM_TIME,
@@ -63,6 +70,7 @@ def _build_and_run(amplitude_factor=1.0, reduce_volume=True):
         direction="+",
         fixed_E_polarization_vector=(1, 0, 0),
         static_amplitude_factor=amplitude_factor,
+        normalize_by_energy=normalize_by_energy,
     )
     constraints.extend(
         [
@@ -73,6 +81,12 @@ def _build_and_run(amplitude_factor=1.0, reduce_volume=True):
     )
     objects.append(source)
 
+    # Optionally gate the phasor detector so it integrates only the settled CW steady state.
+    switch = (
+        fdtdx.OnOffSwitch(start_after_periods=gate_periods, period=_WAVELENGTH / _C)
+        if gate_periods is not None
+        else fdtdx.OnOffSwitch()
+    )
     det = fdtdx.PhasorDetector(
         name="phasor",
         partial_grid_shape=(None, None, 1),
@@ -80,6 +94,7 @@ def _build_and_run(amplitude_factor=1.0, reduce_volume=True):
         components=("Ex", "Ey", "Ez", "Hx", "Hy", "Hz"),
         reduce_volume=reduce_volume,
         plot=False,
+        switch=switch,
     )
     constraints.extend(
         [
@@ -106,7 +121,20 @@ def _build_and_run(amplitude_factor=1.0, reduce_volume=True):
 
 
 def test_uniform_plane_source_amplitude_consistency():
-    """Doubling static_amplitude_factor doubles the phasor amplitude at the detector."""
+    """Doubling static_amplitude_factor doubles the phasor amplitude, and the absolute
+    steady-state |Ex| equals the injected amplitude.
+
+    The doubling is algebraically exact (the injection is linear in
+    static_amplitude_factor), so the ratio is held to <1 % rather than the original 5 %.
+
+    The absolute check launches an un-normalized (``normalize_by_energy=False``) x-polarized
+    plane wave with ``static_amplitude_factor=1`` so the injected E amplitude is exactly 1.0
+    in η₀-normalized units, and reads it back with a steady-state-gated PhasorDetector
+    (continuous mode reconstructs the CW amplitude via its 2/Σw scaling). The measured
+    steady-state |Ex| reproduces the injected 1.0 to ~1.3 % — the small residual is the
+    grid-dispersion/TFSF offset of the discrete plane-wave injection (independent of the
+    averaging window: gating after 8 vs 12 periods both give 0.987).
+    """
     arrays_1x = _build_and_run(amplitude_factor=1.0)
     arrays_2x = _build_and_run(amplitude_factor=2.0)
 
@@ -117,7 +145,16 @@ def test_uniform_plane_source_amplitude_consistency():
     assert abs(p1) > 1e-30, "1x phasor amplitude is zero"
 
     ratio = abs(p2) / abs(p1)
-    assert abs(ratio - 2.0) / 2.0 < 0.05, f"Amplitude ratio: {ratio:.3f}, expected 2.0"
+    assert abs(ratio - 2.0) / 2.0 < 0.01, f"Amplitude ratio: {ratio:.3f}, expected 2.0"
+
+    # Absolute amplitude: injected E = 1.0 (un-normalized, factor 1) → measured steady-state |Ex| ≈ 1.0
+    arrays_abs = _build_and_run(
+        amplitude_factor=1.0,
+        normalize_by_energy=False,
+        gate_periods=_STEADY_STATE_GATE_PERIODS,
+    )
+    ex_amp = abs(complex(arrays_abs.detector_states["phasor"]["phasor"][0, 0].ravel()[0]))
+    assert abs(ex_amp - 1.0) < 0.02, f"Steady-state |Ex|={ex_amp:.4f}, expected injected amplitude 1.0 (±2%)"
 
 
 def test_uniform_plane_source_xy_uniformity():

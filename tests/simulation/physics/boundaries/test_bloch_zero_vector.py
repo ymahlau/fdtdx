@@ -1,14 +1,21 @@
 """Physics simulation test: Bloch with k=0 degenerates to periodic.
 
-Runs the same plane wave simulation with periodic BCs and with Bloch BCs
-at k_bloch = (0, 0, 0).  Since exp(i*0*L) = 1, the Bloch boundary should
-behave identically to periodic.  This validates:
-  1. Complex field arrays don't change the physics
+Runs the same plane wave simulation with periodic BCs (real fields) and
+with Bloch BCs at k_bloch = (0, 0, 0) forced onto the COMPLEX field path.
+
+At k=0 ``BlochBoundary.needs_complex_fields`` is False, so auto-detection
+keeps the Bloch run on real fields — meaning the test would never actually
+exercise the complex code path it claims to validate.  We therefore set
+``use_complex_fields=True`` on the Bloch run's SimulationConfig to force
+complex64 field arrays and the complex-valued PML.  Since exp(i*0*L) = 1,
+the Bloch boundary must still behave identically to periodic.  This now
+genuinely validates:
+  1. Complex field arrays reproduce the real-field physics exactly
   2. Bloch phase correction with unit phase factor is correct
   3. PML still works correctly with complex-valued fields
 
-Comparison metric: PhasorDetector Ex amplitude and phase must match
-within 1e-4 relative difference.
+Comparison metric: PhasorDetector Ex/Hy amplitude and phase (complex Bloch
+run vs real periodic reference) must match within 1e-4 relative difference.
 
 Domain: 3-cell periodic/Bloch in x,y, PML on z, plane wave in +z.
 """
@@ -36,11 +43,15 @@ _REL_TOL = 1e-4
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 
-def _build(bc_type, bloch_vector=(0.0, 0.0, 0.0)):
+def _build(bc_type, bloch_vector=(0.0, 0.0, 0.0), force_complex=False):
     config = fdtdx.SimulationConfig(
         grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
         time=_SIM_TIME,
         dtype=jnp.float32,
+        # Force complex64 fields + complex PML even though k=0 Bloch does not
+        # require them (needs_complex_fields is False at k=0). Without this the
+        # Bloch run silently stays on the real path and the test is vacuous.
+        use_complex_fields=True if force_complex else None,
     )
     objects, constraints = [], []
 
@@ -124,14 +135,15 @@ def _hy_phasor(arrays) -> complex:
 
 
 def test_bloch_zero_matches_periodic_ex():
-    """Bloch(k=0) Ex phasor matches periodic Ex phasor within 1e-4."""
-    # Periodic reference
+    """Bloch(k=0, complex fields) Ex phasor matches real periodic Ex within 1e-4."""
+    # Periodic reference (real fields)
     obj_p, con_p, cfg_p = _build("periodic")
     arrays_p = _run(obj_p, con_p, cfg_p)
     ex_periodic = _ex_phasor(arrays_p)
 
-    # Bloch with k=0
-    obj_b, con_b, cfg_b = _build("bloch", bloch_vector=(0.0, 0.0, 0.0))
+    # Bloch with k=0, forced onto the complex field + complex PML path
+    obj_b, con_b, cfg_b = _build("bloch", bloch_vector=(0.0, 0.0, 0.0), force_complex=True)
+    assert cfg_b.use_complex_fields is True, "Bloch run must force complex fields"
     arrays_b = _run(obj_b, con_b, cfg_b)
     ex_bloch = _ex_phasor(arrays_b)
 
@@ -155,12 +167,13 @@ def test_bloch_zero_matches_periodic_ex():
 
 
 def test_bloch_zero_matches_periodic_hy():
-    """Bloch(k=0) Hy phasor matches periodic Hy phasor within 1e-4."""
+    """Bloch(k=0, complex fields) Hy phasor matches real periodic Hy within 1e-4."""
     obj_p, con_p, cfg_p = _build("periodic")
     arrays_p = _run(obj_p, con_p, cfg_p)
     hy_periodic = _hy_phasor(arrays_p)
 
-    obj_b, con_b, cfg_b = _build("bloch", bloch_vector=(0.0, 0.0, 0.0))
+    obj_b, con_b, cfg_b = _build("bloch", bloch_vector=(0.0, 0.0, 0.0), force_complex=True)
+    assert cfg_b.use_complex_fields is True, "Bloch run must force complex fields"
     arrays_b = _run(obj_b, con_b, cfg_b)
     hy_bloch = _hy_phasor(arrays_b)
 

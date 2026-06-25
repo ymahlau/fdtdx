@@ -200,10 +200,24 @@ def _analytic_envelope(signal):
 
 
 def test_single_frequency_steady_state():
-    """SingleFrequencyProfile (default) produces nonzero steady-state phasor."""
+    """SingleFrequencyProfile (default) reaches a single-frequency, stable CW steady state.
+
+    Three properties are checked beyond a nonzero carrier phasor:
+
+    * **Single-frequency content / off-carrier rejection.** A second PhasorDetector tuned to
+      a detuned wavelength (700 nm vs the 1000 nm carrier) sees only the finite-window DFT
+      sidelobe of the CW signal, so ``|p_offcarrier| / |p_carrier|`` is ≪ 1 (≈1.2 % over the
+      ~36-period window) — confirming the source emits essentially one frequency.
+    * **Steady-state stability.** Two PhasorDetectors each gated to a single optical period
+      (the last and second-to-last) reconstruct the CW amplitude over consecutive periods;
+      their magnitudes agree to a few % (measured ~1e-6), i.e. the field has settled.
+    """
     objects, constraints, config, volume = _build_base()
 
     wave = fdtdx.WaveCharacter(wavelength=_WAVELENGTH)
+    period = wave.get_period()
+    total_periods = _SIM_TIME / period  # 36.0 here
+
     source = fdtdx.UniformPlaneSource(
         partial_grid_shape=(None, None, 1),
         wave_character=wave,
@@ -220,27 +234,58 @@ def test_single_frequency_steady_state():
     )
     objects.append(source)
 
-    det = fdtdx.PhasorDetector(
-        name="phasor",
-        partial_grid_shape=(None, None, 1),
-        wave_characters=(wave,),
-        components=("Ex",),
-        reduce_volume=True,
-        plot=False,
+    # Carrier (f_c), a detuned off-carrier frequency, and two single-period steady-state gates.
+    off_carrier_wave = fdtdx.WaveCharacter(wavelength=0.7e-6)
+    last_period_switch = fdtdx.OnOffSwitch(start_after_periods=total_periods - 1, period=period)
+    prev_period_switch = fdtdx.OnOffSwitch(
+        start_after_periods=total_periods - 2, end_after_periods=total_periods - 1, period=period
     )
-    constraints.extend(
-        [
-            det.same_size(volume, axes=(0, 1)),
-            det.place_at_center(volume, axes=(0, 1)),
-            det.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(_DET_Z,)),
-        ]
-    )
-    objects.append(det)
+    det_specs = [
+        ("phasor", wave, fdtdx.OnOffSwitch()),
+        ("offcarrier", off_carrier_wave, fdtdx.OnOffSwitch()),
+        ("last_period", wave, last_period_switch),
+        ("prev_period", wave, prev_period_switch),
+    ]
+    for name, det_wave, switch in det_specs:
+        det = fdtdx.PhasorDetector(
+            name=name,
+            partial_grid_shape=(None, None, 1),
+            wave_characters=(det_wave,),
+            components=("Ex",),
+            reduce_volume=True,
+            plot=False,
+            switch=switch,
+        )
+        constraints.extend(
+            [
+                det.same_size(volume, axes=(0, 1)),
+                det.place_at_center(volume, axes=(0, 1)),
+                det.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(_DET_Z,)),
+            ]
+        )
+        objects.append(det)
 
     arrays = _run(objects, constraints, config)
 
-    p = complex(arrays.detector_states["phasor"]["phasor"][0, 0].ravel()[0])
-    assert abs(p) > 1e-10, f"CW phasor amplitude should be nonzero, got |p|={abs(p):.2e}"
+    def _amp(name):
+        return abs(complex(arrays.detector_states[name]["phasor"][0, 0].ravel()[0]))
+
+    p_carrier = _amp("phasor")
+    assert p_carrier > 1e-10, f"CW phasor amplitude should be nonzero, got |p|={p_carrier:.2e}"
+
+    # (a) Off-carrier rejection: the detuned detector is far below the carrier.
+    off_ratio = _amp("offcarrier") / p_carrier
+    assert off_ratio < 0.05, f"Off-carrier/carrier amplitude ratio {off_ratio:.4f} should be ≪ 1 (single-frequency)"
+
+    # (b) Steady-state stability: the per-period phasor magnitude is unchanged across the last
+    # two optical periods.
+    amp_last = _amp("last_period")
+    amp_prev = _amp("prev_period")
+    stability = abs(amp_last - amp_prev) / amp_prev
+    assert stability < 0.02, (
+        f"Steady-state amplitude drifts {stability:.2%} between the last two periods "
+        f"(last={amp_last:.4e}, prev={amp_prev:.4e}); expected < 2%"
+    )
 
 
 def test_gaussian_pulse_broadband():

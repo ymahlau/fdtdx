@@ -8,7 +8,9 @@ checking that the simulation runs without crashing.
 Domain conventions (matching existing tests):
   - Resolution: 50 nm  (20 cells/λ at λ = 1 µm)
   - PML: 10 cells per absorbing face
-  - Tolerance: 5 % relative error unless noted otherwise
+  - Tolerance: phase-velocity (k) and impedance (Z) checks use 3 % relative
+    error (_TOLERANCE_KZ); the Fresnel-transmission analytic check uses 5 %
+    (_TOLERANCE), which is the achievable accuracy at 20 cells/λ.
 """
 
 import jax
@@ -38,7 +40,8 @@ _DET2_Z = _DET1_Z + 5  # = 22
 _DET_SEP = 5 * _RESOLUTION  # 0.25 µm
 
 _SIM_TIME = 120e-15  # 120 fs
-_TOLERANCE = 0.05
+_TOLERANCE = 0.05  # Fresnel-transmission analytic check (achievable at 20 cells/λ)
+_TOLERANCE_KZ = 0.03  # tighter bound for phase-velocity (k) and impedance (Z) checks
 
 # For Fresnel sub-tests
 _INTERFACE_Z = 50
@@ -191,11 +194,12 @@ def _add_dielectric(epsilon_r, volume, objects, constraints):
 
 
 def test_pec_pml_waveguide():
-    """PEC walls on x + PML on z: phase velocity matches k₀ within 5 %.
+    """PEC walls on x + PML on z: phase velocity matches k₀ within 3 %.
 
     Wide x-domain (40 cells = 2 µm >> λ) avoids waveguide cutoff.
     The fundamental mode propagates at essentially free-space velocity.
-    Also verifies E_x vanishes near the PEC wall.
+    (E_x is normal to the PEC x-walls, so it is free there — it is the dominant
+    field and does NOT vanish at the wall, hence no near-wall null is asserted.)
     """
     overrides = {
         "min_x": "pec",
@@ -217,7 +221,7 @@ def test_pec_pml_waveguide():
     k_measured = _measure_k(p1, p2, _DET_SEP)
     k_analytic = 2 * np.pi / _WAVELENGTH
     rel_err = abs(k_measured - k_analytic) / k_analytic
-    assert rel_err < _TOLERANCE, (
+    assert rel_err < _TOLERANCE_KZ, (
         f"PEC+PML waveguide: k_measured={k_measured:.4e}, k_analytic={k_analytic:.4e}, relative error={rel_err:.3f}"
     )
 
@@ -251,7 +255,7 @@ def test_pmc_pml_waveguide():
     k_measured = _measure_k(p1_ex, p2_ex, _DET_SEP)
     k_analytic = 2 * np.pi / _WAVELENGTH
     rel_err_k = abs(k_measured - k_analytic) / k_analytic
-    assert rel_err_k < _TOLERANCE, (
+    assert rel_err_k < _TOLERANCE_KZ, (
         f"PMC+PML waveguide: k_measured={k_measured:.4e}, k_analytic={k_analytic:.4e}, relative error={rel_err_k:.3f}"
     )
 
@@ -261,7 +265,7 @@ def test_pmc_pml_waveguide():
     Z_measured = abs(p1_ex) / abs(p1_hy)
     Z_analytic = 1.0
     rel_err_z = abs(Z_measured - Z_analytic) / Z_analytic
-    assert rel_err_z < _TOLERANCE, (
+    assert rel_err_z < _TOLERANCE_KZ, (
         f"PMC+PML waveguide: Z_measured={Z_measured:.4f}, Z_analytic={Z_analytic:.4f}, relative error={rel_err_z:.3f}"
     )
 
@@ -410,7 +414,7 @@ def test_pec_x_pmc_y():
     k_measured = _measure_k(p1_ex, p2_ex, _DET_SEP)
     k_analytic = 2 * np.pi / _WAVELENGTH
     rel_err_k = abs(k_measured - k_analytic) / k_analytic
-    assert rel_err_k < _TOLERANCE, (
+    assert rel_err_k < _TOLERANCE_KZ, (
         f"PEC(x)+PMC(y): k_measured={k_measured:.4e}, k_analytic={k_analytic:.4e}, relative error={rel_err_k:.3f}"
     )
 
@@ -420,6 +424,6 @@ def test_pec_x_pmc_y():
     Z_measured = abs(p1_ex) / abs(p1_hy)
     Z_analytic = 1.0
     rel_err_z = abs(Z_measured - Z_analytic) / Z_analytic
-    assert rel_err_z < _TOLERANCE, (
+    assert rel_err_z < _TOLERANCE_KZ, (
         f"PEC(x)+PMC(y): Z_measured={Z_measured:.4f}, Z_analytic={Z_analytic:.4f}, relative error={rel_err_z:.3f}"
     )

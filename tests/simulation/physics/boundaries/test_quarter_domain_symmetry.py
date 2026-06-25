@@ -18,17 +18,23 @@ Physics:
 
 Test strategy:
   1. test_quarter_domain_propagation:
-     Two phasor detectors measure phase difference → k_measured ≈ k₀.
-     If either boundary leaks energy or corrupts fields, k deviates.
+     Two phasor detectors measure phase difference → k_measured ≈ k₀ within 1%.
+     This validates propagation / numerical dispersion only.  Because the wave
+     is transversely uniform, the measured k is essentially insensitive to the
+     PEC/PMC transverse walls, so this test does NOT by itself detect boundary
+     corruption — that is the job of tests 2 and 3.
 
   2. test_quarter_domain_vs_full_domain:
-     Compare Ey phasor amplitude in a quarter domain (PEC min_y, PMC min_z)
-     to a full domain (periodic y, periodic z).  Amplitudes should match
-     within 1%, confirming the boundaries act as perfect mirrors.
+     Compare the Ey phasor field of a quarter domain (PEC min_y, PMC min_z),
+     unfolded by mirroring, to a full domain (periodic y, periodic z).  The two
+     use the same discretization, so the reconstruction is near-exact: the MAX
+     relative error over the slice must stay ≤ 2e-3, confirming the boundaries
+     act as faithful mirrors.
 
   3. test_quarter_domain_field_enforcement:
-     Verify tangential E = 0 at PEC and tangential H = 0 at PMC by
-     measuring field components near each boundary.
+     Verify tangential E = 0 at PEC and tangential H = 0 at PMC by measuring
+     field components ON each boundary plane.  These tangential components are
+     ~zero by source polarization, so the realistic residual is roundoff.
 
 Domain: PEC min_y, PMC min_z, PML elsewhere.
 """
@@ -179,10 +185,14 @@ def _run(objects, constraints, config):
 
 
 def test_quarter_domain_propagation():
-    """Ey plane wave propagates through quarter domain with correct phase velocity.
+    """Ey plane wave propagates through the quarter domain with correct phase velocity.
 
-    If PEC or PMC enforcement is broken, the boundary corrupts the fields
-    and the measured wave vector deviates from k₀ = 2π/λ.
+    Measures k from the phase difference between two on-axis phasor detectors and
+    checks it against k₀ = 2π/λ within 1% (the residual is numerical dispersion at
+    40 cells/λ, ≈ 0.08%).  Because the plane wave is transversely uniform, this k is
+    essentially insensitive to the PEC/PMC transverse walls, so this test mainly
+    validates propagation — it does NOT by itself detect boundary corruption
+    (see test_quarter_domain_vs_full_domain and test_quarter_domain_field_enforcement).
     """
     objects, constraints, config, volume, wave = _build_quarter_domain()
 
@@ -222,8 +232,8 @@ def test_quarter_domain_propagation():
     k_expected = 2 * np.pi / _WAVELENGTH
 
     rel_err = abs(k_measured - k_expected) / k_expected
-    assert rel_err < 0.05, (
-        f"Phase velocity error: k_measured/k₀ = {k_measured / k_expected:.4f} (rel_err={rel_err:.3f}, expected < 0.05)"
+    assert rel_err < 0.01, (
+        f"Phase velocity error: k_measured/k₀ = {k_measured / k_expected:.4f} (rel_err={rel_err:.3f}, expected < 0.01)"
     )
 
 
@@ -237,6 +247,8 @@ def test_quarter_domain_vs_full_domain():
 
     The quarter-domain spatial phasor is mirrored in Y then Z to reconstruct
     the full 2D slice, which is then compared element-wise to the full-domain field.
+    Since both runs share the same discretization, the mirror reconstruction is
+    near-exact: the MAX relative error over the slice must stay ≤ 2e-3.
     """
     # --- Full domain (periodic y, z) — doubled in Y and Z ---
     objects_full, con_full, cfg_full, vol_full, wave = _build_full_domain()
@@ -297,30 +309,36 @@ def test_quarter_domain_vs_full_domain():
     )
 
     # Compare complex fields element-wise: |unfolded - full| captures both amplitude and phase.
-    # Normalize by mean amplitude of the full-domain field.
-    ref_amp = float(jnp.mean(jnp.abs(full_ey)))
-    mean_complex_err = float(jnp.mean(jnp.abs(unfolded_ey - full_ey)))
-    rel_err = mean_complex_err / ref_amp
+    # The PEC/PMC walls and the periodic full domain share the same discretization, so the
+    # mirror reconstruction is near-exact — bound the worst-case (MAX) relative error, not the
+    # mean (which would hide a localized boundary defect).
+    ref_max = float(jnp.max(jnp.abs(full_ey)))
+    max_complex_err = float(jnp.max(jnp.abs(unfolded_ey - full_ey)))
+    rel_err = max_complex_err / ref_max
 
-    assert rel_err < 0.01, (
+    assert rel_err <= 2e-3, (
         f"Unfolded quarter vs full domain complex field mismatch: "
-        f"mean |Δ| / mean|full| = {rel_err:.3f} (expected < 0.01). "
-        f"mean|full|={ref_amp:.4e}, mean|unfolded|={float(jnp.mean(jnp.abs(unfolded_ey))):.4e}"
+        f"max |Δ| / max|full| = {rel_err:.2e} (expected <= 2e-3). "
+        f"max|full|={ref_max:.4e}, max|unfolded|={float(jnp.max(jnp.abs(unfolded_ey))):.4e}"
     )
 
 
 def test_quarter_domain_field_enforcement():
     """Tangential E = 0 at PEC, tangential H = 0 at PMC.
 
-    Places phasor detectors at the PEC (min_y) and PMC (min_z) boundaries
-    to verify the correct field components are enforced to zero.
+    Places phasor detectors ON the PEC (min_y) and PMC (min_z) boundary planes
+    (grid index 0) to verify the correct field components are enforced to zero.
 
     At PEC (y=0): Ex and Ez should be zero, Ey should be nonzero.
     At PMC (z=0): Hx and Hy should be zero, Hz should be nonzero.
+
+    For this Ey-polarized plane wave the only nonzero fields are Ey and Hz, so the
+    tangential components are zero by polarization and the boundary forces them to
+    exactly zero on the wall — the realistic residual ratio is roundoff (< 1e-3).
     """
     objects, constraints, config, volume, wave = _build_quarter_domain()
 
-    # Detector near PEC boundary (min_y, 1 cell from boundary)
+    # Detector ON PEC boundary plane (min_y, grid index 0)
     det_pec = fdtdx.PhasorDetector(
         name="pec_boundary",
         partial_grid_shape=(1, 1, None),
@@ -334,13 +352,13 @@ def test_quarter_domain_field_enforcement():
             det_pec.same_size(volume, axes=(2,)),
             det_pec.place_at_center(volume, axes=(2,)),
             det_pec.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_DET1_X,)),
-            # Place at min_y: 1 cell from boundary (grid index 1)
-            det_pec.set_grid_coordinates(axes=(1,), sides=("-",), coordinates=(1,)),
+            # Place ON min_y boundary plane (grid index 0)
+            det_pec.set_grid_coordinates(axes=(1,), sides=("-",), coordinates=(0,)),
         ]
     )
     objects.append(det_pec)
 
-    # Detector near PMC boundary (min_z, 1 cell from boundary)
+    # Detector ON PMC boundary plane (min_z, grid index 0)
     det_pmc = fdtdx.PhasorDetector(
         name="pmc_boundary",
         partial_grid_shape=(1, None, 1),
@@ -354,8 +372,8 @@ def test_quarter_domain_field_enforcement():
             det_pmc.same_size(volume, axes=(1,)),
             det_pmc.place_at_center(volume, axes=(1,)),
             det_pmc.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_DET1_X,)),
-            # Place at min_z: 1 cell from boundary (grid index 1)
-            det_pmc.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(1,)),
+            # Place ON min_z boundary plane (grid index 0)
+            det_pmc.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(0,)),
         ]
     )
     objects.append(det_pmc)
@@ -392,11 +410,11 @@ def test_quarter_domain_field_enforcement():
     if amp_ey_pec > 0:
         ratio_ex = amp_ex_pec / amp_ey_pec
         ratio_ez = amp_ez_pec / amp_ey_pec
-        assert ratio_ex < 0.15, (
-            f"PEC: |Ex|/|Ey| = {ratio_ex:.3f} at boundary (expected < 0.15). Tangential Ex not properly enforced."
+        assert ratio_ex < 1e-3, (
+            f"PEC: |Ex|/|Ey| = {ratio_ex:.2e} on boundary (expected < 1e-3). Tangential Ex not properly enforced."
         )
-        assert ratio_ez < 0.15, (
-            f"PEC: |Ez|/|Ey| = {ratio_ez:.3f} at boundary (expected < 0.15). Tangential Ez not properly enforced."
+        assert ratio_ez < 1e-3, (
+            f"PEC: |Ez|/|Ey| = {ratio_ez:.2e} on boundary (expected < 1e-3). Tangential Ez not properly enforced."
         )
 
     # --- PMC boundary check: tangential H should be ~0, normal H should be nonzero ---
@@ -410,9 +428,9 @@ def test_quarter_domain_field_enforcement():
     if amp_hz_pmc > 0:
         ratio_hx = amp_hx_pmc / amp_hz_pmc
         ratio_hy = amp_hy_pmc / amp_hz_pmc
-        assert ratio_hx < 0.15, (
-            f"PMC: |Hx|/|Hz| = {ratio_hx:.3f} at boundary (expected < 0.15). Tangential Hx not properly enforced."
+        assert ratio_hx < 1e-3, (
+            f"PMC: |Hx|/|Hz| = {ratio_hx:.2e} on boundary (expected < 1e-3). Tangential Hx not properly enforced."
         )
-        assert ratio_hy < 0.15, (
-            f"PMC: |Hy|/|Hz| = {ratio_hy:.3f} at boundary (expected < 0.15). Tangential Hy not properly enforced."
+        assert ratio_hy < 1e-3, (
+            f"PMC: |Hy|/|Hz| = {ratio_hy:.2e} on boundary (expected < 1e-3). Tangential Hy not properly enforced."
         )

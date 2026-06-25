@@ -133,7 +133,14 @@ def _impedance(arrays, detector_name: str) -> float:
 
 
 def test_mildly_stretched_grid_matches_uniform_vacuum_plane_wave():
-    """A full FDTD run on a mildly stretched grid matches uniform-grid observables."""
+    """A mildly stretched grid matches the uniform-grid observables *and* the
+    analytic vacuum plane-wave values.
+
+    The stretched-vs-uniform comparison alone would miss a bug shared by both grid
+    code paths, so we additionally anchor the stretched run to the analytic wave
+    vector (k = 2*pi/lambda) and the analytic normalized vacuum wave impedance
+    (|E_stored|/|H_stored| = Z_SI/eta0 = 1).
+    """
     uniform_arrays, uniform_objects, uniform_config = _build_and_run("uniform")
     stretched_arrays, stretched_objects, stretched_config = _build_and_run("stretched")
 
@@ -142,5 +149,13 @@ def test_mildly_stretched_grid_matches_uniform_vacuum_plane_wave():
     z_uniform = _impedance(uniform_arrays, "d1")
     z_stretched = _impedance(stretched_arrays, "d1")
 
-    assert np.isclose(k_stretched, k_uniform, rtol=0.10), (k_uniform, k_stretched)
-    assert np.isclose(z_stretched, z_uniform, rtol=0.10), (z_uniform, z_stretched)
+    # Stretched grid must reproduce the uniform-grid observables. Tightened from
+    # rtol=0.10; achieved ~4e-5 for k and ~2e-3 for the impedance at this resolution.
+    assert np.isclose(k_stretched, k_uniform, rtol=0.02), (k_uniform, k_stretched)
+    assert np.isclose(z_stretched, z_uniform, rtol=0.02), (z_uniform, z_stretched)
+
+    # Analytic anchors catch a bug common to both grid paths (a stretched-vs-uniform
+    # comparison would not). Achieved ~5e-4 for k and ~1% for the impedance.
+    k_analytic = 2.0 * np.pi / _WAVELENGTH
+    assert np.isclose(k_stretched, k_analytic, rtol=0.03), (k_stretched, k_analytic)
+    assert np.isclose(z_stretched, 1.0, rtol=0.03), (z_stretched,)

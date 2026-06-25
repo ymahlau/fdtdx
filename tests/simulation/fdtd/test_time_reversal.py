@@ -13,6 +13,7 @@ from contextlib import contextmanager
 
 import jax
 import jax.numpy as jnp
+import pytest
 
 import fdtdx
 from fdtdx.config import GradientConfig, SimulationConfig
@@ -264,84 +265,83 @@ def _uniform_boundaries(btype):
 
 # ── Tests: time-reversal per boundary type ──────────────────────────────────────
 
+# Single-step forward→backward reconstruction floor with Recorder(modules=[])
+# (lossless native-dtype recording) is ~1e-7 relative in float32 across every
+# boundary type (measured: periodic/pec/pmc/pml/bloch all ≤ 2.2e-7). A
+# *relative* tolerance of 1e-4 is therefore ~500x above the floor — loose
+# enough for float32 round-off but tight enough to catch an O(0.1%) algebraic
+# factor error in the reverse step. The old atol=1e-5 on |fields|~1e-3 was a
+# 1% absolute floor: ~10⁴x looser than achievable.
+_RECON_REL_TOL = 1e-4
 
-class TestTimeReversalPeriodicBoundary:
-    """Periodic (Bloch k=0) boundaries are time-reversible without recording."""
+# (id, override_types, bloch_vector, has_pml)
+_BOUNDARY_RECON_CASES = [
+    ("periodic", _uniform_boundaries("periodic"), (0.0, 0.0, 0.0), False),
+    ("pec", _uniform_boundaries("pec"), (0.0, 0.0, 0.0), False),
+    ("pmc", _uniform_boundaries("pmc"), (0.0, 0.0, 0.0), False),
+    # PML breaks time-reversal symmetry; reconstruction needs interface recording.
+    ("pml", _uniform_boundaries("pml"), (0.0, 0.0, 0.0), True),
+    # Bloch with non-zero k → complex-valued fields.
+    ("bloch", _uniform_boundaries("bloch"), (1e6, 0.0, 0.0), False),
+    # Mixed PML (z) + periodic (x, y) — the most common real-world config.
+    (
+        "mixed_pml_periodic",
+        {
+            "min_x": "periodic",
+            "max_x": "periodic",
+            "min_y": "periodic",
+            "max_y": "periodic",
+            "min_z": "pml",
+            "max_z": "pml",
+        },
+        (0.0, 0.0, 0.0),
+        True,
+    ),
+    # Mixed PML (z) + Bloch (x, y) — complex fields with interface recording.
+    (
+        "mixed_pml_bloch",
+        {
+            "min_x": "bloch",
+            "max_x": "bloch",
+            "min_y": "bloch",
+            "max_y": "bloch",
+            "min_z": "pml",
+            "max_z": "pml",
+        },
+        (1e6, 1e6, 0.0),
+        True,
+    ),
+]
 
-    def test_fields_reconstructed_exactly(self):
-        obj, arrays, config = _build_simulation(_uniform_boundaries("periodic"))
+
+class TestTimeReversalBoundaryReconstruction:
+    """One forward step + one backward step reconstructs E/H for every boundary
+    type. Lossless native-dtype recording (``Recorder(modules=[])``) makes the
+    reconstruction exact to the float32 round-off floor (~1e-7 relative), so we
+    assert a magnitude-*relative* error (which exposes drift in low-amplitude
+    cells) rather than the old fixed atol=1e-5 (a 1% floor vs |fields|~1e-3).
+
+    PML faces break time-reversal symmetry; for those cases the interface
+    recorder restores reversibility (``has_pml=True``).
+    """
+
+    @pytest.mark.parametrize(
+        "override_types, bloch_vector, has_pml",
+        [(c[1], c[2], c[3]) for c in _BOUNDARY_RECON_CASES],
+        ids=[c[0] for c in _BOUNDARY_RECON_CASES],
+    )
+    def test_fields_reconstructed(self, override_types, bloch_vector, has_pml):
+        obj, arrays, config = _build_simulation(override_types, bloch_vector=bloch_vector)
         E_orig, H_orig, E_rec, H_rec = _forward_backward_roundtrip(
             obj,
             arrays,
             config,
-            has_pml=False,
+            has_pml=has_pml,
         )
-        assert jnp.allclose(E_rec, E_orig, atol=1e-5), f"E max error: {jnp.max(jnp.abs(E_rec - E_orig))}"
-        assert jnp.allclose(H_rec, H_orig, atol=1e-5), f"H max error: {jnp.max(jnp.abs(H_rec - H_orig))}"
-
-
-class TestTimeReversalPECBoundary:
-    """PEC boundaries are time-reversible without recording."""
-
-    def test_fields_reconstructed_exactly(self):
-        obj, arrays, config = _build_simulation(_uniform_boundaries("pec"))
-        E_orig, H_orig, E_rec, H_rec = _forward_backward_roundtrip(
-            obj,
-            arrays,
-            config,
-            has_pml=False,
-        )
-        assert jnp.allclose(E_rec, E_orig, atol=1e-5), f"E max error: {jnp.max(jnp.abs(E_rec - E_orig))}"
-        assert jnp.allclose(H_rec, H_orig, atol=1e-5), f"H max error: {jnp.max(jnp.abs(H_rec - H_orig))}"
-
-
-class TestTimeReversalPMCBoundary:
-    """PMC boundaries are time-reversible without recording."""
-
-    def test_fields_reconstructed_exactly(self):
-        obj, arrays, config = _build_simulation(_uniform_boundaries("pmc"))
-        E_orig, H_orig, E_rec, H_rec = _forward_backward_roundtrip(
-            obj,
-            arrays,
-            config,
-            has_pml=False,
-        )
-        assert jnp.allclose(E_rec, E_orig, atol=1e-5), f"E max error: {jnp.max(jnp.abs(E_rec - E_orig))}"
-        assert jnp.allclose(H_rec, H_orig, atol=1e-5), f"H max error: {jnp.max(jnp.abs(H_rec - H_orig))}"
-
-
-class TestTimeReversalPMLBoundary:
-    """PML boundaries break time-reversal; recording restores it."""
-
-    def test_fields_reconstructed_with_recording(self):
-        obj, arrays, config = _build_simulation(_uniform_boundaries("pml"))
-        E_orig, H_orig, E_rec, H_rec = _forward_backward_roundtrip(
-            obj,
-            arrays,
-            config,
-            has_pml=True,
-        )
-        assert jnp.allclose(E_rec, E_orig, atol=1e-5), f"E max error: {jnp.max(jnp.abs(E_rec - E_orig))}"
-        assert jnp.allclose(H_rec, H_orig, atol=1e-5), f"H max error: {jnp.max(jnp.abs(H_rec - H_orig))}"
-
-
-class TestTimeReversalBlochBoundary:
-    """Bloch boundaries with non-zero k (complex fields) are time-reversible."""
-
-    def test_fields_reconstructed_exactly(self):
-        k_bloch = (1e6, 0.0, 0.0)  # non-zero → complex fields
-        obj, arrays, config = _build_simulation(
-            _uniform_boundaries("bloch"),
-            bloch_vector=k_bloch,
-        )
-        E_orig, H_orig, E_rec, H_rec = _forward_backward_roundtrip(
-            obj,
-            arrays,
-            config,
-            has_pml=False,
-        )
-        assert jnp.allclose(E_rec, E_orig, atol=1e-5), f"E max error: {jnp.max(jnp.abs(E_rec - E_orig))}"
-        assert jnp.allclose(H_rec, H_orig, atol=1e-5), f"H max error: {jnp.max(jnp.abs(H_rec - H_orig))}"
+        rel_E = _max_relative_error(E_rec, E_orig)
+        rel_H = _max_relative_error(H_rec, H_orig)
+        assert rel_E < _RECON_REL_TOL, f"E rel err: {rel_E:.3e}"
+        assert rel_H < _RECON_REL_TOL, f"H rel err: {rel_H:.3e}"
 
 
 class TestTimeReversalDispersiveLorentz:
@@ -479,18 +479,20 @@ class TestTimeReversalDispersiveLorentz:
         assert arrays_bwd.dispersive_P_curr is not None
         assert arrays_bwd.dispersive_P_prev is not None
 
-        assert jnp.allclose(arrays_bwd.fields.E, E_orig, atol=1e-5), (
-            f"E max err: {jnp.max(jnp.abs(arrays_bwd.fields.E - E_orig))}"
-        )
-        assert jnp.allclose(arrays_bwd.fields.H, H_orig, atol=1e-5), (
-            f"H max err: {jnp.max(jnp.abs(arrays_bwd.fields.H - H_orig))}"
-        )
-        assert jnp.allclose(arrays_bwd.dispersive_P_curr, Pc_orig, atol=1e-5), (
-            f"P_curr max err: {jnp.max(jnp.abs(arrays_bwd.dispersive_P_curr - Pc_orig))}"
-        )
-        assert jnp.allclose(arrays_bwd.dispersive_P_prev, Pp_orig, atol=1e-5), (
-            f"P_prev max err: {jnp.max(jnp.abs(arrays_bwd.dispersive_P_prev - Pp_orig))}"
-        )
+        # Lossless native-dtype recording → reconstruction is exact to the
+        # float32 round-off floor (~2e-7 relative, measured). A magnitude-
+        # relative tolerance of 1e-4 honours the "reconstructed exactly" claim
+        # (the old atol=1e-5 vs |fields|~1e-3 was a 1% absolute floor) while
+        # leaving ~500x headroom over the floor.
+        rel_tol = 1e-4
+        rel_E = _max_relative_error(arrays_bwd.fields.E, E_orig)
+        rel_H = _max_relative_error(arrays_bwd.fields.H, H_orig)
+        rel_Pc = _max_relative_error(arrays_bwd.dispersive_P_curr, Pc_orig)
+        rel_Pp = _max_relative_error(arrays_bwd.dispersive_P_prev, Pp_orig)
+        assert rel_E < rel_tol, f"E rel err: {rel_E:.3e}"
+        assert rel_H < rel_tol, f"H rel err: {rel_H:.3e}"
+        assert rel_Pc < rel_tol, f"P_curr rel err: {rel_Pc:.3e}"
+        assert rel_Pp < rel_tol, f"P_prev rel err: {rel_Pp:.3e}"
 
 
 class TestTimeReversalDispersiveLossy:
@@ -859,51 +861,13 @@ class TestTimeReversalDispersiveDrude:
                 assert rel < _STRICT_REL_TOL, f"{name} rel err over {_STRICT_N_STEPS} steps: {rel:.3e}"
 
 
-class TestTimeReversalMixedPMLPeriodic:
-    """Mixed PML (z) + periodic (x, y) — the most common real-world config."""
-
-    def test_fields_reconstructed_with_recording(self):
-        boundary_types = {
-            "min_x": "periodic",
-            "max_x": "periodic",
-            "min_y": "periodic",
-            "max_y": "periodic",
-            "min_z": "pml",
-            "max_z": "pml",
-        }
-        obj, arrays, config = _build_simulation(boundary_types)
-        E_orig, H_orig, E_rec, H_rec = _forward_backward_roundtrip(
-            obj,
-            arrays,
-            config,
-            has_pml=True,
-        )
-        assert jnp.allclose(E_rec, E_orig, atol=1e-5), f"E max error: {jnp.max(jnp.abs(E_rec - E_orig))}"
-        assert jnp.allclose(H_rec, H_orig, atol=1e-5), f"H max error: {jnp.max(jnp.abs(H_rec - H_orig))}"
-
-
 class TestTimeReversalMixedPMLBloch:
-    """Mixed PML (z) + Bloch (x, y) — complex fields with interface recording."""
+    """Mixed PML (z) + Bloch (x, y) — complex fields with interface recording.
 
-    def test_fields_reconstructed_with_recording(self):
-        boundary_types = {
-            "min_x": "bloch",
-            "max_x": "bloch",
-            "min_y": "bloch",
-            "max_y": "bloch",
-            "min_z": "pml",
-            "max_z": "pml",
-        }
-        k_bloch = (1e6, 1e6, 0.0)
-        obj, arrays, config = _build_simulation(boundary_types, bloch_vector=k_bloch)
-        E_orig, H_orig, E_rec, H_rec = _forward_backward_roundtrip(
-            obj,
-            arrays,
-            config,
-            has_pml=True,
-        )
-        assert jnp.allclose(E_rec, E_orig, atol=1e-5), f"E max error: {jnp.max(jnp.abs(E_rec - E_orig))}"
-        assert jnp.allclose(H_rec, H_orig, atol=1e-5), f"H max error: {jnp.max(jnp.abs(H_rec - H_orig))}"
+    Field reconstruction for this config (and mixed PML+periodic) is covered by
+    ``TestTimeReversalBoundaryReconstruction``; this class retains only the
+    unique complex-interface-dtype check.
+    """
 
     def test_recorded_interfaces_are_complex(self):
         """Verify the recorder stores complex-valued interface data."""
@@ -949,17 +913,87 @@ class TestGradientDispersiveLorentz:
 
     Exercises the custom VJP with the dispersive polarization state threaded
     through forward and backward passes, verifying that ``reversible_fdtd``
-    produces finite gradients w.r.t. ``inv_permittivities`` when the ADE
-    update path is active.
+    produces a *correct* gradient w.r.t. ``inv_permittivities`` (matched to a
+    finite-difference estimate) when the ADE update path is active but no
+    conductivity is present — the pure-dispersive counterpart of
+    ``TestGradientDispersiveLossy``.
     """
 
     @staticmethod
     def _build():
-        obj, arrays, config = TestTimeReversalDispersiveLorentz._build()
-        arrays, config = _add_gradient_config(arrays, config, obj)
-        key = jax.random.PRNGKey(7)
-        arrays = _seed_fields(arrays, key, obj)
-        return obj, arrays, config
+        # Pure-Lorentz (no conductivity) slab + a CW dipole source. The dipole is
+        # required because ``reversible_fdtd`` resets the seeded E/H on entry, so
+        # without a driver the run stays at zero, the loss is identically 0, and
+        # the gradient is trivially zero (an FD-vs-AD check would be vacuous). The
+        # source drives nonzero fields into the dispersive medium so the gradient
+        # is a real test of the ADE reverse path.
+        config = SimulationConfig(
+            time=_SIM_TIME,
+            grid=UniformGrid(spacing=_RESOLUTION),
+            backend="cpu",
+            dtype=jnp.float32,
+            courant_factor=0.99,
+            gradient_config=None,
+        )
+        objects, constraints = [], []
+        volume = fdtdx.SimulationVolume(partial_grid_shape=(_VOLUME_CELLS, _VOLUME_CELLS, _VOLUME_CELLS))
+        objects.append(volume)
+
+        bound_cfg = fdtdx.BoundaryConfig.from_uniform_bound(
+            thickness=_PML_CELLS,
+            override_types=_uniform_boundaries("periodic"),
+        )
+        bound_dict, c_list = fdtdx.boundary_objects_from_config(bound_cfg, volume)
+        objects.extend(bound_dict.values())
+        constraints.extend(c_list)
+
+        material = fdtdx.Material(
+            permittivity=2.0,
+            dispersion=fdtdx.DispersionModel(
+                poles=(fdtdx.LorentzPole(resonance_frequency=2e15, damping=1e13, delta_epsilon=1.5),),
+            ),
+        )
+        slab_cells = _VOLUME_CELLS // 2
+        slab = fdtdx.UniformMaterialObject(
+            name="slab",
+            partial_grid_shape=(None, None, slab_cells),
+            material=material,
+        )
+        constraints.extend(
+            [
+                slab.same_size(volume, axes=(0, 1)),
+                slab.place_at_center(volume, axes=(0, 1)),
+                slab.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(_VOLUME_CELLS // 4,)),
+            ]
+        )
+        objects.append(slab)
+
+        source = fdtdx.PointDipoleSource(
+            name="dip",
+            partial_grid_shape=(1, 1, 1),
+            wave_character=fdtdx.WaveCharacter(frequency=3e8 / 800e-9),
+            polarization=0,
+            amplitude=1.0,
+        )
+        constraints.append(
+            source.set_grid_coordinates(
+                axes=(0, 1, 2),
+                sides=("-", "-", "-"),
+                coordinates=(_VOLUME_CELLS // 2, _VOLUME_CELLS // 2, _VOLUME_CELLS // 2),
+            )
+        )
+        objects.append(source)
+
+        key = jax.random.PRNGKey(0)
+        obj_container, arrays, params, config, _ = fdtdx.place_objects(
+            object_list=objects,
+            config=config,
+            constraints=constraints,
+            key=key,
+        )
+        arrays, obj_container, _ = fdtdx.apply_params(arrays, obj_container, params, key)
+        arrays, config = _add_gradient_config(arrays, config, obj_container)
+        return obj_container, arrays, config
 
     @staticmethod
     def _loss_fn(inv_permittivities, arrays, objects, config, key):
@@ -995,18 +1029,38 @@ class TestGradientDispersiveLorentz:
         assert arrays.dispersive_P_prev is not None
         assert arrays.dispersive_c1 is not None
 
-    def test_gradients_are_finite(self):
+    def test_gradient_matches_finite_difference(self):
+        """AD gradient w.r.t. ``inv_permittivities`` matches central FD at the
+        highest-sensitivity voxel.
+
+        Replaces a finite-only smoke check: a numerically wrong but finite
+        gradient from the dispersive (ADE) reverse path would pass an
+        ``isfinite`` assert but fail this comparison. Uses the same FD pattern
+        as ``TestGradientDispersiveLossy`` (pure-Lorentz here — no σ).
+        """
         obj, arrays, config = self._build()
         key = jax.random.PRNGKey(99)
-        loss, grads = jax.value_and_grad(self._loss_fn)(
-            arrays.inv_permittivities,
-            arrays,
-            obj,
-            config,
-            key,
-        )
+        inv_eps = arrays.inv_permittivities
+        loss, grads = jax.value_and_grad(self._loss_fn)(inv_eps, arrays, obj, config, key)
+
         assert jnp.isfinite(loss), f"Loss is not finite: {loss}"
+        assert loss > 0, "Loss must be positive — the dipole must drive nonzero fields"
         assert jnp.all(jnp.isfinite(grads)), "Gradients contain NaN or Inf"
+        assert jnp.any(grads != 0), "Gradient must be nonzero — reverse pass must propagate through the ADE update"
+
+        # Highest-|grad| voxel: strongest signal, least FD round-off.
+        idx = tuple(int(i) for i in jnp.unravel_index(int(jnp.argmax(jnp.abs(grads))), grads.shape))
+        h = 1e-3 * float(jnp.abs(inv_eps[idx])) + 1e-5
+        loss_plus = self._loss_fn(inv_eps.at[idx].add(h), arrays, obj, config, key)
+        loss_minus = self._loss_fn(inv_eps.at[idx].add(-h), arrays, obj, config, key)
+        fd = (loss_plus - loss_minus) / (2.0 * h)
+        ad = grads[idx]
+        diff = float(jnp.abs(ad - fd))
+        rel_err = diff / (float(jnp.abs(fd) + jnp.abs(ad)) + 1e-12)
+        # Measured rel_err ≈ 2.4e-4 (float32, full reversible pipeline).
+        assert rel_err < 1e-2 or diff < 1e-5, (
+            f"AD vs FD mismatch at {idx}: AD={float(ad):.6e}, FD={float(fd):.6e}, rel_err={rel_err:.3e}"
+        )
 
 
 class TestGradientDispersiveLossy:

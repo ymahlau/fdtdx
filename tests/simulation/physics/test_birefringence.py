@@ -31,19 +31,24 @@ Detector separation d = 150 nm:
   Δφ_o = k_o · d = 2π·1.5·0.15 ≈ 1.41 rad  < 2π  (no phase wrapping)
   Δφ_e = k_e · d = 2π·2.0·0.15 ≈ 1.88 rad  < 2π
 
-The four tests:
-  1. test_ordinary_wave_vector       : Δφ(Ex) / d = k_o ± 5 %
-  2. test_extraordinary_wave_vector  : Δφ(Ey) / d = k_e ± 5 %
-  3. test_ordinary_impedance         : |Ex|/|Hy| = 1/n_o = 0.667 ± 5 %
-  4. test_extraordinary_impedance    : |Ey|/|Hx| = 1/n_e = 0.500 ± 5 %
+The five tests:
+  1. test_ordinary_wave_vector       : Δφ(Ex) / d = k_o ± 3 %
+  2. test_extraordinary_wave_vector  : Δφ(Ey) / d = k_e ± 3 %
+  3. test_ordinary_impedance         : |Ex|/|Hy| = (1/n_o)·cos(k_o·Δz/2) ± 2 %
+  4. test_extraordinary_impedance    : |Ey|/|Hx| = (1/n_e)·cos(k_e·Δz/2) ± 2 %
+  5. test_birefringence_index_ratio  : k_e/k_o = n_e/n_o = 1.333 ± 2 %
 
 Impedance residual bias: with exact_interpolation=True, E_x acquires a
 cos(k_z·Δz/2) factor from the necessary z-forward half-step, while H_y requires
-only an x-backward shift (no z factor for k_x=0 wave).  This gives a ~2.8 %
-bias for the ordinary axis (n_o=1.5) and ~4.9 % for the extraordinary (n_e=2.0),
-both within the 5 % tolerance at 50 nm resolution.
+only an x-backward shift (no z factor for k_x=0 wave).  This is a ~2.8 % bias for
+the ordinary axis (n_o=1.5) and ~4.9 % for the extraordinary (n_e=2.0). Rather
+than absorb it into a loose 5 % bound, the impedance tests FOLD the documented
+cos(k·Δz/2) factor into the analytic prediction and tighten to 2 % (achieved
+≈ 0.3-0.4 %). Test 5 pins the n-dependence head-to-head so a uniform-index bug
+(k_e/k_o = 1) is caught directly.
 
-Tolerance: 5 % relative error.
+Tolerances: 3 % for the wave vectors (achieved ≈ 0.9 % / 1.8 %), 2 % for the
+cos-folded impedances, 2 % for the index ratio (achieved ≈ 1.0 %).
 """
 
 import jax
@@ -74,7 +79,23 @@ _N_ORDINARY = float(np.sqrt(_EPS_ORDINARY))  # = 1.5
 _N_EXTRAORDINARY = float(np.sqrt(_EPS_EXTRAORDINARY))  # = 2.0
 
 _SIM_TIME = 120e-15  # 120 fs ≈ 36 optical periods
-_TOLERANCE = 0.05  # 5 % relative error
+
+# Per-observable tolerances (see module docstring for achieved errors).
+_K_TOL = 0.03  # wave vectors (achieved ≈ 0.9 % ordinary, ≈ 1.8 % extraordinary)
+_Z_TOL = 0.02  # cos(k·Δz/2)-folded impedances (achieved ≈ 0.3-0.4 %)
+_K_RATIO_TOL = 0.02  # k_e/k_o vs n_e/n_o (achieved ≈ 1.0 %)
+
+
+def _yee_halfstep_factor(n: float) -> float:
+    """cos(k·Δz/2) Yee half-step interpolation factor for a +z wave of index n.
+
+    With exact_interpolation=True the E component is sampled a z-forward half-step
+    from its paired H component, so the measured impedance carries a cos(k·Δz/2)
+    bias with k = 2πn/λ. Folding it into the analytic prediction turns the
+    documented half-step into a tested quantity.
+    """
+    k = 2.0 * np.pi * n / _WAVELENGTH
+    return float(np.cos(k * _RESOLUTION / 2.0))
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -236,9 +257,8 @@ def test_ordinary_wave_vector():
     k_measured = _measure_k(p1, p2, _DET_SEP)
     k_analytic = 2 * np.pi * _N_ORDINARY / _WAVELENGTH
     rel_err = abs(k_measured - k_analytic) / k_analytic
-    assert rel_err < _TOLERANCE, (
-        f"k_o_measured={k_measured:.4e} m⁻¹, k_o_analytic={k_analytic:.4e} m⁻¹, "
-        f"relative error={rel_err:.3f} > {_TOLERANCE}"
+    assert rel_err < _K_TOL, (
+        f"k_o_measured={k_measured:.4e} m⁻¹, k_o_analytic={k_analytic:.4e} m⁻¹, relative error={rel_err:.3f} > {_K_TOL}"
     )
 
 
@@ -263,9 +283,8 @@ def test_extraordinary_wave_vector():
     k_measured = _measure_k(p1, p2, _DET_SEP)
     k_analytic = 2 * np.pi * _N_EXTRAORDINARY / _WAVELENGTH
     rel_err = abs(k_measured - k_analytic) / k_analytic
-    assert rel_err < _TOLERANCE, (
-        f"k_e_measured={k_measured:.4e} m⁻¹, k_e_analytic={k_analytic:.4e} m⁻¹, "
-        f"relative error={rel_err:.3f} > {_TOLERANCE}"
+    assert rel_err < _K_TOL, (
+        f"k_e_measured={k_measured:.4e} m⁻¹, k_e_analytic={k_analytic:.4e} m⁻¹, relative error={rel_err:.3f} > {_K_TOL}"
     )
 
 
@@ -277,11 +296,12 @@ def test_ordinary_impedance():
 
     Residual bias: with exact_interpolation=True, E_x acquires a factor
     cos(k_o·Δz/2) ≈ cos(1.5π/20) ≈ 0.972 from its z-forward half-step,
-    while H_y (needing only an x-backward shift) has no z factor.
-    This gives a ~2.8 % systematic reduction in the measured impedance,
-    within the 5 % tolerance.
+    while H_y (needing only an x-backward shift) has no z factor. This documented
+    ~2.8 % half-step factor is FOLDED into the analytic prediction, so the test
+    tightens to 2 % (achieved ≈ 0.4 %).
     """
-    Z_analytic = 1.0 / _N_ORDINARY  # ≈ 0.6667 in fdtdx normalized units
+    # Ideal 1/n_o, with the cos(k_o·Δz/2) half-step bias folded into the prediction.
+    Z_analytic = (1.0 / _N_ORDINARY) * _yee_halfstep_factor(_N_ORDINARY)
 
     objects, constraints, config, volume, wave = _build_base((1, 0, 0))
     _add_phasor_det("d1", _DET1_Z, wave, volume, objects, constraints)
@@ -295,9 +315,9 @@ def test_ordinary_impedance():
 
     Z_measured = abs(p_ex) / abs(p_hy)
     rel_err = abs(Z_measured - Z_analytic) / Z_analytic
-    assert rel_err < _TOLERANCE, (
-        f"Z_o measured={Z_measured:.4f} (normalized), Z_o analytic={Z_analytic:.4f}, "
-        f"relative error={rel_err:.3f} > {_TOLERANCE}"
+    assert rel_err < _Z_TOL, (
+        f"Z_o measured={Z_measured:.4f} (normalized), Z_o analytic={Z_analytic:.4f} (cos-folded), "
+        f"relative error={rel_err:.3f} > {_Z_TOL}"
     )
 
 
@@ -308,11 +328,13 @@ def test_extraordinary_impedance():
     ratio is |Ey| / |Hx| = Z_e_normalized = 1/n_e = 0.5.
 
     Residual bias: cos(k_e·Δz/2) ≈ cos(π/10) ≈ 0.951 for n_e = 2 at 50 nm
-    resolution gives a ~4.9 % systematic reduction — within the 5 % tolerance.
-    This matches the identical measurement in test_wave_impedance_dielectric
-    from test_plane_wave.py (same parameters).
+    resolution gives a ~4.9 % systematic reduction. This documented half-step
+    factor is FOLDED into the analytic prediction, tightening the test to 2 %
+    (achieved ≈ 0.2 %). This matches the identical measurement in
+    test_wave_impedance_dielectric from test_plane_wave.py (same parameters).
     """
-    Z_analytic = 1.0 / _N_EXTRAORDINARY  # = 0.500 in fdtdx normalized units
+    # Ideal 1/n_e, with the cos(k_e·Δz/2) half-step bias folded into the prediction.
+    Z_analytic = (1.0 / _N_EXTRAORDINARY) * _yee_halfstep_factor(_N_EXTRAORDINARY)
 
     objects, constraints, config, volume, wave = _build_base((0, 1, 0))
     _add_phasor_det("d1", _DET1_Z, wave, volume, objects, constraints)
@@ -326,7 +348,40 @@ def test_extraordinary_impedance():
 
     Z_measured = abs(p_ey) / abs(p_hx)
     rel_err = abs(Z_measured - Z_analytic) / Z_analytic
-    assert rel_err < _TOLERANCE, (
-        f"Z_e measured={Z_measured:.4f} (normalized), Z_e analytic={Z_analytic:.4f}, "
-        f"relative error={rel_err:.3f} > {_TOLERANCE}"
+    assert rel_err < _Z_TOL, (
+        f"Z_e measured={Z_measured:.4f} (normalized), Z_e analytic={Z_analytic:.4f} (cos-folded), "
+        f"relative error={rel_err:.3f} > {_Z_TOL}"
+    )
+
+
+def test_birefringence_index_ratio():
+    """k_e/k_o = n_e/n_o = 1.333 from a matched x-pol / y-pol run pair within 2 %.
+
+    A head-to-head ratio of the two measured wave vectors. Both runs share the same
+    grid, source position, and detector layout, so common FDTD dispersion largely
+    cancels and a uniform-index bug (the material ignoring the polarization axis,
+    which would give k_e/k_o = 1) is caught directly. Achieved ≈ 1.0 %.
+    """
+    # Ordinary axis: x-polarized wave, k_o from Ex phasors.
+    obj_o, con_o, cfg_o, vol_o, wave_o = _build_base((1, 0, 0))
+    _add_phasor_det("d1", _DET1_Z, wave_o, vol_o, obj_o, con_o)
+    _add_phasor_det("d2", _DET2_Z, wave_o, vol_o, obj_o, con_o)
+    arr_o = _run(obj_o, con_o, cfg_o)
+    k_o = _measure_k(_ex_phasor(arr_o, "d1"), _ex_phasor(arr_o, "d2"), _DET_SEP)
+
+    # Extraordinary axis: y-polarized wave, k_e from Ey phasors.
+    obj_e, con_e, cfg_e, vol_e, wave_e = _build_base((0, 1, 0))
+    _add_phasor_det("d1", _DET1_Z, wave_e, vol_e, obj_e, con_e)
+    _add_phasor_det("d2", _DET2_Z, wave_e, vol_e, obj_e, con_e)
+    arr_e = _run(obj_e, con_e, cfg_e)
+    k_e = _measure_k(_ey_phasor(arr_e, "d1"), _ey_phasor(arr_e, "d2"), _DET_SEP)
+
+    assert k_o > 0 and k_e > 0, f"Non-positive wave vectors: k_o={k_o:.4e}, k_e={k_e:.4e}"
+
+    ratio_measured = k_e / k_o
+    ratio_analytic = _N_EXTRAORDINARY / _N_ORDINARY  # = 2.0 / 1.5 = 1.3333
+    rel_err = abs(ratio_measured - ratio_analytic) / ratio_analytic
+    assert rel_err < _K_RATIO_TOL, (
+        f"k_e/k_o measured={ratio_measured:.4f}, n_e/n_o={ratio_analytic:.4f}, "
+        f"relative error={rel_err:.3f} > {_K_RATIO_TOL}"
     )

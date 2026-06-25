@@ -8,12 +8,27 @@ For PMC, H_tangential = 0 at the wall.  For z-propagation, H_x and H_y
 are tangential to the z-face.  The dominant H component (H_y for
 x-polarized E) is zeroed at the wall.
 
-Like PEC, PMC produces total reflection and a standing wave with zero
-time-averaged Poynting flux.  The difference is the standing wave phase:
-  PEC → E-field node at wall (E_tangential = 0)
-  PMC → E-field antinode at wall (H_tangential = 0)
+Two independent checks:
 
-Tolerance: 5 % relative error on R.
+  1. Net-flux magnitude |R| ≈ 1:
+     Like PEC, PMC produces total reflection and a standing wave with
+     zero time-averaged Poynting flux.  This alone CANNOT distinguish PMC
+     from PEC (both reflect totally).
+
+  2. Standing-wave phase discriminator (PMC ≠ PEC):
+     The standing-wave phase differs:
+       PEC → E-field NODE at wall      (E_tangential = 0, Ex ∝ sin(k·d))
+       PMC → E-field ANTINODE at wall  (H_tangential = 0, Ex ∝ cos(k·d))
+     Two PhasorDetectors (Ex) — "near" 1 cell from the wall and "far" a
+     quarter-wavelength further — must satisfy, for PMC (whose E-antinode
+     sits on the integer Ex grid plane, a full cell from the near sample),
+       |Ex|_near / |Ex|_far = |cos(kΔ)| / |cos(kΔ+π/2)| = 1/|tan(kΔ)| ≫ 1
+     (E antinode at wall), the inverse of the PEC node pattern.  A PEC↔PMC
+     swap fails.  The resolution is raised to 40 cells/λ so the analytic
+     ratio (≈ 6.3) is a sharp antinode signature.
+
+Tolerance: 5 % relative error on R; standing-wave ratio bounded within
+±25 % of the analytic 1/|tan(kΔ)|.
 """
 
 import jax
@@ -24,13 +39,32 @@ import fdtdx
 
 # ── Domain constants ─────────────────────────────────────────────────────────
 _WAVELENGTH = 1e-6
-_RESOLUTION = 50e-9
+# 40 cells/λ (raised from 20): keeps kΔ small so the near-wall standing-wave
+# antinode (1/|tan(kΔ)|) is a sharp PEC↔PMC discriminator, not just |R|≈1.
+_RESOLUTION = 25e-9
 _PML_CELLS = 10
 _DOMAIN_XY = 3 * _RESOLUTION
 _DOMAIN_Z = 4e-6
 
+_Z_CELLS = round(_DOMAIN_Z / _RESOLUTION)  # = 160 (z-max wall index = _Z_CELLS - 1)
 _SOURCE_Z = _PML_CELLS + 2
-_DET_Z = 40
+_DET_Z = 80
+
+# Standing-wave phase discriminator detectors (relative to the z-max wall):
+#   near: 1 cell from wall (d = Δ);  far: a quarter-wave further (d = Δ + λ/4)
+_QWAVE_CELLS = round(_WAVELENGTH / 4 / _RESOLUTION)  # = 10 at 40 cells/λ
+_DET_NEAR_Z = _Z_CELLS - 2  # 1 cell from z-max wall
+_DET_FAR_Z = _Z_CELLS - 2 - _QWAVE_CELLS  # quarter-wave further from the wall
+
+_K0 = 2 * np.pi / _WAVELENGTH
+_KD = _K0 * _RESOLUTION  # per-cell phase, kΔ
+# PMC: Ex ∝ cos(k·d), d = distance from the wall (E antinode at the wall).
+# Unlike PEC (whose E-node sits on the half-integer Yee plane, half a cell from
+# the Ex sample), the PMC E-antinode falls on the integer Ex grid plane, so the
+# "near" Ex sample sits a FULL cell from the antinode: d = Δ, far = Δ + λ/4, and
+#   near/far = |cos(kΔ)| / |cos(kΔ + π/2)| = 1/|tan(kΔ)| ≈ 6.3.
+# (This full-cell offset is confirmed empirically to ~1 %.)
+_PMC_RATIO_ANALYTIC = 1.0 / abs(np.tan(_KD))
 
 _SIM_TIME = 120e-15
 _TOLERANCE = 0.05
@@ -107,6 +141,26 @@ def _add_flux_det(name, z_idx, volume, objects, constraints):
     objects.append(det)
 
 
+def _add_ex_phasor(name, z_idx, wave, volume, objects, constraints):
+    """PhasorDetector recording Ex at one z-plane (standing-wave probe)."""
+    det = fdtdx.PhasorDetector(
+        name=name,
+        partial_grid_shape=(None, None, 1),
+        wave_characters=(wave,),
+        reduce_volume=True,
+        components=("Ex",),
+        plot=False,
+    )
+    constraints.extend(
+        [
+            det.same_size(volume, axes=(0, 1)),
+            det.place_at_center(volume, axes=(0, 1)),
+            det.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(z_idx,)),
+        ]
+    )
+    objects.append(det)
+
+
 def _run(objects, constraints, config):
     key = jax.random.PRNGKey(0)
     obj_container, arrays, params, config, _ = fdtdx.place_objects(
@@ -125,29 +179,38 @@ def _mean_flux(arrays, name):
     return float(np.mean(flux[-_N_AVG_STEPS:]))
 
 
+def _ex_amplitude(arrays, name) -> float:
+    return float(np.abs(arrays.detector_states[name]["phasor"][0, 0, 0]))
+
+
 # ── Tests ────────────────────────────────────────────────────────────────────
 
 
 def test_pmc_total_reflection():
-    """PMC wall reflects 100 % of incident power (R ≈ 1.0 within 5 %).
+    """PMC wall: |R| ≈ 1 (within 5 %) AND E-field ANTINODE at the wall.
 
-    Two-run normalization:
-      Reference (PML everywhere): S₀ = forward flux through detector
-      PMC run (PMC at z-max):     S  = net flux (≈ 0 due to standing wave)
-      T = S / S₀ ≈ 0  →  R = 1 - T ≈ 1.0
+    Two checks:
+      1. Two-run net-flux normalization (R = 1 - S_pmc/S_ref ≈ 1.0).
+      2. Standing-wave phase discriminator: near/far |Ex| ratio ≈ 1/|tan(kΔ)|
+         (E antinode at wall), so near ≫ far — the OPPOSITE of PEC. A
+         PEC↔PMC swap therefore fails this test.
     """
     # Reference: PML on all z-faces
     obj_ref, con_ref, cfg_ref, vol_ref, _ = _build_base(z_max_type="pml")
     _add_flux_det("flux", _DET_Z, vol_ref, obj_ref, con_ref)
     S_ref = _mean_flux(_run(obj_ref, con_ref, cfg_ref), "flux")
 
-    # PMC run
-    obj_pmc, con_pmc, cfg_pmc, vol_pmc, _ = _build_base(z_max_type="pmc")
+    # PMC run (with standing-wave probes near and λ/4 from the wall)
+    obj_pmc, con_pmc, cfg_pmc, vol_pmc, wave_pmc = _build_base(z_max_type="pmc")
     _add_flux_det("flux", _DET_Z, vol_pmc, obj_pmc, con_pmc)
-    S_pmc = _mean_flux(_run(obj_pmc, con_pmc, cfg_pmc), "flux")
+    _add_ex_phasor("near", _DET_NEAR_Z, wave_pmc, vol_pmc, obj_pmc, con_pmc)
+    _add_ex_phasor("far", _DET_FAR_Z, wave_pmc, vol_pmc, obj_pmc, con_pmc)
+    arrays_pmc = _run(obj_pmc, con_pmc, cfg_pmc)
+    S_pmc = _mean_flux(arrays_pmc, "flux")
 
     assert S_ref > 0, f"Reference flux is zero/negative: {S_ref}"
 
+    # --- Check 1: net-flux magnitude |R| ≈ 1 ---
     T_measured = S_pmc / S_ref
     R_measured = 1.0 - T_measured
     R_analytic = 1.0
@@ -156,4 +219,18 @@ def test_pmc_total_reflection():
     assert rel_err < _TOLERANCE, (
         f"PMC reflection: R_measured={R_measured:.4f}, R_analytic={R_analytic:.4f}, "
         f"T_measured={T_measured:.4f}, relative error={rel_err:.3f}"
+    )
+
+    # --- Check 2: standing-wave phase — E ANTINODE at the PMC wall ---
+    amp_near = _ex_amplitude(arrays_pmc, "near")
+    amp_far = _ex_amplitude(arrays_pmc, "far")
+    assert amp_far > 0, "PMC far detector measured zero Ex"
+    ratio = amp_near / amp_far
+    # Analytic antinode signature 1/|tan(kΔ)| ≈ 6.3 (matches measurement to
+    # ~1 %); bounded tightly to ±25 %. PEC gives a node ratio ≈ 0.079, so a
+    # PEC↔PMC swap fails this lower bound by ~60x.
+    assert 0.75 * _PMC_RATIO_ANALYTIC < ratio < 1.25 * _PMC_RATIO_ANALYTIC, (
+        f"PMC standing wave: near/far |Ex| ratio={ratio:.4f}, expected ≈ "
+        f"1/|tan(kΔ)|={_PMC_RATIO_ANALYTIC:.4f} (E antinode at wall). "
+        f"|Ex|_near={amp_near:.4e}, |Ex|_far={amp_far:.4e}"
     )

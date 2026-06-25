@@ -25,8 +25,6 @@ _SIM_TIME = 120e-15
 _CENTER = round(_DOMAIN / (2 * _RESOLUTION))  # grid cell at the centre
 _DET_OFFSET = 10
 
-_TOLERANCE = 0.10  # 10% for decay tests (grid dispersion + near-field effects)
-
 _DT_APPROX = 0.99 * _RESOLUTION / (3e8 * np.sqrt(3))
 _STEPS_PER_PERIOD = round(_WAVELENGTH / (3e8 * _DT_APPROX))
 _N_AVG_STEPS = 10 * _STEPS_PER_PERIOD
@@ -38,10 +36,15 @@ _N = np.sqrt(_EPS_R)
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 
-def _build_dipole_in_medium(eps_r=1.0):
-    """Build domain with dipole in a uniform medium."""
+def _build_dipole_in_medium(eps_r=1.0, res=_RESOLUTION):
+    """Build domain with dipole in a uniform medium.
+
+    ``res`` overrides the grid spacing for tests that need to resolve the
+    near field finely (the physical domain size ``_DOMAIN`` stays fixed, so the
+    detector distances remain resolution-independent in physical units).
+    """
     config = fdtdx.SimulationConfig(
-        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
+        grid=fdtdx.UniformGrid(spacing=res),
         time=_SIM_TIME,
         dtype=jnp.float32,
     )
@@ -207,48 +210,70 @@ def test_dipole_in_dielectric_power_scaling():
 
 
 def test_dipole_in_dielectric_field_decay():
-    """Dipole field decay matches the exact Hertzian-dipole formula.
+    """Dipole field decay matches the exact (dyadic) Hertzian-dipole formula.
 
-        A z-polarised point dipole sits at the centre of a dielectric slab
-        (n = 1.5).  Two single-cell phasor detectors are placed on the x-axis
-        at fixed physical distances r₁ = 400 nm and r₂ = 650 nm (intermediate-
-        field regime, kr₁ ≈ 3.8, kr₂ ≈ 6.1 at λ = 1 μm, n = 1.5).  The
-        amplitude ratio amp_near / amp_far is compared with the prediction of the
-        exact Hertzian-dipole formula:
+    A z-polarised point dipole sits at the centre of a dielectric slab
+    (n = 1.5).  Two single-cell phasor detectors are placed on the x-axis
+    (θ = π/2) at fixed physical distances r₁ = 160 nm and r₂ = 640 nm.  The
+    near detector is now deep in the **near field** (kr₁ ≈ 1.51), where the
+    Hertzian near-field correction is ~13 % — large enough that the exact
+    dyadic Green's function gives a clearly different decay ratio than a plain
+    1/r far-field law (~14 % apart), so the test genuinely probes the near-field
+    structure rather than a generic 1/r falloff.
 
-            |E_z(r)| ∝ (k²/r) · sqrt((1 - 1/(kr)²)² + (1/(kr))²)
-    .
+    The grid is refined to 20 nm so the 1/r³ near-field term at kr ≈ 1.5 is
+    well resolved (the physical domain stays 3 μm).  The amplitude ratio
+    |E(r₁)| / |E(r₂)| is compared against the exact equatorial-plane formula::
+
+        |E_z(r)| ∝ (k²/r) · sqrt((1 - 1/(kr)²)² + (1/(kr))²)
     """
-    obj, con, cfg, vol = _build_dipole_in_medium(eps_r=_EPS_R)
+    # Finer grid needed to resolve the near-field 1/r³ term at kr ≈ 1.5.
+    res = 20e-9
+    obj, con, cfg, vol = _build_dipole_in_medium(eps_r=_EPS_R, res=res)
+    center = round(_DOMAIN / (2 * res))
 
-    # Physical distances chosen so kr ≈ 3.8 and 6.1 (intermediate-field
-    # regime).
-    r1 = 400e-9
-    r2 = 650e-9
-    r1_cells = round(r1 / _RESOLUTION)
-    r2_cells = round(r2 / _RESOLUTION)
-    _add_point_phasor_det("phasor_near", vol, obj, con, axis=0, coord=_CENTER + r1_cells)
-    _add_point_phasor_det("phasor_far", vol, obj, con, axis=0, coord=_CENTER + r2_cells)
+    # Physical distances: r₁ deep in the near field (kr₁ ≈ 1.51), r₂ in the far
+    # field (kr₂ ≈ 6.03).  Both are exact multiples of the 20 nm grid spacing.
+    r1 = 160e-9
+    r2 = 640e-9
+    r1_cells = round(r1 / res)
+    r2_cells = round(r2 / res)
+    _add_point_phasor_det("phasor_near", vol, obj, con, axis=0, coord=center + r1_cells)
+    _add_point_phasor_det("phasor_far", vol, obj, con, axis=0, coord=center + r2_cells)
 
     arrays = _run(obj, con, cfg)
 
-    # |E| = sqrt(|Ex|² + |Ey|² + |Ez|²); index [0] selects the single wavelength
+    # phasor shape is (1, num_freqs, 6); [0, 0, :3] selects time=0, the single
+    # frequency, and the three E-components → |E| = sqrt(|Ex|²+|Ey|²+|Ez|²).
     phasor_near = arrays.detector_states["phasor_near"]["phasor"]
     phasor_far = arrays.detector_states["phasor_far"]["phasor"]
-    amp_near = float(jnp.sum(jnp.abs(phasor_near[0, :3].ravel()) ** 2) ** 0.5)
-    amp_far = float(jnp.sum(jnp.abs(phasor_far[0, :3].ravel()) ** 2) ** 0.5)
+    amp_near = float(jnp.sum(jnp.abs(phasor_near[0, 0, :3].ravel()) ** 2) ** 0.5)
+    amp_far = float(jnp.sum(jnp.abs(phasor_far[0, 0, :3].ravel()) ** 2) ** 0.5)
 
     assert amp_near > 1e-30, "Near phasor amplitude is zero"
     assert amp_far > 1e-30, "Far phasor amplitude is zero"
 
-    # --- compare to analytical prediction ---
+    # --- compare to the exact dyadic Green's function prediction ---
     k = 2 * np.pi * _N / _WAVELENGTH  # wavenumber in medium
     expected_ratio = _hertzian_Ez_amplitude(r1, k) / _hertzian_Ez_amplitude(r2, k)
     measured_ratio = amp_near / amp_far
 
+    # Sanity: a plain 1/r far-field law predicts a clearly different ratio.
+    # If the test passes against the dyadic form but NOT against this 1/r form,
+    # it is genuinely sensitive to the near-field correction.
+    pure_1_over_r_ratio = r2 / r1
+    separation = abs(expected_ratio - pure_1_over_r_ratio) / expected_ratio
+    assert separation > 0.10, (
+        f"Near zone too shallow to distinguish dyadic Green's function from 1/r law: "
+        f"exact={expected_ratio:.3f}, 1/r={pure_1_over_r_ratio:.3f}, separation={separation:.2%}"
+    )
+
+    # Tightened to 5 % (was 10 %); measured error ≈ 4.0 % at 20 nm — the tightest
+    # robust resolution (finer grids avoided for memory/runtime).  5 % is < 1/3 of
+    # the 13.6 % dyadic-vs-1/r separation, so the 1/r law is firmly rejected.
     rel_err = abs(measured_ratio - expected_ratio) / expected_ratio
-    assert rel_err < _TOLERANCE, (
+    assert rel_err < 0.05, (
         f"Field decay ratio amp_near/amp_far={measured_ratio:.3f}, "
-        f"expected {expected_ratio:.3f} (Hertzian dipole, kr₁={k * r1:.2f}, kr₂={k * r2:.2f}), "
-        f"relative error={rel_err:.2%}"
+        f"expected {expected_ratio:.3f} (dyadic Hertzian dipole, kr₁={k * r1:.2f}, kr₂={k * r2:.2f}); "
+        f"plain 1/r would give {pure_1_over_r_ratio:.3f}. relative error={rel_err:.2%}"
     )

@@ -1,18 +1,29 @@
 """Physics simulation test: Bloch boundary with oblique incidence.
 
 Validates Fresnel transmission at oblique incidence using Bloch BCs.
-A plane wave is launched at angle θ = 30° from normal in the xz-plane
+A plane wave is launched at angle θ = 60° from normal in the xz-plane
 using the TFSF source's azimuth_angle parameter.  Bloch BCs on x
 provide the correct transverse phase condition k_x = k₀ sin(θ).
+
+The angle is deliberately large (60°).  At 30° the TE transmittance
+(T = 0.854) sits only ~4 % below the normal-incidence value
+(T = 0.889), so a 5 % tolerance could not tell the oblique result
+apart from a normal-incidence bug.  At 60° the TE transmittance drops
+to T = 0.680 — ~24 % below normal incidence — so the 5 % tolerance now
+genuinely discriminates the angular Fresnel physics.
 
 TE polarization (s-pol): E_y perpendicular to the plane of incidence (xz).
 Interface: vacuum (n₁=1) → dielectric ε_r=4 (n₂=2) at z = z_interface.
 
-Analytic Fresnel coefficients for TE at θ_i = 30°:
-  θ_t = arcsin(sin(30°)/2) = 14.48°
-  r_s = (n₁ cos θ_i - n₂ cos θ_t) / (n₁ cos θ_i + n₂ cos θ_t) = -0.382
-  t_s = 2 n₁ cos θ_i / (n₁ cos θ_i + n₂ cos θ_t) = 0.618
-  T_power = (n₂ cos θ_t) / (n₁ cos θ_i) x |t_s|² = 0.854
+Analytic Fresnel coefficients for TE at θ_i = 60°:
+  θ_t = arcsin(sin(60°)/2) = 25.66°
+  r_s = (n₁ cos θ_i - n₂ cos θ_t) / (n₁ cos θ_i + n₂ cos θ_t) = -0.420
+  t_s = 2 n₁ cos θ_i / (n₁ cos θ_i + n₂ cos θ_t) = 0.580
+  T_power = (n₂ cos θ_t) / (n₁ cos θ_i) x |t_s|² = 0.680
+
+A transverse phase-ramp check supplements the flux test: a PhasorDetector
+samples E_y across x at fixed z and the measured phase gradient must match
+the imposed transverse wave number k_x = k₀ sin(θ).
 
 Two-run normalization:
   Reference: oblique wave in vacuum (no interface), flux detector at z_det
@@ -41,7 +52,7 @@ _DOMAIN_Z = 4e-6  # 160 cells
 
 _Z_CELLS = round(_DOMAIN_Z / _RESOLUTION)  # = 160
 
-_THETA_DEG = 30.0  # incidence angle (degrees)
+_THETA_DEG = 60.0  # incidence angle (degrees) — large angle so TE T differs >>5% from normal
 _THETA = np.deg2rad(_THETA_DEG)
 _K0 = 2 * np.pi / _WAVELENGTH
 _KX = _K0 * np.sin(_THETA)
@@ -170,11 +181,36 @@ def _mean_flux(arrays, name):
     return float(np.mean(flux[-_N_AVG_STEPS:]))
 
 
+def _add_xline_phasor(name, z_idx, volume, objects, constraints):
+    """PhasorDetector spanning the full Bloch (x) extent at one y, z (Ey)."""
+    det = fdtdx.PhasorDetector(
+        name=name,
+        partial_grid_shape=(None, 1, 1),  # full x, single y, single z
+        wave_characters=(fdtdx.WaveCharacter(wavelength=_WAVELENGTH),),
+        reduce_volume=False,
+        components=("Ey",),
+        plot=False,
+    )
+    constraints.extend(
+        [
+            det.same_size(volume, axes=(0,)),
+            det.place_at_center(volume, axes=(0, 1)),
+            det.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(z_idx,)),
+        ]
+    )
+    objects.append(det)
+
+
 # ── Tests ────────────────────────────────────────────────────────────────────
 
 
 def test_bloch_oblique_fresnel_te():
-    """Fresnel TE transmission at 30° matches analytic T within 5 %.
+    """Fresnel TE transmission at 60° matches analytic T within 5 %.
+
+    At 60° the analytic TE transmittance (T = 0.680) lies ~24 % below the
+    normal-incidence value (T = 0.889), so the 5 % tolerance genuinely
+    discriminates the angular Fresnel physics (at 30° the two differ by
+    only ~4 %, inside the tolerance).
 
     Two-run normalization eliminates absolute calibration:
       Reference: oblique wave in vacuum → S₀
@@ -200,5 +236,43 @@ def test_bloch_oblique_fresnel_te():
     assert rel_err < _TOLERANCE, (
         f"Bloch oblique Fresnel TE (θ={_THETA_DEG}°): "
         f"T_measured={T_measured:.4f}, T_analytic={_T_ANALYTIC:.4f}, "
+        f"relative error={rel_err:.3f}"
+    )
+
+
+def test_bloch_oblique_transverse_phase_ramp():
+    """Transverse phase gradient of Ey across x equals k_x = k₀ sin(θ).
+
+    The oblique source + Bloch BCs impose a transverse plane-wave phase
+    exp(i k_x x).  A line PhasorDetector sampling Ey across the full
+    Bloch (x) extent in vacuum must therefore show a linear phase ramp
+    whose slope is k_x = k₀ sin(60°).  This directly confirms the
+    transverse wave number (independent of the flux/Fresnel test).
+
+    Tolerance: 5 % on the measured-vs-imposed k_x (matches the file's
+    Fresnel tolerance); a discrete λ/Δx = 40 cells-per-wavelength grid
+    resolves the per-cell phase step k_x·Δx = 0.34 rad well below π.
+    """
+    # Detector well past the source, before the (absent) interface — pure vacuum.
+    z_probe = (_SOURCE_Z + _INTERFACE_Z) // 2
+    obj, con, cfg, vol = _build_base()
+    _add_xline_phasor("xline", z_probe, vol, obj, con)
+    arrays = _run(obj, con, cfg)
+
+    # phasor shape: (1, num_freqs=1, num_components=1, Nx, 1, 1)
+    phasor = np.array(arrays.detector_states["xline"]["phasor"][0, 0, 0, :, 0, 0])
+    assert np.all(np.abs(phasor) > 0), "Phasor line has zero-amplitude cells"
+
+    # Unwrapped phase along x; least-squares slope gives the per-cell phase step.
+    phase = np.unwrap(np.angle(phasor))
+    x_idx = np.arange(phase.size)
+    slope = np.polyfit(x_idx, phase, 1)[0]  # rad per cell
+    kx_measured = abs(slope) / _RESOLUTION  # rad/m
+
+    rel_err = abs(kx_measured - _KX) / _KX
+    assert rel_err < _TOLERANCE, (
+        f"Transverse phase ramp (θ={_THETA_DEG}°): "
+        f"kx_measured={kx_measured:.4e}, kx_imposed={_KX:.4e} (rad/m), "
+        f"per-cell step measured={abs(slope):.4f} vs imposed={_KX * _RESOLUTION:.4f} rad, "
         f"relative error={rel_err:.3f}"
     )

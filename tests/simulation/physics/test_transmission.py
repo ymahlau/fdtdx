@@ -99,7 +99,8 @@ def test_analytic_injected_power_matches_measured_flux():
 
     assert float(analytic[0]) > 0
     rel_err = abs(float(measured[0]) - float(analytic[0])) / float(analytic[0])
-    assert rel_err < 0.1, f"analytic={float(analytic[0]):.3e} measured={float(measured[0]):.3e} rel_err={rel_err:.3f}"
+    # Analytic source power must reproduce the measured plane flux to discretization accuracy.
+    assert rel_err < 0.05, f"analytic={float(analytic[0]):.3e} measured={float(measured[0]):.3e} rel_err={rel_err:.3f}"
 
 
 def test_transmission_unity_in_homogeneous_medium():
@@ -108,7 +109,7 @@ def test_transmission_unity_in_homogeneous_medium():
     _add_plane_phasor("out", 40, wave, volume, objects, constraints)
     oc, arrays = _run(objects, constraints, config)
     t = oc["out"].transmission(arrays, oc["source"])
-    assert abs(float(t[0]) - 1.0) < 0.12, f"transmission={float(t[0]):.3f}"
+    assert abs(float(t[0]) - 1.0) < 0.05, f"transmission={float(t[0]):.3f}"
 
 
 def test_transmission_matches_fresnel():
@@ -138,4 +139,8 @@ def test_transmission_matches_fresnel():
 
     t = oc["out"].transmission(arrays, oc["source"])
     rel_err = abs(float(t[0]) - t_analytic) / t_analytic
-    assert rel_err < 0.15, f"T_measured={float(t[0]):.3f} T_analytic={t_analytic:.3f} rel_err={rel_err:.3f}"
+    # The effect under test is the 11% Fresnel dip from 1.0 to 8/9. A 5% band excludes the
+    # no-interface T=1 case, and the explicit t<0.95 guard makes the dip mandatory: the test
+    # cannot pass if the dielectric half-space is silently ignored.
+    assert float(t[0]) < 0.95, f"no Fresnel dip seen: T_measured={float(t[0]):.3f}"
+    assert rel_err < 0.05, f"T_measured={float(t[0]):.3f} T_analytic={t_analytic:.3f} rel_err={rel_err:.3f}"
