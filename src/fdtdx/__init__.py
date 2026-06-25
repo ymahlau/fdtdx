@@ -59,6 +59,11 @@ from fdtdx.objects.boundaries.pmc import PerfectMagneticConductor
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.detectors.field import FieldDetector
+from fdtdx.objects.detectors.field_projection import (
+    FieldProjectionAngleDetector,
+    FieldProjectionCartesianDetector,
+    FieldProjectionKSpaceDetector,
+)
 from fdtdx.objects.detectors.mode import ModeOverlapDetector
 from fdtdx.objects.detectors.phasor import PhasorDetector
 from fdtdx.objects.detectors.poynting_flux import PoyntingFluxDetector
@@ -168,6 +173,9 @@ __all__ = [
     "EnergyDetector",
     "ExtrudedPolygon",
     "FieldDetector",
+    "FieldProjectionAngleDetector",
+    "FieldProjectionCartesianDetector",
+    "FieldProjectionKSpaceDetector",
     "FieldState",
     "GDSLayerObject",
     "GDSLayerSpec",

@@ -47,6 +47,9 @@ API
     fdtdx.extruded_polygon_from_gds_path
     fdtdx.field
     fdtdx.FieldDetector
+    fdtdx.FieldProjectionAngleDetector
+    fdtdx.FieldProjectionCartesianDetector
+    fdtdx.FieldProjectionKSpaceDetector
     fdtdx.FieldState
     fdtdx.frozen_field
     fdtdx.frozen_private_field
