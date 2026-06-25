@@ -300,6 +300,23 @@ class TestFieldProjectionAngleDetectorInit:
             )
 
     @pytest.mark.parametrize(
+        ("field_name", "kwargs"),
+        [
+            ("window_size", {"window_size": (0.1 + 0.2j, 0.0)}),
+            ("origin", {"origin": (0.0, 0.0 + 0.1j, 0.0)}),
+            ("projection_medium_refractive_index", {"projection_medium_refractive_index": 1.0 + 0.0j}),
+            ("projection_medium_impedance", {"projection_medium_impedance": constants.eta0 + 0.0j}),
+        ],
+    )
+    def test_real_valued_parameters_reject_complex_inputs(self, single_frequency, field_name, kwargs):
+        with pytest.raises(ValueError, match=field_name):
+            FieldProjectionAngleDetector(
+                wave_characters=single_frequency,
+                direction="+",
+                **kwargs,
+            )
+
+    @pytest.mark.parametrize(
         "projection_medium",
         [
             object(),
@@ -310,6 +327,9 @@ class TestFieldProjectionAngleDetectorInit:
             Material(magnetic_conductivity=(0.0, 0.0, 0.1)),
             Material(permittivity=0.0),
             Material(permeability=0.0),
+            Material(permittivity=True),
+            Material(permittivity=1.0 + 0.1j),
+            Material(permittivity=math.inf),
             Material(electric_conductivity=-1.0),
             Material(magnetic_conductivity=-1.0),
         ],
@@ -434,12 +454,105 @@ class TestFieldProjectionAngleDetectorInit:
         with pytest.raises(ValueError, match=match):
             detector.project(state, ux, uy)
 
+    @pytest.mark.parametrize(
+        ("theta", "phi", "match"),
+        [
+            (jnp.asarray([jnp.nan]), jnp.asarray([0.0]), "finite"),
+            (jnp.asarray([jnp.inf]), jnp.asarray([0.0]), "finite"),
+            (jnp.asarray([-0.1]), jnp.asarray([0.0]), r"\[0, pi\]"),
+            (jnp.asarray([jnp.pi + 0.1]), jnp.asarray([0.0]), r"\[0, pi\]"),
+            (jnp.asarray([0.1 + 0.0j]), jnp.asarray([0.0]), "finite numeric"),
+        ],
+    )
+    def test_project_rejects_invalid_concrete_jax_angle_arrays(
+        self,
+        random_key,
+        single_frequency,
+        theta,
+        phi,
+        match,
+    ):
+        config = SimulationConfig(time=100e-15, grid=UniformGrid(spacing=50e-9), backend="cpu")
+        detector = FieldProjectionAngleDetector(wave_characters=single_frequency, direction="+")
+        detector = detector.place_on_grid(((0, 8), (0, 8), (0, 1)), config, random_key)
+        state = make_detector_state_for_plane_wave(detector, theta_deg=0.0, phi_deg=0.0)
+
+        with pytest.raises(ValueError, match=match):
+            detector.project(state, theta, phi)
+
+    @pytest.mark.parametrize(
+        ("x", "y", "match"),
+        [
+            (jnp.asarray([jnp.nan]), jnp.asarray([0.0]), "finite"),
+            (jnp.asarray([0.0]), jnp.asarray([jnp.inf]), "finite"),
+            (jnp.asarray([0.0 + 0.0j]), jnp.asarray([0.0]), "finite numeric"),
+        ],
+    )
+    def test_cartesian_project_rejects_invalid_concrete_jax_coordinate_arrays(
+        self,
+        random_key,
+        single_frequency,
+        x,
+        y,
+        match,
+    ):
+        config = SimulationConfig(time=100e-15, grid=UniformGrid(spacing=50e-9), backend="cpu")
+        detector = FieldProjectionCartesianDetector(wave_characters=single_frequency, direction="+")
+        detector = detector.place_on_grid(((0, 8), (0, 8), (0, 1)), config, random_key)
+        state = make_detector_state_for_plane_wave(detector, theta_deg=0.0, phi_deg=0.0)
+
+        with pytest.raises(ValueError, match=match):
+            detector.project(state, x, y)
+
+    @pytest.mark.parametrize(
+        ("ux", "uy", "match"),
+        [
+            (jnp.asarray([jnp.nan]), jnp.asarray([0.0]), "finite"),
+            (jnp.asarray([0.0]), jnp.asarray([jnp.inf]), "finite"),
+            (jnp.asarray([0.0 + 0.0j]), jnp.asarray([0.0]), "finite numeric"),
+            (jnp.asarray([1.1]), jnp.asarray([0.0]), r"\[-1, 1\]"),
+            (jnp.asarray([0.8]), jnp.asarray([0.8]), r"ux\^2 \+ uy\^2"),
+        ],
+    )
+    def test_kspace_project_rejects_invalid_concrete_jax_direction_arrays(
+        self,
+        random_key,
+        single_frequency,
+        ux,
+        uy,
+        match,
+    ):
+        config = SimulationConfig(time=100e-15, grid=UniformGrid(spacing=50e-9), backend="cpu")
+        detector = FieldProjectionKSpaceDetector(wave_characters=single_frequency, direction="+")
+        detector = detector.place_on_grid(((0, 8), (0, 8), (0, 1)), config, random_key)
+        state = make_detector_state_for_plane_wave(detector, theta_deg=0.0, phi_deg=0.0)
+
+        with pytest.raises(ValueError, match=match):
+            detector.project(state, ux, uy)
+
+    def test_jit_project_rejects_complex_coordinate_tracer(self, random_key, single_frequency):
+        config = SimulationConfig(time=100e-15, grid=UniformGrid(spacing=50e-9), backend="cpu")
+        detector = FieldProjectionAngleDetector(wave_characters=single_frequency, direction="+")
+        detector = detector.place_on_grid(((0, 8), (0, 8), (0, 1)), config, random_key)
+        state = make_detector_state_for_plane_wave(detector, theta_deg=0.0, phi_deg=0.0)
+
+        def project_power(theta):
+            return detector.project(state, theta, jnp.asarray([0.0]))["power"]
+
+        with pytest.raises(ValueError, match="finite numeric"):
+            jax.jit(project_power)(jnp.asarray([0.1 + 0.0j]))
+
 
 class TestFieldProjectionAngleDetector:
     def test_subsample_indices_include_endpoint(self):
         indices = _subsample_indices(num_points=10, interval=4)
 
         assert np.array_equal(indices, np.asarray([0, 4, 8, 9]))
+
+    def test_subsample_indices_preserve_existing_endpoint(self):
+        indices = _subsample_indices(num_points=10, interval=3)
+
+        assert np.array_equal(indices, np.asarray([0, 3, 6, 9]))
 
     def test_shape_dtype_single_frequency(self, random_key, single_frequency):
         config = SimulationConfig(time=100e-15, grid=UniformGrid(spacing=50e-9), backend="cpu")
@@ -506,6 +619,90 @@ class TestFieldProjectionAngleDetector:
             expected = expected_fields[tuple(face_slices)] * static_scale
             assert np.allclose(np.asarray(updated[_surface_state_key(surface)])[0, 0], expected)
 
+    def test_surface_update_uses_single_phasor_state(self, random_key, single_frequency):
+        config = SimulationConfig(time=100e-15, grid=UniformGrid(spacing=50e-9), backend="cpu")
+        detector = FieldProjectionAngleDetector(wave_characters=single_frequency, direction="+")
+        detector = detector.place_on_grid(((0, 5), (0, 6), (0, 1)), config, random_key)
+        state = detector.init_state()
+        base_field = np.arange(5 * 6, dtype=np.float32).reshape(5, 6, 1)
+        fields_e = jnp.asarray(np.stack([base_field + component * 100.0 for component in range(3)]))
+        fields_h = jnp.asarray(np.stack([base_field + (component + 3) * 100.0 for component in range(3)]))
+
+        updated = detector.update(
+            time_step=jnp.asarray(0),
+            E=fields_e,
+            H=fields_h,
+            state=state,
+            inv_permittivity=jnp.ones((3, 5, 6, 1), dtype=jnp.float32),
+            inv_permeability=1.0,
+        )
+
+        expected_fields = np.concatenate([np.asarray(fields_e), np.asarray(fields_h)], axis=0)
+        static_scale = 2.0 / detector.num_time_steps_recorded
+        assert set(updated) == {"phasor"}
+        assert updated["phasor"].shape == (1, 1, 6, 5, 6, 1)
+        assert np.allclose(np.asarray(updated["phasor"])[0, 0], expected_fields * static_scale)
+
+    def test_box_inverse_update_subtracts_surface_phasors(self, random_key, single_frequency):
+        config = SimulationConfig(time=100e-15, grid=UniformGrid(spacing=50e-9), backend="cpu")
+        forward_detector = FieldProjectionAngleDetector(wave_characters=single_frequency, exclude_surfaces=("z+",))
+        inverse_detector = FieldProjectionAngleDetector(
+            wave_characters=single_frequency,
+            exclude_surfaces=("z+",),
+            inverse=True,
+        )
+        grid_slice = ((0, 4), (0, 5), (0, 6))
+        forward_detector = forward_detector.place_on_grid(grid_slice, config, random_key)
+        inverse_detector = inverse_detector.place_on_grid(grid_slice, config, random_key)
+        state = forward_detector.init_state()
+        fields_e = jnp.ones((3, 4, 5, 6), dtype=jnp.float32)
+        fields_h = 2.0 * jnp.ones((3, 4, 5, 6), dtype=jnp.float32)
+        update_kwargs = dict(
+            time_step=jnp.asarray(0),
+            E=fields_e,
+            H=fields_h,
+            state=state,
+            inv_permittivity=jnp.ones((3, 4, 5, 6), dtype=jnp.float32),
+            inv_permeability=1.0,
+        )
+
+        forward = forward_detector.update(**update_kwargs)
+        inverse = inverse_detector.update(**update_kwargs)
+
+        for surface in forward:
+            assert np.allclose(np.asarray(inverse[surface]), -np.asarray(forward[surface]))
+
+    def test_box_pulse_update_does_not_apply_continuous_scaling(self, random_key, single_frequency):
+        config = SimulationConfig(time=100e-15, grid=UniformGrid(spacing=50e-9), backend="cpu")
+        detector = FieldProjectionAngleDetector(
+            wave_characters=single_frequency,
+            exclude_surfaces=("z+",),
+            scaling_mode="pulse",
+        )
+        detector = detector.place_on_grid(((0, 4), (0, 5), (0, 6)), config, random_key)
+        state = detector.init_state()
+        fields_e = jnp.ones((3, 4, 5, 6), dtype=jnp.float32)
+        fields_h = 2.0 * jnp.ones((3, 4, 5, 6), dtype=jnp.float32)
+
+        updated = detector.update(
+            time_step=jnp.asarray(0),
+            E=fields_e,
+            H=fields_h,
+            state=state,
+            inv_permittivity=jnp.ones((3, 4, 5, 6), dtype=jnp.float32),
+            inv_permeability=1.0,
+        )
+
+        expected_fields = np.concatenate([np.asarray(fields_e), np.asarray(fields_h)], axis=0)
+        for surface in ("x-", "x+", "y-", "y+", "z-"):
+            state_key = _surface_state_key(surface)
+            assert state_key in updated
+            face_slices = [slice(None), slice(None), slice(None), slice(None)]
+            axis, direction = _surface_axis_direction(surface)
+            face_slices[axis + 1] = slice(0, 1) if direction == "-" else slice(detector.grid_shape[axis] - 1, None)
+            expected = expected_fields[tuple(face_slices)]
+            assert np.allclose(np.asarray(updated[state_key])[0, 0], expected)
+
     def test_rejects_line_and_point_shapes(self, random_key, single_frequency):
         config = SimulationConfig(time=100e-15, grid=UniformGrid(spacing=50e-9), backend="cpu")
         detector = FieldProjectionAngleDetector(wave_characters=single_frequency, direction="+")
@@ -537,6 +734,14 @@ class TestFieldProjectionAngleDetector:
                 wave_characters=single_frequency, direction="+", exclude_surfaces=("z-",)
             ).place_on_grid(((0, 16), (0, 16), (0, 1)), config, random_key)
 
+    def test_box_detector_rejects_planar_axis_access(self, random_key, single_frequency):
+        config = SimulationConfig(time=100e-15, grid=UniformGrid(spacing=50e-9), backend="cpu")
+        detector = FieldProjectionAngleDetector(wave_characters=single_frequency)
+        detector = detector.place_on_grid(((0, 4), (0, 5), (0, 6)), config, random_key)
+
+        with pytest.raises(Exception, match="surface shape"):
+            _ = detector.propagation_axis
+
     @pytest.mark.parametrize(
         "exclude_surfaces",
         [
@@ -544,6 +749,7 @@ class TestFieldProjectionAngleDetector:
             ("z-", "z-"),
             ("x-", "x+", "y-", "y+", "z-", "z+"),
             "z-",
+            1,
         ],
     )
     def test_invalid_exclude_surfaces_raises(self, single_frequency, exclude_surfaces):
@@ -619,6 +825,30 @@ class TestFieldProjectionAngleDetector:
 
         with pytest.raises(ValueError, match=r"state\['phasor'\] must have shape"):
             detector.project(state, np.asarray([0.0]), np.asarray([0.0]))
+
+    def test_box_project_rejects_missing_surface_state(self, random_key, single_frequency):
+        config = SimulationConfig(time=100e-15, grid=UniformGrid(spacing=50e-9), backend="cpu")
+        detector = FieldProjectionAngleDetector(wave_characters=single_frequency, exclude_surfaces=("z+",))
+        detector = detector.place_on_grid(((0, 4), (0, 5), (0, 6)), config, random_key)
+        state = make_box_detector_state_for_plane_wave(detector, theta_deg=0.0, phi_deg=0.0)
+        missing_key = _surface_state_key("x-")
+        incomplete_state = dict(state)
+        incomplete_state.pop(missing_key)
+
+        with pytest.raises(ValueError, match=missing_key):
+            detector.project(incomplete_state, np.asarray([0.0]), np.asarray([0.0]))
+
+    def test_box_project_rejects_invalid_surface_state_shape(self, random_key, single_frequency):
+        config = SimulationConfig(time=100e-15, grid=UniformGrid(spacing=50e-9), backend="cpu")
+        detector = FieldProjectionAngleDetector(wave_characters=single_frequency, exclude_surfaces=("z+",))
+        detector = detector.place_on_grid(((0, 4), (0, 5), (0, 6)), config, random_key)
+        state = make_box_detector_state_for_plane_wave(detector, theta_deg=0.0, phi_deg=0.0)
+        bad_key = _surface_state_key("x-")
+        bad_state = dict(state)
+        bad_state[bad_key] = state[bad_key][..., :-1]
+
+        with pytest.raises(ValueError, match=rf"state\['{bad_key}'\] must have shape"):
+            detector.project(bad_state, np.asarray([0.0]), np.asarray([0.0]))
 
     @pytest.mark.parametrize(
         ("theta_deg", "phi_deg"),
@@ -792,6 +1022,31 @@ class TestFieldProjectionAngleDetector:
         assert abs(float(np.rad2deg(theta[peak_index[0]])) - 20.0) <= 1.0
         assert abs(float(np.rad2deg(phi[peak_index[1]])) - 35.0) <= 1.0
 
+    def test_window_size_tapers_planar_projection_power(self, random_key, single_frequency):
+        config = SimulationConfig(time=100e-15, grid=UniformGrid(spacing=50e-9), backend="cpu")
+        grid_slice = ((0, 48), (0, 48), (0, 1))
+        untapered = FieldProjectionAngleDetector(
+            wave_characters=single_frequency,
+            direction="+",
+            window_size=(0.0, 0.0),
+        )
+        tapered = FieldProjectionAngleDetector(
+            wave_characters=single_frequency,
+            direction="+",
+            window_size=(0.5, 0.5),
+        )
+        untapered = untapered.place_on_grid(grid_slice, config, random_key)
+        tapered = tapered.place_on_grid(grid_slice, config, random_key)
+        state = make_detector_state_for_plane_wave(untapered, theta_deg=20.0, phi_deg=35.0)
+        theta = np.deg2rad(np.asarray([20.0]))
+        phi = np.deg2rad(np.asarray([35.0]))
+
+        untapered_power = untapered.project(state, theta, phi)["power"][0, 0]
+        tapered_power = tapered.project(state, theta, phi)["power"][0, 0]
+
+        assert tapered_power > 0.0
+        assert tapered_power < untapered_power
+
     def test_project_result_shapes_match_angle_grid(self, random_key, single_frequency):
         config = SimulationConfig(time=100e-15, grid=UniformGrid(spacing=50e-9), backend="cpu")
         detector = FieldProjectionAngleDetector(wave_characters=single_frequency, direction="+")
@@ -877,6 +1132,35 @@ class TestFieldProjectionAngleDetector:
         assert np.allclose(exact_result["power"], far_result["power"], rtol=1e-5, atol=1e-16)
         assert np.max(abs(exact_result["Er"]) / exact_transverse_e) < 1.0e-4
         assert np.max(abs(exact_result["Hr"]) / exact_transverse_h) < 1.0e-4
+
+    def test_exact_projection_uses_custom_projection_medium_impedance(self, random_key, single_frequency):
+        impedance = constants.eta0 / 2.5
+        config = SimulationConfig(time=100e-15, grid=UniformGrid(spacing=80e-9), backend="cpu")
+        detector = FieldProjectionAngleDetector(
+            wave_characters=single_frequency,
+            direction="+",
+            projection_distance=4.0e-6,
+            far_field_approx=False,
+            projection_medium_refractive_index=1.8,
+            projection_medium_impedance=impedance,
+            window_size=(0.0, 0.0),
+        )
+        detector = detector.place_on_grid(((0, 8), (0, 8), (0, 1)), config, random_key)
+        state = make_detector_state_for_plane_wave(
+            detector,
+            theta_deg=20.0,
+            phi_deg=35.0,
+            refractive_index=1.8,
+            impedance=impedance,
+        )
+
+        result = detector.project(state, np.deg2rad([20.0]), np.deg2rad([35.0]))
+
+        eps_complex, mu_complex = detector._projection_relative_permittivity_permeability(0)
+        assert np.isclose(eps_complex, constants.eta0 * 1.8 / impedance)
+        assert np.isclose(mu_complex, 1.8 * impedance / constants.eta0)
+        assert result["projection_medium_impedance"] == impedance
+        assert result["power"][0, 0] > 0.0
 
     def test_exact_projection_chunked_matches_unchunked_projection(self, random_key, single_frequency):
         config = SimulationConfig(time=100e-15, grid=UniformGrid(spacing=50e-9), backend="cpu")
@@ -1002,6 +1286,27 @@ class TestFieldProjectionAngleDetector:
 
         assert isinstance(jitted, jax.Array)
         assert jitted.shape == (theta.size, phi.size)
+        assert jnp.allclose(jitted, eager, rtol=1e-6, atol=1e-12)
+
+    def test_project_angle_jit_accepts_coordinate_arguments(self, random_key, single_frequency):
+        config = SimulationConfig(time=100e-15, grid=UniformGrid(spacing=80e-9), backend="cpu")
+        detector = FieldProjectionAngleDetector(
+            wave_characters=single_frequency,
+            direction="+",
+            window_size=(0.0, 0.0),
+        )
+        detector = detector.place_on_grid(((0, 8), (0, 8), (0, 1)), config, random_key)
+        state = make_detector_state_for_plane_wave(detector, theta_deg=20.0, phi_deg=35.0)
+
+        def project_power(theta, phi):
+            return detector.project(state, theta, phi)["power"]
+
+        theta = jnp.deg2rad(jnp.asarray([18.0, 20.0, 22.0]))
+        phi = jnp.deg2rad(jnp.asarray([32.0, 35.0, 38.0]))
+        eager = project_power(theta, phi)
+        jitted = jax.jit(project_power)(theta, phi)
+
+        assert isinstance(jitted, jax.Array)
         assert jnp.allclose(jitted, eager, rtol=1e-6, atol=1e-12)
 
     def test_project_jax_coordinate_arrays_do_not_use_numpy_asarray(
@@ -1199,6 +1504,27 @@ class TestFieldProjectionAngleDetector:
         assert kspace_result["projection_axis"] == projection_axis
         for key in (*_PROJECTION_FIELD_KEYS, "power"):
             assert np.allclose(kspace_result[key][0, 0], angle_result[key][0, 0], rtol=1e-5, atol=5e-8)
+
+    def test_kspace_project_jit_accepts_direction_arguments(self, random_key, single_frequency):
+        config = SimulationConfig(time=100e-15, grid=UniformGrid(spacing=80e-9), backend="cpu")
+        detector = FieldProjectionKSpaceDetector(
+            wave_characters=single_frequency,
+            direction="+",
+            window_size=(0.0, 0.0),
+        )
+        detector = detector.place_on_grid(((0, 8), (0, 8), (0, 1)), config, random_key)
+        state = make_detector_state_for_plane_wave(detector, theta_deg=20.0, phi_deg=35.0)
+
+        def project_power(ux, uy):
+            return detector.project(state, ux, uy)["power"]
+
+        ux = jnp.asarray([0.0, 0.1])
+        uy = jnp.asarray([0.05])
+        eager = project_power(ux, uy)
+        jitted = jax.jit(project_power)(ux, uy)
+
+        assert isinstance(jitted, jax.Array)
+        assert jnp.allclose(jitted, eager, rtol=1e-6, atol=1e-12)
 
     @pytest.mark.parametrize("far_field_approx", [True, False])
     @pytest.mark.parametrize(

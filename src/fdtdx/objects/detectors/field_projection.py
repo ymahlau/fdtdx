@@ -70,8 +70,24 @@ def _contains_bool(values: Any) -> bool:
     return any(_contains_bool(value) for value in iterator)
 
 
-def _is_jax_array_or_tracer(values: Any) -> bool:
-    return isinstance(values, (jax.Array, jax_core.Tracer))
+def _is_jax_tracer(values: Any) -> bool:
+    return isinstance(values, jax_core.Tracer)
+
+
+def _is_real_numeric_dtype(dtype: Any) -> bool:
+    return np.issubdtype(dtype, np.number) and not np.issubdtype(dtype, np.complexfloating)
+
+
+def _concrete_jax_bool(value: jax.Array) -> bool:
+    # Eager concrete JAX arrays can be value-checked; traced values cannot raise Python validation errors.
+    try:
+        return bool(value)
+    except jax.errors.TracerBoolConversionError:
+        return False
+
+
+def _concrete_jax_array_has_nonfinite(values: jax.Array) -> bool:
+    return _concrete_jax_bool(jnp.any(~jnp.isfinite(values)))
 
 
 def _finite_1d_array(name: str, values: Any, expected_size: int) -> np.ndarray:
@@ -83,7 +99,7 @@ def _finite_1d_array(name: str, values: Any, expected_size: int) -> np.ndarray:
         raise ValueError(f"{name} must contain finite numeric values.") from err
     except (TypeError, ValueError) as err:
         raise ValueError(f"{name} must contain finite numeric values.") from err
-    if not np.issubdtype(raw_array.dtype, np.number):
+    if not _is_real_numeric_dtype(raw_array.dtype):
         raise ValueError(f"{name} must contain finite numeric values.")
     array = raw_array.astype(float)
     if array.shape != (expected_size,):
@@ -96,41 +112,27 @@ def _finite_1d_array(name: str, values: Any, expected_size: int) -> np.ndarray:
 def _finite_numeric_array(name: str, values: Any) -> jax.Array:
     if _contains_bool(values):
         raise ValueError(f"{name} must contain finite numeric values.")
-    if _is_jax_array_or_tracer(values):
-        if not np.issubdtype(values.dtype, np.number):
+    if _is_jax_tracer(values):
+        if not _is_real_numeric_dtype(values.dtype):
             raise ValueError(f"{name} must contain finite numeric values.")
         return jnp.asarray(values, dtype=float)
+    if isinstance(values, jax.Array):
+        if not _is_real_numeric_dtype(values.dtype):
+            raise ValueError(f"{name} must contain finite numeric values.")
+        array = jnp.asarray(values, dtype=float)
+        if _concrete_jax_array_has_nonfinite(array):
+            raise ValueError(f"{name} must contain finite numeric values.")
+        return array
     try:
         raw_array = np.asarray(values)
     except jax.errors.TracerArrayConversionError:
         return jnp.asarray(values)
     except (TypeError, ValueError) as err:
         raise ValueError(f"{name} must contain finite numeric values.") from err
-    if not np.issubdtype(raw_array.dtype, np.number):
+    if not _is_real_numeric_dtype(raw_array.dtype):
         raise ValueError(f"{name} must contain finite numeric values.")
     array = raw_array.astype(float)
     if not np.all(np.isfinite(array)):
-        raise ValueError(f"{name} must contain finite numeric values.")
-    return jnp.asarray(array)
-
-
-def _finite_complex_array(name: str, values: Any) -> jax.Array:
-    if _contains_bool(values):
-        raise ValueError(f"{name} must contain finite numeric values.")
-    if _is_jax_array_or_tracer(values):
-        if not np.issubdtype(values.dtype, np.number):
-            raise ValueError(f"{name} must contain finite numeric values.")
-        return jnp.asarray(values, dtype=complex)
-    try:
-        raw_array = np.asarray(values)
-    except jax.errors.TracerArrayConversionError:
-        return jnp.asarray(values)
-    except (TypeError, ValueError) as err:
-        raise ValueError(f"{name} must contain finite numeric values.") from err
-    if not np.issubdtype(raw_array.dtype, np.number):
-        raise ValueError(f"{name} must contain finite numeric values.")
-    array = raw_array.astype(complex)
-    if not np.all(np.isfinite(array.real)) or not np.all(np.isfinite(array.imag)):
         raise ValueError(f"{name} must contain finite numeric values.")
     return jnp.asarray(array)
 
@@ -156,7 +158,7 @@ def _finite_scalar_or_1d_array(name: str, value: Any, expected_size: int) -> flo
         raw_array = np.asarray(value)
     except (TypeError, ValueError) as err:
         raise ValueError(f"{name} must be a finite numeric scalar or contain {expected_size} values.") from err
-    if not np.issubdtype(raw_array.dtype, np.number):
+    if not _is_real_numeric_dtype(raw_array.dtype):
         raise ValueError(f"{name} must be a finite numeric scalar or contain {expected_size} values.")
     array = raw_array.astype(float)
     if array.ndim == 0:
@@ -369,7 +371,11 @@ def _projection_transverse_axes(projection_axis: int) -> tuple[int, int]:
 
 
 def _validate_theta_range(theta: ProjectionArray) -> None:
-    if _is_jax_array_or_tracer(theta):
+    if _is_jax_tracer(theta):
+        return
+    if isinstance(theta, jax.Array):
+        if _concrete_jax_bool(jnp.any((theta < 0.0) | (theta > jnp.pi))):
+            raise ValueError("theta values must be in the interval [0, pi].")
         return
     try:
         theta_array = np.asarray(theta)
@@ -377,6 +383,17 @@ def _validate_theta_range(theta: ProjectionArray) -> None:
         return
     if np.any((theta_array < 0.0) | (theta_array > np.pi)):
         raise ValueError("theta values must be in the interval [0, pi].")
+
+
+def _validate_positive_values(name: str, values: ProjectionArray) -> None:
+    if _is_jax_tracer(values):
+        return
+    if isinstance(values, jax.Array):
+        if _concrete_jax_bool(jnp.any(values <= 0.0)):
+            raise ValueError(f"{name} values must be positive.")
+        return
+    if np.any(np.asarray(values) <= 0.0):
+        raise ValueError(f"{name} values must be positive.")
 
 
 def _validate_projection_axis(projection_axis: Any) -> int:
@@ -1370,10 +1387,6 @@ class FieldProjectionDetectorBase(PhasorDetector):
         wave_character_index: int = 0,
     ) -> dict[str, Any]:
         wave_character_index = self._validate_wave_character_index(wave_character_index)
-        raw_theta = theta
-        raw_distance = distance
-        theta_is_jax = _is_jax_array_or_tracer(theta)
-        distance_is_jax = _is_jax_array_or_tracer(distance)
         theta = _finite_numeric_array("theta", theta)
         phi = _finite_numeric_array("phi", phi)
         distance = _finite_numeric_array("projection distance", distance)
@@ -1381,10 +1394,8 @@ class FieldProjectionDetectorBase(PhasorDetector):
             raise ValueError("theta, phi, and projection distance must have the same shape.")
         if theta.size == 0:
             raise ValueError("projection observation grid must be non-empty.")
-        if not theta_is_jax:
-            _validate_theta_range(raw_theta)
-        if not distance_is_jax and np.any(np.asarray(raw_distance) <= 0.0):
-            raise ValueError("projection distance values must be positive.")
+        _validate_theta_range(theta)
+        _validate_positive_values("projection distance", distance)
 
         observation_shape = theta.shape
         radial, theta_hat, phi_hat = _global_spherical_basis_paired(theta, phi)
@@ -1550,16 +1561,13 @@ class FieldProjectionAngleDetector(FieldProjectionDetectorBase):
         phi: ProjectionArray,
         wave_character_index: int,
     ) -> tuple[jax.Array, jax.Array, int]:
-        raw_theta = theta
-        theta_is_jax = _is_jax_array_or_tracer(theta)
         theta = _finite_numeric_array("theta", theta)
         phi = _finite_numeric_array("phi", phi)
         if theta.ndim != 1 or phi.ndim != 1:
             raise ValueError("theta and phi must be one-dimensional arrays.")
         if theta.size == 0 or phi.size == 0:
             raise ValueError("theta and phi must be non-empty.")
-        if not theta_is_jax:
-            _validate_theta_range(raw_theta)
+        _validate_theta_range(theta)
         return theta, phi, self._validate_wave_character_index(wave_character_index)
 
     def project(
@@ -1771,24 +1779,18 @@ class FieldProjectionKSpaceDetector(FieldProjectionDetectorBase):
         _validate_projection_axis(self.projection_axis)
 
     def _validate_kspace_inputs(self, ux: ProjectionArray, uy: ProjectionArray) -> tuple[jax.Array, jax.Array]:
-        raw_ux = ux
-        raw_uy = uy
-        ux_is_jax = _is_jax_array_or_tracer(ux)
-        uy_is_jax = _is_jax_array_or_tracer(uy)
         ux = _finite_numeric_array("ux", ux)
         uy = _finite_numeric_array("uy", uy)
         if ux.ndim != 1 or uy.ndim != 1:
             raise ValueError("ux and uy must be one-dimensional arrays.")
         if ux.size == 0 or uy.size == 0:
             raise ValueError("ux and uy must be non-empty.")
-        if ux_is_jax or uy_is_jax:
+        if _is_jax_tracer(ux) or _is_jax_tracer(uy):
             return ux, uy
-        ux_array = np.asarray(raw_ux)
-        uy_array = np.asarray(raw_uy)
-        if np.any(np.abs(ux_array) > 1.0) or np.any(np.abs(uy_array) > 1.0):
+        if _concrete_jax_bool(jnp.any(jnp.abs(ux) > 1.0)) or _concrete_jax_bool(jnp.any(jnp.abs(uy) > 1.0)):
             raise ValueError("ux and uy values must lie in the interval [-1, 1].")
-        ux_grid, uy_grid = np.meshgrid(ux_array, uy_array, indexing="ij")
-        if np.any(ux_grid**2 + uy_grid**2 > 1.0):
+        ux_grid, uy_grid = jnp.meshgrid(ux, uy, indexing="ij")
+        if _concrete_jax_bool(jnp.any(ux_grid**2 + uy_grid**2 > 1.0)):
             raise ValueError("ux^2 + uy^2 must not exceed 1 for propagating k-space directions.")
         return ux, uy
 
