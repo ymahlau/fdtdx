@@ -344,7 +344,7 @@ device = fdtdx.Device(
 
 **Polarization & off-normal incidence (shared helper):** `LinearlyPolarizedPlaneSource` (→ `UniformPlaneSource`/`GaussianPlaneSource`) takes `fixed_E_polarization_vector`/`fixed_H_polarization_vector` plus `azimuth_angle`/`elevation_angle` (degrees) to tilt the wave vector off the plane normal. The resolve-polarization → wave-vector → tilt sequence lives in **`tilted_polarization_vectors`** (`src/fdtdx/core/misc.py`), reused by both the plane sources and `GaussianModeOverlapDetector`/`gaussian_mode_fields` (so an analytic Gaussian *reference mode* and an injected Gaussian *source* derive polarization/tilt identically). It returns `(e_pol, h_pol, wave_vector)` via `normalize_polarization_for_source` + `get_wave_vector_raw` + `rotate_vector` with `axes_tpl = (horizontal_axis, vertical_axis, propagation_axis)`.
 
-**Injected power spectrum** (`Source.injected_power_spectrum(frequencies, *, apodization=None)`): analytic per-frequency source power, no run. For `TFSFPlaneSource` (plane/mode) it uses the exact separable injection `E(r,n)=_E(r)·s_E(n+δ_E)`, `H(r,n)=_H(r)·s_H(n+δ_H)` → `P(f)=½ Re[Ŝ_E·conj(Ŝ_H)·G]` (`Ŝ` = windowed DFT of the temporal signal, `G` = spatial Poynting factor of `_E/_H` with per-cell Yee-offset phases). `PointDipoleSource.injected_power_spectrum` **raises** — a dipole's radiated power is environment-dependent (Purcell), so use the *measured* `radiated_power_spectrum` (homogeneous run → nominal, real run → actual). See Spectral Power & Transmission.
+**Injected power spectrum** (`Source.injected_power_spectrum(frequencies, *, apodization=None)`): analytic per-frequency source power, no run. For `TFSFPlaneSource` (plane/mode) it uses the exact separable injection `E(r,n)=_E(r)·s_E(n+δ_E)`, `H(r,n)=_H(r)·s_H(n+δ_H)` → `P(f)=½ Re[Ŝ_E·conj(Ŝ_H)·G]` (`Ŝ` = windowed DFT of the temporal signal, `G` = spatial Poynting factor of `_E/_H` with per-cell Yee-offset phases). `PointDipoleSource.injected_power_spectrum` **raises** — a dipole's radiated power is environment-dependent (Purcell), so use the *measured* `BoxFarFieldProjector.radiated_power` (homogeneous run → nominal, real run → actual). See Spectral Power & Transmission.
 
 **On/Off control:** `OnOffSwitch` pre-computes boolean arrays for the entire simulation duration during `place_on_grid()`.
 
@@ -368,9 +368,10 @@ All detectors use `OnOffSwitch` for temporal gating. State is stored as `Detecto
 - `FieldDetector` — records raw E/H field components
 - `EnergyDetector` — records electromagnetic energy density
 - `PoyntingFluxDetector` — records directional power flow (key for transmission/reflection)
-- `PhasorDetector` — records complex phasor amplitudes at specific frequencies; supports smooth temporal `apodization` (see Temporal Apodization)
-- `DiffractiveDetector` — records complex diffraction efficiencies per order
-- `BaseModeOverlapDetector` (abstract) — owns the overlap-integral machinery; `_compute_mode_fields` is the only abstract hook. Subclasses: `ModeOverlapDetector` (solver-based reference mode), `CustomModeOverlapDetector` (user `mode_function` callable), `GaussianModeOverlapDetector` (analytic Gaussian). All frequency-indexed (one reference mode per `wave_characters` entry).
+- `PhasorDetector` — records complex phasor amplitudes at specific frequencies; supports smooth temporal `apodization` (see Temporal Apodization). Carries the measured-power methods `flux_spectrum(arrays)` and `transmission(arrays, source)` (see Spectral Power & Transmission).
+- `PlanarFarFieldProjector` / `BoxFarFieldProjector` — near-to-far-field projectors (see Far-Field Projectors).
+- `DiffractiveDetector` — **deprecated** (emits `DeprecationWarning`); use `PlanarFarFieldProjector(periodic=True).diffraction_orders(...)`.
+- `BaseModeOverlapDetector` (abstract) — owns the overlap-integral machinery; `_compute_mode_fields` is the only abstract hook. Subclasses: `ModeOverlapDetector` (solver-based reference mode), `CustomModeOverlapDetector` (user `mode_function` callable), `GaussianModeOverlapDetector` (analytic Gaussian). All frequency-indexed (one reference mode per `wave_characters` entry). Overrides `measured_power_spectrum` to return modal power `|overlap|²`, so `transmission(arrays, source)` works on mode detectors too.
 
 **Accessing results:** `arrays.detector_states["name"]["key"]`
 
@@ -397,9 +398,10 @@ All state arrays have a leading time dimension: `(num_time_steps_on, ...)`. Use 
 - Component index matches order of the `components` tuple
 - `scaling_mode="continuous"` (default, scale `2/Σw`) reconstructs CW amplitude; `"pulse"` (scale 1) is the raw windowed DFT — use `"pulse"` for `flux_spectrum`/`transmission`.
 
-**DiffractiveDetector** — key: `"diffractive"`, dtype: complex
+**DiffractiveDetector** (deprecated) — key: `"diffractive"`, dtype: complex
 - Time dim is always 1
 - Shape: `(1, num_frequencies, num_orders)`
+- `update()` is left unchanged for back-compat; only `__post_init__` emits the `DeprecationWarning`. Prefer `PlanarFarFieldProjector(periodic=True).diffraction_orders(arrays, orders)`.
 
 **Mode-overlap detector family** (`src/fdtdx/objects/detectors/mode.py`) — all inherit `BaseModeOverlapDetector(PhasorDetector, ABC)`, always use all 6 components. The base owns the overlap integral, the stored reference modes (`_mode_E`/`_mode_H` stacked as `(num_freqs, 3, *spatial)`), the face-area weights, and the `apply()` skeleton (slice ε/μ → per-freq dispersive `effective_inv_permittivity` correction → call the abstract `_compute_mode_fields` hook → stack). **Multi-frequency (#362):** one reference mode per `wave_characters` entry.
 - `compute_overlap(state)` → complex `(num_freqs,)`. Bare scalar pre-#362, so single-frequency → shape `(1,)` (index `[0]`).
@@ -415,17 +417,34 @@ All state arrays have a leading time dimension: `(num_time_steps_on, ...)`. Use 
 
 - Precomputed in `PhasorDetector.place_on_grid`: `_window_at_time_step_arr = on_mask · w[n]`, `_window_sum = Σ w`. `update` multiplies the per-step contribution by `w[time_step]` and the continuous-mode scale becomes `2/_window_sum` (coherent-gain correction → CW amplitude stays ~1).
 - **`apodization=None` is bit-identical to before** (`w≡1` on on-steps, `_window_sum=num_time_steps_on=N`).
-- For `transmission` to cancel correctly the source signal must be windowed with the **same** apodization — `transmission` forwards `out_detector.apodization` to `injected_power_spectrum`.
+- For `transmission` to cancel correctly the source signal must be windowed with the **same** apodization — `Detector.transmission` forwards the detector's own apodization (via `_injection_apodization`) to `source.injected_power_spectrum`.
 
 ## Spectral Power & Transmission
 
-`src/fdtdx/utils/spectra.py` — Per-frequency results under distinct names. All share the raw windowed-DFT convention (`flux_spectrum` un-scales the detector's `static_scale`), so ratios are unit-consistent.
-- `flux_spectrum(detector, arrays)` → real `(num_freqs,)`: net Poynting flux `½ Re ∮ (E×H*)·n̂ dA` from a **plane** `PhasorDetector` recording all 6 components (`reduce_volume=False`).
-- `injected_power_spectrum(source, frequencies, *, apodization=None)` → wraps `source.injected_power_spectrum` (analytic; validated to match a co-located source-plane `flux_spectrum` within ~3% in a homogeneous medium).
-- `transmission(out_detector, arrays, source, *, frequencies=None)` = `flux_spectrum / injected_power_spectrum` — the transmitted power fraction. The pulse spectrum and matching apodization window cancel, so it is pulse-shape-independent.
-- `radiated_power_spectrum(face_detectors, arrays)` → sums signed `flux_spectrum` over `(detector, outward_sign)` box faces: the **measured** actual/total radiated power (any source/count, Purcell-aware) — the dipole power tool and the validation oracle for the analytic path.
+These are **detector methods** now (migrated off the old `utils/spectra.py` free functions). All share the raw windowed-DFT convention (`flux_spectrum` un-scales the detector's `static_scale`), so ratios are unit-consistent, and all use fdtdx's η₀-**normalized** power (`½ Re(E×H_norm*)`, no explicit η₀ — a factor η₀ smaller than SI; consistent across every fdtdx power quantity).
+- `PhasorDetector.flux_spectrum(arrays)` → real `(num_freqs,)`: net Poynting flux `½ Re ∮ (E×H*)·n̂ dA` from a **plane** detector recording all 6 components (`reduce_volume=False`).
+- `Detector.transmission(arrays, source, *, frequencies=None)` = `measured_power_spectrum / source.injected_power_spectrum` — the transmitted power fraction. A **general base-class method**: backed by the overridable `measured_power_spectrum` hook (`PhasorDetector`→plane flux, `BaseModeOverlapDetector`→modal `|overlap|²`, `BoxFarFieldProjector`→`radiated_power`), so mode-overlap and other detectors report transmission too. The detector's own apodization is forwarded to the source so the pulse spectrum and window cancel (pulse-shape-independent).
+- `BoxFarFieldProjector.radiated_power(arrays)` → measured/total radiated power out of the box (any source/count, Purcell-aware) — replaces the old `radiated_power_spectrum` free function.
+- `Source.injected_power_spectrum(frequencies, *, apodization=None)` → analytic injected source power (a **source method**; `transmission` divides by it). `utils/spectra.py` has been deleted — there are no power free functions left.
 
 **Use a pulse, not CW, for transmission:** a ramped CW under-integrates the steady state at far planes over finite time, so `transmission` drifts below 1. A `GaussianPulseProfile` fully transits every plane, making the recorded spectrum (hence the transmitted fraction) position-independent.
+
+## Far-Field Projectors
+
+Near-to-far-field (NTFF) transforms. Placed detectors record near-field phasors during the run; **accessor methods** (called after the run with `arrays`) project to spherical/Cartesian/k-space observation grids — the recording geometry stays planar/box, spherical is only an *output*. All differentiable (closed-form FFT/DFT), for inverse design of radiation patterns/directivity/collection.
+
+**Kernel** (`src/fdtdx/core/physics/farfield.py`, free functions): surface-equivalence radiation integral `J=n̂×H`, `M=−n̂×E` → radiation vectors `N`/`L` (DFT, kernel `exp(−jk r̂·r')`) → `E_θ=−P(L_φ+N_θ/n)`, `E_φ=P(L_θ−N_φ/n)` with `P=jk e^{+jkr}/(4πr)`, `n`=background index. Plus `radiation_vectors_fft` (uniform-plane FFT fast path), `far_field_power_density` (η₀-normalized `½ n |E|²`), `directivity_from_pattern`, `radar_cross_section`.
+
+**Conventions (the two that bite):**
+- **η₀-normalized H** makes the integral cancel cleanly: build `N` from `H_fdtdx` *directly* (no η factor) → it already equals `η·N_phys`, hence the `/n`. `far_field_power_density` uses impedance `1/n` (not η₀/n) so far-field power matches `radiated_power`/`flux_spectrum` (all η₀-normalized).
+- **Time/phase**: physics `exp(−iωt)`, outgoing `exp(+jkr)`, radiation-integral kernel `exp(−jk r̂·r')`. `PhasorDetector` stores the physics amplitude, so projectors consume their own phasors with **no conjugation** (`DiffractiveDetector` uses the opposite sign internally — untouched).
+
+**Classes** (`src/fdtdx/objects/detectors/farfield.py`): `FarFieldProjector(PhasorDetector)` base (`background_index`, `far_field_approx`; `directivity`/`radar_cross_section` built on `spherical`) →
+- `PlanarFarFieldProjector` — one plane, angular spectrum. Fields `direction`/`periodic`. Accessors `near_field`, `spherical(arrays,θ,φ,r=1)`, `cartesian(arrays,x,y,z)`, `kspace(arrays)` (FFT, returns `ux,uy,E_θ,E_φ`), `diffraction_orders(arrays,orders)` (signed amplitudes, angles, power, s/p — replaces `DiffractiveDetector`).
+- `BoxFarFieldProjector` — single placed object spanning the volume interior; records **6 face phasors** (subclasses `Detector` state via 6 keys `face_min_x`…`face_max_z`), sums the integral over faces. `radiated_power(arrays)`; raises `NotImplementedError` under `config.symmetry`.
+- `far_field_box(volume, boundary_config, wave_characters, config, *, margin=2)` → `(box, constraints)` — mirrors `boundary_objects_from_config`, insets each face by boundary thickness + `margin` cells (keeps the current surface out of the PML).
+
+Plotting helpers (accessor-driven, not via `draw_plot`): `objects/detectors/plotting/farfield_plot.py` → `plot_radiation_pattern`, `plot_kspace`.
 
 ## Testing Patterns
 
@@ -490,6 +509,9 @@ assert jnp.all(jnp.isfinite(grads))
 - **Coordinate origin is the domain center** (#363): real positions / real-coordinate constraints run from `-L/2` to `+L/2` with 0 at the center, not the lower-left corner. Shift any corner-relative coordinates by `-L/2`. GDS `gds_center` maps a GDS coordinate to the domain center, not the corner.
 - **QuasiUniformGrid needs even cell counts**: every axis must resolve to an even number of cells or `QuasiUniformGrid.resolve` raises (center lands on a cell edge). `UniformGrid` does *not* enforce this, so migrating an odd-shaped uniform sim to `QuasiUniformGrid` can surprise you with a `ValueError`.
 - **Mode-overlap / S-param results are frequency-indexed** (#362): `ModeOverlapDetector.compute_overlap` and `calculate_sparam` return arrays indexed by frequency (shape `(1,)` for single-frequency setups), not bare scalars. Index `[0]` if you want the scalar.
-- **`transmission` needs a pulse + a matching window**: with a CW source `transmission` drifts below 1 at far planes (finite-time steady-state under-integration) — use a `GaussianPulseProfile`. The output detector and the source must use the **same** `apodization` (forwarded automatically by `transmission`) or the window won't cancel. `flux_spectrum` needs a plane `PhasorDetector` with all 6 components and `reduce_volume=False`.
-- **Dipole power is measured, not analytic**: `PointDipoleSource.injected_power_spectrum` raises — radiated power is Purcell/environment-dependent. Enclose the dipole in a phasor-detector box and use `radiated_power_spectrum` (homogeneous background → nominal, real structure → actual power).
+- **Power helpers are detector methods now, not `utils/spectra` free functions**: use `detector.flux_spectrum(arrays)` and `detector.transmission(arrays, source)` (general on the `Detector` base via the `measured_power_spectrum` hook), and `box.radiated_power(arrays)`. Only `injected_power_spectrum` remains a free function. `__all__`/`07_api.rst` must stay in sync (`tests/docs/test_api_rst.py` enforces exact set equality).
+- **`transmission` needs a pulse + a matching window**: with a CW source `transmission` drifts below 1 at far planes (finite-time steady-state under-integration) — use a `GaussianPulseProfile`. The detector forwards its own `apodization` to the source so the window cancels. `flux_spectrum` needs a plane detector with all 6 components and `reduce_volume=False`.
+- **Dipole power is measured, not analytic**: `PointDipoleSource.injected_power_spectrum` raises — radiated power is Purcell/environment-dependent. Enclose the dipole in a `BoxFarFieldProjector` (`far_field_box(...)`) and use `radiated_power(arrays)` (homogeneous background → nominal, real structure → actual power).
+- **Far-field η₀ units**: `far_field_power_density` uses the η₀-normalized impedance `1/n` (not SI `η₀/n`) so it matches `flux_spectrum`/`radiated_power`. Mixing it with an SI incident power in `radar_cross_section` would be off by η₀ — keep both sides in the same convention.
+- **Box projector under symmetry**: `BoxFarFieldProjector` raises `NotImplementedError` when `config.symmetry` is set (it spans the symmetric interior). Run the full domain, or use the planar projector + `unfold_fields`.
 - **Apodization reuses `TemporalProfile`, isn't a new class**: a detector's `apodization` is a (carrier-free) `TemporalProfile` — `TukeyWindowProfile`/`GaussianWindowProfile`. Window shapes live once in `core/temporal/window.py`; don't re-implement Hann/Gaussian. `apodization=None` stays bit-identical to the old hard gate.

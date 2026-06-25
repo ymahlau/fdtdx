@@ -66,6 +66,12 @@ from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLay
 from fdtdx.objects.boundaries.pmc import PerfectMagneticConductor
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 from fdtdx.objects.detectors.energy import EnergyDetector
+from fdtdx.objects.detectors.farfield import (
+    BoxFarFieldProjector,
+    FarFieldProjector,
+    PlanarFarFieldProjector,
+    far_field_box,
+)
 from fdtdx.objects.detectors.field import FieldDetector
 from fdtdx.objects.detectors.mode import (
     BaseModeOverlapDetector,
@@ -140,12 +146,6 @@ from fdtdx.utils.plot_field_slice import plot_field_slice, plot_field_slice_comp
 from fdtdx.utils.plot_material import plot_material, plot_material_from_side
 from fdtdx.utils.plot_setup import plot_setup, plot_setup_from_side
 from fdtdx.utils.sparams import PortSpec, calculate_sparam, calculate_sparams, setup_sparams_simulation
-from fdtdx.utils.spectra import (
-    flux_spectrum,
-    injected_power_spectrum,
-    radiated_power_spectrum,
-    transmission,
-)
 
 # PeriodicBoundary is now an alias for BlochBoundary with bloch_vector=(0,0,0)
 PeriodicBoundary = BlochBoundary
@@ -166,6 +166,7 @@ __all__ = [
     "BinaryMedianFilterModule",
     "BlochBoundary",
     "BoundaryConfig",
+    "BoxFarFieldProjector",
     "BrushConstraint2D",
     "ClosestIndex",
     "Color",
@@ -183,6 +184,7 @@ __all__ = [
     "DtypeConversion",
     "EnergyDetector",
     "ExtrudedPolygon",
+    "FarFieldProjector",
     "FieldDetector",
     "FieldState",
     "GDSLayerObject",
@@ -213,6 +215,7 @@ __all__ = [
     "PeriodicBoundary",
     "PhasorDetector",
     "PillarDiscretization",
+    "PlanarFarFieldProjector",
     "PointDipoleSource",
     "PointSymmetry2D",
     "PointSymmetry3D",
@@ -270,8 +273,8 @@ __all__ = [
     "extend_material_to_pml",
     "extruded_polygon_from_gds",
     "extruded_polygon_from_gds_path",
+    "far_field_box",
     "field",
-    "flux_spectrum",
     "frozen_field",
     "frozen_private_field",
     "full_backward",
@@ -279,7 +282,6 @@ __all__ = [
     "gds_layer_stack",
     "gds_layer_stack_from_component",
     "import_from_json",
-    "injected_power_spectrum",
     "metric_efficiency",
     "normalize_by_energy",
     "normalize_by_poynting_flux",
@@ -291,12 +293,10 @@ __all__ = [
     "plot_setup",
     "plot_setup_from_side",
     "private_field",
-    "radiated_power_spectrum",
     "resolve_object_constraints",
     "run_fdtd",
     "setup_sparams_simulation",
     "sources_from_gds_ports",
-    "transmission",
     "unfold_array",
     "unfold_detector_states",
     "unfold_fields",

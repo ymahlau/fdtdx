@@ -12,6 +12,7 @@ API
     fdtdx.BlochBoundary
     fdtdx.boundary_objects_from_config
     fdtdx.BoundaryConfig
+    fdtdx.BoxFarFieldProjector
     fdtdx.BrushConstraint2D
     fdtdx.calculate_sparam
     fdtdx.calculate_sparams
@@ -45,12 +46,13 @@ API
     fdtdx.export_vtr
     fdtdx.extend_material_to_pml
     fdtdx.ExtrudedPolygon
+    fdtdx.FarFieldProjector
     fdtdx.extruded_polygon_from_gds
     fdtdx.extruded_polygon_from_gds_path
     fdtdx.field
     fdtdx.FieldDetector
     fdtdx.FieldState
-    fdtdx.flux_spectrum
+    fdtdx.far_field_box
     fdtdx.frozen_field
     fdtdx.frozen_private_field
     fdtdx.full_backward
@@ -65,7 +67,6 @@ API
     fdtdx.HorizontalSymmetry2D
     fdtdx.HorizontalSymmetry3D
     fdtdx.import_from_json
-    fdtdx.injected_power_spectrum
     fdtdx.LinearReconstructEveryK
     fdtdx.Logger
     fdtdx.LorentzPole
@@ -84,6 +85,7 @@ API
     fdtdx.PerfectlyMatchedLayer
     fdtdx.PeriodicBoundary
     fdtdx.PhasorDetector
+    fdtdx.PlanarFarFieldProjector
     fdtdx.PillarDiscretization
     fdtdx.place_objects
     fdtdx.plot_field_slice
@@ -101,7 +103,6 @@ API
     fdtdx.PoyntingFluxDetector
     fdtdx.private_field
     fdtdx.QuasiUniformGrid
-    fdtdx.radiated_power_spectrum
     fdtdx.RealCoordinateConstraint
     fdtdx.Recorder
     fdtdx.RecordingState
@@ -124,7 +125,6 @@ API
     fdtdx.SubpixelSmoothedProjection
     fdtdx.TanhProjection
     fdtdx.TemporalProfile
-    fdtdx.transmission
     fdtdx.TreeClass
     fdtdx.TukeyWindowProfile
     fdtdx.unfold_array

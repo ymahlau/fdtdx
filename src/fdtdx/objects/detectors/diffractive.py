@@ -1,3 +1,4 @@
+import warnings
 from typing import Literal, Sequence, Tuple
 
 import jax
@@ -12,11 +13,12 @@ from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 @autoinit
 class DiffractiveDetector(Detector):
-    """Detector for computing Fourier transforms of fields at specific frequencies and diffraction orders.
+    """Deprecated: use ``PlanarFarFieldProjector(periodic=True).diffraction_orders(...)``.
 
-    This detector computes field amplitudes for specific diffraction orders and frequencies through
-    a specified plane in the simulation volume. It can measure diffraction in either positive or negative
-    direction along the propagation axis.
+    Computes field amplitudes for specific diffraction orders and frequencies through a plane.
+    Superseded by :class:`~fdtdx.PlanarFarFieldProjector`, whose ``diffraction_orders`` accessor
+    returns signed complex amplitudes, per-order angles, power, and an s/p split (a superset of
+    this detector's output). Kept for backward compatibility; emits a ``DeprecationWarning``.
     """
 
     #: List of frequencies to analyze (in Hz)
@@ -32,6 +34,12 @@ class DiffractiveDetector(Detector):
     dtype: jnp.dtype = frozen_field(default=jnp.complex64)
 
     def __post_init__(self):
+        warnings.warn(
+            "DiffractiveDetector is deprecated; use "
+            "PlanarFarFieldProjector(periodic=True).diffraction_orders(...) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if self.dtype not in [jnp.complex64, jnp.complex128]:
             raise Exception(f"Invalid dtype in DiffractiveDetector: {self.dtype}")
         if len(self.frequencies) == 0:

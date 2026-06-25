@@ -1,8 +1,8 @@
-"""Physics validation of the analytic source power and transmission helpers.
+"""Physics validation of the analytic source power and transmission methods.
 
-The central check is that the analytic ``injected_power_spectrum`` (computed from the
-source profile + temporal signal, no run) matches the *measured* source-plane Poynting
-flux (``flux_spectrum``) in a homogeneous medium — i.e. the analytic source power is
+The central check is that the analytic ``Source.injected_power_spectrum`` (computed from the
+source profile + temporal signal, no run) matches the *measured* source-plane Poynting flux
+(``PhasorDetector.flux_spectrum``) in a homogeneous medium — i.e. the analytic source power is
 correct to discretization accuracy.
 """
 
@@ -11,7 +11,6 @@ import jax.numpy as jnp
 import numpy as np
 
 import fdtdx
-from fdtdx.utils.spectra import flux_spectrum, injected_power_spectrum, transmission
 
 _RES = 50e-9
 _WL = 1e-6
@@ -95,8 +94,8 @@ def test_analytic_injected_power_matches_measured_flux():
     source = oc["source"]
     detector = oc["src_plane"]
     freqs = jnp.array([wave.get_frequency()])
-    analytic = injected_power_spectrum(source, freqs)
-    measured = flux_spectrum(detector, arrays)
+    analytic = source.injected_power_spectrum(freqs)
+    measured = detector.flux_spectrum(arrays)
 
     assert float(analytic[0]) > 0
     rel_err = abs(float(measured[0]) - float(analytic[0])) / float(analytic[0])
@@ -108,7 +107,7 @@ def test_transmission_unity_in_homogeneous_medium():
     objects, constraints, config, volume, wave = _build_base()
     _add_plane_phasor("out", 40, wave, volume, objects, constraints)
     oc, arrays = _run(objects, constraints, config)
-    t = transmission(oc["out"], arrays, oc["source"])
+    t = oc["out"].transmission(arrays, oc["source"])
     assert abs(float(t[0]) - 1.0) < 0.12, f"transmission={float(t[0]):.3f}"
 
 
@@ -137,6 +136,6 @@ def test_transmission_matches_fresnel():
     _add_plane_phasor("out", 40, wave, volume, objects, constraints)
     oc, arrays = _run(objects, constraints, config)
 
-    t = transmission(oc["out"], arrays, oc["source"])
+    t = oc["out"].transmission(arrays, oc["source"])
     rel_err = abs(float(t[0]) - t_analytic) / t_analytic
     assert rel_err < 0.15, f"T_measured={float(t[0]):.3f} T_analytic={t_analytic:.3f} rel_err={rel_err:.3f}"

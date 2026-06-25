@@ -101,15 +101,15 @@ class PointDipoleSource(Source):
         actual power depends on the local density of states, so it cannot be computed
         analytically from the source alone the way a plane/mode source's can.
 
-        Use :func:`~fdtdx.radiated_power_spectrum` with a closed box of phasor detectors
-        around the dipole: in a homogeneous background it yields the *nominal* (free-space)
-        power, and in the real structure the *actual* (Purcell-affected) radiated power.
+        Use :meth:`~fdtdx.BoxFarFieldProjector.radiated_power` with a box enclosing the dipole
+        (see :func:`~fdtdx.far_field_box`): in a homogeneous background it yields the *nominal*
+        (free-space) power, and in the real structure the *actual* (Purcell-affected) radiated power.
         """
         del frequencies, apodization
         raise NotImplementedError(
             "PointDipoleSource radiated power is environment-dependent (Purcell). Use "
-            "radiated_power_spectrum(...) with a closed phasor-detector box around the dipole "
-            "(homogeneous background -> nominal power; real structure -> actual power)."
+            "BoxFarFieldProjector.radiated_power(arrays) (via far_field_box) with a box enclosing "
+            "the dipole (homogeneous background -> nominal power; real structure -> actual power)."
         )
 
     @property

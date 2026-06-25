@@ -11,6 +11,11 @@ from fdtdx.objects.detectors.diffractive import DiffractiveDetector
 class TestDiffractiveDetectorInit:
     """Tests for DiffractiveDetector initialization and validation."""
 
+    def test_emits_deprecation_warning(self):
+        """DiffractiveDetector is deprecated in favor of PlanarFarFieldProjector."""
+        with pytest.warns(DeprecationWarning, match="PlanarFarFieldProjector"):
+            DiffractiveDetector(frequencies=[3e14], direction="+")
+
     def test_valid_complex64_dtype(self):
         """complex64 dtype is accepted."""
         det = DiffractiveDetector(frequencies=[3e14], direction="+", dtype=jnp.complex64)

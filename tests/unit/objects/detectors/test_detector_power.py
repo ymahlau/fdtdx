@@ -1,4 +1,4 @@
-"""Unit tests for the frequency-domain power helpers (synthetic, no FDTD run)."""
+"""Unit tests for the detector power methods (flux_spectrum / transmission), synthetic, no FDTD run."""
 
 import types
 
@@ -11,7 +11,6 @@ from fdtdx.config import SimulationConfig
 from fdtdx.core.grid import UniformGrid
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.detectors.phasor import PhasorDetector
-from fdtdx.utils.spectra import flux_spectrum, radiated_power_spectrum, transmission
 
 
 def _placed_plane_detector():
@@ -34,7 +33,7 @@ def test_flux_spectrum_known_plane_wave():
     phasor = jnp.zeros((1, 1, 6, 4, 4, 1), dtype=jnp.complex64)
     phasor = phasor.at[0, 0, 0].set(1.0).at[0, 0, 4].set(1.0)
     arrays = _arrays_with_phasor("plane", phasor)
-    flux = flux_spectrum(det, arrays)
+    flux = det.flux_spectrum(arrays)
     spacing = 2e-7
     expected = 0.5 * (spacing**2) * (4 * 4)  # 0.5 * area_per_cell * num_cells
     assert float(flux[0]) == pytest.approx(expected, rel=1e-5)
@@ -48,7 +47,7 @@ def test_flux_spectrum_requires_six_components():
     det = det.place_on_grid(((0, 4), (0, 4), (0, 1)), config, jax.random.PRNGKey(0))
     arrays = _arrays_with_phasor("p", jnp.zeros((1, 1, 1, 4, 4, 1), dtype=jnp.complex64))
     with pytest.raises(ValueError, match="6 components"):
-        flux_spectrum(det, arrays)
+        det.flux_spectrum(arrays)
 
 
 def test_transmission_divides_flux_by_injected():
@@ -56,22 +55,17 @@ def test_transmission_divides_flux_by_injected():
     phasor = jnp.zeros((1, 1, 6, 4, 4, 1), dtype=jnp.complex64)
     phasor = phasor.at[0, 0, 0].set(1.0).at[0, 0, 4].set(1.0)
     arrays = _arrays_with_phasor("plane", phasor)
-    flux = flux_spectrum(det, arrays)
+    flux = det.flux_spectrum(arrays)
     source_stub = types.SimpleNamespace(
         injected_power_spectrum=lambda frequencies, apodization=None: jnp.full((len(frequencies),), 2.0)
     )
-    t = transmission(det, arrays, source_stub)
+    t = det.transmission(arrays, source_stub)
     np.testing.assert_allclose(np.array(t), np.array(flux) / 2.0, rtol=1e-6)
 
 
-def test_radiated_power_spectrum_signs():
-    det, _ = _placed_plane_detector()
-    phasor = jnp.zeros((1, 1, 6, 4, 4, 1), dtype=jnp.complex64)
-    phasor = phasor.at[0, 0, 0].set(1.0).at[0, 0, 4].set(1.0)
-    arrays = _arrays_with_phasor("plane", phasor)
-    one = flux_spectrum(det, arrays)
-    # opposite signs on the same face cancel; same sign doubles
-    np.testing.assert_allclose(np.array(radiated_power_spectrum([(det, 1.0), (det, -1.0)], arrays)), 0.0, atol=1e-20)
-    np.testing.assert_allclose(
-        np.array(radiated_power_spectrum([(det, 1.0), (det, 1.0)], arrays)), 2.0 * np.array(one), rtol=1e-6
-    )
+def test_transmission_is_general_detector_capability():
+    """transmission() lives on the Detector base, so any measured-power detector can use it."""
+    from fdtdx.objects.detectors.detector import Detector
+
+    assert "transmission" in vars(Detector)
+    assert "measured_power_spectrum" in vars(Detector)

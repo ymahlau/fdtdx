@@ -1,11 +1,15 @@
 from abc import ABC, abstractmethod
-from typing import Self
+from typing import TYPE_CHECKING, Self
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 from matplotlib.figure import Figure
 from rich.progress import Progress
+
+if TYPE_CHECKING:
+    from fdtdx.fdtd.container import ArrayContainer
+    from fdtdx.objects.sources.source import Source
 
 from fdtdx.colors import XKCD_LIGHT_GREEN, Color
 from fdtdx.config import SimulationConfig
@@ -268,6 +272,75 @@ class Detector(SimulationObject, ABC):
             inv_permeability,
         )
         raise NotImplementedError()
+
+    def measured_power_spectrum(
+        self,
+        arrays: "ArrayContainer",
+        frequencies: jax.Array | None = None,
+    ) -> jax.Array:
+        """Per-frequency power measured by this detector (for transmission).
+
+        Overridden by detector types that can report a power: ``PhasorDetector`` returns the
+        net plane Poynting flux, ``BaseModeOverlapDetector`` returns modal power ``|overlap|²``,
+        ``BoxFarFieldProjector`` returns total radiated power. The base implementation raises.
+
+        Args:
+            arrays: Simulation arrays holding this detector's recorded state.
+            frequencies: Optional explicit frequencies (Hz); detectors with a fixed
+                ``wave_characters`` set ignore this and use their recorded frequencies.
+
+        Returns:
+            Real ``jax.Array`` of shape ``(num_freqs,)``.
+        """
+        del arrays, frequencies
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement measured_power_spectrum; "
+            "transmission() is unavailable for this detector type."
+        )
+
+    def _injection_apodization(self):
+        """Apodization window to forward to the source's injected-power computation.
+
+        Returns ``None`` on the base (no windowing). ``PhasorDetector`` overrides to return its
+        own ``apodization`` so the window cancels in the transmission ratio.
+        """
+        return None
+
+    def _default_transmission_frequencies(self) -> jax.Array:
+        """Frequencies (Hz) used when ``transmission`` is called without explicit ones."""
+        raise NotImplementedError(
+            f"{type(self).__name__} has no implicit frequency set; pass frequencies= to transmission()."
+        )
+
+    def transmission(
+        self,
+        arrays: "ArrayContainer",
+        source: "Source",
+        *,
+        frequencies: jax.Array | None = None,
+    ) -> jax.Array:
+        """Transmitted power fraction ``measured_power_spectrum / source.injected_power_spectrum``.
+
+        A general (base-class) capability: any detector that implements
+        :meth:`measured_power_spectrum` reports transmission against an injecting ``source``.
+        The detector's own apodization window is forwarded to the source so the pulse spectrum
+        and window cancel in the ratio (use a ``GaussianPulseProfile`` source for a
+        position-independent fraction; a ramped CW under-integrates at far planes).
+
+        Args:
+            arrays: Simulation arrays holding this detector's recorded state.
+            source: The injecting source (must be post-``apply_params``).
+            frequencies: Optional frequencies (Hz); defaults to the detector's own.
+
+        Returns:
+            Real ``jax.Array`` of shape ``(num_freqs,)`` — transmitted power fraction.
+        """
+        if frequencies is None:
+            frequencies = self._default_transmission_frequencies()
+        freqs = jnp.asarray(frequencies)
+        power = self.measured_power_spectrum(arrays, frequencies=freqs)
+        injected = source.injected_power_spectrum(freqs, apodization=self._injection_apodization())
+        return power / injected
 
     def draw_plot(
         self,
