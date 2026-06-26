@@ -66,6 +66,7 @@ class TestApiDocsCompleteness:
         documented = _parse_rst_entries(API_RST)
 
         missing = sorted(exported - documented)
+        print(missing)
         assert not missing, (
             f"{len(missing)} symbol(s) are in fdtdx.__all__ but missing from {API_RST}:\n"
             + "\n".join(f"  fdtdx.{name}" for name in missing)

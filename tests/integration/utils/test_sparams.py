@@ -7,6 +7,9 @@ exercises the aset call on line 269 of sparams.py.  Full S-parameter physics
 are tested separately in tests/simulation/physics/test_sparams.py.
 """
 
+import contextlib
+from unittest.mock import patch
+
 import jax
 import jax.numpy as jnp
 import pytest
@@ -14,6 +17,10 @@ import pytest
 from fdtdx.config import SimulationConfig
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
+from fdtdx.objects.detectors.mode import ModeOverlapDetector
+from fdtdx.objects.sources.mode import ModePlaneSource
+from fdtdx.objects.static_material.polygon import ExtrudedPolygon
+from fdtdx.objects.static_material.static import SimulationVolume
 from fdtdx.utils.sparams import (
     PortSpec,
     _make_port_shape,
@@ -41,8 +48,25 @@ _PORT_WIDTH = 0.8e-6
 _PORT_HEIGHT = 0.8e-6
 
 
+@contextlib.contextmanager
+def mock_apply_context():
+    """Temporarily bypasses .apply() inside this context block."""
+
+    def no_op_apply(self, **kwargs):
+        return self
+
+    with (
+        patch.object(ModePlaneSource, "apply", new=no_op_apply, create=True),
+        patch.object(ModeOverlapDetector, "apply", new=no_op_apply, create=True),
+        patch.object(SimulationVolume, "apply", new=no_op_apply, create=True),
+        patch.object(PerfectlyMatchedLayer, "apply", new=no_op_apply, create=True),
+        patch.object(ExtrudedPolygon, "apply", new=no_op_apply, create=True),
+    ):
+        yield
+
+
 def _make_setup(**kwargs):
-    """Thin wrapper around setup_sparams_simulation with shared defaults."""
+    """Thin wrapper around setup_sparams_simulation with shared defaults and mocked apply."""
     defaults = dict(
         polygons=[],
         wavelength=_WAVELENGTH,
@@ -53,7 +77,10 @@ def _make_setup(**kwargs):
         key=jax.random.PRNGKey(0),
     )
     defaults.update(kwargs)
-    return setup_sparams_simulation(**defaults)
+
+    # Only objects created inside this block will have their .apply() bypassed
+    with mock_apply_context():
+        return setup_sparams_simulation(**defaults)
 
 
 # ---------------------------------------------------------------------------
