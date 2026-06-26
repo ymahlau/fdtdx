@@ -48,6 +48,13 @@ class GDSLayerSpec:
     #: etch, e.g. 89 deg); an angle ``> 90`` makes it *grow* toward the top (re-entrant / undercut
     #: profile).  Must satisfy ``0 < sidewall_angle < 180``.  (Relation to the Tidy3D ``PolySlab``
     #: convention: ``polyslab_angle_rad = deg2rad(90 - sidewall_angle)``.)
+    #:
+    #: .. note::
+    #:    For ``sidewall_angle != 90`` the trapezoidal profile is **staircased** on the z-grid: each
+    #:    z-slice is eroded/dilated to a whole number of cells, so the wall is approximated by discrete
+    #:    steps rather than a continuous slope.  This is therefore less accurate than Tidy3D's analytic
+    #:    ``PolySlab`` (which represents the slanted face exactly).  A sub-cell fill-fraction treatment
+    #:    that would remove the staircasing is tracked as a follow-up in issue #373.
     sidewall_angle: float = 90.0
     #: Which face keeps the nominal polygon footprint when ``sidewall_angle != 90``.
     #: ``"bottom"`` (default) keeps the base footprint and tapers the top inward for an angle ``< 90``;

@@ -335,27 +335,73 @@ class TestSidewallAngle:
         assert widths[-1] < widths[0]
         assert np.all(np.diff(widths) <= 0)
 
-    def test_width_matches_analytical_trapezoid(self, key, two_materials):
-        """Measured half-width per slice matches a - (z - z_base) * tan(90deg - angle) within one cell.
+    def _expected_discrete_mask(self, sidewall_angle, reference_plane="bottom"):
+        """Build the expected mask from the *exact discrete model* the implementation specifies.
 
-        This is the core validation: the discrete erosion reproduces the analytical
-        linear sidewall (the same model Tidy3D.PolySlab uses).
+        The implementation's per-slice rule (documented on ``sidewall_angle`` / ``_offset_mask``) is:
+        a voxel survives iff its Euclidean distance (in metres, at the grid pitch) to the nearest
+        void cell exceeds the per-slice offset ``(z_center - z_ref) * tan(90deg - angle)`` (and the
+        mirror rule for dilation).  We reproduce that here *independently* of the production code:
+
+        * the 2-D base footprint is the centre-in-square rasterisation of the input polygon, and
+        * each z-slice is eroded/dilated with an independent ``scipy.ndimage`` distance transform.
+
+        This is the model Tidy3D.PolySlab is discretised onto; the staircasing gap between this
+        discrete model and PolySlab's analytic slope is documented on ``GDSLayerSpec.sidewall_angle``
+        (follow-up: #373).  Asserting exact equality against this expectation proves the erosion
+        implements the model with zero slop — far stronger than tolerating the staircase as the old
+        continuous-formula comparison did.
         """
-        angle = 80.0  # degrees from substrate (10 deg off vertical)
-        mask = self._build(two_materials, key, sidewall_angle=angle, reference_plane="bottom")
-        widths_cells = _half_width_per_slice(mask, 0, 1)  # full width in cells along central row
+        from scipy import ndimage
 
-        tan = np.tan(np.deg2rad(90.0 - angle))
+        n_xy = 40  # matches _build
+        # 2-D base footprint: centre-in-square (verified equal to the production rasterisation).
+        centers = (np.arange(n_xy) + 0.5) * self.SPACING
+        cc = centers - n_xy * self.SPACING / 2.0  # cell-centre coords relative to polygon centre
+        inside = np.abs(cc) <= self.HALF
+        base_2d = np.outer(inside, inside)
+
         z_centers = (np.arange(self.NZ) + 0.5) * self.SPACING
-        z_ref = z_centers[0]
+        if reference_plane == "bottom":
+            z_ref = z_centers[0]
+        elif reference_plane == "top":
+            z_ref = z_centers[-1]
+        else:  # middle
+            z_ref = 0.5 * (z_centers[0] + z_centers[-1])
+
+        tan = float(np.tan(np.deg2rad(90.0 - sidewall_angle)))
+        sampling = (self.SPACING, self.SPACING)
+        slices = []
         for z in range(self.NZ):
-            expected_half = self.HALF - (z_centers[z] - z_ref) * tan
-            expected_half = max(expected_half, 0.0)
-            expected_full_cells = 2.0 * expected_half / self.SPACING
-            # discretization rounds to whole cells -> tolerate ~+/-2 cells (one per edge)
-            assert abs(widths_cells[z] - expected_full_cells) <= 2.0, (
-                f"z={z}: measured {widths_cells[z]} cells, expected ~{expected_full_cells:.1f}"
-            )
+            offset = (z_centers[z] - z_ref) * tan  # >0 erodes, <0 dilates
+            if abs(offset) < 1e-15 or not base_2d.any():
+                slices.append(base_2d.copy())
+            elif offset > 0:
+                dist_in = ndimage.distance_transform_edt(base_2d, sampling=sampling)
+                slices.append(dist_in > offset)
+            else:
+                dist_out = ndimage.distance_transform_edt(~base_2d, sampling=sampling)
+                slices.append(base_2d | (dist_out <= -offset))
+        return np.stack(slices, axis=2)
+
+    @pytest.mark.parametrize("angle", [89.0, 80.0, 75.0, 60.0])
+    @pytest.mark.parametrize("reference_plane", ["bottom", "middle", "top"])
+    def test_mask_matches_discrete_sidewall_model_exactly(self, key, two_materials, angle, reference_plane):
+        """The voxel mask equals the exact discrete sidewall model bit-for-bit (no cell tolerance).
+
+        This is the core validation: the per-slice erosion/dilation reproduces the documented
+        discrete trapezoid model with *total* agreement (``np.array_equal``), confirming the
+        implementation introduces no rounding slop of its own.  The residual staircasing relative
+        to Tidy3D.PolySlab's analytic slope is an inherent finite-grid effect, documented on
+        ``GDSLayerSpec.sidewall_angle`` (follow-up: #373), not a defect of this implementation.
+        """
+        mask = np.asarray(self._build(two_materials, key, sidewall_angle=angle, reference_plane=reference_plane))
+        expected = self._expected_discrete_mask(sidewall_angle=angle, reference_plane=reference_plane)
+        assert mask.shape == expected.shape
+        assert np.array_equal(mask, expected), (
+            f"angle={angle}, reference_plane={reference_plane}: "
+            f"{int(np.sum(mask != expected))} of {mask.size} voxels differ from the discrete model"
+        )
 
     def test_reference_plane_top_keeps_top_footprint(self, key, two_materials):
         """reference_plane='top' keeps the *top* footprint nominal; the base is wider.
