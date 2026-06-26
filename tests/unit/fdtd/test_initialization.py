@@ -789,7 +789,7 @@ def test_apply_params_no_devices():
     arrays = _make_arrays_mock()
     key = jax.random.PRNGKey(0)
     _result_arrays, _result_objects, info = apply_params(arrays, objects, {}, key)
-    assert mock_obj.apply.called
+    assert not mock_obj.apply.called  # apply should have been called in place_objects
     assert isinstance(info, dict)
 
 
