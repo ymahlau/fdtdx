@@ -973,15 +973,15 @@ def test_apply_params_fully_anisotropic_discrete(mock_ste, mock_compute_perm):
 def test_apply_params_use_etching_continuous_isotropic(mock_compute_perm):
     """Test apply_params etching path with continuous type and diagonally anisotropic components."""
     # Etching interpolates between the old permittivity and perm_bc[0]
-    mock_compute_perm.return_value = [[4.0, 4.0, 4.0]] 
-    
+    mock_compute_perm.return_value = [[4.0, 4.0, 4.0]]
+
     device = Mock()
     device.name = "device1"
     device.output_type = ParameterType.CONTINUOUS
     device.grid_slice = (slice(0, 5), slice(0, 5), slice(0, 5))
     device.materials = [Mock()]
     device.use_etching = True
-    
+
     # 50% etching mix
     material_indices = jnp.ones((5, 5, 5)) * 0.5
     device.return_value = material_indices
@@ -1005,6 +1005,7 @@ def test_apply_params_use_etching_continuous_isotropic(mock_compute_perm):
 
     def at_getitem(key):
         at_result = Mock()
+
         def set_side_effect(value):
             result = Mock(spec=ArrayContainer)
             result.inv_permittivities = value if key == "inv_permittivities" else arrays.inv_permittivities
@@ -1017,6 +1018,7 @@ def test_apply_params_use_etching_continuous_isotropic(mock_compute_perm):
             result.dispersive_P_prev = None
             result.at = at_accessor
             return result
+
         at_result.set = set_side_effect
         return at_result
 
@@ -1031,13 +1033,11 @@ def test_apply_params_use_etching_continuous_isotropic(mock_compute_perm):
     objects.volume_idx = 0
     device.apply = Mock(return_value=device)
 
-    _result_arrays, _result_objects, _info = apply_params(
-        arrays, objects, {"device1": {}}, jax.random.PRNGKey(0)
-    )
+    _result_arrays, _result_objects, _info = apply_params(arrays, objects, {"device1": {}}, jax.random.PRNGKey(0))
 
     assert mock_compute_perm.called
     assert device.call_count > 0
-    # Sanity check the math logic silently succeeded: 
+    # Sanity check the math logic silently succeeded:
     # Old perm = 2.0. Etch material perm = 4.0. Mix = 0.5 * 2.0 + 0.5 * 4.0 = 3.0.
     # Resulting inv_perm should be 1/3.0.
     final_inv_perm = _result_arrays.inv_permittivities
@@ -1057,7 +1057,7 @@ def test_apply_params_use_etching_continuous_fully_anisotropic(mock_compute_perm
     device.grid_slice = (slice(0, 5), slice(0, 5), slice(0, 5))
     device.materials = [Mock()]
     device.use_etching = True
-    
+
     # 50% etching mix
     material_indices = jnp.ones((5, 5, 5)) * 0.5
     device.return_value = material_indices
@@ -1082,6 +1082,7 @@ def test_apply_params_use_etching_continuous_fully_anisotropic(mock_compute_perm
 
     def at_getitem(key):
         at_result = Mock()
+
         def set_side_effect(value):
             result = Mock(spec=ArrayContainer)
             result.inv_permittivities = value if key == "inv_permittivities" else arrays.inv_permittivities
@@ -1094,6 +1095,7 @@ def test_apply_params_use_etching_continuous_fully_anisotropic(mock_compute_perm
             result.dispersive_P_prev = None
             result.at = at_accessor
             return result
+
         at_result.set = set_side_effect
         return at_result
 
@@ -1108,19 +1110,17 @@ def test_apply_params_use_etching_continuous_fully_anisotropic(mock_compute_perm
     objects.volume_idx = 0
     device.apply = Mock(return_value=device)
 
-    _result_arrays, _result_objects, _info = apply_params(
-        arrays, objects, {"device1": {}}, jax.random.PRNGKey(0)
-    )
+    _result_arrays, _result_objects, _info = apply_params(arrays, objects, {"device1": {}}, jax.random.PRNGKey(0))
 
     assert mock_compute_perm.called
     assert device.call_count > 0
-    
-    # Validation check: 
+
+    # Validation check:
     # Old perm = diag(2,2,2). Etch perm = diag(1,1,1). Mix = diag(1.5, 1.5, 1.5).
     # Resulting inv_perm should be diag(1/1.5, 1/1.5, 1/1.5).
     final_inv_perm = _result_arrays.inv_permittivities
     assert jnp.allclose(final_inv_perm[0, 0, 0, 0], 1.0 / 1.5)  # xx component
-    assert jnp.allclose(final_inv_perm[1, 0, 0, 0], 0.0)        # xy component
+    assert jnp.allclose(final_inv_perm[1, 0, 0, 0], 0.0)  # xy component
 
 
 # ---------------------------------------------------------------------------

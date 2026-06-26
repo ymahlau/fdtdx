@@ -250,16 +250,18 @@ class Device(OrderableObject, ABC):
                     raise Exception(
                         f"Need exactly one material in etched device when parameter mapping outputs continuous permittivity indices"
                         f"which replaces the eroded original materials, but got {self.materials}"
-                )
+                    )
             else:
                 if len(self.materials) != 2:
                     raise Exception(
                         f"Need exactly two materials in device when parameter mapping outputs continuous permittivity indices, "
                         f"but got {self.materials}"
                     )
-        else: # if self.output_type == ParameterType.BINARY or self.output_type == ParameterType.DISCRETE:
+        else:  # if self.output_type == ParameterType.BINARY or self.output_type == ParameterType.DISCRETE:
             if self.use_etching:
-                raise Exception(f"Etched devices only support continous parameters, {self.name} outputs {self.output_type}")
+                raise Exception(
+                    f"Etched devices only support continous parameters, {self.name} outputs {self.output_type}"
+                )
         return self
 
     @staticmethod

@@ -177,7 +177,9 @@ def compute_mode(
             sl = (slice(None), slice(None), [0]) if collapsed_axis == 1 else (slice(None), [0], slice(None))
 
             assert np.allclose(permittivity, permittivity[sl]), "Permittivity is not uniform across the collapsed axis!"
-            assert len(coords[collapsed_axis]) == 3, f"Assumption: Permittivity {permittivity.shape[1:]=}+1 matches ({coords[0].shape=}, {coords[1].shape})"
+            assert len(coords[collapsed_axis]) == 3, (
+                f"Assumption: Permittivity {permittivity.shape[1:]=}+1 matches ({coords[0].shape=}, {coords[1].shape})"
+            )
             permittivity = permittivity[sl]
 
             if isinstance(permeability, np.ndarray) and permeability.ndim > 0:
@@ -234,9 +236,10 @@ def compute_mode(
 
         if mode_2d:
             # Re-expand the collapsed dimension
-            # Axis is shifted by 1 because stack adds the vector components to axis 0.
-            import ipdb; ipdb.set_trace()
+            mode_E = np.expand_dims(mode_E, axis=collapsed_axis + 1)
             mode_E = np.repeat(mode_E, 2, axis=collapsed_axis + 1)
+
+            mode_H = np.expand_dims(mode_H, axis=collapsed_axis + 1)
             mode_H = np.repeat(mode_H, 2, axis=collapsed_axis + 1)
 
         neff = np.asarray(mode.neff).astype(np_complex_dtype)

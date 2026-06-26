@@ -378,11 +378,11 @@ def apply_params(
             else:
                 # Fully anisotropic: reshape to 3x3 matrix, invert, and flatten back to 9 elements
                 inv_allowed = jnp.array([jnp.linalg.inv(perm.reshape(3, 3)).flatten() for perm in allowed_perm_array])
-                
+
             # inv_allowed[indices] -> (*grid_shape, num_components), then moveaxis -> (num_components, *grid_shape)
             component_values = jnp.moveaxis(inv_allowed[cur_material_indices.astype(jnp.int32)], -1, 0)
             new_inv_perm_slice = straight_through_estimator(cur_material_indices, component_values)
-            
+
             if write_dispersive:
                 assert allowed_c1_arr is not None and allowed_c2_arr is not None and allowed_c3_arr is not None
                 int_idx = cur_material_indices.astype(jnp.int32)
@@ -945,7 +945,7 @@ def _init_arrays(
     dispersive_inv_c2 = None
     if dispersive_c2 is not None:
         dispersive_inv_c2 = jnp.where(dispersive_c2 == 0, 0.0, 1.0 / dispersive_c2)
-    
+
     # Save backup of initial inv_permittivities when using etched_devices
     using_etching = any(d.use_etching for d in objects.devices)
     initial_inv_permittivities = jnp.copy(inv_permittivities) if using_etching else None
@@ -1912,7 +1912,9 @@ def _handle_unresolved_objects(
 def _invert_property(arr: jax.Array):
     """Inverts a property array, e.g. inv_permittivities of shape (num_comp, *grid_shape)."""
     num_components = arr.shape[0]
-    assert arr.ndim == 4 and num_components in [1, 3, 9], f"Expecting shape (num_comp, *grid_shape), got shape {arr.shape}"
+    assert arr.ndim == 4 and num_components in [1, 3, 9], (
+        f"Expecting shape (num_comp, *grid_shape), got shape {arr.shape}"
+    )
 
     if num_components in (1, 3):
         return 1.0 / arr
