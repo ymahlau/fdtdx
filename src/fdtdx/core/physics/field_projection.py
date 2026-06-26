@@ -168,7 +168,8 @@ def cartesian_to_spherical_angles(points: _ProjectionArray) -> tuple[jax.Array, 
     """
     points = jnp.asarray(points, dtype=float)
     radial_distance = jnp.linalg.norm(points, axis=0)
-    theta = jnp.arccos(jnp.clip(points[2] / radial_distance, -1.0, 1.0))
+    safe_distance = jnp.maximum(radial_distance, jnp.finfo(radial_distance.dtype).tiny)
+    theta = jnp.arccos(jnp.clip(points[2] / safe_distance, -1.0, 1.0))
     phi = jnp.arctan2(points[1], points[0])
     return radial_distance, theta, phi
 

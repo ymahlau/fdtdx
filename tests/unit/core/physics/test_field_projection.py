@@ -42,20 +42,22 @@ def test_spherical_basis_paired_is_orthonormal():
     assert jnp.allclose(jnp.linalg.norm(radial, axis=0), 1.0, atol=1e-6)
 
 
-def test_cartesian_to_spherical_angles_recovers_axes():
+def test_cartesian_to_spherical_angles_handles_origin_and_recovers_axes():
     points = jnp.asarray(
         [
-            [0.0, 1.0, 0.0],
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+            [0.0, 1.0, 0.0, 0.0],
         ]
     )
 
     radial_distance, theta, phi = cartesian_to_spherical_angles(points)
 
-    assert jnp.allclose(radial_distance, 1.0)
-    assert jnp.allclose(theta, jnp.asarray([0.0, jnp.pi / 2, jnp.pi / 2]), atol=1e-6)
-    assert jnp.allclose(phi, jnp.asarray([0.0, 0.0, jnp.pi / 2]), atol=1e-6)
+    assert jnp.allclose(radial_distance, jnp.asarray([0.0, 1.0, 1.0, 1.0]))
+    assert jnp.all(jnp.isfinite(theta))
+    assert jnp.all(jnp.isfinite(phi))
+    assert jnp.allclose(theta[1:], jnp.asarray([0.0, jnp.pi / 2, jnp.pi / 2]), atol=1e-6)
+    assert jnp.allclose(phi[1:], jnp.asarray([0.0, 0.0, jnp.pi / 2]), atol=1e-6)
 
 
 def test_trapezoidal_weights_and_subsample_indices_keep_physical_endpoints():
