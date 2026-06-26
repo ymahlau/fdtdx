@@ -37,6 +37,11 @@ extensions = [
 templates_path = ['_templates']
 exclude_patterns = []
 
+# Hides the class/module nae in the right sidebar
+toc_object_entries_show_parent = 'hide'
+# the 'fdtdx.' module prefix from signature in the main body
+add_module_names = False
+
 
 
 # -- Options for HTML output -------------------------------------------------
