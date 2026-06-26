@@ -59,7 +59,7 @@ def _build_waveguide_sparams():
     purely real TE mode that the ModePlaneSource can inject exactly.
     """
     config = fdtdx.SimulationConfig(
-        resolution=_RESOLUTION,
+        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
         time=_SIM_TIME,
         dtype=jnp.float32,
     )
@@ -196,7 +196,9 @@ def test_waveguide_sparam_transmission():
 
     for (det_name, src_name), s_param in result.items():
         assert src_name == "source", f"Unexpected source name in key: {src_name!r}"
-        power = float(abs(np.array(s_param)) ** 2)
+        s_param = np.asarray(s_param)
+        assert s_param.shape == (1,)
+        power = float(abs(s_param[0]) ** 2)
         print(f"{power=}")
         assert power > (1.0 - _TOLERANCE) and power <= 1.0001, (
             f"|S({det_name!r}, 'source')|² = {power}, "

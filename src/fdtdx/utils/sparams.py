@@ -8,6 +8,8 @@ import jax
 
 from fdtdx import DetectorState, GaussianPulseProfile, extend_material_to_pml
 from fdtdx.config import SimulationConfig
+from fdtdx.core.axis import get_transverse_axes
+from fdtdx.core.grid import UniformGrid
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.initialization import apply_params, place_objects
@@ -52,7 +54,7 @@ class PortSpec:
 
 def _make_port_shape(axis: int, resolution: float, width: float, height: float) -> tuple[float, float, float]:
     """Return partial_real_shape with one-voxel thickness along the propagation axis."""
-    transverse = [i for i in range(3) if i != axis]
+    transverse = get_transverse_axes(axis)
     shape: list[float] = [resolution, resolution, resolution]
     shape[transverse[0]] = width
     shape[transverse[1]] = height
@@ -126,7 +128,7 @@ def setup_sparams_simulation(
         domain_size[2] + 2.0 * pml_thickness,
     )
 
-    config = SimulationConfig(time=max_time, resolution=resolution)
+    config = SimulationConfig(time=max_time, grid=UniformGrid(spacing=resolution))
 
     object_list = []
     constraints = []
@@ -261,9 +263,11 @@ def calculate_sparam(
 
     Returns:
         A 2-tuple ``(sparams, detector_states)`` where *sparams* maps
-        ``(detector_name, input_port_name)`` to a complex scattering amplitude
-        and *detector_states* is the final :class:`~fdtdx.DetectorState` dict
-        for every detector in the simulation.
+        ``(detector_name, input_port_name)`` to a complex scattering-amplitude
+        array indexed by frequency. For the single-frequency detectors created
+        by :func:`setup_sparams_simulation`, each value has shape ``(1,)``.
+        *detector_states* is the final :class:`~fdtdx.DetectorState` dict for
+        every detector in the simulation.
     """
     if key is None:
         key = jax.random.PRNGKey(0)

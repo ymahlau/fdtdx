@@ -95,7 +95,7 @@ def nondispersive_silicon_material() -> fdtdx.Material:
 
 def build_scene(dispersive: bool):
     config = fdtdx.SimulationConfig(
-        resolution=RESOLUTION,
+        grid=fdtdx.UniformGrid(spacing=RESOLUTION),
         time=SIM_TIME,
         dtype=jnp.float32,
         courant_factor=0.99,

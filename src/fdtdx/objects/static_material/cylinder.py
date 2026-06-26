@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 
+from fdtdx.core.axis import get_transverse_axes
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
@@ -48,36 +49,31 @@ class Cylinder(StaticMultiMaterialObject):
 
     @property
     def horizontal_axis(self) -> int:
-        """Gets the horizontal axis perpendicular to the fiber axis.
-
-        Returns:
-            int: The index of the horizontal axis (0=x or 1=y).
-        """
-        if self.axis == 0:
-            return 1
-        return 0
+        """Gets the horizontal axis perpendicular to the fiber axis."""
+        return get_transverse_axes(self.axis)[0]
 
     @property
     def vertical_axis(self) -> int:
-        """Gets the vertical axis perpendicular to the fiber axis.
-
-        Returns:
-            int: The index of the vertical axis (1=y or 2=z).
-        """
-        if self.axis == 2:
-            return 1
-        return 2
+        """Gets the vertical axis perpendicular to the fiber axis."""
+        return get_transverse_axes(self.axis)[1]
 
     def get_voxel_mask_for_shape(self) -> jax.Array:
-        width = self.grid_shape[self.vertical_axis]
-        height = self.grid_shape[self.horizontal_axis]
-        center = (height / 2, width / 2)
-        grid_radius_exact = self.radius / self._config.resolution
-        grid = (
-            jnp.stack(jnp.meshgrid(*map(jnp.arange, (width, height)), indexing="xy"), axis=-1)
-            - jnp.asarray(center)
-            + 0.5
-        ) / jnp.asarray(grid_radius_exact)
+        def local_centers(axis: int) -> jax.Array:
+            """Return physical cell centers relative to this object's lower edge."""
+            lower, upper = self.grid_slice_tuple[axis]
+            grid = self._config.resolved_grid
+            if grid is None:
+                spacing = self._config.uniform_spacing()
+                return (jnp.arange(self.grid_shape[axis]) + 0.5) * spacing
+            edges = grid.edges(axis)
+            return 0.5 * (edges[lower:upper] + edges[lower + 1 : upper + 1]) - edges[lower]
+
+        horizontal = local_centers(self.horizontal_axis)
+        vertical = local_centers(self.vertical_axis)
+        horizontal_grid, vertical_grid = jnp.meshgrid(horizontal, vertical, indexing="ij")
+        center_h = 0.5 * self.real_shape[self.horizontal_axis]
+        center_v = 0.5 * self.real_shape[self.vertical_axis]
+        grid = jnp.stack((horizontal_grid - center_h, vertical_grid - center_v), axis=-1) / self.radius
 
         mask = (grid**2).sum(axis=-1) < 1
         mask = jnp.expand_dims(mask, axis=self.axis)

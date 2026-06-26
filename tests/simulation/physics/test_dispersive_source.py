@@ -62,7 +62,7 @@ def _build_scene():
     """Uniform Lorentz medium, pulsed plane source in the middle, two
     Poynting flux detectors straddling the source."""
     config = fdtdx.SimulationConfig(
-        resolution=_RESOLUTION,
+        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
         time=_SIM_TIME,
         dtype=jnp.float32,
     )

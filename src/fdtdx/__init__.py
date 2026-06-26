@@ -1,21 +1,20 @@
 import sys
 import warnings
 
-if sys.version_info >= (3, 14):
+if sys.version_info >= (3, 15):
     warnings.warn(
-        "Python 3.14+ is not supported by fdtdx. Expect crashes and unknown errors. "
-        "Support for Python 3.14 will be added in the coming months.",
+        "Python 3.15+ is not supported by fdtdx. Expect crashes and unknown errors.",
         UserWarning,
         stacklevel=2,
     )
 
-from fdtdx import constants
 from fdtdx.colors import Color
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.constants import wavelength_to_period
 from fdtdx.conversion.json import export_json, export_json_str, import_from_json
 from fdtdx.conversion.stl import export_stl
-from fdtdx.conversion.vti import export_arrays_snapshot_to_vti, export_vti
+from fdtdx.conversion.vti import export_arrays_snapshot_to_vti, export_vti, export_vtr
+from fdtdx.core.grid import QuasiUniformGrid, RectilinearGrid, UniformGrid
 from fdtdx.core.jax.pytrees import (
     TreeClass,
     autoinit,
@@ -46,6 +45,7 @@ from fdtdx.dispersion import (
 from fdtdx.fdtd.backward import full_backward
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, ParameterContainer, SimulationState
 from fdtdx.fdtd.initialization import apply_params, place_objects, resolve_object_constraints
+from fdtdx.fdtd.symmetry import unfold_array, unfold_detector_states, unfold_fields, unfold_source_mode
 from fdtdx.fdtd.wrapper import run_fdtd
 from fdtdx.interfaces.modules import DtypeConversion
 from fdtdx.interfaces.recorder import Recorder, RecordingState
@@ -110,6 +110,15 @@ from fdtdx.objects.sources.profile import (
     TemporalProfile,
 )
 from fdtdx.objects.static_material.cylinder import Cylinder
+from fdtdx.objects.static_material.gds_layer_stack import (
+    GDSLayerObject,
+    GDSLayerSpec,
+    GDSPortSpec,
+    detectors_from_gds_ports,
+    gds_layer_stack,
+    gds_layer_stack_from_component,
+    sources_from_gds_ports,
+)
 from fdtdx.objects.static_material.polygon import (
     ExtrudedPolygon,
     extruded_polygon_from_gds,
@@ -126,6 +135,16 @@ from fdtdx.utils.sparams import PortSpec, calculate_sparam, calculate_sparams, s
 
 # PeriodicBoundary is now an alias for BlochBoundary with bloch_vector=(0,0,0)
 PeriodicBoundary = BlochBoundary
+
+#: Type alias for detector state: maps detector output names to JAX arrays.
+DetectorState = DetectorState
+
+#: Type alias for parameter dictionaries. Maps parameter names to JAX arrays or
+#: nested dicts of JAX arrays.
+ParameterContainer = ParameterContainer
+
+#: Type alias for simulation state: a tuple of (time_step, ArrayContainer).
+SimulationState = SimulationState
 
 __all__ = [
     "ArrayContainer",
@@ -150,6 +169,9 @@ __all__ = [
     "ExtrudedPolygon",
     "FieldDetector",
     "FieldState",
+    "GDSLayerObject",
+    "GDSLayerSpec",
+    "GDSPortSpec",
     "GaussianPlaneSource",
     "GaussianPulseProfile",
     "GaussianSmoothing2D",
@@ -180,9 +202,11 @@ __all__ = [
     "PortSpec",
     "PositionConstraint",
     "PoyntingFluxDetector",
+    "QuasiUniformGrid",
     "RealCoordinateConstraint",
     "Recorder",
     "RecordingState",
+    "RectilinearGrid",
     "RemoveFloatingMaterial",
     "SimulationConfig",
     "SimulationObject",
@@ -199,6 +223,7 @@ __all__ = [
     "TanhProjection",
     "TemporalProfile",
     "TreeClass",
+    "UniformGrid",
     "UniformMaterialObject",
     "UniformPlaneSource",
     "VerticalSymmetry2D",
@@ -216,12 +241,13 @@ __all__ = [
     "compute_mode",
     "compute_pole_coefficients",
     "compute_poynting_flux",
-    "constants",
+    "detectors_from_gds_ports",
     "export_arrays_snapshot_to_vti",
     "export_json",
     "export_json_str",
     "export_stl",
     "export_vti",
+    "export_vtr",
     "extend_material_to_pml",
     "extruded_polygon_from_gds",
     "extruded_polygon_from_gds_path",
@@ -229,6 +255,8 @@ __all__ = [
     "frozen_field",
     "frozen_private_field",
     "full_backward",
+    "gds_layer_stack",
+    "gds_layer_stack_from_component",
     "import_from_json",
     "metric_efficiency",
     "normalize_by_energy",
@@ -244,5 +272,10 @@ __all__ = [
     "resolve_object_constraints",
     "run_fdtd",
     "setup_sparams_simulation",
+    "sources_from_gds_ports",
+    "unfold_array",
+    "unfold_detector_states",
+    "unfold_fields",
+    "unfold_source_mode",
     "wavelength_to_period",
 ]

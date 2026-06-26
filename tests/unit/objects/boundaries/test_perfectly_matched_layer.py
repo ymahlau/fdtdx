@@ -8,6 +8,8 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.constants import eta0
+from fdtdx.core.grid import RectilinearGrid, UniformGrid
 from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 
 
@@ -15,7 +17,7 @@ from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLay
 def micro_config():
     return SimulationConfig(
         time=100e-15,
-        resolution=50e-9,
+        grid=UniformGrid(spacing=50e-9),
         backend="cpu",
         dtype=jnp.float32,
         courant_factor=0.99,
@@ -237,6 +239,60 @@ class TestPMLComputeProfile:
         placed = place_pml(pml, micro_config, jax_key, volume_shape=(10, 10, 20))
         profileE, _profileH = placed._compute_pml_profile(0.0, 1.0, 1.0, jnp.float32)
         assert profileE.shape == (10, 10, 5)
+
+    def test_nonuniform_profile_uses_physical_depth_min_side(self, jax_key):
+        """Stretched PML profiles are graded by physical distance into the boundary."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0, 10.0]),
+            y_edges=jnp.asarray([0.0, 1.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=100e-15, grid=grid, backend="cpu", dtype=jnp.float32)
+        pml = make_pml(axis=0, direction="-", thickness=3, sigma_end=1.0)
+        placed = place_pml(pml, config, jax_key, volume_shape=grid.shape)
+
+        profileE, profileH = placed._compute_pml_profile(0.0, 1.0, 1.0, jnp.float32)
+
+        assert jnp.allclose(profileE[:, 0, 0], jnp.asarray([5 / 6, 3 / 6, 0.0], dtype=jnp.float32))
+        assert float(profileH[-1, 0, 0]) == 0.0
+
+    @pytest.mark.parametrize("direction", ["-", "+"])
+    def test_nonuniform_profile_matches_uniform_limit_on_uniform_axis(self, jax_key, direction):
+        """A uniform PML axis must keep the historical staggered profile."""
+        thickness = 4
+        volume_shape = (8, 1, 1)
+        uniform_config = SimulationConfig(time=100e-15, grid=UniformGrid(spacing=1.0), backend="cpu", dtype=jnp.float32)
+        nonuniform_grid = RectilinearGrid(
+            x_edges=jnp.arange(volume_shape[0] + 1, dtype=jnp.float32),
+            y_edges=jnp.asarray([0.0, 1.01], dtype=jnp.float32),
+            z_edges=jnp.asarray([0.0, 1.0], dtype=jnp.float32),
+        )
+        nonuniform_config = SimulationConfig(time=100e-15, grid=nonuniform_grid, backend="cpu", dtype=jnp.float32)
+
+        uniform_pml = make_pml(axis=0, direction=direction, thickness=thickness, sigma_end=1.0)
+        nonuniform_pml = make_pml(axis=0, direction=direction, thickness=thickness, sigma_end=1.0)
+        uniform_placed = place_pml(uniform_pml, uniform_config, jax_key, volume_shape=volume_shape)
+        nonuniform_placed = place_pml(nonuniform_pml, nonuniform_config, jax_key, volume_shape=volume_shape)
+
+        uniform_E, uniform_H = uniform_placed._compute_pml_profile(0.0, 1.0, 1.0, jnp.float32)
+        nonuniform_E, nonuniform_H = nonuniform_placed._compute_pml_profile(0.0, 1.0, 1.0, jnp.float32)
+
+        assert jnp.allclose(nonuniform_E[:, 0, 0], uniform_E[:, 0, 0])
+        assert jnp.allclose(nonuniform_H[:, 0, 0], uniform_H[:, 0, 0])
+
+    def test_nonuniform_sigma_end_uses_physical_thickness(self, jax_key):
+        """Default sigma_end is based on physical PML thickness from grid edges."""
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray([0.0, 1.0, 3.0, 6.0]),
+            y_edges=jnp.asarray([0.0, 1.0]),
+            z_edges=jnp.asarray([0.0, 1.0]),
+        )
+        config = SimulationConfig(time=100e-15, grid=grid, backend="cpu", dtype=jnp.float32)
+        pml = make_pml(axis=0, direction="-", thickness=2)
+        placed = place_pml(pml, config, jax_key, volume_shape=grid.shape)
+
+        expected = -(placed.sigma_order + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * 3.0)
+        assert jnp.isclose(placed.sigma_end, expected)
 
 
 class TestPMLModifyArrays:
