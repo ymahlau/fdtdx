@@ -1,6 +1,6 @@
 import warnings
 from abc import ABC, abstractmethod
-from typing import Self
+from typing import Callable, Self
 
 import jax
 import jax.numpy as jnp
@@ -419,3 +419,47 @@ class UniformPlaneSource(LinearlyPolarizedPlaneSource):
         del center
         profile = jnp.ones(shape=self.grid_shape, dtype=self._config.dtype)
         return self.amplitude * profile
+
+
+@autoinit
+class CustomProfilePlaneSource(LinearlyPolarizedPlaneSource):
+    """Plane source with a user-defined transverse amplitude profile.
+
+    The injected transverse amplitude is ``profile_function(t0, t1)``, evaluated on the
+    source-plane cell centers in physical metres (centered at the plane center).  ``t0``/``t1`` are
+    the two transverse coordinate meshgrids (along ``horizontal_axis``/``vertical_axis``), and the
+    callable returns a real amplitude array of the same shape.  Polarization, off-normal tilt,
+    impedance, and energy normalization are handled by the base class exactly as for
+    :class:`UniformPlaneSource` / :class:`GaussianPlaneSource` — this only customizes the spatial
+    weighting.  It is the source-side counterpart to :class:`~fdtdx.CustomModeOverlapDetector`.
+
+    Any JAX callable works — this is the hook for spatial apodization (e.g. a super-Gaussian
+    flat-top ``lambda t0, t1: jnp.exp(-((t0**2 + t1**2) / r**2) ** n)``, a Tukey-windowed flat-top,
+    a vortex amplitude, or a multi-spot pattern).  It is differentiable, so the illumination profile
+    can be inverse-designed.  No ready-made profile builders are provided; supply your own callable.
+    """
+
+    #: ``profile_function(transverse_0, transverse_1) -> amplitude``: real transverse amplitude on
+    #: the source plane (physical metres, centered at the plane center), same shape as the inputs.
+    profile_function: Callable[[jax.Array, jax.Array], jax.Array] = frozen_field()
+
+    def _axis_plane_centers(self, axis: int) -> jax.Array:
+        lower, upper = self.grid_slice_tuple[axis]
+        grid = self._config.resolved_grid
+        if grid is not None:
+            centers = jnp.asarray(grid.centers(axis))[lower:upper]
+        else:
+            spacing = self._config.uniform_spacing()
+            centers = (jnp.arange(lower, upper) + 0.5) * spacing
+        return centers - 0.5 * (centers[0] + centers[-1])  # center at the plane middle
+
+    def _get_amplitude_raw(
+        self,
+        center: jax.Array,
+    ) -> jax.Array:
+        del center  # the profile is centered on the plane; off-normal tilt is handled by the base
+        h_centers = self._axis_plane_centers(self.horizontal_axis)
+        v_centers = self._axis_plane_centers(self.vertical_axis)
+        g_h, g_v = jnp.meshgrid(h_centers, v_centers, indexing="ij")
+        amplitude = jnp.asarray(self.profile_function(g_h, g_v))
+        return jnp.expand_dims(amplitude, axis=self.propagation_axis)

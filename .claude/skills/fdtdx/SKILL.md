@@ -334,7 +334,8 @@ device = fdtdx.Device(
 
 **Source types:**
 - `UniformPlaneSource` — uniform amplitude across plane
-- `GaussianPlaneSource` — Gaussian beam, amplitude `exp(-r²/radius²)` (`radius` = 1/e amplitude radius, **no** hard aperture). Shares the exact profile with `gaussian_mode_fields` via `gaussian_amplitude` (`core/misc.py`). No `std` field (removed); the old truncated `std`-scaled profile is gone.
+- `GaussianPlaneSource` — Gaussian beam, amplitude `exp(-r²/radius²)` (`radius` = 1/e amplitude radius, **no** hard aperture). Shares the exact profile with `gaussian_mode_fields` via `gaussian_amplitude` (`core/misc.py`). No `std` field (removed); the old truncated `std`-scaled profile is gone. Warns at `place_on_grid` if the source plane truncates the beam above 1% amplitude (`_warn_if_truncated`; aim for half-extent ≳ 3·radius).
+- `CustomProfilePlaneSource` — arbitrary transverse amplitude via a user-supplied `profile_function(t0, t1) -> amplitude` (frozen_field callable; `t0`/`t1` are the two transverse coordinate meshgrids in centered physical metres). The source-side mirror of `CustomModeOverlapDetector`: it overrides only `_get_amplitude_raw` and reuses the base polarization/tilt/impedance/energy pipeline. This is the hook for **spatial apodization** (super-Gaussian / Tukey flat-top / etc.) — users supply the callable; no built-in profile builders are provided. Real amplitude only for now (arbitrary phase/wavefront and full-vectorial profiles are possible follow-ups). Differentiable for illumination inverse design.
 - `ModePlaneSource` — injects a computed waveguide mode profile
 - `PointDipoleSource` — point dipole with configurable `polarization` axis (0/1/2) plus optional `azimuth_angle`/`elevation_angle` (degrees) to tilt off-axis; also `source_type` ∈ {"electric","magnetic"}.
 

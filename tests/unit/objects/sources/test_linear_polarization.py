@@ -16,6 +16,7 @@ from fdtdx.core.grid import RectilinearGrid, UniformGrid
 from fdtdx.core.misc import gaussian_amplitude
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.sources.linear_polarization import (
+    CustomProfilePlaneSource,
     GaussianPlaneSource,
     UniformPlaneSource,
 )
@@ -244,6 +245,58 @@ class TestGaussianPlaneSource:
         assert applied._H.shape == (3, 3, 3, 1)
         assert applied._time_offset_E.shape == (3, 3, 3, 1)
         assert jnp.any(applied._E[1] != 0) or jnp.any(applied._E[2] != 0)
+
+
+class TestCustomProfilePlaneSource:
+    """Unit tests for CustomProfilePlaneSource and its profile builders."""
+
+    def test_get_amplitude_raw_matches_profile_function(self):
+        config = SimulationConfig(time=1e-13, grid=UniformGrid(spacing=2e-7), backend="cpu")
+        source = CustomProfilePlaneSource(
+            partial_grid_shape=(8, 8, 1),
+            wave_character=WaveCharacter(wavelength=1.55e-6),
+            direction="+",
+            fixed_E_polarization_vector=(1, 0, 0),
+            profile_function=lambda t0, t1: jnp.ones_like(t0),
+        )
+        source = source.place_on_grid(((0, 8), (0, 8), (0, 1)), config, jax.random.PRNGKey(0))
+        amp = source._get_amplitude_raw(jnp.array([4.0, 4.0]))
+        assert amp.shape == (8, 8, 1)
+        assert jnp.allclose(amp, 1.0)
+
+    def test_get_amplitude_raw_uses_centered_physical_coords(self):
+        """The profile is sampled on transverse cell centers, centered at the plane middle."""
+        config = SimulationConfig(time=1e-13, grid=UniformGrid(spacing=2e-7), backend="cpu")
+        source = CustomProfilePlaneSource(
+            partial_grid_shape=(8, 8, 1),
+            wave_character=WaveCharacter(wavelength=1.55e-6),
+            direction="+",
+            fixed_E_polarization_vector=(1, 0, 0),
+            profile_function=lambda t0, t1: t0,  # horizontal coordinate itself
+        )
+        source = source.place_on_grid(((0, 8), (0, 8), (0, 1)), config, jax.random.PRNGKey(0))
+        amp = jnp.squeeze(source._get_amplitude_raw(jnp.array([4.0, 4.0])))  # (8, 8)
+        # 8 cells at 200 nm, centered -> coords span +/- 0.7 um and are antisymmetric about the center
+        assert float(jnp.max(amp)) == pytest.approx(0.7e-6, rel=1e-6)
+        assert jnp.allclose(amp + amp[::-1, :], 0.0, atol=1e-12)
+
+    def test_user_built_super_gaussian_profile(self):
+        """A user can supply any JAX profile callable, e.g. a flat-top super-Gaussian."""
+        config = SimulationConfig(time=1e-13, grid=UniformGrid(spacing=2e-7), backend="cpu")
+        radius = 1e-6
+        source = CustomProfilePlaneSource(
+            partial_grid_shape=(16, 16, 1),
+            wave_character=WaveCharacter(wavelength=1.55e-6),
+            direction="+",
+            fixed_E_polarization_vector=(1, 0, 0),
+            profile_function=lambda t0, t1: jnp.exp(-(((t0**2 + t1**2) / radius**2) ** 2)),
+        )
+        source = source.place_on_grid(((0, 16), (0, 16), (0, 1)), config, jax.random.PRNGKey(0))
+        amp = jnp.squeeze(source._get_amplitude_raw(jnp.array([8.0, 8.0])))  # (16, 16)
+        c = amp.shape[0] // 2
+        assert float(amp[c, c]) == pytest.approx(1.0, abs=0.02)  # peaked at center
+        # flat-topped: at r ~ radius/2 (order 2) amplitude ~ exp(-(0.25)^2) ~ 0.94, well above a Gaussian's 0.78
+        assert float(amp[c + 2, c]) > 0.9
 
 
 class TestUniformPlaneSource:

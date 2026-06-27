@@ -193,7 +193,9 @@ def _validate_vtk_cell_data(cell_data: dict[str, jax.Array]) -> tuple[int, int, 
         raise ValueError("Only 3d scalar fields (x, y, z) and vector fields (n, x, y, z) are supported.")
     if not all(str(a.dtype) in NUMPY_TO_VTK_DTYPE for a in cell_data.values()):
         raise ValueError(f"VTK export only supports dtypes {list(NUMPY_TO_VTK_DTYPE.keys())}.")
-    return shape
+    # ndim is validated 3/4 above, so the last-three-dims slice has exactly three entries; build an
+    # explicit 3-tuple so the return type is tuple[int, int, int] rather than the slice's tuple[int, ...].
+    return (shape[0], shape[1], shape[2])
 
 
 def export_vtr(
