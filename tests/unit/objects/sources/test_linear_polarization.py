@@ -4,6 +4,7 @@ Tests for GaussianPlaneSource and UniformPlaneSource classes.
 These are unit tests that use mocks where possible to avoid full simulation.
 """
 
+import warnings
 from unittest.mock import patch
 
 import jax
@@ -111,6 +112,36 @@ class TestGaussianPlaneSource:
         t0, t1 = jnp.meshgrid(coords, coords, indexing="ij")
         profile = gaussian_amplitude(t0, t1, radius=3.0)
         assert profile.shape == (8, 8)
+
+    def test_truncation_warning_when_plane_too_small(self):
+        """A wide beam in a small source plane warns about >1% edge truncation."""
+        config = SimulationConfig(time=1e-13, grid=UniformGrid(spacing=2e-7), backend="cpu")
+        # plane is 8 * 200 nm = 1.6 um wide -> nearest edge at 0.8 um = 0.4 * radius -> ~85% amplitude
+        source = GaussianPlaneSource(
+            partial_grid_shape=(8, 8, 1),
+            wave_character=WaveCharacter(wavelength=1.55e-6),
+            direction="+",
+            radius=2e-6,
+            fixed_E_polarization_vector=(1, 0, 0),
+        )
+        with pytest.warns(UserWarning, match="truncates the beam"):
+            source.place_on_grid(((0, 8), (0, 8), (0, 1)), config, jax.random.PRNGKey(0))
+
+    def test_no_truncation_warning_when_well_sized(self):
+        """A beam whose tails vanish before the plane edge does not warn."""
+        config = SimulationConfig(time=1e-13, grid=UniformGrid(spacing=2e-7), backend="cpu")
+        # plane is 40 * 200 nm = 8 um wide -> nearest edge at 4 um ~= 13 * radius -> ~0% amplitude
+        source = GaussianPlaneSource(
+            partial_grid_shape=(40, 40, 1),
+            wave_character=WaveCharacter(wavelength=1.55e-6),
+            direction="+",
+            radius=3e-7,
+            fixed_E_polarization_vector=(1, 0, 0),
+        )
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            source.place_on_grid(((0, 40), (0, 40), (0, 1)), config, jax.random.PRNGKey(0))
+        assert not any("truncates the beam" in str(w.message) for w in caught)
 
     def test_place_on_grid(self, micro_config, jax_key):
         """Test placing source on grid."""

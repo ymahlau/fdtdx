@@ -1,3 +1,4 @@
+import warnings
 from abc import ABC, abstractmethod
 from typing import Self
 
@@ -5,6 +6,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from fdtdx.config import SimulationConfig
 from fdtdx.core.grid import calculate_time_offset_yee
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.core.misc import (
@@ -16,6 +18,7 @@ from fdtdx.core.misc import (
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.dispersion import effective_inv_permittivity
 from fdtdx.objects.sources.tfsf import TFSFPlaneSource, _build_dispersive_H_filter
+from fdtdx.typing import SliceTuple3D
 
 
 def _linear_interpolate_rectilinear_2d(
@@ -337,6 +340,49 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
     #: Shares the convention of :func:`~fdtdx.gaussian_mode_fields` via
     #: :func:`~fdtdx.core.misc.gaussian_amplitude` (smooth tail, no hard aperture).
     radius: float = frozen_field()
+
+    def place_on_grid(
+        self: Self,
+        grid_slice_tuple: SliceTuple3D,
+        config: SimulationConfig,
+        key: jax.Array,
+    ) -> Self:
+        self = super().place_on_grid(grid_slice_tuple=grid_slice_tuple, config=config, key=key)
+        self._warn_if_truncated()
+        return self
+
+    def _warn_if_truncated(self) -> None:
+        """Warn if the finite source plane truncates the Gaussian above ~1% amplitude.
+
+        The beam is injected only over the source object's rectangular transverse footprint and
+        hard-cut to zero outside it (there is no smooth taper at the plane edge itself). If the
+        Gaussian amplitude ``exp(-r^2 / radius^2)`` is still above 1% at the nearest plane edge,
+        that hard aperture causes non-negligible edge diffraction. A clean source needs the
+        transverse half-extent to be ``>~ 3 * radius`` (edge amplitude ``~0.01%``). The check
+        assumes the beam is centered in its footprint, so it is the best-case (smallest)
+        truncation amplitude.
+        """
+        grid = self._config.resolved_grid
+        half_extents = []
+        for axis in (self.horizontal_axis, self.vertical_axis):
+            lower, upper = self.grid_slice_tuple[axis]
+            if grid is not None:
+                extent = grid.axis_extent(axis, (lower, upper))
+            else:
+                extent = (upper - lower) * self._config.uniform_spacing()
+            half_extents.append(0.5 * extent)
+        edge_distance = min(half_extents)  # nearest plane edge from the (centered) beam
+        truncation_amplitude = float(np.exp(-((edge_distance / self.radius) ** 2)))
+        if truncation_amplitude > 0.01:
+            warnings.warn(
+                f"GaussianPlaneSource '{self.name}': the source plane truncates the beam at "
+                f"{truncation_amplitude * 100:.1f}% amplitude (nearest edge at "
+                f"{edge_distance / self.radius:.2f} x radius). The hard aperture edge will cause "
+                f"diffraction — enlarge the source transverse size to >~ 3 x radius (or reduce "
+                f"radius) so the edge amplitude drops below 1%.",
+                UserWarning,
+                stacklevel=2,
+            )
 
     def _get_amplitude_raw(
         self,
