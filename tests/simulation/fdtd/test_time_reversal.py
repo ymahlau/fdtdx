@@ -199,18 +199,22 @@ def _multi_step_roundtrip(
     arrays = _seed_fields(arrays, key, obj_container)
 
     originals = {"E": arrays.fields.E, "H": arrays.fields.H}
-    if seed_dispersive and arrays.dispersive_P_curr is not None:
+    if seed_dispersive and arrays.fields.dispersive_P_curr is not None:
         # Mask polarization seeds to dispersive cells only — vacuum cells have
         # c1=c2=c3=0 and any nonzero P there would be killed by the forward
         # recurrence and unrecoverable by the reverse.
         k_pc, k_pp = jax.random.split(key)
-        disp_mask = (arrays.dispersive_c3 != 0).astype(arrays.dispersive_P_curr.dtype)
-        P_curr = jax.random.normal(k_pc, arrays.dispersive_P_curr.shape, dtype=arrays.dispersive_P_curr.dtype)
+        disp_mask = (arrays.dispersive_c3 != 0).astype(arrays.fields.dispersive_P_curr.dtype)
+        P_curr = jax.random.normal(
+            k_pc, arrays.fields.dispersive_P_curr.shape, dtype=arrays.fields.dispersive_P_curr.dtype
+        )
         P_curr = P_curr * 1e-3 * disp_mask
-        P_prev = jax.random.normal(k_pp, arrays.dispersive_P_prev.shape, dtype=arrays.dispersive_P_prev.dtype)
+        P_prev = jax.random.normal(
+            k_pp, arrays.fields.dispersive_P_prev.shape, dtype=arrays.fields.dispersive_P_prev.dtype
+        )
         P_prev = P_prev * 1e-3 * disp_mask
-        arrays = arrays.aset("dispersive_P_curr", P_curr)
-        arrays = arrays.aset("dispersive_P_prev", P_prev)
+        arrays = arrays.aset("fields->dispersive_P_curr", P_curr)
+        arrays = arrays.aset("fields->dispersive_P_prev", P_prev)
         originals["P_curr"] = P_curr
         originals["P_prev"] = P_prev
 
@@ -239,9 +243,9 @@ def _multi_step_roundtrip(
 
     _, arr_rec = state
     reconstructed = {"E": arr_rec.fields.E, "H": arr_rec.fields.H}
-    if seed_dispersive and arr_rec.dispersive_P_curr is not None:
-        reconstructed["P_curr"] = arr_rec.dispersive_P_curr
-        reconstructed["P_prev"] = arr_rec.dispersive_P_prev
+    if seed_dispersive and arr_rec.fields.dispersive_P_curr is not None:
+        reconstructed["P_curr"] = arr_rec.fields.dispersive_P_curr
+        reconstructed["P_prev"] = arr_rec.fields.dispersive_P_prev
     return originals, reconstructed
 
 
@@ -413,8 +417,8 @@ class TestTimeReversalDispersiveLorentz:
     def test_fields_and_polarization_reconstructed_exactly(self):
         obj, arrays, config = self._build()
         # Allocation sanity: the slab should have triggered allocation.
-        assert arrays.dispersive_P_curr is not None
-        assert arrays.dispersive_P_prev is not None
+        assert arrays.fields.dispersive_P_curr is not None
+        assert arrays.fields.dispersive_P_prev is not None
         assert arrays.dispersive_c3 is not None
 
         key = jax.random.PRNGKey(42)
@@ -430,22 +434,22 @@ class TestTimeReversalDispersiveLorentz:
         # recurrence coefficients are zero, so any nonzero P there gets dropped
         # by the forward step and the reverse cannot recover it. Keeping P=0 in
         # those cells is consistent with both directions.
-        disp_mask = (arrays.dispersive_c3 != 0).astype(arrays.dispersive_P_curr.dtype)
+        disp_mask = (arrays.dispersive_c3 != 0).astype(arrays.fields.dispersive_P_curr.dtype)
         P_curr = (
-            jax.random.normal(k_Pc, arrays.dispersive_P_curr.shape, dtype=arrays.dispersive_P_curr.dtype)
+            jax.random.normal(k_Pc, arrays.fields.dispersive_P_curr.shape, dtype=arrays.fields.dispersive_P_curr.dtype)
             * 1e-3
             * disp_mask
         )
         P_prev = (
-            jax.random.normal(k_Pp, arrays.dispersive_P_prev.shape, dtype=arrays.dispersive_P_prev.dtype)
+            jax.random.normal(k_Pp, arrays.fields.dispersive_P_prev.shape, dtype=arrays.fields.dispersive_P_prev.dtype)
             * 1e-3
             * disp_mask
         )
 
         arrays = arrays.aset("fields->E", E)
         arrays = arrays.aset("fields->H", H)
-        arrays = arrays.aset("dispersive_P_curr", P_curr)
-        arrays = arrays.aset("dispersive_P_prev", P_prev)
+        arrays = arrays.aset("fields->dispersive_P_curr", P_curr)
+        arrays = arrays.aset("fields->dispersive_P_prev", P_prev)
 
         # Recorder setup: there are no PML objects, so the recorder ends up
         # with an empty interface dict — but backward() still needs a
@@ -476,8 +480,8 @@ class TestTimeReversalDispersiveLorentz:
         )
         _, arrays_bwd = state_bwd
 
-        assert arrays_bwd.dispersive_P_curr is not None
-        assert arrays_bwd.dispersive_P_prev is not None
+        assert arrays_bwd.fields.dispersive_P_curr is not None
+        assert arrays_bwd.fields.dispersive_P_prev is not None
 
         assert jnp.allclose(arrays_bwd.fields.E, E_orig, atol=1e-5), (
             f"E max err: {jnp.max(jnp.abs(arrays_bwd.fields.E - E_orig))}"
@@ -485,11 +489,11 @@ class TestTimeReversalDispersiveLorentz:
         assert jnp.allclose(arrays_bwd.fields.H, H_orig, atol=1e-5), (
             f"H max err: {jnp.max(jnp.abs(arrays_bwd.fields.H - H_orig))}"
         )
-        assert jnp.allclose(arrays_bwd.dispersive_P_curr, Pc_orig, atol=1e-5), (
-            f"P_curr max err: {jnp.max(jnp.abs(arrays_bwd.dispersive_P_curr - Pc_orig))}"
+        assert jnp.allclose(arrays_bwd.fields.dispersive_P_curr, Pc_orig, atol=1e-5), (
+            f"P_curr max err: {jnp.max(jnp.abs(arrays_bwd.fields.dispersive_P_curr - Pc_orig))}"
         )
-        assert jnp.allclose(arrays_bwd.dispersive_P_prev, Pp_orig, atol=1e-5), (
-            f"P_prev max err: {jnp.max(jnp.abs(arrays_bwd.dispersive_P_prev - Pp_orig))}"
+        assert jnp.allclose(arrays_bwd.fields.dispersive_P_prev, Pp_orig, atol=1e-5), (
+            f"P_prev max err: {jnp.max(jnp.abs(arrays_bwd.fields.dispersive_P_prev - Pp_orig))}"
         )
 
 
@@ -563,7 +567,7 @@ class TestTimeReversalDispersiveLossy:
         obj, arrays, config = self._build()
         # Both the dispersive state AND an electric_conductivity map must be
         # populated for this test to mean what we claim.
-        assert arrays.dispersive_P_curr is not None
+        assert arrays.fields.dispersive_P_curr is not None
         assert arrays.dispersive_c3 is not None
         assert arrays.electric_conductivity is not None
         assert jnp.any(arrays.electric_conductivity != 0), "Slab must have nonzero σ_E"
@@ -577,22 +581,22 @@ class TestTimeReversalDispersiveLossy:
             E = b.apply_post_E_update(E)
             H = b.apply_post_H_update(H)
 
-        disp_mask = (arrays.dispersive_c3 != 0).astype(arrays.dispersive_P_curr.dtype)
+        disp_mask = (arrays.dispersive_c3 != 0).astype(arrays.fields.dispersive_P_curr.dtype)
         P_curr = (
-            jax.random.normal(k_Pc, arrays.dispersive_P_curr.shape, dtype=arrays.dispersive_P_curr.dtype)
+            jax.random.normal(k_Pc, arrays.fields.dispersive_P_curr.shape, dtype=arrays.fields.dispersive_P_curr.dtype)
             * 1e-3
             * disp_mask
         )
         P_prev = (
-            jax.random.normal(k_Pp, arrays.dispersive_P_prev.shape, dtype=arrays.dispersive_P_prev.dtype)
+            jax.random.normal(k_Pp, arrays.fields.dispersive_P_prev.shape, dtype=arrays.fields.dispersive_P_prev.dtype)
             * 1e-3
             * disp_mask
         )
 
         arrays = arrays.aset("fields->E", E)
         arrays = arrays.aset("fields->H", H)
-        arrays = arrays.aset("dispersive_P_curr", P_curr)
-        arrays = arrays.aset("dispersive_P_prev", P_prev)
+        arrays = arrays.aset("fields->dispersive_P_curr", P_curr)
+        arrays = arrays.aset("fields->dispersive_P_prev", P_prev)
 
         arrays, config = _add_gradient_config(arrays, config, obj)
 
@@ -627,8 +631,8 @@ class TestTimeReversalDispersiveLossy:
         rel_tol = 1e-4
         rel_E = _max_relative_error(arrays_bwd.fields.E, E_orig)
         rel_H = _max_relative_error(arrays_bwd.fields.H, H_orig)
-        rel_Pc = _max_relative_error(arrays_bwd.dispersive_P_curr, Pc_orig)
-        rel_Pp = _max_relative_error(arrays_bwd.dispersive_P_prev, Pp_orig)
+        rel_Pc = _max_relative_error(arrays_bwd.fields.dispersive_P_curr, Pc_orig)
+        rel_Pp = _max_relative_error(arrays_bwd.fields.dispersive_P_prev, Pp_orig)
         assert rel_E < rel_tol, f"E rel err: {rel_E:.3e}"
         assert rel_H < rel_tol, f"H rel err: {rel_H:.3e}"
         assert rel_Pc < rel_tol, f"P_curr rel err: {rel_Pc:.3e}"
@@ -969,6 +973,8 @@ class TestGradientDispersiveLorentz:
                 H=arrays.fields.H,
                 psi_E=arrays.fields.psi_E,
                 psi_H=arrays.fields.psi_H,
+                dispersive_P_curr=arrays.fields.dispersive_P_curr,
+                dispersive_P_prev=arrays.fields.dispersive_P_prev,
             ),
             alpha=arrays.alpha,
             kappa=arrays.kappa,
@@ -979,8 +985,6 @@ class TestGradientDispersiveLorentz:
             recording_state=arrays.recording_state,
             electric_conductivity=arrays.electric_conductivity,
             magnetic_conductivity=arrays.magnetic_conductivity,
-            dispersive_P_curr=arrays.dispersive_P_curr,
-            dispersive_P_prev=arrays.dispersive_P_prev,
             dispersive_c1=arrays.dispersive_c1,
             dispersive_c2=arrays.dispersive_c2,
             dispersive_c3=arrays.dispersive_c3,
@@ -991,8 +995,8 @@ class TestGradientDispersiveLorentz:
 
     def test_dispersive_arrays_allocated(self):
         _, arrays, _ = self._build()
-        assert arrays.dispersive_P_curr is not None
-        assert arrays.dispersive_P_prev is not None
+        assert arrays.fields.dispersive_P_curr is not None
+        assert arrays.fields.dispersive_P_prev is not None
         assert arrays.dispersive_c1 is not None
 
     def test_gradients_are_finite(self):
@@ -1105,6 +1109,8 @@ class TestGradientDispersiveLossy:
                 H=arrays.fields.H,
                 psi_E=arrays.fields.psi_E,
                 psi_H=arrays.fields.psi_H,
+                dispersive_P_curr=arrays.fields.dispersive_P_curr,
+                dispersive_P_prev=arrays.fields.dispersive_P_prev,
             ),
             alpha=arrays.alpha,
             kappa=arrays.kappa,
@@ -1115,8 +1121,6 @@ class TestGradientDispersiveLossy:
             recording_state=arrays.recording_state,
             electric_conductivity=arrays.electric_conductivity,
             magnetic_conductivity=arrays.magnetic_conductivity,
-            dispersive_P_curr=arrays.dispersive_P_curr,
-            dispersive_P_prev=arrays.dispersive_P_prev,
             dispersive_c1=arrays.dispersive_c1,
             dispersive_c2=arrays.dispersive_c2,
             dispersive_c3=arrays.dispersive_c3,
@@ -1598,6 +1602,8 @@ def _make_disp_loss_fn(coef_name):
                 H=arrays.fields.H,
                 psi_E=arrays.fields.psi_E,
                 psi_H=arrays.fields.psi_H,
+                dispersive_P_curr=arrays.fields.dispersive_P_curr,
+                dispersive_P_prev=arrays.fields.dispersive_P_prev,
             ),
             alpha=arrays.alpha,
             kappa=arrays.kappa,
@@ -1608,8 +1614,6 @@ def _make_disp_loss_fn(coef_name):
             recording_state=arrays.recording_state,
             electric_conductivity=arrays.electric_conductivity,
             magnetic_conductivity=arrays.magnetic_conductivity,
-            dispersive_P_curr=arrays.dispersive_P_curr,
-            dispersive_P_prev=arrays.dispersive_P_prev,
             dispersive_inv_c2=arrays.dispersive_inv_c2,
             **kwargs,
         )
@@ -1659,6 +1663,8 @@ class TestDispersiveCoefficientGradientReversible:
                 H=arrays.fields.H,
                 psi_E=arrays.fields.psi_E,
                 psi_H=arrays.fields.psi_H,
+                dispersive_P_curr=arrays.fields.dispersive_P_curr,
+                dispersive_P_prev=arrays.fields.dispersive_P_prev,
             ),
             alpha=arrays.alpha,
             kappa=arrays.kappa,
@@ -1669,8 +1675,6 @@ class TestDispersiveCoefficientGradientReversible:
             recording_state=arrays.recording_state,
             electric_conductivity=arrays.electric_conductivity,
             magnetic_conductivity=arrays.magnetic_conductivity,
-            dispersive_P_curr=arrays.dispersive_P_curr,
-            dispersive_P_prev=arrays.dispersive_P_prev,
             dispersive_c1=arrays.dispersive_c1,
             dispersive_c2=arrays.dispersive_c2,
             dispersive_c3=dispersive_c3,
@@ -1767,6 +1771,8 @@ class TestDispersiveCoefficientGradientCheckpointed:
                 H=arrays.fields.H,
                 psi_E=arrays.fields.psi_E,
                 psi_H=arrays.fields.psi_H,
+                dispersive_P_curr=arrays.fields.dispersive_P_curr,
+                dispersive_P_prev=arrays.fields.dispersive_P_prev,
             ),
             alpha=arrays.alpha,
             kappa=arrays.kappa,
@@ -1777,8 +1783,6 @@ class TestDispersiveCoefficientGradientCheckpointed:
             recording_state=arrays.recording_state,
             electric_conductivity=arrays.electric_conductivity,
             magnetic_conductivity=arrays.magnetic_conductivity,
-            dispersive_P_curr=arrays.dispersive_P_curr,
-            dispersive_P_prev=arrays.dispersive_P_prev,
             dispersive_c1=arrays.dispersive_c1,
             dispersive_c2=arrays.dispersive_c2,
             dispersive_c3=dispersive_c3,

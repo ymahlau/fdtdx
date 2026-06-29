@@ -304,6 +304,14 @@ class FieldState(TreeClass):
     #: PML auxiliary magnetic field.
     psi_H: jax.Array
 
+    #: Dispersive ADE polarization state at time step ``n``. Shape
+    #: ``(num_poles, 3, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
+    dispersive_P_curr: jax.Array | None = None
+
+    #: Dispersive ADE polarization state at time step ``n-1``. Shape
+    #: ``(num_poles, 3, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
+    dispersive_P_prev: jax.Array | None = None
+
 
 @autoinit
 class ArrayContainer(TreeClass):
@@ -344,14 +352,6 @@ class ArrayContainer(TreeClass):
     #: field for magnetic conductivity terms. Defaults to None.
     magnetic_conductivity: jax.Array | None = None
 
-    #: Dispersive ADE polarization state at time step ``n``. Shape
-    #: ``(num_poles, 3, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
-    dispersive_P_curr: jax.Array | None = None
-
-    #: Dispersive ADE polarization state at time step ``n-1``. Shape
-    #: ``(num_poles, 3, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
-    dispersive_P_prev: jax.Array | None = None
-
     #: Per-cell dispersive recurrence coefficient c1. Shape
     #: ``(num_poles, 1, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
     dispersive_c1: jax.Array | None = None
@@ -391,15 +391,11 @@ class ArrayContainer(TreeClass):
         Returns:
             A new ArrayContainer with reset dynamic state.
         """
+        # FieldState now holds the dispersive ADE polarization (dispersive_P_curr/prev)
+        # alongside E/H/psi, so this single tree.map zeroes all dynamic per-timestep
+        # state at once (``None`` leaves stay ``None`` for non-dispersive sims).
+        # Coefficient arrays (c1/c2/c3/inv_c2) are material properties and preserved.
         arrays = self.aset("fields", jax.tree.map(jnp.zeros_like, self.fields))
-
-        # Dispersive ADE polarization is also dynamic per-timestep state and must
-        # be zeroed alongside E/H. Coefficient arrays (c1/c2/c3/inv_c2) are
-        # material properties and are preserved.
-        if arrays.dispersive_P_curr is not None:
-            arrays = arrays.aset("dispersive_P_curr", jnp.zeros_like(arrays.dispersive_P_curr))
-        if arrays.dispersive_P_prev is not None:
-            arrays = arrays.aset("dispersive_P_prev", jnp.zeros_like(arrays.dispersive_P_prev))
 
         detector_states = self.detector_states
         if reset_detector_states:

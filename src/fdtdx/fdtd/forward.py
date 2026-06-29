@@ -58,7 +58,14 @@ def forward_single_args_wrapper(
     # passed as defaulted kwargs so callers can closure-capture them via ``functools.partial``
     # without exposing them as VJP primals.
     arr = ArrayContainer(
-        fields=FieldState(E=E, H=H, psi_E=psi_E, psi_H=psi_H),
+        fields=FieldState(
+            E=E,
+            H=H,
+            psi_E=psi_E,
+            psi_H=psi_H,
+            dispersive_P_curr=dispersive_P_curr,
+            dispersive_P_prev=dispersive_P_prev,
+        ),
         alpha=alpha,
         kappa=kappa,
         sigma=sigma,
@@ -68,8 +75,6 @@ def forward_single_args_wrapper(
         recording_state=recording_state,
         electric_conductivity=electric_conductivity,
         magnetic_conductivity=magnetic_conductivity,
-        dispersive_P_curr=dispersive_P_curr,
-        dispersive_P_prev=dispersive_P_prev,
         dispersive_c1=dispersive_c1,
         dispersive_c2=dispersive_c2,
         dispersive_c3=dispersive_c3,
@@ -95,8 +100,8 @@ def forward_single_args_wrapper(
         state[1].sigma,
         state[1].inv_permittivities,
         state[1].inv_permeabilities,
-        state[1].dispersive_P_curr,
-        state[1].dispersive_P_prev,
+        state[1].fields.dispersive_P_curr,
+        state[1].fields.dispersive_P_prev,
         state[1].dispersive_c1,
         state[1].dispersive_c2,
         state[1].dispersive_c3,

@@ -177,9 +177,9 @@ def update_E(
         # c1*P_curr + c2*P_prev and (P_curr - P_new) reduces to a purely historical
         # term that is also zero when P_curr and P_prev start at zero — so it's a
         # no-op outside dispersive regions. Only active when arrays are allocated.
-        if arrays.dispersive_P_curr is not None:
-            P_curr = arrays.dispersive_P_curr
-            P_prev = arrays.dispersive_P_prev
+        if arrays.fields.dispersive_P_curr is not None:
+            P_curr = arrays.fields.dispersive_P_curr
+            P_prev = arrays.fields.dispersive_P_prev
             disp_c1 = arrays.dispersive_c1
             disp_c2 = arrays.dispersive_c2
             disp_c3 = arrays.dispersive_c3
@@ -190,8 +190,8 @@ def update_E(
             P_new = disp_c1 * P_curr + disp_c2 * P_prev + disp_c3 * arrays.fields.E
             delta_sum = jnp.sum(P_curr - P_new, axis=0)
             E = E + inv_eps * delta_sum
-            arrays = arrays.aset("dispersive_P_prev", P_curr)
-            arrays = arrays.aset("dispersive_P_curr", P_new)
+            arrays = arrays.aset("fields->dispersive_P_prev", P_curr)
+            arrays = arrays.aset("fields->dispersive_P_curr", P_new)
 
         if sigma_E is not None:
             # update formula for lossy material. Simplifies to Noop for conductivity = 0
@@ -332,13 +332,13 @@ def update_E_reverse(
             E = E * (1 + c * sigma_E * eta0 * inv_eps / 2)
             factor = 1 - c * sigma_E * eta0 * inv_eps / 2
 
-        # Dispersive (ADE) reverse correction. At reverse time, arrays.dispersive_P_curr
-        # holds P^(n+1) and arrays.dispersive_P_prev holds P^n. The forward update added
+        # Dispersive (ADE) reverse correction. At reverse time, arrays.fields.dispersive_P_curr
+        # holds P^(n+1) and arrays.fields.dispersive_P_prev holds P^n. The forward update added
         # inv_eps * sum(P^n - P^(n+1)) inside the lossy factor; subtract it here to
         # recover E^n. Non-dispersive cells (all zero arrays) contribute zero.
-        if arrays.dispersive_P_curr is not None:
-            P_curr_r = arrays.dispersive_P_curr
-            P_prev_r = arrays.dispersive_P_prev
+        if arrays.fields.dispersive_P_curr is not None:
+            P_curr_r = arrays.fields.dispersive_P_curr
+            P_prev_r = arrays.fields.dispersive_P_prev
             disp_c1_r = arrays.dispersive_c1
             disp_c3_r = arrays.dispersive_c3
             disp_inv_c2_r = arrays.dispersive_inv_c2
@@ -354,8 +354,8 @@ def update_E_reverse(
             # a per-step jnp.where + division with a single multiply. Non-dispersive
             # cells have inv_c2 = 0 and P_curr = P_prev = 0, so the product is zero.
             P_prev_new = (P_curr_r - disp_c1_r * P_prev_r - disp_c3_r * E) * disp_inv_c2_r
-            arrays = arrays.aset("dispersive_P_curr", P_prev_r)
-            arrays = arrays.aset("dispersive_P_prev", P_prev_new)
+            arrays = arrays.aset("fields->dispersive_P_curr", P_prev_r)
+            arrays = arrays.aset("fields->dispersive_P_prev", P_prev_new)
         else:
             E = (E - c * curl * inv_eps) / factor
 

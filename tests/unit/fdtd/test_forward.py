@@ -401,8 +401,8 @@ class TestForwardSingleArgsWrapper:
             assert jnp.array_equal(result[7], result_arrays.sigma)
             assert jnp.array_equal(result[8], result_arrays.inv_permittivities)
             assert jnp.array_equal(result[9], result_arrays.inv_permeabilities)
-            assert result[10] is result_arrays.dispersive_P_curr
-            assert result[11] is result_arrays.dispersive_P_prev
+            assert result[10] is result_arrays.fields.dispersive_P_curr
+            assert result[11] is result_arrays.fields.dispersive_P_prev
             assert result[12] is result_arrays.dispersive_c1
             assert result[13] is result_arrays.dispersive_c2
             assert result[14] is result_arrays.dispersive_c3
