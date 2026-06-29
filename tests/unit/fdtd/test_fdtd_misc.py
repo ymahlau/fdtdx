@@ -26,9 +26,9 @@ def make_arrays(E: jnp.ndarray, H: jnp.ndarray) -> ArrayContainer:
     z = jnp.zeros_like(E)
     return ArrayContainer(
         fields=FieldState(E=E, H=H, psi_E=psi_E, psi_H=psi_H),
-        alpha=z,
-        kappa=z,
-        sigma=z,
+        pml_a=z,
+        pml_b=z,
+        pml_inv_kappa=z,
         inv_permittivities=z,
         inv_permeabilities=1.0,
         detector_states={},

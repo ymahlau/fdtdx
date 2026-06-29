@@ -48,9 +48,9 @@ def _make_arrays(
             psi_E=jnp.zeros(PSI_SHAPE),
             psi_H=jnp.zeros(PSI_SHAPE),
         ),
-        alpha=jnp.zeros(FIELD_SHAPE),
-        kappa=jnp.ones(FIELD_SHAPE),
-        sigma=jnp.zeros(FIELD_SHAPE),
+        pml_a=jnp.zeros(FIELD_SHAPE),
+        pml_b=jnp.ones(FIELD_SHAPE),
+        pml_inv_kappa=jnp.ones(FIELD_SHAPE),
         inv_permittivities=inv_permittivities if inv_permittivities is not None else jnp.ones(FIELD_SHAPE),
         inv_permeabilities=inv_permeabilities if inv_permeabilities is not None else jnp.ones(FIELD_SHAPE),
         detector_states=detector_states if detector_states is not None else {},
@@ -249,7 +249,7 @@ class TestUpdateE:
                 config=_make_config(),
                 simulate_boundaries=True,
             )
-        # simulate_boundaries is positional arg index 6 (config, H_pad, psi_E, alpha, kappa, sigma, simulate_boundaries)
+        # simulate_boundaries is positional arg index 6 (config, H_pad, psi_E, pml_a, pml_b, pml_inv_kappa, simulate_boundaries)
         assert mock_curl.call_args[0][6] is True
 
     def test_anisotropic_full_tensor_correct_shape_and_finite(self):

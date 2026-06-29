@@ -310,9 +310,9 @@ def test_pml_boundary_modifies_arrays(simple_config, simple_volume, simple_mater
     assert len(obj_container.boundary_objects) == 1
     assert obj_container.boundary_objects[0].name == "pml_xmin"
     # Arrays were modified by PML
-    assert arrays.alpha is not None
-    assert arrays.kappa is not None
-    assert arrays.sigma is not None
+    assert arrays.pml_a is not None
+    assert arrays.pml_b is not None
+    assert arrays.pml_inv_kappa is not None
 
 
 # ---------------------------------------------------------------------------

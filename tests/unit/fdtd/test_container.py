@@ -251,9 +251,9 @@ class TestArrayContainer:
         self.H = jnp.ones((3, 10, 10, 10))
         self.psi_E = jnp.zeros((6, 10, 10, 10))
         self.psi_H = jnp.zeros((6, 10, 10, 10))
-        self.alpha = jnp.zeros((3, 10, 10, 10))
-        self.kappa = jnp.ones((3, 10, 10, 10))
-        self.sigma = jnp.zeros((3, 10, 10, 10))
+        self.pml_a = jnp.zeros((3, 10, 10, 10))
+        self.pml_b = jnp.ones((3, 10, 10, 10))
+        self.pml_inv_kappa = jnp.ones((3, 10, 10, 10))
         self.inv_permittivities = jnp.ones((3, 10, 10, 10))
         self.inv_permeabilities = jnp.ones((3, 10, 10, 10))
 
@@ -262,9 +262,9 @@ class TestArrayContainer:
 
         self.array_container = ArrayContainer(
             fields=FieldState(E=self.E, H=self.H, psi_E=self.psi_E, psi_H=self.psi_H),
-            alpha=self.alpha,
-            kappa=self.kappa,
-            sigma=self.sigma,
+            pml_a=self.pml_a,
+            pml_b=self.pml_b,
+            pml_inv_kappa=self.pml_inv_kappa,
             inv_permittivities=self.inv_permittivities,
             inv_permeabilities=self.inv_permeabilities,
             detector_states=self.detector_states,
@@ -285,9 +285,9 @@ class TestArrayContainer:
 
         container = ArrayContainer(
             fields=FieldState(E=self.E, H=self.H, psi_E=self.psi_E, psi_H=self.psi_H),
-            alpha=self.alpha,
-            kappa=self.kappa,
-            sigma=self.sigma,
+            pml_a=self.pml_a,
+            pml_b=self.pml_b,
+            pml_inv_kappa=self.pml_inv_kappa,
             inv_permittivities=self.inv_permittivities,
             inv_permeabilities=self.inv_permeabilities,
             detector_states=self.detector_states,
@@ -307,9 +307,9 @@ class TestArrayContainer:
         """Test that inv_permeabilities can be a float."""
         container = ArrayContainer(
             fields=FieldState(E=self.E, H=self.H, psi_E=self.psi_E, psi_H=self.psi_H),
-            alpha=self.alpha,
-            kappa=self.kappa,
-            sigma=self.sigma,
+            pml_a=self.pml_a,
+            pml_b=self.pml_b,
+            pml_inv_kappa=self.pml_inv_kappa,
             inv_permittivities=self.inv_permittivities,
             inv_permeabilities=1.0,
             detector_states=self.detector_states,
@@ -324,9 +324,9 @@ class TestArrayContainerReset:
         self.H = jnp.ones((3, 5, 5, 5))
         self.psi_E = jnp.zeros((6, 5, 5, 5))
         self.psi_H = jnp.zeros((6, 5, 5, 5))
-        self.alpha = jnp.zeros((3, 5, 5, 5))
-        self.kappa = jnp.ones((3, 5, 5, 5))
-        self.sigma = jnp.zeros((3, 5, 5, 5))
+        self.pml_a = jnp.zeros((3, 5, 5, 5))
+        self.pml_b = jnp.ones((3, 5, 5, 5))
+        self.pml_inv_kappa = jnp.ones((3, 5, 5, 5))
         self.inv_permittivities = jnp.ones((3, 5, 5, 5))
         self.inv_permeabilities = jnp.ones((3, 5, 5, 5))
 
@@ -335,9 +335,9 @@ class TestArrayContainerReset:
 
         self.array_container = ArrayContainer(
             fields=FieldState(E=self.E, H=self.H, psi_E=self.psi_E, psi_H=self.psi_H),
-            alpha=self.alpha,
-            kappa=self.kappa,
-            sigma=self.sigma,
+            pml_a=self.pml_a,
+            pml_b=self.pml_b,
+            pml_inv_kappa=self.pml_inv_kappa,
             inv_permittivities=self.inv_permittivities,
             inv_permeabilities=self.inv_permeabilities,
             detector_states=self.detector_states,

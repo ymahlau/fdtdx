@@ -325,14 +325,15 @@ class ArrayContainer(TreeClass):
     #: Dynamic electromagnetic fields (E, H and PML auxiliaries).
     fields: FieldState
 
-    #: Alpha array for PML calculations.
-    alpha: jax.Array
+    #: Precomputed PML recurrence coefficient ``a`` (shape ``(6, Nx, Ny, Nz)``).
+    #: See :func:`fdtdx.core.physics.curl.compute_pml_coefficients`.
+    pml_a: jax.Array
 
-    #: Kappa array for PML calculations.
-    kappa: jax.Array
+    #: Precomputed PML recurrence coefficient ``b`` (shape ``(6, Nx, Ny, Nz)``).
+    pml_b: jax.Array
 
-    #: Sigma array for PML calculations.
-    sigma: jax.Array
+    #: Precomputed reciprocal PML stretching factor ``1 / kappa`` (shape ``(6, Nx, Ny, Nz)``).
+    pml_inv_kappa: jax.Array
 
     #: Inverse permittivity values array.
     inv_permittivities: jax.Array

@@ -13,6 +13,7 @@ from fdtdx.core.jax.default_key import default_key
 from fdtdx.core.jax.guards import check_not_tracing
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
 from fdtdx.core.jax.ste import straight_through_estimator
+from fdtdx.core.physics.curl import compute_pml_coefficients
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, ParameterContainer
 from fdtdx.fdtd.symmetry import apply_mode_symmetry, make_symmetry_walls, reduce_resolved_slices
 from fdtdx.materials import (
@@ -944,6 +945,10 @@ def _init_arrays(
     if dispersive_c2 is not None:
         dispersive_inv_c2 = jnp.where(dispersive_c2 == 0, 0.0, 1.0 / dispersive_c2)
 
+    # Precompute the time-invariant CPML recurrence coefficients once here, instead of
+    # recomputing expm1/division every FDTD step inside curl_E/curl_H.
+    pml_a, pml_b, pml_inv_kappa = compute_pml_coefficients(alpha, kappa, sigma, config.time_step_duration)
+
     arrays = ArrayContainer(
         fields=FieldState(
             E=E,
@@ -953,9 +958,9 @@ def _init_arrays(
             dispersive_P_curr=dispersive_P_curr,
             dispersive_P_prev=dispersive_P_prev,
         ),
-        alpha=alpha,
-        kappa=kappa,
-        sigma=sigma,
+        pml_a=pml_a,
+        pml_b=pml_b,
+        pml_inv_kappa=pml_inv_kappa,
         inv_permittivities=inv_permittivities,
         inv_permeabilities=inv_permeabilities,
         detector_states=detector_states,
