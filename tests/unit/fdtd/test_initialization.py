@@ -1381,6 +1381,7 @@ def test_init_arrays_unknown_static_material_type_raises(mock_create_matrix):
     objects.static_material_objects = [fake_obj]
     objects.detectors = []
     objects.boundary_objects = []
+    objects.pml_objects = []
 
     with pytest.raises(Exception, match="Unknown object type"):
         _init_arrays(objects, config)

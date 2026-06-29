@@ -298,10 +298,11 @@ class FieldState(TreeClass):
     #: Magnetic field array.
     H: jax.Array
 
-    #: PML auxiliary electric field.
+    #: PML auxiliary electric field, stored sparsely over the PML shell. Shape ``(6, M)``
+    #: where ``M`` is the number of shell cells (see ``ArrayContainer.pml_indices``).
     psi_E: jax.Array
 
-    #: PML auxiliary magnetic field.
+    #: PML auxiliary magnetic field, stored sparsely over the PML shell. Shape ``(6, M)``.
     psi_H: jax.Array
 
     #: Dispersive ADE polarization state at time step ``n``. Shape
@@ -325,15 +326,20 @@ class ArrayContainer(TreeClass):
     #: Dynamic electromagnetic fields (E, H and PML auxiliaries).
     fields: FieldState
 
-    #: Precomputed PML recurrence coefficient ``a`` (shape ``(6, Nx, Ny, Nz)``).
+    #: Precomputed PML recurrence coefficient ``a``, gathered over the PML shell (shape ``(6, M)``).
     #: See :func:`fdtdx.core.physics.curl.compute_pml_coefficients`.
     pml_a: jax.Array
 
-    #: Precomputed PML recurrence coefficient ``b`` (shape ``(6, Nx, Ny, Nz)``).
+    #: Precomputed PML recurrence coefficient ``b``, gathered over the PML shell (shape ``(6, M)``).
     pml_b: jax.Array
 
-    #: Precomputed reciprocal PML stretching factor ``1 / kappa`` (shape ``(6, Nx, Ny, Nz)``).
+    #: Precomputed reciprocal PML stretching factor ``1 / kappa``, gathered over the PML shell (shape ``(6, M)``).
     pml_inv_kappa: jax.Array
+
+    #: Grid coordinates ``(ix, iy, iz)`` of the ``M`` PML shell cells (shape ``(3, M)``, int32).
+    #: Used to gather field derivatives at and scatter PML corrections back into the full-volume curl.
+    #: ``M == 0`` when there are no PML boundaries (gather/scatter then reduce to no-ops).
+    pml_indices: jax.Array
 
     #: Inverse permittivity values array.
     inv_permittivities: jax.Array

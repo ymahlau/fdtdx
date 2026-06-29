@@ -151,6 +151,7 @@ def update_E(
         arrays.pml_a,
         arrays.pml_b,
         arrays.pml_inv_kappa,
+        arrays.pml_indices,
         simulate_boundaries,
     )
     arrays = arrays.aset("fields->psi_E", psi_E)
@@ -318,6 +319,7 @@ def update_E_reverse(
         arrays.pml_a,
         arrays.pml_b,
         arrays.pml_inv_kappa,
+        arrays.pml_indices,
         False,
     )
 
@@ -450,6 +452,7 @@ def update_H(
         arrays.pml_a,
         arrays.pml_b,
         arrays.pml_inv_kappa,
+        arrays.pml_indices,
         simulate_boundaries,
     )
     arrays = arrays.aset("fields->psi_H", psi_H)
@@ -596,6 +599,7 @@ def update_H_reverse(
         arrays.pml_a,
         arrays.pml_b,
         arrays.pml_inv_kappa,
+        arrays.pml_indices,
         False,
     )
 
