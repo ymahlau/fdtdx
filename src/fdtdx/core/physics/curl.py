@@ -306,10 +306,12 @@ def curl_E(
     corr_zx = (pml_inv_kappa[0] - 1.0) * g_dxEy + psi_Hzx
     corr_zy = (pml_inv_kappa[1] - 1.0) * g_dyEx + psi_Hzy
 
-    curl_x = curl_x.at[ix, iy, iz].add(corr_xy - corr_xz)
-    curl_y = curl_y.at[ix, iy, iz].add(corr_yz - corr_yx)
-    curl_z = curl_z.at[ix, iy, iz].add(corr_zx - corr_zy)
+    # Fused scatter: assemble the raw curl (3, N) and the per-term corrections (3, M),
+    # then apply a single scatter-add across all three components at the shell cells.
+    # Equivalent to three per-component scatters but emits one scatter kernel instead.
     curl = jnp.stack((curl_x, curl_y, curl_z), axis=0)
+    corr = jnp.stack((corr_xy - corr_xz, corr_yz - corr_yx, corr_zx - corr_zy), axis=0)
+    curl = curl.at[:, ix, iy, iz].add(corr)
 
     return curl, psi_H_updated
 
@@ -399,9 +401,11 @@ def curl_H(
     corr_zx = (pml_inv_kappa[0] - 1.0) * g_dxHy + psi_Ezx
     corr_zy = (pml_inv_kappa[1] - 1.0) * g_dyHx + psi_Ezy
 
-    curl_x = curl_x.at[ix, iy, iz].add(corr_xy - corr_xz)
-    curl_y = curl_y.at[ix, iy, iz].add(corr_yz - corr_yx)
-    curl_z = curl_z.at[ix, iy, iz].add(corr_zx - corr_zy)
+    # Fused scatter: assemble the raw curl (3, N) and the per-term corrections (3, M),
+    # then apply a single scatter-add across all three components at the shell cells.
+    # Equivalent to three per-component scatters but emits one scatter kernel instead.
     curl = jnp.stack((curl_x, curl_y, curl_z), axis=0)
+    corr = jnp.stack((corr_xy - corr_xz, corr_yz - corr_yx, corr_zx - corr_zy), axis=0)
+    curl = curl.at[:, ix, iy, iz].add(corr)
 
     return curl, psi_E_updated
