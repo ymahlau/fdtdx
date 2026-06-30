@@ -26,6 +26,7 @@ from fdtdx.core.jax.pytrees import (
 from fdtdx.core.physics.losses import metric_efficiency
 from fdtdx.core.physics.metrics import (
     compute_energy,
+    compute_integrated_power,
     compute_poynting_flux,
     normalize_by_energy,
     normalize_by_poynting_flux,
@@ -246,6 +247,7 @@ __all__ = [
     "compute_energy",
     "compute_eps_spectrum_from_coefficients",
     "compute_impedance_corrected_temporal_profile",
+    "compute_integrated_power",
     "compute_mode",
     "compute_pole_coefficients",
     "compute_poynting_flux",

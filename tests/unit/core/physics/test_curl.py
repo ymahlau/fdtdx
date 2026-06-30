@@ -1,9 +1,55 @@
 import jax.numpy as jnp
+import numpy as np
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.grid import RectilinearGrid, UniformGrid
 from fdtdx.core.misc import pad_fields
-from fdtdx.core.physics.curl import curl_E, curl_H, interpolate_fields
+from fdtdx.core.physics.curl import compute_pml_coefficients, curl_E, curl_H, interpolate_fields
+
+
+def _coeffs(config, alpha, kappa, sigma):
+    """Convert PML profiles to precomputed (pml_a, pml_b, pml_inv_kappa) full-volume arrays."""
+    return compute_pml_coefficients(alpha, kappa, sigma, config.time_step_duration)
+
+
+def _full_shell_indices(shape):
+    """Indices (3, N) covering every cell — a full-volume 'shell' for testing the sparse curl."""
+    return jnp.asarray(np.indices(shape).reshape(3, -1))
+
+
+def _curl_E_full(config, E_pad, psi_H, pml_a, pml_b, pml_inv_kappa, simulate_boundaries):
+    """Adapter: drive the sparse curl_E over a full-volume shell so dense-shaped test
+    inputs/assertions still apply. Equals the dense formulation up to fp reassociation."""
+    shape = (E_pad.shape[1] - 2, E_pad.shape[2] - 2, E_pad.shape[3] - 2)
+    idx = _full_shell_indices(shape)
+    curl, psi = curl_E(
+        config,
+        E_pad,
+        psi_H.reshape(6, -1),
+        pml_a.reshape(6, -1),
+        pml_b.reshape(6, -1),
+        pml_inv_kappa.reshape(6, -1),
+        idx,
+        simulate_boundaries,
+    )
+    return curl, psi.reshape(psi_H.shape)
+
+
+def _curl_H_full(config, H_pad, psi_E, pml_a, pml_b, pml_inv_kappa, simulate_boundaries):
+    """Full-volume-shell adapter for the sparse curl_H (see :func:`_curl_E_full`)."""
+    shape = (H_pad.shape[1] - 2, H_pad.shape[2] - 2, H_pad.shape[3] - 2)
+    idx = _full_shell_indices(shape)
+    curl, psi = curl_H(
+        config,
+        H_pad,
+        psi_E.reshape(6, -1),
+        pml_a.reshape(6, -1),
+        pml_b.reshape(6, -1),
+        pml_inv_kappa.reshape(6, -1),
+        idx,
+        simulate_boundaries,
+    )
+    return curl, psi.reshape(psi_E.shape)
 
 
 def _make_config():
@@ -141,13 +187,13 @@ def test_curl_E_linear_field():
     E_pad = pad_fields(E, (True, True, True))
     psi_H = jnp.zeros((6, 6, 6, 6))
 
-    curl_result, _ = curl_E(
+    curl_result, _ = _curl_E_full(
         _make_config(),
         E_pad,
         psi_H,
-        alpha=jnp.zeros((6, 6, 6, 6)),
-        kappa=jnp.ones((6, 6, 6, 6)),
-        sigma=jnp.zeros((6, 6, 6, 6)),
+        pml_a=jnp.zeros((6, 6, 6, 6)),
+        pml_b=jnp.ones((6, 6, 6, 6)),
+        pml_inv_kappa=jnp.ones((6, 6, 6, 6)),
         simulate_boundaries=True,
     )
 
@@ -161,13 +207,13 @@ def test_curl_E_zero_field():
     E_pad = pad_fields(E, (False, False, False))
     psi_H = jnp.zeros((6, 4, 4, 4))
 
-    curl_result, _ = curl_E(
+    curl_result, _ = _curl_E_full(
         _make_config(),
         E_pad,
         psi_H,
-        alpha=jnp.zeros((6, 4, 4, 4)),
-        kappa=jnp.ones((6, 4, 4, 4)),
-        sigma=jnp.zeros((6, 4, 4, 4)),
+        pml_a=jnp.zeros((6, 4, 4, 4)),
+        pml_b=jnp.ones((6, 4, 4, 4)),
+        pml_inv_kappa=jnp.ones((6, 4, 4, 4)),
         simulate_boundaries=True,
     )
 
@@ -184,13 +230,12 @@ def test_curl_E_no_boundaries():
     kappa = jnp.ones((6, n, n, n))
     sigma = jnp.ones((6, n, n, n)) * 0.1
 
-    curl_result, psi_updated = curl_E(
-        _make_config(),
+    config = _make_config()
+    curl_result, psi_updated = _curl_E_full(
+        config,
         E_pad,
         psi_H_init,
-        alpha=jnp.ones((6, n, n, n)) * 0.05,
-        kappa=kappa,
-        sigma=sigma,
+        *_coeffs(config, jnp.ones((6, n, n, n)) * 0.05, kappa, sigma),
         simulate_boundaries=False,
     )
 
@@ -214,13 +259,12 @@ def test_curl_E_pml_updates():
     sigma = jnp.ones((6, n, n, n)) * 0.5
     alpha = jnp.ones((6, n, n, n)) * 0.1
 
-    curl_result, psi_updated = curl_E(
-        _make_config(),
+    config = _make_config()
+    curl_result, psi_updated = _curl_E_full(
+        config,
         E_pad,
         psi_H_init,
-        alpha=alpha,
-        kappa=jnp.ones((6, n, n, n)),
-        sigma=sigma,
+        *_coeffs(config, alpha, jnp.ones((6, n, n, n)), sigma),
         simulate_boundaries=True,
     )
 
@@ -241,13 +285,13 @@ def test_curl_E_mixed_periodic():
     E_pad = pad_fields(E, (True, False, True))
     psi_H = jnp.zeros((6, n, n, n))
 
-    curl_result, _ = curl_E(
+    curl_result, _ = _curl_E_full(
         _make_config(),
         E_pad,
         psi_H,
-        alpha=jnp.zeros((6, n, n, n)),
-        kappa=jnp.ones((6, n, n, n)),
-        sigma=jnp.zeros((6, n, n, n)),
+        pml_a=jnp.zeros((6, n, n, n)),
+        pml_b=jnp.ones((6, n, n, n)),
+        pml_inv_kappa=jnp.ones((6, n, n, n)),
         simulate_boundaries=True,
     )
 
@@ -269,13 +313,13 @@ def test_curl_E_nonuniform_metric_no_boundaries():
     E_pad = pad_fields(E, (False, False, False))
     psi_H = jnp.zeros((6, nx, ny, nz))
 
-    curl_result, _ = curl_E(
+    curl_result, _ = _curl_E_full(
         config,
         E_pad,
         psi_H,
-        alpha=jnp.zeros((6, nx, ny, nz)),
-        kappa=jnp.ones((6, nx, ny, nz)),
-        sigma=jnp.zeros((6, nx, ny, nz)),
+        pml_a=jnp.zeros((6, nx, ny, nz)),
+        pml_b=jnp.ones((6, nx, ny, nz)),
+        pml_inv_kappa=jnp.ones((6, nx, ny, nz)),
         simulate_boundaries=False,
     )
 
@@ -302,13 +346,13 @@ def test_curl_E_nonuniform_quadratic_field_matches_local_physical_derivative():
     E_pad = pad_fields(E, (False, False, False))
     psi_H = jnp.zeros((6, nx, ny, nz))
 
-    curl_result, _ = curl_E(
+    curl_result, _ = _curl_E_full(
         config,
         E_pad,
         psi_H,
-        alpha=jnp.zeros((6, nx, ny, nz)),
-        kappa=jnp.ones((6, nx, ny, nz)),
-        sigma=jnp.zeros((6, nx, ny, nz)),
+        pml_a=jnp.zeros((6, nx, ny, nz)),
+        pml_b=jnp.ones((6, nx, ny, nz)),
+        pml_inv_kappa=jnp.ones((6, nx, ny, nz)),
         simulate_boundaries=False,
     )
 
@@ -327,13 +371,16 @@ def test_curl_E_nonuniform_pml_coefficients_use_time_step():
     E_pad = pad_fields(E, (False, False, False))
     psi_H = jnp.zeros((6, nx, ny, nz))
 
-    curl_result, psi_updated = curl_E(
+    curl_result, psi_updated = _curl_E_full(
         config,
         E_pad,
         psi_H,
-        alpha=jnp.ones((6, nx, ny, nz)) * 0.05,
-        kappa=jnp.ones((6, nx, ny, nz)),
-        sigma=jnp.ones((6, nx, ny, nz)) * 0.1,
+        *_coeffs(
+            config,
+            jnp.ones((6, nx, ny, nz)) * 0.05,
+            jnp.ones((6, nx, ny, nz)),
+            jnp.ones((6, nx, ny, nz)) * 0.1,
+        ),
         simulate_boundaries=True,
     )
 
@@ -358,13 +405,13 @@ def test_curl_H_linear_field():
     H_pad = pad_fields(H, (True, True, True))
     psi_E = jnp.zeros((6, 6, 6, 6))
 
-    curl_result, _ = curl_H(
+    curl_result, _ = _curl_H_full(
         _make_config(),
         H_pad,
         psi_E,
-        alpha=jnp.zeros((6, 6, 6, 6)),
-        kappa=jnp.ones((6, 6, 6, 6)),
-        sigma=jnp.zeros((6, 6, 6, 6)),
+        pml_a=jnp.zeros((6, 6, 6, 6)),
+        pml_b=jnp.ones((6, 6, 6, 6)),
+        pml_inv_kappa=jnp.ones((6, 6, 6, 6)),
         simulate_boundaries=True,
     )
 
@@ -378,13 +425,13 @@ def test_curl_H_zero_field():
     H_pad = pad_fields(H, (False, False, False))
     psi_E = jnp.zeros((6, 4, 4, 4))
 
-    curl_result, _ = curl_H(
+    curl_result, _ = _curl_H_full(
         _make_config(),
         H_pad,
         psi_E,
-        alpha=jnp.zeros((6, 4, 4, 4)),
-        kappa=jnp.ones((6, 4, 4, 4)),
-        sigma=jnp.zeros((6, 4, 4, 4)),
+        pml_a=jnp.zeros((6, 4, 4, 4)),
+        pml_b=jnp.ones((6, 4, 4, 4)),
+        pml_inv_kappa=jnp.ones((6, 4, 4, 4)),
         simulate_boundaries=True,
     )
 
@@ -400,13 +447,12 @@ def test_curl_H_no_boundaries():
     psi_E_init = jnp.ones((6, n, n, n)) * 0.3
     sigma = jnp.ones((6, n, n, n)) * 0.1
 
-    curl_result, psi_updated = curl_H(
-        _make_config(),
+    config = _make_config()
+    curl_result, psi_updated = _curl_H_full(
+        config,
         H_pad,
         psi_E_init,
-        alpha=jnp.ones((6, n, n, n)) * 0.05,
-        kappa=jnp.ones((6, n, n, n)),
-        sigma=sigma,
+        *_coeffs(config, jnp.ones((6, n, n, n)) * 0.05, jnp.ones((6, n, n, n)), sigma),
         simulate_boundaries=False,
     )
 
@@ -426,13 +472,12 @@ def test_curl_H_pml_updates():
     sigma = jnp.ones((6, n, n, n)) * 0.5
     alpha = jnp.ones((6, n, n, n)) * 0.1
 
-    curl_result, psi_updated = curl_H(
-        _make_config(),
+    config = _make_config()
+    curl_result, psi_updated = _curl_H_full(
+        config,
         H_pad,
         psi_E_init,
-        alpha=alpha,
-        kappa=jnp.ones((6, n, n, n)),
-        sigma=sigma,
+        *_coeffs(config, alpha, jnp.ones((6, n, n, n)), sigma),
         simulate_boundaries=True,
     )
 
@@ -453,13 +498,13 @@ def test_curl_H_mixed_periodic():
     H_pad = pad_fields(H, (False, True, False))
     psi_E = jnp.zeros((6, n, n, n))
 
-    curl_result, _ = curl_H(
+    curl_result, _ = _curl_H_full(
         _make_config(),
         H_pad,
         psi_E,
-        alpha=jnp.zeros((6, n, n, n)),
-        kappa=jnp.ones((6, n, n, n)),
-        sigma=jnp.zeros((6, n, n, n)),
+        pml_a=jnp.zeros((6, n, n, n)),
+        pml_b=jnp.ones((6, n, n, n)),
+        pml_inv_kappa=jnp.ones((6, n, n, n)),
         simulate_boundaries=True,
     )
 
@@ -479,13 +524,13 @@ def test_curl_H_nonuniform_metric_no_boundaries():
     H_pad = pad_fields(H, (False, False, False))
     psi_E = jnp.zeros((6, nx, ny, nz))
 
-    curl_result, _ = curl_H(
+    curl_result, _ = _curl_H_full(
         config,
         H_pad,
         psi_E,
-        alpha=jnp.zeros((6, nx, ny, nz)),
-        kappa=jnp.ones((6, nx, ny, nz)),
-        sigma=jnp.zeros((6, nx, ny, nz)),
+        pml_a=jnp.zeros((6, nx, ny, nz)),
+        pml_b=jnp.ones((6, nx, ny, nz)),
+        pml_inv_kappa=jnp.ones((6, nx, ny, nz)),
         simulate_boundaries=False,
     )
 
@@ -512,13 +557,13 @@ def test_curl_H_nonuniform_quadratic_field_matches_local_physical_derivative():
     H_pad = pad_fields(H, (False, False, False))
     psi_E = jnp.zeros((6, nx, ny, nz))
 
-    curl_result, _ = curl_H(
+    curl_result, _ = _curl_H_full(
         config,
         H_pad,
         psi_E,
-        alpha=jnp.zeros((6, nx, ny, nz)),
-        kappa=jnp.ones((6, nx, ny, nz)),
-        sigma=jnp.zeros((6, nx, ny, nz)),
+        pml_a=jnp.zeros((6, nx, ny, nz)),
+        pml_b=jnp.ones((6, nx, ny, nz)),
+        pml_inv_kappa=jnp.ones((6, nx, ny, nz)),
         simulate_boundaries=False,
     )
 
@@ -537,13 +582,16 @@ def test_curl_H_nonuniform_pml_coefficients_use_time_step():
     H_pad = pad_fields(H, (False, False, False))
     psi_E = jnp.zeros((6, nx, ny, nz))
 
-    curl_result, psi_updated = curl_H(
+    curl_result, psi_updated = _curl_H_full(
         config,
         H_pad,
         psi_E,
-        alpha=jnp.ones((6, nx, ny, nz)) * 0.05,
-        kappa=jnp.ones((6, nx, ny, nz)),
-        sigma=jnp.ones((6, nx, ny, nz)) * 0.1,
+        *_coeffs(
+            config,
+            jnp.ones((6, nx, ny, nz)) * 0.05,
+            jnp.ones((6, nx, ny, nz)),
+            jnp.ones((6, nx, ny, nz)) * 0.1,
+        ),
         simulate_boundaries=True,
     )
 

@@ -86,19 +86,19 @@ def test_dispersive_arrays_allocated(simple_config, simple_volume):
     placed = _placed(objects, "slab")
 
     Nx, Ny, Nz = simple_volume.partial_grid_shape  # type: ignore[misc]
-    assert arrays.dispersive_P_curr is not None
-    assert arrays.dispersive_P_prev is not None
+    assert arrays.fields.dispersive_P_curr is not None
+    assert arrays.fields.dispersive_P_prev is not None
     assert arrays.dispersive_c1 is not None
     assert arrays.dispersive_c2 is not None
     assert arrays.dispersive_c3 is not None
-    assert arrays.dispersive_P_curr.shape == (1, 3, Nx, Ny, Nz)
-    assert arrays.dispersive_P_prev.shape == (1, 3, Nx, Ny, Nz)
+    assert arrays.fields.dispersive_P_curr.shape == (1, 3, Nx, Ny, Nz)
+    assert arrays.fields.dispersive_P_prev.shape == (1, 3, Nx, Ny, Nz)
     assert arrays.dispersive_c1.shape == (1, 1, Nx, Ny, Nz)
     assert arrays.dispersive_c2.shape == (1, 1, Nx, Ny, Nz)
     assert arrays.dispersive_c3.shape == (1, 1, Nx, Ny, Nz)
     # polarization always starts at zero
-    assert jnp.all(arrays.dispersive_P_curr == 0)
-    assert jnp.all(arrays.dispersive_P_prev == 0)
+    assert jnp.all(arrays.fields.dispersive_P_curr == 0)
+    assert jnp.all(arrays.fields.dispersive_P_prev == 0)
 
     # Coefficient values inside the slab should match compute_pole_coefficients.
     c1_ref, c2_ref, c3_ref = compute_pole_coefficients(
@@ -125,8 +125,8 @@ def test_no_dispersive_arrays_when_unused(simple_config, simple_volume):
     key = jax.random.PRNGKey(0)
     _, arrays, _, _, _ = place_objects([simple_volume, obj], simple_config, [constraint], key)
 
-    assert arrays.dispersive_P_curr is None
-    assert arrays.dispersive_P_prev is None
+    assert arrays.fields.dispersive_P_curr is None
+    assert arrays.fields.dispersive_P_prev is None
     assert arrays.dispersive_c1 is None
     assert arrays.dispersive_c2 is None
     assert arrays.dispersive_c3 is None
@@ -152,7 +152,7 @@ def test_pole_padding_mixed_pole_counts(simple_config, simple_volume):
 
     Nx, Ny, Nz = simple_volume.partial_grid_shape  # type: ignore[misc]
     assert arrays.dispersive_c1.shape == (3, 1, Nx, Ny, Nz)
-    assert arrays.dispersive_P_curr.shape == (3, 3, Nx, Ny, Nz)
+    assert arrays.fields.dispersive_P_curr.shape == (3, 3, Nx, Ny, Nz)
 
     # Inside the 1-pole slab: pole slot 0 is populated, slots 1 and 2 are zero.
     xs1, ys1, zs1 = placed1.grid_slice
