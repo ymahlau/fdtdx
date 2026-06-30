@@ -251,14 +251,32 @@ def place_objects(
 
     # Step 10: Initialize parameters and arrays
     assert key is not None
-    params = _init_params(objects=objects_container, key=key)
+    key, subkey = jax.random.split(key)
+    params = _init_params(objects=objects_container, key=subkey)
     arrays, config, info = _init_arrays(objects=objects_container, config=config)
 
-    # Step 11: Update object configs with compiled configuration
+    # Step 11: Update object configs and apply objects if possible
+    disp_c1 = None if arrays.dispersive_c1 is None else jax.lax.stop_gradient(arrays.dispersive_c1)
+    disp_c2 = None if arrays.dispersive_c2 is None else jax.lax.stop_gradient(arrays.dispersive_c2)
+    disp_c3 = None if arrays.dispersive_c3 is None else jax.lax.stop_gradient(arrays.dispersive_c3)
     new_object_list = []
-    for o in objects_container.objects:
-        o = o.aset("_config", config)
-        new_object_list.append(o)
+    devices = objects_container.devices
+    for obj in objects_container.objects:
+        # Update object configs with compiled configuration
+        obj = obj.aset("_config", config)
+
+        # Apply objects which do not depend on any devices
+        if not any([d.check_overlap(obj) for d in devices]):
+            key, subkey = jax.random.split(key)
+            obj = obj.apply(
+                key=subkey,
+                inv_permittivities=jax.lax.stop_gradient(arrays.inv_permittivities),
+                inv_permeabilities=jax.lax.stop_gradient(arrays.inv_permeabilities),
+                dispersive_c1=disp_c1,
+                dispersive_c2=disp_c2,
+                dispersive_c3=disp_c3,
+            )
+        new_object_list.append(obj)
 
     objects_container = ObjectContainer(
         object_list=new_object_list,
@@ -299,6 +317,9 @@ def apply_params(
 
     num_dispersive_poles = arrays.dispersive_c1.shape[0] if arrays.dispersive_c1 is not None else 0
 
+    if arrays.initial_inv_permittivities is not None:
+        arrays = arrays.at["inv_permittivities"].set(arrays.initial_inv_permittivities)
+
     # apply parameter to devices
     for device in objects.devices:
         cur_material_indices = device(params[device.name], expand_to_sim_grid=True, **transform_kwargs)
@@ -310,11 +331,6 @@ def apply_params(
                 diagonally_anisotropic=diagonally_anisotropic,
             )
         )  # shape: (num_materials, num_components)
-        if isotropic or diagonally_anisotropic:
-            inv_allowed = 1.0 / allowed_perm_array  # (num_materials, num_components)
-        else:
-            # Fully anisotropic: reshape to 3x3 matrix, invert, and flatten back to 9 elements
-            inv_allowed = jnp.array([jnp.linalg.inv(perm.reshape(3, 3)).flatten() for perm in allowed_perm_array])
 
         # When any object in the sim is dispersive (num_dispersive_poles > 0) we
         # always write the coefficient stack into the device's grid_slice — even
@@ -344,19 +360,23 @@ def apply_params(
             allowed_c3_arr = jnp.asarray(allowed_c3_np, dtype=arrays.dispersive_c3.dtype)
 
         if device.output_type == ParameterType.CONTINUOUS:
-            # Linear interpolation between two materials
+            # Linear interpolation between two materials via their permittivities
             # Add spatial broadcast dims for element-wise multiplication
-            inv_allowed_bc = inv_allowed[:, :, None, None, None]
-            # cur_material_indices: (*grid_shape) broadcasts with (num_components, 1, 1, 1)
-            new_perm_slice = (1 - cur_material_indices) * inv_allowed_bc[0] + cur_material_indices * inv_allowed_bc[1]
+            perm_bc = allowed_perm_array[:, :, None, None, None]
+            if device.use_etching:
+                # interpolate between existing background material and etch material
+                perm_slice = _invert_property(arrays.inv_permittivities[:, *device.grid_slice])
+                perm_slice = perm_slice + cur_material_indices * (perm_bc[0] - perm_slice)
+            else:
+                # interpolate between two device materials
+                # cur_material_indices: (*grid_shape) broadcasts with (num_components, 1, 1, 1)
+                perm_slice = perm_bc[0] + cur_material_indices * (perm_bc[1] - perm_bc[0])
+
+            new_inv_perm_slice = _invert_property(perm_slice)
+
             if write_dispersive:
                 assert allowed_c1_arr is not None and allowed_c2_arr is not None and allowed_c3_arr is not None
                 # Linear interpolation of dispersive coefficients between the two bracketing materials.
-                # Note: this follows the same straight-through-estimator convention as the
-                # permittivity path above — it is *not* equivalent to a material whose
-                # epsilon and poles are linearly interpolated, but it is the same
-                # continuous relaxation used for inv_permittivities, so gradients still
-                # flow smoothly through the device parameters during inverse design.
                 # allowed_cN_arr: (num_materials, num_poles) — here num_materials == 2.
                 # reshape to (num_poles, 1, 1, 1, 1) for broadcast over (num_poles, 1, Nx, Ny, Nz)
                 w0 = (1 - cur_material_indices)[None, None, ...]  # (1, 1, Nx, Ny, Nz)
@@ -372,10 +392,17 @@ def apply_params(
                 new_c3_slice = w0 * c3_0 + w1 * c3_1
         else:
             # Discrete material selection
+            # Precompute inverse permittivities since the selection result is binary
+            if isotropic or diagonally_anisotropic:
+                inv_allowed = 1.0 / allowed_perm_array  # (num_materials, num_components)
+            else:
+                # Fully anisotropic: reshape to 3x3 matrix, invert, and flatten back to 9 elements
+                inv_allowed = jnp.array([jnp.linalg.inv(perm.reshape(3, 3)).flatten() for perm in allowed_perm_array])
+
             # inv_allowed[indices] -> (*grid_shape, num_components), then moveaxis -> (num_components, *grid_shape)
             component_values = jnp.moveaxis(inv_allowed[cur_material_indices.astype(jnp.int32)], -1, 0)
-            component_values = straight_through_estimator(cur_material_indices, component_values)
-            new_perm_slice = component_values
+            new_inv_perm_slice = straight_through_estimator(cur_material_indices, component_values)
+
             if write_dispersive:
                 assert allowed_c1_arr is not None and allowed_c2_arr is not None and allowed_c3_arr is not None
                 int_idx = cur_material_indices.astype(jnp.int32)
@@ -385,8 +412,8 @@ def apply_params(
                 new_c3_slice = jnp.moveaxis(allowed_c3_arr[int_idx], -1, 0)[:, None, ...]
 
         # Update all components of inv_permittivities array at once
-        new_perm = arrays.inv_permittivities.at[:, *device.grid_slice].set(new_perm_slice)
-        arrays = arrays.at["inv_permittivities"].set(new_perm)
+        new_inv_perm = arrays.inv_permittivities.at[:, *device.grid_slice].set(new_inv_perm_slice)
+        arrays = arrays.at["inv_permittivities"].set(new_inv_perm)
 
         if write_dispersive:
             assert (
@@ -416,18 +443,21 @@ def apply_params(
     disp_c2 = None if arrays.dispersive_c2 is None else jax.lax.stop_gradient(arrays.dispersive_c2)
     disp_c3 = None if arrays.dispersive_c3 is None else jax.lax.stop_gradient(arrays.dispersive_c3)
     new_objects = []
+    devices = objects.devices
     for obj in objects.object_list:
-        assert key is not None
-        key, subkey = jax.random.split(key)
-        new_obj = obj.apply(
-            key=subkey,
-            inv_permittivities=jax.lax.stop_gradient(arrays.inv_permittivities),
-            inv_permeabilities=jax.lax.stop_gradient(arrays.inv_permeabilities),
-            dispersive_c1=disp_c1,
-            dispersive_c2=disp_c2,
-            dispersive_c3=disp_c3,
-        )
-        new_objects.append(new_obj)
+        # Only need to apply objects that overlap with devices, the others were applied in place_objects
+        if any([d.check_overlap(obj) for d in devices]):
+            assert key is not None
+            key, subkey = jax.random.split(key)
+            obj = obj.apply(
+                key=subkey,
+                inv_permittivities=jax.lax.stop_gradient(arrays.inv_permittivities),
+                inv_permeabilities=jax.lax.stop_gradient(arrays.inv_permeabilities),
+                dispersive_c1=disp_c1,
+                dispersive_c2=disp_c2,
+                dispersive_c3=disp_c3,
+            )
+        new_objects.append(obj)
     new_objects = ObjectContainer(
         object_list=new_objects,
         volume_idx=objects.volume_idx,
@@ -806,17 +836,15 @@ def _init_arrays(
                     diagonally_anisotropic=diagonally_anisotropic_permittivity,
                 )
             )
-            if num_perm_components == 1 or num_perm_components == 3:
-                allowed_inv_perms = 1 / allowed_perms  # shape: (num_materials, num_components)
-            else:
-                # Fully anisotropic: reshape to 3x3 matrix, invert, and flatten back to 9 elements
-                allowed_inv_perms = jnp.array([jnp.linalg.inv(perm.reshape(3, 3)).flatten() for perm in allowed_perms])
 
-            # allowed_inv_perms[indices] -> (*grid_shape, num_components)
+            # allowed_perms[indices] -> (*grid_shape, num_components)
             # After moveaxis -> (num_components, *grid_shape)
-            component_values = jnp.moveaxis(allowed_inv_perms[indices], -1, 0)
-            diff = component_values - inv_permittivities[:, *o.grid_slice]
-            inv_permittivities = inv_permittivities.at[:, *o.grid_slice].add(mask * diff)
+            component_values = jnp.moveaxis(allowed_perms[indices], -1, 0)
+            perm_slice = _invert_property(inv_permittivities[:, *o.grid_slice])
+
+            # Linearly interpolate in the forward domain
+            perm_slice = perm_slice + mask * (component_values - perm_slice)
+            inv_permittivities = inv_permittivities.at[:, *o.grid_slice].set(_invert_property(perm_slice))
 
             if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
                 allowed_perms = jnp.asarray(
@@ -826,17 +854,12 @@ def _init_arrays(
                         diagonally_anisotropic=diagonally_anisotropic_permeability,
                     )
                 )
-                if num_permeability_components == 1 or num_permeability_components == 3:
-                    allowed_inv_perms = 1 / allowed_perms
-                else:
-                    # Fully anisotropic: reshape to 3x3 matrix, invert, and flatten back to 9 elements
-                    allowed_inv_perms = jnp.array(
-                        [jnp.linalg.inv(perm.reshape(3, 3)).flatten() for perm in allowed_perms]
-                    )
 
-                component_values = jnp.moveaxis(allowed_inv_perms[indices], -1, 0)
-                diff = component_values - inv_permeabilities[:, *o.grid_slice]
-                inv_permeabilities = inv_permeabilities.at[:, *o.grid_slice].add(mask * diff)
+                component_values = jnp.moveaxis(allowed_perms[indices], -1, 0)
+                perm_slice = _invert_property(inv_permeabilities[:, *o.grid_slice])
+
+                perm_slice = perm_slice + mask * (component_values - perm_slice)
+                inv_permeabilities = inv_permeabilities.at[:, *o.grid_slice].set(_invert_property(perm_slice))
 
             if electric_conductivity is not None:
                 allowed_conds = jnp.asarray(
@@ -956,6 +979,10 @@ def _init_arrays(
     pml_b = pml_b_full[:, shell_ix, shell_iy, shell_iz]
     pml_inv_kappa = pml_inv_kappa_full[:, shell_ix, shell_iy, shell_iz]
 
+    # Save backup of initial inv_permittivities when using etched_devices
+    using_etching = any(d.use_etching for d in objects.devices)
+    initial_inv_permittivities = jnp.copy(inv_permittivities) if using_etching else None
+
     arrays = ArrayContainer(
         fields=FieldState(
             E=E,
@@ -979,6 +1006,7 @@ def _init_arrays(
         dispersive_c2=dispersive_c2,
         dispersive_c3=dispersive_c3,
         dispersive_inv_c2=dispersive_inv_c2,
+        initial_inv_permittivities=initial_inv_permittivities,
     )
     return arrays, config, info
 
@@ -1918,3 +1946,22 @@ def _handle_unresolved_objects(
         if any([slice_dict[obj_name][a][0] is None or slice_dict[obj_name][a][1] is None for a in range(3)]):
             errors[obj_name] = f"Could not resolve position/size of {obj.name} ({obj.__class__})."
     return errors
+
+
+def _invert_property(arr: jax.Array):
+    """Inverts a property array, e.g. inv_permittivities of shape (num_comp, *grid_shape)."""
+    num_components = arr.shape[0]
+    assert arr.ndim == 4 and num_components in [1, 3, 9], (
+        f"Expecting shape (num_comp, *grid_shape), got shape {arr.shape}"
+    )
+
+    if num_components in (1, 3):
+        return 1.0 / arr
+    else:
+        # Full tensor inversion: move 9-component axis to the end, reshape, invert, and flatten back
+        arr_reshaped = jnp.moveaxis(arr, 0, -1)
+        spatial_shape = arr_reshaped.shape[:-1]
+        matrices = arr_reshaped.reshape(*spatial_shape, 3, 3)
+        inv_matrices = jnp.linalg.inv(matrices)
+        inv_flattened = inv_matrices.reshape(*spatial_shape, 9)
+        return jnp.moveaxis(inv_flattened, -1, 0)

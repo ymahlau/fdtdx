@@ -149,6 +149,7 @@ def reversible_fdtd(
             dispersive_c2=dispersive_c2,
             dispersive_c3=dispersive_c3,
             dispersive_inv_c2=arrays.dispersive_inv_c2,
+            initial_inv_permittivities=arrays.initial_inv_permittivities,
         )
         state = reversible_fdtd_base(arr)
         return (
@@ -275,6 +276,7 @@ def reversible_fdtd(
             dispersive_c2=res_dispersive_c2,
             dispersive_c3=res_dispersive_c3,
             dispersive_inv_c2=arrays.dispersive_inv_c2,
+            initial_inv_permittivities=arrays.initial_inv_permittivities,
         )
 
         _, cot = eqxi.while_loop(
@@ -343,6 +345,7 @@ def reversible_fdtd(
             dispersive_c2=dispersive_c2,
             dispersive_c3=dispersive_c3,
             dispersive_inv_c2=arrays.dispersive_inv_c2,
+            initial_inv_permittivities=arrays.initial_inv_permittivities,
         )
         s_k = reversible_fdtd_base(arr)
 
@@ -431,6 +434,7 @@ def reversible_fdtd(
         dispersive_c2=dispersive_c2,
         dispersive_c3=dispersive_c3,
         dispersive_inv_c2=arrays.dispersive_inv_c2,
+        initial_inv_permittivities=arrays.initial_inv_permittivities,
     )
     return time_step, out_arrs
 

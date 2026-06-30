@@ -20,6 +20,7 @@ API
     fdtdx.compute_energy
     fdtdx.compute_eps_spectrum_from_coefficients
     fdtdx.compute_impedance_corrected_temporal_profile
+    fdtdx.compute_integrated_power
     fdtdx.compute_mode
     fdtdx.compute_pole_coefficients
     fdtdx.compute_poynting_flux

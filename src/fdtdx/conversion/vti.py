@@ -184,7 +184,7 @@ def export_vti(
         f.write(b"\n</AppendedData>\n</VTKFile>")
 
 
-def _validate_vtk_cell_data(cell_data: dict[str, jax.Array]) -> tuple[int, int, int]:
+def _validate_vtk_cell_data(cell_data: dict[str, jax.Array]) -> tuple[int, ...]:
     """Validate common VTK cell-data constraints and return spatial shape."""
     shape = next(iter(cell_data.values())).shape[-3:]
     if not all(a.shape[-3:] == shape for a in cell_data.values()):

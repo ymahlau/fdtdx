@@ -377,6 +377,10 @@ class ArrayContainer(TreeClass):
     #: Shape ``(num_poles, 1, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
     dispersive_inv_c2: jax.Array | None = None
 
+    #: Backup of inverse permittivity values array.
+    #: Only used when etching a device.
+    initial_inv_permittivities: jax.Array | None = None
+
     def reset(
         self,
         reset_detector_states: bool = True,

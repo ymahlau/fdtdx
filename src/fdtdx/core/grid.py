@@ -554,6 +554,18 @@ class RectilinearGrid(TreeClass):
             self.axis_extent(2, slice_tuple[2]),
         )
 
+    def subgrid(
+        self,
+        grid_slice: tuple[slice, slice, slice],
+    ):
+        """Convenience wrapper to get the sub-grid of a placed fdtdx.SimulationObject given its grid_slice"""
+        subgrid = self.custom(
+            self.x_edges[slice(grid_slice[0].start, grid_slice[0].stop + 1)],
+            self.y_edges[slice(grid_slice[1].start, grid_slice[1].stop + 1)],
+            self.z_edges[slice(grid_slice[2].start, grid_slice[2].stop + 1)],
+        )
+        return subgrid
+
     def coord_to_index(self, axis: int, coord: float, snap: str = "nearest") -> int:
         """Map a physical coordinate to a grid edge index.
 
