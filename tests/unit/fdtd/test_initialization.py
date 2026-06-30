@@ -715,8 +715,6 @@ def _make_arrays_mock(shape=(10, 10, 10)):
             result.dispersive_c1 = None
             result.dispersive_c2 = None
             result.dispersive_c3 = None
-            result.dispersive_P_curr = None
-            result.dispersive_P_prev = None
             result.at = at_accessor
             return result
 
@@ -829,8 +827,6 @@ def test_apply_params_isotropic_components(mock_compute_perm):
             dispersive_c1=None,
             dispersive_c2=None,
             dispersive_c3=None,
-            dispersive_P_curr=None,
-            dispersive_P_prev=None,
             at=at_accessor,
         )
         return at_result
@@ -888,8 +884,6 @@ def test_apply_params_fully_anisotropic_continuous(mock_compute_perm):
             dispersive_c1=None,
             dispersive_c2=None,
             dispersive_c3=None,
-            dispersive_P_curr=None,
-            dispersive_P_prev=None,
             at=at_accessor,
         )
         return at_result
@@ -948,8 +942,6 @@ def test_apply_params_fully_anisotropic_discrete(mock_ste, mock_compute_perm):
             dispersive_c1=None,
             dispersive_c2=None,
             dispersive_c3=None,
-            dispersive_P_curr=None,
-            dispersive_P_prev=None,
             at=at_accessor,
         )
         return at_result
@@ -1560,6 +1552,7 @@ def test_init_arrays_unknown_static_material_type_raises(mock_create_matrix):
     objects.static_material_objects = [fake_obj]
     objects.detectors = []
     objects.boundary_objects = []
+    objects.pml_objects = []
 
     with pytest.raises(Exception, match="Unknown object type"):
         _init_arrays(objects, config)

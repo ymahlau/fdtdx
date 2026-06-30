@@ -309,10 +309,16 @@ def test_pml_boundary_modifies_arrays(simple_config, simple_volume, simple_mater
     # PML is in boundary_objects
     assert len(obj_container.boundary_objects) == 1
     assert obj_container.boundary_objects[0].name == "pml_xmin"
-    # Arrays were modified by PML
-    assert arrays.alpha is not None
-    assert arrays.kappa is not None
-    assert arrays.sigma is not None
+    # PML coefficients and auxiliary state are stored sparsely over the PML shell (6, M).
+    assert arrays.pml_a is not None
+    assert arrays.pml_b is not None
+    assert arrays.pml_inv_kappa is not None
+    M = arrays.pml_indices.shape[1]
+    assert M > 0  # a PML boundary is present, so the shell is non-empty
+    assert arrays.pml_indices.shape == (3, M)
+    assert arrays.pml_a.shape == (6, M)
+    assert arrays.fields.psi_E.shape == (6, M)
+    assert arrays.fields.psi_H.shape == (6, M)
 
 
 # ---------------------------------------------------------------------------

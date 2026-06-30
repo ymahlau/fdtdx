@@ -4,6 +4,7 @@ from typing import Any, Sequence
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 from loguru import logger
 
 from fdtdx import constants
@@ -13,6 +14,7 @@ from fdtdx.core.jax.default_key import default_key
 from fdtdx.core.jax.guards import check_not_tracing
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
 from fdtdx.core.jax.ste import straight_through_estimator
+from fdtdx.core.physics.curl import compute_pml_coefficients
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, ParameterContainer
 from fdtdx.fdtd.symmetry import apply_mode_symmetry, make_symmetry_walls, reduce_resolved_slices
 from fdtdx.materials import (
@@ -525,21 +527,21 @@ def _init_arrays(
         backend=config.backend,
     )
 
-    # create auxiliary fields psi_E and psi_H for PML boundaries
-    psi_E = create_named_sharded_matrix(
-        (6, *volume_shape),
-        sharding_axis=1,
-        value=0.0,
-        dtype=field_dtype,
-        backend=config.backend,
-    )
-    psi_H = create_named_sharded_matrix(
-        (6, *volume_shape),
-        value=0.0,
-        dtype=field_dtype,
-        sharding_axis=1,
-        backend=config.backend,
-    )
+    # Build the PML shell: the union of all PML regions. The CPML auxiliary state and
+    # coefficients are non-trivial only here, so they are stored sparsely over just these
+    # M cells (M == 0 when there are no PML boundaries, which makes the gather/scatter in
+    # curl_E/curl_H no-ops).
+    pml_mask = np.zeros(volume_shape, dtype=bool)
+    for pml in objects.pml_objects:
+        pml_mask[pml.grid_slice] = True
+    shell_ix, shell_iy, shell_iz = np.where(pml_mask)
+    num_pml_cells = int(shell_ix.size)
+    pml_indices = jnp.asarray(np.stack([shell_ix, shell_iy, shell_iz]).astype(np.int32))
+
+    # PML auxiliary fields psi_E / psi_H, stored compactly over the shell cells (6, M).
+    # Replicated (not spatially sharded): M is a flat index axis, not a grid axis.
+    psi_E = jnp.zeros((6, num_pml_cells), dtype=field_dtype)
+    psi_H = jnp.zeros((6, num_pml_cells), dtype=field_dtype)
 
     # create alpha, kappa, and sigma arrays
     alpha = create_named_sharded_matrix(
@@ -967,23 +969,39 @@ def _init_arrays(
     if dispersive_c2 is not None:
         dispersive_inv_c2 = jnp.where(dispersive_c2 == 0, 0.0, 1.0 / dispersive_c2)
 
+    # Precompute the time-invariant CPML recurrence coefficients (full volume), then gather
+    # them onto the M PML shell cells. The full-volume arrays are transient setup scratch;
+    # only the gathered (6, M) coefficients persist in the ArrayContainer.
+    pml_a_full, pml_b_full, pml_inv_kappa_full = compute_pml_coefficients(
+        alpha, kappa, sigma, config.time_step_duration
+    )
+    pml_a = pml_a_full[:, shell_ix, shell_iy, shell_iz]
+    pml_b = pml_b_full[:, shell_ix, shell_iy, shell_iz]
+    pml_inv_kappa = pml_inv_kappa_full[:, shell_ix, shell_iy, shell_iz]
+
     # Save backup of initial inv_permittivities when using etched_devices
     using_etching = any(d.use_etching for d in objects.devices)
     initial_inv_permittivities = jnp.copy(inv_permittivities) if using_etching else None
 
     arrays = ArrayContainer(
-        fields=FieldState(E=E, H=H, psi_E=psi_E, psi_H=psi_H),
-        alpha=alpha,
-        kappa=kappa,
-        sigma=sigma,
+        fields=FieldState(
+            E=E,
+            H=H,
+            psi_E=psi_E,
+            psi_H=psi_H,
+            dispersive_P_curr=dispersive_P_curr,
+            dispersive_P_prev=dispersive_P_prev,
+        ),
+        pml_a=pml_a,
+        pml_b=pml_b,
+        pml_inv_kappa=pml_inv_kappa,
+        pml_indices=pml_indices,
         inv_permittivities=inv_permittivities,
         inv_permeabilities=inv_permeabilities,
         detector_states=detector_states,
         recording_state=recording_state,
         electric_conductivity=electric_conductivity,
         magnetic_conductivity=magnetic_conductivity,
-        dispersive_P_curr=dispersive_P_curr,
-        dispersive_P_prev=dispersive_P_prev,
         dispersive_c1=dispersive_c1,
         dispersive_c2=dispersive_c2,
         dispersive_c3=dispersive_c3,

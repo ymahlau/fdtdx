@@ -298,11 +298,20 @@ class FieldState(TreeClass):
     #: Magnetic field array.
     H: jax.Array
 
-    #: PML auxiliary electric field.
+    #: PML auxiliary electric field, stored sparsely over the PML shell. Shape ``(6, M)``
+    #: where ``M`` is the number of shell cells (see ``ArrayContainer.pml_indices``).
     psi_E: jax.Array
 
-    #: PML auxiliary magnetic field.
+    #: PML auxiliary magnetic field, stored sparsely over the PML shell. Shape ``(6, M)``.
     psi_H: jax.Array
+
+    #: Dispersive ADE polarization state at time step ``n``. Shape
+    #: ``(num_poles, 3, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
+    dispersive_P_curr: jax.Array | None = None
+
+    #: Dispersive ADE polarization state at time step ``n-1``. Shape
+    #: ``(num_poles, 3, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
+    dispersive_P_prev: jax.Array | None = None
 
 
 @autoinit
@@ -317,14 +326,20 @@ class ArrayContainer(TreeClass):
     #: Dynamic electromagnetic fields (E, H and PML auxiliaries).
     fields: FieldState
 
-    #: Alpha array for PML calculations.
-    alpha: jax.Array
+    #: Precomputed PML recurrence coefficient ``a``, gathered over the PML shell (shape ``(6, M)``).
+    #: See :func:`fdtdx.core.physics.curl.compute_pml_coefficients`.
+    pml_a: jax.Array
 
-    #: Kappa array for PML calculations.
-    kappa: jax.Array
+    #: Precomputed PML recurrence coefficient ``b``, gathered over the PML shell (shape ``(6, M)``).
+    pml_b: jax.Array
 
-    #: Sigma array for PML calculations.
-    sigma: jax.Array
+    #: Precomputed reciprocal PML stretching factor ``1 / kappa``, gathered over the PML shell (shape ``(6, M)``).
+    pml_inv_kappa: jax.Array
+
+    #: Grid coordinates ``(ix, iy, iz)`` of the ``M`` PML shell cells (shape ``(3, M)``, int32).
+    #: Used to gather field derivatives at and scatter PML corrections back into the full-volume curl.
+    #: ``M == 0`` when there are no PML boundaries (gather/scatter then reduce to no-ops).
+    pml_indices: jax.Array
 
     #: Inverse permittivity values array.
     inv_permittivities: jax.Array
@@ -343,14 +358,6 @@ class ArrayContainer(TreeClass):
 
     #: field for magnetic conductivity terms. Defaults to None.
     magnetic_conductivity: jax.Array | None = None
-
-    #: Dispersive ADE polarization state at time step ``n``. Shape
-    #: ``(num_poles, 3, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
-    dispersive_P_curr: jax.Array | None = None
-
-    #: Dispersive ADE polarization state at time step ``n-1``. Shape
-    #: ``(num_poles, 3, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
-    dispersive_P_prev: jax.Array | None = None
 
     #: Per-cell dispersive recurrence coefficient c1. Shape
     #: ``(num_poles, 1, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
@@ -395,15 +402,11 @@ class ArrayContainer(TreeClass):
         Returns:
             A new ArrayContainer with reset dynamic state.
         """
+        # FieldState now holds the dispersive ADE polarization (dispersive_P_curr/prev)
+        # alongside E/H/psi, so this single tree.map zeroes all dynamic per-timestep
+        # state at once (``None`` leaves stay ``None`` for non-dispersive sims).
+        # Coefficient arrays (c1/c2/c3/inv_c2) are material properties and preserved.
         arrays = self.aset("fields", jax.tree.map(jnp.zeros_like, self.fields))
-
-        # Dispersive ADE polarization is also dynamic per-timestep state and must
-        # be zeroed alongside E/H. Coefficient arrays (c1/c2/c3/inv_c2) are
-        # material properties and are preserved.
-        if arrays.dispersive_P_curr is not None:
-            arrays = arrays.aset("dispersive_P_curr", jnp.zeros_like(arrays.dispersive_P_curr))
-        if arrays.dispersive_P_prev is not None:
-            arrays = arrays.aset("dispersive_P_prev", jnp.zeros_like(arrays.dispersive_P_prev))
 
         detector_states = self.detector_states
         if reset_detector_states:
