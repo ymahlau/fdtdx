@@ -125,7 +125,9 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         dispersive_c1: jax.Array | None = None,
         dispersive_c2: jax.Array | None = None,
         dispersive_c3: jax.Array | None = None,
+        electric_conductivity: jax.Array | None = None,
     ):
+        del electric_conductivity
         # inv_permittivities shape: (3, Nx, Ny, Nz) - slice with component dimension
         inv_permittivities = inv_permittivities[:, *self.grid_slice]
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:

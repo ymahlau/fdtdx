@@ -73,6 +73,7 @@ class Source(SimulationObject, ABC):
         dispersive_c1: jax.Array | None = None,
         dispersive_c2: jax.Array | None = None,
         dispersive_c3: jax.Array | None = None,
+        electric_conductivity: jax.Array | None = None,
     ) -> Self:
         self = super().apply(
             key=key,
@@ -81,6 +82,7 @@ class Source(SimulationObject, ABC):
             dispersive_c1=dispersive_c1,
             dispersive_c2=dispersive_c2,
             dispersive_c3=dispersive_c3,
+            electric_conductivity=electric_conductivity,
         )
         self = self._update_on_arrays()
         return self

@@ -124,8 +124,9 @@ class PointDipoleSource(Source):
         dispersive_c1: jax.Array | None = None,
         dispersive_c2: jax.Array | None = None,
         dispersive_c3: jax.Array | None = None,
+        electric_conductivity: jax.Array | None = None,
     ) -> Self:
-        del key
+        del key, electric_conductivity
 
         # inv_permittivities shape: (num_components, Nx, Ny, Nz)
         inv_eps_slice = inv_permittivities[:, *self.grid_slice]
