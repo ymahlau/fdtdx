@@ -76,6 +76,7 @@ def _make_config(c=0.5):
     cfg = Mock()
     cfg.courant_number = c
     cfg.uniform_spacing.return_value = 1.0
+    cfg.has_nonuniform_grid = False
     return cfg
 
 
