@@ -1,4 +1,5 @@
 import math
+from typing import cast
 
 import numpy as np
 
@@ -406,7 +407,10 @@ def isotropic_property_value(
     array = raw_array.astype(float)
     if not np.all(np.isfinite(array)):
         raise ValueError(f"{name} must contain finite values.")
-    property_values = tuple(float(value) for value in array)
+    property_values = cast(
+        tuple[float, float, float, float, float, float, float, float, float],
+        tuple(float(value) for value in array),
+    )
     if not _is_property_isotropic(property_values):
         raise ValueError(f"{name} must be isotropic.")
     return property_values[0]

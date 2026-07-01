@@ -634,6 +634,10 @@ class FieldProjectionDetectorBase(PhasorDetector):
         far-field projections from drifting apart when the detector grid is downsampled.
         """
         local_axes, signs = self._local_axes_for_surface(propagation_axis, direction)
+        e_field = jnp.asarray(e_field)
+        h_field = jnp.asarray(h_field)
+        u_coords = jnp.asarray(u_coords)
+        v_coords = jnp.asarray(v_coords)
         u_indices = subsample_indices(u_coords.size, int(self.interval_space[local_axes[0]]))
         v_indices = subsample_indices(v_coords.size, int(self.interval_space[local_axes[1]]))
         e_field = e_field[:, u_indices][:, :, v_indices]
