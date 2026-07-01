@@ -99,6 +99,7 @@ class ModePlaneSource(TFSFPlaneSource):
         dispersive_c2: jax.Array | None = None,
         dispersive_c3: jax.Array | None = None,
         electric_conductivity: jax.Array | None = None,
+        dispersive_c4: jax.Array | None = None,
     ) -> Self:
         del key
         if (
@@ -125,11 +126,12 @@ class ModePlaneSource(TFSFPlaneSource):
         # Frequency-correct the permittivity seen by the mode solver so that
         # mode profiles computed inside a dispersive medium reflect the true
         # epsilon at the carrier frequency, not epsilon_infinity.
-        c1_slice = c2_slice = c3_slice = None
+        c1_slice = c2_slice = c3_slice = c4_slice = None
         if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
             c1_slice = dispersive_c1[:, :, *self.grid_slice]
             c2_slice = dispersive_c2[:, :, *self.grid_slice]
             c3_slice = dispersive_c3[:, :, *self.grid_slice]
+            c4_slice = None if dispersive_c4 is None else dispersive_c4[:, :, *self.grid_slice]
             inv_permittivity_slice = effective_inv_permittivity(
                 inv_eps=inv_permittivity_slice,
                 c1=c1_slice,
@@ -137,6 +139,7 @@ class ModePlaneSource(TFSFPlaneSource):
                 c3=c3_slice,
                 omega=2.0 * np.pi * self.wave_character.get_frequency(),
                 dt=self._config.time_step_duration,
+                c4=c4_slice,
             )
 
         self = self.aset("_inv_permittivity", inv_permittivity_slice, create_new_ok=True)
@@ -158,6 +161,7 @@ class ModePlaneSource(TFSFPlaneSource):
                 c1=c1_slice,
                 c2=c2_slice,
                 c3=c3_slice,
+                c4=c4_slice,
                 electric_conductivity=sigma_slice,
                 conductivity_spacing=(
                     None
@@ -240,6 +244,7 @@ class ModePlaneSource(TFSFPlaneSource):
                 c3_slice=c3_slice,
                 inv_eps_inf_slice=inv_eps_inf_slice,
                 dtype=self._config.dtype,
+                c4_slice=c4_slice,
             )
             self = self.aset("_temporal_H_filter", filtered, create_new_ok=True)
         else:

@@ -70,6 +70,27 @@ def _drude_model():
     return fdtdx.DispersionModel(poles=(fdtdx.DrudePole(plasma_frequency=omega_p, damping=gamma),))
 
 
+def _ccpr_model():
+    """A genuine CCPR pole with a *complex* residue — its dE/dt coupling
+    ``b = coupling_edot`` is non-zero, the degree of freedom Lorentz/Drude
+    cannot represent.
+
+    The pole is built from ``(ω₀, γ, a, b)`` chosen to satisfy the single-pole
+    passivity bounds ``b ≥ 0`` and ``a·γ ≥ b·ω₀²`` (so Im ε ≥ 0 for all ω and
+    the time-domain scheme is stable — a *non-passive* pole would correctly
+    blow up). ``b`` is as large as passivity allows so its effect on ε is
+    clearly measurable."""
+    w0 = 1.5 * _OMEGA
+    gamma = 0.15 * _OMEGA
+    a = 3.0 * _OMEGA**2
+    b = 0.1 * _OMEGA  # a*gamma/w0^2 = 0.2*_OMEGA, so b=0.1*_OMEGA is safely passive
+    omega_d = np.sqrt(w0**2 - (gamma / 2) ** 2)
+    # Invert (ω₀, γ, a, b) -> complex (pole q, residue r); see CCPRPole docstring.
+    r = complex(b / 2.0, (a - b * gamma / 2.0) / (2.0 * omega_d))
+    q = complex(-gamma / 2.0, -omega_d)
+    return fdtdx.DispersionModel(poles=(fdtdx.CCPRPole(pole=q, residue=r),))
+
+
 def _fresnel_transmission_semi_infinite(eps_complex: complex) -> float:
     """Power transmission coefficient from vacuum into a semi-infinite
     medium with complex permittivity ``eps_complex`` at normal incidence.
@@ -370,4 +391,82 @@ def test_drude_metal_is_highly_reflective():
     assert abs(T_measured - T_analytic) < _TOLERANCE, (
         f"Drude T_measured={T_measured:.4f}, T_analytic={T_analytic:.4f}, "
         f"|diff|={abs(T_measured - T_analytic):.3f} > {_TOLERANCE}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# CCPR (complex-conjugate pole-residue) tests
+# ---------------------------------------------------------------------------
+
+_DET_CCPR_Z = 160  # 60 cells into the medium — a long enough path that the c4
+# contribution to the absorption is clearly amplified in the transmitted flux.
+
+
+def test_ccpr_pole_has_nonzero_edot_coupling():
+    """Guard that the CCPR model actually exercises the c4 / dE/dt path: its
+    coupling_edot must be non-zero, and ε(ω) must differ measurably from the
+    b=0 Lorentz pole with the same (ω₀, γ, a). If they were equal the CCPR
+    simulation test below would not distinguish the c4 term."""
+    model = _ccpr_model()
+    pole = model.poles[0]
+    assert pole.coupling_edot != 0.0
+
+    eps_ccpr = 1.0 + complex(model.susceptibility(_OMEGA))
+    delta_eps = pole.coupling_sq / pole.omega_0**2
+    lorentz = fdtdx.DispersionModel(
+        poles=(fdtdx.LorentzPole(resonance_frequency=pole.omega_0, damping=pole.gamma, delta_epsilon=delta_eps),)
+    )
+    eps_lorentz = 1.0 + complex(lorentz.susceptibility(_OMEGA))
+    # The b term shifts ε measurably (mostly in the imaginary/absorption part).
+    assert abs(eps_ccpr - eps_lorentz) > 0.05, (
+        f"CCPR ε={eps_ccpr} vs Lorentz-equivalent ε={eps_lorentz} too similar — test would not exercise c4."
+    )
+
+
+def test_ccpr_matches_equivalent_complex_permittivity():
+    """The decisive end-to-end check for the CCPR forward update.
+
+    At the single CW source frequency, a CCPR half-space and a *non-dispersive*
+    lossy half-space built from the same complex ε(ω) via the (independently
+    validated) ``Material.from_complex_permittivity`` have identical complex
+    permittivity — hence identical reflection and propagation. Their transmitted
+    fluxes must therefore agree. This isolates "does the CCPR ADE update (with
+    the c4 / dE/dt term) reproduce the target ε(ω)?" without needing to model
+    the in-medium attenuation analytically. Dropping the c4 term changes the
+    CCPR ε and breaks the match.
+    """
+    model = _ccpr_model()
+    eps_inf = 1.0
+    eps_omega = eps_inf + complex(model.susceptibility(_OMEGA))
+    assert eps_omega.imag > 0.1, "Test premise: CCPR medium should be meaningfully lossy"
+
+    # Vacuum reference (normalization).
+    obj0, con0, cfg0, vol0 = _build_base()
+    _add_flux_det("flux_t", _DET_CCPR_Z, vol0, obj0, con0)
+    S0 = _mean_flux(_run(obj0, con0, cfg0), "flux_t")
+    assert S0 > 0, f"Reference flux zero: {S0}"
+
+    # CCPR dispersive half-space.
+    obj1, con1, cfg1, vol1 = _build_base()
+    ccpr_material = fdtdx.Material(permittivity=eps_inf, dispersion=model)
+    _add_half_space(ccpr_material, vol1, obj1, con1)
+    _add_flux_det("flux_t", _DET_CCPR_Z, vol1, obj1, con1)
+    S_ccpr = _mean_flux(_run(obj1, con1, cfg1), "flux_t")
+
+    # Equivalent non-dispersive lossy half-space with the SAME ε at the source
+    # frequency (conductor model — validated elsewhere against skin depth/Fresnel).
+    obj2, con2, cfg2, vol2 = _build_base()
+    equiv_material = fdtdx.Material.from_complex_permittivity(eps_omega, frequency=c0 / _WAVELENGTH)
+    _add_half_space(equiv_material, vol2, obj2, con2)
+    _add_flux_det("flux_t", _DET_CCPR_Z, vol2, obj2, con2)
+    S_equiv = _mean_flux(_run(obj2, con2, cfg2), "flux_t")
+
+    assert S_ccpr > 0 and S_equiv > 0, f"Transmitted flux vanished: CCPR={S_ccpr}, equiv={S_equiv}"
+
+    T_ccpr = S_ccpr / S0
+    T_equiv = S_equiv / S0
+    rel_err = abs(T_ccpr - T_equiv) / T_equiv
+    assert rel_err < _TOLERANCE, (
+        f"CCPR transmission T={T_ccpr:.4f} disagrees with equivalent complex-ε "
+        f"T={T_equiv:.4f} (ε(ω)={eps_omega:.3f}), rel_err={rel_err:.3f} > {_TOLERANCE}"
     )

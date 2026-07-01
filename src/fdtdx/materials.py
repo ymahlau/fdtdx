@@ -823,43 +823,46 @@ def compute_allowed_dispersive_coefficients(
     materials: dict[str, Material],
     dt: float,
     max_num_poles: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Compute per-material discrete-time dispersive recurrence coefficients.
 
     For each material (in the canonical sorted order used elsewhere), returns
     arrays of shape ``(num_materials, max_num_poles)`` containing the
-    ``c1``, ``c2``, ``c3`` coefficients from
+    ``c1``, ``c2``, ``c3``, ``c4`` coefficients from
     :func:`fdtdx.dispersion.compute_pole_coefficients`. Materials with fewer
     poles than ``max_num_poles``, or non-dispersive materials, get zero-padded
     slots (so the polarization term automatically vanishes on those voxels).
+    ``c4`` is zero for Lorentz/Drude poles and only non-zero for CCPR poles.
 
     Args:
         materials: Dictionary mapping material names to Material objects.
         dt: Simulation time step (seconds).
         max_num_poles: Maximum pole count to pad every material to. When 0,
-            returns three ``(num_materials, 0)``-shaped arrays.
+            returns four ``(num_materials, 0)``-shaped arrays.
 
     Returns:
-        Three numpy arrays of shape ``(num_materials, max_num_poles)``
-        with ``c1``, ``c2``, ``c3``.
+        Four numpy arrays of shape ``(num_materials, max_num_poles)``
+        with ``c1``, ``c2``, ``c3``, ``c4``.
     """
     ordered = compute_ordered_material_name_tuples(materials)
     num_mats = len(ordered)
     c1 = np.zeros((num_mats, max_num_poles), dtype=np.float64)
     c2 = np.zeros((num_mats, max_num_poles), dtype=np.float64)
     c3 = np.zeros((num_mats, max_num_poles), dtype=np.float64)
+    c4 = np.zeros((num_mats, max_num_poles), dtype=np.float64)
     if max_num_poles == 0:
-        return c1, c2, c3
+        return c1, c2, c3, c4
     for m_idx, (_, mat) in enumerate(ordered):
         if mat.dispersion is None:
             continue
         poles = mat.dispersion.poles
-        c1_vals, c2_vals, c3_vals = compute_pole_coefficients(poles, dt)
+        c1_vals, c2_vals, c3_vals, c4_vals = compute_pole_coefficients(poles, dt)
         n = len(poles)
         c1[m_idx, :n] = c1_vals
         c2[m_idx, :n] = c2_vals
         c3[m_idx, :n] = c3_vals
-    return c1, c2, c3
+        c4[m_idx, :n] = c4_vals
+    return c1, c2, c3, c4
 
 
 def compute_ordered_names(
