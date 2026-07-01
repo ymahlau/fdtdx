@@ -116,4 +116,4 @@ def _safe_object_description(obj, *args, **kwargs):
         except Exception:
             return "<object>"
 
-sphinx.util.inspect.object_description = _safe_object_description
+sphinx.util.inspect.object_description = _safe_object_description # type: ignore
