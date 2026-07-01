@@ -42,6 +42,9 @@ toc_object_entries_show_parent = 'hide'
 # the 'fdtdx.' module prefix from signature in the main body
 add_module_names = False
 
+autodoc_preserve_defaults = True
+
+
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -51,6 +54,9 @@ html_theme = 'sphinx_book_theme'
 html_static_path = ['_static']
 html_css_files = [
     'custom.css',
+]
+html_js_files = [
+    'custom.js',
 ]
 html_favicon = '_static/fdtdx_icon_64.ico'
 html_logo = '_static/fdtdx_icon_200.png'
@@ -95,3 +101,19 @@ mathjax3_config = {
         'displayMath': [['$$', '$$'], ['\\[', '\\]']],
     }
 }
+
+
+import sphinx.util.inspect
+
+_original_object_description = sphinx.util.inspect.object_description
+
+def _safe_object_description(obj, *args, **kwargs):
+    try:
+        return _original_object_description(obj, *args, **kwargs)
+    except Exception:
+        try:
+            return f"<{obj.__class__.__name__} object>"
+        except Exception:
+            return "<object>"
+
+sphinx.util.inspect.object_description = _safe_object_description
