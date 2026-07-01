@@ -259,6 +259,7 @@ def place_objects(
     disp_c1 = None if arrays.dispersive_c1 is None else jax.lax.stop_gradient(arrays.dispersive_c1)
     disp_c2 = None if arrays.dispersive_c2 is None else jax.lax.stop_gradient(arrays.dispersive_c2)
     disp_c3 = None if arrays.dispersive_c3 is None else jax.lax.stop_gradient(arrays.dispersive_c3)
+    sigma_e = None if arrays.electric_conductivity is None else jax.lax.stop_gradient(arrays.electric_conductivity)
     new_object_list = []
     devices = objects_container.devices
     for obj in objects_container.objects:
@@ -275,6 +276,7 @@ def place_objects(
                 dispersive_c1=disp_c1,
                 dispersive_c2=disp_c2,
                 dispersive_c3=disp_c3,
+                electric_conductivity=sigma_e,
             )
         new_object_list.append(obj)
 
@@ -442,6 +444,7 @@ def apply_params(
     disp_c1 = None if arrays.dispersive_c1 is None else jax.lax.stop_gradient(arrays.dispersive_c1)
     disp_c2 = None if arrays.dispersive_c2 is None else jax.lax.stop_gradient(arrays.dispersive_c2)
     disp_c3 = None if arrays.dispersive_c3 is None else jax.lax.stop_gradient(arrays.dispersive_c3)
+    sigma_e = None if arrays.electric_conductivity is None else jax.lax.stop_gradient(arrays.electric_conductivity)
     new_objects = []
     devices = objects.devices
     for obj in objects.object_list:
@@ -456,6 +459,7 @@ def apply_params(
                 dispersive_c1=disp_c1,
                 dispersive_c2=disp_c2,
                 dispersive_c3=disp_c3,
+                electric_conductivity=sigma_e,
             )
         new_objects.append(obj)
     new_objects = ObjectContainer(

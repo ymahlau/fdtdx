@@ -58,6 +58,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from fdtdx.constants import eps0
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 
 
@@ -521,3 +522,61 @@ def effective_inv_permittivity(
     eps_inf = 1.0 / jnp.asarray(inv_eps)
     eps_eff = eps_inf + jnp.real(chi)
     return (1.0 / eps_eff).astype(jnp.asarray(inv_eps).dtype)
+
+
+def effective_complex_inv_permittivity(
+    inv_eps: jax.Array,
+    omega: float,
+    dt: float,
+    c1: jax.Array | None = None,
+    c2: jax.Array | None = None,
+    c3: jax.Array | None = None,
+    electric_conductivity: jax.Array | None = None,
+    conductivity_spacing: float | None = None,
+) -> jax.Array:
+    r"""Per-cell COMPLEX inverse permittivity :math:`1 / (\varepsilon_\infty + \chi(\omega) + i\sigma/(\varepsilon_0\omega))`.
+
+    Unlike :func:`effective_inv_permittivity` — which returns the real
+    ``1/Re(eps)`` for source impedance / energy normalization and deliberately
+    drops the imaginary part — this keeps the *full complex* permittivity so the
+    mode solver sees the material loss, yielding a complex effective index and a
+    lossy mode profile. Use it ONLY for the permittivity handed to the mode
+    solver, never for impedance / energy (which would double-count the
+    absorption already integrated by the ADE loop and the conductivity update).
+
+    Both loss contributions are added in the ``exp(-i omega t)`` convention
+    (positive imaginary part = loss):
+
+    * the dispersive susceptibility :math:`\chi(\omega)` reconstructed from the
+      ADE coefficients (omitted when ``c1``/``c2``/``c3`` are ``None``), and
+    * the conductivity loss :math:`i\,\sigma_\text{phys} / (\varepsilon_0 \omega)`,
+      where :math:`\sigma_\text{phys} = \sigma_\text{array} / \Delta` recovers the
+      physical S/m value from the resolution-scaled ``electric_conductivity``
+      array (``conductivity_spacing`` is the scaling factor
+      :math:`\Delta = c_0 \Delta t / S` applied at initialization).
+
+    Args:
+        inv_eps: Per-cell ``1/eps_inf`` (real). Shape ``(num_components, ...)``.
+        omega: Angular frequency (rad/s).
+        dt: Simulation time step (seconds).
+        c1: ADE coefficient array of shape ``(num_poles, ...)`` or ``None``.
+        c2: ADE coefficient array of shape ``(num_poles, ...)`` or ``None``.
+        c3: ADE coefficient array of shape ``(num_poles, ...)`` or ``None``.
+        electric_conductivity: Resolution-scaled conductivity array, or ``None``.
+        conductivity_spacing: Scaling factor used to recover the physical
+            conductivity. Required when ``electric_conductivity`` is given.
+
+    Returns:
+        Complex ``jax.Array`` broadcasting ``inv_eps`` against the loss terms.
+    """
+    inv_eps = jnp.asarray(inv_eps)
+    complex_dtype = jnp.complex128 if inv_eps.dtype == jnp.float64 else jnp.complex64
+    eps = (1.0 / inv_eps).astype(complex_dtype)
+    if c1 is not None and c2 is not None and c3 is not None:
+        eps = eps + susceptibility_from_coefficients(c1=c1, c2=c2, c3=c3, omega=omega, dt=dt)
+    if electric_conductivity is not None:
+        if conductivity_spacing is None:
+            raise ValueError("conductivity_spacing is required when electric_conductivity is given.")
+        sigma_phys = jnp.asarray(electric_conductivity) / conductivity_spacing
+        eps = eps + 1j * sigma_phys / (omega * eps0)
+    return 1.0 / eps

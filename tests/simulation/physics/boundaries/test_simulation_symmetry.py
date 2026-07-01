@@ -19,6 +19,7 @@ import jax.numpy as jnp
 import numpy as np
 
 import fdtdx
+from fdtdx.constants import c as c0
 
 _WAVELENGTH = 1e-6
 _RESOLUTION = 25e-9  # 40 cells / λ
@@ -29,8 +30,8 @@ _SOURCE_X = _PML_CELLS + 2
 _DET_X = _SOURCE_X + 20
 _SIM_TIME = 80e-15
 
-_DT = 0.99 * _RESOLUTION / (3e8 * np.sqrt(3))
-_STEPS_PER_PERIOD = max(1, round(_WAVELENGTH / (3e8 * _DT)))
+_DT = 0.99 * _RESOLUTION / (c0 * np.sqrt(3))
+_STEPS_PER_PERIOD = max(1, round(_WAVELENGTH / (c0 * _DT)))
 _N_AVG = 10 * _STEPS_PER_PERIOD
 
 

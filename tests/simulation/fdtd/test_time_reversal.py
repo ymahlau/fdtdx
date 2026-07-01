@@ -16,6 +16,7 @@ import jax.numpy as jnp
 
 import fdtdx
 from fdtdx.config import GradientConfig, SimulationConfig
+from fdtdx.constants import c as c0
 from fdtdx.core.grid import UniformGrid
 from fdtdx.fdtd.backward import backward
 from fdtdx.fdtd.container import ArrayContainer, FieldState
@@ -1074,7 +1075,7 @@ class TestGradientDispersiveLossy:
 
         # CW dipole source at the slab center — drives nonzero fields into the
         # dispersive/lossy medium throughout the run.
-        omega = 2.0 * jnp.pi * 3e8 / 800e-9
+        omega = 2.0 * jnp.pi * c0 / 800e-9
         source = fdtdx.PointDipoleSource(
             name="dip",
             partial_grid_shape=(1, 1, 1),
@@ -1243,7 +1244,7 @@ class TestGradientDispersiveLossy:
         )
         objects.append(slab)
 
-        omega = 2.0 * jnp.pi * 3e8 / 800e-9
+        omega = 2.0 * jnp.pi * c0 / 800e-9
         source = fdtdx.PointDipoleSource(
             name="dip",
             partial_grid_shape=(1, 1, 1),
@@ -1368,7 +1369,7 @@ class TestGradientMagneticConductivity:
         )
         objects.append(slab)
 
-        omega = 2.0 * jnp.pi * 3e8 / 800e-9
+        omega = 2.0 * jnp.pi * c0 / 800e-9
         source = fdtdx.PointDipoleSource(
             name="dip",
             partial_grid_shape=(1, 1, 1),
@@ -1504,7 +1505,7 @@ class TestGradientPMLBlochComplex:
         source = fdtdx.PointDipoleSource(
             name="dip",
             partial_grid_shape=(1, 1, 1),
-            wave_character=fdtdx.WaveCharacter(frequency=3e8 / 800e-9),
+            wave_character=fdtdx.WaveCharacter(frequency=c0 / 800e-9),
             polarization=0,
             amplitude=1.0,
         )

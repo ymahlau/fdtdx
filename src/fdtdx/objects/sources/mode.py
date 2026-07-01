@@ -6,13 +6,14 @@ import jax.numpy as jnp
 import numpy as np
 from matplotlib import pyplot as plt
 
+from fdtdx import constants
 from fdtdx.core.axis import get_transverse_axes
 from fdtdx.core.grid import calculate_time_offset_yee
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.linalg import get_wave_vector_raw
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.core.physics.modes import compute_mode
-from fdtdx.dispersion import effective_inv_permittivity
+from fdtdx.dispersion import effective_complex_inv_permittivity, effective_inv_permittivity
 from fdtdx.objects.sources.tfsf import TFSFPlaneSource, _build_dispersive_H_filter
 
 
@@ -97,6 +98,7 @@ class ModePlaneSource(TFSFPlaneSource):
         dispersive_c1: jax.Array | None = None,
         dispersive_c2: jax.Array | None = None,
         dispersive_c3: jax.Array | None = None,
+        electric_conductivity: jax.Array | None = None,
     ) -> Self:
         del key
         if (
@@ -140,10 +142,34 @@ class ModePlaneSource(TFSFPlaneSource):
         self = self.aset("_inv_permittivity", inv_permittivity_slice, create_new_ok=True)
         self = self.aset("_inv_permeability", inv_permeability_slice, create_new_ok=True)
 
+        # Permittivity handed to the mode solver: the FULL complex epsilon at the
+        # carrier frequency (eps_inf + chi(omega) + i*sigma/(eps0*omega)), so the
+        # solved mode profile and effective index reflect material loss. This is
+        # kept separate from inv_permittivity_slice above, which stays real for the
+        # impedance/energy normalization — using the imaginary part there would
+        # double-count the absorption already integrated by the FDTD update.
+        sigma_slice = None if electric_conductivity is None else electric_conductivity[:, *self.grid_slice]
+        mode_inv_permittivity = inv_eps_inf_slice
+        if sigma_slice is not None or c1_slice is not None:
+            mode_inv_permittivity = effective_complex_inv_permittivity(
+                inv_eps=inv_eps_inf_slice,
+                omega=2.0 * np.pi * self.wave_character.get_frequency(),
+                dt=self._config.time_step_duration,
+                c1=c1_slice,
+                c2=c2_slice,
+                c3=c3_slice,
+                electric_conductivity=sigma_slice,
+                conductivity_spacing=(
+                    None
+                    if sigma_slice is None
+                    else constants.c * self._config.time_step_duration / self._config.courant_number
+                ),
+            )
+
         # compute mode
         mode_E, mode_H, eff_index = compute_mode(
             frequency=self.wave_character.get_frequency(),
-            inv_permittivities=inv_permittivity_slice,
+            inv_permittivities=mode_inv_permittivity,
             inv_permeabilities=inv_permeability_slice,
             resolution=self._mode_solver_resolution(),
             direction=self.direction,
@@ -153,7 +179,16 @@ class ModePlaneSource(TFSFPlaneSource):
             symmetry=self.symmetry,
             transverse_coords=self._transverse_edge_coordinates(),
         )
-        mode_E, mode_H = jnp.real(mode_E), jnp.real(mode_H)
+        # Keep the complex modal fields when the mode was solved against a lossy
+        # (conductivity) permittivity, so the launched source carries the
+        # eigenmode's transverse phase — TFSFPlaneSource.update_E/update_H inject
+        # the complex profile via a quadrature (cos/sin) decomposition. Lossless
+        # modes are projected to real (bit-identical to before). The dispersive
+        # path also stays real here because its broadband H-filter assumes a real
+        # temporal profile.
+        keep_complex_mode = sigma_slice is not None and c1_slice is None
+        if not keep_complex_mode:
+            mode_E, mode_H = jnp.real(mode_E), jnp.real(mode_H)
 
         self = self.aset("_E", mode_E, create_new_ok=True)
         self = self.aset("_H", mode_H, create_new_ok=True)

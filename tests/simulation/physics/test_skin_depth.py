@@ -49,8 +49,8 @@ import numpy as np
 import fdtdx
 
 # ── Physical constants ────────────────────────────────────────────────────────
-_C0 = 3e8  # speed of light (m/s)
-_EPS0 = 8.854187817e-12  # vacuum permittivity (F/m)
+_C0 = fdtdx.constants.c  # speed of light (m/s)
+_EPS0 = fdtdx.constants.eps0  # vacuum permittivity (F/m)
 
 # ── Domain constants ──────────────────────────────────────────────────────────
 _WAVELENGTH = 1e-6  # free-space wavelength (m)
@@ -165,6 +165,38 @@ def _add_conductor(volume, objects, constraints):
     objects.append(cond)
 
 
+def _add_conductor_via_complex_eps(volume, objects, constraints):
+    """Same conductor as :func:`_add_conductor`, but specified as a complex permittivity.
+
+    Expresses the lossy medium as eps = eps_r + i*eps'' at the reference wavelength
+    via ``Material.from_complex_permittivity``. The imaginary part is chosen (using
+    the library's own constants) so the derived electric conductivity equals exactly
+    ``_SIGMA`` — i.e. this is the identical conductor, just declared in the
+    frequency-domain idiom instead of as a raw conductivity.
+    """
+    omega = 2.0 * np.pi * _C0 / _WAVELENGTH
+    eps_imag = _SIGMA / (omega * _EPS0)  # sigma = omega * eps0 * eps_imag
+    material = fdtdx.Material.from_complex_permittivity(
+        _EPS_R + 1j * eps_imag,
+        wavelength=_WAVELENGTH,
+    )
+    # The complex-eps spec must reduce to the same conductor as the raw-sigma path.
+    assert np.isclose(material.electric_conductivity[0], _SIGMA, rtol=1e-12)
+
+    cond = fdtdx.UniformMaterialObject(
+        partial_grid_shape=(None, None, _CONDUCTOR_CELLS_Z),
+        material=material,
+    )
+    constraints.extend(
+        [
+            cond.same_size(volume, axes=(0, 1)),
+            cond.place_at_center(volume, axes=(0, 1)),
+            cond.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(_CONDUCTOR_START_Z,)),
+        ]
+    )
+    objects.append(cond)
+
+
 def _add_phasor_det(name, z_idx, wave, volume, objects, constraints):
     """Add a 1-cell-thick PhasorDetector (Ex only) at z_idx."""
     det = fdtdx.PhasorDetector(
@@ -223,6 +255,41 @@ def test_skin_depth_attenuation():
 
     objects, constraints, config, volume, wave = _build_base()
     _add_conductor(volume, objects, constraints)
+    _add_phasor_det("d1", _DET1_Z, wave, volume, objects, constraints)
+    _add_phasor_det("d2", _DET2_Z, wave, volume, objects, constraints)
+
+    arrays = _run(objects, constraints, config)
+    p1 = _ex_phasor(arrays, "d1")
+    p2 = _ex_phasor(arrays, "d2")
+
+    assert abs(p1) > 0, "Detector d1 measured zero Ex amplitude"
+    assert abs(p2) > 0, "Detector d2 measured zero Ex amplitude"
+    assert abs(p2) < abs(p1), f"Wave is not attenuating: |p2|={abs(p2):.4e} >= |p1|={abs(p1):.4e}"
+
+    alpha_measured = -np.log(abs(p2) / abs(p1)) / _DET_SEP
+    delta_measured = 1.0 / alpha_measured
+
+    rel_err = abs(alpha_measured - alpha_analytic) / abs(alpha_analytic)
+    assert rel_err < _TOLERANCE, (
+        f"α_measured={alpha_measured:.4e} m⁻¹, α_analytic={alpha_analytic:.4e} m⁻¹, "
+        f"δ_measured={delta_measured * 1e9:.1f} nm, δ_analytic={delta_analytic * 1e9:.1f} nm, "
+        f"relative error={rel_err:.3f} > {_TOLERANCE}"
+    )
+
+
+def test_skin_depth_via_complex_permittivity():
+    """A conductor declared as a complex permittivity reproduces the analytic α.
+
+    Exercises the full step-1a pipeline (``Material.from_complex_permittivity`` →
+    electric conductivity → resolution scaling → lossy FDTD update → exponential
+    decay) and checks the measured attenuation against the same exact dispersion
+    relation as :func:`test_skin_depth_attenuation`.
+    """
+    alpha_analytic = _analytic_alpha()
+    delta_analytic = 1.0 / alpha_analytic
+
+    objects, constraints, config, volume, wave = _build_base()
+    _add_conductor_via_complex_eps(volume, objects, constraints)
     _add_phasor_det("d1", _DET1_Z, wave, volume, objects, constraints)
     _add_phasor_det("d2", _DET2_Z, wave, volume, objects, constraints)
 

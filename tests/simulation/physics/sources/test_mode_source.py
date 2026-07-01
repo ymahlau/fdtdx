@@ -69,7 +69,7 @@ def _slab_neff_te(n_core: float, n_clad: float, wavelength: float, thickness: fl
     return float(beta / k0)
 
 
-def _build_waveguide_domain():
+def _build_waveguide_domain(core_conductivity: float = 0.0):
     config = fdtdx.SimulationConfig(
         grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
         time=_SIM_TIME,
@@ -106,7 +106,7 @@ def _build_waveguide_domain():
     core = fdtdx.UniformMaterialObject(
         name="core",
         partial_real_shape=(None, None, _WG_HEIGHT),
-        material=fdtdx.Material(permittivity=_EPS_SI),
+        material=fdtdx.Material(permittivity=_EPS_SI, electric_conductivity=core_conductivity),
     )
     constraints.extend(
         [
@@ -256,3 +256,134 @@ def test_mode_source_confinement():
 
     confinement = core_energy / total_energy
     assert confinement > 0.3, f"Mode confinement={confinement:.2%}, expected > 30% in core"
+
+
+# Conductive core so the guided mode acquires loss. sigma = 1e4 S/m gives
+# eps'' = sigma/(omega*eps0) ~ 0.9 at 1.55 um — a clearly measurable modal loss
+# without destabilising the solve.
+_CORE_SIGMA = 1.0e4
+
+
+def _place_and_apply(objects, constraints, config):
+    key = jax.random.PRNGKey(0)
+    obj_container, arrays, params, config, _ = fdtdx.place_objects(
+        object_list=objects,
+        config=config,
+        constraints=constraints,
+        key=key,
+    )
+    arrays, obj_container, _ = fdtdx.apply_params(arrays, obj_container, params, key)
+    return obj_container
+
+
+def test_mode_source_lossy_core_yields_complex_neff():
+    """A conductive waveguide core makes the solved effective index complex.
+
+    Verifies the step-1b fix: electric conductivity is threaded into the mode
+    solver (via the complex effective permittivity), so the source's stored
+    effective index gains a nonzero imaginary part (modal attenuation). The
+    lossless control stays essentially real, and the real part is barely
+    perturbed by the moderate loss.
+    """
+    # Lossless control
+    objects, constraints, config, _, _ = _build_waveguide_domain()
+    src_lossless = _place_and_apply(objects, constraints, config).sources[0]
+    neff_lossless = complex(np.asarray(src_lossless._neff))
+
+    # Lossy core
+    objects, constraints, config, _, _ = _build_waveguide_domain(core_conductivity=_CORE_SIGMA)
+    src_lossy = _place_and_apply(objects, constraints, config).sources[0]
+    neff_lossy = complex(np.asarray(src_lossy._neff))
+
+    # Lossless mode index is essentially real.
+    assert abs(neff_lossless.imag) < 1e-3 * abs(neff_lossless.real), (
+        f"Lossless neff should be ~real, got {neff_lossless}"
+    )
+    # Conductive core ⇒ clearly nonzero imaginary part (attenuation).
+    assert abs(neff_lossy.imag) > 1e-2 * abs(neff_lossy.real), (
+        f"Lossy neff should have a nonzero imaginary part, got {neff_lossy}"
+    )
+    # The guided mode is the same one — loss perturbs the real part only weakly.
+    rel = abs(neff_lossy.real - neff_lossless.real) / neff_lossless.real
+    assert rel < 0.20, f"Real(neff) shifted too much under loss: {neff_lossless.real} -> {neff_lossy.real}"
+
+
+def test_mode_overlap_detector_lossy_core_yields_complex_neff():
+    """ModeOverlapDetector solves its reference mode against the complex permittivity.
+
+    Companion to the source test: with a conductive core the detector's stored
+    reference effective index is complex, confirming the conductivity reaches the
+    detector's mode solve too.
+    """
+    objects, constraints, config, volume, wave = _build_waveguide_domain(core_conductivity=_CORE_SIGMA)
+    det = fdtdx.ModeOverlapDetector(
+        name="overlap",
+        partial_grid_shape=(1, None, None),
+        wave_characters=(wave,),
+        direction="+",
+        mode_index=0,
+        filter_pol="te",
+    )
+    constraints.extend(
+        [
+            det.same_size(volume, axes=(1, 2)),
+            det.place_at_center(volume, axes=(1, 2)),
+            det.set_grid_coordinates(axes=(0,), sides=("-",), coordinates=(_DET1_X,)),
+        ]
+    )
+    objects.append(det)
+
+    obj_container = _place_and_apply(objects, constraints, config)
+    placed_det = next(o for o in obj_container.objects if o.name == "overlap")
+    neff = complex(np.asarray(placed_det._mode_neff).reshape(-1)[0])
+
+    assert abs(neff.imag) > 1e-2 * abs(neff.real), f"Detector reference neff should be complex under loss, got {neff}"
+
+
+def test_mode_source_injects_complex_transverse_phase():
+    """The lossy eigenmode's transverse phase is carried through to injection.
+
+    Reviewer concern: solving against complex permittivity but projecting the
+    profile to ``jnp.real`` would launch a different field than ``compute_mode``
+    returned, and a ``_neff``-only assertion would not catch it. Here we
+    (1) confirm the stored modal fields stay complex with a non-negligible
+    imaginary part, and (2) confirm the injected field actually depends on that
+    imaginary part — discarding it changes the launched field.
+    """
+    objects, constraints, config, _volume, wave = _build_waveguide_domain(core_conductivity=_CORE_SIGMA)
+    key = jax.random.PRNGKey(0)
+    obj_container, arrays, params, config, _ = fdtdx.place_objects(
+        object_list=objects, config=config, constraints=constraints, key=key
+    )
+    arrays, obj_container, _ = fdtdx.apply_params(arrays, obj_container, params, key)
+    source = obj_container.sources[0]
+
+    # (1) the transverse phase of the lossy mode is retained (not projected to real)
+    assert jnp.iscomplexobj(source._E) and jnp.iscomplexobj(source._H)
+    assert float(jnp.max(jnp.abs(jnp.imag(source._E)))) > 1e-4 * float(jnp.max(jnp.abs(source._E)))
+    assert float(jnp.max(jnp.abs(jnp.imag(source._H)))) > 1e-4 * float(jnp.max(jnp.abs(source._H)))
+
+    # (2) the injected field depends on that imaginary part. Inject once with the
+    # full complex mode and once with its real projection; a mid-run time step
+    # (past the 4-period startup ramp) gives a nonzero carrier amplitude.
+    steps_per_period = max(1, round(wave.get_period() / config.time_step_duration))
+    time_step = jnp.asarray(6 * steps_per_period)
+    E0 = jnp.zeros_like(arrays.fields.E)
+
+    def _inject(src):
+        return src.update_E(
+            E=E0,
+            inv_permittivities=arrays.inv_permittivities,
+            inv_permeabilities=arrays.inv_permeabilities,
+            time_step=time_step,
+            inverse=False,
+        )
+
+    E_complex = _inject(source)
+    source_real = source.aset("_E", jnp.real(source._E)).aset("_H", jnp.real(source._H))
+    E_real = _inject(source_real)
+
+    diff = float(jnp.max(jnp.abs(E_complex - E_real)))
+    scale = float(jnp.max(jnp.abs(E_complex)))
+    assert scale > 0, "Injected field is zero — cannot assess phase"
+    assert diff > 1e-6 * scale, "Injected field does not depend on the modal transverse phase"
