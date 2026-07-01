@@ -9,6 +9,7 @@ from fdtdx.materials import (
     compute_allowed_magnetic_conductivities,
     compute_allowed_permeabilities,
     compute_allowed_permittivities,
+    isotropic_property_value,
 )
 
 
@@ -163,6 +164,21 @@ class TestMaterialClass:
             permeability=((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
         )
         assert mat.is_all_isotropic is False
+
+    def test_isotropic_property_value(self):
+        """Test scalar extraction from normalized isotropic material properties."""
+        mat = Material(permittivity=2.5)
+        assert isotropic_property_value(mat.permittivity, "permittivity") == 2.5
+
+        invalid_cases = [
+            (Material(permittivity=(1.0, 2.0, 1.0)).permittivity, "isotropic"),
+            (Material(permittivity=True).permittivity, "finite real isotropic"),
+            (Material(permittivity=1.0 + 0.1j).permittivity, "real"),
+            (Material(permittivity=float("inf")).permittivity, "finite"),
+        ]
+        for prop, match in invalid_cases:
+            with pytest.raises(ValueError, match=match):
+                isotropic_property_value(prop, "permittivity")
 
     def test_is_all_diagonally_anisotropic_property(self):
         """Test the is_all_diagonally_anisotropic property."""

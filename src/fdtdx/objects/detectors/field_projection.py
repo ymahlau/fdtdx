@@ -14,18 +14,32 @@ homogeneous Green-function fields and therefore can return non-zero radial compo
 """
 
 from numbers import Integral
-from typing import Any, Literal, Mapping, Self, Sequence, cast
+from typing import Any, Literal, Mapping, Self, Sequence
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jax import core as jax_core
 
 from fdtdx import constants
 from fdtdx.config import SimulationConfig
-from fdtdx.core.axis import get_oriented_transverse_axes, get_transverse_axes
+from fdtdx.core.axis import get_oriented_transverse_axes, get_transverse_axes, validate_axis
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
+from fdtdx.core.jax.utils import (
+    concrete_jax_bool,
+    finite_1d_array,
+    finite_numeric_array,
+    finite_scalar,
+    is_jax_tracer,
+)
 from fdtdx.core.physics.field_projection import (
+    _passive_complex_sqrt,
+    _positive_impedance_sqrt,
+    _positive_projection_parameter,
+    _projection_parameter_is_default,
+    _projection_parameter_value,
+    _validate_1d_coordinate_pair,
+    _validate_positive_values,
+    _validate_theta_range,
     cartesian_to_spherical_angles,
     direct_project_component,
     edge_window_1d,
@@ -36,21 +50,15 @@ from fdtdx.core.physics.field_projection import (
     subsample_indices,
     trapezoidal_weights_1d,
 )
-from fdtdx.materials import Material
+from fdtdx.materials import Material, isotropic_property_value
 from fdtdx.objects.detectors.detector import DetectorState
 from fdtdx.objects.detectors.phasor import PhasorDetector
-from fdtdx.typing import SliceTuple3D
-
-ProjectionSurface = Literal["x-", "x+", "y-", "y+", "z-", "z+"]
-ProjectionArray = jax.Array | np.ndarray
-ProjectionScalar = float | jax.Array
+from fdtdx.typing import ProjectionSurface, SliceTuple3D
 
 _PROJECTION_FIELD_KEYS = ("Er", "Etheta", "Ephi", "Hr", "Htheta", "Hphi")
 _PROJECTION_RESULT_KEYS = (*_PROJECTION_FIELD_KEYS, "power")
 _PROJECTION_SURFACES: tuple[ProjectionSurface, ...] = ("x-", "x+", "y-", "y+", "z-", "z+")
 _SURFACE_KEY_SUFFIX = {"-": "minus", "+": "plus"}
-_MATERIAL_DIAGONAL_INDICES = (0, 4, 8)
-_MATERIAL_OFF_DIAGONAL_INDICES = (1, 2, 3, 5, 6, 7)
 _SURFACE_AXIS_DIRECTIONS: dict[ProjectionSurface, tuple[int, Literal["+", "-"]]] = {
     "x-": (0, "-"),
     "x+": (0, "+"),
@@ -77,253 +85,6 @@ def _surface_name(axis: int, direction: Literal["+", "-"]) -> ProjectionSurface:
 def _surface_state_key(surface: ProjectionSurface) -> str:
     """Return the state-dictionary key used to store a box-face phasor."""
     return f"phasor_{surface[0]}_{_SURFACE_KEY_SUFFIX[surface[1]]}"
-
-
-def _contains_bool(values: Any) -> bool:
-    """Return whether a scalar or nested container contains boolean values.
-
-    Python and NumPy treat bools as numeric scalars. Projection parameters reject them explicitly so accidental
-    ``True``/``False`` inputs do not silently become ``1``/``0``.
-    """
-    if isinstance(values, (bool, np.bool_)):
-        return True
-    if isinstance(values, jax.Array):
-        return bool(np.issubdtype(values.dtype, np.bool_))
-    if isinstance(values, jax_core.Tracer):
-        return False
-    if isinstance(values, np.ndarray):
-        if np.issubdtype(values.dtype, np.bool_):
-            return True
-        if values.dtype != object:
-            return False
-    if isinstance(values, (str, bytes)):
-        return False
-    try:
-        iterator = iter(values)
-    except TypeError:
-        return False
-    return any(_contains_bool(value) for value in iterator)
-
-
-def _is_jax_tracer(values: Any) -> bool:
-    """Return whether ``values`` is a JAX tracer that cannot be concretely value-checked."""
-    return isinstance(values, jax_core.Tracer)
-
-
-def _is_real_numeric_dtype(dtype: Any) -> bool:
-    """Return whether a dtype is numeric but not complex."""
-    return np.issubdtype(dtype, np.number) and not np.issubdtype(dtype, np.complexfloating)
-
-
-def _concrete_jax_bool(value: jax.Array) -> bool:
-    """Convert an eager scalar JAX boolean to Python bool, returning false for traced booleans."""
-    # Eager concrete JAX arrays can be value-checked; traced values cannot raise Python validation errors.
-    try:
-        return bool(value)
-    except jax.errors.TracerBoolConversionError:
-        return False
-
-
-def _concrete_jax_array_has_nonfinite(values: jax.Array) -> bool:
-    """Return whether an eager JAX array contains NaN or infinite values."""
-    return _concrete_jax_bool(jnp.any(~jnp.isfinite(values)))
-
-
-def _real_numeric_array(name: str, values: Any, message: str, *, keep_jax: bool) -> jax.Array | np.ndarray:
-    """Validate real finite numeric array input while preserving JAX arrays when requested.
-
-    Concrete Python/NumPy inputs are fully checked immediately. Eager JAX arrays are checked without converting them
-    through NumPy on the main projection path; traced arrays keep their dtype validation but defer value checks to
-    compiled execution.
-    """
-    if _contains_bool(values):
-        raise ValueError(message)
-    if _is_jax_tracer(values):
-        if not _is_real_numeric_dtype(values.dtype):
-            raise ValueError(message)
-        if keep_jax:
-            return jnp.asarray(values, dtype=float)
-        raise ValueError(message)
-    if isinstance(values, jax.Array):
-        if not _is_real_numeric_dtype(values.dtype):
-            raise ValueError(message)
-        array = jnp.asarray(values, dtype=float)
-        if _concrete_jax_array_has_nonfinite(array):
-            raise ValueError(message)
-        return array if keep_jax else np.asarray(array)
-    try:
-        raw_array = np.asarray(values)
-    except jax.errors.TracerArrayConversionError as err:
-        if keep_jax:
-            return jnp.asarray(values)
-        raise ValueError(message) from err
-    except (TypeError, ValueError) as err:
-        raise ValueError(message) from err
-    if not _is_real_numeric_dtype(raw_array.dtype):
-        raise ValueError(message)
-    array = raw_array.astype(float)
-    if not np.all(np.isfinite(array)):
-        raise ValueError(message)
-    return jnp.asarray(array) if keep_jax else array
-
-
-def _finite_1d_array(name: str, values: Any, expected_size: int) -> np.ndarray:
-    """Validate a concrete one-dimensional real numeric array of fixed size."""
-    message = f"{name} must contain finite numeric values."
-    array = _real_numeric_array(name, values, message, keep_jax=False)
-    if array.shape != (expected_size,):
-        raise ValueError(f"{name} must contain {expected_size} values.")
-    return cast(np.ndarray, array)
-
-
-def _finite_numeric_array(name: str, values: Any) -> jax.Array:
-    """Validate coordinate-like numeric input and return a JAX array for projection math."""
-    return cast(
-        jax.Array, _real_numeric_array(name, values, f"{name} must contain finite numeric values.", keep_jax=True)
-    )
-
-
-def _finite_scalar(name: str, value: Any) -> float:
-    """Validate a concrete finite numeric scalar, rejecting bools and non-scalars."""
-    if isinstance(value, (bool, np.bool_)):
-        raise ValueError(f"{name} must be a finite numeric value.")
-    if not isinstance(value, (int, float, np.number)):
-        raise ValueError(f"{name} must be a finite numeric value.")
-    try:
-        scalar = float(value)
-    except (TypeError, ValueError) as err:
-        raise ValueError(f"{name} must be a finite numeric value.") from err
-    if not np.isfinite(scalar):
-        raise ValueError(f"{name} must be a finite numeric value.")
-    return scalar
-
-
-def _finite_scalar_or_1d_array(name: str, value: Any, expected_size: int) -> float | np.ndarray:
-    """Validate a scalar or one value per wave character for projection-medium settings."""
-    message = f"{name} must be a finite numeric scalar or contain {expected_size} values."
-    array = _real_numeric_array(name, value, message, keep_jax=False)
-    if array.ndim == 0:
-        return float(array)
-    if array.shape != (expected_size,):
-        raise ValueError(message)
-    return cast(np.ndarray, array)
-
-
-def _positive_projection_parameter(name: str, value: Any, expected_size: int) -> float | np.ndarray:
-    """Validate a positive scalar or per-frequency projection-medium parameter."""
-    parameter = _finite_scalar_or_1d_array(name, value, expected_size)
-    if np.any(np.asarray(parameter) <= 0):
-        raise ValueError(f"{name} must be positive.")
-    return parameter
-
-
-def _projection_parameter_value(value: float | Sequence[float], index: int) -> float:
-    """Return a scalar projection parameter value for one wave-character index."""
-    array = np.asarray(value, dtype=float)
-    if array.ndim == 0:
-        return float(array)
-    return float(array[index])
-
-
-def _projection_parameter_is_default(name: str, value: Any, default: float, expected_size: int) -> bool:
-    """Return whether a scalar/per-frequency parameter equals its default value."""
-    parameter = _positive_projection_parameter(name, value, expected_size)
-    return bool(np.allclose(np.asarray(parameter, dtype=float), default))
-
-
-def _isotropic_material_property_scalar(name: str, values: Any) -> float:
-    """Extract a scalar isotropic material property from FDTDX material storage.
-
-    Projection uses a homogeneous scalar Green function, so full anisotropy is rejected here instead of being
-    silently approximated by one tensor component.
-    """
-    if _contains_bool(values):
-        raise ValueError(f"projection_medium {name} must be a finite real isotropic value.")
-    raw_array = np.asarray(values)
-    if raw_array.shape != (9,) or not np.issubdtype(raw_array.dtype, np.number):
-        raise ValueError(f"projection_medium {name} must be a finite real isotropic value.")
-    if np.iscomplexobj(raw_array) and np.any(np.imag(raw_array) != 0.0):
-        raise ValueError(f"projection_medium {name} must be real.")
-    array = raw_array.astype(float)
-    if not np.all(np.isfinite(array)):
-        raise ValueError(f"projection_medium {name} must contain finite values.")
-    if not np.allclose(array[list(_MATERIAL_OFF_DIAGONAL_INDICES)], 0.0):
-        raise ValueError(f"projection_medium {name} must be isotropic.")
-    diagonal = array[list(_MATERIAL_DIAGONAL_INDICES)]
-    if not np.allclose(diagonal, diagonal[0]):
-        raise ValueError(f"projection_medium {name} must be isotropic.")
-    return float(diagonal[0])
-
-
-def _passive_complex_sqrt(value: complex) -> complex:
-    """Return the square-root branch with non-negative imaginary part for passive waves."""
-    root = complex(np.sqrt(complex(value)))
-    if root.imag < 0.0 or (np.isclose(root.imag, 0.0) and root.real < 0.0):
-        root = -root
-    return root
-
-
-def _positive_impedance_sqrt(value: complex) -> complex:
-    """Return the square-root branch with non-negative real impedance."""
-    root = complex(np.sqrt(complex(value)))
-    if root.real < 0.0 or (np.isclose(root.real, 0.0) and root.imag < 0.0):
-        root = -root
-    return root
-
-
-def _validate_theta_range(theta: ProjectionArray) -> None:
-    """Validate that eager angle coordinates lie in the global spherical interval ``[0, pi]``."""
-    if _is_jax_tracer(theta):
-        return
-    if isinstance(theta, jax.Array):
-        if _concrete_jax_bool(jnp.any((theta < 0.0) | (theta > jnp.pi))):
-            raise ValueError("theta values must be in the interval [0, pi].")
-        return
-    try:
-        theta_array = np.asarray(theta)
-    except jax.errors.TracerArrayConversionError:
-        return
-    if np.any((theta_array < 0.0) | (theta_array > np.pi)):
-        raise ValueError("theta values must be in the interval [0, pi].")
-
-
-def _validate_positive_values(name: str, values: ProjectionArray) -> None:
-    """Validate positive eager numeric arrays such as finite projection distances."""
-    if _is_jax_tracer(values):
-        return
-    if isinstance(values, jax.Array):
-        if _concrete_jax_bool(jnp.any(values <= 0.0)):
-            raise ValueError(f"{name} values must be positive.")
-        return
-    if np.any(np.asarray(values) <= 0.0):
-        raise ValueError(f"{name} values must be positive.")
-
-
-def _validate_projection_axis(projection_axis: Any) -> int:
-    """Validate an integer Cartesian/k-space projection axis."""
-    if (
-        not isinstance(projection_axis, Integral)
-        or isinstance(projection_axis, bool)
-        or projection_axis not in (0, 1, 2)
-    ):
-        raise ValueError("projection_axis must be 0, 1, or 2.")
-    return int(projection_axis)
-
-
-def _validate_1d_coordinate_pair(
-    first_name: str,
-    first: ProjectionArray,
-    second_name: str,
-    second: ProjectionArray,
-) -> tuple[jax.Array, jax.Array]:
-    """Validate two non-empty one-dimensional coordinate arrays for projection grids."""
-    first_array = _finite_numeric_array(first_name, first)
-    second_array = _finite_numeric_array(second_name, second)
-    if first_array.ndim != 1 or second_array.ndim != 1:
-        raise ValueError(f"{first_name} and {second_name} must be one-dimensional arrays.")
-    if first_array.size == 0 or second_array.size == 0:
-        raise ValueError(f"{first_name} and {second_name} must be non-empty.")
-    return first_array, second_array
 
 
 @autoinit
@@ -411,8 +172,8 @@ class FieldProjectionDetectorBase(PhasorDetector):
             raise ValueError("direction must be '+', '-', or None.")
         self._validate_exclude_surfaces()
         if self.origin is not None:
-            _finite_1d_array("origin", self.origin, 3)
-        projection_distance = _finite_scalar("projection_distance", self.projection_distance)
+            finite_1d_array("origin", self.origin, 3)
+        projection_distance = finite_scalar("projection_distance", self.projection_distance)
         if projection_distance <= 0:
             raise ValueError("projection_distance must be positive.")
         if not isinstance(self.far_field_approx, bool):
@@ -424,7 +185,7 @@ class FieldProjectionDetectorBase(PhasorDetector):
         ):
             raise ValueError("exact_projection_batch_size must be a positive integer or None.")
 
-        window_size = _finite_1d_array("window_size", self.window_size, 2)
+        window_size = finite_1d_array("window_size", self.window_size, 2)
         if np.any((window_size < 0) | (window_size > 1)):
             raise ValueError("window_size values must be in the interval [0, 1].")
         if len(self.interval_space) != 3:
@@ -711,7 +472,7 @@ class FieldProjectionDetectorBase(PhasorDetector):
         self,
         axis: int,
         direction: Literal["+", "-"],
-    ) -> tuple[jax.Array, jax.Array, ProjectionScalar]:
+    ) -> tuple[jax.Array, jax.Array, float | jax.Array]:
         """Return local physical coordinates and normal offset relative to the projection origin.
 
         The origin controls the phase reference. For boxes, all faces use a common origin so their projected complex
@@ -735,7 +496,7 @@ class FieldProjectionDetectorBase(PhasorDetector):
         normal_offset = signs[2] * (surface_n - origin_n)
         return u_coords, v_coords, normal_offset
 
-    def _local_coordinates(self) -> tuple[jax.Array, jax.Array, ProjectionScalar]:
+    def _local_coordinates(self) -> tuple[jax.Array, jax.Array, float | jax.Array]:
         """Return local coordinates for a planar detector surface."""
         if self.direction is None:
             raise ValueError("direction must be specified for a planar field projection detector.")
@@ -752,10 +513,14 @@ class FieldProjectionDetectorBase(PhasorDetector):
         if projection_medium is None:
             raise ValueError("projection_medium must be provided.")
         return (
-            _isotropic_material_property_scalar("permittivity", projection_medium.permittivity),
-            _isotropic_material_property_scalar("permeability", projection_medium.permeability),
-            _isotropic_material_property_scalar("electric_conductivity", projection_medium.electric_conductivity),
-            _isotropic_material_property_scalar("magnetic_conductivity", projection_medium.magnetic_conductivity),
+            isotropic_property_value(projection_medium.permittivity, "projection_medium permittivity"),
+            isotropic_property_value(projection_medium.permeability, "projection_medium permeability"),
+            isotropic_property_value(
+                projection_medium.electric_conductivity, "projection_medium electric_conductivity"
+            ),
+            isotropic_property_value(
+                projection_medium.magnetic_conductivity, "projection_medium magnetic_conductivity"
+            ),
         )
 
     def _projection_material_relative_permittivity_permeability(
@@ -806,8 +571,7 @@ class FieldProjectionDetectorBase(PhasorDetector):
             impedance = constants.eta0 * _positive_impedance_sqrt(mu_complex / eps_complex)
         else:
             refractive_index = _projection_parameter_value(
-                self.projection_medium_refractive_index,
-                wave_character_index,
+                self.projection_medium_refractive_index, wave_character_index
             )
             impedance = (
                 constants.eta0 / refractive_index
@@ -815,21 +579,6 @@ class FieldProjectionDetectorBase(PhasorDetector):
                 else _projection_parameter_value(self.projection_medium_impedance, wave_character_index)
             )
         return refractive_index, impedance, (2.0 * np.pi / wavelength) * refractive_index
-
-    def _projection_refractive_index(self, wave_character_index: int) -> complex:
-        """Return the projection-medium refractive index for one wave character."""
-        refractive_index, _, _ = self._projection_parameters(wave_character_index)
-        return refractive_index
-
-    def _projection_impedance(self, wave_character_index: int) -> complex:
-        """Return the projection-medium wave impedance for one wave character."""
-        _, impedance, _ = self._projection_parameters(wave_character_index)
-        return impedance
-
-    def _projection_wavenumber(self, wave_character_index: int) -> complex:
-        """Return the projection-medium wavenumber for one wave character."""
-        _, _, wavenumber = self._projection_parameters(wave_character_index)
-        return wavenumber
 
     def _propagation_factor(self, wave_character_index: int) -> jax.Array:
         """Return the scalar far-field Green-function prefactor."""
@@ -844,7 +593,7 @@ class FieldProjectionDetectorBase(PhasorDetector):
             "wave_character_index": int(wave_character_index),
             "frequency": float(wave_character.get_frequency()),
             "free_space_wavelength": float(wave_character.get_wavelength()),
-            "projection_distance": _finite_scalar("projection_distance", self.projection_distance),
+            "projection_distance": finite_scalar("projection_distance", self.projection_distance),
             "far_field_approx": self.far_field_approx,
             "projection_medium_refractive_index": refractive_index,
             "projection_medium_impedance": impedance,
@@ -860,22 +609,29 @@ class FieldProjectionDetectorBase(PhasorDetector):
             raise ValueError("wave_character_index is out of range for this detector.")
         return int(wave_character_index)
 
-    def _surface_currents_geometry(
+    def _subsample_surface_quadrature(
         self,
         *,
-        e_field: ProjectionArray,
-        h_field: ProjectionArray,
-        u_coords: ProjectionArray,
-        v_coords: ProjectionArray,
-        normal_offset: ProjectionScalar,
+        e_field: jax.Array | np.ndarray,
+        h_field: jax.Array | np.ndarray,
+        u_coords: jax.Array | np.ndarray,
+        v_coords: jax.Array | np.ndarray,
         propagation_axis: int,
         direction: Literal["+", "-"],
-    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
-        """Build equivalent surface currents, source coordinates, and quadrature weights.
+    ) -> tuple[
+        jax.Array,
+        jax.Array,
+        jax.Array,
+        jax.Array,
+        jax.Array,
+        tuple[int, int, int],
+        tuple[float, float, float],
+    ]:
+        """Subsample a local surface and build matching quadrature/window weights.
 
-        For a surface with outward normal ``n_hat``, the implementation uses the local tangential components to form
-        electric current ``J_s = n_hat x H`` and magnetic current ``M_s = E x n_hat``. Coordinates and weights are
-        subsampled together so interval-space downsampling preserves a consistent quadrature rule.
+        Both projection paths integrate the same local E/H samples over the same physical surface. Keeping the
+        interval-space slicing, coordinate slicing, trapezoidal rule, and edge taper in one place prevents exact and
+        far-field projections from drifting apart when the detector grid is downsampled.
         """
         local_axes, signs = self._local_axes_for_surface(propagation_axis, direction)
         u_indices = subsample_indices(u_coords.size, int(self.interval_space[local_axes[0]]))
@@ -888,6 +644,33 @@ class FieldProjectionDetectorBase(PhasorDetector):
         u_weights = trapezoidal_weights_1d(u_coords) * edge_window_1d(u_coords, self.window_size[0])
         v_weights = trapezoidal_weights_1d(v_coords) * edge_window_1d(v_coords, self.window_size[1])
         weights = u_weights[:, None] * v_weights[None, :]
+        return e_field, h_field, u_coords, v_coords, weights, local_axes, signs
+
+    def _surface_currents_geometry(
+        self,
+        *,
+        e_field: jax.Array | np.ndarray,
+        h_field: jax.Array | np.ndarray,
+        u_coords: jax.Array | np.ndarray,
+        v_coords: jax.Array | np.ndarray,
+        normal_offset: float | jax.Array,
+        propagation_axis: int,
+        direction: Literal["+", "-"],
+    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+        """Build equivalent surface currents, source coordinates, and quadrature weights.
+
+        For a surface with outward normal ``n_hat``, the implementation uses the local tangential components to form
+        electric current ``J_s = n_hat x H`` and magnetic current ``M_s = E x n_hat``. Coordinates and weights are
+        subsampled together so interval-space downsampling preserves a consistent quadrature rule.
+        """
+        e_field, h_field, u_coords, v_coords, weights, local_axes, signs = self._subsample_surface_quadrature(
+            e_field=e_field,
+            h_field=h_field,
+            u_coords=u_coords,
+            v_coords=v_coords,
+            propagation_axis=propagation_axis,
+            direction=direction,
+        )
 
         current_shape = h_field[0].shape
         zeros_current = jnp.zeros(current_shape, dtype=complex)
@@ -915,16 +698,16 @@ class FieldProjectionDetectorBase(PhasorDetector):
     def _project_surface_far_field_grid(
         self,
         *,
-        e_field: ProjectionArray,
-        h_field: ProjectionArray,
-        u_coords: ProjectionArray,
-        v_coords: ProjectionArray,
-        normal_offset: ProjectionScalar,
+        e_field: jax.Array | np.ndarray,
+        h_field: jax.Array | np.ndarray,
+        u_coords: jax.Array | np.ndarray,
+        v_coords: jax.Array | np.ndarray,
+        normal_offset: float | jax.Array,
         propagation_axis: int,
         direction: Literal["+", "-"],
-        radial: ProjectionArray,
-        theta_hat: ProjectionArray,
-        phi_hat: ProjectionArray,
+        radial: jax.Array | np.ndarray,
+        theta_hat: jax.Array | np.ndarray,
+        phi_hat: jax.Array | np.ndarray,
         wavenumber: complex,
         impedance: complex,
     ) -> tuple[jax.Array, jax.Array]:
@@ -934,28 +717,24 @@ class FieldProjectionDetectorBase(PhasorDetector):
         ``E_theta`` and ``E_phi`` components. The common propagation factor and impedance-derived H field are applied
         after all included surfaces have been coherently summed.
         """
-        local_axes, signs = self._local_axes_for_surface(propagation_axis, direction)
+        e_field, h_field, u_coords, v_coords, weights, local_axes, signs = self._subsample_surface_quadrature(
+            e_field=e_field,
+            h_field=h_field,
+            u_coords=u_coords,
+            v_coords=v_coords,
+            propagation_axis=propagation_axis,
+            direction=direction,
+        )
         radial_local = jnp.stack([signs[i] * radial[axis] for i, axis in enumerate(local_axes)], axis=0)
         theta_hat_local = jnp.stack([signs[i] * theta_hat[axis] for i, axis in enumerate(local_axes)], axis=0)
         phi_hat_local = jnp.stack([signs[i] * phi_hat[axis] for i, axis in enumerate(local_axes)], axis=0)
-
-        u_indices = subsample_indices(u_coords.size, int(self.interval_space[local_axes[0]]))
-        v_indices = subsample_indices(v_coords.size, int(self.interval_space[local_axes[1]]))
-        e_field = e_field[:, u_indices][:, :, v_indices]
-        h_field = h_field[:, u_indices][:, :, v_indices]
-        u_coords = u_coords[u_indices]
-        v_coords = v_coords[v_indices]
-
-        u_weights = trapezoidal_weights_1d(u_coords) * edge_window_1d(u_coords, self.window_size[0])
-        v_weights = trapezoidal_weights_1d(v_coords) * edge_window_1d(v_coords, self.window_size[1])
-        weights = u_weights[:, None] * v_weights[None, :]
 
         electric_u = -h_field[1] * weights
         electric_v = h_field[0] * weights
         magnetic_u = e_field[1] * weights
         magnetic_v = -e_field[0] * weights
 
-        def project_component(current: ProjectionArray) -> jax.Array:
+        def project_component(current: jax.Array | np.ndarray) -> jax.Array:
             """Apply the same far-field phase integral to each tangential current component."""
             return direct_project_component(
                 current,
@@ -983,17 +762,17 @@ class FieldProjectionDetectorBase(PhasorDetector):
     def _project_surface_exact_contribution_pairs(
         self,
         *,
-        e_field: ProjectionArray,
-        h_field: ProjectionArray,
-        u_coords: ProjectionArray,
-        v_coords: ProjectionArray,
-        normal_offset: ProjectionScalar,
+        e_field: jax.Array | np.ndarray,
+        h_field: jax.Array | np.ndarray,
+        u_coords: jax.Array | np.ndarray,
+        v_coords: jax.Array | np.ndarray,
+        normal_offset: float | jax.Array,
         propagation_axis: int,
         direction: Literal["+", "-"],
-        radial_flat: ProjectionArray,
-        theta_hat_flat: ProjectionArray,
-        phi_hat_flat: ProjectionArray,
-        distance_flat: ProjectionArray,
+        radial_flat: jax.Array | np.ndarray,
+        theta_hat_flat: jax.Array | np.ndarray,
+        phi_hat_flat: jax.Array | np.ndarray,
+        distance_flat: jax.Array | np.ndarray,
         wave_character_index: int,
         observation_shape: tuple[int, ...],
     ) -> dict[str, jax.Array]:
@@ -1014,7 +793,7 @@ class FieldProjectionDetectorBase(PhasorDetector):
         eps_relative, mu_relative = self._projection_relative_permittivity_permeability(wave_character_index)
         epsilon = constants.eps0 * eps_relative
         permeability = constants.mu0 * mu_relative
-        wavenumber = self._projection_wavenumber(wave_character_index)
+        _, _, wavenumber = self._projection_parameters(wave_character_index)
         angular_frequency = 2.0 * np.pi * self.wave_characters[wave_character_index].get_frequency()
 
         raise_if_exact_observations_overlap_sources(
@@ -1069,7 +848,7 @@ class FieldProjectionDetectorBase(PhasorDetector):
         state: DetectorState,
         wave_character_index: int,
         surface: ProjectionSurface | None,
-    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, ProjectionScalar, int, Literal["+", "-"]]:
+    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, float | jax.Array, int, Literal["+", "-"]]:
         """Collect local fields, coordinates, normal, and direction for one projected surface."""
         if surface is None:
             if self.direction is None:
@@ -1092,10 +871,12 @@ class FieldProjectionDetectorBase(PhasorDetector):
         wave_character_index: int,
     ) -> dict[str, Any]:
         """Assemble projected fields, Poynting power, coordinates, surfaces, and frequency metadata."""
+        power = 0.5 * jnp.real(
+            fields["Etheta"] * jnp.conj(fields["Hphi"]) - fields["Ephi"] * jnp.conj(fields["Htheta"])
+        )
         return {
             **fields,
-            "power": 0.5
-            * jnp.real(fields["Etheta"] * jnp.conj(fields["Hphi"]) - fields["Ephi"] * jnp.conj(fields["Htheta"])),
+            "power": power,
             **coordinate_metadata,
             "direction": self.direction,
             "surfaces": tuple(surface_names),
@@ -1196,8 +977,8 @@ class FieldProjectionDetectorBase(PhasorDetector):
     def _project_observation_angle_grid(
         self,
         state: DetectorState,
-        theta: ProjectionArray,
-        phi: ProjectionArray,
+        theta: jax.Array | np.ndarray,
+        phi: jax.Array | np.ndarray,
         *,
         wave_character_index: int = 0,
     ) -> dict[str, Any]:
@@ -1216,16 +997,16 @@ class FieldProjectionDetectorBase(PhasorDetector):
     def _project_paired_observation_angles(
         self,
         state: DetectorState,
-        theta: ProjectionArray,
-        phi: ProjectionArray,
-        distance: ProjectionArray,
+        theta: jax.Array | np.ndarray,
+        phi: jax.Array | np.ndarray,
+        distance: jax.Array | np.ndarray,
         *,
         wave_character_index: int = 0,
     ) -> dict[str, Any]:
         """Project to paired observation angles and distances with matching array shapes."""
-        theta = _finite_numeric_array("theta", theta)
-        phi = _finite_numeric_array("phi", phi)
-        distance = _finite_numeric_array("projection distance", distance)
+        theta = finite_numeric_array("theta", theta)
+        phi = finite_numeric_array("phi", phi)
+        distance = finite_numeric_array("projection distance", distance)
         if theta.shape != phi.shape or theta.shape != distance.shape:
             raise ValueError("theta, phi, and projection distance must have the same shape.")
         if theta.size == 0:
@@ -1246,9 +1027,9 @@ class FieldProjectionDetectorBase(PhasorDetector):
     def _project_paired_coordinates(
         self,
         state: DetectorState,
-        theta: ProjectionArray,
-        phi: ProjectionArray,
-        distance: ProjectionArray,
+        theta: jax.Array | np.ndarray,
+        phi: jax.Array | np.ndarray,
+        distance: jax.Array | np.ndarray,
         coordinate_metadata: Mapping[str, Any],
         *,
         wave_character_index: int = 0,
@@ -1263,9 +1044,9 @@ class FieldProjectionDetectorBase(PhasorDetector):
     def _project_all_paired_coordinates(
         self,
         state: DetectorState,
-        theta: ProjectionArray,
-        phi: ProjectionArray,
-        distance: ProjectionArray,
+        theta: jax.Array | np.ndarray,
+        phi: jax.Array | np.ndarray,
+        distance: jax.Array | np.ndarray,
         coordinate_metadata: Mapping[str, Any],
     ) -> dict[str, Any]:
         """Run paired-coordinate projection for all wave characters and stack the results."""
@@ -1283,6 +1064,10 @@ class FieldProjectionDetectorBase(PhasorDetector):
         coordinate_metadata: Mapping[str, Any],
     ) -> dict[str, Any]:
         """Stack single-frequency projection dictionaries into the ``project_all`` result format."""
+
+        def stack_metadata(key: str) -> jax.Array:
+            return jnp.asarray([result[key] for result in results])
+
         projected: dict[str, Any] = {
             key: jnp.stack([result[key] for result in results], axis=0) for key in _PROJECTION_RESULT_KEYS
         }
@@ -1292,16 +1077,12 @@ class FieldProjectionDetectorBase(PhasorDetector):
                 "wave_character_indices": np.arange(len(self.wave_characters)),
                 "frequencies": np.asarray([result["frequency"] for result in results]),
                 "free_space_wavelengths": np.asarray([result["free_space_wavelength"] for result in results]),
-                "projection_distance": _finite_scalar("projection_distance", self.projection_distance),
+                "projection_distance": finite_scalar("projection_distance", self.projection_distance),
                 "far_field_approx": self.far_field_approx,
-                "projection_medium_refractive_indices": jnp.asarray(
-                    [result["projection_medium_refractive_index"] for result in results]
-                ),
-                "projection_medium_impedances": jnp.asarray(
-                    [result["projection_medium_impedance"] for result in results]
-                ),
-                "projection_wavenumbers": jnp.asarray([result["projection_wavenumber"] for result in results]),
-                "projection_wavelengths": jnp.asarray([result["projection_wavelength"] for result in results]),
+                "projection_medium_refractive_indices": stack_metadata("projection_medium_refractive_index"),
+                "projection_medium_impedances": stack_metadata("projection_medium_impedance"),
+                "projection_wavenumbers": stack_metadata("projection_wavenumber"),
+                "projection_wavelengths": stack_metadata("projection_wavelength"),
                 "direction": self.direction,
                 "surfaces": results[0]["surfaces"],
             }
@@ -1338,8 +1119,8 @@ class FieldProjectionAngleDetector(FieldProjectionDetectorBase):
 
     def _validate_projection_inputs(
         self,
-        theta: ProjectionArray,
-        phi: ProjectionArray,
+        theta: jax.Array | np.ndarray,
+        phi: jax.Array | np.ndarray,
         wave_character_index: int,
     ) -> tuple[jax.Array, jax.Array, int]:
         """Validate angular projection coordinates and selected wave-character index."""
@@ -1350,44 +1131,29 @@ class FieldProjectionAngleDetector(FieldProjectionDetectorBase):
     def project(
         self,
         state: DetectorState,
-        theta: ProjectionArray,
-        phi: ProjectionArray,
+        theta: jax.Array | np.ndarray,
+        phi: jax.Array | np.ndarray,
         *,
         wave_character_index: int = 0,
     ) -> dict[str, Any]:
         """Project recorded phasors to the requested ``(theta, phi)`` angular grid."""
         theta, phi, wave_character_index = self._validate_projection_inputs(theta, phi, wave_character_index)
-        return self._project_observation_angle_grid(
-            state,
-            theta,
-            phi,
-            wave_character_index=wave_character_index,
-        )
+        return self._project_observation_angle_grid(state, theta, phi, wave_character_index=wave_character_index)
 
     def project_all(
         self,
         state: DetectorState,
-        theta: ProjectionArray,
-        phi: ProjectionArray,
+        theta: jax.Array | np.ndarray,
+        phi: jax.Array | np.ndarray,
     ) -> dict[str, Any]:
         """Project recorded phasors for every wave character."""
         theta, phi, _ = self._validate_projection_inputs(theta, phi, 0)
         results = [
-            self._project_observation_angle_grid(
-                state,
-                theta,
-                phi,
-                wave_character_index=wave_character_index,
-            )
+            self._project_observation_angle_grid(state, theta, phi, wave_character_index=wave_character_index)
             for wave_character_index in range(len(self.wave_characters))
         ]
-        return self._stack_frequency_results(
-            results,
-            {
-                "theta": results[0]["theta"],
-                "phi": results[0]["phi"],
-            },
-        )
+        coordinate_metadata = {"theta": results[0]["theta"], "phi": results[0]["phi"]}
+        return self._stack_frequency_results(results, coordinate_metadata)
 
 
 @autoinit
@@ -1408,16 +1174,18 @@ class FieldProjectionCartesianDetector(FieldProjectionDetectorBase):
     def __post_init__(self):
         """Validate Cartesian-detector configuration including the observation-plane axis."""
         super().__post_init__()
-        _validate_projection_axis(self.projection_axis)
+        validate_axis(self.projection_axis, name="projection_axis")
 
-    def _validate_cartesian_inputs(self, x: ProjectionArray, y: ProjectionArray) -> tuple[jax.Array, jax.Array]:
+    def _validate_cartesian_inputs(
+        self, x: jax.Array | np.ndarray, y: jax.Array | np.ndarray
+    ) -> tuple[jax.Array, jax.Array]:
         """Validate Cartesian observation-plane coordinate arrays."""
         return _validate_1d_coordinate_pair("x", x, "y", y)
 
     def _cartesian_observation_grid(
         self,
-        x: ProjectionArray,
-        y: ProjectionArray,
+        x: jax.Array | np.ndarray,
+        y: jax.Array | np.ndarray,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
         """Convert Cartesian observation-plane coordinates to global spherical projection inputs.
 
@@ -1426,7 +1194,9 @@ class FieldProjectionCartesianDetector(FieldProjectionDetectorBase):
         """
         x_grid, y_grid = jnp.meshgrid(x, y, indexing="ij")
         points = jnp.zeros((3, x.size, y.size), dtype=float)
-        transverse_axis_x, transverse_axis_y = get_transverse_axes(_validate_projection_axis(self.projection_axis))
+        transverse_axis_x, transverse_axis_y = get_transverse_axes(
+            validate_axis(self.projection_axis, name="projection_axis")
+        )
         points = points.at[transverse_axis_x].set(x_grid)
         points = points.at[transverse_axis_y].set(y_grid)
         points = points.at[self.projection_axis].set(self.projection_distance)
@@ -1436,35 +1206,30 @@ class FieldProjectionCartesianDetector(FieldProjectionDetectorBase):
     def project(
         self,
         state: DetectorState,
-        x: ProjectionArray,
-        y: ProjectionArray,
+        x: jax.Array | np.ndarray,
+        y: jax.Array | np.ndarray,
         *,
         wave_character_index: int = 0,
     ) -> dict[str, Any]:
         """Project recorded phasors to a Cartesian observation plane."""
         x, y = self._validate_cartesian_inputs(x, y)
         radial_distance, theta, phi = self._cartesian_observation_grid(x, y)
+        coordinate_metadata = {"x": x, "y": y, "projection_axis": int(self.projection_axis)}
         return self._project_paired_coordinates(
-            state,
-            theta,
-            phi,
-            radial_distance,
-            {"x": x, "y": y, "projection_axis": int(self.projection_axis)},
-            wave_character_index=wave_character_index,
+            state, theta, phi, radial_distance, coordinate_metadata, wave_character_index=wave_character_index
         )
 
     def project_all(
         self,
         state: DetectorState,
-        x: ProjectionArray,
-        y: ProjectionArray,
+        x: jax.Array | np.ndarray,
+        y: jax.Array | np.ndarray,
     ) -> dict[str, Any]:
         """Project recorded phasors to a Cartesian observation plane for every wave character."""
         x, y = self._validate_cartesian_inputs(x, y)
         radial_distance, theta, phi = self._cartesian_observation_grid(x, y)
-        return self._project_all_paired_coordinates(
-            state, theta, phi, radial_distance, {"x": x, "y": y, "projection_axis": int(self.projection_axis)}
-        )
+        coordinate_metadata = {"x": x, "y": y, "projection_axis": int(self.projection_axis)}
+        return self._project_all_paired_coordinates(state, theta, phi, radial_distance, coordinate_metadata)
 
 
 @autoinit
@@ -1484,22 +1249,24 @@ class FieldProjectionKSpaceDetector(FieldProjectionDetectorBase):
     def __post_init__(self):
         """Validate k-space detector configuration including the projection axis."""
         super().__post_init__()
-        _validate_projection_axis(self.projection_axis)
+        validate_axis(self.projection_axis, name="projection_axis")
 
-    def _validate_kspace_inputs(self, ux: ProjectionArray, uy: ProjectionArray) -> tuple[jax.Array, jax.Array]:
+    def _validate_kspace_inputs(
+        self, ux: jax.Array | np.ndarray, uy: jax.Array | np.ndarray
+    ) -> tuple[jax.Array, jax.Array]:
         """Validate k-space direction cosines and reject evanescent directions in eager mode."""
         ux, uy = _validate_1d_coordinate_pair("ux", ux, "uy", uy)
-        if _is_jax_tracer(ux) or _is_jax_tracer(uy):
+        if is_jax_tracer(ux) or is_jax_tracer(uy):
             return ux, uy
-        if _concrete_jax_bool(jnp.any(jnp.abs(ux) > 1.0)) or _concrete_jax_bool(jnp.any(jnp.abs(uy) > 1.0)):
+        if concrete_jax_bool(jnp.any(jnp.abs(ux) > 1.0)) or concrete_jax_bool(jnp.any(jnp.abs(uy) > 1.0)):
             raise ValueError("ux and uy values must lie in the interval [-1, 1].")
         ux_grid, uy_grid = jnp.meshgrid(ux, uy, indexing="ij")
-        if _concrete_jax_bool(jnp.any(ux_grid**2 + uy_grid**2 > 1.0)):
+        if concrete_jax_bool(jnp.any(ux_grid**2 + uy_grid**2 > 1.0)):
             raise ValueError("ux^2 + uy^2 must not exceed 1 for propagating k-space directions.")
         return ux, uy
 
     def _kspace_observation_grid(
-        self, ux: ProjectionArray, uy: ProjectionArray
+        self, ux: jax.Array | np.ndarray, uy: jax.Array | np.ndarray
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
         """Convert local k-space direction cosines to global spherical projection inputs.
 
@@ -1522,38 +1289,33 @@ class FieldProjectionKSpaceDetector(FieldProjectionDetectorBase):
                 x, y, z = y, x, z
             theta = jnp.arccos(jnp.clip(z, -1.0, 1.0))
             phi = jnp.arctan2(y, x)
-        distance = jnp.full(theta.shape, _finite_scalar("projection_distance", self.projection_distance), dtype=float)
+        distance = jnp.full(theta.shape, finite_scalar("projection_distance", self.projection_distance), dtype=float)
         return theta, phi, distance
 
     def project(
         self,
         state: DetectorState,
-        ux: ProjectionArray,
-        uy: ProjectionArray,
+        ux: jax.Array | np.ndarray,
+        uy: jax.Array | np.ndarray,
         *,
         wave_character_index: int = 0,
     ) -> dict[str, Any]:
         """Project recorded phasors to a k-space direction-cosine grid."""
         ux, uy = self._validate_kspace_inputs(ux, uy)
         theta, phi, distance = self._kspace_observation_grid(ux, uy)
+        coordinate_metadata = {"ux": ux, "uy": uy, "projection_axis": int(self.projection_axis)}
         return self._project_paired_coordinates(
-            state,
-            theta,
-            phi,
-            distance,
-            {"ux": ux, "uy": uy, "projection_axis": int(self.projection_axis)},
-            wave_character_index=wave_character_index,
+            state, theta, phi, distance, coordinate_metadata, wave_character_index=wave_character_index
         )
 
     def project_all(
         self,
         state: DetectorState,
-        ux: ProjectionArray,
-        uy: ProjectionArray,
+        ux: jax.Array | np.ndarray,
+        uy: jax.Array | np.ndarray,
     ) -> dict[str, Any]:
         """Project recorded phasors to a k-space grid for every wave character."""
         ux, uy = self._validate_kspace_inputs(ux, uy)
         theta, phi, distance = self._kspace_observation_grid(ux, uy)
-        return self._project_all_paired_coordinates(
-            state, theta, phi, distance, {"ux": ux, "uy": uy, "projection_axis": int(self.projection_axis)}
-        )
+        coordinate_metadata = {"ux": ux, "uy": uy, "projection_axis": int(self.projection_axis)}
+        return self._project_all_paired_coordinates(state, theta, phi, distance, coordinate_metadata)

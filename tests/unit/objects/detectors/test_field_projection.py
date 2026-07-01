@@ -1808,11 +1808,12 @@ class TestFieldProjectionAngleDetector:
         eps_complex = 2.25 + 1j * sigma / (omega * constants.eps0)
         expected_index = passive_sqrt(eps_complex)
         expected_impedance = constants.eta0 * positive_impedance_sqrt(1.0 / eps_complex)
+        refractive_index, impedance, wavenumber = detector._projection_parameters(0)
 
-        assert np.isclose(detector._projection_refractive_index(0), expected_index)
-        assert np.isclose(detector._projection_impedance(0), expected_impedance)
+        assert np.isclose(refractive_index, expected_index)
+        assert np.isclose(impedance, expected_impedance)
         assert np.isclose(
-            detector._projection_wavenumber(0),
+            wavenumber,
             2.0 * np.pi * expected_index / single_frequency[0].get_wavelength(),
         )
         assert abs(farther_detector._propagation_factor(0)) < 0.5 * abs(detector._propagation_factor(0))
@@ -1830,11 +1831,12 @@ class TestFieldProjectionAngleDetector:
         expected_eps = dispersion.permittivity(omega, eps_inf=2.0)
         expected_index = passive_sqrt(expected_eps)
         expected_impedance = constants.eta0 * positive_impedance_sqrt(1.0 / expected_eps)
+        refractive_index, impedance, wavenumber = detector._projection_parameters(0)
 
-        assert np.isclose(detector._projection_refractive_index(0), expected_index)
-        assert np.isclose(detector._projection_impedance(0), expected_impedance)
+        assert np.isclose(refractive_index, expected_index)
+        assert np.isclose(impedance, expected_impedance)
         assert np.isclose(
-            detector._projection_wavenumber(0),
+            wavenumber,
             2.0 * np.pi * expected_index / single_frequency[0].get_wavelength(),
         )
 

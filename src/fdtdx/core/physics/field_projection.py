@@ -9,15 +9,106 @@ homogeneous-medium dyadic Green-function fields from equivalent electric and mag
 use physical detector coordinates and trapezoidal weights, which is important for rectilinear non-uniform grids.
 """
 
+from typing import Any, Sequence
+
 import jax
 import jax.numpy as jnp
 import numpy as np
 
-_ProjectionArray = jax.Array | np.ndarray
-_ProjectionScalar = float | jax.Array
+from fdtdx.core.jax.utils import (
+    concrete_jax_bool,
+    finite_numeric_array,
+    finite_scalar_or_1d_array,
+    is_jax_tracer,
+)
+
+_EDGE_TAPER_DECAY = 15.0
+# Aperture-edge amplitude is exp(-0.5 * _EDGE_TAPER_DECAY) ~= 5e-4.
 
 
-def trapezoidal_weights_1d(points: _ProjectionArray) -> jax.Array:
+def _positive_projection_parameter(name: str, value: Any, expected_size: int) -> float | np.ndarray:
+    """Validate a positive scalar or per-frequency projection-medium parameter."""
+    parameter = finite_scalar_or_1d_array(name, value, expected_size)
+    if np.any(np.asarray(parameter) <= 0):
+        raise ValueError(f"{name} must be positive.")
+    return parameter
+
+
+def _projection_parameter_value(value: float | Sequence[float], index: int) -> float:
+    """Return a scalar projection parameter value for one wave-character index."""
+    array = np.asarray(value, dtype=float)
+    if array.ndim == 0:
+        return float(array)
+    return float(array[index])
+
+
+def _projection_parameter_is_default(name: str, value: Any, default: float, expected_size: int) -> bool:
+    """Return whether a scalar/per-frequency parameter equals its default value."""
+    parameter = _positive_projection_parameter(name, value, expected_size)
+    return bool(np.allclose(np.asarray(parameter, dtype=float), default))
+
+
+def _passive_complex_sqrt(value: complex) -> complex:
+    """Return the square-root branch with non-negative imaginary part for passive waves."""
+    root = complex(np.sqrt(complex(value)))
+    if root.imag < 0.0 or (np.isclose(root.imag, 0.0) and root.real < 0.0):
+        root = -root
+    return root
+
+
+def _positive_impedance_sqrt(value: complex) -> complex:
+    """Return the square-root branch with non-negative real impedance."""
+    root = complex(np.sqrt(complex(value)))
+    if root.real < 0.0 or (np.isclose(root.real, 0.0) and root.imag < 0.0):
+        root = -root
+    return root
+
+
+def _validate_theta_range(theta: jax.Array | np.ndarray) -> None:
+    """Validate that eager angle coordinates lie in the global spherical interval ``[0, pi]``."""
+    if is_jax_tracer(theta):
+        return
+    if isinstance(theta, jax.Array):
+        if concrete_jax_bool(jnp.any((theta < 0.0) | (theta > jnp.pi))):
+            raise ValueError("theta values must be in the interval [0, pi].")
+        return
+    try:
+        theta_array = np.asarray(theta)
+    except jax.errors.TracerArrayConversionError:
+        return
+    if np.any((theta_array < 0.0) | (theta_array > np.pi)):
+        raise ValueError("theta values must be in the interval [0, pi].")
+
+
+def _validate_positive_values(name: str, values: jax.Array | np.ndarray) -> None:
+    """Validate positive eager numeric arrays such as finite projection distances."""
+    if is_jax_tracer(values):
+        return
+    if isinstance(values, jax.Array):
+        if concrete_jax_bool(jnp.any(values <= 0.0)):
+            raise ValueError(f"{name} values must be positive.")
+        return
+    if np.any(np.asarray(values) <= 0.0):
+        raise ValueError(f"{name} values must be positive.")
+
+
+def _validate_1d_coordinate_pair(
+    first_name: str,
+    first: jax.Array | np.ndarray,
+    second_name: str,
+    second: jax.Array | np.ndarray,
+) -> tuple[jax.Array, jax.Array]:
+    """Validate two non-empty one-dimensional coordinate arrays for projection grids."""
+    first_array = finite_numeric_array(first_name, first)
+    second_array = finite_numeric_array(second_name, second)
+    if first_array.ndim != 1 or second_array.ndim != 1:
+        raise ValueError(f"{first_name} and {second_name} must be one-dimensional arrays.")
+    if first_array.size == 0 or second_array.size == 0:
+        raise ValueError(f"{first_name} and {second_name} must be non-empty.")
+    return first_array, second_array
+
+
+def trapezoidal_weights_1d(points: jax.Array | np.ndarray) -> jax.Array:
     """Return one-dimensional trapezoidal integration weights for physical sample coordinates.
 
     Endpoint samples receive half of their adjacent interval. Interior samples receive half the sum of the
@@ -45,7 +136,7 @@ def subsample_indices(num_points: int, interval: int) -> np.ndarray:
     return indices
 
 
-def edge_window_1d(points: _ProjectionArray, window_size: float) -> jax.Array:
+def edge_window_1d(points: jax.Array | np.ndarray, window_size: float) -> jax.Array:
     """Return a Gaussian finite-aperture taper that suppresses only the two edges.
 
     ``window_size`` is the fractional width of the tapered region over both edges. The central region is left at
@@ -54,7 +145,6 @@ def edge_window_1d(points: _ProjectionArray, window_size: float) -> jax.Array:
     points = jnp.asarray(points, dtype=float)
     if window_size <= 0:
         return jnp.ones(points.shape, dtype=float)
-    window_factor = 15.0
     bound_min = jnp.min(points)
     bound_max = jnp.max(points)
     size = bound_max - bound_min
@@ -64,23 +154,23 @@ def edge_window_1d(points: _ProjectionArray, window_size: float) -> jax.Array:
     window = jnp.ones(points.shape, dtype=float)
     lower = points < window_minus
     upper = points > window_plus
-    lower_window = jnp.exp(-0.5 * window_factor * ((points - window_minus) / transition) ** 2)
-    upper_window = jnp.exp(-0.5 * window_factor * ((points - window_plus) / transition) ** 2)
+    lower_window = jnp.exp(-0.5 * _EDGE_TAPER_DECAY * ((points - window_minus) / transition) ** 2)
+    upper_window = jnp.exp(-0.5 * _EDGE_TAPER_DECAY * ((points - window_plus) / transition) ** 2)
     window = jnp.where(lower, lower_window, window)
     window = jnp.where(upper, upper_window, window)
     return window
 
 
 def direct_project_component(
-    current: _ProjectionArray,
-    u_coords: _ProjectionArray,
-    v_coords: _ProjectionArray,
-    u_direction: _ProjectionArray,
-    v_direction: _ProjectionArray,
-    normal_direction: _ProjectionArray,
+    current: jax.Array | np.ndarray,
+    u_coords: jax.Array | np.ndarray,
+    v_coords: jax.Array | np.ndarray,
+    u_direction: jax.Array | np.ndarray,
+    v_direction: jax.Array | np.ndarray,
+    normal_direction: jax.Array | np.ndarray,
     *,
     wavenumber: complex,
-    normal_offset: _ProjectionScalar,
+    normal_offset: float | jax.Array,
 ) -> jax.Array:
     """Project one equivalent-current component with the far-field separable phase factor.
 
@@ -98,10 +188,10 @@ def direct_project_component(
 
 
 def _spherical_basis_from_trig(
-    sin_theta: _ProjectionArray,
-    cos_theta: _ProjectionArray,
-    sin_phi: _ProjectionArray,
-    cos_phi: _ProjectionArray,
+    sin_theta: jax.Array | np.ndarray,
+    cos_theta: jax.Array | np.ndarray,
+    sin_phi: jax.Array | np.ndarray,
+    cos_phi: jax.Array | np.ndarray,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Build global spherical basis vectors from precomputed sine and cosine arrays.
 
@@ -109,34 +199,15 @@ def _spherical_basis_from_trig(
     broadcast dimensions; the output component axis is always first.
     """
     zeros = jnp.zeros_like(sin_theta * cos_phi, dtype=float)
-    radial = jnp.stack(
-        (
-            sin_theta * cos_phi,
-            sin_theta * sin_phi,
-            cos_theta + zeros,
-        ),
-        axis=0,
-    )
-    theta_hat = jnp.stack(
-        (
-            cos_theta * cos_phi,
-            cos_theta * sin_phi,
-            -sin_theta + zeros,
-        ),
-        axis=0,
-    )
-    phi_hat = jnp.stack(
-        (
-            -sin_phi + zeros,
-            cos_phi + zeros,
-            zeros,
-        ),
-        axis=0,
-    )
+    radial = jnp.stack((sin_theta * cos_phi, sin_theta * sin_phi, cos_theta + zeros), axis=0)
+    theta_hat = jnp.stack((cos_theta * cos_phi, cos_theta * sin_phi, -sin_theta + zeros), axis=0)
+    phi_hat = jnp.stack((-sin_phi + zeros, cos_phi + zeros, zeros), axis=0)
     return radial, theta_hat, phi_hat
 
 
-def spherical_basis_grid(theta: _ProjectionArray, phi: _ProjectionArray) -> tuple[jax.Array, jax.Array, jax.Array]:
+def spherical_basis_grid(
+    theta: jax.Array | np.ndarray, phi: jax.Array | np.ndarray
+) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Return ``r_hat``, ``theta_hat``, and ``phi_hat`` on a tensor-product ``theta x phi`` grid.
 
     The returned arrays have shape ``(3, len(theta), len(phi))`` and use the global spherical convention where
@@ -149,7 +220,9 @@ def spherical_basis_grid(theta: _ProjectionArray, phi: _ProjectionArray) -> tupl
     )
 
 
-def spherical_basis_paired(theta: _ProjectionArray, phi: _ProjectionArray) -> tuple[jax.Array, jax.Array, jax.Array]:
+def spherical_basis_paired(
+    theta: jax.Array | np.ndarray, phi: jax.Array | np.ndarray
+) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Return spherical basis vectors for paired ``theta`` and ``phi`` arrays with matching shapes.
 
     This is used by Cartesian and k-space projections after their observation points are converted to global
@@ -160,7 +233,7 @@ def spherical_basis_paired(theta: _ProjectionArray, phi: _ProjectionArray) -> tu
     return _spherical_basis_from_trig(jnp.sin(theta), jnp.cos(theta), jnp.sin(phi), jnp.cos(phi))
 
 
-def cartesian_to_spherical_angles(points: _ProjectionArray) -> tuple[jax.Array, jax.Array, jax.Array]:
+def cartesian_to_spherical_angles(points: jax.Array | np.ndarray) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Convert Cartesian observation points to radial distance and global spherical angles.
 
     ``points`` has component axis first, with shape ``(3, ...)``. The returned arrays keep the trailing observation
@@ -174,18 +247,13 @@ def cartesian_to_spherical_angles(points: _ProjectionArray) -> tuple[jax.Array, 
     return radial_distance, theta, phi
 
 
-def _cross_axis0(first: _ProjectionArray, second: _ProjectionArray) -> jax.Array:
-    """Compute a vector cross product for arrays whose vector-component axis is first."""
-    return jnp.moveaxis(jnp.cross(jnp.moveaxis(first, 0, -1), jnp.moveaxis(second, 0, -1)), -1, 0)
-
-
 def exact_cartesian_fields_for_observation(
     *,
-    observation_point: _ProjectionArray,
-    electric_current: _ProjectionArray,
-    magnetic_current: _ProjectionArray,
-    source_coordinates: _ProjectionArray,
-    weights: _ProjectionArray,
+    observation_point: jax.Array | np.ndarray,
+    electric_current: jax.Array | np.ndarray,
+    magnetic_current: jax.Array | np.ndarray,
+    source_coordinates: jax.Array | np.ndarray,
+    weights: jax.Array | np.ndarray,
     angular_frequency: float,
     wavenumber: complex,
     epsilon: complex,
@@ -206,7 +274,7 @@ def exact_cartesian_fields_for_observation(
     d_green = green * (ikr - 1.0) / radius
     d2_green = d_green * (ikr - 1.0) / radius + green / (radius**2)
 
-    def grad_dg_dot_current(current: _ProjectionArray) -> jax.Array:
+    def grad_dg_dot_current(current: jax.Array | np.ndarray) -> jax.Array:
         """Apply the dyadic Green-function gradient-divergence term to one current sheet."""
         radial_dot_current = jnp.sum(radial_hat * current, axis=0)
         transverse_current = current - radial_hat * radial_dot_current[None, :, :]
@@ -215,8 +283,8 @@ def exact_cartesian_fields_for_observation(
             + transverse_current * (d_green / radius)[None, :, :]
         )
 
-    radial_cross_electric = _cross_axis0(radial_hat, electric_current)
-    radial_cross_magnetic = _cross_axis0(radial_hat, magnetic_current)
+    radial_cross_electric = jnp.cross(radial_hat, electric_current, axisa=0, axisb=0, axisc=0)
+    radial_cross_magnetic = jnp.cross(radial_hat, magnetic_current, axisa=0, axisb=0, axisc=0)
 
     vector_potential_a = permeability * electric_current * green[None, :, :]
     curl_a = permeability * radial_cross_electric * d_green[None, :, :]
@@ -238,9 +306,9 @@ def exact_cartesian_fields_for_observation(
 
 def raise_if_exact_observations_overlap_sources(
     *,
-    source_coordinates: _ProjectionArray,
-    radial_flat: _ProjectionArray,
-    distance_flat: _ProjectionArray,
+    source_coordinates: jax.Array | np.ndarray,
+    radial_flat: jax.Array | np.ndarray,
+    distance_flat: jax.Array | np.ndarray,
     batch_size: int | None,
 ) -> None:
     """Reject exact-projection observation points that coincide with source samples in eager mode.
