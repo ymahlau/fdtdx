@@ -1,8 +1,9 @@
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
-from fdtdx.core.jax.utils import check_shape_dtype, check_specs
+from fdtdx.core.jax.utils import check_shape_dtype, check_specs, finite_scalar
 
 
 def test_check_specs_single_array_correct_shape():
@@ -62,6 +63,13 @@ def test_check_specs_dict_different_lengths():
     expected_shapes = {"a": (2,)}
     with pytest.raises(Exception):
         check_specs(arrays, expected_shapes)
+
+
+def test_finite_scalar_rejects_numpy_complex_scalars():
+    """NumPy complex scalars must not silently drop their imaginary part."""
+    for value in (np.complex64(1.0 + 2.0j), np.complex128(1.0 + 2.0j)):
+        with pytest.raises(ValueError, match="finite numeric value"):
+            finite_scalar("projection_distance", value)
 
 
 def test_check_shape_dtype_single_array_correct():

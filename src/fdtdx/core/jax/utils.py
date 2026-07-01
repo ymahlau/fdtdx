@@ -108,6 +108,8 @@ def finite_scalar(name: str, value: Any) -> float:
     """Validate a concrete finite numeric scalar, rejecting bools and non-scalars."""
     if isinstance(value, (bool, np.bool_)):
         raise ValueError(f"{name} must be a finite numeric value.")
+    if isinstance(value, (complex, np.complexfloating)):
+        raise ValueError(f"{name} must be a finite numeric value.")
     if not isinstance(value, (int, float, np.number)):
         raise ValueError(f"{name} must be a finite numeric value.")
     try:
