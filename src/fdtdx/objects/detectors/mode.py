@@ -4,11 +4,12 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from fdtdx import constants
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.null import Null
 from fdtdx.core.physics.modes import compute_mode
-from fdtdx.dispersion import effective_inv_permittivity
+from fdtdx.dispersion import effective_complex_inv_permittivity
 from fdtdx.objects.detectors.detector import DetectorState
 from fdtdx.objects.detectors.phasor import PhasorDetector
 from fdtdx.typing import SliceTuple3D
@@ -150,6 +151,8 @@ class ModeOverlapDetector(PhasorDetector):
         dispersive_c1: jax.Array | None = None,
         dispersive_c2: jax.Array | None = None,
         dispersive_c3: jax.Array | None = None,
+        electric_conductivity: jax.Array | None = None,
+        dispersive_c4: jax.Array | None = None,
     ) -> Self:
         del key
         inv_permittivity_slice = inv_permittivities[:, *self.grid_slice]
@@ -158,25 +161,38 @@ class ModeOverlapDetector(PhasorDetector):
         else:
             inv_permeability_slice = inv_permeabilities
 
-        c1_slice = c2_slice = c3_slice = None
+        c1_slice = c2_slice = c3_slice = c4_slice = None
         if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
             c1_slice = dispersive_c1[:, :, *self.grid_slice]
             c2_slice = dispersive_c2[:, :, *self.grid_slice]
             c3_slice = dispersive_c3[:, :, *self.grid_slice]
+            c4_slice = None if dispersive_c4 is None else dispersive_c4[:, :, *self.grid_slice]
+
+        # The reference mode is solved against the FULL complex epsilon at each
+        # carrier frequency (eps_inf + chi(omega) + i*sigma/(eps0*omega)), so the
+        # overlap basis and effective index reflect material loss. With no loss
+        # the complex helper is skipped and the real lossless path is preserved.
+        sigma_slice = None if electric_conductivity is None else electric_conductivity[:, *self.grid_slice]
+        conductivity_spacing = (
+            None if sigma_slice is None else constants.c * self._config.time_step_duration / self._config.courant_number
+        )
 
         all_mode_Es: list[jax.Array] = []
         all_mode_Hs: list[jax.Array] = []
         all_mode_neffs: list[jax.Array] = []
         for wc in self.wave_characters:
             inv_eps_i = inv_permittivity_slice
-            if c1_slice is not None and c2_slice is not None and c3_slice is not None:
-                inv_eps_i = effective_inv_permittivity(
+            if c1_slice is not None or sigma_slice is not None:
+                inv_eps_i = effective_complex_inv_permittivity(
                     inv_eps=inv_permittivity_slice,
+                    omega=2.0 * np.pi * wc.get_frequency(),
+                    dt=self._config.time_step_duration,
                     c1=c1_slice,
                     c2=c2_slice,
                     c3=c3_slice,
-                    omega=2.0 * np.pi * wc.get_frequency(),
-                    dt=self._config.time_step_duration,
+                    c4=c4_slice,
+                    electric_conductivity=sigma_slice,
+                    conductivity_spacing=conductivity_spacing,
                 )
             mode_E, mode_H, mode_neff = compute_mode(
                 frequency=wc.get_frequency(),

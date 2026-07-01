@@ -167,8 +167,27 @@ def compute_mode(
     np_complex_dtype = np.complex128 if dtype == jnp.float64 else np.complex64
 
     def mode_helper(permittivity, permeability, c0_um, c1_um):
-        # c0_um, c1_um are concrete numpy arrays here (materialised by pure_callback)
         coords = [np.asarray(c0_um), np.asarray(c1_um)]
+
+        # Implicitly detect 2D mode if any transverse dimension is exactly 2
+        mode_2d = 2 in permittivity.shape[1:]  # permittivity.shape=(N_comp, dim1, dim2)
+
+        if mode_2d:
+            collapsed_axis = permittivity.shape[1:].index(2)
+            sl = (slice(None), slice(None), [0]) if collapsed_axis == 1 else (slice(None), [0], slice(None))
+
+            assert np.allclose(permittivity, permittivity[sl]), "Permittivity is not uniform across the collapsed axis!"
+            assert len(coords[collapsed_axis]) == 3, (
+                f"Assumption: Permittivity {permittivity.shape[1:]=}+1 matches ({coords[0].shape=}, {coords[1].shape})"
+            )
+            permittivity = permittivity[sl]
+
+            if isinstance(permeability, np.ndarray) and permeability.ndim > 0:
+                permeability = permeability[sl]
+
+            # Adjust coordinates for the collapsed dimension
+            coords[collapsed_axis] = coords[collapsed_axis][:2]
+
         if bend_radius is not None:
             assert bend_axis is not None
             transverse_axes = get_transverse_axes(propagation_axis)
@@ -214,6 +233,14 @@ def compute_mode(
             )
         else:
             raise Exception("This should never happen")
+
+        if mode_2d:
+            # Re-expand the collapsed dimension
+            mode_E = np.expand_dims(mode_E, axis=collapsed_axis + 1)
+            mode_E = np.repeat(mode_E, 2, axis=collapsed_axis + 1)
+
+            mode_H = np.expand_dims(mode_H, axis=collapsed_axis + 1)
+            mode_H = np.repeat(mode_H, 2, axis=collapsed_axis + 1)
 
         neff = np.asarray(mode.neff).astype(np_complex_dtype)
         return mode_E, mode_H, neff

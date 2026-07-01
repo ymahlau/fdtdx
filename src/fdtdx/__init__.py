@@ -26,6 +26,7 @@ from fdtdx.core.jax.pytrees import (
 from fdtdx.core.physics.losses import metric_efficiency
 from fdtdx.core.physics.metrics import (
     compute_energy,
+    compute_integrated_power,
     compute_poynting_flux,
     normalize_by_energy,
     normalize_by_poynting_flux,
@@ -34,6 +35,7 @@ from fdtdx.core.physics.modes import compute_mode
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.dispersion import (
+    CCPRPole,
     DispersionModel,
     DrudePole,
     LorentzPole,
@@ -59,6 +61,11 @@ from fdtdx.objects.boundaries.pmc import PerfectMagneticConductor
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.detectors.field import FieldDetector
+from fdtdx.objects.detectors.field_projection import (
+    FieldProjectionAngleDetector,
+    FieldProjectionCartesianDetector,
+    FieldProjectionKSpaceDetector,
+)
 from fdtdx.objects.detectors.mode import ModeOverlapDetector
 from fdtdx.objects.detectors.phasor import PhasorDetector
 from fdtdx.objects.detectors.poynting_flux import PoyntingFluxDetector
@@ -152,6 +159,7 @@ __all__ = [
     "BlochBoundary",
     "BoundaryConfig",
     "BrushConstraint2D",
+    "CCPRPole",
     "ClosestIndex",
     "Color",
     "ConnectHolesAndStructures",
@@ -168,6 +176,9 @@ __all__ = [
     "EnergyDetector",
     "ExtrudedPolygon",
     "FieldDetector",
+    "FieldProjectionAngleDetector",
+    "FieldProjectionCartesianDetector",
+    "FieldProjectionKSpaceDetector",
     "FieldState",
     "GDSLayerObject",
     "GDSLayerSpec",
@@ -238,6 +249,7 @@ __all__ = [
     "compute_energy",
     "compute_eps_spectrum_from_coefficients",
     "compute_impedance_corrected_temporal_profile",
+    "compute_integrated_power",
     "compute_mode",
     "compute_pole_coefficients",
     "compute_poynting_flux",

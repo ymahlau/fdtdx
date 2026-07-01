@@ -22,11 +22,13 @@ class TestCondition:
         # Create dummy arrays with appropriate shapes
         E = jnp.ones((3, 10, 10, 10))  # 3D electric field
         H = jnp.ones((3, 10, 10, 10))  # 3D magnetic field
-        psi_E = jnp.zeros((6, 10, 10, 10))  # 3D auxiliary electric field
-        psi_H = jnp.zeros((6, 10, 10, 10))  # 3D auxiliary magnetic field
-        alpha = jnp.zeros((3, 10, 10, 10))  # 3D alpha array
-        kappa = jnp.ones((3, 10, 10, 10))  # 3D kappa array
-        sigma = jnp.zeros((3, 10, 10, 10))  # 3D sigma array
+        # Sparse PML state: no PML boundaries here, so the shell is empty (M = 0).
+        psi_E = jnp.zeros((6, 0))
+        psi_H = jnp.zeros((6, 0))
+        pml_a = jnp.zeros((6, 0))
+        pml_b = jnp.zeros((6, 0))
+        pml_inv_kappa = jnp.zeros((6, 0))
+        pml_indices = jnp.zeros((3, 0), dtype=jnp.int32)
         inv_permittivities = jnp.ones((10, 10, 10))
         inv_permeabilities = jnp.ones((10, 10, 10))
 
@@ -36,9 +38,10 @@ class TestCondition:
         # Create array container
         arrays = ArrayContainer(
             fields=FieldState(E=E, H=H, psi_E=psi_E, psi_H=psi_H),
-            alpha=alpha,
-            kappa=kappa,
-            sigma=sigma,
+            pml_a=pml_a,
+            pml_b=pml_b,
+            pml_inv_kappa=pml_inv_kappa,
+            pml_indices=pml_indices,
             inv_permittivities=inv_permittivities,
             inv_permeabilities=inv_permeabilities,
             detector_states=detector_states,

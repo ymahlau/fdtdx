@@ -34,6 +34,9 @@ UNDEFINED_SHAPE_3D = (None, None, None)  # both real or grid
 SliceTuple3D = tuple[tuple[int, int], tuple[int, int], tuple[int, int]]
 """3D slice specification using (start, stop) integer tuples for each axis."""
 
+ProjectionSurface = Literal["x-", "x+", "y-", "y+", "z-", "z+"]
+"""Named outward surface of a box-shaped field projection detector."""
+
 OptionalAxisSliceTuple = Optional[tuple[int, int]]
 """Optional (start, stop) tuple for slicing a single axis."""
 

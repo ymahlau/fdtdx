@@ -17,7 +17,7 @@ import fdtdx
 
 # ── Domain constants ─────────────────────────────────────────────────────────
 _WAVELENGTH = 1e-6
-_C = 3e8
+_C = fdtdx.constants.c
 _RESOLUTION = 50e-9
 _PML_CELLS = 10
 _DOMAIN_XY = 3 * _RESOLUTION

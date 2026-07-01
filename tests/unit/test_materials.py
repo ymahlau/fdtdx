@@ -9,6 +9,7 @@ from fdtdx.materials import (
     compute_allowed_magnetic_conductivities,
     compute_allowed_permeabilities,
     compute_allowed_permittivities,
+    isotropic_property_value,
 )
 
 
@@ -163,6 +164,21 @@ class TestMaterialClass:
             permeability=((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
         )
         assert mat.is_all_isotropic is False
+
+    def test_isotropic_property_value(self):
+        """Test scalar extraction from normalized isotropic material properties."""
+        mat = Material(permittivity=2.5)
+        assert isotropic_property_value(mat.permittivity, "permittivity") == 2.5
+
+        invalid_cases = [
+            (Material(permittivity=(1.0, 2.0, 1.0)).permittivity, "isotropic"),
+            (Material(permittivity=True).permittivity, "finite real isotropic"),
+            (Material(permittivity=1.0 + 0.1j).permittivity, "real"),
+            (Material(permittivity=float("inf")).permittivity, "finite"),
+        ]
+        for prop, match in invalid_cases:
+            with pytest.raises(ValueError, match=match):
+                isotropic_property_value(prop, "permittivity")
 
     def test_is_all_diagonally_anisotropic_property(self):
         """Test the is_all_diagonally_anisotropic property."""
@@ -698,3 +714,135 @@ class TestBackwardCompatibility:
         assert perms[0] == (1.0,)
         assert perms[1] == (2.5,)
         assert perms[2] == (10.0,)
+
+
+class TestLossyMaterialConstructors:
+    """Tests for the complex-permittivity / refractive-index / loss-tangent constructors.
+
+    These convert a frequency-domain loss specification into the equivalent real
+    permittivity + electric conductivity (and the magnetic dual) at a reference
+    frequency: sigma = omega0 * eps0 * eps'' (sign convention exp(-i omega t),
+    so positive imaginary part = loss).
+    """
+
+    _WL = 1.55e-6  # reference wavelength (m)
+
+    def _omega(self):
+        import math
+
+        from fdtdx import constants
+
+        return 2.0 * math.pi * constants.c / self._WL
+
+    def test_from_complex_permittivity_scalar(self):
+        import math
+
+        from fdtdx import constants
+
+        mat = Material.from_complex_permittivity(4.0 + 0.5j, wavelength=self._WL)
+        omega = self._omega()
+        assert math.isclose(mat.permittivity[0], 4.0)
+        assert math.isclose(mat.permittivity[4], 4.0)
+        assert math.isclose(mat.permittivity[8], 4.0)
+        assert math.isclose(mat.electric_conductivity[0], omega * constants.eps0 * 0.5, rel_tol=1e-12)
+        assert mat.is_electrically_conductive
+        # purely electric loss leaves the material non-magnetic
+        assert not mat.is_magnetic
+        assert not mat.is_magnetically_conductive
+
+    def test_from_refractive_index_scalar(self):
+        import math
+
+        from fdtdx import constants
+
+        n, k = 1.5, 0.01
+        mat = Material.from_refractive_index(n + 1j * k, wavelength=self._WL)
+        omega = self._omega()
+        assert math.isclose(mat.permittivity[0], n**2 - k**2, rel_tol=1e-12)
+        assert math.isclose(mat.electric_conductivity[0], 2 * omega * constants.eps0 * n * k, rel_tol=1e-9)
+
+    def test_from_refractive_index_lossless_has_no_conductivity(self):
+        import math
+
+        mat = Material.from_refractive_index(1.5, wavelength=self._WL)
+        assert math.isclose(mat.permittivity[0], 2.25, rel_tol=1e-12)
+        assert not mat.is_electrically_conductive
+        assert mat.electric_conductivity == (0.0,) * 9
+
+    def test_from_loss_tangent_scalar(self):
+        import math
+
+        from fdtdx import constants
+
+        eps_real, tand = 4.0, 0.01
+        mat = Material.from_loss_tangent(eps_real, tand, wavelength=self._WL)
+        omega = self._omega()
+        assert math.isclose(mat.permittivity[0], eps_real)
+        assert math.isclose(mat.electric_conductivity[0], omega * constants.eps0 * eps_real * tand, rel_tol=1e-12)
+
+    def test_diagonal_anisotropy(self):
+        import math
+
+        from fdtdx import constants
+
+        mat = Material.from_complex_permittivity((2.0 + 0.1j, 3.0 + 0.2j, 4.0 + 0.0j), wavelength=self._WL)
+        omega = self._omega()
+        assert mat.permittivity == (2.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 4.0)
+        assert math.isclose(mat.electric_conductivity[0], omega * constants.eps0 * 0.1, rel_tol=1e-12)
+        assert math.isclose(mat.electric_conductivity[4], omega * constants.eps0 * 0.2, rel_tol=1e-12)
+        assert math.isclose(mat.electric_conductivity[8], 0.0, abs_tol=1e-30)
+
+    def test_complex_permeability_dual(self):
+        import math
+
+        from fdtdx import constants
+
+        mat = Material.from_complex_permittivity(2.0 + 0.0j, wavelength=self._WL, permeability=1.0 + 0.05j)
+        omega = self._omega()
+        assert math.isclose(mat.permeability[0], 1.0)
+        assert math.isclose(mat.magnetic_conductivity[0], omega * constants.mu0 * 0.05, rel_tol=1e-12)
+        assert mat.is_magnetically_conductive
+
+    def test_reference_via_wave_character(self):
+        import math
+
+        from fdtdx.core.wavelength import WaveCharacter
+
+        mat_wl = Material.from_complex_permittivity(4.0 + 0.5j, wavelength=self._WL)
+        mat_wc = Material.from_complex_permittivity(4.0 + 0.5j, reference=WaveCharacter(wavelength=self._WL))
+        assert math.isclose(mat_wl.electric_conductivity[0], mat_wc.electric_conductivity[0], rel_tol=1e-12)
+
+    def test_reference_via_frequency_matches_wavelength(self):
+        import math
+
+        from fdtdx import constants
+
+        freq = constants.c / self._WL
+        mat_f = Material.from_complex_permittivity(4.0 + 0.5j, frequency=freq)
+        mat_wl = Material.from_complex_permittivity(4.0 + 0.5j, wavelength=self._WL)
+        assert math.isclose(mat_f.electric_conductivity[0], mat_wl.electric_conductivity[0], rel_tol=1e-12)
+
+    def test_gain_is_allowed(self):
+        # No gain guard: a negative imaginary part yields a negative conductivity.
+        mat = Material.from_complex_permittivity(4.0 - 0.5j, wavelength=self._WL)
+        assert mat.electric_conductivity[0] < 0.0
+
+    def test_requires_exactly_one_reference(self):
+        import pytest
+
+        with pytest.raises(ValueError):
+            Material.from_complex_permittivity(4.0 + 0.5j)
+        with pytest.raises(ValueError):
+            Material.from_complex_permittivity(4.0 + 0.5j, wavelength=self._WL, frequency=1e14)
+
+    def test_loss_tangent_length_mismatch_raises(self):
+        import pytest
+
+        with pytest.raises(ValueError):
+            Material.from_loss_tangent((4.0, 3.0, 2.0), (0.01, 0.02), wavelength=self._WL)
+
+    def test_nested_tuple_rejected(self):
+        import pytest
+
+        with pytest.raises(ValueError):
+            Material.from_complex_permittivity(((2.0 + 0.1j, 0.0, 0.0),), wavelength=self._WL)

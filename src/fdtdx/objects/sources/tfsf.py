@@ -24,6 +24,7 @@ def _build_dispersive_H_filter(
     c3_slice: jax.Array,
     inv_eps_inf_slice: jax.Array,
     dtype: jnp.dtype = jnp.float32,
+    c4_slice: jax.Array | None = None,
 ) -> jax.Array:
     """Precompute the broadband-corrected H-side temporal profile for a TFSF source.
 
@@ -83,6 +84,7 @@ def _build_dispersive_H_filter(
     c1_np = np.asarray(c1_slice)
     c2_np = np.asarray(c2_slice)
     c3_np = np.asarray(c3_slice)
+    c4_np = None if c4_slice is None else np.asarray(c4_slice)
     inv_eps_inf_np = np.asarray(inv_eps_inf_slice)
 
     eps_spectrum = compute_eps_spectrum_from_coefficients(
@@ -92,6 +94,7 @@ def _build_dispersive_H_filter(
         inv_eps_inf=inv_eps_inf_np,
         omegas=omegas_rfft,
         dt=dt,
+        c4=c4_np,
     )
     omega_c = 2.0 * np.pi * wave_character.get_frequency()
     eps_center_arr = compute_eps_spectrum_from_coefficients(
@@ -101,6 +104,7 @@ def _build_dispersive_H_filter(
         inv_eps_inf=inv_eps_inf_np,
         omegas=np.array([omega_c], dtype=np.float64),
         dt=dt,
+        c4=c4_np,
     )
     eps_center = complex(eps_center_arr[0])
 
@@ -293,6 +297,8 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         dispersive_c1: jax.Array | None = None,
         dispersive_c2: jax.Array | None = None,
         dispersive_c3: jax.Array | None = None,
+        electric_conductivity: jax.Array | None = None,
+        dispersive_c4: jax.Array | None = None,
     ) -> Self:
         # Must populate self._E, self._H, self._time_offset_E, and self._time_offset_H.
         # When dispersive_* are provided, the concrete implementation is expected
@@ -350,6 +356,30 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
                     jnp.interp(idx_arr, xp, self._temporal_H_filter, left=0.0, right=0.0) * self.static_amplitude_factor
                 )
 
+        # Complex (lossy) modal profile: inject the eigenmode's transverse phase
+        # via a quadrature (cos/sin) decomposition so the launched field is
+        # Re{M(x)·e^{-iθ}} rather than Re{M(x)}·cosθ. Only the get_amplitude path
+        # ever carries a complex profile (the dispersive H-filter path always sees
+        # a real profile), so the sin term reuses get_amplitude with a -pi/2 carrier
+        # shift. For a real profile the branch is skipped (bit-identical).
+        inject_complex_H = jnp.iscomplexobj(self._H) and self._temporal_H_filter is None
+        amplitude_H_quad = {}
+        if inject_complex_H:
+            for axis in [h_axis, v_axis, p_axis]:
+                amplitude_H_quad[axis] = (
+                    self.temporal_profile.get_amplitude(
+                        time=time_H[axis],
+                        period=self.wave_character.get_period(),
+                        phase_shift=self.wave_character.phase_shift - 0.5 * np.pi,
+                    )
+                    * self.static_amplitude_factor
+                )
+
+        def incident_H(axis):
+            if inject_complex_H:
+                return jnp.real(self._H[axis]) * amplitude_H[axis] + jnp.imag(self._H[axis]) * amplitude_H_quad[axis]
+            return self._H[axis] * amplitude_H[axis]
+
         # if direction is negative, updates are reversed
         sign = 1 if self.direction == "+" else -1
         # inverse update is inverted
@@ -358,9 +388,9 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
 
         if is_fully_anisotropic:
             # vertical incident wave part
-            H_v_inc = jax.lax.stop_gradient(self._H[v_axis] * amplitude_H[v_axis])
+            H_v_inc = jax.lax.stop_gradient(incident_H(v_axis))
             # horizontal incident wave part
-            H_h_inc = jax.lax.stop_gradient(self._H[h_axis] * amplitude_H[h_axis])
+            H_h_inc = jax.lax.stop_gradient(incident_H(h_axis))
 
             def get_inv_eps(row, col):
                 # get inverse permittivity tensor element at (row, col)
@@ -380,13 +410,13 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
 
         else:
             # vertical incident wave part
-            H_v_inc = self._H[v_axis] * amplitude_H[v_axis]
+            H_v_inc = incident_H(v_axis)
             # Use horizontal component of inv_permittivity for H_v calculation
             H_v_inc = H_v_inc * c * inv_permittivity_slice[h_axis]
             H_v_inc = jax.lax.stop_gradient(H_v_inc)
 
             # horizontal incident wave part
-            H_h_inc = self._H[h_axis] * amplitude_H[h_axis]
+            H_h_inc = incident_H(h_axis)
             # Use vertical component of inv_permittivity for H_h calculation
             H_h_inc = H_h_inc * c * inv_permittivity_slice[v_axis]
             H_h_inc = jax.lax.stop_gradient(H_h_inc)
@@ -441,6 +471,27 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
                 * self.static_amplitude_factor
             )
 
+        # Complex (lossy) modal profile: inject the eigenmode's transverse phase
+        # via a quadrature (cos/sin) decomposition (see update_E). Bit-identical
+        # for a real profile.
+        inject_complex_E = jnp.iscomplexobj(self._E)
+        amplitude_E_quad = {}
+        if inject_complex_E:
+            for axis in [h_axis, v_axis, p_axis]:
+                amplitude_E_quad[axis] = (
+                    self.temporal_profile.get_amplitude(
+                        time=time_E[axis],
+                        period=self.wave_character.get_period(),
+                        phase_shift=self.wave_character.phase_shift - 0.5 * np.pi,
+                    )
+                    * self.static_amplitude_factor
+                )
+
+        def incident_E(axis):
+            if inject_complex_E:
+                return jnp.real(self._E[axis]) * amplitude_E[axis] + jnp.imag(self._E[axis]) * amplitude_E_quad[axis]
+            return self._E[axis] * amplitude_E[axis]
+
         # if direction is negative, updates are reversed
         sign = 1 if self.direction == "+" else -1
         # inverse update is inverted
@@ -449,9 +500,9 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
 
         if is_fully_anisotropic:
             # horizontal incident wave part
-            E_h_inc = jax.lax.stop_gradient(self._E[h_axis] * amplitude_E[h_axis])
+            E_h_inc = jax.lax.stop_gradient(incident_E(h_axis))
             # vertical incident wave part
-            E_v_inc = jax.lax.stop_gradient(self._E[v_axis] * amplitude_E[v_axis])
+            E_v_inc = jax.lax.stop_gradient(incident_E(v_axis))
 
             def get_inv_mu(row, col):
                 # get inverse permeability tensor element at (row, col)
@@ -471,7 +522,7 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
 
         else:
             # horizontal incident wave part
-            E_h_inc = self._E[h_axis] * amplitude_E[h_axis]
+            E_h_inc = incident_E(h_axis)
             # Use vertical component of inv_permeability for E_h calculation
             if isinstance(inv_permeability_slice, jax.Array) and inv_permeability_slice.ndim > 1:
                 E_h_inc = E_h_inc * c * inv_permeability_slice[v_axis]
@@ -480,7 +531,7 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
             E_h_inc = jax.lax.stop_gradient(E_h_inc)
 
             # vertical incident wave part
-            E_v_inc = self._E[v_axis] * amplitude_E[v_axis]
+            E_v_inc = incident_E(v_axis)
             # Use horizontal component of inv_permeability for E_v calculation
             if isinstance(inv_permeability_slice, jax.Array) and inv_permeability_slice.ndim > 1:
                 E_v_inc = E_v_inc * c * inv_permeability_slice[h_axis]

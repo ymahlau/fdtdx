@@ -1,8 +1,11 @@
 import math
+from typing import cast
 
 import numpy as np
 
+from fdtdx import constants
 from fdtdx.core.jax.pytrees import TreeClass, frozen_field
+from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.dispersion import DispersionModel, compute_pole_coefficients
 
 
@@ -377,6 +380,246 @@ class Material(TreeClass):
         """
         return self.dispersion is not None and self.dispersion.num_poles > 0
 
+    @classmethod
+    def from_complex_permittivity(
+        cls,
+        permittivity: complex | float | tuple,
+        *,
+        reference: WaveCharacter | None = None,
+        wavelength: float | None = None,
+        frequency: float | None = None,
+        permeability: complex | float | tuple = 1.0,
+    ) -> "Material":
+        r"""Build a non-dispersive lossy material from a complex permittivity.
+
+        The imaginary part of the permittivity is converted to an equivalent
+        electric conductivity :math:`\sigma = \omega_0 \varepsilon_0 \varepsilon''`
+        at the reference angular frequency :math:`\omega_0 = 2\pi f_0`. Likewise,
+        a complex ``permeability`` maps its imaginary part to a magnetic
+        conductivity :math:`\sigma_m = \omega_0 \mu_0 \mu''`.
+
+        Sign convention: :math:`e^{-i\omega t}`, so a *positive* imaginary part
+        denotes loss (:math:`\varepsilon = \varepsilon' + i\varepsilon''`),
+        matching the dispersion model used elsewhere in FDTDX.
+
+        .. warning::
+            This reproduces the requested complex permittivity *exactly only at*
+            the reference frequency. A constant conductivity yields
+            :math:`\varepsilon''(\omega) = \sigma / (\varepsilon_0 \omega)`, which
+            falls off as :math:`1/\omega` away from :math:`\omega_0` — the causal
+            behaviour of a conductor, not a frequency-flat loss. For a material
+            whose :math:`\varepsilon(\omega)` must be matched across a band, use a
+            dispersion model instead. The reference frequency is consumed only to
+            pick :math:`\sigma`; it is not stored on the material and need not
+            match any source.
+
+        Args:
+            permittivity: Complex relative permittivity :math:`\varepsilon' + i\varepsilon''`.
+                Scalar (isotropic) or a flat 3-tuple (diagonally anisotropic).
+            reference: Reference wave characteristic. Provide exactly one of
+                ``reference``, ``wavelength``, or ``frequency``.
+            wavelength: Free-space reference wavelength (m).
+            frequency: Reference frequency (Hz).
+            permeability: Optional complex relative permeability
+                :math:`\mu' + i\mu''`. Defaults to ``1.0`` (non-magnetic, lossless).
+
+        Returns:
+            Material: Material with real permittivity/permeability and the derived
+            electric/magnetic conductivities.
+        """
+        omega = _resolve_reference_omega(reference, wavelength, frequency)
+        eps_real, sigma_e = _split_complex_property(permittivity, omega, constants.eps0)
+        mu_real, sigma_m = _split_complex_property(permeability, omega, constants.mu0)
+        return cls(
+            permittivity=eps_real,
+            permeability=mu_real,
+            electric_conductivity=sigma_e,
+            magnetic_conductivity=sigma_m,
+        )
+
+    @classmethod
+    def from_refractive_index(
+        cls,
+        refractive_index: complex | float | tuple,
+        *,
+        reference: WaveCharacter | None = None,
+        wavelength: float | None = None,
+        frequency: float | None = None,
+    ) -> "Material":
+        r"""Build a non-dispersive lossy material from a complex refractive index.
+
+        The complex refractive index :math:`\tilde{n} = n + i\kappa` maps to the
+        relative permittivity :math:`\varepsilon = \tilde{n}^2 = (n^2 - \kappa^2)
+        + i\,2 n \kappa`, whose imaginary part becomes an equivalent electric
+        conductivity at the reference frequency (see
+        :meth:`from_complex_permittivity`). Assumes a non-magnetic medium
+        (:math:`\mu_r = 1`); for magnetic materials specify :math:`\varepsilon`
+        and :math:`\mu` directly via :meth:`from_complex_permittivity`.
+
+        Sign convention: :math:`e^{-i\omega t}`, so a *positive* extinction
+        coefficient :math:`\kappa` denotes loss.
+
+        .. warning::
+            The loss is matched exactly only at the reference frequency (see
+            :meth:`from_complex_permittivity`).
+
+        Args:
+            refractive_index: Complex refractive index :math:`n + i\kappa`. Scalar
+                (isotropic) or a flat 3-tuple (diagonally anisotropic).
+            reference: Reference wave characteristic. Provide exactly one of
+                ``reference``, ``wavelength``, or ``frequency``.
+            wavelength: Free-space reference wavelength (m).
+            frequency: Reference frequency (Hz).
+
+        Returns:
+            Material: The equivalent lossy material.
+        """
+        if isinstance(refractive_index, tuple):
+            permittivity: complex | tuple = tuple(complex(n) ** 2 for n in refractive_index)
+        else:
+            permittivity = complex(refractive_index) ** 2
+        return cls.from_complex_permittivity(
+            permittivity,
+            reference=reference,
+            wavelength=wavelength,
+            frequency=frequency,
+        )
+
+    @classmethod
+    def from_loss_tangent(
+        cls,
+        permittivity: float | tuple,
+        loss_tangent: float | tuple,
+        *,
+        reference: WaveCharacter | None = None,
+        wavelength: float | None = None,
+        frequency: float | None = None,
+        permeability: complex | float | tuple = 1.0,
+    ) -> "Material":
+        r"""Build a non-dispersive lossy material from a real permittivity and loss tangent.
+
+        The loss tangent :math:`\tan\delta = \varepsilon''/\varepsilon'` defines
+        the imaginary part :math:`\varepsilon'' = \varepsilon' \tan\delta`, which
+        maps to an equivalent electric conductivity
+        :math:`\sigma = \omega_0 \varepsilon_0 \varepsilon' \tan\delta` at the
+        reference frequency (see :meth:`from_complex_permittivity`).
+
+        .. warning::
+            The loss is matched exactly only at the reference frequency (see
+            :meth:`from_complex_permittivity`).
+
+        Args:
+            permittivity: Real relative permittivity :math:`\varepsilon'`. Scalar
+                (isotropic) or a flat 3-tuple (diagonally anisotropic).
+            loss_tangent: Loss tangent :math:`\tan\delta`. Scalar, or a flat
+                3-tuple matching ``permittivity``.
+            reference: Reference wave characteristic. Provide exactly one of
+                ``reference``, ``wavelength``, or ``frequency``.
+            wavelength: Free-space reference wavelength (m).
+            frequency: Reference frequency (Hz).
+            permeability: Optional complex relative permeability. Defaults to ``1.0``.
+
+        Returns:
+            Material: The equivalent lossy material.
+        """
+        if isinstance(permittivity, tuple) or isinstance(loss_tangent, tuple):
+            eps_t = permittivity if isinstance(permittivity, tuple) else (permittivity,) * 3
+            tan_t = loss_tangent if isinstance(loss_tangent, tuple) else (loss_tangent,) * 3
+            if len(eps_t) != len(tan_t):
+                raise ValueError(
+                    f"permittivity and loss_tangent must have matching lengths, got {len(eps_t)} and {len(tan_t)}."
+                )
+            complex_eps: complex | tuple = tuple(float(e) * (1.0 + 1j * float(t)) for e, t in zip(eps_t, tan_t))
+        else:
+            complex_eps = float(permittivity) * (1.0 + 1j * float(loss_tangent))
+        return cls.from_complex_permittivity(
+            complex_eps,
+            reference=reference,
+            wavelength=wavelength,
+            frequency=frequency,
+            permeability=permeability,
+        )
+
+
+def _resolve_reference_omega(
+    reference: WaveCharacter | None,
+    wavelength: float | None,
+    frequency: float | None,
+) -> float:
+    """Resolve a reference angular frequency ω = 2πf from exactly one input.
+
+    Args:
+        reference: Reference wave characteristic, or None.
+        wavelength: Free-space reference wavelength (m), or None.
+        frequency: Reference frequency (Hz), or None.
+
+    Returns:
+        float: Angular frequency ω = 2πf in rad/s.
+
+    Raises:
+        ValueError: If not exactly one of the three inputs is provided.
+    """
+    num_given = sum(x is not None for x in (reference, wavelength, frequency))
+    if num_given != 1:
+        raise ValueError(
+            f"Specify exactly one of 'reference' (WaveCharacter), 'wavelength', or 'frequency'; got {num_given}."
+        )
+    if reference is not None:
+        freq = reference.get_frequency()
+    elif wavelength is not None:
+        freq = constants.c / wavelength
+    else:
+        assert frequency is not None
+        freq = frequency
+    return 2.0 * math.pi * freq
+
+
+def _split_complex_property(
+    value: float | complex | tuple,
+    omega: float,
+    vacuum_constant: float,
+) -> tuple:
+    r"""Split a (possibly complex) material property into a real part and conductivity.
+
+    For a complex permittivity :math:`\varepsilon = \varepsilon' + i\varepsilon''`
+    the loss maps to an electric conductivity
+    :math:`\sigma = \omega \varepsilon_0 \varepsilon''` (use
+    ``vacuum_constant = eps0``). For a complex permeability
+    :math:`\mu = \mu' + i\mu''` the magnetic loss maps to
+    :math:`\sigma_m = \omega \mu_0 \mu''` (use ``vacuum_constant = mu0``). The
+    sign convention is :math:`e^{-i\omega t}`, so a positive imaginary part
+    denotes loss. A negative imaginary part (gain) is permitted and yields a
+    negative conductivity.
+
+    Args:
+        value: Scalar or flat tuple of real/complex components.
+        omega: Angular frequency (rad/s) at which the imaginary part is matched.
+        vacuum_constant: ``eps0`` for permittivity, ``mu0`` for permeability.
+
+    Returns:
+        tuple: A ``(real_part, conductivity)`` pair, each matching the input
+        shape (scalar float or tuple of floats).
+    """
+
+    def _component(v) -> tuple[float, float]:
+        cv = complex(v)
+        return float(cv.real), omega * vacuum_constant * float(cv.imag)
+
+    if isinstance(value, tuple):
+        reals: list[float] = []
+        conds: list[float] = []
+        for v in value:
+            if isinstance(v, tuple):
+                raise ValueError(
+                    "Complex material constructors accept a scalar or a flat tuple of components, not a nested tuple."
+                )
+            r, s = _component(v)
+            reals.append(r)
+            conds.append(s)
+        return tuple(reals), tuple(conds)
+    r, s = _component(value)
+    return r, s
+
 
 def _is_property_isotropic(prop: tuple[float, float, float, float, float, float, float, float, float]) -> bool:
     return (
@@ -389,6 +632,30 @@ def _is_property_isotropic(prop: tuple[float, float, float, float, float, float,
         and math.isclose(prop[6], 0.0)
         and math.isclose(prop[7], 0.0)
     )
+
+
+def isotropic_property_value(
+    prop: tuple[float, float, float, float, float, float, float, float, float],
+    name: str = "material property",
+) -> float:
+    """Return the scalar value represented by a finite real isotropic material property."""
+    if any(isinstance(value, (bool, np.bool_)) for value in prop):
+        raise ValueError(f"{name} must be a finite real isotropic value.")
+    raw_array = np.asarray(prop)
+    if raw_array.shape != (9,) or not np.issubdtype(raw_array.dtype, np.number):
+        raise ValueError(f"{name} must be a finite real isotropic value.")
+    if np.iscomplexobj(raw_array) and np.any(np.imag(raw_array) != 0.0):
+        raise ValueError(f"{name} must be real.")
+    array = raw_array.astype(float)
+    if not np.all(np.isfinite(array)):
+        raise ValueError(f"{name} must contain finite values.")
+    property_values = cast(
+        tuple[float, float, float, float, float, float, float, float, float],
+        tuple(float(value) for value in array),
+    )
+    if not _is_property_isotropic(property_values):
+        raise ValueError(f"{name} must be isotropic.")
+    return property_values[0]
 
 
 def _is_property_diagonally_anisotropic(
@@ -556,43 +823,46 @@ def compute_allowed_dispersive_coefficients(
     materials: dict[str, Material],
     dt: float,
     max_num_poles: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Compute per-material discrete-time dispersive recurrence coefficients.
 
     For each material (in the canonical sorted order used elsewhere), returns
     arrays of shape ``(num_materials, max_num_poles)`` containing the
-    ``c1``, ``c2``, ``c3`` coefficients from
+    ``c1``, ``c2``, ``c3``, ``c4`` coefficients from
     :func:`fdtdx.dispersion.compute_pole_coefficients`. Materials with fewer
     poles than ``max_num_poles``, or non-dispersive materials, get zero-padded
     slots (so the polarization term automatically vanishes on those voxels).
+    ``c4`` is zero for Lorentz/Drude poles and only non-zero for CCPR poles.
 
     Args:
         materials: Dictionary mapping material names to Material objects.
         dt: Simulation time step (seconds).
         max_num_poles: Maximum pole count to pad every material to. When 0,
-            returns three ``(num_materials, 0)``-shaped arrays.
+            returns four ``(num_materials, 0)``-shaped arrays.
 
     Returns:
-        Three numpy arrays of shape ``(num_materials, max_num_poles)``
-        with ``c1``, ``c2``, ``c3``.
+        Four numpy arrays of shape ``(num_materials, max_num_poles)``
+        with ``c1``, ``c2``, ``c3``, ``c4``.
     """
     ordered = compute_ordered_material_name_tuples(materials)
     num_mats = len(ordered)
     c1 = np.zeros((num_mats, max_num_poles), dtype=np.float64)
     c2 = np.zeros((num_mats, max_num_poles), dtype=np.float64)
     c3 = np.zeros((num_mats, max_num_poles), dtype=np.float64)
+    c4 = np.zeros((num_mats, max_num_poles), dtype=np.float64)
     if max_num_poles == 0:
-        return c1, c2, c3
+        return c1, c2, c3, c4
     for m_idx, (_, mat) in enumerate(ordered):
         if mat.dispersion is None:
             continue
         poles = mat.dispersion.poles
-        c1_vals, c2_vals, c3_vals = compute_pole_coefficients(poles, dt)
+        c1_vals, c2_vals, c3_vals, c4_vals = compute_pole_coefficients(poles, dt)
         n = len(poles)
         c1[m_idx, :n] = c1_vals
         c2[m_idx, :n] = c2_vals
         c3[m_idx, :n] = c3_vals
-    return c1, c2, c3
+        c4[m_idx, :n] = c4_vals
+    return c1, c2, c3, c4
 
 
 def compute_ordered_names(

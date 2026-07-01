@@ -45,12 +45,13 @@ def _make_arrays(
         fields=FieldState(
             E=E if E is not None else jnp.ones(FIELD_SHAPE),
             H=H if H is not None else jnp.zeros(FIELD_SHAPE),
-            psi_E=jnp.zeros(PSI_SHAPE),
-            psi_H=jnp.zeros(PSI_SHAPE),
+            psi_E=jnp.zeros((6, 0)),
+            psi_H=jnp.zeros((6, 0)),
         ),
-        alpha=jnp.zeros(FIELD_SHAPE),
-        kappa=jnp.ones(FIELD_SHAPE),
-        sigma=jnp.zeros(FIELD_SHAPE),
+        pml_a=jnp.zeros((6, 0)),
+        pml_b=jnp.zeros((6, 0)),
+        pml_inv_kappa=jnp.zeros((6, 0)),
+        pml_indices=jnp.zeros((3, 0), dtype=jnp.int32),
         inv_permittivities=inv_permittivities if inv_permittivities is not None else jnp.ones(FIELD_SHAPE),
         inv_permeabilities=inv_permeabilities if inv_permeabilities is not None else jnp.ones(FIELD_SHAPE),
         detector_states=detector_states if detector_states is not None else {},
@@ -75,6 +76,7 @@ def _make_config(c=0.5):
     cfg = Mock()
     cfg.courant_number = c
     cfg.uniform_spacing.return_value = 1.0
+    cfg.has_nonuniform_grid = False
     return cfg
 
 
@@ -249,8 +251,9 @@ class TestUpdateE:
                 config=_make_config(),
                 simulate_boundaries=True,
             )
-        # simulate_boundaries is positional arg index 6 (config, H_pad, psi_E, alpha, kappa, sigma, simulate_boundaries)
-        assert mock_curl.call_args[0][6] is True
+        # simulate_boundaries is positional arg index 7
+        # (config, H_pad, psi_E, pml_a, pml_b, pml_inv_kappa, pml_indices, simulate_boundaries)
+        assert mock_curl.call_args[0][7] is True
 
     def test_anisotropic_full_tensor_correct_shape_and_finite(self):
         """inv_eps.shape[0]==9 triggers the anisotropic path; output is (3,N,N,N) and finite."""
@@ -443,7 +446,7 @@ class TestUpdateH:
         assert jnp.allclose(result.fields.psi_H, new_psi)
 
     def test_simulate_boundaries_flag_forwarded(self):
-        """simulate_boundaries=True is passed as 7th positional arg to curl_E."""
+        """simulate_boundaries=True is passed as the 8th positional arg (index 7) to curl_E."""
         with patch("fdtdx.fdtd.update.curl_E", return_value=(CURL_ZERO, PSI_ZERO)) as mock_curl:
             update_H(
                 time_step=jnp.array(0),
@@ -452,7 +455,7 @@ class TestUpdateH:
                 config=_make_config(),
                 simulate_boundaries=True,
             )
-        assert mock_curl.call_args[0][6] is True
+        assert mock_curl.call_args[0][7] is True
 
     def test_anisotropic_full_tensor_correct_shape_and_finite(self):
         """inv_mu.shape[0]==9 triggers the anisotropic path; output is (3,N,N,N) and finite."""

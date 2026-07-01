@@ -14,12 +14,14 @@ API
     fdtdx.BrushConstraint2D
     fdtdx.calculate_sparam
     fdtdx.calculate_sparams
+    fdtdx.CCPRPole
     fdtdx.circular_brush
     fdtdx.ClosestIndex
     fdtdx.Color
     fdtdx.compute_energy
     fdtdx.compute_eps_spectrum_from_coefficients
     fdtdx.compute_impedance_corrected_temporal_profile
+    fdtdx.compute_integrated_power
     fdtdx.compute_mode
     fdtdx.compute_pole_coefficients
     fdtdx.compute_poynting_flux
@@ -47,6 +49,9 @@ API
     fdtdx.extruded_polygon_from_gds_path
     fdtdx.field
     fdtdx.FieldDetector
+    fdtdx.FieldProjectionAngleDetector
+    fdtdx.FieldProjectionCartesianDetector
+    fdtdx.FieldProjectionKSpaceDetector
     fdtdx.FieldState
     fdtdx.frozen_field
     fdtdx.frozen_private_field
