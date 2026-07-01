@@ -167,8 +167,8 @@ class PerfectlyMatchedLayer(BaseBoundary):
                 - psi_1_new: The updated accumulator array for the first derivative.
                 - psi_2_new: The updated accumulator array for the second derivative.
         """
-        assert self.pml_a_E is not None and self.pml_b_E is not None and self.inv_kappa_E
-        assert self.pml_a_H is not None and self.pml_b_H is not None and self.inv_kappa_H
+        assert self.pml_a_E is not None and self.pml_b_E is not None and self.inv_kappa_E is not None
+        assert self.pml_a_H is not None and self.pml_b_H is not None and self.inv_kappa_H is not None
 
         if is_curl_E:
             a, b, inv_kappa = self.pml_a_H, self.pml_b_H, self.inv_kappa_H
