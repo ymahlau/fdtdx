@@ -1,4 +1,5 @@
 import math
+from typing import cast
 
 import numpy as np
 
@@ -631,6 +632,30 @@ def _is_property_isotropic(prop: tuple[float, float, float, float, float, float,
         and math.isclose(prop[6], 0.0)
         and math.isclose(prop[7], 0.0)
     )
+
+
+def isotropic_property_value(
+    prop: tuple[float, float, float, float, float, float, float, float, float],
+    name: str = "material property",
+) -> float:
+    """Return the scalar value represented by a finite real isotropic material property."""
+    if any(isinstance(value, (bool, np.bool_)) for value in prop):
+        raise ValueError(f"{name} must be a finite real isotropic value.")
+    raw_array = np.asarray(prop)
+    if raw_array.shape != (9,) or not np.issubdtype(raw_array.dtype, np.number):
+        raise ValueError(f"{name} must be a finite real isotropic value.")
+    if np.iscomplexobj(raw_array) and np.any(np.imag(raw_array) != 0.0):
+        raise ValueError(f"{name} must be real.")
+    array = raw_array.astype(float)
+    if not np.all(np.isfinite(array)):
+        raise ValueError(f"{name} must contain finite values.")
+    property_values = cast(
+        tuple[float, float, float, float, float, float, float, float, float],
+        tuple(float(value) for value in array),
+    )
+    if not _is_property_isotropic(property_values):
+        raise ValueError(f"{name} must be isotropic.")
+    return property_values[0]
 
 
 def _is_property_diagonally_anisotropic(

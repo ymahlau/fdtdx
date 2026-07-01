@@ -114,6 +114,9 @@ class JsonSetup:
             # detectors
             "EnergyDetector",
             "FieldDetector",
+            "FieldProjectionAngleDetector",
+            "FieldProjectionCartesianDetector",
+            "FieldProjectionKSpaceDetector",
             "ModeOverlapDetector",
             "PhasorDetector",
             "PoyntingFluxDetector",
