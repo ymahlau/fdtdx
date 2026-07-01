@@ -205,8 +205,8 @@ def update_E(
         # E[i, x, y, z] = factor * E[i, x, y, z] + c * curl[i, x, y, z] * inv_eps[i, x, y, z]
         E = factor * arrays.fields.E + c * curl * inv_eps
 
-        # Dispersive (ADE) correction. Non-dispersive cells have c3 = 0, so P_new =
-        # c1*P_curr + c2*P_prev and (P_curr - P_new) reduces to a purely historical
+        # Dispersive (ADE) correction. Non-dispersive cells have c3 = 0, so P_hat =
+        # c1*P_curr + c2*P_prev and (P_curr - P_hat) reduces to a purely historical
         # term that is also zero when P_curr and P_prev start at zero — so it's a
         # no-op outside dispersive regions. Only active when arrays are allocated.
         if arrays.fields.dispersive_P_curr is not None:
@@ -215,17 +215,34 @@ def update_E(
             disp_c1 = arrays.dispersive_c1
             disp_c2 = arrays.dispersive_c2
             disp_c3 = arrays.dispersive_c3
+            disp_c4 = arrays.dispersive_c4
             assert P_prev is not None and disp_c1 is not None and disp_c2 is not None and disp_c3 is not None
             # disp_c* are (num_poles, 1, Nx, Ny, Nz); arrays.fields.E is (3, Nx, Ny, Nz).
             # Right-aligned broadcasting produces (num_poles, 3, Nx, Ny, Nz) without
             # an explicit newaxis — skip the reshape so the HLO stays flat.
-            P_new = disp_c1 * P_curr + disp_c2 * P_prev + disp_c3 * arrays.fields.E
-            delta_sum = jnp.sum(P_curr - P_new, axis=0)
-            E = E + inv_eps * delta_sum
-            arrays = arrays.aset("fields->dispersive_P_prev", P_curr)
-            arrays = arrays.aset("fields->dispersive_P_curr", P_new)
-
-        if sigma_E is not None:
+            # P_hat is the explicit part of the recurrence (independent of E^{n+1}).
+            P_hat = disp_c1 * P_curr + disp_c2 * P_prev + disp_c3 * arrays.fields.E
+            delta_hat = jnp.sum(P_curr - P_hat, axis=0)
+            E = E + inv_eps * delta_hat
+            if disp_c4 is not None:
+                # CCPR: the polarization couples to E^{n+1} through c4. Fold the
+                # per-cell D_kappa = inv_eps*sum(c4) into the implicit divide
+                # (alongside the conductivity loss factor), then reconstruct the
+                # full P^{n+1} = P_hat + c4*E^{n+1} once E^{n+1} is known.
+                divisor = 1 + inv_eps * jnp.sum(disp_c4, axis=0)
+                if sigma_E is not None:
+                    divisor = divisor + c * sigma_E * eta0 * inv_eps / 2
+                E = E / divisor
+                P_new = P_hat + disp_c4 * E
+                arrays = arrays.aset("fields->dispersive_P_prev", P_curr)
+                arrays = arrays.aset("fields->dispersive_P_curr", P_new)
+            else:
+                arrays = arrays.aset("fields->dispersive_P_prev", P_curr)
+                arrays = arrays.aset("fields->dispersive_P_curr", P_hat)
+                if sigma_E is not None:
+                    # lossy update formula. Noop for conductivity = 0; see Schneider 3.12
+                    E = E / (1 + c * sigma_E * eta0 * inv_eps / 2)
+        elif sigma_E is not None:
             # update formula for lossy material. Simplifies to Noop for conductivity = 0
             # for details see Schneider, chapter 3.12
             E = E / (1 + c * sigma_E * eta0 * inv_eps / 2)
@@ -386,6 +403,11 @@ def update_E_reverse(
 
     if not inv_eps_is_full_tensor and not sigma_E_is_full_tensor:
         # Isotropic and diagonal anisotropic case
+        # Capture E^{n+1} (post source-inverse, pre field-recovery) — the CCPR
+        # polarization inversion below needs it for the c4*E^{n+1} term. For the
+        # E-recovery itself the c4/D_kappa contributions cancel exactly, so that
+        # formula is unchanged from the non-CCPR case.
+        E_np1 = E
         factor = 1
         if sigma_E is not None:
             E = E * (1 + c * sigma_E * eta0 * inv_eps / 2)
@@ -400,6 +422,7 @@ def update_E_reverse(
             P_prev_r = arrays.fields.dispersive_P_prev
             disp_c1_r = arrays.dispersive_c1
             disp_c3_r = arrays.dispersive_c3
+            disp_c4_r = arrays.dispersive_c4
             disp_inv_c2_r = arrays.dispersive_inv_c2
             assert (
                 P_prev_r is not None and disp_c1_r is not None and disp_c3_r is not None and disp_inv_c2_r is not None
@@ -407,12 +430,16 @@ def update_E_reverse(
             delta_sum = jnp.sum(P_prev_r - P_curr_r, axis=0)
             E = (E - c * curl * inv_eps - inv_eps * delta_sum) / factor
             # Invert the polarization recurrence:
-            # P^(n+1) = c1 * P^n + c2 * P^(n-1) + c3 * E^n
-            # =>  P^(n-1) = (P^(n+1) - c1 * P^n - c3 * E^n) / c2
+            # P^(n+1) = c1 * P^n + c2 * P^(n-1) + c3 * E^n + c4 * E^(n+1)
+            # =>  P^(n-1) = (P^(n+1) - c1 * P^n - c3 * E^n - c4 * E^(n+1)) / c2
             # Using precomputed inv_c2 (with non-dispersive cells zeroed) replaces
             # a per-step jnp.where + division with a single multiply. Non-dispersive
             # cells have inv_c2 = 0 and P_curr = P_prev = 0, so the product is zero.
-            P_prev_new = (P_curr_r - disp_c1_r * P_prev_r - disp_c3_r * E) * disp_inv_c2_r
+            # E is now the recovered E^n; the c4 term (CCPR only) uses E^(n+1).
+            P_prev_new = P_curr_r - disp_c1_r * P_prev_r - disp_c3_r * E
+            if disp_c4_r is not None:
+                P_prev_new = P_prev_new - disp_c4_r * E_np1
+            P_prev_new = P_prev_new * disp_inv_c2_r
             arrays = arrays.aset("fields->dispersive_P_curr", P_prev_r)
             arrays = arrays.aset("fields->dispersive_P_prev", P_prev_new)
         else:

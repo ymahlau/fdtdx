@@ -35,6 +35,7 @@ from fdtdx.core.physics.modes import compute_mode
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.dispersion import (
+    CCPRPole,
     DispersionModel,
     DrudePole,
     LorentzPole,
@@ -158,6 +159,7 @@ __all__ = [
     "BlochBoundary",
     "BoundaryConfig",
     "BrushConstraint2D",
+    "CCPRPole",
     "ClosestIndex",
     "Color",
     "ConnectHolesAndStructures",

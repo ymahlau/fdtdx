@@ -24,6 +24,7 @@ def _build_dispersive_H_filter(
     c3_slice: jax.Array,
     inv_eps_inf_slice: jax.Array,
     dtype: jnp.dtype = jnp.float32,
+    c4_slice: jax.Array | None = None,
 ) -> jax.Array:
     """Precompute the broadband-corrected H-side temporal profile for a TFSF source.
 
@@ -83,6 +84,7 @@ def _build_dispersive_H_filter(
     c1_np = np.asarray(c1_slice)
     c2_np = np.asarray(c2_slice)
     c3_np = np.asarray(c3_slice)
+    c4_np = None if c4_slice is None else np.asarray(c4_slice)
     inv_eps_inf_np = np.asarray(inv_eps_inf_slice)
 
     eps_spectrum = compute_eps_spectrum_from_coefficients(
@@ -92,6 +94,7 @@ def _build_dispersive_H_filter(
         inv_eps_inf=inv_eps_inf_np,
         omegas=omegas_rfft,
         dt=dt,
+        c4=c4_np,
     )
     omega_c = 2.0 * np.pi * wave_character.get_frequency()
     eps_center_arr = compute_eps_spectrum_from_coefficients(
@@ -101,6 +104,7 @@ def _build_dispersive_H_filter(
         inv_eps_inf=inv_eps_inf_np,
         omegas=np.array([omega_c], dtype=np.float64),
         dt=dt,
+        c4=c4_np,
     )
     eps_center = complex(eps_center_arr[0])
 
@@ -294,6 +298,7 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         dispersive_c2: jax.Array | None = None,
         dispersive_c3: jax.Array | None = None,
         electric_conductivity: jax.Array | None = None,
+        dispersive_c4: jax.Array | None = None,
     ) -> Self:
         # Must populate self._E, self._H, self._time_offset_E, and self._time_offset_H.
         # When dispersive_* are provided, the concrete implementation is expected

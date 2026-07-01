@@ -125,6 +125,7 @@ class PointDipoleSource(Source):
         dispersive_c2: jax.Array | None = None,
         dispersive_c3: jax.Array | None = None,
         electric_conductivity: jax.Array | None = None,
+        dispersive_c4: jax.Array | None = None,
     ) -> Self:
         del key, electric_conductivity
 
@@ -135,6 +136,7 @@ class PointDipoleSource(Source):
             c1_slice = dispersive_c1[:, :, *self.grid_slice]
             c2_slice = dispersive_c2[:, :, *self.grid_slice]
             c3_slice = dispersive_c3[:, :, *self.grid_slice]
+            c4_slice = None if dispersive_c4 is None else dispersive_c4[:, :, *self.grid_slice]
             inv_eps_slice = effective_inv_permittivity(
                 inv_eps=inv_eps_slice,
                 c1=c1_slice,
@@ -142,6 +144,7 @@ class PointDipoleSource(Source):
                 c3=c3_slice,
                 omega=2.0 * np.pi * self.wave_character.get_frequency(),
                 dt=self._config.time_step_duration,
+                c4=c4_slice,
             )
 
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:

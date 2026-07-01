@@ -123,6 +123,7 @@ def reversible_fdtd(
         dispersive_c1: jax.Array | None,
         dispersive_c2: jax.Array | None,
         dispersive_c3: jax.Array | None,
+        dispersive_c4: jax.Array | None,
         detector_states: dict[str, DetectorState],
         recording_state: RecordingState | None,
     ):
@@ -148,6 +149,7 @@ def reversible_fdtd(
             dispersive_c1=dispersive_c1,
             dispersive_c2=dispersive_c2,
             dispersive_c3=dispersive_c3,
+            dispersive_c4=dispersive_c4,
             dispersive_inv_c2=arrays.dispersive_inv_c2,
             initial_inv_permittivities=arrays.initial_inv_permittivities,
         )
@@ -168,6 +170,7 @@ def reversible_fdtd(
             state[1].dispersive_c1,
             state[1].dispersive_c2,
             state[1].dispersive_c3,
+            state[1].dispersive_c4,
             state[1].detector_states,
             state[1].recording_state,
         )
@@ -213,6 +216,7 @@ def reversible_fdtd(
             state[1].dispersive_c1,
             state[1].dispersive_c2,
             state[1].dispersive_c3,
+            state[1].dispersive_c4,
             state[1].detector_states,
             state[1].recording_state,
         )
@@ -249,6 +253,7 @@ def reversible_fdtd(
             res_dispersive_c1,
             res_dispersive_c2,
             res_dispersive_c3,
+            res_dispersive_c4,
             res_detector_states,
             res_recording_state,
         ) = residual
@@ -275,6 +280,7 @@ def reversible_fdtd(
             dispersive_c1=res_dispersive_c1,
             dispersive_c2=res_dispersive_c2,
             dispersive_c3=res_dispersive_c3,
+            dispersive_c4=res_dispersive_c4,
             dispersive_inv_c2=arrays.dispersive_inv_c2,
             initial_inv_permittivities=arrays.initial_inv_permittivities,
         )
@@ -300,8 +306,9 @@ def reversible_fdtd(
             cot[12],  #        dispersive_c1
             cot[13],  #        dispersive_c2
             cot[14],  #        dispersive_c3
-            None,  # cot[15],  detector_states
-            None,  # cot[16],  recording_state
+            cot[15],  #        dispersive_c4
+            None,  # cot[16],  detector_states
+            None,  # cot[17],  recording_state
         )
 
     def fdtd_fwd(
@@ -319,6 +326,7 @@ def reversible_fdtd(
         dispersive_c1: jax.Array | None,
         dispersive_c2: jax.Array | None,
         dispersive_c3: jax.Array | None,
+        dispersive_c4: jax.Array | None,
         detector_states: dict[str, DetectorState],
         recording_state: RecordingState | None,
     ):
@@ -344,6 +352,7 @@ def reversible_fdtd(
             dispersive_c1=dispersive_c1,
             dispersive_c2=dispersive_c2,
             dispersive_c3=dispersive_c3,
+            dispersive_c4=dispersive_c4,
             dispersive_inv_c2=arrays.dispersive_inv_c2,
             initial_inv_permittivities=arrays.initial_inv_permittivities,
         )
@@ -365,6 +374,7 @@ def reversible_fdtd(
             s_k[1].dispersive_c1,
             s_k[1].dispersive_c2,
             s_k[1].dispersive_c3,
+            s_k[1].dispersive_c4,
             s_k[1].detector_states,
             s_k[1].recording_state,  # None
         )
@@ -389,6 +399,7 @@ def reversible_fdtd(
         dispersive_c1,
         dispersive_c2,
         dispersive_c3,
+        dispersive_c4,
         detector_states,
         recording_state,
     ) = reversible_fdtd_primal(
@@ -406,6 +417,7 @@ def reversible_fdtd(
         dispersive_c1=arrays.dispersive_c1,
         dispersive_c2=arrays.dispersive_c2,
         dispersive_c3=arrays.dispersive_c3,
+        dispersive_c4=arrays.dispersive_c4,
         detector_states=arrays.detector_states,
         recording_state=arrays.recording_state,
     )
@@ -433,6 +445,7 @@ def reversible_fdtd(
         dispersive_c1=dispersive_c1,
         dispersive_c2=dispersive_c2,
         dispersive_c3=dispersive_c3,
+        dispersive_c4=dispersive_c4,
         dispersive_inv_c2=arrays.dispersive_inv_c2,
         initial_inv_permittivities=arrays.initial_inv_permittivities,
     )

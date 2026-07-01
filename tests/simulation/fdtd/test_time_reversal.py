@@ -1599,6 +1599,7 @@ def _make_disp_loss_fn(coef_name):
             "dispersive_c1": arrays.dispersive_c1,
             "dispersive_c2": arrays.dispersive_c2,
             "dispersive_c3": arrays.dispersive_c3,
+            "dispersive_c4": arrays.dispersive_c4,
         }
         kwargs[f"dispersive_{coef_name}"] = coef_value
         arr = ArrayContainer(
@@ -1853,4 +1854,164 @@ class TestDispersiveCoefficientGradientCheckpointed:
         )
         assert rel_err < 0.1 or diff < 1e-5, (
             f"AD vs FD mismatch (c2) at {idx}: AD={float(ad):.6e}, FD={float(fd):.6e}, rel_err={float(rel_err):.3e}"
+        )
+
+
+def _passive_ccpr_pole():
+    """A passive CCPR pole with a genuine non-zero dE/dt coupling (c4 != 0).
+
+    Built from (ω₀, γ, a, b) satisfying the single-pole passivity bounds
+    ``b >= 0`` and ``a*γ >= b*ω₀²`` so Im ε >= 0 (a *non-passive* pole would make
+    a multi-step forward run diverge, though the 1-step reversal is an exact
+    algebraic inverse regardless of passivity)."""
+    w0, gamma, a, b = 2e15, 1e14, 1.5 * (2e15**2), 1e14  # a*γ = 6e44 >= b*w0² = 4e44
+    wd = (w0**2 - (gamma / 2) ** 2) ** 0.5
+    r = complex(b / 2.0, (a - b * gamma / 2.0) / (2.0 * wd))
+    q = complex(-gamma / 2.0, -wd)
+    return fdtdx.CCPRPole(pole=q, residue=r)
+
+
+def _build_ccpr(electric_conductivity=0.0):
+    """Periodic-boundary CCPR slab, mirroring the Lorentz reversal build."""
+    config = SimulationConfig(
+        time=_SIM_TIME,
+        grid=UniformGrid(spacing=_RESOLUTION),
+        backend="cpu",
+        dtype=jnp.float32,
+        courant_factor=0.99,
+        gradient_config=None,
+    )
+    objects, constraints = [], []
+    volume = fdtdx.SimulationVolume(partial_grid_shape=(_VOLUME_CELLS, _VOLUME_CELLS, _VOLUME_CELLS))
+    objects.append(volume)
+
+    bound_cfg = fdtdx.BoundaryConfig.from_uniform_bound(
+        thickness=_PML_CELLS,
+        override_types=_uniform_boundaries("periodic"),
+    )
+    bound_dict, c_list = fdtdx.boundary_objects_from_config(bound_cfg, volume)
+    objects.extend(bound_dict.values())
+    constraints.extend(c_list)
+
+    material = fdtdx.Material(
+        permittivity=2.0,
+        electric_conductivity=electric_conductivity,
+        dispersion=fdtdx.DispersionModel(poles=(_passive_ccpr_pole(),)),
+    )
+    slab = fdtdx.UniformMaterialObject(partial_grid_shape=(None, None, _VOLUME_CELLS // 2), material=material)
+    constraints.extend(
+        [
+            slab.same_size(volume, axes=(0, 1)),
+            slab.place_at_center(volume, axes=(0, 1)),
+            slab.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(_VOLUME_CELLS // 4,)),
+        ]
+    )
+    objects.append(slab)
+
+    key = jax.random.PRNGKey(0)
+    obj_container, arrays, params, config, _ = fdtdx.place_objects(
+        object_list=objects, config=config, constraints=constraints, key=key
+    )
+    arrays, obj_container, _ = fdtdx.apply_params(arrays, obj_container, params, key)
+    return obj_container, arrays, config
+
+
+class TestTimeReversalDispersiveCCPR:
+    """Forward-then-reverse round-trip for a CCPR material with a non-zero c4
+    (dE/dt) coupling. Exercises the reverse polarization inversion's extra
+    ``- c4 * E^(n+1)`` term and the E^(n+1) capture ordering — a pure-Lorentz
+    test (c4 = None) does not cover these."""
+
+    def _run_roundtrip(self, electric_conductivity):
+        obj, arrays, config = _build_ccpr(electric_conductivity=electric_conductivity)
+        # Guard: the CCPR c4 array must actually be allocated and non-zero.
+        assert arrays.dispersive_c4 is not None
+        assert jnp.any(arrays.dispersive_c4 != 0), "CCPR pole must produce nonzero c4"
+        assert arrays.fields.dispersive_P_curr is not None
+
+        key = jax.random.PRNGKey(42)
+        k_E, k_H, k_Pc, k_Pp = jax.random.split(key, 4)
+        E = jax.random.normal(k_E, arrays.fields.E.shape, dtype=arrays.fields.E.dtype) * 1e-3
+        H = jax.random.normal(k_H, arrays.fields.H.shape, dtype=arrays.fields.H.dtype) * 1e-3
+        for b in obj.boundary_objects:
+            E = b.apply_post_E_update(E)
+            H = b.apply_post_H_update(H)
+
+        disp_mask = (arrays.dispersive_c3 != 0).astype(arrays.fields.dispersive_P_curr.dtype)
+        P_curr = jax.random.normal(k_Pc, arrays.fields.dispersive_P_curr.shape, dtype=E.dtype) * 1e-3 * disp_mask
+        P_prev = jax.random.normal(k_Pp, arrays.fields.dispersive_P_prev.shape, dtype=E.dtype) * 1e-3 * disp_mask
+
+        arrays = arrays.aset("fields->E", E)
+        arrays = arrays.aset("fields->H", H)
+        arrays = arrays.aset("fields->dispersive_P_curr", P_curr)
+        arrays = arrays.aset("fields->dispersive_P_prev", P_prev)
+        arrays, config = _add_gradient_config(arrays, config, obj)
+
+        state_fwd = forward(
+            state=(jnp.asarray(0, dtype=jnp.int32), arrays),
+            config=config,
+            objects=obj,
+            key=key,
+            record_detectors=False,
+            record_boundaries=False,
+            simulate_boundaries=True,
+        )
+        _, arrays_bwd = backward(
+            state=state_fwd, config=config, objects=obj, key=key, record_detectors=False, reset_fields=False
+        )
+
+        assert jnp.allclose(arrays_bwd.fields.E, E, atol=1e-5), (
+            f"E max err: {jnp.max(jnp.abs(arrays_bwd.fields.E - E))}"
+        )
+        assert jnp.allclose(arrays_bwd.fields.H, H, atol=1e-5), (
+            f"H max err: {jnp.max(jnp.abs(arrays_bwd.fields.H - H))}"
+        )
+        assert jnp.allclose(arrays_bwd.fields.dispersive_P_curr, P_curr, atol=1e-5), (
+            f"P_curr max err: {jnp.max(jnp.abs(arrays_bwd.fields.dispersive_P_curr - P_curr))}"
+        )
+        assert jnp.allclose(arrays_bwd.fields.dispersive_P_prev, P_prev, atol=1e-5), (
+            f"P_prev max err: {jnp.max(jnp.abs(arrays_bwd.fields.dispersive_P_prev - P_prev))}"
+        )
+
+    def test_reconstructed_exactly(self):
+        self._run_roundtrip(electric_conductivity=0.0)
+
+    def test_reconstructed_exactly_with_conductivity(self):
+        # CCPR + electric conductivity: the reverse E-recovery divides by the
+        # lossy factor while the c4 term feeds the polarization inversion.
+        self._run_roundtrip(electric_conductivity=1e2)
+
+
+class TestGradientDispersiveCCPR:
+    """Gradients flow (finite, no NaN) through a CCPR simulation in both the
+    reversible and checkpointed paths, and the c4 coefficient is a genuine
+    differentiable primal (AD matches finite differences)."""
+
+    @staticmethod
+    def _loss_fn_ie(inv_eps, arrays, objects, config, key, fdtd_impl):
+        arr = arrays.aset("inv_permittivities", inv_eps)
+        _, out = fdtd_impl(arr, objects, config, key, show_progress=False)
+        return jnp.sum(jnp.real(out.fields.E) ** 2)
+
+    def test_gradient_finite_reversible_and_checkpointed(self):
+        obj, arrays, config = _build_ccpr()
+        arrays, config = _add_gradient_config(arrays, config, obj)
+        key = jax.random.PRNGKey(7)
+        for impl in (reversible_fdtd, checkpointed_fdtd):
+            loss, grad = jax.value_and_grad(self._loss_fn_ie)(arrays.inv_permittivities, arrays, obj, config, key, impl)
+            assert jnp.isfinite(loss), f"{impl.__name__}: loss not finite"
+            assert jnp.all(jnp.isfinite(grad)), f"{impl.__name__}: grad not finite"
+
+    def test_c4_is_differentiable_primal(self):
+        obj, arrays, config = _build_ccpr()
+        arrays, config = _add_gradient_config(arrays, config, obj)
+        key = jax.random.PRNGKey(99)
+        c4 = arrays.dispersive_c4
+        assert c4 is not None
+        loss_fn = _make_disp_loss_fn("c4")
+        ad, fd, rel_err, diff, idx = _coef_fd_check(
+            c4, loss_fn, arrays, obj, config, key, h_scale=1e-2, h_floor=1e-6, fdtd_impl=reversible_fdtd
+        )
+        assert rel_err < 0.1 or diff < 1e-5, (
+            f"AD vs FD mismatch (c4) at {idx}: AD={float(ad):.6e}, FD={float(fd):.6e}, rel_err={float(rel_err):.3e}"
         )

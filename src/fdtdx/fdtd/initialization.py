@@ -259,6 +259,7 @@ def place_objects(
     disp_c1 = None if arrays.dispersive_c1 is None else jax.lax.stop_gradient(arrays.dispersive_c1)
     disp_c2 = None if arrays.dispersive_c2 is None else jax.lax.stop_gradient(arrays.dispersive_c2)
     disp_c3 = None if arrays.dispersive_c3 is None else jax.lax.stop_gradient(arrays.dispersive_c3)
+    disp_c4 = None if arrays.dispersive_c4 is None else jax.lax.stop_gradient(arrays.dispersive_c4)
     sigma_e = None if arrays.electric_conductivity is None else jax.lax.stop_gradient(arrays.electric_conductivity)
     new_object_list = []
     devices = objects_container.devices
@@ -276,6 +277,7 @@ def place_objects(
                 dispersive_c1=disp_c1,
                 dispersive_c2=disp_c2,
                 dispersive_c3=disp_c3,
+                dispersive_c4=disp_c4,
                 electric_conductivity=sigma_e,
             )
         new_object_list.append(obj)
@@ -341,10 +343,15 @@ def apply_params(
         # and keep evolving polarization in the device's voxels.
         # compute_allowed_dispersive_coefficients zero-pads non-dispersive materials.
         write_dispersive = num_dispersive_poles > 0
+        # ``dispersive_c4`` only exists when a CCPR pole with non-zero dE/dt
+        # coupling is present anywhere in the sim (gated at init time). When it
+        # is None, every material's c4 is identically zero, so we simply skip
+        # writing it.
+        write_dispersive_c4 = write_dispersive and arrays.dispersive_c4 is not None
 
         # Initialise dispersive slots; populated below when write_dispersive is True.
-        allowed_c1_arr = allowed_c2_arr = allowed_c3_arr = None
-        new_c1_slice = new_c2_slice = new_c3_slice = None
+        allowed_c1_arr = allowed_c2_arr = allowed_c3_arr = allowed_c4_arr = None
+        new_c1_slice = new_c2_slice = new_c3_slice = new_c4_slice = None
         if write_dispersive:
             assert (
                 arrays.dispersive_c1 is not None
@@ -352,7 +359,7 @@ def apply_params(
                 and arrays.dispersive_c3 is not None
             )
             dt = device._config.time_step_duration
-            allowed_c1_np, allowed_c2_np, allowed_c3_np = compute_allowed_dispersive_coefficients(
+            allowed_c1_np, allowed_c2_np, allowed_c3_np, allowed_c4_np = compute_allowed_dispersive_coefficients(
                 device.materials,
                 dt=dt,
                 max_num_poles=num_dispersive_poles,
@@ -360,6 +367,8 @@ def apply_params(
             allowed_c1_arr = jnp.asarray(allowed_c1_np, dtype=arrays.dispersive_c1.dtype)
             allowed_c2_arr = jnp.asarray(allowed_c2_np, dtype=arrays.dispersive_c2.dtype)
             allowed_c3_arr = jnp.asarray(allowed_c3_np, dtype=arrays.dispersive_c3.dtype)
+            if write_dispersive_c4:
+                allowed_c4_arr = jnp.asarray(allowed_c4_np, dtype=arrays.dispersive_c4.dtype)
 
         if device.output_type == ParameterType.CONTINUOUS:
             # Linear interpolation between two materials via their permittivities
@@ -392,6 +401,11 @@ def apply_params(
                 new_c1_slice = w0 * c1_0 + w1 * c1_1
                 new_c2_slice = w0 * c2_0 + w1 * c2_1
                 new_c3_slice = w0 * c3_0 + w1 * c3_1
+                if write_dispersive_c4:
+                    assert allowed_c4_arr is not None
+                    c4_0 = allowed_c4_arr[0][:, None, None, None, None]
+                    c4_1 = allowed_c4_arr[1][:, None, None, None, None]
+                    new_c4_slice = w0 * c4_0 + w1 * c4_1
         else:
             # Discrete material selection
             # Precompute inverse permittivities since the selection result is binary
@@ -412,6 +426,9 @@ def apply_params(
                 new_c1_slice = jnp.moveaxis(allowed_c1_arr[int_idx], -1, 0)[:, None, ...]
                 new_c2_slice = jnp.moveaxis(allowed_c2_arr[int_idx], -1, 0)[:, None, ...]
                 new_c3_slice = jnp.moveaxis(allowed_c3_arr[int_idx], -1, 0)[:, None, ...]
+                if write_dispersive_c4:
+                    assert allowed_c4_arr is not None
+                    new_c4_slice = jnp.moveaxis(allowed_c4_arr[int_idx], -1, 0)[:, None, ...]
 
         # Update all components of inv_permittivities array at once
         new_inv_perm = arrays.inv_permittivities.at[:, *device.grid_slice].set(new_inv_perm_slice)
@@ -434,6 +451,10 @@ def apply_params(
             arrays = arrays.at["dispersive_c2"].set(new_c2)
             arrays = arrays.at["dispersive_c3"].set(new_c3)
             arrays = arrays.at["dispersive_inv_c2"].set(new_inv_c2)
+            if write_dispersive_c4:
+                assert arrays.dispersive_c4 is not None
+                new_c4 = arrays.dispersive_c4.at[:, :, *device.grid_slice].set(new_c4_slice)
+                arrays = arrays.at["dispersive_c4"].set(new_c4)
 
     # apply random key to sources. Source-side sampling of the dispersion
     # coefficients (used only for carrier-frequency impedance / energy
@@ -444,6 +465,7 @@ def apply_params(
     disp_c1 = None if arrays.dispersive_c1 is None else jax.lax.stop_gradient(arrays.dispersive_c1)
     disp_c2 = None if arrays.dispersive_c2 is None else jax.lax.stop_gradient(arrays.dispersive_c2)
     disp_c3 = None if arrays.dispersive_c3 is None else jax.lax.stop_gradient(arrays.dispersive_c3)
+    disp_c4 = None if arrays.dispersive_c4 is None else jax.lax.stop_gradient(arrays.dispersive_c4)
     sigma_e = None if arrays.electric_conductivity is None else jax.lax.stop_gradient(arrays.electric_conductivity)
     new_objects = []
     devices = objects.devices
@@ -459,6 +481,7 @@ def apply_params(
                 dispersive_c1=disp_c1,
                 dispersive_c2=disp_c2,
                 dispersive_c3=disp_c3,
+                dispersive_c4=disp_c4,
                 electric_conductivity=sigma_e,
             )
         new_objects.append(obj)
@@ -660,11 +683,16 @@ def _init_arrays(
     # dispersive ADE auxiliary arrays - all None unless any material is dispersive.
     # Per-cell coefficients are broadcast over component via a size-1 axis.
     num_dispersive_poles = objects.max_num_dispersive_poles
+    # ``dispersive_c4`` (the CCPR dE/dt coupling) is only allocated when at least
+    # one pole in the sim has a non-zero ``coupling_edot``. Lorentz/Drude-only
+    # sims leave it None so the ADE update takes the classic path unchanged.
+    allocate_c4 = num_dispersive_poles > 0 and objects.has_dispersive_edot
     dispersive_P_curr = None
     dispersive_P_prev = None
     dispersive_c1 = None
     dispersive_c2 = None
     dispersive_c3 = None
+    dispersive_c4 = None
     if num_dispersive_poles > 0:
         if not (isotropic_permittivity or diagonally_anisotropic_permittivity):
             raise NotImplementedError(
@@ -706,6 +734,14 @@ def _init_arrays(
             sharding_axis=2,
             backend=config.backend,
         )
+        if allocate_c4:
+            dispersive_c4 = create_named_sharded_matrix(
+                (num_dispersive_poles, 1, *volume_shape),
+                value=0.0,
+                dtype=config.dtype,
+                sharding_axis=2,
+                backend=config.backend,
+            )
 
     # set permittivity/permeability/conductivity of static objects
     sorted_obj = sorted(
@@ -810,15 +846,17 @@ def _init_arrays(
                 # and drive an ADE update on cells that shouldn't have one.
                 assert dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None
                 poles = o.material.dispersion.poles if o.material.dispersion is not None else ()
-                c1_vals, c2_vals, c3_vals = compute_pole_coefficients(poles, config.time_step_duration)
+                c1_vals, c2_vals, c3_vals, c4_vals = compute_pole_coefficients(poles, config.time_step_duration)
                 n = len(poles)
                 c1_padded = jnp.zeros(num_dispersive_poles, dtype=config.dtype)
                 c2_padded = jnp.zeros(num_dispersive_poles, dtype=config.dtype)
                 c3_padded = jnp.zeros(num_dispersive_poles, dtype=config.dtype)
+                c4_padded = jnp.zeros(num_dispersive_poles, dtype=config.dtype)
                 if n > 0:
                     c1_padded = c1_padded.at[:n].set(jnp.asarray(c1_vals, dtype=config.dtype))
                     c2_padded = c2_padded.at[:n].set(jnp.asarray(c2_vals, dtype=config.dtype))
                     c3_padded = c3_padded.at[:n].set(jnp.asarray(c3_vals, dtype=config.dtype))
+                    c4_padded = c4_padded.at[:n].set(jnp.asarray(c4_vals, dtype=config.dtype))
                 # Broadcast (num_poles,) → (num_poles, 1, Nx, Ny, Nz) over grid_slice
                 slice_shape = dispersive_c1[:, :, *o.grid_slice].shape
                 c1_block = jnp.broadcast_to(c1_padded[:, None, None, None, None], slice_shape)
@@ -827,6 +865,9 @@ def _init_arrays(
                 dispersive_c1 = dispersive_c1.at[:, :, *o.grid_slice].set(c1_block)
                 dispersive_c2 = dispersive_c2.at[:, :, *o.grid_slice].set(c2_block)
                 dispersive_c3 = dispersive_c3.at[:, :, *o.grid_slice].set(c3_block)
+                if dispersive_c4 is not None:
+                    c4_block = jnp.broadcast_to(c4_padded[:, None, None, None, None], slice_shape)
+                    dispersive_c4 = dispersive_c4.at[:, :, *o.grid_slice].set(c4_block)
 
         elif isinstance(o, (StaticMultiMaterialObject)):
             indices = o.get_material_mapping()
@@ -899,7 +940,7 @@ def _init_arrays(
             # zero-pads non-dispersive materials, so this still cleanly overwrites.
             if num_dispersive_poles > 0:
                 assert dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None
-                allowed_c1, allowed_c2, allowed_c3 = compute_allowed_dispersive_coefficients(
+                allowed_c1, allowed_c2, allowed_c3, allowed_c4 = compute_allowed_dispersive_coefficients(
                     o.materials,
                     dt=config.time_step_duration,
                     max_num_poles=num_dispersive_poles,
@@ -920,6 +961,10 @@ def _init_arrays(
                 dispersive_c2 = dispersive_c2.at[:, :, *o.grid_slice].add(mask_bc * diff)
                 diff = c3_voxels - dispersive_c3[:, :, *o.grid_slice]
                 dispersive_c3 = dispersive_c3.at[:, :, *o.grid_slice].add(mask_bc * diff)
+                if dispersive_c4 is not None:
+                    c4_voxels = jnp.moveaxis(jnp.asarray(allowed_c4, dtype=config.dtype)[indices], -1, 0)[:, None, ...]
+                    diff = c4_voxels - dispersive_c4[:, :, *o.grid_slice]
+                    dispersive_c4 = dispersive_c4.at[:, :, *o.grid_slice].add(mask_bc * diff)
         else:
             raise Exception(f"Unknown object type: {o}")
 
@@ -1009,6 +1054,7 @@ def _init_arrays(
         dispersive_c1=dispersive_c1,
         dispersive_c2=dispersive_c2,
         dispersive_c3=dispersive_c3,
+        dispersive_c4=dispersive_c4,
         dispersive_inv_c2=dispersive_inv_c2,
         initial_inv_permittivities=initial_inv_permittivities,
     )

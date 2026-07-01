@@ -61,7 +61,7 @@ class TestEpsSpectrum:
     def test_matches_lorentz_model(self):
         """Reconstructed ε(ω) must match the analytic Lorentz formula."""
         pole = LorentzPole(resonance_frequency=2.0e15, damping=1.0e13, delta_epsilon=2.25)
-        c1_vec, c2_vec, c3_vec = compute_pole_coefficients((pole,), dt=_DT)
+        c1_vec, c2_vec, c3_vec, _c4_vec = compute_pole_coefficients((pole,), dt=_DT)
         c1, c2, c3 = _broadcast_coeffs(
             np.asarray(c1_vec),
             np.asarray(c2_vec),
@@ -95,7 +95,7 @@ class TestEpsSpectrum:
     def test_matches_drude_model(self):
         """Same check for a Drude pole (omega_0 = 0)."""
         pole = DrudePole(plasma_frequency=3.0e15, damping=5.0e13)
-        c1_vec, c2_vec, c3_vec = compute_pole_coefficients((pole,), dt=_DT)
+        c1_vec, c2_vec, c3_vec, _c4_vec = compute_pole_coefficients((pole,), dt=_DT)
         c1, c2, c3 = _broadcast_coeffs(
             np.asarray(c1_vec),
             np.asarray(c2_vec),

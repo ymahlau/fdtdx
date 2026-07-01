@@ -152,6 +152,7 @@ class ModeOverlapDetector(PhasorDetector):
         dispersive_c2: jax.Array | None = None,
         dispersive_c3: jax.Array | None = None,
         electric_conductivity: jax.Array | None = None,
+        dispersive_c4: jax.Array | None = None,
     ) -> Self:
         del key
         inv_permittivity_slice = inv_permittivities[:, *self.grid_slice]
@@ -160,11 +161,12 @@ class ModeOverlapDetector(PhasorDetector):
         else:
             inv_permeability_slice = inv_permeabilities
 
-        c1_slice = c2_slice = c3_slice = None
+        c1_slice = c2_slice = c3_slice = c4_slice = None
         if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
             c1_slice = dispersive_c1[:, :, *self.grid_slice]
             c2_slice = dispersive_c2[:, :, *self.grid_slice]
             c3_slice = dispersive_c3[:, :, *self.grid_slice]
+            c4_slice = None if dispersive_c4 is None else dispersive_c4[:, :, *self.grid_slice]
 
         # The reference mode is solved against the FULL complex epsilon at each
         # carrier frequency (eps_inf + chi(omega) + i*sigma/(eps0*omega)), so the
@@ -188,6 +190,7 @@ class ModeOverlapDetector(PhasorDetector):
                     c1=c1_slice,
                     c2=c2_slice,
                     c3=c3_slice,
+                    c4=c4_slice,
                     electric_conductivity=sigma_slice,
                     conductivity_spacing=conductivity_spacing,
                 )
