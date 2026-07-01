@@ -309,6 +309,9 @@ class ObjectContainer(TreeClass):
         return self
 
 
+PmlAuxField = dict[str, tuple[jax.Array, jax.Array]]
+
+
 @autoinit
 class FieldState(TreeClass):
     """Dynamic electromagnetic field state that evolves each time step.
@@ -323,12 +326,13 @@ class FieldState(TreeClass):
     #: Magnetic field array.
     H: jax.Array
 
-    #: PML auxiliary electric field, stored sparsely over the PML shell. Shape ``(6, M)``
-    #: where ``M`` is the number of shell cells (see ``ArrayContainer.pml_indices``).
-    psi_E: jax.Array
+    #: PML auxiliary electric field, stored as a dictionary mapping each PML
+    #: object's name to a tuple of two arrays (each of shape ``pml.grid_shape``).
+    psi_E: PmlAuxField
 
-    #: PML auxiliary magnetic field, stored sparsely over the PML shell. Shape ``(6, M)``.
-    psi_H: jax.Array
+    #: PML auxiliary magnetic field, stored as a dictionary mapping each PML
+    #: object's name to a tuple of two arrays (each of shape ``pml.grid_shape``).
+    psi_H: PmlAuxField
 
     #: Dispersive ADE polarization state at time step ``n``. Shape
     #: ``(num_poles, 3, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
@@ -350,21 +354,6 @@ class ArrayContainer(TreeClass):
 
     #: Dynamic electromagnetic fields (E, H and PML auxiliaries).
     fields: FieldState
-
-    #: Precomputed PML recurrence coefficient ``a``, gathered over the PML shell (shape ``(6, M)``).
-    #: See :func:`fdtdx.core.physics.curl.compute_pml_coefficients`.
-    pml_a: jax.Array
-
-    #: Precomputed PML recurrence coefficient ``b``, gathered over the PML shell (shape ``(6, M)``).
-    pml_b: jax.Array
-
-    #: Precomputed reciprocal PML stretching factor ``1 / kappa``, gathered over the PML shell (shape ``(6, M)``).
-    pml_inv_kappa: jax.Array
-
-    #: Grid coordinates ``(ix, iy, iz)`` of the ``M`` PML shell cells (shape ``(3, M)``, int32).
-    #: Used to gather field derivatives at and scatter PML corrections back into the full-volume curl.
-    #: ``M == 0`` when there are no PML boundaries (gather/scatter then reduce to no-ops).
-    pml_indices: jax.Array
 
     #: Inverse permittivity values array.
     inv_permittivities: jax.Array

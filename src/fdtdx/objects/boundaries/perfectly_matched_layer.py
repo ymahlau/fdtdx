@@ -48,6 +48,24 @@ class PerfectlyMatchedLayer(BaseBoundary):
     #: RGB color tuple for visualization. defaults to dark grey.
     color: Color | None = frozen_field(default=XKCD_DARK_GREY)
 
+    #: CPML 'a' coefficient array for Electric field updates.
+    pml_a_E: jax.Array | None = frozen_field(default=None)
+
+    #: CPML 'b' coefficient array for Electric field updates.
+    pml_b_E: jax.Array | None = frozen_field(default=None)
+
+    #: Inverse of the kappa stretching parameter array for the Electric field.
+    inv_kappa_E: jax.Array | None = frozen_field(default=None)
+
+    #: CPML 'a' coefficient array for Magnetic field updates.
+    pml_a_H: jax.Array | None = frozen_field(default=None)
+
+    #: CPML 'b' coefficient array for Magnetic field updates.
+    pml_b_H: jax.Array | None = frozen_field(default=None)
+
+    #: Inverse of the kappa stretching parameter array for the Magnetic field.
+    inv_kappa_H: jax.Array | None = frozen_field(default=None)
+
     def __post_init__(self):
         """Sets default PML parameters if not provided."""
         # Set default values if None is provided
@@ -91,7 +109,82 @@ class PerfectlyMatchedLayer(BaseBoundary):
             sigma_end_calculated = -(self.sigma_order + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * pml_thickness)
             self = self.aset("sigma_end", sigma_end_calculated.astype(float))
 
+        dtype = config.dtype
+        dt = config.time_step_duration
+
+        assert self.sigma_start is not None and self.sigma_end is not None and self.sigma_order is not None
+        assert self.kappa_start is not None and self.kappa_end is not None and self.kappa_order is not None
+        assert self.alpha_start is not None and self.alpha_end is not None and self.alpha_order is not None
+
+        sigma_E, sigma_H = self._compute_pml_profile(self.sigma_start, self.sigma_end, self.sigma_order, dtype)
+        kappa_E, kappa_H = self._compute_pml_profile(self.kappa_start, self.kappa_end, self.kappa_order, dtype)
+        alpha_E, alpha_H = self._compute_pml_profile(self.alpha_start, self.alpha_end, self.alpha_order, dtype)
+
+        b_E = jnp.expm1(-dt / eps0 * (sigma_E / kappa_E + alpha_E)) + 1
+        a_E = jnp.nan_to_num((b_E - 1.0) * sigma_E / (sigma_E + alpha_E * kappa_E) / kappa_E, nan=0.0)
+
+        b_H = jnp.expm1(-dt / eps0 * (sigma_H / kappa_H + alpha_H)) + 1
+        a_H = jnp.nan_to_num((b_H - 1.0) * sigma_H / (sigma_H + alpha_H * kappa_H) / kappa_H, nan=0.0)
+
+        self = self.aset("pml_a_E", a_E)
+        self = self.aset("pml_b_E", b_E)
+        self = self.aset("inv_kappa_E", 1.0 / kappa_E)
+        self = self.aset("pml_a_H", a_H)
+        self = self.aset("pml_b_H", b_H)
+        self = self.aset("inv_kappa_H", 1.0 / kappa_H)
+
         return self
+
+    def step_cpml(
+        self,
+        d_field_1: jax.Array,
+        d_field_2: jax.Array,
+        psi_1: jax.Array,
+        psi_2: jax.Array,
+        is_curl_E: bool,
+        simulate_boundaries: bool,
+    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+        """Performs localized CPML correction for the two derivatives along this boundary's axis.
+
+        Uses Auxiliary Differential Equations (ADEs) to update the psi arrays and applies
+        the complex coordinate stretching corrections to the spatial derivatives.
+
+        Args:
+            d_field_1: The first spatial derivative array needing PML correction.
+            d_field_2: The second spatial derivative array needing PML correction.
+            psi_1: The accumulator array (psi) corresponding to the first derivative.
+            psi_2: The accumulator array (psi) corresponding to the second derivative.
+            is_curl_E: Flag determining whether to use H-field coefficients (True, when computing
+                curl(E) to update H) or E-field coefficients (False, when computing curl(H) to update E).
+            simulate_boundaries: Flag to toggle whether the boundary memory variables (psi)
+                should actually be updated in this step.
+
+        Returns:
+            tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+                A tuple containing:
+                - corr_1: The PML-corrected first spatial derivative.
+                - corr_2: The PML-corrected second spatial derivative.
+                - psi_1_new: The updated accumulator array for the first derivative.
+                - psi_2_new: The updated accumulator array for the second derivative.
+        """
+        assert self.pml_a_E is not None and self.pml_b_E is not None and self.inv_kappa_E
+        assert self.pml_a_H is not None and self.pml_b_H is not None and self.inv_kappa_H
+
+        if is_curl_E:
+            a, b, inv_kappa = self.pml_a_H, self.pml_b_H, self.inv_kappa_H
+        else:
+            a, b, inv_kappa = self.pml_a_E, self.pml_b_E, self.inv_kappa_E
+
+        if simulate_boundaries:
+            psi_1_new = b * psi_1 + a * d_field_1
+            psi_2_new = b * psi_2 + a * d_field_2
+        else:
+            psi_1_new, psi_2_new = psi_1, psi_2
+
+        corr_1 = (inv_kappa - 1.0) * d_field_1 + psi_1_new
+        corr_2 = (inv_kappa - 1.0) * d_field_2 + psi_2_new
+
+        return corr_1, corr_2, psi_1_new, psi_2_new
 
     def _physical_thickness(self) -> float:
         """Return PML thickness in metres.
@@ -209,75 +302,3 @@ class PerfectlyMatchedLayer(BaseBoundary):
             dH = edges[:-1] - interface
 
         return dE, dH, norm
-
-    def modify_arrays(
-        self,
-        alpha: jax.Array,
-        kappa: jax.Array,
-        sigma: jax.Array,
-        electric_conductivity,
-        magnetic_conductivity,
-    ) -> dict[str, jax.Array]:
-        """Modifies simulation arrays to include PML parameters.
-
-        Args:
-            alpha: Alpha array for PML calculations (shape: ``(3, *volume_shape)``)
-            kappa: Kappa array for PML calculations (shape: ``(3, *volume_shape)``)
-            sigma: Sigma array for PML calculations (shape: ``(3, *volume_shape)``)
-            electric_conductivity: Electric conductivity array (shape: volume_shape)
-            magnetic_conductivity: Magnetic conductivity array (shape: volume_shape)
-
-        Returns:
-            dict: Dictionary with modified 'alpha', 'kappa', and 'sigma' arrays
-        """
-
-        assert self.alpha_start is not None, "alpha_start should be set by __post_init__"
-        assert self.alpha_end is not None, "alpha_end   should be set by __post_init__"
-        assert self.alpha_order is not None, "alpha_order should be set by __post_init__"
-        assert self.kappa_start is not None, "kappa_start should be set by __post_init__"
-        assert self.kappa_end is not None, "kappa_end   should be set by __post_init__"
-        assert self.kappa_order is not None, "kappa_order should be set by __post_init__"
-        assert self.sigma_start is not None, "sigma_start should be set by __post_init__"
-        assert self.sigma_end is not None, "sigma_end   should be set by __post_init__"
-        assert self.sigma_order is not None, "sigma_order should be set by __post_init__"
-
-        dtype = self._config.dtype
-
-        # Compute PML parameters using polynomial grading
-        sigma_E, sigma_H = self._compute_pml_profile(
-            value_start=self.sigma_start,
-            value_end=self.sigma_end,
-            order=self.sigma_order,
-            dtype=dtype,
-        )
-
-        kappa_E, kappa_H = self._compute_pml_profile(
-            value_start=self.kappa_start,
-            value_end=self.kappa_end,
-            order=self.kappa_order,
-            dtype=dtype,
-        )
-
-        alpha_E, alpha_H = self._compute_pml_profile(
-            value_start=self.alpha_start,
-            value_end=self.alpha_end,
-            order=self.alpha_order,
-            dtype=dtype,
-        )
-
-        # Update arrays in the PML region
-        # The PML parameters vary along self.axis, so we need to broadcast them correctly
-        alpha = alpha.at[self.axis, *self.grid_slice].set(alpha_E)
-        kappa = kappa.at[self.axis, *self.grid_slice].set(kappa_E)
-        sigma = sigma.at[self.axis, *self.grid_slice].set(sigma_E)
-        alpha = alpha.at[self.axis + 3, *self.grid_slice].set(alpha_H)
-        kappa = kappa.at[self.axis + 3, *self.grid_slice].set(kappa_H)
-        sigma = sigma.at[self.axis + 3, *self.grid_slice].set(sigma_H)
-
-        return {
-            "alpha": alpha,
-            "kappa": kappa,
-            "sigma": sigma,
-            "electric_conductivity": electric_conductivity,
-            "magnetic_conductivity": magnetic_conductivity,
-        }
