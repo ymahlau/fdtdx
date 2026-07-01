@@ -179,7 +179,16 @@ class ModePlaneSource(TFSFPlaneSource):
             symmetry=self.symmetry,
             transverse_coords=self._transverse_edge_coordinates(),
         )
-        mode_E, mode_H = jnp.real(mode_E), jnp.real(mode_H)
+        # Keep the complex modal fields when the mode was solved against a lossy
+        # (conductivity) permittivity, so the launched source carries the
+        # eigenmode's transverse phase — TFSFPlaneSource.update_E/update_H inject
+        # the complex profile via a quadrature (cos/sin) decomposition. Lossless
+        # modes are projected to real (bit-identical to before). The dispersive
+        # path also stays real here because its broadband H-filter assumes a real
+        # temporal profile.
+        keep_complex_mode = sigma_slice is not None and c1_slice is None
+        if not keep_complex_mode:
+            mode_E, mode_H = jnp.real(mode_E), jnp.real(mode_H)
 
         self = self.aset("_E", mode_E, create_new_ok=True)
         self = self.aset("_H", mode_H, create_new_ok=True)
