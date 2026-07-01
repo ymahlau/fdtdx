@@ -12,6 +12,7 @@ import jax.numpy as jnp
 import numpy as np
 
 import fdtdx
+from fdtdx.constants import c as c0
 
 # ── Domain constants ─────────────────────────────────────────────────────────
 _WAVELENGTH = 1e-6
@@ -23,8 +24,8 @@ _SIM_TIME = 120e-15
 _CENTER = 30
 _DET_OFFSET = 10
 
-_DT_APPROX = 0.99 * _RESOLUTION / (3e8 * np.sqrt(3))
-_STEPS_PER_PERIOD = round(_WAVELENGTH / (3e8 * _DT_APPROX))
+_DT_APPROX = 0.99 * _RESOLUTION / (c0 * np.sqrt(3))
+_STEPS_PER_PERIOD = round(_WAVELENGTH / (c0 * _DT_APPROX))
 _N_AVG_STEPS = 10 * _STEPS_PER_PERIOD
 
 

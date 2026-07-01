@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.constants import c as c0
 from fdtdx.dispersion import DispersionModel, DrudePole, LorentzPole, compute_pole_coefficients
 from fdtdx.fdtd.initialization import apply_params, place_objects
 from fdtdx.materials import Material
@@ -510,7 +511,7 @@ def test_plane_source_apply_changes_with_dispersion(simple_config, simple_volume
 
     eps_inf = 1.0
     wavelength = 0.8e-6
-    omega = 2.0 * np.pi * 3e8 / wavelength
+    omega = 2.0 * np.pi * c0 / wavelength
     # Pick a resonance above omega for a low-loss, high-eps medium
     model = DispersionModel(poles=(LorentzPole(resonance_frequency=4.0e15, damping=1e11, delta_epsilon=3.0),))
 

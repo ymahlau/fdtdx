@@ -17,6 +17,7 @@ import pytest
 
 import fdtdx
 from fdtdx.config import GradientConfig, SimulationConfig
+from fdtdx.constants import c as c0
 from fdtdx.core.grid import UniformGrid
 from fdtdx.fdtd.container import ArrayContainer, FieldState
 from fdtdx.fdtd.fdtd import checkpointed_fdtd, reversible_fdtd
@@ -84,7 +85,7 @@ def _build_scene():
     source = fdtdx.PointDipoleSource(
         name="dip",
         partial_grid_shape=(1, 1, 1),
-        wave_character=fdtdx.WaveCharacter(frequency=3e8 / 800e-9),
+        wave_character=fdtdx.WaveCharacter(frequency=c0 / 800e-9),
         polarization=0,
         amplitude=1.0,
     )
@@ -251,7 +252,7 @@ def _build_lossy_dispersive_scene(dtype):
     source = fdtdx.PointDipoleSource(
         name="dip",
         partial_grid_shape=(1, 1, 1),
-        wave_character=fdtdx.WaveCharacter(frequency=3e8 / 800e-9),
+        wave_character=fdtdx.WaveCharacter(frequency=c0 / 800e-9),
         polarization=0,
         amplitude=1.0,
     )
@@ -323,7 +324,7 @@ def _build_magnetic_lossy_scene(dtype):
     source = fdtdx.PointDipoleSource(
         name="dip",
         partial_grid_shape=(1, 1, 1),
-        wave_character=fdtdx.WaveCharacter(frequency=3e8 / 800e-9),
+        wave_character=fdtdx.WaveCharacter(frequency=c0 / 800e-9),
         polarization=0,
         amplitude=1.0,
     )

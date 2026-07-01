@@ -49,8 +49,8 @@ import numpy as np
 import fdtdx
 
 # ── Physical constants ────────────────────────────────────────────────────────
-_C0 = 3e8  # speed of light (m/s)
-_EPS0 = 8.854187817e-12  # vacuum permittivity (F/m)
+_C0 = fdtdx.constants.c  # speed of light (m/s)
+_EPS0 = fdtdx.constants.eps0  # vacuum permittivity (F/m)
 
 # ── Domain constants ──────────────────────────────────────────────────────────
 _WAVELENGTH = 1e-6  # free-space wavelength (m)
@@ -174,10 +174,8 @@ def _add_conductor_via_complex_eps(volume, objects, constraints):
     ``_SIGMA`` — i.e. this is the identical conductor, just declared in the
     frequency-domain idiom instead of as a raw conductivity.
     """
-    import fdtdx.constants as _const
-
-    omega = 2.0 * np.pi * _const.c / _WAVELENGTH
-    eps_imag = _SIGMA / (omega * _const.eps0)  # sigma = omega * eps0 * eps_imag
+    omega = 2.0 * np.pi * _C0 / _WAVELENGTH
+    eps_imag = _SIGMA / (omega * _EPS0)  # sigma = omega * eps0 * eps_imag
     material = fdtdx.Material.from_complex_permittivity(
         _EPS_R + 1j * eps_imag,
         wavelength=_WAVELENGTH,
