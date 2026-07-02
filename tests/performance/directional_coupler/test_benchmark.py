@@ -1,7 +1,5 @@
 """SOI directional coupler benchmark — geometry from coupler.gds.
 
-Matches the simulation setup from arXiv 2506.16665 (JPPhotonics/fdtd-pipeline):
-
   GDS file   : coupler.gds  (gdsfactory generic PDK, layer 1/0 = Si core)
   Domain     : 42 x 7 x 4 um^3  (x: coupler + 1 um margins each side, y, z: cladding)
   Layer stack: 220 nm Si core extruded from GDS polygons, SiO2 background
@@ -14,14 +12,11 @@ Port positions (GDS coordinates):
   o3  ( 30,  2.368) um  WG2 output  <- cross detector
   o4  ( 30, -1.632) um  WG1 output  <- thru detector
 
-Grid configs (non-uniform RectilinearGrid):
-  coarse  10 cells/lambda
-  med     12 cells/lambda  (--perf-med)
-  fine    15 cells/lambda  (--perf-fine)
 """
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from pathlib import Path
 
@@ -247,8 +242,8 @@ def _run(
 @pytest.mark.performance
 @pytest.mark.parametrize("cells_per_lambda", [
     pytest.param(10, id="coarse"),
-    pytest.param(12, id="med",  marks=pytest.mark.perf_med),
-    pytest.param(15, id="fine", marks=pytest.mark.perf_fine),
+    pytest.param(15, id="med",  marks=pytest.mark.perf_med),
+    pytest.param(20, id="fine", marks=pytest.mark.perf_fine),
 ])
 def test_directional_coupler(cells_per_lambda, perf_env, perf_sink, perf_run_dir, perf_options):
     """FDTD benchmark for the GDS-imported SOI directional coupler."""

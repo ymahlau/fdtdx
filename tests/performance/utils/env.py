@@ -19,12 +19,11 @@ def _cpu_model() -> str:
 
 def _git_sha() -> str:
     try:
-        repo_root = Path(__file__).parents[4]
         result = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
             capture_output=True,
             text=True,
-            cwd=repo_root,
+            cwd=Path(__file__).parent,
         )
         return result.stdout.strip() or "unknown"
     except Exception:
