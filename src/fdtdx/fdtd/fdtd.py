@@ -10,7 +10,7 @@ import jax.numpy as jnp
 from fdtdx.config import SimulationConfig
 from fdtdx.core.progress import _make_pbar, _wrap_body_with_progress
 from fdtdx.fdtd.backward import backward
-from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, SimulationState
+from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, PmlAuxField, SimulationState
 from fdtdx.fdtd.forward import forward, forward_single_args_wrapper
 from fdtdx.fdtd.stop_conditions import StoppingCondition, TimeStepCondition
 from fdtdx.interfaces.state import RecordingState
@@ -111,11 +111,8 @@ def reversible_fdtd(
     def reversible_fdtd_primal(
         E: jax.Array,
         H: jax.Array,
-        psi_E: jax.Array,
-        psi_H: jax.Array,
-        pml_a: jax.Array,
-        pml_b: jax.Array,
-        pml_inv_kappa: jax.Array,
+        psi_E: PmlAuxField,
+        psi_H: PmlAuxField,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array,
         dispersive_P_curr: jax.Array | None,
@@ -136,16 +133,12 @@ def reversible_fdtd(
                 dispersive_P_curr=dispersive_P_curr,
                 dispersive_P_prev=dispersive_P_prev,
             ),
-            pml_a=pml_a,
-            pml_b=pml_b,
-            pml_inv_kappa=pml_inv_kappa,
             inv_permittivities=inv_permittivities,
             inv_permeabilities=inv_permeabilities,
             detector_states=detector_states,
             recording_state=recording_state,
             electric_conductivity=arrays.electric_conductivity,
             magnetic_conductivity=arrays.magnetic_conductivity,
-            pml_indices=arrays.pml_indices,
             dispersive_c1=dispersive_c1,
             dispersive_c2=dispersive_c2,
             dispersive_c3=dispersive_c3,
@@ -160,9 +153,6 @@ def reversible_fdtd(
             state[1].fields.H,
             state[1].fields.psi_E,
             state[1].fields.psi_H,
-            state[1].pml_a,
-            state[1].pml_b,
-            state[1].pml_inv_kappa,
             state[1].inv_permittivities,
             state[1].inv_permeabilities,
             state[1].fields.dispersive_P_curr,
@@ -199,16 +189,12 @@ def reversible_fdtd(
                 electric_conductivity=arrays.electric_conductivity,
                 magnetic_conductivity=arrays.magnetic_conductivity,
                 dispersive_inv_c2=arrays.dispersive_inv_c2,
-                pml_indices=arrays.pml_indices,
             ),
             state[0],
             state[1].fields.E,
             state[1].fields.H,
             state[1].fields.psi_E,
             state[1].fields.psi_H,
-            state[1].pml_a,
-            state[1].pml_b,
-            state[1].pml_inv_kappa,
             state[1].inv_permittivities,
             state[1].inv_permeabilities,
             state[1].fields.dispersive_P_curr,
@@ -243,9 +229,6 @@ def reversible_fdtd(
             res_H,
             res_psi_E,
             res_psi_H,
-            res_pml_a,
-            res_pml_b,
-            res_pml_inv_kappa,
             res_inv_permittivities,
             res_inv_permeabilities,
             res_dispersive_P_curr,
@@ -267,16 +250,12 @@ def reversible_fdtd(
                 dispersive_P_curr=res_dispersive_P_curr,
                 dispersive_P_prev=res_dispersive_P_prev,
             ),
-            pml_a=res_pml_a,
-            pml_b=res_pml_b,
-            pml_inv_kappa=res_pml_inv_kappa,
             inv_permittivities=res_inv_permittivities,
             inv_permeabilities=res_inv_permeabilities,
             detector_states=res_detector_states,
             recording_state=res_recording_state,
             electric_conductivity=arrays.electric_conductivity,
             magnetic_conductivity=arrays.magnetic_conductivity,
-            pml_indices=arrays.pml_indices,
             dispersive_c1=res_dispersive_c1,
             dispersive_c2=res_dispersive_c2,
             dispersive_c3=res_dispersive_c3,
@@ -296,29 +275,23 @@ def reversible_fdtd(
             None,  # cot[2],   H
             None,  # cot[3],   psi_E
             None,  # cot[4],   psi_H
-            None,  # cot[5],   pml_a
-            None,  # cot[6],   pml_b
-            None,  # cot[7],   pml_inv_kappa
-            cot[8],  #         inv_permittivities
-            cot[9],  #         inv_permeabilities
-            None,  # cot[10],  dispersive_P_curr
-            None,  # cot[11],  dispersive_P_prev
-            cot[12],  #        dispersive_c1
-            cot[13],  #        dispersive_c2
-            cot[14],  #        dispersive_c3
-            cot[15],  #        dispersive_c4
-            None,  # cot[16],  detector_states
-            None,  # cot[17],  recording_state
+            cot[5],  #         inv_permittivities
+            cot[6],  #         inv_permeabilities
+            None,  # cot[7],  dispersive_P_curr
+            None,  # cot[8],  dispersive_P_prev
+            cot[9],  #        dispersive_c1
+            cot[10],  #        dispersive_c2
+            cot[11],  #        dispersive_c3
+            cot[12],  #        dispersive_c4
+            None,  # cot[13],  detector_states
+            None,  # cot[14],  recording_state
         )
 
     def fdtd_fwd(
         E: jax.Array,
         H: jax.Array,
-        psi_E: jax.Array,
-        psi_H: jax.Array,
-        pml_a: jax.Array,
-        pml_b: jax.Array,
-        pml_inv_kappa: jax.Array,
+        psi_E: PmlAuxField,
+        psi_H: PmlAuxField,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array,
         dispersive_P_curr: jax.Array | None,
@@ -339,16 +312,12 @@ def reversible_fdtd(
                 dispersive_P_curr=dispersive_P_curr,
                 dispersive_P_prev=dispersive_P_prev,
             ),
-            pml_a=pml_a,
-            pml_b=pml_b,
-            pml_inv_kappa=pml_inv_kappa,
             inv_permittivities=inv_permittivities,
             inv_permeabilities=inv_permeabilities,
             detector_states=detector_states,
             recording_state=recording_state,
             electric_conductivity=arrays.electric_conductivity,
             magnetic_conductivity=arrays.magnetic_conductivity,
-            pml_indices=arrays.pml_indices,
             dispersive_c1=dispersive_c1,
             dispersive_c2=dispersive_c2,
             dispersive_c3=dispersive_c3,
@@ -364,9 +333,6 @@ def reversible_fdtd(
             s_k[1].fields.H,
             s_k[1].fields.psi_E,
             s_k[1].fields.psi_H,
-            s_k[1].pml_a,
-            s_k[1].pml_b,
-            s_k[1].pml_inv_kappa,
             s_k[1].inv_permittivities,
             s_k[1].inv_permeabilities,
             s_k[1].fields.dispersive_P_curr,
@@ -389,9 +355,6 @@ def reversible_fdtd(
         H,
         psi_E,
         psi_H,
-        pml_a,
-        pml_b,
-        pml_inv_kappa,
         inv_permittivities,
         inv_permeabilities,
         dispersive_P_curr,
@@ -407,9 +370,6 @@ def reversible_fdtd(
         H=arrays.fields.H,
         psi_E=arrays.fields.psi_E,
         psi_H=arrays.fields.psi_H,
-        pml_a=arrays.pml_a,
-        pml_b=arrays.pml_b,
-        pml_inv_kappa=arrays.pml_inv_kappa,
         inv_permittivities=arrays.inv_permittivities,
         inv_permeabilities=arrays.inv_permeabilities,
         dispersive_P_curr=arrays.fields.dispersive_P_curr,
@@ -432,10 +392,6 @@ def reversible_fdtd(
             dispersive_P_curr=dispersive_P_curr,
             dispersive_P_prev=dispersive_P_prev,
         ),
-        pml_a=pml_a,
-        pml_b=pml_b,
-        pml_inv_kappa=pml_inv_kappa,
-        pml_indices=arrays.pml_indices,
         inv_permittivities=inv_permittivities,
         inv_permeabilities=inv_permeabilities,
         detector_states=detector_states,

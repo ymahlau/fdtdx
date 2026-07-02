@@ -3,7 +3,7 @@ import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
 from fdtdx.constants import c as c0
-from fdtdx.constants import eps0
+from fdtdx.fdtd.container import ObjectContainer, PmlAuxField
 
 
 def _metric_scale(
@@ -191,46 +191,13 @@ def interpolate_fields(
     return E_interp, H_interp
 
 
-def compute_pml_coefficients(
-    alpha: jax.Array,
-    kappa: jax.Array,
-    sigma: jax.Array,
-    time_step_duration: float,
-) -> tuple[jax.Array, jax.Array, jax.Array]:
-    """Precompute the time-invariant CPML recurrence coefficients.
-
-    The auxiliary-field recurrence coefficients ``a`` and ``b`` and the reciprocal
-    stretching factor ``1 / kappa`` depend only on the PML profiles and the time step,
-    so they can be computed once at setup instead of every FDTD step. Computing them in
-    the same dtype and with the same expressions as the historical per-step code keeps
-    the result bit-identical.
-
-    Args:
-        alpha (jax.Array): Alpha (complex frequency shift) profile, shape (6, nx, ny, nz).
-        kappa (jax.Array): Kappa (coordinate stretching) profile, shape (6, nx, ny, nz).
-        sigma (jax.Array): Sigma (conductivity) profile, shape (6, nx, ny, nz).
-        time_step_duration (float): FDTD time step duration in seconds.
-
-    Returns:
-        tuple[jax.Array, jax.Array, jax.Array]: ``(pml_a, pml_b, pml_inv_kappa)``, each
-            of shape (6, nx, ny, nz).
-    """
-    b = jnp.expm1(-time_step_duration / eps0 * (sigma / kappa + alpha)) + 1
-    a = jnp.nan_to_num((b - 1.0) * sigma / (sigma + alpha * kappa) / kappa, nan=0.0, posinf=0.0, neginf=0.0)
-    inv_kappa = 1.0 / kappa
-    return a, b, inv_kappa
-
-
 def curl_E(
     config: SimulationConfig,
     E_pad: jax.Array,
-    psi_H: jax.Array,
-    pml_a: jax.Array,
-    pml_b: jax.Array,
-    pml_inv_kappa: jax.Array,
-    pml_indices: jax.Array,
+    psi_H: PmlAuxField,
+    objects: ObjectContainer,
     simulate_boundaries: bool,
-) -> tuple[jax.Array, jax.Array]:
+) -> tuple[jax.Array, dict[str, tuple[jax.Array, jax.Array]]]:
     """Transforms an E-type field into an H-type field by performing a curl operation.
 
     Computes the discrete curl of the electric field to obtain the corresponding
@@ -238,29 +205,25 @@ def curl_E(
     cells (integer grid points), while the output H-field is defined on the faces
     (half-integer grid points).
 
-    The CPML correction is applied sparsely: the full-volume curl is computed first
-    (kappa=1, psi=0), then the per-cell PML correction is gathered/updated/scattered
-    over the ``M`` shell cells given by ``pml_indices``.
+    The CPML correction is applied by computing the full-volume curl first, then
+    iterating over the defined PML objects to apply the local per-cell corrections and
+    update their auxiliary fields.
 
     Args:
         config (SimulationConfig): Simulation configuration parameters.
         E_pad (jax.Array): Pre-padded electric field of shape (3, nx+2, ny+2, nz+2).
-        psi_H (jax.Array): Auxiliary field for the magnetic field, stored sparsely.
-            Shape is (6, M) for the 6 auxiliary fields over M shell cells.
-        pml_a (jax.Array): Precomputed PML recurrence coefficient ``a``, gathered at the
-            shell. Shape is (6, M). See :func:`compute_pml_coefficients`.
-        pml_b (jax.Array): Precomputed PML recurrence coefficient ``b``, gathered at the
-            shell. Shape is (6, M).
-        pml_inv_kappa (jax.Array): Precomputed reciprocal stretching factor ``1 / kappa``,
-            gathered at the shell. Shape is (6, M).
-        pml_indices (jax.Array): Grid coordinates (ix, iy, iz) of the M shell cells, shape (3, M).
+        psi_H (PmlAuxField): Dictionary mapping PML object
+            names to their auxiliary magnetic field states.
+        objects (ObjectContainer): Object collection containing `pml_objects`, which are used to apply
+            the PML boundary corrections.
         simulate_boundaries (bool): Whether to update the PML auxiliary fields.
 
     Returns:
-        jax.Array: The curl of E - an H-type field located on the faces of the grid
-                  (half-integer grid points). Has same shape as input (3, nx, ny, nz).
+        tuple[jax.Array, PmlAuxField]: A tuple containing:
+            - The curl of E (an H-type field located on the faces of the grid, i.e.,
+              half-integer grid points). Has same shape as unpadded input (3, nx, ny, nz).
+            - The updated dictionary of auxiliary magnetic fields `psi_H`.
     """
-
     shape = E_pad.shape[1] - 2, E_pad.shape[2] - 2, E_pad.shape[3] - 2
     dx_scale = _metric_scale(config, axis=0, shape=shape, stencil="forward")
     dy_scale = _metric_scale(config, axis=1, shape=shape, stencil="forward")
@@ -273,45 +236,38 @@ def curl_E(
     dxEy = (jnp.roll(E_pad[1], -1, axis=0) - E_pad[1])[1:-1, 1:-1, 1:-1] * dx_scale
     dyEx = (jnp.roll(E_pad[0], -1, axis=1) - E_pad[0])[1:-1, 1:-1, 1:-1] * dy_scale
 
-    # Raw curl (kappa=1, psi=0): correct everywhere outside the PML shell.
     curl_x = dyEz - dzEy
     curl_y = dzEx - dxEz
     curl_z = dxEy - dyEx
-
-    # Gather the six derivative terms at the M shell cells.
-    ix, iy, iz = pml_indices[0], pml_indices[1], pml_indices[2]
-    g_dyEz, g_dzEy = dyEz[ix, iy, iz], dzEy[ix, iy, iz]
-    g_dzEx, g_dxEz = dzEx[ix, iy, iz], dxEz[ix, iy, iz]
-    g_dxEy, g_dyEx = dxEy[ix, iy, iz], dyEx[ix, iy, iz]
-
-    psi_Hxy, psi_Hxz, psi_Hyz, psi_Hyx, psi_Hzx, psi_Hzy = psi_H
-
-    if simulate_boundaries:
-        # Update auxiliary fields using precomputed H-field PML coefficients
-        psi_Hxy = pml_b[4] * psi_Hxy + pml_a[4] * g_dyEz
-        psi_Hxz = pml_b[5] * psi_Hxz + pml_a[5] * g_dzEy
-        psi_Hyz = pml_b[5] * psi_Hyz + pml_a[5] * g_dzEx
-        psi_Hyx = pml_b[3] * psi_Hyx + pml_a[3] * g_dxEz
-        psi_Hzx = pml_b[3] * psi_Hzx + pml_a[3] * g_dxEy
-        psi_Hzy = pml_b[4] * psi_Hzy + pml_a[4] * g_dyEx
-
-    psi_H_updated = jnp.stack((psi_Hxy, psi_Hxz, psi_Hyz, psi_Hyx, psi_Hzx, psi_Hzy), axis=0)
-
-    # Per-term PML correction (inv_kappa indices [1],[2],[0] as in the dense formulation)
-    # so that raw_curl + correction == (inv_kappa * diff + psi) at the shell cells.
-    corr_xy = (pml_inv_kappa[1] - 1.0) * g_dyEz + psi_Hxy
-    corr_xz = (pml_inv_kappa[2] - 1.0) * g_dzEy + psi_Hxz
-    corr_yz = (pml_inv_kappa[2] - 1.0) * g_dzEx + psi_Hyz
-    corr_yx = (pml_inv_kappa[0] - 1.0) * g_dxEz + psi_Hyx
-    corr_zx = (pml_inv_kappa[0] - 1.0) * g_dxEy + psi_Hzx
-    corr_zy = (pml_inv_kappa[1] - 1.0) * g_dyEx + psi_Hzy
-
-    # Fused scatter: assemble the raw curl (3, N) and the per-term corrections (3, M),
-    # then apply a single scatter-add across all three components at the shell cells.
-    # Equivalent to three per-component scatters but emits one scatter kernel instead.
     curl = jnp.stack((curl_x, curl_y, curl_z), axis=0)
-    corr = jnp.stack((corr_xy - corr_xz, corr_yz - corr_yx, corr_zx - corr_zy), axis=0)
-    curl = curl.at[:, ix, iy, iz].add(corr)
+
+    psi_H_updated = {}
+
+    for pml in objects.pml_objects:
+        a = pml.axis
+        i, j = (a + 1) % 3, (a + 2) % 3
+
+        # Map to the cyclic sequence of orthogonal derivatives
+        if a == 0:
+            d_a_F_j, d_a_F_i = dxEz, dxEy
+        elif a == 1:
+            d_a_F_j, d_a_F_i = dyEx, dyEz
+        else:
+            d_a_F_j, d_a_F_i = dzEy, dzEx
+
+        d_field_1 = d_a_F_j[pml.grid_slice]
+        d_field_2 = d_a_F_i[pml.grid_slice]
+
+        psi_1, psi_2 = psi_H[pml.name]
+
+        corr_1, corr_2, psi_1_new, psi_2_new = pml.step_cpml(
+            d_field_1, d_field_2, psi_1, psi_2, is_curl_E=True, simulate_boundaries=simulate_boundaries
+        )
+
+        curl = curl.at[i, *pml.grid_slice].add(-corr_1)
+        curl = curl.at[j, *pml.grid_slice].add(corr_2)
+
+        psi_H_updated[pml.name] = (psi_1_new, psi_2_new)
 
     return curl, psi_H_updated
 
@@ -319,13 +275,10 @@ def curl_E(
 def curl_H(
     config: SimulationConfig,
     H_pad: jax.Array,
-    psi_E: jax.Array,
-    pml_a: jax.Array,
-    pml_b: jax.Array,
-    pml_inv_kappa: jax.Array,
-    pml_indices: jax.Array,
+    psi_E: PmlAuxField,
+    objects: ObjectContainer,
     simulate_boundaries: bool,
-) -> tuple[jax.Array, jax.Array]:
+) -> tuple[jax.Array, dict[str, tuple[jax.Array, jax.Array]]]:
     """Transforms an H-type field into an E-type field by performing a curl operation.
 
     Computes the discrete curl of the magnetic field to obtain the corresponding
@@ -333,29 +286,25 @@ def curl_H(
     cells (half-integer grid points), while the output E-field is defined on the edges
     (integer grid points).
 
-    The CPML correction is applied sparsely: the full-volume curl is computed first
-    (kappa=1, psi=0), then the per-cell PML correction is gathered/updated/scattered
-    over the ``M`` shell cells given by ``pml_indices``.
+    The CPML correction is applied by computing the full-volume curl first, then
+    iterating over the defined PML objects to apply the local per-cell corrections and
+    update their auxiliary fields.
 
     Args:
         config (SimulationConfig): Simulation configuration parameters.
         H_pad (jax.Array): Pre-padded magnetic field of shape (3, nx+2, ny+2, nz+2).
-        psi_E (jax.Array): Auxiliary field for the electric field, stored sparsely.
-            Shape is (6, M) for the 6 auxiliary fields over M shell cells.
-        pml_a (jax.Array): Precomputed PML recurrence coefficient ``a``, gathered at the
-            shell. Shape is (6, M). See :func:`compute_pml_coefficients`.
-        pml_b (jax.Array): Precomputed PML recurrence coefficient ``b``, gathered at the
-            shell. Shape is (6, M).
-        pml_inv_kappa (jax.Array): Precomputed reciprocal stretching factor ``1 / kappa``,
-            gathered at the shell. Shape is (6, M).
-        pml_indices (jax.Array): Grid coordinates (ix, iy, iz) of the M shell cells, shape (3, M).
+        psi_E (PmlAuxField): Dictionary mapping PML object
+            names to their auxiliary electric field states.
+        objects (ObjectContainer): Object collection containing `pml_objects`, which are used to apply
+            the PML boundary corrections.
         simulate_boundaries (bool): Whether to update the PML auxiliary fields.
 
     Returns:
-        jax.Array: The curl of H - an E-type field located on the edges of the grid
-                  (integer grid points). Has same shape as input (3, nx, ny, nz).
+        tuple[jax.Array, PmlAuxField]: A tuple containing:
+            - The curl of H (an E-type field located on the edges of the grid, i.e.,
+              integer grid points). Has same shape as unpadded input (3, nx, ny, nz).
+            - The updated dictionary of auxiliary electric fields `psi_E`.
     """
-
     shape = H_pad.shape[1] - 2, H_pad.shape[2] - 2, H_pad.shape[3] - 2
     dx_scale = _metric_scale(config, axis=0, shape=shape, stencil="backward")
     dy_scale = _metric_scale(config, axis=1, shape=shape, stencil="backward")
@@ -368,44 +317,36 @@ def curl_H(
     dxHy = (H_pad[1] - jnp.roll(H_pad[1], 1, axis=0))[1:-1, 1:-1, 1:-1] * dx_scale
     dyHx = (H_pad[0] - jnp.roll(H_pad[0], 1, axis=1))[1:-1, 1:-1, 1:-1] * dy_scale
 
-    # Raw curl (kappa=1, psi=0): correct everywhere outside the PML shell.
     curl_x = dyHz - dzHy
     curl_y = dzHx - dxHz
     curl_z = dxHy - dyHx
-
-    # Gather the six derivative terms at the M shell cells.
-    ix, iy, iz = pml_indices[0], pml_indices[1], pml_indices[2]
-    g_dyHz, g_dzHy = dyHz[ix, iy, iz], dzHy[ix, iy, iz]
-    g_dzHx, g_dxHz = dzHx[ix, iy, iz], dxHz[ix, iy, iz]
-    g_dxHy, g_dyHx = dxHy[ix, iy, iz], dyHx[ix, iy, iz]
-
-    psi_Exy, psi_Exz, psi_Eyz, psi_Eyx, psi_Ezx, psi_Ezy = psi_E
-
-    if simulate_boundaries:
-        # Update auxiliary fields using precomputed E-field PML coefficients
-        psi_Exy = pml_b[1] * psi_Exy + pml_a[1] * g_dyHz
-        psi_Exz = pml_b[2] * psi_Exz + pml_a[2] * g_dzHy
-        psi_Eyz = pml_b[2] * psi_Eyz + pml_a[2] * g_dzHx
-        psi_Eyx = pml_b[0] * psi_Eyx + pml_a[0] * g_dxHz
-        psi_Ezx = pml_b[0] * psi_Ezx + pml_a[0] * g_dxHy
-        psi_Ezy = pml_b[1] * psi_Ezy + pml_a[1] * g_dyHx
-
-    psi_E_updated = jnp.stack((psi_Exy, psi_Exz, psi_Eyz, psi_Eyx, psi_Ezx, psi_Ezy), axis=0)
-
-    # Per-term PML correction (inv_kappa indices [1],[2],[0] as in the dense formulation)
-    # so that raw_curl + correction == (inv_kappa * diff + psi) at the shell cells.
-    corr_xy = (pml_inv_kappa[1] - 1.0) * g_dyHz + psi_Exy
-    corr_xz = (pml_inv_kappa[2] - 1.0) * g_dzHy + psi_Exz
-    corr_yz = (pml_inv_kappa[2] - 1.0) * g_dzHx + psi_Eyz
-    corr_yx = (pml_inv_kappa[0] - 1.0) * g_dxHz + psi_Eyx
-    corr_zx = (pml_inv_kappa[0] - 1.0) * g_dxHy + psi_Ezx
-    corr_zy = (pml_inv_kappa[1] - 1.0) * g_dyHx + psi_Ezy
-
-    # Fused scatter: assemble the raw curl (3, N) and the per-term corrections (3, M),
-    # then apply a single scatter-add across all three components at the shell cells.
-    # Equivalent to three per-component scatters but emits one scatter kernel instead.
     curl = jnp.stack((curl_x, curl_y, curl_z), axis=0)
-    corr = jnp.stack((corr_xy - corr_xz, corr_yz - corr_yx, corr_zx - corr_zy), axis=0)
-    curl = curl.at[:, ix, iy, iz].add(corr)
+
+    psi_E_updated = {}
+
+    for pml in objects.pml_objects:
+        a = pml.axis
+        i, j = (a + 1) % 3, (a + 2) % 3
+
+        if a == 0:
+            d_a_F_j, d_a_F_i = dxHz, dxHy
+        elif a == 1:
+            d_a_F_j, d_a_F_i = dyHx, dyHz
+        else:
+            d_a_F_j, d_a_F_i = dzHy, dzHx
+
+        d_field_1 = d_a_F_j[pml.grid_slice]
+        d_field_2 = d_a_F_i[pml.grid_slice]
+
+        psi_1, psi_2 = psi_E[pml.name]
+
+        corr_1, corr_2, psi_1_new, psi_2_new = pml.step_cpml(
+            d_field_1, d_field_2, psi_1, psi_2, is_curl_E=False, simulate_boundaries=simulate_boundaries
+        )
+
+        curl = curl.at[i, *pml.grid_slice].add(-corr_1)
+        curl = curl.at[j, *pml.grid_slice].add(corr_2)
+
+        psi_E_updated[pml.name] = (psi_1_new, psi_2_new)
 
     return curl, psi_E_updated
