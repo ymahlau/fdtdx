@@ -140,7 +140,9 @@ def compute_integrated_power(
     S_real = 0.5 * jnp.real(S_complex[axis])  # power flow in desired direction
 
     if area_weights is not None:
-        S_real = S_real * area_weights
+        # normalize area weights for numerical stability and consistency with the None case
+        relative_weights = area_weights / jnp.mean(area_weights)
+        S_real = S_real * relative_weights
 
     # Integrate over transverse plane (axis orthogonal to `axis`)
     power = jnp.abs(jnp.sum(S_real))
