@@ -358,8 +358,9 @@ class TestSidewallAngle:
         n_xy = mask.shape[0]
         cc = (np.arange(n_xy) + 0.5) * self.SPACING - n_xy * self.SPACING / 2.0  # cell centres about the polygon centre
         z_centers = (np.arange(self.NZ) + 0.5) * self.SPACING
-        z_ref = {"bottom": z_centers[0], "top": z_centers[-1],
-                 "middle": 0.5 * (z_centers[0] + z_centers[-1])}[reference_plane]
+        z_ref = {"bottom": z_centers[0], "top": z_centers[-1], "middle": 0.5 * (z_centers[0] + z_centers[-1])}[
+            reference_plane
+        ]
         tan = np.tan(np.deg2rad(90.0 - angle))
         mid = n_xy // 2
         for z in range(self.NZ):
