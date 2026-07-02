@@ -73,16 +73,17 @@ class GDSLayerObject(StaticMultiMaterialObject):
     Each instance represents one GDS layer (layer/datatype pair) extruded uniformly
     along ``axis``. The cross-sectional shape is described by ``polygons``, given in
     GDS coordinate space (metres). The mapping from GDS space to the local grid is
-    controlled by ``gds_center``, which gives the GDS coordinate that coincides with the x/y centre
-    of the simulation volume. For example, ``gds_center=(0.0, 0.0)`` maps the GDS origin to the
-    centre of the simulation volume, while ``gds_center=(500e-9, 0.0)`` shifts the layout 500 nm to the left.
+    controlled by ``gds_center``, which gives the GDS coordinate that coincides
+    with the x/y centre of the placed object. For example,
+    ``gds_center=(0.0, 0.0)`` maps the GDS origin to the object's centre, while
+    ``gds_center=(500e-9, 0.0)`` shifts the layout 500 nm to the left.
     """
 
     #: Sequence of (N, 2) vertex arrays for each polygon, in GDS metres.
     polygons: Sequence[np.ndarray] = frozen_field()
 
     #: GDS coordinate (horizontal, vertical) in metres that coincides with the x/y centre
-    #: of the simulation volume.
+    #: of the placed object.
     gds_center: tuple[float, float] = frozen_field()
 
     #: Key into the materials dictionary used for this object.
@@ -156,9 +157,13 @@ class GDSLayerObject(StaticMultiMaterialObject):
             v_lower, v_upper = self.grid_slice_tuple[self.vertical_axis]
             h_edges = np.asarray(grid.edges(self.horizontal_axis))
             v_edges = np.asarray(grid.edges(self.vertical_axis))
-            # Compute cell centers relative to the origin at the center of the simulation volume
-            h_centers = 0.5 * (h_edges[h_lower:h_upper] + h_edges[h_lower + 1 : h_upper + 1])
-            v_centers = 0.5 * (v_edges[v_lower:v_upper] + v_edges[v_lower + 1 : v_upper + 1])
+            # local_polygons are in gds_center-relative space (poly - gds_center).
+            # gds_center maps to the object's physical centre in the simulation, so
+            # cell centres must be expressed relative to the object's slice centre too.
+            h_obj_center = 0.5 * (h_edges[h_lower] + h_edges[h_upper])
+            v_obj_center = 0.5 * (v_edges[v_lower] + v_edges[v_upper])
+            h_centers = 0.5 * (h_edges[h_lower:h_upper] + h_edges[h_lower + 1 : h_upper + 1]) - h_obj_center
+            v_centers = 0.5 * (v_edges[v_lower:v_upper] + v_edges[v_lower + 1 : v_upper + 1]) - v_obj_center
             if len(local_polygons) == 0:
                 mask_2d = np.zeros((n_h, n_v), dtype=bool)
             else:
@@ -217,7 +222,7 @@ def _load_gds_cell(
     return lib, cell
 
 
-def _gds_to_sim(gds_val: float, gds_center_val: float, vol_size: float) -> float:
+def _gds_to_sim(gds_val: float, gds_center_val: float) -> float:
     """Convert a GDS coordinate (metres) to a simulation real-space coordinate (metres).
 
     Simulation real-space coordinates are now measured from the center of the simulation volume.
@@ -279,7 +284,7 @@ def _iter_port_placements(
             name = f"{spec.name_prefix}_{i}"
 
             gds_prop_val = centroid[spec.propagation_axis]
-            sim_prop_pos = _gds_to_sim(gds_prop_val, gds_center[spec.propagation_axis], vol_size)
+            sim_prop_pos = _gds_to_sim(gds_prop_val, gds_center[spec.propagation_axis])
 
             # Transverse width from the actual marker polygon — avoids spanning
             # neighbouring waveguides and corrupting mode-overlap integrals.
