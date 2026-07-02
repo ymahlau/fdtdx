@@ -14,22 +14,15 @@ Port positions (GDS coordinates):
   o3  ( 30,  2.368) um  WG2 output  <- cross detector
   o4  ( 30, -1.632) um  WG1 output  <- thru detector
 
-Two simulation configs (both non-uniform RectilinearGrid):
-  cpl10   10 cells/lambda  — dx_si~44 nm, dx_sio2~107 nm, ~8.8 M cells  (fast check)
-  cpl15   15 cells/lambda  — dx_si~30 nm, dx_sio2~ 71 nm, ~28 M cells   (paper-accurate)
-
-Environment flags:
-  PERF_VISUALIZE=1  Also save phasor field plots to <run_dir>/figs/
-  PERF_TRACE=1      Capture Perfetto/XLA trace
-  PERF_MEMORY=1     Record peak device memory
-  PERF_FINE=1       Run the fine-grid config (skipped by default)
+Grid configs (non-uniform RectilinearGrid):
+  coarse  10 cells/lambda
+  med     12 cells/lambda  (--perf-med)
+  fine    15 cells/lambda  (--perf-fine)
 """
 
 from __future__ import annotations
 
-import dataclasses
 import math
-import os
 from pathlib import Path
 
 import jax
@@ -39,6 +32,7 @@ import pytest
 
 import fdtdx
 from fdtdx.core.grid import RectilinearGrid
+from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.initialization import apply_params, place_objects
 from fdtdx.fdtd.wrapper import run_fdtd
 from fdtdx.materials import Material
@@ -47,17 +41,20 @@ from fdtdx.objects.static_material.gds_layer_stack import GDSLayerSpec
 from ..utils import (
     BenchmarkResult,
     build_scene,
+    compile_fn,
     plot_field_intensity,
-    run_benchmark,
+    run_compiled,
 )
 
 # ---------------------------------------------------------------------------
 # Device layout
 # ---------------------------------------------------------------------------
 
+
 @dataclasses.dataclass(frozen=True)
 class CouplerConfig:
     """Physical and layout constants for coupler.gds (all lengths in metres)."""
+
     gds_path: Path
     cell_name: str
     gds_center: tuple[float, float]
@@ -112,79 +109,66 @@ _COUPLER = CouplerConfig(
 
 
 # ---------------------------------------------------------------------------
-# Simulation configs — parametrized by cells per wavelength
-#
-# dx_fine   = wavelength / (n_Si   * cells_per_lambda)   [in waveguide / Si region]
-# dx_coarse = wavelength / (n_SiO2 * cells_per_lambda)   [in SiO2 cladding]
-#
-#  cpl=10:  dx_fine ~44 nm, dx_coarse ~107 nm  ->  ~8.8 M cells  (fast sanity check)
-#  cpl=15:  dx_fine ~30 nm, dx_coarse  ~71 nm  -> ~28.4 M cells  (paper-accurate)
+# Grid
 # ---------------------------------------------------------------------------
 
-@dataclasses.dataclass(frozen=True)
-class SimConfig:
-    """Non-uniform grid resolution parametrized by cells per wavelength."""
-    cells_per_lambda: int
 
-    @property
-    def name(self) -> str:
-        return f"cpl{self.cells_per_lambda}"
-
-    @property
-    def dx_fine(self) -> float:
-        n_si = math.sqrt(fdtdx.constants.relative_permittivity_silicon)
-        return _COUPLER.wavelength / (n_si * self.cells_per_lambda)
-
-    @property
-    def dx_coarse(self) -> float:
-        n_sio2 = math.sqrt(fdtdx.constants.relative_permittivity_silica)
-        return _COUPLER.wavelength / (n_sio2 * self.cells_per_lambda)
-
-    def make_grid(self) -> RectilinearGrid:
-        """Non-uniform RectilinearGrid with fine cells in waveguide / Si regions."""
-        cfg = _COUPLER
-        dx_f, dx_c = self.dx_fine, self.dx_coarse
-
-        nx = round(cfg.domain_x / dx_f)
-        x_edges = np.linspace(0.0, cfg.domain_x, nx + 1)
-
-        y_fine_lo, y_fine_hi = 0.5e-6, cfg.domain_y - 0.5e-6
-        y_edges = np.concatenate([
-            np.linspace(0.0, y_fine_lo, round(y_fine_lo / dx_c) + 1),
-            np.linspace(y_fine_lo, y_fine_hi, round((y_fine_hi - y_fine_lo) / dx_f) + 1)[1:],
-            np.linspace(y_fine_hi, cfg.domain_y, round((cfg.domain_y - y_fine_hi) / dx_c) + 1)[1:],
-        ])
-
-        z_fine_lo, z_fine_hi = 1.0e-6, 3.0e-6
-        z_edges = np.concatenate([
-            np.linspace(0.0, z_fine_lo, round(z_fine_lo / dx_c) + 1),
-            np.linspace(z_fine_lo, z_fine_hi, round((z_fine_hi - z_fine_lo) / dx_f) + 1)[1:],
-            np.linspace(z_fine_hi, cfg.domain_z, round((cfg.domain_z - z_fine_hi) / dx_c) + 1)[1:],
-        ])
-
-        return RectilinearGrid(
-            x_edges=jnp.asarray(x_edges),
-            y_edges=jnp.asarray(y_edges),
-            z_edges=jnp.asarray(z_edges),
-        )
+def _dx(cells_per_lambda: int, n: float) -> float:
+    return _COUPLER.wavelength / (n * cells_per_lambda)
 
 
-_SIM_COARSE = SimConfig(cells_per_lambda=10)   # dx_si~44 nm, dx_sio2~107 nm, ~8.8 M cells
-_SIM_MED    = SimConfig(cells_per_lambda=12)   # dx_si~37 nm, dx_sio2~ 89 nm, ~15 M cells  (fits 8 GB VRAM)
-_SIM_FINE   = SimConfig(cells_per_lambda=15)   # dx_si~30 nm, dx_sio2~ 71 nm, ~28 M cells
+def _make_grid(cells_per_lambda: int) -> RectilinearGrid:
+    n_si  = math.sqrt(fdtdx.constants.relative_permittivity_silicon)
+    n_sio2 = math.sqrt(fdtdx.constants.relative_permittivity_silica)
+    dx_f = _dx(cells_per_lambda, n_si)
+    dx_c = _dx(cells_per_lambda, n_sio2)
+    cfg = _COUPLER
+
+    x_edges = np.linspace(0.0, cfg.domain_x, round(cfg.domain_x / dx_f) + 1)
+
+    y_lo, y_hi = 0.5e-6, cfg.domain_y - 0.5e-6
+    y_edges = np.concatenate([
+        np.linspace(0.0, y_lo, round(y_lo / dx_c) + 1),
+        np.linspace(y_lo, y_hi, round((y_hi - y_lo) / dx_f) + 1)[1:],
+        np.linspace(y_hi, cfg.domain_y, round((cfg.domain_y - y_hi) / dx_c) + 1)[1:],
+    ])
+
+    z_lo, z_hi = 1.0e-6, 3.0e-6
+    z_edges = np.concatenate([
+        np.linspace(0.0, z_lo, round(z_lo / dx_c) + 1),
+        np.linspace(z_lo, z_hi, round((z_hi - z_lo) / dx_f) + 1)[1:],
+        np.linspace(z_hi, cfg.domain_z, round((cfg.domain_z - z_hi) / dx_c) + 1)[1:],
+    ])
+
+    return RectilinearGrid(
+        x_edges=jnp.asarray(x_edges),
+        y_edges=jnp.asarray(y_edges),
+        z_edges=jnp.asarray(z_edges),
+    )
 
 
 # ---------------------------------------------------------------------------
-# Scene builder
+# Steps
 # ---------------------------------------------------------------------------
 
-def _build_scene(sim_time: float, sim_cfg: SimConfig, with_phasor_detectors: bool = False) -> tuple:
+
+def _setup(
+    cells_per_lambda: int,
+    *,
+    figs_dir: Path,
+    with_phasor_detectors: bool = False,
+) -> tuple[ObjectContainer, ArrayContainer, fdtdx.SimulationConfig]:
+    n_si = math.sqrt(fdtdx.constants.relative_permittivity_silicon)
+    dx_fine = _dx(cells_per_lambda, n_si)
+    sim_time = 2.0 * n_si * _COUPLER.domain_x / 3e8
+
     wave_char = fdtdx.WaveCharacter(wavelength=_COUPLER.wavelength)
     temporal_profile = fdtdx.GaussianPulseProfile(
         center_wave=wave_char,
         spectral_width=fdtdx.WaveCharacter(wavelength=_COUPLER.wavelength * 10),
     )
-    return build_scene(
+
+    objects, constraints, config, _ = build_scene(
         gds_path=_COUPLER.gds_path,
         cell_name=_COUPLER.cell_name,
         layer_specs=_COUPLER.layer_specs(),
@@ -198,53 +182,13 @@ def _build_scene(sim_time: float, sim_cfg: SimConfig, with_phasor_detectors: boo
         background_material=Material(permittivity=fdtdx.constants.relative_permittivity_silica),
         wave_char=wave_char,
         temporal_profile=temporal_profile,
-        grid=sim_cfg.make_grid(),
+        grid=_make_grid(cells_per_lambda),
         sim_time=sim_time,
         source_span_y=_COUPLER.source_span_y,
-        norm_det_dx=sim_cfg.dx_fine,
+        norm_det_dx=dx_fine,
         with_phasor_monitors=with_phasor_detectors,
         phasor_z_height=_COUPLER.si_z_center,
     )
-
-
-# ---------------------------------------------------------------------------
-# Single benchmark test — tracing and visualisation gated by env flags
-# ---------------------------------------------------------------------------
-
-@pytest.mark.performance
-@pytest.mark.parametrize("sim_cfg", [
-    pytest.param(_SIM_COARSE, id="cpl10"),
-    pytest.param(
-        _SIM_MED, id="cpl12",
-        marks=pytest.mark.skipif(
-            not os.environ.get("PERF_MED"),
-            reason="set PERF_MED=1 to run the 12 cells/lambda grid (~15 M cells)",
-        ),
-    ),
-    pytest.param(
-        _SIM_FINE, id="cpl15",
-        marks=pytest.mark.skipif(
-            not os.environ.get("PERF_FINE"),
-            reason="set PERF_FINE=1 to run the 15 cells/lambda grid (~28 M cells)",
-        ),
-    ),
-])
-def test_directional_coupler(sim_cfg: SimConfig, perf_env, perf_sink, perf_run_dir):
-    """FDTD benchmark for the GDS-imported SOI directional coupler.
-
-    Runs the simulation, records MCUPS, and optionally saves field plots
-    (PERF_VISUALIZE=1), a Perfetto trace (PERF_TRACE=1), or peak memory
-    stats (PERF_MEMORY=1).
-    """
-    with_viz = bool(os.environ.get("PERF_VISUALIZE"))
-    dt = 0.99 / math.sqrt(3) * sim_cfg.dx_fine / 3e8
-    # Run long enough for the Gaussian pulse to fully traverse the domain and exit:
-    # 2 * (n_max * domain_x / c).  This ensures the phasor DFT converges.
-    n_si = math.sqrt(fdtdx.constants.relative_permittivity_silicon)
-    sim_time = 2.0 * n_si * _COUPLER.domain_x / 3e8
-    n_steps = int(sim_time / dt)
-
-    objects, constraints, config, _ = _build_scene(sim_time, sim_cfg, with_phasor_detectors=with_viz)
 
     key = jax.random.PRNGKey(0)
     obj_container, arrays, params, config, _ = place_objects(
@@ -252,6 +196,68 @@ def test_directional_coupler(sim_cfg: SimConfig, perf_env, perf_sink, perf_run_d
     )
     arrays = fdtdx.extend_material_to_pml(objects=obj_container, arrays=arrays)
     arrays, obj_container, _ = apply_params(arrays, obj_container, params, key)
+
+    figs_dir.mkdir(exist_ok=True)
+    fdtdx.plot_setup(config=config, objects=obj_container,
+                     filename=figs_dir / f"setup_cpl{cells_per_lambda}.png")
+    fdtdx.plot_material(config=config, arrays=arrays,
+                        filename=figs_dir / f"material_cpl{cells_per_lambda}.png")
+
+    return obj_container, arrays, config
+
+
+def _compile(
+    objects: ObjectContainer,
+    arrays: ArrayContainer,
+    config: fdtdx.SimulationConfig,
+) -> tuple[any, float, dict]:
+    fn_kwargs = dict(
+        arrays=arrays,
+        objects=objects,
+        config=config,
+        key=jax.random.PRNGKey(0),
+        show_progress=True,
+    )
+    return compile_fn(run_fdtd, fn_kwargs, static_argnames=("show_progress",))
+
+
+def _run(
+    compiled,
+    dynamic_kwargs: dict,
+    *,
+    name: str,
+    n_reps: int,
+    do_trace: bool,
+    do_memory: bool,
+    output_dir: Path,
+) -> tuple[list[float], int | None, str | None, str | None, any]:
+    return run_compiled(
+        compiled, dynamic_kwargs,
+        name=name, n_reps=n_reps,
+        do_trace=do_trace, do_memory=do_memory,
+        output_dir=output_dir,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Benchmark test
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.performance
+@pytest.mark.parametrize("cells_per_lambda", [
+    pytest.param(10, id="coarse"),
+    pytest.param(12, id="med",  marks=pytest.mark.perf_med),
+    pytest.param(15, id="fine", marks=pytest.mark.perf_fine),
+])
+def test_directional_coupler(cells_per_lambda, perf_env, perf_sink, perf_run_dir, perf_options):
+    """FDTD benchmark for the GDS-imported SOI directional coupler."""
+    bench_name = f"si_coupler_gds_cpl{cells_per_lambda}"
+    figs_dir = perf_run_dir / "figs"
+
+    objects, arrays, config = _setup(
+        cells_per_lambda, figs_dir=figs_dir, with_phasor_detectors=perf_options.visualize,
+    )
 
     static_mem: int | None = None
     try:
@@ -261,31 +267,25 @@ def test_directional_coupler(sim_cfg: SimConfig, perf_env, perf_sink, perf_run_d
     except Exception:
         pass
 
-    _run_jit = jax.jit(run_fdtd, static_argnames=["show_progress"])
-
-    def _run():
-        return _run_jit(
-            arrays=arrays, objects=obj_container, config=config,
-            key=jax.random.PRNGKey(0), show_progress=False,
-        )
-
-    bench_name = f"si_coupler_gds_{sim_cfg.name}"
-    compile_s, run_s, peak_mem, trace_path, mem_profile = run_benchmark(
-        _run, name=bench_name, output_dir=perf_run_dir,
+    compiled, compile_s, dynamic_kwargs = _compile(objects, arrays, config)
+    run_s, peak_mem, trace_path, mem_profile, final_state = _run(
+        compiled, dynamic_kwargs,
+        name=bench_name,
+        n_reps=perf_options.reps,
+        do_trace=perf_options.trace,
+        do_memory=perf_options.memory,
+        output_dir=perf_run_dir,
     )
 
-    _, final_arrays = _run()
+    _, final_arrays = final_state
     jax.block_until_ready(final_arrays)
 
-    # Print S-parameters: mode overlap is bi-orthogonal, so forward power is
-    # extracted correctly even in the presence of standing waves in the field.
     states = jax.device_get(final_arrays.detector_states)
-    norm = obj_container["det_source"].compute_overlap(states["det_source"])
-    norm_power = float(jnp.abs(norm) ** 2)
+    norm = objects["det_source"].compute_overlap(states["det_source"])
+    norm_power = float(jnp.abs(norm).squeeze() ** 2)
     for det_name, _port_key in _COUPLER.detector_ports:
-        det = obj_container[det_name]
-        amp = det.compute_overlap(states[det_name])
-        t = float(jnp.abs(amp) ** 2 / norm_power)
+        amp = objects[det_name].compute_overlap(states[det_name])
+        t = float((jnp.abs(amp).squeeze() ** 2) / norm_power)
         print(f"  T({det_name}): {t:.4f}  ({t * 100:.1f}%)")
 
     grid = config.grid
@@ -304,15 +304,19 @@ def test_directional_coupler(sim_cfg: SimConfig, perf_env, perf_sink, perf_run_d
     perf_sink.append(result)
     print(f"\n  {result.summary()}")
 
-    if with_viz:
+    if perf_options.visualize:
+        n_si = math.sqrt(fdtdx.constants.relative_permittivity_silicon)
+        dx_fine = _dx(cells_per_lambda, n_si)
+        dt = 0.99 / math.sqrt(3) * dx_fine / 3e8
+        n_steps = int(2.0 * n_si * _COUPLER.domain_x / 3e8 / dt)
         plot_field_intensity(
             detector_states=jax.device_get(final_arrays.detector_states),
             config=config,
-            figs_dir=perf_run_dir / "figs",
+            figs_dir=figs_dir,
             gds_center=_COUPLER.gds_center,
             domain_shape=_COUPLER.domain_shape,
             n_steps=n_steps,
-            dx_nm=round(sim_cfg.dx_fine * 1e9),
+            dx_nm=round(dx_fine * 1e9),
             y_lim=(-3.0, 3.0),
         )
 
