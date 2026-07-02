@@ -73,16 +73,17 @@ class GDSLayerObject(StaticMultiMaterialObject):
     Each instance represents one GDS layer (layer/datatype pair) extruded uniformly
     along ``axis``. The cross-sectional shape is described by ``polygons``, given in
     GDS coordinate space (metres). The mapping from GDS space to the local grid is
-    controlled by ``gds_center``, which gives the GDS coordinate that coincides with the x/y centre
-    of the simulation volume. For example, ``gds_center=(0.0, 0.0)`` maps the GDS origin to the
-    centre of the simulation volume, while ``gds_center=(500e-9, 0.0)`` shifts the layout 500 nm to the left.
+    controlled by ``gds_center``, which gives the GDS coordinate that coincides
+    with the x/y centre of the placed object. For example,
+    ``gds_center=(0.0, 0.0)`` maps the GDS origin to the object's centre, while
+    ``gds_center=(500e-9, 0.0)`` shifts the layout 500 nm to the left.
     """
 
     #: Sequence of (N, 2) vertex arrays for each polygon, in GDS metres.
     polygons: Sequence[np.ndarray] = frozen_field()
 
     #: GDS coordinate (horizontal, vertical) in metres that coincides with the x/y centre
-    #: of the simulation volume.
+    #: of the placed object.
     gds_center: tuple[float, float] = frozen_field()
 
     #: Key into the materials dictionary used for this object.
