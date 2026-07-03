@@ -77,6 +77,10 @@ def _square_polygon(half_side=100e-9):
     return np.array([[-h, -h], [h, -h], [h, h], [-h, h]])
 
 
+def _square_polygon_at(center, half_side=100e-9):
+    return _square_polygon(half_side=half_side) + np.asarray(center)
+
+
 def _make_layer_obj(materials, polygons=None, gds_center=(0.0, 0.0), axis=2, thickness=200e-9, material_name="si"):
     if polygons is None:
         polygons = [_square_polygon()]
@@ -92,6 +96,18 @@ def _make_layer_obj(materials, polygons=None, gds_center=(0.0, 0.0), axis=2, thi
 
 def _place(obj, config, key, slices=((0, 20), (0, 20), (0, 4))):
     return obj.place_on_grid(grid_slice_tuple=slices, config=config, key=key)
+
+
+def _rectilinear_config(x_edges, y_edges, z_edges=None):
+    if z_edges is None:
+        z_edges = jnp.linspace(0.0, 200e-9, 5)
+    grid = RectilinearGrid(x_edges=x_edges, y_edges=y_edges, z_edges=z_edges)
+    return SimulationConfig(time=100e-15, grid=grid, backend="cpu", dtype=jnp.float32, gradient_config=None)
+
+
+def _gds_mask_xy(materials, config, key, polygons, gds_center, slices=((0, 20), (0, 20), (0, 4))):
+    obj = _make_layer_obj(materials, polygons=polygons, gds_center=gds_center, axis=2)
+    return np.array(_place(obj, config, key, slices=slices).get_voxel_mask_for_shape()[:, :, 0])
 
 
 # ---------------------------------------------------------------------------
@@ -609,6 +625,56 @@ class TestGetVoxelMaskRectilinearGrid:
         mask_uniform = placed_uniform.get_voxel_mask_for_shape()
         mask_rect = placed_rect.get_voxel_mask_for_shape()
         assert jnp.array_equal(mask_uniform, mask_rect)
+
+    def test_polygon_position_with_nonzero_gds_center(self, key, two_materials):
+        """A shifted GDS center is evaluated relative to the placed object center."""
+        n, res = 20, 50e-9
+        edges_xy = jnp.linspace(0.0, n * res, n + 1)
+        cfg = _rectilinear_config(edges_xy, edges_xy)
+        gds_center = (400e-9, 500e-9)
+        mask_xy = _gds_mask_xy(
+            two_materials,
+            cfg,
+            key,
+            polygons=[_square_polygon_at(gds_center, half_side=100e-9)],
+            gds_center=gds_center,
+        )
+
+        expected = np.zeros((20, 20), dtype=bool)
+        expected[8:12, 8:12] = True
+        np.testing.assert_array_equal(mask_xy, expected)
+
+    def test_rectilinear_matches_uniform_for_nonzero_gds_center(self, config, key, two_materials):
+        """RectilinearGrid and UniformGrid paths produce the same mask for a nonzero gds_center."""
+        n, res = 20, 50e-9
+        edges_xy = jnp.linspace(0.0, n * res, n + 1)
+        rect_cfg = _rectilinear_config(edges_xy, edges_xy)
+        gds_center = (400e-9, 500e-9)
+        polygons = [_square_polygon_at(gds_center, half_side=100e-9)]
+        slices = ((0, 20), (0, 20), (0, 4))
+        mask_uniform = _gds_mask_xy(two_materials, config, key, polygons, gds_center, slices=slices)
+        mask_rect = _gds_mask_xy(two_materials, rect_cfg, key, polygons, gds_center, slices=slices)
+        np.testing.assert_array_equal(mask_rect, mask_uniform)
+
+    def test_polygon_position_on_nonuniform_grid(self, key, two_materials):
+        """Cell-center sampling uses real rectilinear coordinates, not a uniform index grid."""
+        coarse_edges = np.linspace(0.0, 800e-9, 11)
+        fine_edges = np.linspace(800e-9, 1000e-9, 11)[1:]
+        edges_x = jnp.asarray(np.concatenate([coarse_edges, fine_edges]))
+        edges_y = jnp.linspace(0.0, 20 * 50e-9, 21)
+        cfg = _rectilinear_config(edges_x, edges_y)
+        gds_center = (500e-9, 500e-9)
+        mask_xy = _gds_mask_xy(
+            two_materials,
+            cfg,
+            key,
+            polygons=[_square_polygon_at(gds_center, half_side=50e-9)],
+            gds_center=gds_center,
+        )
+
+        expected = np.zeros((20, 20), dtype=bool)
+        expected[6, 9:11] = True
+        np.testing.assert_array_equal(mask_xy, expected)
 
 
 # ---------------------------------------------------------------------------
