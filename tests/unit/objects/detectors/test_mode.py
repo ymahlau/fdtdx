@@ -333,8 +333,8 @@ class TestModeOverlapDetectorComputeOverlap:
 
         assert jnp.isclose(overlap, expected)
 
-    def test_compute_overlap_integrates_nonuniform_face_area(self, random_key, single_frequency):
-        """A constant overlap integrand integrates to the detector face area."""
+    def test_compute_overlap_invariant_to_absolute_face_area(self, random_key, single_frequency):
+        """A constant overlap integrand only considers the relative detector face area."""
         grid = RectilinearGrid(
             x_edges=jnp.asarray([0.0, 1.0, 3.0]),
             y_edges=jnp.asarray([0.0, 3.0, 7.0]),
@@ -352,7 +352,7 @@ class TestModeOverlapDetectorComputeOverlap:
 
         overlap = det.compute_overlap_to_mode(state=state, mode_E=mode_E, mode_H=mode_H)
 
-        assert jnp.allclose(overlap, jnp.asarray(21.0 / 4.0, dtype=jnp.complex64))
+        assert jnp.allclose(overlap, jnp.asarray(1.0, dtype=jnp.complex64))
 
     def test_transverse_edge_coordinates_follow_detector_slice(self, random_key, single_frequency):
         """Mode solving receives the physical edge arrays for the transverse detector axes."""
