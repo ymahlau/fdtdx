@@ -1,7 +1,7 @@
 import multiprocessing as mp
 import tempfile
 from functools import partial
-from typing import Callable
+from typing import Callable, Literal
 
 import matplotlib
 
@@ -80,6 +80,7 @@ def generate_video_from_slices(
     minvals: tuple[float | None, float | None, float | None] = (None, None, None),
     maxvals: tuple[float | None, float | None, float | None] = (None, None, None),
     coordinate_edges_um: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
+    aspect: Literal["auto", "equal"] = "equal",
 ) -> str:
     """Generates an MP4 video from time-series slice data using parallel processing.
 
@@ -133,6 +134,7 @@ def generate_video_from_slices(
         plot_dpi=plot_dpi,
         plot_interpolation=plot_interpolation,
         coordinate_edges_um=coordinate_edges_um,
+        aspect=aspect,
     )
     slice_arr_list = [(xy_slice[t], xz_slice[t], yz_slice[t]) for t in range(time_steps)]
     if num_worker is None:

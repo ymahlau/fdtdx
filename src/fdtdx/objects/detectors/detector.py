@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Self
+from typing import Literal, Self
 
 import jax
 import jax.numpy as jnp
@@ -273,6 +273,7 @@ class Detector(SimulationObject, ABC):
         self,
         state: dict[str, np.ndarray],
         progress: Progress | None = None,
+        aspect: Literal["auto", "equal"] = "equal",
     ) -> dict[str, Figure | str]:
         """Generates plots or videos from recorded detector data.
 
@@ -367,6 +368,7 @@ class Detector(SimulationObject, ABC):
                     coordinate_edges_um=self._plot_coordinate_edges_um(),
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,
+                    aspect=aspect,
                 )
                 figs["sliced_plot"] = fig
             else:
@@ -385,6 +387,7 @@ class Detector(SimulationObject, ABC):
                     coordinate_edges_um=self._plot_coordinate_edges_um(),
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,
+                    aspect=aspect,
                 )
                 figs["sliced_video"] = path
             else:
@@ -406,6 +409,7 @@ class Detector(SimulationObject, ABC):
                     coordinate_edges_um=self._plot_coordinate_edges_um(),
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,
+                    aspect=aspect,
                 )
                 figs[k] = fig
         elif squeezed_ndim == 4 and self.num_time_steps_recorded > 1:
@@ -425,6 +429,7 @@ class Detector(SimulationObject, ABC):
                     coordinate_edges_um=self._plot_coordinate_edges_um(),
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,
+                    aspect=aspect,
                 )
                 figs[k] = path
         else:
