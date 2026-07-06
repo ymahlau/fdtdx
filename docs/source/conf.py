@@ -38,7 +38,7 @@ templates_path = ['_templates']
 exclude_patterns = []
 
 # Hides the class/module nae in the right sidebar
-toc_object_entries_show_parent = 'hide'
+toc_object_entries_show_parents = 'hide'
 # the 'fdtdx.' module prefix from signature in the main body
 add_module_names = False
 
@@ -55,9 +55,7 @@ html_static_path = ['_static']
 html_css_files = [
     'custom.css',
 ]
-html_js_files = [
-    'custom.js',
-]
+
 html_favicon = '_static/fdtdx_icon_64.ico'
 html_logo = '_static/fdtdx_icon_200.png'
 

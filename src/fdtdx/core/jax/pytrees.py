@@ -272,7 +272,7 @@ class TreeClass(tc.TreeClass):
                         raise Exception(f"Attribute: {op} does not exist for {current_parent.__class__}")
                     current_parent = None
                 else:
-                    current_parent = getattr(current_parent, str(op))
+                    current_parent = getattr(current_parent, op)
             elif op_type == "index":
                 if "__getitem__" not in dir(current_parent):
                     raise Exception(f"{current_parent.__class__} does not implement __getitem__")
