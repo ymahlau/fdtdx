@@ -17,6 +17,7 @@ def plot_2d_from_slices(
     plot_interpolation: str = "gaussian",
     plot_dpi: int | None = None,
     aspect: float | Literal["equal", "auto"] = "equal",
+    cmap: str = "default",
 ) -> Figure:
     """Plot orthogonal slices using either uniform spacing or rectilinear edges.
 
@@ -49,7 +50,10 @@ def plot_2d_from_slices(
             maxvals = max_list[0], max_list[1], max_list[2]
 
     fig = plt.figure(figsize=(20, 10), dpi=plot_dpi)
-    cmap = sns.diverging_palette(220, 20, as_cmap=True)
+    if cmap == "default":
+        color_map = sns.diverging_palette(220, 20, as_cmap=True)
+    else:
+        color_map = cmap
     res_x = resolutions[0] / 1.0e-6  # Convert to µm
     res_y = resolutions[1] / 1.0e-6
     res_z = resolutions[2] / 1.0e-6
@@ -67,7 +71,7 @@ def plot_2d_from_slices(
         assert minvals[0] is not None and maxvals[0] is not None
         cax1 = ax1.imshow(
             xy_slice.T,
-            cmap=cmap,
+            cmap=color_map,
             vmin=minvals[0],
             vmax=maxvals[0],
             extent=extent1,
@@ -80,7 +84,7 @@ def plot_2d_from_slices(
             coordinate_edges_um[0],
             coordinate_edges_um[1],
             xy_slice.T,
-            cmap=cmap,
+            cmap=color_map,
             vmin=minvals[0],
             vmax=maxvals[0],
             shading="auto",
@@ -104,7 +108,7 @@ def plot_2d_from_slices(
         assert minvals[1] is not None and maxvals[1] is not None
         cax2 = ax2.imshow(
             xz_slice.T,
-            cmap=cmap,
+            cmap=color_map,
             vmin=minvals[1],
             vmax=maxvals[1],
             extent=extent2,
@@ -117,7 +121,7 @@ def plot_2d_from_slices(
             coordinate_edges_um[0],
             coordinate_edges_um[2],
             xz_slice.T,
-            cmap=cmap,
+            cmap=color_map,
             vmin=minvals[1],
             vmax=maxvals[1],
             shading="auto",
@@ -140,7 +144,7 @@ def plot_2d_from_slices(
         assert minvals[2] is not None and maxvals[2] is not None
         cax3 = ax3.imshow(
             yz_slice.T,
-            cmap=cmap,
+            cmap=color_map,
             vmin=minvals[2],
             vmax=maxvals[2],
             extent=extent3,
@@ -153,7 +157,7 @@ def plot_2d_from_slices(
             coordinate_edges_um[1],
             coordinate_edges_um[2],
             yz_slice.T,
-            cmap=cmap,
+            cmap=color_map,
             vmin=minvals[2],
             vmax=maxvals[2],
             shading="auto",
