@@ -17,6 +17,7 @@ import pytest
 
 import fdtdx
 from fdtdx.config import GradientConfig, SimulationConfig
+from fdtdx.constants import c as c0
 from fdtdx.core.grid import UniformGrid
 from fdtdx.fdtd.container import ArrayContainer, FieldState
 from fdtdx.fdtd.fdtd import checkpointed_fdtd, reversible_fdtd
@@ -84,7 +85,7 @@ def _build_scene():
     source = fdtdx.PointDipoleSource(
         name="dip",
         partial_grid_shape=(1, 1, 1),
-        wave_character=fdtdx.WaveCharacter(frequency=3e8 / 800e-9),
+        wave_character=fdtdx.WaveCharacter(frequency=c0 / 800e-9),
         polarization=0,
         amplitude=1.0,
     )
@@ -150,9 +151,6 @@ class TestReversibleFdtdGradients:
             fields=FieldState(
                 E=arrays.fields.E, H=arrays.fields.H, psi_E=arrays.fields.psi_E, psi_H=arrays.fields.psi_H
             ),
-            alpha=arrays.alpha,
-            kappa=arrays.kappa,
-            sigma=arrays.sigma,
             inv_permittivities=inv_permittivities,
             inv_permeabilities=arrays.inv_permeabilities,
             detector_states=arrays.detector_states,
@@ -250,7 +248,7 @@ def _build_lossy_dispersive_scene(dtype):
     source = fdtdx.PointDipoleSource(
         name="dip",
         partial_grid_shape=(1, 1, 1),
-        wave_character=fdtdx.WaveCharacter(frequency=3e8 / 800e-9),
+        wave_character=fdtdx.WaveCharacter(frequency=c0 / 800e-9),
         polarization=0,
         amplitude=1.0,
     )
@@ -322,7 +320,7 @@ def _build_magnetic_lossy_scene(dtype):
     source = fdtdx.PointDipoleSource(
         name="dip",
         partial_grid_shape=(1, 1, 1),
-        wave_character=fdtdx.WaveCharacter(frequency=3e8 / 800e-9),
+        wave_character=fdtdx.WaveCharacter(frequency=c0 / 800e-9),
         polarization=0,
         amplitude=1.0,
     )
@@ -392,18 +390,15 @@ class TestReversibleVsCheckpointedGradient:
                 H=arrays.fields.H,
                 psi_E=arrays.fields.psi_E,
                 psi_H=arrays.fields.psi_H,
+                dispersive_P_curr=arrays.fields.dispersive_P_curr,
+                dispersive_P_prev=arrays.fields.dispersive_P_prev,
             ),
-            alpha=arrays.alpha,
-            kappa=arrays.kappa,
-            sigma=arrays.sigma,
             inv_permittivities=inv_permittivities,
             inv_permeabilities=arrays.inv_permeabilities,
             detector_states=arrays.detector_states,
             recording_state=arrays.recording_state,
             electric_conductivity=arrays.electric_conductivity,
             magnetic_conductivity=arrays.magnetic_conductivity,
-            dispersive_P_curr=arrays.dispersive_P_curr,
-            dispersive_P_prev=arrays.dispersive_P_prev,
             dispersive_c1=arrays.dispersive_c1,
             dispersive_c2=arrays.dispersive_c2,
             dispersive_c3=arrays.dispersive_c3,
@@ -462,9 +457,6 @@ class TestReversibleVsCheckpointedGradient:
                         psi_E=arrays.fields.psi_E,
                         psi_H=arrays.fields.psi_H,
                     ),
-                    alpha=arrays.alpha,
-                    kappa=arrays.kappa,
-                    sigma=arrays.sigma,
                     inv_permittivities=arrays.inv_permittivities,
                     inv_permeabilities=inv_mu,
                     detector_states=arrays.detector_states,
@@ -505,18 +497,15 @@ class TestReversibleVsCheckpointedGradient:
                         H=arrays.fields.H,
                         psi_E=arrays.fields.psi_E,
                         psi_H=arrays.fields.psi_H,
+                        dispersive_P_curr=arrays.fields.dispersive_P_curr,
+                        dispersive_P_prev=arrays.fields.dispersive_P_prev,
                     ),
-                    alpha=arrays.alpha,
-                    kappa=arrays.kappa,
-                    sigma=arrays.sigma,
                     inv_permittivities=arrays.inv_permittivities,
                     inv_permeabilities=arrays.inv_permeabilities,
                     detector_states=arrays.detector_states,
                     recording_state=arrays.recording_state,
                     electric_conductivity=arrays.electric_conductivity,
                     magnetic_conductivity=arrays.magnetic_conductivity,
-                    dispersive_P_curr=arrays.dispersive_P_curr,
-                    dispersive_P_prev=arrays.dispersive_P_prev,
                     dispersive_c1=arrays.dispersive_c1,
                     dispersive_c2=arrays.dispersive_c2,
                     dispersive_c3=c3,

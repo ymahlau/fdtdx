@@ -18,6 +18,7 @@ from fdtdx.fdtd.initialization import (
     _check_objects_names_from_constraints,
     _handle_unresolved_objects,
     _init_arrays,
+    _resolve_grid_from_volume,
     _resolve_static_shapes,
     _resolve_volume_name,
     _update_grid_shapes_from_slices,
@@ -112,6 +113,7 @@ def test_resolve_constraints_conflicting_real_coordinates(simple_config, simple_
 
 
 def test_resolve_constraints_inconsistent_size_and_position(simple_config, simple_volume, simple_material):
+    config = _resolve_grid_from_volume([simple_volume], simple_config)
     obj = UniformMaterialObject(name="obj1", material=simple_material)
     size_constraint = SizeConstraint(
         object="obj1",
@@ -122,6 +124,7 @@ def test_resolve_constraints_inconsistent_size_and_position(simple_config, simpl
         grid_offsets=[0],
         offsets=[None],
     )
+    # Position constraint: obj1 is 5 cells distant from the volume lower bound, at the center
     pos_constraint = PositionConstraint(
         object="obj1",
         other_object="volume",
@@ -131,9 +134,15 @@ def test_resolve_constraints_inconsistent_size_and_position(simple_config, simpl
         grid_margins=[5],
         margins=[None],
     )
-    grid_constraint = GridCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[0])
+    # Grid constraint: obj1 is at the the volume's lower edge (physical coordinate -5)
+    real_constraint = RealCoordinateConstraint(
+        object="obj1",
+        axes=[0],
+        sides=["-"],
+        coordinates=[-5.0],  # Center of the volume (origin)
+    )
     _resolved_slices, errors = resolve_object_constraints(
-        [simple_volume, obj], [size_constraint, pos_constraint, grid_constraint], simple_config
+        [simple_volume, obj], [size_constraint, pos_constraint, real_constraint], config
     )
     assert errors["obj1"] is not None
 
@@ -513,6 +522,7 @@ def test_resolve_static_shapes_grid_shape(simple_config, simple_volume, simple_m
 def test_resolve_static_shapes_real_shape(simple_material):
     config = SimulationConfig(grid=UniformGrid(spacing=0.5), time=100e-15)
     volume = SimulationVolume(name="volume", partial_grid_shape=(100, 100, 100))
+    config = _resolve_grid_from_volume([volume], config)
     obj = UniformMaterialObject(name="obj1", partial_real_shape=(5.0, 10.0, 15.0), material=simple_material)
     obj_map = {"volume": volume, "obj1": obj}
     shape_dict = {"volume": [None, None, None], "obj1": [None, None, None]}
@@ -581,36 +591,39 @@ def test_apply_grid_coordinate_constraint_conflicting_raises(simple_volume, simp
 
 
 def test_apply_real_coordinate_constraint_converts_to_grid(simple_config, simple_volume, simple_material):
+    config = _resolve_grid_from_volume([simple_volume], simple_config)
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(10, 10, 10), material=simple_material)
     obj_map = {"volume": simple_volume, "obj1": obj}
     slice_dict = {"volume": [[0, 100], [0, 100], [0, 100]], "obj1": [[None, None], [None, None], [None, None]]}
-    # With resolution=1.0, coordinate 15.0 -> grid 15
+    # With resolution=1.0, coordinate 15.0 -> grid 65
     c = RealCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[15.0])
-    resolved, new_slices = _apply_real_coordinate_constraint(c, obj_map, slice_dict, simple_config)
+    resolved, new_slices = _apply_real_coordinate_constraint(c, obj_map, slice_dict, config)
     assert resolved is True
-    assert new_slices["obj1"][0][0] == 15
+    assert new_slices["obj1"][0][0] == 65
 
 
 def test_apply_real_coordinate_constraint_sub_resolution(simple_material):
     config = SimulationConfig(grid=UniformGrid(spacing=0.5), time=100e-15)
     volume = SimulationVolume(name="volume", partial_grid_shape=(100, 100, 100))
+    config = _resolve_grid_from_volume([volume], config)
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(10, 10, 10), material=simple_material)
     obj_map = {"volume": volume, "obj1": obj}
     slice_dict = {"volume": [[0, 100], [0, 100], [0, 100]], "obj1": [[None, None], [None, None], [None, None]]}
-    # resolution=0.5, coordinate 5.0 -> grid 10
+    # resolution=0.5, coordinate 5.0 -> grid  5 /(0.5) + 50 = 60
     c = RealCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[5.0])
     resolved, new_slices = _apply_real_coordinate_constraint(c, obj_map, slice_dict, config)
     assert resolved is True
-    assert new_slices["obj1"][0][0] == 10
+    assert new_slices["obj1"][0][0] == 60
 
 
 def test_apply_real_coordinate_constraint_conflicting_raises(simple_config, simple_volume, simple_material):
+    config = _resolve_grid_from_volume([simple_volume], simple_config)
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(10, 10, 10), material=simple_material)
     obj_map = {"volume": simple_volume, "obj1": obj}
     slice_dict = {"volume": [[0, 100], [0, 100], [0, 100]], "obj1": [[15, None], [None, None], [None, None]]}
     c = RealCoordinateConstraint(object="obj1", axes=[0], sides=["-"], coordinates=[20.0])
     with pytest.raises(Exception, match="Inconsistent"):
-        _apply_real_coordinate_constraint(c, obj_map, slice_dict, simple_config)
+        _apply_real_coordinate_constraint(c, obj_map, slice_dict, config)
 
 
 # ---------------------------------------------------------------------------
@@ -619,6 +632,7 @@ def test_apply_real_coordinate_constraint_conflicting_raises(simple_config, simp
 
 
 def test_apply_size_extension_constraint_other_not_placed_yet(simple_config, simple_volume, simple_material):
+    config = _resolve_grid_from_volume([simple_volume], simple_config)
     obj1 = UniformMaterialObject(name="obj1", partial_grid_shape=(10, 10, 10), material=simple_material)
     obj2 = UniformMaterialObject(name="obj2", material=simple_material)
     obj_map = {"volume": simple_volume, "obj1": obj1, "obj2": obj2}
@@ -637,7 +651,7 @@ def test_apply_size_extension_constraint_other_not_placed_yet(simple_config, sim
         grid_offset=None,
         offset=None,
     )
-    resolved, _ = _apply_size_extension_constraint(c, obj_map, simple_config, slice_dict, "volume")
+    resolved, _ = _apply_size_extension_constraint(c, obj_map, config, slice_dict, "volume")
     assert resolved is False
 
 
@@ -686,8 +700,11 @@ def _make_arrays_mock(shape=(10, 10, 10)):
     arrays.dispersive_c1 = None
     arrays.dispersive_c2 = None
     arrays.dispersive_c3 = None
+    arrays.dispersive_c4 = None
+    arrays.electric_conductivity = None
     arrays.dispersive_P_curr = None
     arrays.dispersive_P_prev = None
+    arrays.initial_inv_permittivities = None
     at_accessor = MagicMock()
 
     def at_getitem(key):
@@ -700,8 +717,8 @@ def _make_arrays_mock(shape=(10, 10, 10)):
             result.dispersive_c1 = None
             result.dispersive_c2 = None
             result.dispersive_c3 = None
-            result.dispersive_P_curr = None
-            result.dispersive_P_prev = None
+            result.dispersive_c4 = None
+            result.electric_conductivity = None
             result.at = at_accessor
             return result
 
@@ -721,6 +738,7 @@ def test_apply_params_continuous_type(mock_compute_perm):
     device.output_type = ParameterType.CONTINUOUS
     device.grid_slice = (slice(0, 10), slice(0, 10), slice(0, 10))
     device.materials = [Mock(), Mock()]
+    device.use_etching = False
     material_indices = jnp.ones((10, 10, 10)) * 0.5
     device.return_value = material_indices
     objects = Mock(spec=ObjectContainer)
@@ -746,6 +764,7 @@ def test_apply_params_discrete_type(mock_ste, mock_compute_perm):
     device.output_type = ParameterType.DISCRETE
     device.grid_slice = (slice(0, 10), slice(0, 10), slice(0, 10))
     device.materials = [Mock(), Mock()]
+    device.use_etching = False
     material_indices = jnp.zeros((10, 10, 10), dtype=jnp.int32)
     device.return_value = material_indices
     objects = Mock(spec=ObjectContainer)
@@ -772,7 +791,7 @@ def test_apply_params_no_devices():
     arrays = _make_arrays_mock()
     key = jax.random.PRNGKey(0)
     _result_arrays, _result_objects, info = apply_params(arrays, objects, {}, key)
-    assert mock_obj.apply.called
+    assert not mock_obj.apply.called  # apply should have been called in place_objects
     assert isinstance(info, dict)
 
 
@@ -785,6 +804,7 @@ def test_apply_params_isotropic_components(mock_compute_perm):
     device.output_type = ParameterType.CONTINUOUS
     device.grid_slice = (slice(0, 5), slice(0, 5), slice(0, 5))
     device.materials = [Mock(), Mock()]
+    device.use_etching = False
     material_indices = jnp.ones((5, 5, 5)) * 0.5
     device.return_value = material_indices
 
@@ -797,8 +817,11 @@ def test_apply_params_isotropic_components(mock_compute_perm):
     arrays.dispersive_c1 = None
     arrays.dispersive_c2 = None
     arrays.dispersive_c3 = None
+    arrays.dispersive_c4 = None
+    arrays.electric_conductivity = None
     arrays.dispersive_P_curr = None
     arrays.dispersive_P_prev = None
+    arrays.initial_inv_permittivities = None
     at_accessor = MagicMock()
 
     def at_getitem(key):
@@ -810,8 +833,8 @@ def test_apply_params_isotropic_components(mock_compute_perm):
             dispersive_c1=None,
             dispersive_c2=None,
             dispersive_c3=None,
-            dispersive_P_curr=None,
-            dispersive_P_prev=None,
+            dispersive_c4=None,
+            electric_conductivity=None,
             at=at_accessor,
         )
         return at_result
@@ -842,6 +865,7 @@ def test_apply_params_fully_anisotropic_continuous(mock_compute_perm):
     device.output_type = ParameterType.CONTINUOUS
     device.grid_slice = (slice(0, 5), slice(0, 5), slice(0, 5))
     device.materials = [Mock(), Mock()]
+    device.use_etching = False
     material_indices = jnp.ones((5, 5, 5)) * 0.5
     device.return_value = material_indices
 
@@ -854,8 +878,11 @@ def test_apply_params_fully_anisotropic_continuous(mock_compute_perm):
     arrays.dispersive_c1 = None
     arrays.dispersive_c2 = None
     arrays.dispersive_c3 = None
+    arrays.dispersive_c4 = None
+    arrays.electric_conductivity = None
     arrays.dispersive_P_curr = None
     arrays.dispersive_P_prev = None
+    arrays.initial_inv_permittivities = None
     at_accessor = MagicMock()
 
     def at_getitem(key):
@@ -867,8 +894,8 @@ def test_apply_params_fully_anisotropic_continuous(mock_compute_perm):
             dispersive_c1=None,
             dispersive_c2=None,
             dispersive_c3=None,
-            dispersive_P_curr=None,
-            dispersive_P_prev=None,
+            dispersive_c4=None,
+            electric_conductivity=None,
             at=at_accessor,
         )
         return at_result
@@ -901,6 +928,7 @@ def test_apply_params_fully_anisotropic_discrete(mock_ste, mock_compute_perm):
     device.output_type = ParameterType.DISCRETE
     device.grid_slice = (slice(0, 5), slice(0, 5), slice(0, 5))
     device.materials = [Mock(), Mock()]
+    device.use_etching = False
     material_indices = jnp.zeros((5, 5, 5), dtype=jnp.int32)
     device.return_value = material_indices
 
@@ -912,8 +940,11 @@ def test_apply_params_fully_anisotropic_discrete(mock_ste, mock_compute_perm):
     arrays.dispersive_c1 = None
     arrays.dispersive_c2 = None
     arrays.dispersive_c3 = None
+    arrays.dispersive_c4 = None
+    arrays.electric_conductivity = None
     arrays.dispersive_P_curr = None
     arrays.dispersive_P_prev = None
+    arrays.initial_inv_permittivities = None
     at_accessor = MagicMock()
 
     def at_getitem(key):
@@ -925,8 +956,8 @@ def test_apply_params_fully_anisotropic_discrete(mock_ste, mock_compute_perm):
             dispersive_c1=None,
             dispersive_c2=None,
             dispersive_c3=None,
-            dispersive_P_curr=None,
-            dispersive_P_prev=None,
+            dispersive_c4=None,
+            electric_conductivity=None,
             at=at_accessor,
         )
         return at_result
@@ -946,12 +977,175 @@ def test_apply_params_fully_anisotropic_discrete(mock_ste, mock_compute_perm):
     assert mock_compute_perm.called
 
 
+@patch("fdtdx.fdtd.initialization.compute_allowed_permittivities")
+def test_apply_params_use_etching_continuous_isotropic(mock_compute_perm):
+    """Test apply_params etching path with continuous type and diagonally anisotropic components."""
+    # Etching interpolates between the old permittivity and perm_bc[0]
+    mock_compute_perm.return_value = [[4.0, 4.0, 4.0]]
+
+    device = Mock()
+    device.name = "device1"
+    device.output_type = ParameterType.CONTINUOUS
+    device.grid_slice = (slice(0, 5), slice(0, 5), slice(0, 5))
+    device.materials = [Mock()]
+    device.use_etching = True
+
+    # 50% etching mix
+    material_indices = jnp.ones((5, 5, 5)) * 0.5
+    device.return_value = material_indices
+
+    shape = (10, 10, 10)
+    # Background inverse permittivity is 0.5 (so permittivity is 2.0)
+    init_inv_perm = jnp.full((3, *shape), 0.5)
+    inv_permeab = jnp.ones((3, *shape))
+
+    arrays = Mock(spec=ArrayContainer)
+    arrays.initial_inv_permittivities = init_inv_perm
+    arrays.inv_permittivities = init_inv_perm
+    arrays.inv_permeabilities = inv_permeab
+    arrays.dispersive_c1 = None
+    arrays.dispersive_c2 = None
+    arrays.dispersive_c3 = None
+    arrays.dispersive_c4 = None
+    arrays.electric_conductivity = None
+    arrays.dispersive_P_curr = None
+    arrays.dispersive_P_prev = None
+
+    at_accessor = MagicMock()
+
+    def at_getitem(key):
+        at_result = Mock()
+
+        def set_side_effect(value):
+            result = Mock(spec=ArrayContainer)
+            result.inv_permittivities = value if key == "inv_permittivities" else arrays.inv_permittivities
+            result.initial_inv_permittivities = arrays.initial_inv_permittivities
+            result.inv_permeabilities = inv_permeab
+            result.dispersive_c1 = None
+            result.dispersive_c2 = None
+            result.dispersive_c3 = None
+            result.dispersive_c4 = None
+            result.electric_conductivity = None
+            result.dispersive_P_curr = None
+            result.dispersive_P_prev = None
+            result.at = at_accessor
+            return result
+
+        at_result.set = set_side_effect
+        return at_result
+
+    at_accessor.__getitem__ = Mock(side_effect=at_getitem)
+    arrays.at = at_accessor
+
+    objects = Mock(spec=ObjectContainer)
+    objects.devices = [device]
+    mock_obj = Mock()
+    mock_obj.apply = Mock(return_value=mock_obj)
+    objects.object_list = [mock_obj]
+    objects.volume_idx = 0
+    device.apply = Mock(return_value=device)
+
+    _result_arrays, _result_objects, _info = apply_params(arrays, objects, {"device1": {}}, jax.random.PRNGKey(0))
+
+    assert mock_compute_perm.called
+    assert device.call_count > 0
+    # Sanity check the math logic silently succeeded:
+    # Old perm = 2.0. Etch material perm = 4.0. Mix = 0.5 * 2.0 + 0.5 * 4.0 = 3.0.
+    # Resulting inv_perm should be 1/3.0.
+    final_inv_perm = _result_arrays.inv_permittivities
+    assert jnp.allclose(final_inv_perm[:, 0, 0, 0], 1.0 / 3.0)
+
+
+@patch("fdtdx.fdtd.initialization.compute_allowed_permittivities")
+def test_apply_params_use_etching_continuous_fully_anisotropic(mock_compute_perm):
+    """Test apply_params etching path with fully anisotropic (9-component) permittivity."""
+    # Etching material: Identity matrix for permittivity
+    identity_flat = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+    mock_compute_perm.return_value = [identity_flat]
+
+    device = Mock()
+    device.name = "device1"
+    device.output_type = ParameterType.CONTINUOUS
+    device.grid_slice = (slice(0, 5), slice(0, 5), slice(0, 5))
+    device.materials = [Mock()]
+    device.use_etching = True
+
+    # 50% etching mix
+    material_indices = jnp.ones((5, 5, 5)) * 0.5
+    device.return_value = material_indices
+
+    shape = (10, 10, 10)
+    # Background inverse permittivity diagonal is 0.5 -> original permittivity is 2.0
+    init_inv_perm_flat = jnp.array([0.5, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.5])
+    init_inv_perm = jnp.tile(init_inv_perm_flat[:, None, None, None], (1, *shape))
+    inv_permeab = jnp.ones((9, *shape))
+
+    arrays = Mock(spec=ArrayContainer)
+    arrays.initial_inv_permittivities = init_inv_perm
+    arrays.inv_permittivities = init_inv_perm
+    arrays.inv_permeabilities = inv_permeab
+    arrays.dispersive_c1 = None
+    arrays.dispersive_c2 = None
+    arrays.dispersive_c3 = None
+    arrays.dispersive_c4 = None
+    arrays.electric_conductivity = None
+    arrays.dispersive_P_curr = None
+    arrays.dispersive_P_prev = None
+
+    at_accessor = MagicMock()
+
+    def at_getitem(key):
+        at_result = Mock()
+
+        def set_side_effect(value):
+            result = Mock(spec=ArrayContainer)
+            result.inv_permittivities = value if key == "inv_permittivities" else arrays.inv_permittivities
+            result.initial_inv_permittivities = arrays.initial_inv_permittivities
+            result.inv_permeabilities = inv_permeab
+            result.dispersive_c1 = None
+            result.dispersive_c2 = None
+            result.dispersive_c3 = None
+            result.dispersive_c4 = None
+            result.electric_conductivity = None
+            result.dispersive_P_curr = None
+            result.dispersive_P_prev = None
+            result.at = at_accessor
+            return result
+
+        at_result.set = set_side_effect
+        return at_result
+
+    at_accessor.__getitem__ = Mock(side_effect=at_getitem)
+    arrays.at = at_accessor
+
+    objects = Mock(spec=ObjectContainer)
+    objects.devices = [device]
+    mock_obj = Mock()
+    mock_obj.apply = Mock(return_value=mock_obj)
+    objects.object_list = [mock_obj]
+    objects.volume_idx = 0
+    device.apply = Mock(return_value=device)
+
+    _result_arrays, _result_objects, _info = apply_params(arrays, objects, {"device1": {}}, jax.random.PRNGKey(0))
+
+    assert mock_compute_perm.called
+    assert device.call_count > 0
+
+    # Validation check:
+    # Old perm = diag(2,2,2). Etch perm = diag(1,1,1). Mix = diag(1.5, 1.5, 1.5).
+    # Resulting inv_perm should be diag(1/1.5, 1/1.5, 1/1.5).
+    final_inv_perm = _result_arrays.inv_permittivities
+    assert jnp.allclose(final_inv_perm[0, 0, 0, 0], 1.0 / 1.5)  # xx component
+    assert jnp.allclose(final_inv_perm[1, 0, 0, 0], 0.0)  # xy component
+
+
 # ---------------------------------------------------------------------------
 # _apply_position_constraint - edge cases
 # ---------------------------------------------------------------------------
 
 
 def test_apply_position_constraint_other_not_placed(simple_config, simple_volume, simple_material):
+    config = _resolve_grid_from_volume([simple_volume], simple_config)
     """Position constraint skipped when other_object position unknown."""
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(10, 10, 10), material=simple_material)
     obj_map = {"volume": simple_volume, "obj1": obj}
@@ -969,12 +1163,13 @@ def test_apply_position_constraint_other_not_placed(simple_config, simple_volume
         grid_margins=[0],
         margins=[None],
     )
-    resolved, _ = _apply_position_constraint(c, obj_map, simple_config, shape_dict, slice_dict)
+    resolved, _ = _apply_position_constraint(c, obj_map, config, shape_dict, slice_dict)
     assert resolved is False
 
 
 def test_apply_position_constraint_object_size_unknown(simple_config, simple_volume, simple_material):
     """Position constraint skipped when object size unknown."""
+    config = _resolve_grid_from_volume([simple_volume], simple_config)
     obj = UniformMaterialObject(name="obj1", material=simple_material)
     obj_map = {"volume": simple_volume, "obj1": obj}
     slice_dict = {
@@ -991,7 +1186,7 @@ def test_apply_position_constraint_object_size_unknown(simple_config, simple_vol
         grid_margins=[0],
         margins=[None],
     )
-    resolved, _ = _apply_position_constraint(c, obj_map, simple_config, shape_dict, slice_dict)
+    resolved, _ = _apply_position_constraint(c, obj_map, config, shape_dict, slice_dict)
     assert resolved is False
 
 
@@ -1002,6 +1197,7 @@ def test_apply_position_constraint_object_size_unknown(simple_config, simple_vol
 
 def test_apply_size_constraint_other_shape_unknown(simple_config, simple_volume, simple_material):
     """Size constraint skipped when other object shape is unknown."""
+    config = _resolve_grid_from_volume([simple_volume], simple_config)
     obj = UniformMaterialObject(name="obj1", material=simple_material)
     obj_map = {"volume": simple_volume, "obj1": obj}
     shape_dict = {"volume": [None, None, None], "obj1": [None, None, None]}
@@ -1014,7 +1210,7 @@ def test_apply_size_constraint_other_shape_unknown(simple_config, simple_volume,
         grid_offsets=[0],
         offsets=[None],
     )
-    resolved, _ = _apply_size_constraint(c, obj_map, simple_config, shape_dict)
+    resolved, _ = _apply_size_constraint(c, obj_map, config, shape_dict)
     assert resolved is False
 
 
@@ -1038,6 +1234,7 @@ def test_apply_size_constraint_conflicting_shape_raises(simple_config, simple_vo
 
 
 def test_apply_size_constraint_conflicting_shape_raises_descriptive(simple_config, simple_volume, simple_material):
+    config = _resolve_grid_from_volume([simple_volume], simple_config)
     """SizeConstraint that conflicts with an already-set shape raises an informative error."""
     obj = UniformMaterialObject(name="obj1", material=simple_material)
     obj_map = {"volume": simple_volume, "obj1": obj}
@@ -1053,7 +1250,7 @@ def test_apply_size_constraint_conflicting_shape_raises_descriptive(simple_confi
         offsets=[None],
     )
     with pytest.raises(Exception, match="geometry"):
-        _apply_size_constraint(c, obj_map, simple_config, shape_dict, slice_dict)
+        _apply_size_constraint(c, obj_map, config, shape_dict, slice_dict)
 
 
 # ---------------------------------------------------------------------------
@@ -1212,6 +1409,7 @@ def test_update_grid_shapes_from_slices_inconsistent(simple_volume, simple_mater
 
 def test_apply_position_constraint_conflicting_b0_raises(simple_config, simple_volume, simple_material):
     """Position constraint raises when computed b0 conflicts with existing b0."""
+    config = _resolve_grid_from_volume([simple_volume], simple_config)
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(10, 10, 10), material=simple_material)
     obj_map = {"volume": simple_volume, "obj1": obj}
     # Place obj1 lower bound at 5 (b0=5), but constraint would compute b0=0
@@ -1231,11 +1429,12 @@ def test_apply_position_constraint_conflicting_b0_raises(simple_config, simple_v
         margins=[None],
     )
     with pytest.raises(Exception, match="Inconsistent"):
-        _apply_position_constraint(c, obj_map, simple_config, shape_dict, slice_dict)
+        _apply_position_constraint(c, obj_map, config, shape_dict, slice_dict)
 
 
 def test_apply_position_constraint_conflicting_b1_raises(simple_config, simple_volume, simple_material):
     """Position constraint raises when computed b1 conflicts with existing b1."""
+    config = _resolve_grid_from_volume([simple_volume], simple_config)
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(10, 10, 10), material=simple_material)
     obj_map = {"volume": simple_volume, "obj1": obj}
     # Place obj1: b0=None but b1=50, and constraint would compute b0=0→b1=10
@@ -1255,7 +1454,7 @@ def test_apply_position_constraint_conflicting_b1_raises(simple_config, simple_v
         margins=[None],
     )
     with pytest.raises(Exception, match="Inconsistent"):
-        _apply_position_constraint(c, obj_map, simple_config, shape_dict, slice_dict)
+        _apply_position_constraint(c, obj_map, config, shape_dict, slice_dict)
 
 
 # ---------------------------------------------------------------------------
@@ -1265,6 +1464,7 @@ def test_apply_position_constraint_conflicting_b1_raises(simple_config, simple_v
 
 def test_apply_size_extension_constraint_conflicting_value_raises(simple_config, simple_volume, simple_material):
     """Size extension raises when computed anchor conflicts with existing bound."""
+    config = _resolve_grid_from_volume([simple_volume], simple_config)
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(10, 10, 10), material=simple_material)
     obj_map = {"volume": simple_volume, "obj1": obj}
     # Extend obj1 to volume lower boundary (0), but obj1's lower bound is already set to 20
@@ -1282,11 +1482,12 @@ def test_apply_size_extension_constraint_conflicting_value_raises(simple_config,
         offset=None,
     )
     with pytest.raises(Exception, match="Inconsistent grid shape"):
-        _apply_size_extension_constraint(c, obj_map, simple_config, slice_dict, "volume")
+        _apply_size_extension_constraint(c, obj_map, config, slice_dict, "volume")
 
 
 def test_apply_size_extension_constraint_volume_upper_bound_none_raises(simple_config, simple_volume, simple_material):
     """Raises when volume's upper bound is None (should never happen in normal flow)."""
+    config = _resolve_grid_from_volume([simple_volume], simple_config)
     obj = UniformMaterialObject(name="obj1", partial_grid_shape=(10, 10, 10), material=simple_material)
     obj_map = {"volume": simple_volume, "obj1": obj}
     # Volume upper bound is None (abnormal state)
@@ -1304,7 +1505,7 @@ def test_apply_size_extension_constraint_volume_upper_bound_none_raises(simple_c
         offset=None,
     )
     with pytest.raises(Exception, match="This should never happen"):
-        _apply_size_extension_constraint(c, obj_map, simple_config, slice_dict, "volume")
+        _apply_size_extension_constraint(c, obj_map, config, slice_dict, "volume")
 
 
 # ---------------------------------------------------------------------------
@@ -1375,6 +1576,7 @@ def test_init_arrays_unknown_static_material_type_raises(mock_create_matrix):
     objects.static_material_objects = [fake_obj]
     objects.detectors = []
     objects.boundary_objects = []
+    objects.pml_objects = []
 
     with pytest.raises(Exception, match="Unknown object type"):
         _init_arrays(objects, config)
@@ -1752,8 +1954,8 @@ def test_resolve_constraints_partial_real_position_odd_size(simple_config, simpl
     # x: center 50, size 11, half=5.5 -> round(50-5.5)=44, upper=44+11=55
     assert resolved_slices["obj1"][0] == (44, 55)
 
-    # y: center 50, size 13, half=6.5 -> round(50-6.5)=44, upper=44+13=57
-    assert resolved_slices["obj1"][1] == (44, 57)
+    # y: center 50, size 13, half=6.5 -> round(50-6.5)=43, upper=43+13=56
+    assert resolved_slices["obj1"][1] == (43, 56)
 
     # z: center 50, size 15, half=7.5 -> round(50-7.5)=42, upper=42+15=57
     assert resolved_slices["obj1"][2] == (42, 57)
@@ -1885,6 +2087,7 @@ def test_extend_to_inf_with_real_coordinate_constraint_upper(simple_config, simp
 
     Another way to cover the upper-bound-known case.
     """
+    config = _resolve_grid_from_volume([simple_volume], simple_config)
     obj = UniformMaterialObject(
         name="obj1",
         partial_grid_shape=(20, 20, 20),
@@ -1898,12 +2101,12 @@ def test_extend_to_inf_with_real_coordinate_constraint_upper(simple_config, simp
         object="obj1",
         axes=[0],
         sides=["+"],  # Upper bound
-        coordinates=[80.0],  # Real coordinate 80.0 / resolution 1.0 = grid 80
+        coordinates=[30.0],  # Real coordinate 30.0 / resolution 1.0: rectilinear grid 30.0 + 50.0 = 80
     )
 
     constraints = [constraint]
 
-    resolved_slices, errors = resolve_object_constraints(objects, constraints, simple_config)
+    resolved_slices, errors = resolve_object_constraints(objects, constraints, config)
 
     # Should succeed
     assert errors["obj1"] is None

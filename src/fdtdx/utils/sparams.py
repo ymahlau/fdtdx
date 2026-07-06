@@ -263,9 +263,11 @@ def calculate_sparam(
 
     Returns:
         A 2-tuple ``(sparams, detector_states)`` where *sparams* maps
-        ``(detector_name, input_port_name)`` to a complex scattering amplitude
-        and *detector_states* is the final :class:`~fdtdx.DetectorState` dict
-        for every detector in the simulation.
+        ``(detector_name, input_port_name)`` to a complex scattering-amplitude
+        array indexed by frequency. For the single-frequency detectors created
+        by :func:`setup_sparams_simulation`, each value has shape ``(1,)``.
+        *detector_states* is the final :class:`~fdtdx.DetectorState` dict for
+        every detector in the simulation.
     """
     if key is None:
         key = jax.random.PRNGKey(0)

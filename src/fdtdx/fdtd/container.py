@@ -209,6 +209,31 @@ class ObjectContainer(TreeClass):
                         n = max(n, m.dispersion.num_poles)
         return n
 
+    @property
+    def has_dispersive_edot(self) -> bool:
+        """Whether any object uses a CCPR pole with a non-zero ``dE/dt`` coupling.
+
+        This gates allocation of the ``dispersive_c4`` coefficient array: when
+        ``False`` (all poles are Lorentz/Drude, or there is no dispersion) the
+        ADE update takes the classic ``c4``-free path and stays bit-identical to
+        pre-CCPR behaviour.
+        """
+
+        def _material_has_edot(m: Material) -> bool:
+            if m.dispersion is None:
+                return False
+            return any(p.coupling_edot != 0.0 for p in m.dispersion.poles)
+
+        for o in self.objects:
+            if isinstance(o, UniformMaterialObject):
+                if _material_has_edot(o.material):
+                    return True
+            elif isinstance(o, (Device, StaticMultiMaterialObject)):
+                for m in o.materials.values():
+                    if _material_has_edot(m):
+                        return True
+        return False
+
     def _is_material_fn_true_for_all(
         self,
         fn: Callable[[Material], bool],
@@ -284,6 +309,9 @@ class ObjectContainer(TreeClass):
         return self
 
 
+PmlAuxField = dict[str, tuple[jax.Array, jax.Array]]
+
+
 @autoinit
 class FieldState(TreeClass):
     """Dynamic electromagnetic field state that evolves each time step.
@@ -298,11 +326,21 @@ class FieldState(TreeClass):
     #: Magnetic field array.
     H: jax.Array
 
-    #: PML auxiliary electric field.
-    psi_E: jax.Array
+    #: PML auxiliary electric field, stored as a dictionary mapping each PML
+    #: object's name to a tuple of two arrays (each of shape ``pml.grid_shape``).
+    psi_E: PmlAuxField
 
-    #: PML auxiliary magnetic field.
-    psi_H: jax.Array
+    #: PML auxiliary magnetic field, stored as a dictionary mapping each PML
+    #: object's name to a tuple of two arrays (each of shape ``pml.grid_shape``).
+    psi_H: PmlAuxField
+
+    #: Dispersive ADE polarization state at time step ``n``. Shape
+    #: ``(num_poles, 3, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
+    dispersive_P_curr: jax.Array | None = None
+
+    #: Dispersive ADE polarization state at time step ``n-1``. Shape
+    #: ``(num_poles, 3, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
+    dispersive_P_prev: jax.Array | None = None
 
 
 @autoinit
@@ -316,15 +354,6 @@ class ArrayContainer(TreeClass):
 
     #: Dynamic electromagnetic fields (E, H and PML auxiliaries).
     fields: FieldState
-
-    #: Alpha array for PML calculations.
-    alpha: jax.Array
-
-    #: Kappa array for PML calculations.
-    kappa: jax.Array
-
-    #: Sigma array for PML calculations.
-    sigma: jax.Array
 
     #: Inverse permittivity values array.
     inv_permittivities: jax.Array
@@ -344,14 +373,6 @@ class ArrayContainer(TreeClass):
     #: field for magnetic conductivity terms. Defaults to None.
     magnetic_conductivity: jax.Array | None = None
 
-    #: Dispersive ADE polarization state at time step ``n``. Shape
-    #: ``(num_poles, 3, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
-    dispersive_P_curr: jax.Array | None = None
-
-    #: Dispersive ADE polarization state at time step ``n-1``. Shape
-    #: ``(num_poles, 3, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
-    dispersive_P_prev: jax.Array | None = None
-
     #: Per-cell dispersive recurrence coefficient c1. Shape
     #: ``(num_poles, 1, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
     dispersive_c1: jax.Array | None = None
@@ -364,11 +385,21 @@ class ArrayContainer(TreeClass):
     #: ``(num_poles, 1, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
     dispersive_c3: jax.Array | None = None
 
+    #: Per-cell dispersive recurrence coefficient c4 (the ``dE/dt`` / CCPR
+    #: coupling to ``E^{n+1}``). Shape ``(num_poles, 1, Nx, Ny, Nz)``. ``None``
+    #: unless at least one CCPR pole with non-zero ``coupling_edot`` is present;
+    #: Lorentz/Drude-only sims leave it ``None`` and skip the CCPR update path.
+    dispersive_c4: jax.Array | None = None
+
     #: Per-cell cached ``1 / c2`` with non-dispersive cells set to 0. Lets the
     #: reverse-time ADE update avoid a ``jnp.where`` + division per step.
     #: Derived from ``dispersive_c2``; never differentiated independently.
     #: Shape ``(num_poles, 1, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
     dispersive_inv_c2: jax.Array | None = None
+
+    #: Backup of inverse permittivity values array.
+    #: Only used when etching a device.
+    initial_inv_permittivities: jax.Array | None = None
 
     def reset(
         self,
@@ -391,15 +422,11 @@ class ArrayContainer(TreeClass):
         Returns:
             A new ArrayContainer with reset dynamic state.
         """
+        # FieldState now holds the dispersive ADE polarization (dispersive_P_curr/prev)
+        # alongside E/H/psi, so this single tree.map zeroes all dynamic per-timestep
+        # state at once (``None`` leaves stay ``None`` for non-dispersive sims).
+        # Coefficient arrays (c1/c2/c3/inv_c2) are material properties and preserved.
         arrays = self.aset("fields", jax.tree.map(jnp.zeros_like, self.fields))
-
-        # Dispersive ADE polarization is also dynamic per-timestep state and must
-        # be zeroed alongside E/H. Coefficient arrays (c1/c2/c3/inv_c2) are
-        # material properties and are preserved.
-        if arrays.dispersive_P_curr is not None:
-            arrays = arrays.aset("dispersive_P_curr", jnp.zeros_like(arrays.dispersive_P_curr))
-        if arrays.dispersive_P_prev is not None:
-            arrays = arrays.aset("dispersive_P_prev", jnp.zeros_like(arrays.dispersive_P_prev))
 
         detector_states = self.detector_states
         if reset_detector_states:

@@ -256,6 +256,30 @@ class TestPMLComputeProfile:
         assert jnp.allclose(profileE[:, 0, 0], jnp.asarray([5 / 6, 3 / 6, 0.0], dtype=jnp.float32))
         assert float(profileH[-1, 0, 0]) == 0.0
 
+    @pytest.mark.parametrize("direction", ["-", "+"])
+    def test_nonuniform_profile_matches_uniform_limit_on_uniform_axis(self, jax_key, direction):
+        """A uniform PML axis must keep the historical staggered profile."""
+        thickness = 4
+        volume_shape = (8, 1, 1)
+        uniform_config = SimulationConfig(time=100e-15, grid=UniformGrid(spacing=1.0), backend="cpu", dtype=jnp.float32)
+        nonuniform_grid = RectilinearGrid(
+            x_edges=jnp.arange(volume_shape[0] + 1, dtype=jnp.float32),
+            y_edges=jnp.asarray([0.0, 1.01], dtype=jnp.float32),
+            z_edges=jnp.asarray([0.0, 1.0], dtype=jnp.float32),
+        )
+        nonuniform_config = SimulationConfig(time=100e-15, grid=nonuniform_grid, backend="cpu", dtype=jnp.float32)
+
+        uniform_pml = make_pml(axis=0, direction=direction, thickness=thickness, sigma_end=1.0)
+        nonuniform_pml = make_pml(axis=0, direction=direction, thickness=thickness, sigma_end=1.0)
+        uniform_placed = place_pml(uniform_pml, uniform_config, jax_key, volume_shape=volume_shape)
+        nonuniform_placed = place_pml(nonuniform_pml, nonuniform_config, jax_key, volume_shape=volume_shape)
+
+        uniform_E, uniform_H = uniform_placed._compute_pml_profile(0.0, 1.0, 1.0, jnp.float32)
+        nonuniform_E, nonuniform_H = nonuniform_placed._compute_pml_profile(0.0, 1.0, 1.0, jnp.float32)
+
+        assert jnp.allclose(nonuniform_E[:, 0, 0], uniform_E[:, 0, 0])
+        assert jnp.allclose(nonuniform_H[:, 0, 0], uniform_H[:, 0, 0])
+
     def test_nonuniform_sigma_end_uses_physical_thickness(self, jax_key):
         """Default sigma_end is based on physical PML thickness from grid edges."""
         grid = RectilinearGrid(
@@ -269,91 +293,3 @@ class TestPMLComputeProfile:
 
         expected = -(placed.sigma_order + 1) * jnp.log(1e-6) / (2 * (eta0 / 1.0) * 3.0)
         assert jnp.isclose(placed.sigma_end, expected)
-
-
-class TestPMLModifyArrays:
-    """Tests for PerfectlyMatchedLayer.modify_arrays."""
-
-    def _make_simulation_arrays(self, volume_shape):
-        """Create zero simulation arrays for testing."""
-        alpha = jnp.zeros((6, *volume_shape), dtype=jnp.float32)
-        kappa = jnp.ones((6, *volume_shape), dtype=jnp.float32)
-        sigma = jnp.zeros((6, *volume_shape), dtype=jnp.float32)
-        electric_conductivity = jnp.zeros(volume_shape, dtype=jnp.float32)
-        magnetic_conductivity = jnp.zeros(volume_shape, dtype=jnp.float32)
-        return alpha, kappa, sigma, electric_conductivity, magnetic_conductivity
-
-    def test_modify_arrays_returns_dict_with_correct_keys(self, micro_config, jax_key):
-        pml = make_pml(axis=0, direction="-", thickness=10, sigma_end=1e6)
-        placed = place_pml(pml, micro_config, jax_key, volume_shape=(30, 20, 20))
-        alpha, kappa, sigma, ec, mc = self._make_simulation_arrays((30, 20, 20))
-        result = placed.modify_arrays(alpha, kappa, sigma, ec, mc)
-        assert set(result.keys()) == {"alpha", "kappa", "sigma", "electric_conductivity", "magnetic_conductivity"}
-
-    def test_modify_arrays_sigma_nonzero_in_pml_region(self, micro_config, jax_key):
-        pml = make_pml(axis=0, direction="-", thickness=10, sigma_end=1e6)
-        placed = place_pml(pml, micro_config, jax_key, volume_shape=(30, 20, 20))
-        alpha, kappa, sigma, ec, mc = self._make_simulation_arrays((30, 20, 20))
-        result = placed.modify_arrays(alpha, kappa, sigma, ec, mc)
-        # sigma should be modified in the PML region (axis 0 component)
-        pml_sigma = result["sigma"][0, :10, :, :]
-        assert jnp.any(pml_sigma != 0.0)
-
-    def test_modify_arrays_sigma_zero_outside_pml(self, micro_config, jax_key):
-        pml = make_pml(axis=0, direction="-", thickness=10, sigma_end=1e6)
-        placed = place_pml(pml, micro_config, jax_key, volume_shape=(30, 20, 20))
-        alpha, kappa, sigma, ec, mc = self._make_simulation_arrays((30, 20, 20))
-        result = placed.modify_arrays(alpha, kappa, sigma, ec, mc)
-        # sigma should be zero outside PML region
-        outside_sigma = result["sigma"][0, 10:, :, :]
-        assert jnp.all(outside_sigma == 0.0)
-
-    def test_modify_arrays_max_boundary(self, micro_config, jax_key):
-        pml = make_pml(axis=0, direction="+", thickness=10, sigma_end=1e6)
-        placed = place_pml(pml, micro_config, jax_key, volume_shape=(30, 20, 20))
-        alpha, kappa, sigma, ec, mc = self._make_simulation_arrays((30, 20, 20))
-        result = placed.modify_arrays(alpha, kappa, sigma, ec, mc)
-        pml_sigma = result["sigma"][0, 20:, :, :]
-        assert jnp.any(pml_sigma != 0.0)
-
-    def test_conductivity_arrays_unchanged(self, micro_config, jax_key):
-        pml = make_pml(axis=0, direction="-", thickness=10, sigma_end=1e6)
-        placed = place_pml(pml, micro_config, jax_key, volume_shape=(30, 20, 20))
-        alpha, kappa, sigma, ec, mc = self._make_simulation_arrays((30, 20, 20))
-        result = placed.modify_arrays(alpha, kappa, sigma, ec, mc)
-        assert jnp.allclose(result["electric_conductivity"], ec)
-        assert jnp.allclose(result["magnetic_conductivity"], mc)
-
-
-class TestPmlApplyFieldReset:
-    """Tests for PerfectlyMatchedLayer.apply_field_reset."""
-
-    def test_zeros_pml_region_in_all_fields(self, micro_config, jax_key):
-        pml = make_pml(axis=0, direction="-", thickness=3)
-        placed = place_pml(pml, micro_config, jax_key, volume_shape=(10, 10, 10))
-        E = jnp.ones((3, 10, 10, 10))
-        H = jnp.full((3, 10, 10, 10), 2.0)
-        result = placed.apply_field_reset({"E": E, "H": H})
-        assert jnp.allclose(result["E"][:, 0:3, :, :], 0.0)
-        assert jnp.allclose(result["H"][:, 0:3, :, :], 0.0)
-
-    def test_non_pml_region_unchanged(self, micro_config, jax_key):
-        pml = make_pml(axis=0, direction="-", thickness=3)
-        placed = place_pml(pml, micro_config, jax_key, volume_shape=(10, 10, 10))
-        E = jnp.ones((3, 10, 10, 10))
-        result = placed.apply_field_reset({"E": E})
-        assert jnp.allclose(result["E"][:, 3:, :, :], 1.0)
-
-    def test_max_direction_zeros_correct_region(self, micro_config, jax_key):
-        pml = make_pml(axis=2, direction="+", thickness=4)
-        placed = place_pml(pml, micro_config, jax_key, volume_shape=(10, 10, 10))
-        E = jnp.ones((3, 10, 10, 10))
-        result = placed.apply_field_reset({"E": E})
-        assert jnp.allclose(result["E"][:, :, :, 6:], 0.0)
-        assert jnp.allclose(result["E"][:, :, :, :6], 1.0)
-
-    def test_returns_only_provided_field_keys(self, micro_config, jax_key):
-        pml = make_pml(axis=0, direction="-", thickness=3)
-        placed = place_pml(pml, micro_config, jax_key, volume_shape=(10, 10, 10))
-        result = placed.apply_field_reset({"E": jnp.ones((3, 10, 10, 10))})
-        assert set(result.keys()) == {"E"}

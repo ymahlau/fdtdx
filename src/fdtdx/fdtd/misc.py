@@ -133,51 +133,81 @@ def avg_anisotropic_E_component(
     field: jax.Array,
     component: int,
     location: int,
+    aniso_widths: tuple[jax.Array, jax.Array, jax.Array] | None = None,
 ) -> jax.Array:
-    """Averages an E field component at a given location.
+    """Averages an E field component onto another component's Yee location.
+
+    On a uniform grid this is the four-point mean of the staggered samples. On a non-uniform
+    grid the center-to-edge half-step along the component axis is weighted by the local cell
+    widths; the location axis is already edge-aligned and keeps an unweighted midpoint.
 
     Args:
         field (jax.Array): E field to average (3, Nx, Ny, Nz)
         component (int): Component to average, 0 for Ex, 1 for Ey, 2 for Ez
         location (int): Location to calculate average, 0 for Ex, 1 for Ey, 2 for Ez
+        aniso_widths (tuple | None): Per-axis padded cell widths from
+            ``get_anisotropic_averaging_widths``, broadcast along their axis, or None on a
+            uniform grid. None (the default) selects the unweighted four-point mean.
 
     Returns:
         jax.Array: Averaged E field component
     """
 
-    return (
-        (
-            field[component]
-            + jnp.roll(field[component], -1, axis=location)
-            + jnp.roll(field[component], 1, axis=component)
-            + jnp.roll(field[component], (-1, 1), axis=(location, component))
-        )
-        / 4
-    )[1:-1, 1:-1, 1:-1]
+    samples = field[component]
+    if aniso_widths is None:
+        return (
+            (
+                samples
+                + jnp.roll(samples, -1, axis=location)
+                + jnp.roll(samples, 1, axis=component)
+                + jnp.roll(samples, (-1, 1), axis=(location, component))
+            )
+            / 4
+        )[1:-1, 1:-1, 1:-1]
+    centered = 0.5 * (samples + jnp.roll(samples, -1, axis=location))
+    width = aniso_widths[component]
+    previous_width = jnp.roll(width, 1, axis=component)
+    on_edge = (centered * previous_width + jnp.roll(centered, 1, axis=component) * width) / (width + previous_width)
+    return on_edge[1:-1, 1:-1, 1:-1]
 
 
 def avg_anisotropic_H_component(
     field: jax.Array,
     component: int,
     location: int,
+    aniso_widths: tuple[jax.Array, jax.Array, jax.Array] | None = None,
 ) -> jax.Array:
-    """Averages an H field component at a given location.
+    """Averages an H field component onto another component's Yee location.
+
+    On a uniform grid this is the four-point mean of the staggered samples. On a non-uniform
+    grid the center-to-edge half-step along the location axis is weighted by the local cell
+    widths; the component axis is already edge-aligned and keeps an unweighted midpoint.
 
     Args:
         field (jax.Array): H field to average (3, Nx, Ny, Nz)
         component (int): Component to average, 0 for Hx, 1 for Hy, 2 for Hz
         location (int): Location to calculate average, 0 for Hx, 1 for Hy, 2 for Hz
+        aniso_widths (tuple | None): Per-axis padded cell widths from
+            ``get_anisotropic_averaging_widths``, broadcast along their axis, or None on a
+            uniform grid. None (the default) selects the unweighted four-point mean.
 
     Returns:
         jax.Array: Averaged H field component
     """
 
-    return (
-        (
-            field[component]
-            + jnp.roll(field[component], 1, axis=location)
-            + jnp.roll(field[component], -1, axis=component)
-            + jnp.roll(field[component], (1, -1), axis=(location, component))
-        )
-        / 4
-    )[1:-1, 1:-1, 1:-1]
+    samples = field[component]
+    if aniso_widths is None:
+        return (
+            (
+                samples
+                + jnp.roll(samples, 1, axis=location)
+                + jnp.roll(samples, -1, axis=component)
+                + jnp.roll(samples, (1, -1), axis=(location, component))
+            )
+            / 4
+        )[1:-1, 1:-1, 1:-1]
+    width = aniso_widths[location]
+    previous_width = jnp.roll(width, 1, axis=location)
+    on_edge = (samples * previous_width + jnp.roll(samples, 1, axis=location) * width) / (width + previous_width)
+    centered = 0.5 * (on_edge + jnp.roll(on_edge, -1, axis=component))
+    return centered[1:-1, 1:-1, 1:-1]

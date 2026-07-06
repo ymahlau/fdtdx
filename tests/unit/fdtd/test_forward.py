@@ -18,12 +18,9 @@ def arrays():
         fields=FieldState(
             E=jnp.ones((3, 4, 4, 4)),
             H=jnp.ones((3, 4, 4, 4)) * 2.0,
-            psi_E=jnp.zeros((6, 4, 4, 4)),
-            psi_H=jnp.zeros((6, 4, 4, 4)),
+            psi_E={},
+            psi_H={},
         ),
-        alpha=jnp.zeros((3, 4, 4, 4)),
-        kappa=jnp.ones((3, 4, 4, 4)),
-        sigma=jnp.zeros((3, 4, 4, 4)),
         inv_permittivities=jnp.ones((4, 4, 4)),
         inv_permeabilities=jnp.ones((4, 4, 4)),
         detector_states={"det1": Mock(spec=DetectorState)},
@@ -308,9 +305,6 @@ class TestForwardSingleArgsWrapper:
                 H=arrays.fields.H,
                 psi_E=arrays.fields.psi_E,
                 psi_H=arrays.fields.psi_H,
-                alpha=arrays.alpha,
-                kappa=arrays.kappa,
-                sigma=arrays.sigma,
                 inv_permittivities=arrays.inv_permittivities,
                 inv_permeabilities=arrays.inv_permeabilities,
                 dispersive_P_curr=None,
@@ -318,6 +312,7 @@ class TestForwardSingleArgsWrapper:
                 dispersive_c1=None,
                 dispersive_c2=None,
                 dispersive_c3=None,
+                dispersive_c4=None,
                 detector_states=arrays.detector_states,
                 recording_state=arrays.recording_state,
                 config=config,
@@ -344,18 +339,15 @@ class TestForwardSingleArgsWrapper:
             assert call_kwargs["record_boundaries"] is True
             assert call_kwargs["simulate_boundaries"] is True
 
-    def test_wrapper_returns_all_17_unpacked_fields(self, arrays, config, objects, key):
-        """Wrapper unpacks the returned SimulationState into 17 individual values."""
+    def test_wrapper_returns_all_14_unpacked_fields(self, arrays, config, objects, key):
+        """Wrapper unpacks the returned SimulationState into 15 individual values."""
         result_arrays = ArrayContainer(
             fields=FieldState(
                 E=arrays.fields.E * 2.0,
                 H=arrays.fields.H * 3.0,
-                psi_E=arrays.fields.psi_E + 1.0,
-                psi_H=arrays.fields.psi_H + 2.0,
+                psi_E=arrays.fields.psi_E,
+                psi_H=arrays.fields.psi_H,
             ),
-            alpha=arrays.alpha + 0.1,
-            kappa=arrays.kappa * 1.5,
-            sigma=arrays.sigma + 0.5,
             inv_permittivities=arrays.inv_permittivities * 4.0,
             inv_permeabilities=arrays.inv_permeabilities * 5.0,
             detector_states={"det1": Mock(spec=DetectorState)},
@@ -370,9 +362,6 @@ class TestForwardSingleArgsWrapper:
                 H=arrays.fields.H,
                 psi_E=arrays.fields.psi_E,
                 psi_H=arrays.fields.psi_H,
-                alpha=arrays.alpha,
-                kappa=arrays.kappa,
-                sigma=arrays.sigma,
                 inv_permittivities=arrays.inv_permittivities,
                 inv_permeabilities=arrays.inv_permeabilities,
                 dispersive_P_curr=None,
@@ -380,6 +369,7 @@ class TestForwardSingleArgsWrapper:
                 dispersive_c1=None,
                 dispersive_c2=None,
                 dispersive_c3=None,
+                dispersive_c4=None,
                 detector_states=arrays.detector_states,
                 recording_state=arrays.recording_state,
                 config=config,
@@ -390,21 +380,19 @@ class TestForwardSingleArgsWrapper:
                 simulate_boundaries=False,
             )
 
-            assert len(result) == 17
+            assert len(result) == 15
             assert result[0] == 7  # time_step
             assert jnp.array_equal(result[1], result_arrays.fields.E)
             assert jnp.array_equal(result[2], result_arrays.fields.H)
-            assert jnp.array_equal(result[3], result_arrays.fields.psi_E)
-            assert jnp.array_equal(result[4], result_arrays.fields.psi_H)
-            assert jnp.array_equal(result[5], result_arrays.alpha)
-            assert jnp.array_equal(result[6], result_arrays.kappa)
-            assert jnp.array_equal(result[7], result_arrays.sigma)
-            assert jnp.array_equal(result[8], result_arrays.inv_permittivities)
-            assert jnp.array_equal(result[9], result_arrays.inv_permeabilities)
-            assert result[10] is result_arrays.dispersive_P_curr
-            assert result[11] is result_arrays.dispersive_P_prev
-            assert result[12] is result_arrays.dispersive_c1
-            assert result[13] is result_arrays.dispersive_c2
-            assert result[14] is result_arrays.dispersive_c3
-            assert result[15] is result_arrays.detector_states
-            assert result[16] is result_arrays.recording_state
+            assert result[3] is result_arrays.fields.psi_E
+            assert result[4] is result_arrays.fields.psi_H
+            assert jnp.array_equal(result[5], result_arrays.inv_permittivities)
+            assert jnp.array_equal(result[6], result_arrays.inv_permeabilities)
+            assert result[7] is result_arrays.fields.dispersive_P_curr
+            assert result[8] is result_arrays.fields.dispersive_P_prev
+            assert result[9] is result_arrays.dispersive_c1
+            assert result[10] is result_arrays.dispersive_c2
+            assert result[11] is result_arrays.dispersive_c3
+            assert result[12] is result_arrays.dispersive_c4
+            assert result[13] is result_arrays.detector_states
+            assert result[14] is result_arrays.recording_state

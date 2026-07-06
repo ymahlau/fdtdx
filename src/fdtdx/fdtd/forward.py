@@ -1,7 +1,7 @@
 import jax
 
 from fdtdx.config import SimulationConfig
-from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, SimulationState
+from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, PmlAuxField, SimulationState
 from fdtdx.fdtd.update import collect_interfaces, update_detector_states, update_E, update_H
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.objects.detectors.detector import DetectorState
@@ -11,11 +11,8 @@ def forward_single_args_wrapper(
     time_step: jax.Array,
     E: jax.Array,
     H: jax.Array,
-    psi_E: jax.Array,
-    psi_H: jax.Array,
-    alpha: jax.Array,
-    kappa: jax.Array,
-    sigma: jax.Array,
+    psi_E: PmlAuxField,
+    psi_H: PmlAuxField,
     inv_permittivities: jax.Array,
     inv_permeabilities: jax.Array,
     dispersive_P_curr: jax.Array | None,
@@ -23,6 +20,7 @@ def forward_single_args_wrapper(
     dispersive_c1: jax.Array | None,
     dispersive_c2: jax.Array | None,
     dispersive_c3: jax.Array | None,
+    dispersive_c4: jax.Array | None,
     detector_states: dict[str, DetectorState],
     recording_state: RecordingState | None,
     config: SimulationConfig,
@@ -38,13 +36,11 @@ def forward_single_args_wrapper(
     jax.Array,
     jax.Array,
     jax.Array,
-    jax.Array,
-    jax.Array,
-    jax.Array,
-    jax.Array,
-    jax.Array,
+    PmlAuxField,
+    PmlAuxField,
     jax.Array,
     jax.Array | float,
+    jax.Array | None,
     jax.Array | None,
     jax.Array | None,
     jax.Array | None,
@@ -58,21 +54,24 @@ def forward_single_args_wrapper(
     # passed as defaulted kwargs so callers can closure-capture them via ``functools.partial``
     # without exposing them as VJP primals.
     arr = ArrayContainer(
-        fields=FieldState(E=E, H=H, psi_E=psi_E, psi_H=psi_H),
-        alpha=alpha,
-        kappa=kappa,
-        sigma=sigma,
+        fields=FieldState(
+            E=E,
+            H=H,
+            psi_E=psi_E,
+            psi_H=psi_H,
+            dispersive_P_curr=dispersive_P_curr,
+            dispersive_P_prev=dispersive_P_prev,
+        ),
         inv_permittivities=inv_permittivities,
         inv_permeabilities=inv_permeabilities,
         detector_states=detector_states,
         recording_state=recording_state,
         electric_conductivity=electric_conductivity,
         magnetic_conductivity=magnetic_conductivity,
-        dispersive_P_curr=dispersive_P_curr,
-        dispersive_P_prev=dispersive_P_prev,
         dispersive_c1=dispersive_c1,
         dispersive_c2=dispersive_c2,
         dispersive_c3=dispersive_c3,
+        dispersive_c4=dispersive_c4,
         dispersive_inv_c2=dispersive_inv_c2,
     )
     state = forward(
@@ -90,16 +89,14 @@ def forward_single_args_wrapper(
         state[1].fields.H,
         state[1].fields.psi_E,
         state[1].fields.psi_H,
-        state[1].alpha,
-        state[1].kappa,
-        state[1].sigma,
         state[1].inv_permittivities,
         state[1].inv_permeabilities,
-        state[1].dispersive_P_curr,
-        state[1].dispersive_P_prev,
+        state[1].fields.dispersive_P_curr,
+        state[1].fields.dispersive_P_prev,
         state[1].dispersive_c1,
         state[1].dispersive_c2,
         state[1].dispersive_c3,
+        state[1].dispersive_c4,
         state[1].detector_states,
         state[1].recording_state,
     )

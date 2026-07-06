@@ -117,6 +117,38 @@ def compute_poynting_flux(E: jax.Array, H: jax.Array, axis: int = 0) -> jax.Arra
     )
 
 
+def compute_integrated_power(
+    E: jax.Array,
+    H: jax.Array,
+    axis: int,
+    area_weights: jax.Array | None = None,
+) -> jax.Array:
+    """Computes the integrated power (Poynting flux) across a transverse plane.
+
+    Args:
+        E (jax.Array): Electric field array with component axis first.
+        H (jax.Array): Magnetic field array with component axis first.
+        axis (int): Physical propagation axis whose Poynting component is integrated.
+        area_weights (jax.Array | None, optional): Optional detector-plane area weights
+            broadcastable to ``E[axis]``. Defaults to None.
+
+    Returns:
+        jax.Array: The absolute integrated power.
+    """
+    # Compute Poynting vector components
+    S_complex = jnp.cross(jnp.conj(E), H, axisa=0, axisb=0, axisc=0)
+    S_real = 0.5 * jnp.real(S_complex[axis])  # power flow in desired direction
+
+    if area_weights is not None:
+        # normalize area weights for numerical stability and consistency with the None case
+        relative_weights = area_weights / jnp.mean(area_weights)
+        S_real = S_real * relative_weights
+
+    # Integrate over transverse plane (axis orthogonal to `axis`)
+    power = jnp.abs(jnp.sum(S_real))
+    return power
+
+
 def normalize_by_poynting_flux(
     E: jax.Array,
     H: jax.Array,
@@ -126,27 +158,24 @@ def normalize_by_poynting_flux(
     """Normalize fields so the integrated Poynting flux along ``axis`` is one.
 
     Args:
-        E: Electric field array with component axis first.
-        H: Magnetic field array with component axis first.
-        axis: Physical propagation axis whose Poynting component is integrated.
-        area_weights: Optional detector-plane area weights broadcastable to
-            ``E[axis]``.  Uniform-grid callers may omit this for the historical
-            raw-sum normalization; non-uniform callers should provide weights so
-            refinement alone does not change the normalization.
-    """
-    # Compute Poynting vector components
-    S_complex = jnp.cross(jnp.conj(E), H, axisa=0, axisb=0, axisc=0)
-    S_real = 0.5 * jnp.real(S_complex[axis])  # power flow in desired direction
-    if area_weights is not None:
-        S_real = S_real * area_weights
+        E (jax.Array): Electric field array with component axis first.
+        H (jax.Array): Magnetic field array with component axis first.
+        axis (int): Physical propagation axis whose Poynting component is integrated.
+        area_weights (jax.Array | None, optional): Optional detector-plane area weights
+            broadcastable to ``E[axis]``. Uniform-grid callers may omit this for the
+            historical raw-sum normalization; non-uniform callers should provide weights
+            so refinement alone does not change the normalization.
 
-    # Integrate over transverse plane (axis orthogonal to `axis`)
-    power = jnp.abs(jnp.sum(S_real))
+    Returns:
+        tuple[jax.Array, jax.Array]: Tuple of (normalized E field, normalized H field)
+    """
+    power = compute_integrated_power(E, H, axis, area_weights)
 
     # Normalize
     norm_factor = jnp.sqrt(power)
     E_norm = E / norm_factor
     H_norm = H / norm_factor
+
     return E_norm, H_norm
 
 

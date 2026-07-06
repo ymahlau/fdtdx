@@ -58,6 +58,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from fdtdx.constants import eps0
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 
 
@@ -92,8 +93,23 @@ class Pole(TreeClass, ABC):
 
         ``delta_epsilon * omega_0**2`` for a Lorentz pole and
         ``omega_p**2`` for a Drude pole.
+
+        This is the coefficient ``a`` of the ``E`` driving term in the unified
+        2nd-order ODE ``p'' + gamma p' + omega_0**2 p = a E + b E'``.
         """
         raise NotImplementedError
+
+    @property
+    def coupling_edot(self) -> float:
+        """Coefficient ``b`` of the ``dE/dt`` driving term (rad/s).
+
+        Zero for Lorentz and Drude poles (their susceptibility numerator has no
+        ``omega`` term). A non-zero value is what distinguishes a general
+        complex-conjugate pole-residue (CCPR) pole — it corresponds to a
+        non-zero real part of the residue and adds the ``b E'`` term to the ADE.
+        Defaults to ``0.0`` so existing pole types need not override it.
+        """
+        return 0.0
 
 
 @autoinit
@@ -161,6 +177,100 @@ class DrudePole(Pole):
 
 
 @autoinit
+class CCPRPole(Pole):
+    r"""General complex-conjugate pole-residue (CCPR) pole.
+
+    A single conjugate pair contributes to the susceptibility (in the
+    ``exp(-i omega t)`` convention, Laplace variable ``s = -i omega``):
+
+    .. math::
+        \chi_p(\omega) = \frac{r}{-i\omega - q} + \frac{r^*}{-i\omega - q^*}
+
+    with **complex** pole ``q`` and **complex** residue ``r``. Summing the pair
+    with its conjugate guarantees a real time-domain response. Combined over a
+    common denominator this equals the unified 2nd-order form
+
+    .. math::
+        \chi_p(\omega) = \frac{a - i\omega b}{\omega_0^2 - \omega^2 - i\gamma\omega}
+
+    with
+
+    .. math::
+        \omega_0^2 = |q|^2, \quad \gamma = -2\,\mathrm{Re}(q), \quad
+        a = -2\,\mathrm{Re}(r q^*), \quad b = 2\,\mathrm{Re}(r).
+
+    Lorentz and Drude poles are the special case ``b = 0`` (purely imaginary
+    residue). A non-zero ``b`` (``= coupling_edot``) is the extra degree of
+    freedom that lets CCPR fit metals (gold, silver) and arbitrary
+    vector-fitted permittivity data.
+
+    A stable, passive (lossy) medium requires ``Re(q) < 0`` (so ``gamma > 0``).
+    """
+
+    #: Complex pole ``q`` (rad/s). ``Re(q) < 0`` for a stable, lossy medium.
+    pole: complex = frozen_field()
+
+    #: Complex residue ``r`` (rad/s).
+    residue: complex = frozen_field()
+
+    @property
+    def omega_0(self) -> float:
+        return float(abs(complex(self.pole)))
+
+    @property
+    def gamma(self) -> float:
+        return float(-2.0 * complex(self.pole).real)
+
+    @property
+    def coupling_sq(self) -> float:
+        q = complex(self.pole)
+        r = complex(self.residue)
+        return float(-2.0 * (r * q.conjugate()).real)
+
+    @property
+    def coupling_edot(self) -> float:
+        return float(2.0 * complex(self.residue).real)
+
+    @classmethod
+    def from_critical_point(
+        cls,
+        amplitude: float,
+        phase: float,
+        resonance_frequency: float,
+        damping: float,
+    ) -> "CCPRPole":
+        r"""Build a CCPR pole from critical-point (modified-Lorentz) parameters.
+
+        The critical-point model term (``exp(-i omega t)`` convention) is
+
+        .. math::
+            \chi_p(\omega) = A\,\Omega\left[
+                \frac{e^{i\phi}}{\Omega - \omega - i\Gamma}
+                + \frac{e^{-i\phi}}{\Omega + \omega + i\Gamma}\right],
+
+        which is the parameterization commonly reported for fitted metal
+        permittivities. This maps to the complex pole/residue
+
+        .. math::
+            q = -\Gamma - i\Omega, \qquad r = i\,A\,\Omega\,e^{i\phi}.
+
+        Args:
+            amplitude: Dimensionless amplitude :math:`A`.
+            phase: Phase :math:`\phi` (radians).
+            resonance_frequency: Resonance :math:`\Omega` (rad/s).
+            damping: Broadening :math:`\Gamma` (rad/s), ``> 0`` for loss.
+
+        Returns:
+            CCPRPole: Equivalent pole with the ``(q, r)`` above.
+        """
+        import cmath
+
+        q = complex(-damping, -resonance_frequency)
+        r = 1j * amplitude * resonance_frequency * cmath.exp(1j * phase)
+        return cls(pole=q, residue=r)
+
+
+@autoinit
 class DispersionModel(TreeClass):
     """Linear susceptibility built from a sum of 2nd-order ADE poles.
 
@@ -194,7 +304,8 @@ class DispersionModel(TreeClass):
         total = 0.0 + 0.0j
         for p in self.poles:
             denom = p.omega_0**2 - w * w - 1j * p.gamma * w
-            total = total + p.coupling_sq / denom
+            numer = p.coupling_sq - 1j * w * p.coupling_edot
+            total = total + numer / denom
         return total
 
     def permittivity(self, omega: complex | float, eps_inf: float = 1.0) -> complex:
@@ -213,31 +324,40 @@ class DispersionModel(TreeClass):
 def compute_pole_coefficients(
     poles: tuple[Pole, ...],
     dt: float,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Compute the discrete-time ADE recurrence coefficients.
 
-    For each pole, returns ``(c1, c2, c3)`` with
+    For each pole, returns ``(c1, c2, c3, c4)`` with (``D = 1 + gamma dt / 2``)
 
     .. math::
-        c_1 = \\frac{2 - \\omega_0^2 \\Delta t^2}{1 + \\gamma \\Delta t / 2}, \\quad
-        c_2 = -\\frac{1 - \\gamma \\Delta t / 2}{1 + \\gamma \\Delta t / 2}, \\quad
-        c_3 = \\frac{K \\Delta t^2}{1 + \\gamma \\Delta t / 2}.
+        c_1 = \\frac{2 - \\omega_0^2 \\Delta t^2}{D}, \\quad
+        c_2 = -\\frac{1 - \\gamma \\Delta t / 2}{D}, \\quad
+        c_3 = \\frac{a \\Delta t^2 - b \\Delta t}{D}, \\quad
+        c_4 = \\frac{b \\Delta t}{D},
 
-    The recurrence is
-    :math:`p_p^{n+1} = c_1 p_p^n + c_2 p_p^{n-1} + c_3 E^n`.
+    where ``a = coupling_sq`` is the ``E`` coupling and ``b = coupling_edot`` is
+    the ``dE/dt`` coupling. The recurrence uses a forward difference for the
+    ``dE/dt`` term so it stays compatible with the reversible time stepping:
+
+    :math:`p_p^{n+1} = c_1 p_p^n + c_2 p_p^{n-1} + c_3 E^n + c_4 E^{n+1}`.
+
+    For Lorentz and Drude poles ``b = 0``, so ``c4 = 0`` and ``c3`` reduces to
+    the classic :math:`K \\Delta t^2 / D` — making those pole types
+    bit-identical to before this coefficient was added.
 
     Args:
         poles: Tuple of poles (may be empty).
         dt: Simulation time step (seconds).
 
     Returns:
-        Three ``numpy`` arrays of shape ``(len(poles),)`` with ``c1``, ``c2``,
-        ``c3``. For an empty pole tuple, returns three empty arrays.
+        Four ``numpy`` arrays of shape ``(len(poles),)`` with ``c1``, ``c2``,
+        ``c3``, ``c4``. For an empty pole tuple, returns four empty arrays.
     """
     n = len(poles)
     c1 = np.zeros(n, dtype=np.float64)
     c2 = np.zeros(n, dtype=np.float64)
     c3 = np.zeros(n, dtype=np.float64)
+    c4 = np.zeros(n, dtype=np.float64)
     for i, p in enumerate(poles):
         gamma_dt = p.gamma * dt
         if gamma_dt >= 2.0:
@@ -249,8 +369,9 @@ def compute_pole_coefficients(
         denom = 1.0 + 0.5 * gamma_dt
         c1[i] = (2.0 - (p.omega_0**2) * (dt**2)) / denom
         c2[i] = -(1.0 - 0.5 * gamma_dt) / denom
-        c3[i] = (p.coupling_sq * dt**2) / denom
-    return c1, c2, c3
+        c3[i] = (p.coupling_sq * dt**2 - p.coupling_edot * dt) / denom
+        c4[i] = (p.coupling_edot * dt) / denom
+    return c1, c2, c3, c4
 
 
 def susceptibility_from_coefficients(
@@ -259,25 +380,30 @@ def susceptibility_from_coefficients(
     c3: jax.Array,
     omega: float,
     dt: float,
+    c4: jax.Array | None = None,
 ) -> jax.Array:
     """Evaluate the per-cell complex susceptibility :math:`\\chi(\\omega)` from
     the stored ADE recurrence coefficients.
 
     The coefficient arrays have shape ``(num_poles, ...)`` where the trailing
     axes are the spatial (and optional component) dimensions. The inversion
+    (with ``D = 1 + \\gamma \\Delta t / 2``)
 
     .. math::
-        \\gamma \\Delta t        &= \\frac{2 (1 + c_2)}{1 - c_2},\\\\
-        \\omega_0^2 \\Delta t^2 &= 2 - c_1 (1 + \\gamma \\Delta t / 2),\\\\
-        K \\Delta t^2            &= c_3 (1 + \\gamma \\Delta t / 2)
+        \\gamma \\Delta t     &= \\frac{2 (1 + c_2)}{1 - c_2},\\\\
+        \\omega_0^2 \\Delta t^2 &= 2 - c_1 D,\\\\
+        a \\Delta t^2          &= (c_3 + c_4) D,\\\\
+        b \\Delta t            &= c_4 D
 
     is applied pointwise, then each pole contributes
 
     .. math::
-        \\chi_p(\\omega) = \\frac{K}{\\omega_0^2 - \\omega^2 - i \\gamma \\omega}
+        \\chi_p(\\omega) = \\frac{a - i\\omega b}{\\omega_0^2 - \\omega^2 - i \\gamma \\omega}
 
-    and the result is summed over the leading pole axis. Cells where
-    ``(c1, c2, c3)`` are all zero (no pole) contribute exactly zero.
+    and the result is summed over the leading pole axis. Cells where the
+    coefficients are all zero (no pole) contribute exactly zero. When ``c4`` is
+    ``None`` (Lorentz/Drude) the ``b`` term vanishes and this reduces to the
+    classic real-numerator Lorentzian.
 
     Args:
         c1: ADE coefficient array of shape ``(num_poles, ...)``.
@@ -286,6 +412,8 @@ def susceptibility_from_coefficients(
         omega: Angular frequency (rad/s) at which to evaluate the
             susceptibility.
         dt: Simulation time step (seconds) used to derive the coefficients.
+        c4: Optional ADE coefficient array (the ``dE/dt`` coupling), shape
+            ``(num_poles, ...)``. ``None`` is treated as all-zero.
 
     Returns:
         Complex ``jax.Array`` with shape ``c1.shape[1:]`` — the total
@@ -294,8 +422,9 @@ def susceptibility_from_coefficients(
     c1 = jnp.asarray(c1)
     c2 = jnp.asarray(c2)
     c3 = jnp.asarray(c3)
+    c4 = jnp.zeros_like(c3) if c4 is None else jnp.asarray(c4)
 
-    pole_mask = (c1 != 0.0) | (c3 != 0.0)
+    pole_mask = (c1 != 0.0) | (c3 != 0.0) | (c4 != 0.0)
 
     one_minus_c2 = 1.0 - c2
     safe_denom = jnp.where(one_minus_c2 == 0.0, 1.0, one_minus_c2)
@@ -305,13 +434,15 @@ def susceptibility_from_coefficients(
     half_factor = 1.0 + 0.5 * gamma_dt
     omega0_sq_dt2 = 2.0 - c1 * half_factor
     omega0_sq_dt2 = jnp.where(pole_mask, omega0_sq_dt2, 0.0)
-    K_dt2 = c3 * half_factor
-    K_dt2 = jnp.where(pole_mask, K_dt2, 0.0)
+    # a*dt^2 = (c3 + c4)*D, b*dt = c4*D (see compute_pole_coefficients).
+    a_dt2 = jnp.where(pole_mask, (c3 + c4) * half_factor, 0.0)
+    b_dt = jnp.where(pole_mask, c4 * half_factor, 0.0)
 
     omega_dt = omega * dt
+    numer = a_dt2 - 1j * omega_dt * b_dt
     denom = omega0_sq_dt2 - omega_dt * omega_dt - 1j * gamma_dt * omega_dt
     safe_denom_cplx = jnp.where(pole_mask, denom, 1.0 + 0.0j)
-    chi_per_pole = jnp.where(pole_mask, K_dt2 / safe_denom_cplx, 0.0 + 0.0j)
+    chi_per_pole = jnp.where(pole_mask, numer / safe_denom_cplx, 0.0 + 0.0j)
 
     return jnp.sum(chi_per_pole, axis=0)
 
@@ -324,6 +455,7 @@ def compute_eps_spectrum_from_coefficients(
     omegas: np.ndarray,
     dt: float,
     weights: np.ndarray | None = None,
+    c4: jax.Array | np.ndarray | None = None,
 ) -> np.ndarray:
     """Spatially-averaged complex permittivity spectrum for a block of cells.
 
@@ -361,18 +493,21 @@ def compute_eps_spectrum_from_coefficients(
     c1_np = np.asarray(c1)
     c2_np = np.asarray(c2)
     c3_np = np.asarray(c3)
+    c4_np = np.zeros_like(c3_np) if c4 is None else np.asarray(c4)
     inv_eps_np = np.asarray(inv_eps_inf)
     omegas_np = np.asarray(omegas, dtype=np.float64)
 
     # Reverse-engineer pole parameters from the ADE coefficients (same inversion
     # as susceptibility_from_coefficients, duplicated in numpy for setup-time use).
-    pole_mask = (c1_np != 0.0) | (c3_np != 0.0)
+    pole_mask = (c1_np != 0.0) | (c3_np != 0.0) | (c4_np != 0.0)
     one_minus_c2 = 1.0 - c2_np
     safe_one_minus_c2 = np.where(one_minus_c2 == 0.0, 1.0, one_minus_c2)
     gamma_dt = np.where(pole_mask, 2.0 * (1.0 + c2_np) / safe_one_minus_c2, 0.0)
     half_factor = 1.0 + 0.5 * gamma_dt
     omega0_sq_dt2 = np.where(pole_mask, 2.0 - c1_np * half_factor, 0.0)
-    K_dt2 = np.where(pole_mask, c3_np * half_factor, 0.0)
+    # a*dt^2 = (c3 + c4)*D, b*dt = c4*D (numerator = a*dt^2 - i*omega*dt*b*dt).
+    a_dt2 = np.where(pole_mask, (c3_np + c4_np) * half_factor, 0.0)
+    b_dt = np.where(pole_mask, c4_np * half_factor, 0.0)
 
     # Reduce inv_eps_inf → scalar eps_inf per spatial cell.
     num_components = inv_eps_np.shape[0]
@@ -387,9 +522,10 @@ def compute_eps_spectrum_from_coefficients(
     # Broadcast: omegas over (M,); coefficient arrays have shape (P, 1, *spatial).
     # After [None, ...] prepend: (M, P, 1, *spatial).
     omega_dt = (omegas_np * dt).reshape((-1,) + (1,) * c1_np.ndim)
+    numer = a_dt2[None, ...] - 1j * omega_dt * b_dt[None, ...]
     denom = omega0_sq_dt2[None, ...] - omega_dt**2 - 1j * gamma_dt[None, ...] * omega_dt
     safe_denom = np.where(pole_mask[None, ...], denom, 1.0 + 0.0j)
-    chi_per_pole = np.where(pole_mask[None, ...], K_dt2[None, ...] / safe_denom, 0.0 + 0.0j)
+    chi_per_pole = np.where(pole_mask[None, ...], numer / safe_denom, 0.0 + 0.0j)
     chi_per_cell = chi_per_pole.sum(axis=1)  # sum over pole axis → (M, 1, *spatial)
     chi_per_cell = chi_per_cell[:, 0]  # drop component broadcast axis → (M, *spatial)
 
@@ -488,6 +624,7 @@ def effective_inv_permittivity(
     c3: jax.Array | None,
     omega: float,
     dt: float,
+    c4: jax.Array | None = None,
 ) -> jax.Array:
     """Per-cell real inverse permittivity :math:`1/\\text{Re}(\\varepsilon_\\infty + \\chi(\\omega))`.
 
@@ -517,7 +654,66 @@ def effective_inv_permittivity(
     if c1 is None or c2 is None or c3 is None:
         return inv_eps
 
-    chi = susceptibility_from_coefficients(c1=c1, c2=c2, c3=c3, omega=omega, dt=dt)
+    chi = susceptibility_from_coefficients(c1=c1, c2=c2, c3=c3, omega=omega, dt=dt, c4=c4)
     eps_inf = 1.0 / jnp.asarray(inv_eps)
     eps_eff = eps_inf + jnp.real(chi)
     return (1.0 / eps_eff).astype(jnp.asarray(inv_eps).dtype)
+
+
+def effective_complex_inv_permittivity(
+    inv_eps: jax.Array,
+    omega: float,
+    dt: float,
+    c1: jax.Array | None = None,
+    c2: jax.Array | None = None,
+    c3: jax.Array | None = None,
+    electric_conductivity: jax.Array | None = None,
+    conductivity_spacing: float | None = None,
+    c4: jax.Array | None = None,
+) -> jax.Array:
+    r"""Per-cell COMPLEX inverse permittivity :math:`1 / (\varepsilon_\infty + \chi(\omega) + i\sigma/(\varepsilon_0\omega))`.
+
+    Unlike :func:`effective_inv_permittivity` — which returns the real
+    ``1/Re(eps)`` for source impedance / energy normalization and deliberately
+    drops the imaginary part — this keeps the *full complex* permittivity so the
+    mode solver sees the material loss, yielding a complex effective index and a
+    lossy mode profile. Use it ONLY for the permittivity handed to the mode
+    solver, never for impedance / energy (which would double-count the
+    absorption already integrated by the ADE loop and the conductivity update).
+
+    Both loss contributions are added in the ``exp(-i omega t)`` convention
+    (positive imaginary part = loss):
+
+    * the dispersive susceptibility :math:`\chi(\omega)` reconstructed from the
+      ADE coefficients (omitted when ``c1``/``c2``/``c3`` are ``None``), and
+    * the conductivity loss :math:`i\,\sigma_\text{phys} / (\varepsilon_0 \omega)`,
+      where :math:`\sigma_\text{phys} = \sigma_\text{array} / \Delta` recovers the
+      physical S/m value from the resolution-scaled ``electric_conductivity``
+      array (``conductivity_spacing`` is the scaling factor
+      :math:`\Delta = c_0 \Delta t / S` applied at initialization).
+
+    Args:
+        inv_eps: Per-cell ``1/eps_inf`` (real). Shape ``(num_components, ...)``.
+        omega: Angular frequency (rad/s).
+        dt: Simulation time step (seconds).
+        c1: ADE coefficient array of shape ``(num_poles, ...)`` or ``None``.
+        c2: ADE coefficient array of shape ``(num_poles, ...)`` or ``None``.
+        c3: ADE coefficient array of shape ``(num_poles, ...)`` or ``None``.
+        electric_conductivity: Resolution-scaled conductivity array, or ``None``.
+        conductivity_spacing: Scaling factor used to recover the physical
+            conductivity. Required when ``electric_conductivity`` is given.
+
+    Returns:
+        Complex ``jax.Array`` broadcasting ``inv_eps`` against the loss terms.
+    """
+    inv_eps = jnp.asarray(inv_eps)
+    complex_dtype = jnp.complex128 if inv_eps.dtype == jnp.float64 else jnp.complex64
+    eps = (1.0 / inv_eps).astype(complex_dtype)
+    if c1 is not None and c2 is not None and c3 is not None:
+        eps = eps + susceptibility_from_coefficients(c1=c1, c2=c2, c3=c3, omega=omega, dt=dt, c4=c4)
+    if electric_conductivity is not None:
+        if conductivity_spacing is None:
+            raise ValueError("conductivity_spacing is required when electric_conductivity is given.")
+        sigma_phys = jnp.asarray(electric_conductivity) / conductivity_spacing
+        eps = eps + 1j * sigma_phys / (omega * eps0)
+    return 1.0 / eps

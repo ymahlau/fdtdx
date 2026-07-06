@@ -48,6 +48,7 @@ testpaths = ["tests"]
 markers = [
     "unit: marks tests as unit tests (deselect with '-m \"not unit\"')",
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "docs: marks tests as docs tests (deselect with '-m \"not docs\"')",
     "simulation: marks tests as simulation tests",
 ]
 

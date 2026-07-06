@@ -29,17 +29,13 @@ def field_shape():
 
 @pytest.fixture
 def dummy_arrays(field_shape):
-    auxiliary_field_shape = (6, 2, 2, 2)
     return ArrayContainer(
         fields=FieldState(
             E=jnp.zeros(field_shape),
             H=jnp.zeros(field_shape),
-            psi_E=jnp.zeros(auxiliary_field_shape),
-            psi_H=jnp.zeros(auxiliary_field_shape),
+            psi_E={},
+            psi_H={},
         ),
-        alpha=jnp.zeros(field_shape),
-        kappa=jnp.ones(field_shape),
-        sigma=jnp.zeros(field_shape),
         inv_permittivities=jnp.ones(field_shape),
         inv_permeabilities=jnp.ones(field_shape),
         detector_states={},
@@ -127,17 +123,13 @@ class TestReversibleFdtd:
         assert arrs.magnetic_conductivity is None
 
     def test_with_nonzero_initial_fields(self, dummy_objects, config_few_steps, key, field_shape):
-        auxiliary_field_shape = (6, 2, 2, 2)
         arrays = ArrayContainer(
             fields=FieldState(
                 E=jnp.ones(field_shape) * 0.5,
                 H=jnp.ones(field_shape) * 0.3,
-                psi_E=jnp.zeros(auxiliary_field_shape),
-                psi_H=jnp.zeros(auxiliary_field_shape),
+                psi_E={},
+                psi_H={},
             ),
-            alpha=jnp.zeros(field_shape),
-            kappa=jnp.ones(field_shape),
-            sigma=jnp.zeros(field_shape),
             inv_permittivities=jnp.ones(field_shape),
             inv_permeabilities=jnp.ones(field_shape),
             detector_states={},

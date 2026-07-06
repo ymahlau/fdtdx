@@ -1,10 +1,16 @@
 # tests/unit/fdtd/test_misc.py
 
+import math
+
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import fdtdx.fdtd.misc as misc
+from fdtdx.config import SimulationConfig
+from fdtdx.core.grid import RectilinearGrid
 from fdtdx.fdtd.container import ArrayContainer, FieldState
+from fdtdx.fdtd.update import get_anisotropic_averaging_widths
 
 
 class MockPML:
@@ -21,14 +27,11 @@ class MockPML:
 
 def make_arrays(E: jnp.ndarray, H: jnp.ndarray) -> ArrayContainer:
     """Construct a real ArrayContainer with only E/H populated."""
-    psi_E = jnp.zeros_like(E)
-    psi_H = jnp.zeros_like(H)
+    psi_E = {}
+    psi_H = {}
     z = jnp.zeros_like(E)
     return ArrayContainer(
         fields=FieldState(E=E, H=H, psi_E=psi_E, psi_H=psi_H),
-        alpha=z,
-        kappa=z,
-        sigma=z,
         inv_permittivities=z,
         inv_permeabilities=1.0,
         detector_states={},
@@ -381,3 +384,68 @@ def test_avg_anisotropic_H_component_diagonal():
     assert jnp.allclose(Hx_avg_x, expected_Hx_avg_x)
     assert jnp.allclose(Hy_avg_y, expected_Hy_avg_y)
     assert jnp.allclose(Hz_avg_z, expected_Hz_avg_z)
+
+
+def test_avg_anisotropic_uniform_grid_matches_unweighted():
+    """A uniform grid yields no weights and the averaging is identical to the plain four-point mean."""
+    field = jnp.asarray(np.arange(3 * 5 * 5 * 5, dtype=float).reshape(3, 5, 5, 5))
+    config = SimulationConfig(grid=RectilinearGrid.uniform(shape=(3, 3, 3), spacing=1.0), time=10e-15)
+    aniso_widths = get_anisotropic_averaging_widths(config)
+    assert aniso_widths is None
+    for comp in range(3):
+        for loc in range(3):
+            if comp == loc:
+                continue
+            for fn in (misc.avg_anisotropic_E_component, misc.avg_anisotropic_H_component):
+                assert jnp.array_equal(fn(field, comp, loc, aniso_widths=aniso_widths), fn(field, comp, loc))
+
+
+def test_avg_anisotropic_spacing_weighting_is_second_order():
+    """On a graded mesh the weighted average converges at second order and the unweighted mean at first.
+
+    A smooth field sin(2 pi x) is interpolated from cell centers to cell faces on a strongly graded mesh
+    (alternating cell widths) refined over a fixed domain, so the relative grading does not vanish. The
+    averaging weights only the graded axis, so the field is held constant on the other axis; the off-axis
+    step is then exact and the measured error reflects the graded-axis interpolation alone.
+    """
+    resolutions = [16, 32, 64, 128]
+    # avg fn -> (component, location); the graded axis (x = 0) is the weighted one for each.
+    cases = {"E": (misc.avg_anisotropic_E_component, 0, 1), "H": (misc.avg_anisotropic_H_component, 1, 0)}
+    errors = {(name, kind): [] for name in cases for kind in ("weighted", "unweighted")}
+
+    for n in resolutions:
+        widths_x = np.tile([1.0, 3.0], n // 2)
+        widths_x /= widths_x.sum()  # cell widths on [0, 1], persistent 3:1 grading
+        grid = RectilinearGrid(
+            x_edges=jnp.asarray(np.concatenate([[0.0], np.cumsum(widths_x)])),
+            y_edges=jnp.asarray([0.0, 1.0, 2.0]),
+            z_edges=jnp.asarray([0.0, 1.0, 2.0]),
+        )
+        aniso_widths = get_anisotropic_averaging_widths(SimulationConfig(grid=grid, time=10e-15))
+
+        # sin(2 pi x) at the padded cell centers (constant on y, z); exact value lives at the cell faces.
+        padded_widths = np.concatenate([widths_x[:1], widths_x, widths_x[-1:]])
+        padded_edges = np.concatenate([[0.0], np.cumsum(padded_widths)])
+        centers = 0.5 * (padded_edges[:-1] + padded_edges[1:])
+        field = jnp.asarray(
+            np.broadcast_to(np.sin(2 * math.pi * centers)[None, :, None, None], (3, centers.size, 3, 3)).copy()
+        )
+        exact = np.sin(2 * math.pi * padded_edges[1 : 1 + n])[:, None, None]
+
+        for name, (fn, component, location) in cases.items():
+            weighted = np.asarray(fn(field, component=component, location=location, aniso_widths=aniso_widths))
+            unweighted = np.asarray(fn(field, component=component, location=location))
+            errors[(name, "weighted")].append(float(np.abs(weighted - exact).max()))
+            errors[(name, "unweighted")].append(float(np.abs(unweighted - exact).max()))
+
+    # error ~ h^p and h halves as n doubles, so the order p is the log2 error ratio between refinements.
+    def order(series):
+        return math.log2(series[-2] / series[-1])
+
+    print("\nconvergence order on a graded mesh (refinement factor 2):")
+    for (name, kind), series in errors.items():
+        print(f"  {name} {kind:<10} order = {order(series):.2f}")
+
+    for name in cases:
+        assert order(errors[(name, "weighted")]) > 1.7, f"{name} weighted average should be ~2nd order"
+        assert order(errors[(name, "unweighted")]) < 1.3, f"{name} unweighted average should be ~1st order"

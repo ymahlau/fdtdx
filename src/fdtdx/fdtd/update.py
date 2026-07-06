@@ -115,6 +115,37 @@ def pad_fields_for_boundaries(
     return padded
 
 
+def get_anisotropic_averaging_widths(
+    config: SimulationConfig,
+) -> tuple[jax.Array, jax.Array, jax.Array] | None:
+    """Build the per-axis cell widths that spacing-weight the off-diagonal anisotropic average.
+
+    The result depends only on the run-fixed grid, so the averaging functions take it as a
+    precomputed input and operate on arrays alone; under JIT it folds to a constant with no
+    per-step cost. Each entry is the axis cell widths padded by replicating the edge cell (to
+    line up with the field halo) and reshaped to broadcast along that axis.
+
+    Args:
+        config (SimulationConfig): Simulation configuration providing the resolved grid.
+
+    Returns:
+        tuple[jax.Array, jax.Array, jax.Array] | None: Per-axis padded cell widths, or None on
+            a uniform grid (where the averaging keeps its unweighted four-point mean).
+    """
+    if not config.has_nonuniform_grid:
+        return None
+    grid = config.resolved_grid
+    assert grid is not None  # narrowed by has_nonuniform_grid
+    widths = []
+    for axis in range(3):
+        axis_widths = grid.cell_widths(axis)
+        padded = jnp.concatenate([axis_widths[:1], axis_widths, axis_widths[-1:]])
+        broadcast_shape = [1, 1, 1]
+        broadcast_shape[axis] = padded.shape[0]
+        widths.append(padded.reshape(broadcast_shape))
+    return (widths[0], widths[1], widths[2])
+
+
 def update_E(
     time_step: jax.Array,
     arrays: ArrayContainer,
@@ -148,9 +179,7 @@ def update_E(
         config,
         H_pad,
         arrays.fields.psi_E,
-        arrays.alpha,
-        arrays.kappa,
-        arrays.sigma,
+        objects,
         simulate_boundaries,
     )
     arrays = arrays.aset("fields->psi_E", psi_E)
@@ -173,27 +202,44 @@ def update_E(
         # E[i, x, y, z] = factor * E[i, x, y, z] + c * curl[i, x, y, z] * inv_eps[i, x, y, z]
         E = factor * arrays.fields.E + c * curl * inv_eps
 
-        # Dispersive (ADE) correction. Non-dispersive cells have c3 = 0, so P_new =
-        # c1*P_curr + c2*P_prev and (P_curr - P_new) reduces to a purely historical
+        # Dispersive (ADE) correction. Non-dispersive cells have c3 = 0, so P_hat =
+        # c1*P_curr + c2*P_prev and (P_curr - P_hat) reduces to a purely historical
         # term that is also zero when P_curr and P_prev start at zero — so it's a
         # no-op outside dispersive regions. Only active when arrays are allocated.
-        if arrays.dispersive_P_curr is not None:
-            P_curr = arrays.dispersive_P_curr
-            P_prev = arrays.dispersive_P_prev
+        if arrays.fields.dispersive_P_curr is not None:
+            P_curr = arrays.fields.dispersive_P_curr
+            P_prev = arrays.fields.dispersive_P_prev
             disp_c1 = arrays.dispersive_c1
             disp_c2 = arrays.dispersive_c2
             disp_c3 = arrays.dispersive_c3
+            disp_c4 = arrays.dispersive_c4
             assert P_prev is not None and disp_c1 is not None and disp_c2 is not None and disp_c3 is not None
             # disp_c* are (num_poles, 1, Nx, Ny, Nz); arrays.fields.E is (3, Nx, Ny, Nz).
             # Right-aligned broadcasting produces (num_poles, 3, Nx, Ny, Nz) without
             # an explicit newaxis — skip the reshape so the HLO stays flat.
-            P_new = disp_c1 * P_curr + disp_c2 * P_prev + disp_c3 * arrays.fields.E
-            delta_sum = jnp.sum(P_curr - P_new, axis=0)
-            E = E + inv_eps * delta_sum
-            arrays = arrays.aset("dispersive_P_prev", P_curr)
-            arrays = arrays.aset("dispersive_P_curr", P_new)
-
-        if sigma_E is not None:
+            # P_hat is the explicit part of the recurrence (independent of E^{n+1}).
+            P_hat = disp_c1 * P_curr + disp_c2 * P_prev + disp_c3 * arrays.fields.E
+            delta_hat = jnp.sum(P_curr - P_hat, axis=0)
+            E = E + inv_eps * delta_hat
+            if disp_c4 is not None:
+                # CCPR: the polarization couples to E^{n+1} through c4. Fold the
+                # per-cell D_kappa = inv_eps*sum(c4) into the implicit divide
+                # (alongside the conductivity loss factor), then reconstruct the
+                # full P^{n+1} = P_hat + c4*E^{n+1} once E^{n+1} is known.
+                divisor = 1 + inv_eps * jnp.sum(disp_c4, axis=0)
+                if sigma_E is not None:
+                    divisor = divisor + c * sigma_E * eta0 * inv_eps / 2
+                E = E / divisor
+                P_new = P_hat + disp_c4 * E
+                arrays = arrays.aset("fields->dispersive_P_prev", P_curr)
+                arrays = arrays.aset("fields->dispersive_P_curr", P_new)
+            else:
+                arrays = arrays.aset("fields->dispersive_P_prev", P_curr)
+                arrays = arrays.aset("fields->dispersive_P_curr", P_hat)
+                if sigma_E is not None:
+                    # lossy update formula. Noop for conductivity = 0; see Schneider 3.12
+                    E = E / (1 + c * sigma_E * eta0 * inv_eps / 2)
+        elif sigma_E is not None:
             # update formula for lossy material. Simplifies to Noop for conductivity = 0
             # for details see Schneider, chapter 3.12
             E = E / (1 + c * sigma_E * eta0 * inv_eps / 2)
@@ -211,19 +257,45 @@ def update_E(
         E_pad = pad_fields_for_boundaries(arrays.fields.E, objects, config)
         curl_pad = pad_fields_for_boundaries(curl, objects, config)
 
+        # Spacing weights for the off-diagonal average (None on a uniform grid).
+        aniso_widths = get_anisotropic_averaging_widths(config)
         # Compute the averages of the fields and curl
-        Ex_y_avg = avg_anisotropic_E_component(E_pad, component=0, location=1)  # calc Ex at location of Ey
-        Ex_z_avg = avg_anisotropic_E_component(E_pad, component=0, location=2)  # calc Ex at location of Ez
-        Ey_x_avg = avg_anisotropic_E_component(E_pad, component=1, location=0)  # calc Ey at location of Ex
-        Ey_z_avg = avg_anisotropic_E_component(E_pad, component=1, location=2)  # calc Ey at location of Ez
-        Ez_x_avg = avg_anisotropic_E_component(E_pad, component=2, location=0)  # calc Ez at location of Ex
-        Ez_y_avg = avg_anisotropic_E_component(E_pad, component=2, location=1)  # calc Ez at location of Ey
-        curlHx_y_avg = avg_anisotropic_E_component(curl_pad, component=0, location=1)  # calc curl(H)x at location of Ey
-        curlHx_z_avg = avg_anisotropic_E_component(curl_pad, component=0, location=2)  # calc curl(H)x at location of Ez
-        curlHy_x_avg = avg_anisotropic_E_component(curl_pad, component=1, location=0)  # calc curl(H)y at location of Ex
-        curlHy_z_avg = avg_anisotropic_E_component(curl_pad, component=1, location=2)  # calc curl(H)y at location of Ez
-        curlHz_x_avg = avg_anisotropic_E_component(curl_pad, component=2, location=0)  # calc curl(H)z at location of Ex
-        curlHz_y_avg = avg_anisotropic_E_component(curl_pad, component=2, location=1)  # calc curl(H)z at location of Ey
+        Ex_y_avg = avg_anisotropic_E_component(
+            E_pad, component=0, location=1, aniso_widths=aniso_widths
+        )  # calc Ex at location of Ey
+        Ex_z_avg = avg_anisotropic_E_component(
+            E_pad, component=0, location=2, aniso_widths=aniso_widths
+        )  # calc Ex at location of Ez
+        Ey_x_avg = avg_anisotropic_E_component(
+            E_pad, component=1, location=0, aniso_widths=aniso_widths
+        )  # calc Ey at location of Ex
+        Ey_z_avg = avg_anisotropic_E_component(
+            E_pad, component=1, location=2, aniso_widths=aniso_widths
+        )  # calc Ey at location of Ez
+        Ez_x_avg = avg_anisotropic_E_component(
+            E_pad, component=2, location=0, aniso_widths=aniso_widths
+        )  # calc Ez at location of Ex
+        Ez_y_avg = avg_anisotropic_E_component(
+            E_pad, component=2, location=1, aniso_widths=aniso_widths
+        )  # calc Ez at location of Ey
+        curlHx_y_avg = avg_anisotropic_E_component(
+            curl_pad, component=0, location=1, aniso_widths=aniso_widths
+        )  # calc curl(H)x at location of Ey
+        curlHx_z_avg = avg_anisotropic_E_component(
+            curl_pad, component=0, location=2, aniso_widths=aniso_widths
+        )  # calc curl(H)x at location of Ez
+        curlHy_x_avg = avg_anisotropic_E_component(
+            curl_pad, component=1, location=0, aniso_widths=aniso_widths
+        )  # calc curl(H)y at location of Ex
+        curlHy_z_avg = avg_anisotropic_E_component(
+            curl_pad, component=1, location=2, aniso_widths=aniso_widths
+        )  # calc curl(H)y at location of Ez
+        curlHz_x_avg = avg_anisotropic_E_component(
+            curl_pad, component=2, location=0, aniso_widths=aniso_widths
+        )  # calc curl(H)z at location of Ex
+        curlHz_y_avg = avg_anisotropic_E_component(
+            curl_pad, component=2, location=1, aniso_widths=aniso_widths
+        )  # calc curl(H)z at location of Ey
 
         # K = curl(H)
         # Ex <= (Axx * Ex + Axy * x_avg(Ey) + Axz * x_avg(Ez)) +
@@ -315,9 +387,7 @@ def update_E_reverse(
         config,
         H_pad,
         arrays.fields.psi_E,
-        arrays.alpha,
-        arrays.kappa,
-        arrays.sigma,
+        objects,
         False,
     )
 
@@ -327,20 +397,26 @@ def update_E_reverse(
 
     if not inv_eps_is_full_tensor and not sigma_E_is_full_tensor:
         # Isotropic and diagonal anisotropic case
+        # Capture E^{n+1} (post source-inverse, pre field-recovery) — the CCPR
+        # polarization inversion below needs it for the c4*E^{n+1} term. For the
+        # E-recovery itself the c4/D_kappa contributions cancel exactly, so that
+        # formula is unchanged from the non-CCPR case.
+        E_np1 = E
         factor = 1
         if sigma_E is not None:
             E = E * (1 + c * sigma_E * eta0 * inv_eps / 2)
             factor = 1 - c * sigma_E * eta0 * inv_eps / 2
 
-        # Dispersive (ADE) reverse correction. At reverse time, arrays.dispersive_P_curr
-        # holds P^(n+1) and arrays.dispersive_P_prev holds P^n. The forward update added
+        # Dispersive (ADE) reverse correction. At reverse time, arrays.fields.dispersive_P_curr
+        # holds P^(n+1) and arrays.fields.dispersive_P_prev holds P^n. The forward update added
         # inv_eps * sum(P^n - P^(n+1)) inside the lossy factor; subtract it here to
         # recover E^n. Non-dispersive cells (all zero arrays) contribute zero.
-        if arrays.dispersive_P_curr is not None:
-            P_curr_r = arrays.dispersive_P_curr
-            P_prev_r = arrays.dispersive_P_prev
+        if arrays.fields.dispersive_P_curr is not None:
+            P_curr_r = arrays.fields.dispersive_P_curr
+            P_prev_r = arrays.fields.dispersive_P_prev
             disp_c1_r = arrays.dispersive_c1
             disp_c3_r = arrays.dispersive_c3
+            disp_c4_r = arrays.dispersive_c4
             disp_inv_c2_r = arrays.dispersive_inv_c2
             assert (
                 P_prev_r is not None and disp_c1_r is not None and disp_c3_r is not None and disp_inv_c2_r is not None
@@ -348,14 +424,18 @@ def update_E_reverse(
             delta_sum = jnp.sum(P_prev_r - P_curr_r, axis=0)
             E = (E - c * curl * inv_eps - inv_eps * delta_sum) / factor
             # Invert the polarization recurrence:
-            # P^(n+1) = c1 * P^n + c2 * P^(n-1) + c3 * E^n
-            # =>  P^(n-1) = (P^(n+1) - c1 * P^n - c3 * E^n) / c2
+            # P^(n+1) = c1 * P^n + c2 * P^(n-1) + c3 * E^n + c4 * E^(n+1)
+            # =>  P^(n-1) = (P^(n+1) - c1 * P^n - c3 * E^n - c4 * E^(n+1)) / c2
             # Using precomputed inv_c2 (with non-dispersive cells zeroed) replaces
             # a per-step jnp.where + division with a single multiply. Non-dispersive
             # cells have inv_c2 = 0 and P_curr = P_prev = 0, so the product is zero.
-            P_prev_new = (P_curr_r - disp_c1_r * P_prev_r - disp_c3_r * E) * disp_inv_c2_r
-            arrays = arrays.aset("dispersive_P_curr", P_prev_r)
-            arrays = arrays.aset("dispersive_P_prev", P_prev_new)
+            # E is now the recovered E^n; the c4 term (CCPR only) uses E^(n+1).
+            P_prev_new = P_curr_r - disp_c1_r * P_prev_r - disp_c3_r * E
+            if disp_c4_r is not None:
+                P_prev_new = P_prev_new - disp_c4_r * E_np1
+            P_prev_new = P_prev_new * disp_inv_c2_r
+            arrays = arrays.aset("fields->dispersive_P_curr", P_prev_r)
+            arrays = arrays.aset("fields->dispersive_P_prev", P_prev_new)
         else:
             E = (E - c * curl * inv_eps) / factor
 
@@ -372,19 +452,45 @@ def update_E_reverse(
         E_pad = pad_fields_for_boundaries(E, objects, config)
         curl_pad = pad_fields_for_boundaries(curl, objects, config)
 
+        # Spacing weights for the off-diagonal average (None on a uniform grid).
+        aniso_widths = get_anisotropic_averaging_widths(config)
         # Compute the averages of the fields and curl
-        Ex_y_avg = avg_anisotropic_E_component(E_pad, component=0, location=1)  # calc Ex at location of Ey
-        Ex_z_avg = avg_anisotropic_E_component(E_pad, component=0, location=2)  # calc Ex at location of Ez
-        Ey_x_avg = avg_anisotropic_E_component(E_pad, component=1, location=0)  # calc Ey at location of Ex
-        Ey_z_avg = avg_anisotropic_E_component(E_pad, component=1, location=2)  # calc Ey at location of Ez
-        Ez_x_avg = avg_anisotropic_E_component(E_pad, component=2, location=0)  # calc Ez at location of Ex
-        Ez_y_avg = avg_anisotropic_E_component(E_pad, component=2, location=1)  # calc Ez at location of Ey
-        curlHx_y_avg = avg_anisotropic_E_component(curl_pad, component=0, location=1)  # calc curl(H)x at location of Ey
-        curlHx_z_avg = avg_anisotropic_E_component(curl_pad, component=0, location=2)  # calc curl(H)x at location of Ez
-        curlHy_x_avg = avg_anisotropic_E_component(curl_pad, component=1, location=0)  # calc curl(H)y at location of Ex
-        curlHy_z_avg = avg_anisotropic_E_component(curl_pad, component=1, location=2)  # calc curl(H)y at location of Ez
-        curlHz_x_avg = avg_anisotropic_E_component(curl_pad, component=2, location=0)  # calc curl(H)z at location of Ex
-        curlHz_y_avg = avg_anisotropic_E_component(curl_pad, component=2, location=1)  # calc curl(H)z at location of Ey
+        Ex_y_avg = avg_anisotropic_E_component(
+            E_pad, component=0, location=1, aniso_widths=aniso_widths
+        )  # calc Ex at location of Ey
+        Ex_z_avg = avg_anisotropic_E_component(
+            E_pad, component=0, location=2, aniso_widths=aniso_widths
+        )  # calc Ex at location of Ez
+        Ey_x_avg = avg_anisotropic_E_component(
+            E_pad, component=1, location=0, aniso_widths=aniso_widths
+        )  # calc Ey at location of Ex
+        Ey_z_avg = avg_anisotropic_E_component(
+            E_pad, component=1, location=2, aniso_widths=aniso_widths
+        )  # calc Ey at location of Ez
+        Ez_x_avg = avg_anisotropic_E_component(
+            E_pad, component=2, location=0, aniso_widths=aniso_widths
+        )  # calc Ez at location of Ex
+        Ez_y_avg = avg_anisotropic_E_component(
+            E_pad, component=2, location=1, aniso_widths=aniso_widths
+        )  # calc Ez at location of Ey
+        curlHx_y_avg = avg_anisotropic_E_component(
+            curl_pad, component=0, location=1, aniso_widths=aniso_widths
+        )  # calc curl(H)x at location of Ey
+        curlHx_z_avg = avg_anisotropic_E_component(
+            curl_pad, component=0, location=2, aniso_widths=aniso_widths
+        )  # calc curl(H)x at location of Ez
+        curlHy_x_avg = avg_anisotropic_E_component(
+            curl_pad, component=1, location=0, aniso_widths=aniso_widths
+        )  # calc curl(H)y at location of Ex
+        curlHy_z_avg = avg_anisotropic_E_component(
+            curl_pad, component=1, location=2, aniso_widths=aniso_widths
+        )  # calc curl(H)y at location of Ez
+        curlHz_x_avg = avg_anisotropic_E_component(
+            curl_pad, component=2, location=0, aniso_widths=aniso_widths
+        )  # calc curl(H)z at location of Ex
+        curlHz_y_avg = avg_anisotropic_E_component(
+            curl_pad, component=2, location=1, aniso_widths=aniso_widths
+        )  # calc curl(H)z at location of Ey
 
         # K = curl(H)
         # Ex <= (Axx * Ex + Axy * x_avg(Ey) + Axz * x_avg(Ez)) -
@@ -447,9 +553,7 @@ def update_H(
         config,
         E_pad,
         arrays.fields.psi_H,
-        arrays.alpha,
-        arrays.kappa,
-        arrays.sigma,
+        objects,
         simulate_boundaries,
     )
     arrays = arrays.aset("fields->psi_H", psi_H)
@@ -489,19 +593,45 @@ def update_H(
         H_pad = pad_fields_for_boundaries(arrays.fields.H, objects, config)
         curl_pad = pad_fields_for_boundaries(curl, objects, config)
 
+        # Spacing weights for the off-diagonal average (None on a uniform grid).
+        aniso_widths = get_anisotropic_averaging_widths(config)
         # Compute the averages of the fields and curl
-        Hx_y_avg = avg_anisotropic_H_component(H_pad, component=0, location=1)  # calc Hx at location of Hy
-        Hx_z_avg = avg_anisotropic_H_component(H_pad, component=0, location=2)  # calc Hx at location of Hz
-        Hy_x_avg = avg_anisotropic_H_component(H_pad, component=1, location=0)  # calc Hy at location of Hx
-        Hy_z_avg = avg_anisotropic_H_component(H_pad, component=1, location=2)  # calc Hy at location of Hz
-        Hz_x_avg = avg_anisotropic_H_component(H_pad, component=2, location=0)  # calc Hz at location of Hx
-        Hz_y_avg = avg_anisotropic_H_component(H_pad, component=2, location=1)  # calc Hz at location of Hy
-        curlEx_y_avg = avg_anisotropic_H_component(curl_pad, component=0, location=1)  # calc curl(E)x at location of Hy
-        curlEx_z_avg = avg_anisotropic_H_component(curl_pad, component=0, location=2)  # calc curl(E)x at location of Hz
-        curlEy_x_avg = avg_anisotropic_H_component(curl_pad, component=1, location=0)  # calc curl(E)y at location of Hx
-        curlEy_z_avg = avg_anisotropic_H_component(curl_pad, component=1, location=2)  # calc curl(E)y at location of Hz
-        curlEz_x_avg = avg_anisotropic_H_component(curl_pad, component=2, location=0)  # calc curl(E)z at location of Hx
-        curlEz_y_avg = avg_anisotropic_H_component(curl_pad, component=2, location=1)  # calc curl(E)z at location of Hy
+        Hx_y_avg = avg_anisotropic_H_component(
+            H_pad, component=0, location=1, aniso_widths=aniso_widths
+        )  # calc Hx at location of Hy
+        Hx_z_avg = avg_anisotropic_H_component(
+            H_pad, component=0, location=2, aniso_widths=aniso_widths
+        )  # calc Hx at location of Hz
+        Hy_x_avg = avg_anisotropic_H_component(
+            H_pad, component=1, location=0, aniso_widths=aniso_widths
+        )  # calc Hy at location of Hx
+        Hy_z_avg = avg_anisotropic_H_component(
+            H_pad, component=1, location=2, aniso_widths=aniso_widths
+        )  # calc Hy at location of Hz
+        Hz_x_avg = avg_anisotropic_H_component(
+            H_pad, component=2, location=0, aniso_widths=aniso_widths
+        )  # calc Hz at location of Hx
+        Hz_y_avg = avg_anisotropic_H_component(
+            H_pad, component=2, location=1, aniso_widths=aniso_widths
+        )  # calc Hz at location of Hy
+        curlEx_y_avg = avg_anisotropic_H_component(
+            curl_pad, component=0, location=1, aniso_widths=aniso_widths
+        )  # calc curl(E)x at location of Hy
+        curlEx_z_avg = avg_anisotropic_H_component(
+            curl_pad, component=0, location=2, aniso_widths=aniso_widths
+        )  # calc curl(E)x at location of Hz
+        curlEy_x_avg = avg_anisotropic_H_component(
+            curl_pad, component=1, location=0, aniso_widths=aniso_widths
+        )  # calc curl(E)y at location of Hx
+        curlEy_z_avg = avg_anisotropic_H_component(
+            curl_pad, component=1, location=2, aniso_widths=aniso_widths
+        )  # calc curl(E)y at location of Hz
+        curlEz_x_avg = avg_anisotropic_H_component(
+            curl_pad, component=2, location=0, aniso_widths=aniso_widths
+        )  # calc curl(E)z at location of Hx
+        curlEz_y_avg = avg_anisotropic_H_component(
+            curl_pad, component=2, location=1, aniso_widths=aniso_widths
+        )  # calc curl(E)z at location of Hy
 
         # K = curl(E)
         # Hx <= (Axx * Hx + Axy * x_avg(Hy) + Axz * x_avg(Hz)) -
@@ -593,9 +723,7 @@ def update_H_reverse(
         config,
         E_pad,
         arrays.fields.psi_H,
-        arrays.alpha,
-        arrays.kappa,
-        arrays.sigma,
+        objects,
         False,
     )
 
@@ -627,19 +755,45 @@ def update_H_reverse(
         H_pad = pad_fields_for_boundaries(H, objects, config)
         curl_pad = pad_fields_for_boundaries(curl, objects, config)
 
+        # Spacing weights for the off-diagonal average (None on a uniform grid).
+        aniso_widths = get_anisotropic_averaging_widths(config)
         # Compute the averages of the fields and curl
-        Hx_y_avg = avg_anisotropic_H_component(H_pad, component=0, location=1)  # calc Hx at location of Hy
-        Hx_z_avg = avg_anisotropic_H_component(H_pad, component=0, location=2)  # calc Hx at location of Hz
-        Hy_x_avg = avg_anisotropic_H_component(H_pad, component=1, location=0)  # calc Hy at location of Hx
-        Hy_z_avg = avg_anisotropic_H_component(H_pad, component=1, location=2)  # calc Hy at location of Hz
-        Hz_x_avg = avg_anisotropic_H_component(H_pad, component=2, location=0)  # calc Hz at location of Hx
-        Hz_y_avg = avg_anisotropic_H_component(H_pad, component=2, location=1)  # calc Hz at location of Hy
-        curlEx_y_avg = avg_anisotropic_H_component(curl_pad, component=0, location=1)  # calc curl(E)x at location of Hy
-        curlEx_z_avg = avg_anisotropic_H_component(curl_pad, component=0, location=2)  # calc curl(E)x at location of Hz
-        curlEy_x_avg = avg_anisotropic_H_component(curl_pad, component=1, location=0)  # calc curl(E)y at location of Hx
-        curlEy_z_avg = avg_anisotropic_H_component(curl_pad, component=1, location=2)  # calc curl(E)y at location of Hz
-        curlEz_x_avg = avg_anisotropic_H_component(curl_pad, component=2, location=0)  # calc curl(E)z at location of Hx
-        curlEz_y_avg = avg_anisotropic_H_component(curl_pad, component=2, location=1)  # calc curl(E)z at location of Hy
+        Hx_y_avg = avg_anisotropic_H_component(
+            H_pad, component=0, location=1, aniso_widths=aniso_widths
+        )  # calc Hx at location of Hy
+        Hx_z_avg = avg_anisotropic_H_component(
+            H_pad, component=0, location=2, aniso_widths=aniso_widths
+        )  # calc Hx at location of Hz
+        Hy_x_avg = avg_anisotropic_H_component(
+            H_pad, component=1, location=0, aniso_widths=aniso_widths
+        )  # calc Hy at location of Hx
+        Hy_z_avg = avg_anisotropic_H_component(
+            H_pad, component=1, location=2, aniso_widths=aniso_widths
+        )  # calc Hy at location of Hz
+        Hz_x_avg = avg_anisotropic_H_component(
+            H_pad, component=2, location=0, aniso_widths=aniso_widths
+        )  # calc Hz at location of Hx
+        Hz_y_avg = avg_anisotropic_H_component(
+            H_pad, component=2, location=1, aniso_widths=aniso_widths
+        )  # calc Hz at location of Hy
+        curlEx_y_avg = avg_anisotropic_H_component(
+            curl_pad, component=0, location=1, aniso_widths=aniso_widths
+        )  # calc curl(E)x at location of Hy
+        curlEx_z_avg = avg_anisotropic_H_component(
+            curl_pad, component=0, location=2, aniso_widths=aniso_widths
+        )  # calc curl(E)x at location of Hz
+        curlEy_x_avg = avg_anisotropic_H_component(
+            curl_pad, component=1, location=0, aniso_widths=aniso_widths
+        )  # calc curl(E)y at location of Hx
+        curlEy_z_avg = avg_anisotropic_H_component(
+            curl_pad, component=1, location=2, aniso_widths=aniso_widths
+        )  # calc curl(E)y at location of Hz
+        curlEz_x_avg = avg_anisotropic_H_component(
+            curl_pad, component=2, location=0, aniso_widths=aniso_widths
+        )  # calc curl(E)z at location of Hx
+        curlEz_y_avg = avg_anisotropic_H_component(
+            curl_pad, component=2, location=1, aniso_widths=aniso_widths
+        )  # calc curl(E)z at location of Hy
 
         # K = curl(E)
         # Hx <= (Axx * Hx + Axy * x_avg(Hy) + Axz * x_avg(Hz)) +

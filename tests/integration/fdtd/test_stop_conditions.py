@@ -22,11 +22,9 @@ class TestCondition:
         # Create dummy arrays with appropriate shapes
         E = jnp.ones((3, 10, 10, 10))  # 3D electric field
         H = jnp.ones((3, 10, 10, 10))  # 3D magnetic field
-        psi_E = jnp.zeros((6, 10, 10, 10))  # 3D auxiliary electric field
-        psi_H = jnp.zeros((6, 10, 10, 10))  # 3D auxiliary magnetic field
-        alpha = jnp.zeros((3, 10, 10, 10))  # 3D alpha array
-        kappa = jnp.ones((3, 10, 10, 10))  # 3D kappa array
-        sigma = jnp.zeros((3, 10, 10, 10))  # 3D sigma array
+        # Sparse PML state: no PML boundaries here
+        psi_E = {}
+        psi_H = {}
         inv_permittivities = jnp.ones((10, 10, 10))
         inv_permeabilities = jnp.ones((10, 10, 10))
 
@@ -36,9 +34,6 @@ class TestCondition:
         # Create array container
         arrays = ArrayContainer(
             fields=FieldState(E=E, H=H, psi_E=psi_E, psi_H=psi_H),
-            alpha=alpha,
-            kappa=kappa,
-            sigma=sigma,
             inv_permittivities=inv_permittivities,
             inv_permeabilities=inv_permeabilities,
             detector_states=detector_states,

@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock
+
 import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
@@ -27,6 +29,13 @@ def _make_nonuniform_config():
     )
 
 
+def _mock_objects(pml_objects=None):
+    """Create a mock ObjectContainer with an optional list of PML objects."""
+    objects = MagicMock()
+    objects.pml_objects = pml_objects or []
+    return objects
+
+
 # ──────────────────────────────────────────────────────────────
 # interpolate_fields
 # ──────────────────────────────────────────────────────────────
@@ -36,14 +45,12 @@ def test_interpolate_fields_basic():
     """Test basic interpolation with uniform fields (PEC boundaries)."""
     E_field = jnp.ones((3, 5, 5, 5))
     H_field = jnp.ones((3, 5, 5, 5)) * 0.5
-
     E_pad = pad_fields(E_field, (False, False, False))
     H_pad = pad_fields(H_field, (False, False, False))
     E_interp, H_interp = interpolate_fields(E_pad, H_pad)
 
     assert E_interp.shape == (3, 5, 5, 5)
     assert H_interp.shape == (3, 5, 5, 5)
-    # E_z should remain unchanged (interpolation projects onto E_z)
     assert jnp.all(E_interp[2] == 1.0)
     assert jnp.all(jnp.isfinite(E_interp))
     assert jnp.all(jnp.isfinite(H_interp))
@@ -58,7 +65,6 @@ def test_interpolate_fields_periodic_boundaries():
 
     E_field = jnp.stack([jnp.sin(X), jnp.cos(Y), jnp.sin(Z)], axis=0)
     H_field = jnp.stack([jnp.cos(X), jnp.sin(Y), jnp.cos(Z)], axis=0)
-
     E_pad = pad_fields(E_field, (True, True, True))
     H_pad = pad_fields(H_field, (True, True, True))
     E_interp, H_interp = interpolate_fields(E_pad, H_pad)
@@ -73,7 +79,6 @@ def test_interpolate_fields_mixed_boundaries():
     """Test interpolation with mixed periodic/PEC boundary conditions."""
     E_field = jnp.ones((3, 6, 6, 6))
     H_field = jnp.ones((3, 6, 6, 6)) * 2.0
-
     E_pad = pad_fields(E_field, (True, False, False))
     H_pad = pad_fields(H_field, (True, False, False))
     E_interp, H_interp = interpolate_fields(E_pad, H_pad)
@@ -88,7 +93,6 @@ def test_interpolate_fields_zero_fields():
     """Test interpolation with zero input fields."""
     E_field = jnp.zeros((3, 4, 4, 4))
     H_field = jnp.zeros((3, 4, 4, 4))
-
     E_pad = pad_fields(E_field, (False, False, False))
     H_pad = pad_fields(H_field, (False, False, False))
     E_interp, H_interp = interpolate_fields(E_pad, H_pad)
@@ -110,11 +114,10 @@ def test_interpolate_fields_nonuniform_center_to_edge_weights():
     E = jnp.zeros((3, nx, ny, nz), dtype=jnp.float32)
     E = E.at[0].set(Xc + Ze)
     H = jnp.zeros((3, nx, ny, nz), dtype=jnp.float32)
-
     E_pad = pad_fields(E, (False, False, False))
     H_pad = pad_fields(H, (False, False, False))
-    E_interp, _ = interpolate_fields(E_pad, H_pad, config=config)
 
+    E_interp, _ = interpolate_fields(E_pad, H_pad, config=config)
     target_x_edges = config.grid.x_edges[:-1]
     target_z_centers = config.grid.centers(2)
     X_edge, _Y_edge, Z_center = jnp.meshgrid(target_x_edges, config.grid.y_edges[:-1], target_z_centers, indexing="ij")
@@ -139,97 +142,90 @@ def test_curl_E_linear_field():
 
     E = jnp.stack([Y.astype(float), -X.astype(float), jnp.zeros_like(X, dtype=float)], axis=0)
     E_pad = pad_fields(E, (True, True, True))
-    psi_H = jnp.zeros((6, 6, 6, 6))
 
-    curl_result, _ = curl_E(
-        _make_config(),
-        E_pad,
-        psi_H,
-        alpha=jnp.zeros((6, 6, 6, 6)),
-        kappa=jnp.ones((6, 6, 6, 6)),
-        sigma=jnp.zeros((6, 6, 6, 6)),
+    curl_result, psi_updated = curl_E(
+        config=_make_config(),
+        E_pad=E_pad,
+        psi_H={},
+        objects=_mock_objects(),
         simulate_boundaries=True,
     )
 
     assert curl_result.shape == (3, 6, 6, 6)
     assert jnp.allclose(curl_result[2][:-1, :-1], -2.0, atol=0.1)
+    assert not psi_updated  # Dictionary should remain empty
 
 
 def test_curl_E_zero_field():
     """Test curl_E with zero field and non-periodic boundaries."""
     E = jnp.zeros((3, 4, 4, 4))
     E_pad = pad_fields(E, (False, False, False))
-    psi_H = jnp.zeros((6, 4, 4, 4))
 
-    curl_result, _ = curl_E(
-        _make_config(),
-        E_pad,
-        psi_H,
-        alpha=jnp.zeros((6, 4, 4, 4)),
-        kappa=jnp.ones((6, 4, 4, 4)),
-        sigma=jnp.zeros((6, 4, 4, 4)),
+    curl_result, psi_updated = curl_E(
+        config=_make_config(),
+        E_pad=E_pad,
+        psi_H={},
+        objects=_mock_objects(),
         simulate_boundaries=True,
     )
 
     assert curl_result.shape == (3, 4, 4, 4)
     assert jnp.allclose(curl_result, 0.0)
+    assert not psi_updated
 
 
-def test_curl_E_no_boundaries():
-    """Test curl_E with simulate_boundaries=False preserves psi unchanged."""
+def test_curl_E_pml_integration():
+    """Verify curl_E calls PML objects correctly and scatters corrections."""
     n = 5
-    E = jnp.ones((3, n, n, n)) * 0.5
-    E_pad = pad_fields(E, (True, True, True))
-    psi_H_init = jnp.ones((6, n, n, n)) * 0.3
-    kappa = jnp.ones((6, n, n, n))
-    sigma = jnp.ones((6, n, n, n)) * 0.1
+    config = _make_config()
+    E = jnp.zeros((3, n, n, n))
+    E_pad = pad_fields(E, (False, False, False))
+
+    slice_obj = (slice(None), slice(None), slice(1, 4))
+
+    # Mock a PML object positioned on the x-axis (a=0)
+    pml = MagicMock()
+    pml.name = "pml_x"
+    pml.axis = 0
+    pml.grid_slice = slice_obj
+
+    # Fake values returned by `step_cpml`
+    corr_1 = jnp.ones((n, n, 3)) * 0.1
+    corr_2 = jnp.ones((n, n, 3)) * 0.2
+    psi_1_new = jnp.ones((n, n, 3)) * 0.3
+    psi_2_new = jnp.ones((n, n, 3)) * 0.4
+    pml.step_cpml.return_value = (corr_1, corr_2, psi_1_new, psi_2_new)
+
+    psi_1_init = jnp.zeros((n, n, 3))
+    psi_2_init = jnp.zeros((n, n, 3))
+    psi_H = {"pml_x": (psi_1_init, psi_2_init)}
+
+    objects = _mock_objects(pml_objects=[pml])
 
     curl_result, psi_updated = curl_E(
-        _make_config(),
-        E_pad,
-        psi_H_init,
-        alpha=jnp.ones((6, n, n, n)) * 0.05,
-        kappa=kappa,
-        sigma=sigma,
+        config=config,
+        E_pad=E_pad,
+        psi_H=psi_H,
+        objects=objects,
         simulate_boundaries=False,
     )
 
-    assert curl_result.shape == (3, n, n, n)
-    assert jnp.all(jnp.isfinite(curl_result))
-    # psi should remain unchanged when boundaries are not simulated
-    assert jnp.allclose(psi_updated, psi_H_init)
+    # Verify dictionary updates
+    assert "pml_x" in psi_updated
+    assert jnp.allclose(psi_updated["pml_x"][0], psi_1_new)
+    assert jnp.allclose(psi_updated["pml_x"][1], psi_2_new)
 
+    # Verify `step_cpml` inputs via args AND kwargs
+    pml.step_cpml.assert_called_once()
+    args, kwargs = pml.step_cpml.call_args
+    assert jnp.array_equal(args[2], psi_1_init)  # psi_1
+    assert jnp.array_equal(args[3], psi_2_init)  # psi_2
+    assert kwargs.get("is_curl_E") is True  # Checked via kwargs
+    assert kwargs.get("simulate_boundaries") is False
 
-def test_curl_E_pml_updates():
-    """Test curl_E PML updates psi with non-trivial sigma/alpha."""
-    n = 5
-    # E_z with gradient in y → non-zero dyEz → psi_Hxy gets updated
-    # E_x with gradient in y → non-zero dyEx → psi_Hzy gets updated
-    ramp = jnp.linspace(0, 1, n)
-    E = jnp.zeros((3, n, n, n))
-    E = E.at[0].set(ramp.reshape(1, -1, 1))  # E_x varies in y
-    E = E.at[2].set(ramp.reshape(1, -1, 1))  # E_z varies in y
-    E_pad = pad_fields(E, (True, True, True))
-    psi_H_init = jnp.zeros((6, n, n, n))
-    sigma = jnp.ones((6, n, n, n)) * 0.5
-    alpha = jnp.ones((6, n, n, n)) * 0.1
-
-    curl_result, psi_updated = curl_E(
-        _make_config(),
-        E_pad,
-        psi_H_init,
-        alpha=alpha,
-        kappa=jnp.ones((6, n, n, n)),
-        sigma=sigma,
-        simulate_boundaries=True,
-    )
-
-    assert curl_result.shape == (3, n, n, n)
-    assert psi_updated.shape == (6, n, n, n)
-    assert jnp.all(jnp.isfinite(curl_result))
-    assert jnp.all(jnp.isfinite(psi_updated))
-    # With non-zero sigma and gradient field, psi must change from zero
-    assert not jnp.allclose(psi_updated, 0.0)
+    # Verify scatter update: a=0 -> i=1 (y), j=2 (z)
+    assert jnp.allclose(curl_result[1][slice_obj], -0.1)
+    assert jnp.allclose(curl_result[2][slice_obj], 0.2)
 
 
 def test_curl_E_mixed_periodic():
@@ -239,21 +235,17 @@ def test_curl_E_mixed_periodic():
     X, Y, _Z = jnp.meshgrid(x, x, x, indexing="ij")
     E = jnp.stack([Y, -X, jnp.zeros_like(X)], axis=0)
     E_pad = pad_fields(E, (True, False, True))
-    psi_H = jnp.zeros((6, n, n, n))
 
     curl_result, _ = curl_E(
-        _make_config(),
-        E_pad,
-        psi_H,
-        alpha=jnp.zeros((6, n, n, n)),
-        kappa=jnp.ones((6, n, n, n)),
-        sigma=jnp.zeros((6, n, n, n)),
+        config=_make_config(),
+        E_pad=E_pad,
+        psi_H={},
+        objects=_mock_objects(),
         simulate_boundaries=True,
     )
 
     assert curl_result.shape == (3, n, n, n)
     assert jnp.all(jnp.isfinite(curl_result))
-    # Interior z-component should still approximate -2
     assert jnp.allclose(curl_result[2][:-1, 1:-1, :-1], -2.0, atol=0.1)
 
 
@@ -267,15 +259,12 @@ def test_curl_E_nonuniform_metric_no_boundaries():
 
     E = jnp.stack([Y, -X, jnp.zeros((nx, ny, nz), dtype=jnp.float32)], axis=0)
     E_pad = pad_fields(E, (False, False, False))
-    psi_H = jnp.zeros((6, nx, ny, nz))
 
     curl_result, _ = curl_E(
-        config,
-        E_pad,
-        psi_H,
-        alpha=jnp.zeros((6, nx, ny, nz)),
-        kappa=jnp.ones((6, nx, ny, nz)),
-        sigma=jnp.zeros((6, nx, ny, nz)),
+        config=config,
+        E_pad=E_pad,
+        psi_H={},
+        objects=_mock_objects(),
         simulate_boundaries=False,
     )
 
@@ -300,15 +289,12 @@ def test_curl_E_nonuniform_quadratic_field_matches_local_physical_derivative():
         axis=0,
     )
     E_pad = pad_fields(E, (False, False, False))
-    psi_H = jnp.zeros((6, nx, ny, nz))
 
     curl_result, _ = curl_E(
-        config,
-        E_pad,
-        psi_H,
-        alpha=jnp.zeros((6, nx, ny, nz)),
-        kappa=jnp.ones((6, nx, ny, nz)),
-        sigma=jnp.zeros((6, nx, ny, nz)),
+        config=config,
+        E_pad=E_pad,
+        psi_H={},
+        objects=_mock_objects(),
         simulate_boundaries=False,
     )
 
@@ -316,29 +302,6 @@ def test_curl_E_nonuniform_quadratic_field_matches_local_physical_derivative():
     expected_z = z[:-1] + z[1:]
     expected = expected_y[None, :, None] - expected_z[None, None, :]
     assert jnp.allclose(curl_result[0][:, :-1, :-1], expected, atol=1e-6)
-
-
-def test_curl_E_nonuniform_pml_coefficients_use_time_step():
-    """PML auxiliary coefficients do not require a uniform grid spacing."""
-    config = _make_nonuniform_config()
-    nx, ny, nz = config.grid.shape
-    E = jnp.ones((3, nx, ny, nz), dtype=jnp.float32)
-    E = E.at[2].set(jnp.arange(ny, dtype=jnp.float32).reshape(1, ny, 1))
-    E_pad = pad_fields(E, (False, False, False))
-    psi_H = jnp.zeros((6, nx, ny, nz))
-
-    curl_result, psi_updated = curl_E(
-        config,
-        E_pad,
-        psi_H,
-        alpha=jnp.ones((6, nx, ny, nz)) * 0.05,
-        kappa=jnp.ones((6, nx, ny, nz)),
-        sigma=jnp.ones((6, nx, ny, nz)) * 0.1,
-        simulate_boundaries=True,
-    )
-
-    assert jnp.all(jnp.isfinite(curl_result))
-    assert jnp.all(jnp.isfinite(psi_updated))
 
 
 # ──────────────────────────────────────────────────────────────
@@ -356,92 +319,89 @@ def test_curl_H_linear_field():
 
     H = jnp.stack([Z.astype(float), jnp.zeros_like(Y, dtype=float), -X.astype(float)], axis=0)
     H_pad = pad_fields(H, (True, True, True))
-    psi_E = jnp.zeros((6, 6, 6, 6))
 
-    curl_result, _ = curl_H(
-        _make_config(),
-        H_pad,
-        psi_E,
-        alpha=jnp.zeros((6, 6, 6, 6)),
-        kappa=jnp.ones((6, 6, 6, 6)),
-        sigma=jnp.zeros((6, 6, 6, 6)),
+    curl_result, psi_updated = curl_H(
+        config=_make_config(),
+        H_pad=H_pad,
+        psi_E={},
+        objects=_mock_objects(),
         simulate_boundaries=True,
     )
 
     assert curl_result.shape == (3, 6, 6, 6)
     assert jnp.allclose(curl_result[1][1:-1, 1:-1, 1:-1], 2.0, atol=0.1)
+    assert not psi_updated
 
 
 def test_curl_H_zero_field():
     """Test curl_H with zero field and non-periodic boundaries."""
     H = jnp.zeros((3, 4, 4, 4))
     H_pad = pad_fields(H, (False, False, False))
-    psi_E = jnp.zeros((6, 4, 4, 4))
 
-    curl_result, _ = curl_H(
-        _make_config(),
-        H_pad,
-        psi_E,
-        alpha=jnp.zeros((6, 4, 4, 4)),
-        kappa=jnp.ones((6, 4, 4, 4)),
-        sigma=jnp.zeros((6, 4, 4, 4)),
+    curl_result, psi_updated = curl_H(
+        config=_make_config(),
+        H_pad=H_pad,
+        psi_E={},
+        objects=_mock_objects(),
         simulate_boundaries=True,
     )
 
     assert curl_result.shape == (3, 4, 4, 4)
     assert jnp.allclose(curl_result, 0.0)
+    assert not psi_updated
 
 
-def test_curl_H_no_boundaries():
-    """Test curl_H with simulate_boundaries=False preserves psi unchanged."""
+def test_curl_H_pml_integration():
+    """Verify curl_H calls PML objects correctly and scatters corrections."""
     n = 5
-    H = jnp.ones((3, n, n, n)) * 0.5
-    H_pad = pad_fields(H, (True, True, True))
-    psi_E_init = jnp.ones((6, n, n, n)) * 0.3
-    sigma = jnp.ones((6, n, n, n)) * 0.1
+    config = _make_config()
+    H = jnp.zeros((3, n, n, n))
+    H_pad = pad_fields(H, (False, False, False))
+
+    slice_obj = (slice(None), slice(None), slice(1, 4))
+
+    # Mock a PML object positioned on the y-axis (a=1)
+    pml = MagicMock()
+    pml.name = "pml_y"
+    pml.axis = 1
+    pml.grid_slice = slice_obj
+
+    corr_1 = jnp.ones((n, n, 3)) * 0.5
+    corr_2 = jnp.ones((n, n, 3)) * 0.6
+    psi_1_new = jnp.ones((n, n, 3)) * 0.7
+    psi_2_new = jnp.ones((n, n, 3)) * 0.8
+    pml.step_cpml.return_value = (corr_1, corr_2, psi_1_new, psi_2_new)
+
+    psi_1_init = jnp.zeros((n, n, 3))
+    psi_2_init = jnp.zeros((n, n, 3))
+    psi_E = {"pml_y": (psi_1_init, psi_2_init)}
+
+    objects = _mock_objects(pml_objects=[pml])
 
     curl_result, psi_updated = curl_H(
-        _make_config(),
-        H_pad,
-        psi_E_init,
-        alpha=jnp.ones((6, n, n, n)) * 0.05,
-        kappa=jnp.ones((6, n, n, n)),
-        sigma=sigma,
-        simulate_boundaries=False,
-    )
-
-    assert curl_result.shape == (3, n, n, n)
-    assert jnp.all(jnp.isfinite(curl_result))
-    # psi should remain unchanged when boundaries are not simulated
-    assert jnp.allclose(psi_updated, psi_E_init)
-
-
-def test_curl_H_pml_updates():
-    """Test curl_H PML updates psi with non-trivial sigma/alpha."""
-    n = 5
-    H = jnp.ones((3, n, n, n))
-    H = H.at[2].set(jnp.linspace(0, 1, n).reshape(1, -1, 1))  # gradient in y
-    H_pad = pad_fields(H, (True, True, True))
-    psi_E_init = jnp.zeros((6, n, n, n))
-    sigma = jnp.ones((6, n, n, n)) * 0.5
-    alpha = jnp.ones((6, n, n, n)) * 0.1
-
-    curl_result, psi_updated = curl_H(
-        _make_config(),
-        H_pad,
-        psi_E_init,
-        alpha=alpha,
-        kappa=jnp.ones((6, n, n, n)),
-        sigma=sigma,
+        config=config,
+        H_pad=H_pad,
+        psi_E=psi_E,
+        objects=objects,
         simulate_boundaries=True,
     )
 
-    assert curl_result.shape == (3, n, n, n)
-    assert psi_updated.shape == (6, n, n, n)
-    assert jnp.all(jnp.isfinite(curl_result))
-    assert jnp.all(jnp.isfinite(psi_updated))
-    # With non-zero sigma and a gradient field, psi must change from zero
-    assert not jnp.allclose(psi_updated, 0.0)
+    # Verify dictionary updates
+    assert "pml_y" in psi_updated
+    assert jnp.allclose(psi_updated["pml_y"][0], psi_1_new)
+    assert jnp.allclose(psi_updated["pml_y"][1], psi_2_new)
+
+    # Verify `step_cpml` inputs via args AND kwargs
+    pml.step_cpml.assert_called_once()
+    args, kwargs = pml.step_cpml.call_args
+    assert jnp.array_equal(args[2], psi_1_init)
+    assert jnp.array_equal(args[3], psi_2_init)
+    assert kwargs.get("is_curl_E") is False  # Checked via kwargs
+    assert kwargs.get("simulate_boundaries") is True
+
+    # Verify scatter update: a=1 -> i=2 (z), j=0 (x)
+    assert jnp.allclose(curl_result[2][slice_obj], -0.5)
+    assert jnp.allclose(curl_result[0][slice_obj], 0.6)
 
 
 def test_curl_H_mixed_periodic():
@@ -451,15 +411,12 @@ def test_curl_H_mixed_periodic():
     X, Y, Z = jnp.meshgrid(x, x, x, indexing="ij")
     H = jnp.stack([Z, jnp.zeros_like(Y), -X], axis=0)
     H_pad = pad_fields(H, (False, True, False))
-    psi_E = jnp.zeros((6, n, n, n))
 
     curl_result, _ = curl_H(
-        _make_config(),
-        H_pad,
-        psi_E,
-        alpha=jnp.zeros((6, n, n, n)),
-        kappa=jnp.ones((6, n, n, n)),
-        sigma=jnp.zeros((6, n, n, n)),
+        config=_make_config(),
+        H_pad=H_pad,
+        psi_E={},
+        objects=_mock_objects(),
         simulate_boundaries=True,
     )
 
@@ -477,15 +434,12 @@ def test_curl_H_nonuniform_metric_no_boundaries():
 
     H = jnp.stack([Z, jnp.zeros((nx, ny, nz), dtype=jnp.float32), -X], axis=0)
     H_pad = pad_fields(H, (False, False, False))
-    psi_E = jnp.zeros((6, nx, ny, nz))
 
     curl_result, _ = curl_H(
-        config,
-        H_pad,
-        psi_E,
-        alpha=jnp.zeros((6, nx, ny, nz)),
-        kappa=jnp.ones((6, nx, ny, nz)),
-        sigma=jnp.zeros((6, nx, ny, nz)),
+        config=config,
+        H_pad=H_pad,
+        psi_E={},
+        objects=_mock_objects(),
         simulate_boundaries=False,
     )
 
@@ -510,15 +464,12 @@ def test_curl_H_nonuniform_quadratic_field_matches_local_physical_derivative():
         axis=0,
     )
     H_pad = pad_fields(H, (False, False, False))
-    psi_E = jnp.zeros((6, nx, ny, nz))
 
     curl_result, _ = curl_H(
-        config,
-        H_pad,
-        psi_E,
-        alpha=jnp.zeros((6, nx, ny, nz)),
-        kappa=jnp.ones((6, nx, ny, nz)),
-        sigma=jnp.zeros((6, nx, ny, nz)),
+        config=config,
+        H_pad=H_pad,
+        psi_E={},
+        objects=_mock_objects(),
         simulate_boundaries=False,
     )
 
@@ -526,26 +477,3 @@ def test_curl_H_nonuniform_quadratic_field_matches_local_physical_derivative():
     expected_z = z_centers[1:] + z_centers[:-1]
     expected = expected_y[None, :, None] - expected_z[None, None, :]
     assert jnp.allclose(curl_result[0][:, 1:, 1:], expected, atol=1e-6)
-
-
-def test_curl_H_nonuniform_pml_coefficients_use_time_step():
-    """H-to-E PML auxiliary coefficients share the nonuniform-safe dt path."""
-    config = _make_nonuniform_config()
-    nx, ny, nz = config.grid.shape
-    H = jnp.ones((3, nx, ny, nz), dtype=jnp.float32)
-    H = H.at[2].set(jnp.arange(ny, dtype=jnp.float32).reshape(1, ny, 1))
-    H_pad = pad_fields(H, (False, False, False))
-    psi_E = jnp.zeros((6, nx, ny, nz))
-
-    curl_result, psi_updated = curl_H(
-        config,
-        H_pad,
-        psi_E,
-        alpha=jnp.ones((6, nx, ny, nz)) * 0.05,
-        kappa=jnp.ones((6, nx, ny, nz)),
-        sigma=jnp.ones((6, nx, ny, nz)) * 0.1,
-        simulate_boundaries=True,
-    )
-
-    assert jnp.all(jnp.isfinite(curl_result))
-    assert jnp.all(jnp.isfinite(psi_updated))

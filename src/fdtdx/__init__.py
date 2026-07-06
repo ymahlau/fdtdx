@@ -8,14 +8,13 @@ if sys.version_info >= (3, 15):
         stacklevel=2,
     )
 
-from fdtdx import constants
 from fdtdx.colors import Color
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.constants import wavelength_to_period
 from fdtdx.conversion.json import export_json, export_json_str, import_from_json
 from fdtdx.conversion.stl import export_stl
 from fdtdx.conversion.vti import export_arrays_snapshot_to_vti, export_vti, export_vtr
-from fdtdx.core.grid import RectilinearGrid, UniformGrid
+from fdtdx.core.grid import QuasiUniformGrid, RectilinearGrid, UniformGrid
 from fdtdx.core.jax.pytrees import (
     TreeClass,
     autoinit,
@@ -27,6 +26,7 @@ from fdtdx.core.jax.pytrees import (
 from fdtdx.core.physics.losses import metric_efficiency
 from fdtdx.core.physics.metrics import (
     compute_energy,
+    compute_integrated_power,
     compute_poynting_flux,
     normalize_by_energy,
     normalize_by_poynting_flux,
@@ -35,6 +35,7 @@ from fdtdx.core.physics.modes import compute_mode
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.dispersion import (
+    CCPRPole,
     DispersionModel,
     DrudePole,
     LorentzPole,
@@ -60,6 +61,11 @@ from fdtdx.objects.boundaries.pmc import PerfectMagneticConductor
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.detectors.field import FieldDetector
+from fdtdx.objects.detectors.field_projection import (
+    FieldProjectionAngleDetector,
+    FieldProjectionCartesianDetector,
+    FieldProjectionKSpaceDetector,
+)
 from fdtdx.objects.detectors.mode import ModeOverlapDetector
 from fdtdx.objects.detectors.phasor import PhasorDetector
 from fdtdx.objects.detectors.poynting_flux import PoyntingFluxDetector
@@ -137,12 +143,23 @@ from fdtdx.utils.sparams import PortSpec, calculate_sparam, calculate_sparams, s
 # PeriodicBoundary is now an alias for BlochBoundary with bloch_vector=(0,0,0)
 PeriodicBoundary = BlochBoundary
 
+#: Type alias for detector state: maps detector output names to JAX arrays.
+DetectorState = DetectorState
+
+#: Type alias for parameter dictionaries. Maps parameter names to JAX arrays or
+#: nested dicts of JAX arrays.
+ParameterContainer = ParameterContainer
+
+#: Type alias for simulation state: a tuple of (time_step, ArrayContainer).
+SimulationState = SimulationState
+
 __all__ = [
     "ArrayContainer",
     "BinaryMedianFilterModule",
     "BlochBoundary",
     "BoundaryConfig",
     "BrushConstraint2D",
+    "CCPRPole",
     "ClosestIndex",
     "Color",
     "ConnectHolesAndStructures",
@@ -159,6 +176,9 @@ __all__ = [
     "EnergyDetector",
     "ExtrudedPolygon",
     "FieldDetector",
+    "FieldProjectionAngleDetector",
+    "FieldProjectionCartesianDetector",
+    "FieldProjectionKSpaceDetector",
     "FieldState",
     "GDSLayerObject",
     "GDSLayerSpec",
@@ -193,6 +213,7 @@ __all__ = [
     "PortSpec",
     "PositionConstraint",
     "PoyntingFluxDetector",
+    "QuasiUniformGrid",
     "RealCoordinateConstraint",
     "Recorder",
     "RecordingState",
@@ -228,10 +249,10 @@ __all__ = [
     "compute_energy",
     "compute_eps_spectrum_from_coefficients",
     "compute_impedance_corrected_temporal_profile",
+    "compute_integrated_power",
     "compute_mode",
     "compute_pole_coefficients",
     "compute_poynting_flux",
-    "constants",
     "detectors_from_gds_ports",
     "export_arrays_snapshot_to_vti",
     "export_json",

@@ -45,12 +45,9 @@ def _make_arrays(
         fields=FieldState(
             E=E if E is not None else jnp.ones(FIELD_SHAPE),
             H=H if H is not None else jnp.zeros(FIELD_SHAPE),
-            psi_E=jnp.zeros(PSI_SHAPE),
-            psi_H=jnp.zeros(PSI_SHAPE),
+            psi_E={},
+            psi_H={},
         ),
-        alpha=jnp.zeros(FIELD_SHAPE),
-        kappa=jnp.ones(FIELD_SHAPE),
-        sigma=jnp.zeros(FIELD_SHAPE),
         inv_permittivities=inv_permittivities if inv_permittivities is not None else jnp.ones(FIELD_SHAPE),
         inv_permeabilities=inv_permeabilities if inv_permeabilities is not None else jnp.ones(FIELD_SHAPE),
         detector_states=detector_states if detector_states is not None else {},
@@ -75,6 +72,7 @@ def _make_config(c=0.5):
     cfg = Mock()
     cfg.courant_number = c
     cfg.uniform_spacing.return_value = 1.0
+    cfg.has_nonuniform_grid = False
     return cfg
 
 
@@ -233,12 +231,6 @@ class TestUpdateE:
         expected = (1 - half) * E_init / (1 + half)
         assert jnp.allclose(result.fields.E, expected, rtol=1e-5)
 
-    def test_psi_E_updated_from_curl_H(self):
-        """psi_E in the returned container matches the psi returned by curl_H."""
-        new_psi = jnp.ones(PSI_SHAPE) * 9.0
-        result = self._call(_make_arrays(), psi=new_psi)
-        assert jnp.allclose(result.fields.psi_E, new_psi)
-
     def test_simulate_boundaries_flag_forwarded(self):
         """simulate_boundaries=True is passed to curl_H."""
         with patch("fdtdx.fdtd.update.curl_H", return_value=(CURL_ZERO, PSI_ZERO)) as mock_curl:
@@ -249,8 +241,7 @@ class TestUpdateE:
                 config=_make_config(),
                 simulate_boundaries=True,
             )
-        # simulate_boundaries is positional arg index 6 (config, H_pad, psi_E, alpha, kappa, sigma, simulate_boundaries)
-        assert mock_curl.call_args[0][6] is True
+        assert mock_curl.call_args[0][4] is True
 
     def test_anisotropic_full_tensor_correct_shape_and_finite(self):
         """inv_eps.shape[0]==9 triggers the anisotropic path; output is (3,N,N,N) and finite."""
@@ -436,14 +427,8 @@ class TestUpdateH:
         expected = (1 - half) * H_init / (1 + half)
         assert jnp.allclose(result.fields.H, expected, rtol=1e-5)
 
-    def test_psi_H_updated_from_curl_E(self):
-        """psi_H in the returned container matches the psi returned by curl_E."""
-        new_psi = jnp.ones(PSI_SHAPE) * 7.0
-        result = self._call(_make_arrays(), psi=new_psi)
-        assert jnp.allclose(result.fields.psi_H, new_psi)
-
     def test_simulate_boundaries_flag_forwarded(self):
-        """simulate_boundaries=True is passed as 7th positional arg to curl_E."""
+        """simulate_boundaries=True is passed as the 5th positional arg (index 4) to curl_E."""
         with patch("fdtdx.fdtd.update.curl_E", return_value=(CURL_ZERO, PSI_ZERO)) as mock_curl:
             update_H(
                 time_step=jnp.array(0),
@@ -452,7 +437,7 @@ class TestUpdateH:
                 config=_make_config(),
                 simulate_boundaries=True,
             )
-        assert mock_curl.call_args[0][6] is True
+        assert mock_curl.call_args[0][4] is True
 
     def test_anisotropic_full_tensor_correct_shape_and_finite(self):
         """inv_mu.shape[0]==9 triggers the anisotropic path; output is (3,N,N,N) and finite."""

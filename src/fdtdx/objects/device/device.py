@@ -49,6 +49,11 @@ class Device(OrderableObject, ABC):
     #: For all three axes, either the voxel grid or real shape needs to be defined.
     partial_voxel_real_shape: PartialRealShape3D = frozen_field(default=UNDEFINED_SHAPE_3D)
 
+    #: Determines the material placement behavior.
+    #: If False, the device fully populates its defined 3D space using its material permittivities.
+    #: If True, it acts as an etch, either leaving the space unmodified or replacing it with a single material (e.g., air) based on the parameters.
+    use_etching: bool = frozen_field(default=False)
+
     _single_voxel_grid_shape: tuple[int, int, int] = frozen_private_field(default=INVALID_SHAPE_3D)
     _matrix_voxel_grid_shape_override: tuple[int, int, int] = frozen_private_field(default=INVALID_SHAPE_3D)
     _physical_design_voxel_shape: tuple[float, float, float] | None = frozen_private_field(default=None)
@@ -239,11 +244,24 @@ class Device(OrderableObject, ABC):
 
         # set own input shape dtype
         self = self.aset("param_transforms", module_list)
-        if self.output_type == ParameterType.CONTINUOUS and len(self.materials) != 2:
-            raise Exception(
-                f"Need exactly two materials in device when parameter mapping outputs continuous permittivity indices, "
-                f"but got {self.materials}"
-            )
+        if self.output_type == ParameterType.CONTINUOUS:
+            if self.use_etching:
+                if len(self.materials) != 1:
+                    raise Exception(
+                        f"Need exactly one material in etched device when parameter mapping outputs continuous permittivity indices "
+                        f"which replaces the eroded original materials, but got {self.materials}"
+                    )
+            else:
+                if len(self.materials) != 2:
+                    raise Exception(
+                        f"Need exactly two materials in device when parameter mapping outputs continuous permittivity indices, "
+                        f"but got {self.materials}"
+                    )
+        else:  # if self.output_type == ParameterType.BINARY or self.output_type == ParameterType.DISCRETE:
+            if self.use_etching:
+                raise Exception(
+                    f"Etched devices only support continuous parameters, {self.name} outputs {self.output_type}"
+                )
         return self
 
     @staticmethod

@@ -16,6 +16,11 @@ from fdtdx.fdtd.wrapper import run_fdtd
 from fdtdx.materials import Material
 from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
 from fdtdx.objects.detectors.energy import EnergyDetector
+from fdtdx.objects.detectors.field_projection import (
+    FieldProjectionAngleDetector,
+    FieldProjectionCartesianDetector,
+    FieldProjectionKSpaceDetector,
+)
 from fdtdx.objects.sources.linear_polarization import UniformPlaneSource
 from fdtdx.objects.static_material.static import SimulationVolume, UniformMaterialObject
 
@@ -113,6 +118,38 @@ def test_detector_json(setup_simulation_inputs):
     s = export_json_str(det)
     rec = import_from_json(s)
     assert rec.name == "Detector"
+
+
+@pytest.mark.parametrize(
+    "detector_class",
+    [
+        FieldProjectionAngleDetector,
+        FieldProjectionCartesianDetector,
+        FieldProjectionKSpaceDetector,
+    ],
+)
+def test_jsonsetup_accepts_field_projection_detector(setup_simulation_inputs, detector_class):
+    """test JsonSetup validation recognizes field projection detectors."""
+    detector = detector_class(
+        name="ProjectionDetector",
+        wave_characters=[WaveCharacter(wavelength=0.689e-6)],
+        direction="+",
+        projection_distance=2.0,
+        exact_projection_batch_size=64,
+    )
+    setup = JsonSetup(
+        config=setup_simulation_inputs["config"],
+        object_list=[setup_simulation_inputs["volume"], detector],
+        constraints=[],
+    )
+
+    restored = JsonSetup.loads(setup.dumps())
+
+    restored_detector = restored.object_list[1]
+    assert isinstance(restored_detector, detector_class)
+    assert restored_detector.name == "ProjectionDetector"
+    assert restored_detector.projection_distance == 2.0
+    assert restored_detector.exact_projection_batch_size == 64
 
 
 def test_config_json(setup_simulation_inputs):

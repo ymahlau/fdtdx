@@ -25,28 +25,42 @@ from fdtdx.objects.static_material.static import SimulationVolume, StaticMultiMa
 
 @dataclass(frozen=True)
 class GDSLayerSpec:
-    """Specification for a single GDS layer to be imported as a simulation object.
+    """Specification for a single GDS layer to be imported as a simulation object."""
 
-    Attributes:
-        gds_layer: GDS layer number.
-        material_name: Key into the materials dictionary to use for this layer.
-        thickness: Layer thickness in metres.
-        gds_datatype: GDS datatype number (default 0).
-        z_base: Distance from the simulation volume bottom face to the base of this layer, in metres.
-        name: Optional name for the resulting object. Auto-generates "gds_{layer}_{datatype}" if None.
-        etch_by: Tuple of (layer, datatype) pairs whose polygons are subtracted from this layer via
-            a boolean NOT operation before voxelization. Useful for etched features such as via holes.
-        color: Display color for ``plot_set_up``. Defaults to ``XKCD_LIGHT_GREY``. Pass ``None``
-            to leave the object uncolored.
-    """
-
+    #: GDS layer number.
     gds_layer: int
+    #: Key into the materials dictionary to use for this layer.
     material_name: str
+    #: Layer thickness in metres.
     thickness: float
+    #: GDS datatype number (default 0).
     gds_datatype: int = 0
+    #: Distance from the simulation volume bottom face to the base of this layer, in metres.
     z_base: float = 0.0
+    #: Optional name for the resulting object. Auto-generates ``"gds_{layer}_{datatype}"`` if None.
     name: str | None = None
+    #: Tuple of (layer, datatype) pairs whose polygons are subtracted from this layer via
+    #: a boolean NOT operation before voxelization. Useful for etched features such as via holes.
     etch_by: tuple[tuple[int, int], ...] = ()
+    #: Sidewall angle in **degrees**, measured between the sidewall and the substrate plane, the way
+    #: foundry PDKs specify it.  ``90.0`` (default) is a perfectly vertical wall.  An angle ``< 90``
+    #: tilts the wall so the cross-section *shrinks* toward the top (regular trapezoid / positive-resist
+    #: etch, e.g. 89 deg); an angle ``> 90`` makes it *grow* toward the top (re-entrant / undercut
+    #: profile).  Must satisfy ``0 < sidewall_angle < 180``.  (Relation to the Tidy3D ``PolySlab``
+    #: convention: ``polyslab_angle_rad = deg2rad(90 - sidewall_angle)``.)
+    #:
+    #: .. note::
+    #:    For ``sidewall_angle != 90`` the trapezoidal profile is **staircased** on the z-grid: each
+    #:    z-slice is eroded/dilated to a whole number of cells, so the wall is approximated by discrete
+    #:    steps rather than a continuous slope.  This is therefore less accurate than Tidy3D's analytic
+    #:    ``PolySlab`` (which represents the slanted face exactly).  A sub-cell fill-fraction treatment
+    #:    that would remove the staircasing is tracked as a follow-up in issue #373.
+    sidewall_angle: float = 90.0
+    #: Which face keeps the nominal polygon footprint when ``sidewall_angle != 90``.
+    #: ``"bottom"`` (default) keeps the base footprint and tapers the top inward for an angle ``< 90``;
+    #: ``"top"`` keeps the top footprint; ``"middle"`` keeps the mid-height footprint and splits the
+    #: taper symmetrically. Mirrors ``PolySlab.reference_plane``.
+    reference_plane: Literal["bottom", "middle", "top"] = "bottom"
     color: Color | None = XKCD_LIGHT_GREY
 
 
@@ -58,19 +72,16 @@ class GDSPortSpec:
     Its centroid determines the x/y position of the source or detector plane inside the
     simulation.  The source/detector is made 1 grid cell thick along ``propagation_axis``
     and spans the full simulation cross-section on the remaining two axes.
-
-    Attributes:
-        gds_layer: GDS layer containing the port marker polygons.
-        gds_datatype: GDS datatype of the port markers (default 0).
-        propagation_axis: Simulation axis along which the mode propagates (0=x, 1=y).
-            Must be 0 or 1; the GDS layout encodes x/y positions only.
-        name_prefix: Prefix for generated object names. Objects are named
-            ``"{name_prefix}_{index}"``.
     """
 
+    #: GDS layer containing the port marker polygons.
     gds_layer: int
+    #: GDS datatype of the port markers (default 0).
     gds_datatype: int = 0
+    #: Simulation axis along which the mode propagates (0=x, 1=y).
+    #: Must be 0 or 1; the GDS layout encodes x/y positions only.
     propagation_axis: int = 0
+    #: Prefix for generated object names. Objects are named ``"{name_prefix}_{index}"``.
     name_prefix: str = "port"
 
 
@@ -81,18 +92,17 @@ class GDSLayerObject(StaticMultiMaterialObject):
     Each instance represents one GDS layer (layer/datatype pair) extruded uniformly
     along ``axis``. The cross-sectional shape is described by ``polygons``, given in
     GDS coordinate space (metres). The mapping from GDS space to the local grid is
-    controlled by ``gds_center``, which gives the GDS coordinate that coincides with
-    the x/y center of the simulation object.
+    controlled by ``gds_center``, which gives the GDS coordinate that coincides
+    with the x/y centre of the placed object. For example,
+    ``gds_center=(0.0, 0.0)`` maps the GDS origin to the object's centre, while
+    ``gds_center=(500e-9, 0.0)`` shifts the layout 500 nm to the left.
     """
 
     #: Sequence of (N, 2) vertex arrays for each polygon, in GDS metres.
     polygons: Sequence[np.ndarray] = frozen_field()
 
     #: GDS coordinate (horizontal, vertical) in metres that coincides with the x/y centre
-    #: of this object's grid region.  Use this to align the GDS origin (or any other
-    #: reference point in the layout) with a known simulation coordinate.  For example,
-    #: ``gds_center=(0.0, 0.0)`` maps the GDS origin to the centre of the simulation
-    #: volume, while ``gds_center=(500e-9, 0.0)`` shifts the layout 500 nm to the left.
+    #: of the placed object.
     gds_center: tuple[float, float] = frozen_field()
 
     #: Key into the materials dictionary used for this object.
@@ -103,6 +113,21 @@ class GDSLayerObject(StaticMultiMaterialObject):
 
     #: Extrusion thickness in metres.
     thickness: float = frozen_field()
+
+    #: Sidewall angle in **degrees** between the wall and the substrate (foundry convention).
+    #: ``90.0`` extrudes a vertical wall; other values produce a trapezoidal cross-section by eroding
+    #: (angle ``< 90``) or dilating (angle ``> 90``) each z-slice laterally by an offset
+    #: ``offset(z) = (z - z_ref) * tan(90deg - sidewall_angle)`` measured from ``reference_plane``.
+    sidewall_angle: float = frozen_field(default=90.0)
+
+    #: Face that keeps the nominal footprint: ``"bottom"``, ``"middle"`` or ``"top"``.
+    reference_plane: Literal["bottom", "middle", "top"] = frozen_field(default="bottom")
+
+    def __post_init__(self):
+        if not 0.0 < self.sidewall_angle < 180.0:
+            raise ValueError(f"sidewall_angle must lie in (0, 180) degrees (90 = vertical), got {self.sidewall_angle}.")
+        if self.reference_plane not in ("bottom", "middle", "top"):
+            raise ValueError(f"reference_plane must be one of 'bottom', 'middle', 'top'; got {self.reference_plane!r}.")
 
     @property
     def horizontal_axis(self) -> int:
@@ -122,6 +147,14 @@ class GDSLayerObject(StaticMultiMaterialObject):
     def get_voxel_mask_for_shape(self) -> jax.Array:
         """Compute a 3-D boolean mask for the extruded polygon shape.
 
+        When ``sidewall_angle`` is 90 deg the polygon footprint is extruded vertically and every
+        z-slice is identical.  Otherwise each z-slice is offset laterally by
+        ``(z_center - z_ref) * tan(90deg - sidewall_angle)`` (erosion for an angle < 90, dilation for
+        an angle > 90), giving a trapezoidal cross-section that approximates ``Tidy3D.PolySlab`` with
+        the equivalent angle / ``reference_plane``. The per-slice offset is applied in physical
+        (metre) units via a Euclidean distance transform; on a non-uniform cross-section grid it uses a
+        constant per-axis pitch (the minimum cell width), which is an approximation.
+
         Note:
             Only ``axis=2`` (z-extrusion) is supported.  GDS layouts encode x/y
             coordinates only, so extruding along x or y would require a z-coordinate
@@ -139,23 +172,45 @@ class GDSLayerObject(StaticMultiMaterialObject):
                 f"got axis={self.axis}. GDS layouts encode x/y coordinates only."
             )
 
+        mask_2d = self._base_mask_2d()
+        extrusion_height = self.grid_shape[self.axis]
+
+        if self.sidewall_angle == 90.0:
+            mask = jnp.repeat(
+                jnp.expand_dims(jnp.asarray(mask_2d, dtype=jnp.bool_), axis=self.axis),
+                repeats=extrusion_height,
+                axis=self.axis,
+            )
+            return mask
+
+        mask_3d = self._extrude_with_sidewall(mask_2d, extrusion_height)
+        return jnp.asarray(mask_3d, dtype=jnp.bool_)
+
+    def _base_mask_2d(self) -> np.ndarray:
+        """Rasterize the (vertical-extrusion) polygon footprint to a 2-D boolean mask.
+
+        Returns:
+            np.ndarray: Boolean array of shape ``(n_horizontal, n_vertical)``.
+        """
         n_h = self.grid_shape[self.horizontal_axis]
         n_v = self.grid_shape[self.vertical_axis]
 
         real_h = self.real_shape[self.horizontal_axis]
         real_v = self.real_shape[self.vertical_axis]
 
-        origin_h = self.gds_center[0] - real_h / 2
-        origin_v = self.gds_center[1] - real_v / 2
+        # Origin is now at the center of the simulation volume
+        origin_h = self.gds_center[0]
+        origin_v = self.gds_center[1]
 
         local_polygons = [poly - np.array([origin_h, origin_v]) for poly in self.polygons]
 
         grid = self._config.resolved_grid
         if grid is None:
             res = self._config.uniform_spacing()
-            half_res = 0.5 * res
+            half = res / 2.0
+            # Use cell centers boundaries
             mask_2d = multi_polygons_to_mask(
-                boundary=(half_res, half_res, (n_h - 0.5) * res, (n_v - 0.5) * res),
+                boundary=(-real_h / 2 + half, -real_v / 2 + half, real_h / 2 - half, real_v / 2 - half),
                 resolution=res,
                 polygon_list=local_polygons,
             )
@@ -164,8 +219,13 @@ class GDSLayerObject(StaticMultiMaterialObject):
             v_lower, v_upper = self.grid_slice_tuple[self.vertical_axis]
             h_edges = np.asarray(grid.edges(self.horizontal_axis))
             v_edges = np.asarray(grid.edges(self.vertical_axis))
-            h_centers = 0.5 * (h_edges[h_lower:h_upper] + h_edges[h_lower + 1 : h_upper + 1]) - h_edges[h_lower]
-            v_centers = 0.5 * (v_edges[v_lower:v_upper] + v_edges[v_lower + 1 : v_upper + 1]) - v_edges[v_lower]
+            # local_polygons are in gds_center-relative space (poly - gds_center).
+            # gds_center maps to the object's physical centre in the simulation, so
+            # cell centres must be expressed relative to the object's slice centre too.
+            h_obj_center = 0.5 * (h_edges[h_lower] + h_edges[h_upper])
+            v_obj_center = 0.5 * (v_edges[v_lower] + v_edges[v_upper])
+            h_centers = 0.5 * (h_edges[h_lower:h_upper] + h_edges[h_lower + 1 : h_upper + 1]) - h_obj_center
+            v_centers = 0.5 * (v_edges[v_lower:v_upper] + v_edges[v_lower + 1 : v_upper + 1]) - v_obj_center
             if len(local_polygons) == 0:
                 mask_2d = np.zeros((n_h, n_v), dtype=bool)
             else:
@@ -174,14 +234,50 @@ class GDSLayerObject(StaticMultiMaterialObject):
                     for poly in local_polygons
                 ]
                 mask_2d = np.any(np.stack(masks, axis=0), axis=0)
+        return np.asarray(mask_2d, dtype=bool)
 
-        extrusion_height = self.grid_shape[self.axis]
-        mask = jnp.repeat(
-            jnp.expand_dims(jnp.asarray(mask_2d, dtype=jnp.bool_), axis=self.axis),
-            repeats=extrusion_height,
-            axis=self.axis,
-        )
-        return mask
+    def _z_centers(self, extrusion_height: int) -> np.ndarray:
+        """Physical z cell-center coordinates relative to the layer base, one per z-slice."""
+        grid = self._config.resolved_grid
+        if grid is None:
+            res = self._config.uniform_spacing()
+            return (np.arange(extrusion_height) + 0.5) * res
+        z_lower, z_upper = self.grid_slice_tuple[self.axis]
+        z_edges = np.asarray(grid.edges(self.axis))
+        return 0.5 * (z_edges[z_lower:z_upper] + z_edges[z_lower + 1 : z_upper + 1]) - z_edges[z_lower]
+
+    def _extrude_with_sidewall(self, mask_2d: np.ndarray, extrusion_height: int) -> np.ndarray:
+        """Stack the 2-D footprint into a trapezoidal 3-D mask using the sidewall model.
+
+        ``sidewall_angle`` is validated in ``__post_init__`` (must be in ``(0, 180)`` degrees).
+        """
+        z_centers = self._z_centers(extrusion_height)
+        if z_centers.size == 0:  # zero-height layer: nothing to extrude (parity with the 90deg fast path)
+            empty_shape = list(mask_2d.shape)
+            empty_shape.insert(self.axis, 0)
+            return np.zeros(empty_shape, dtype=bool)
+        if self.reference_plane == "bottom":
+            z_ref = float(z_centers[0])
+        elif self.reference_plane == "top":
+            z_ref = float(z_centers[-1])
+        else:  # middle: mid-plane of the resolved slices (offset 0 for a single-slice layer)
+            z_ref = 0.5 * (float(z_centers[0]) + float(z_centers[-1]))
+
+        # Physical cell pitch on the two cross-section axes (use the min spacing for the distance
+        # transform sampling; uniform grids are exact, non-uniform grids are approximated).
+        grid = self._config.resolved_grid
+        if grid is None:
+            pitch_h = pitch_v = float(self._config.uniform_spacing())
+        else:
+            pitch_h = float(np.min(grid.cell_widths(self.horizontal_axis)))
+            pitch_v = float(np.min(grid.cell_widths(self.vertical_axis)))
+
+        tan = float(np.tan(np.deg2rad(90.0 - self.sidewall_angle)))
+        slices = []
+        for z in z_centers:
+            offset = (float(z) - z_ref) * tan  # angle<90 -> erode (shrink), angle>90 -> dilate (grow)
+            slices.append(_offset_mask(mask_2d, offset, pitch_h, pitch_v))
+        return np.stack(slices, axis=self.axis)
 
     def get_material_mapping(self) -> jax.Array:
         """Return an integer array filled with the index of ``material_name`` in the sorted material list.
@@ -198,6 +294,39 @@ class GDSLayerObject(StaticMultiMaterialObject):
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+
+def _offset_mask(mask_2d: np.ndarray, offset: float, pitch_h: float, pitch_v: float) -> np.ndarray:
+    """Erode or dilate a boolean mask by a physical lateral ``offset`` (metres).
+
+    The offset is applied with a Euclidean distance transform sampled at the (possibly anisotropic)
+    grid pitch, so a single fractional/grid-cell offset is handled uniformly and the result matches
+    a constant inward (``offset > 0``) or outward (``offset < 0``) normal displacement of the polygon
+    boundary — the discrete analogue of ``Tidy3D.PolySlab``'s linear sidewall.
+
+    Args:
+        mask_2d: Boolean footprint mask of shape ``(n_h, n_v)``.
+        offset: Inward erosion distance in metres (negative dilates outward).
+        pitch_h: Cell pitch along the horizontal axis in metres.
+        pitch_v: Cell pitch along the vertical axis in metres.
+
+    Returns:
+        np.ndarray: Boolean mask of the same shape, eroded/dilated by ``offset``.
+    """
+    from scipy import ndimage
+
+    if abs(offset) < 1e-15 or not mask_2d.any():
+        # No taper here, or nothing to taper. A purely-dilated empty mask stays empty.
+        return mask_2d.copy()
+
+    sampling = (pitch_h, pitch_v)
+    if offset > 0:
+        # Distance (metres) from each solid cell to the nearest void cell; keep cells deeper than offset.
+        dist_in = ndimage.distance_transform_edt(mask_2d, sampling=sampling)
+        return dist_in > offset
+    # Dilation: distance from each void cell to the nearest solid cell; add cells within |offset|.
+    dist_out = ndimage.distance_transform_edt(~mask_2d, sampling=sampling)
+    return mask_2d | (dist_out <= -offset)
 
 
 def _load_gds_cell(
@@ -224,13 +353,12 @@ def _load_gds_cell(
     return lib, cell
 
 
-def _gds_to_sim(gds_val: float, gds_center_val: float, vol_size: float) -> float:
+def _gds_to_sim(gds_val: float, gds_center_val: float) -> float:
     """Convert a GDS coordinate (metres) to a simulation real-space coordinate (metres).
 
-    Simulation real-space coordinates are measured from the lower-left corner of the
-    simulation volume (grid index 0).
+    Simulation real-space coordinates are now measured from the center of the simulation volume.
     """
-    return gds_val - gds_center_val + vol_size / 2
+    return gds_val - gds_center_val
 
 
 @dataclass(frozen=True)
@@ -287,7 +415,7 @@ def _iter_port_placements(
             name = f"{spec.name_prefix}_{i}"
 
             gds_prop_val = centroid[spec.propagation_axis]
-            sim_prop_pos = _gds_to_sim(gds_prop_val, gds_center[spec.propagation_axis], vol_size)
+            sim_prop_pos = _gds_to_sim(gds_prop_val, gds_center[spec.propagation_axis])
 
             # Transverse width from the actual marker polygon — avoids spanning
             # neighbouring waveguides and corrupting mode-overlap integrals.
@@ -392,6 +520,8 @@ def gds_layer_stack(
             material_name=spec.material_name,
             axis=2,
             thickness=spec.thickness,
+            sidewall_angle=spec.sidewall_angle,
+            reference_plane=spec.reference_plane,
             partial_real_shape=(None, None, spec.thickness),
         )
 

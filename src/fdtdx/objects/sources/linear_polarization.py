@@ -125,7 +125,10 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         dispersive_c1: jax.Array | None = None,
         dispersive_c2: jax.Array | None = None,
         dispersive_c3: jax.Array | None = None,
+        electric_conductivity: jax.Array | None = None,
+        dispersive_c4: jax.Array | None = None,
     ):
+        del electric_conductivity
         # inv_permittivities shape: (3, Nx, Ny, Nz) - slice with component dimension
         inv_permittivities = inv_permittivities[:, *self.grid_slice]
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
@@ -141,12 +144,13 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         # permittivity at the source carrier frequency so that the impedance and
         # energy normalization reflect the true medium the source sits in,
         # not just the high-frequency permittivity epsilon_infinity.
-        c1_slice = c2_slice = c3_slice = None
+        c1_slice = c2_slice = c3_slice = c4_slice = None
         if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
             # dispersive_c* shape: (num_poles, 1, Nx, Ny, Nz) → slice spatial axes
             c1_slice = dispersive_c1[:, :, *self.grid_slice]
             c2_slice = dispersive_c2[:, :, *self.grid_slice]
             c3_slice = dispersive_c3[:, :, *self.grid_slice]
+            c4_slice = None if dispersive_c4 is None else dispersive_c4[:, :, *self.grid_slice]
             inv_permittivities = effective_inv_permittivity(
                 inv_eps=inv_permittivities,
                 c1=c1_slice,
@@ -154,6 +158,7 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
                 c3=c3_slice,
                 omega=2.0 * np.pi * self.wave_character.get_frequency(),
                 dt=self._config.time_step_duration,
+                c4=c4_slice,
             )
 
         # determine E/H polarization
@@ -315,6 +320,7 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
                 c3_slice=c3_slice,
                 inv_eps_inf_slice=inv_eps_inf_slice,
                 dtype=self._config.dtype,
+                c4_slice=c4_slice,
             )
             self = self.aset("_temporal_H_filter", filtered, create_new_ok=True)
         else:

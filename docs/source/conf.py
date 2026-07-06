@@ -9,7 +9,7 @@
 import tomllib
 from pathlib import Path
 
-root_path = Path(__file__).parents[2] 
+root_path = Path(__file__).parents[2]
 
 with open(root_path / "pyproject.toml", "rb") as f:
     data = tomllib.load(f)
@@ -90,4 +90,3 @@ mathjax3_config = {
         'displayMath': [['$$', '$$'], ['\\[', '\\]']],
     }
 }
-

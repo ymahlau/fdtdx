@@ -80,13 +80,11 @@ class UniformGrid(TreeClass):
     def coord_to_index(self, axis: int, coord: float, snap: str = "nearest") -> int:
         """Map a physical coordinate to a uniform-grid edge index.
 
-        The grid is centered at ``self.center``, so index 0 corresponds to the
-        lower domain edge at ``center[axis] - shape[axis] * spacing / 2``.
-        Because the shape is not yet known at policy time, this method assumes
-        the caller is working with a coordinate that is already relative to the
-        lower edge (i.e. it measures the offset from the lower corner, not from
-        the center).  Use :meth:`RectilinearGrid.coord_to_index` on the resolved
-        grid for center-aware snapping.
+        Because unresolved policies do not yet know ``shape``, this helper uses
+        a center-relative basis: ``coord`` is interpreted relative to
+        ``self.center[axis]`` and the returned index is a center-relative edge
+        offset. Use :meth:`RectilinearGrid.coord_to_index` on the resolved grid
+        when you need absolute edge indices.
         """
         origin_offset = coord - self.center[axis]
         scaled = origin_offset / self.spacing
@@ -154,13 +152,6 @@ class QuasiUniformGrid(TreeClass):
         grid = QuasiUniformGrid(dx=10e-9, dy=10e-9, dz=20e-9)
         resolved = grid.resolve(shape=(100, 100, 50))
         # x, y edges span [-500 nm, +500 nm]; z edges span [-500 nm, +500 nm]
-
-    Attributes:
-        dx: Cell width along x in metres. Must be positive.
-        dy: Cell width along y in metres. Must be positive.
-        dz: Cell width along z in metres. Must be positive.
-        center: Physical coordinate of the domain center in metres.
-            Defaults to ``(0, 0, 0)``.
     """
 
     #: Cell width along x in metres. Must be positive.
@@ -562,6 +553,18 @@ class RectilinearGrid(TreeClass):
             self.axis_extent(1, slice_tuple[1]),
             self.axis_extent(2, slice_tuple[2]),
         )
+
+    def subgrid(
+        self,
+        grid_slice: tuple[slice, slice, slice],
+    ):
+        """Convenience wrapper to get the sub-grid of a placed fdtdx.SimulationObject given its grid_slice"""
+        subgrid = self.custom(
+            self.x_edges[slice(grid_slice[0].start, grid_slice[0].stop + 1)],
+            self.y_edges[slice(grid_slice[1].start, grid_slice[1].stop + 1)],
+            self.z_edges[slice(grid_slice[2].start, grid_slice[2].stop + 1)],
+        )
+        return subgrid
 
     def coord_to_index(self, axis: int, coord: float, snap: str = "nearest") -> int:
         """Map a physical coordinate to a grid edge index.
