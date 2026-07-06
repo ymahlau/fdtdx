@@ -24,6 +24,8 @@ def plot_from_slices(
     plot_dpi: int | None,
     plot_interpolation: str,
     coordinate_edges_um: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
+    aspect: Literal["auto", "equal"] = "equal",
+    cmap: str = "default",
 ):
     xy_slice, xz_slice, yz_slice = slice_tuple
 
@@ -37,6 +39,8 @@ def plot_from_slices(
         maxvals=maxvals,
         plot_dpi=plot_dpi,
         plot_interpolation=plot_interpolation,
+        aspect=aspect,
+        cmap=cmap,
     )
     # Convert matplotlib figure to a numpy array
     fig.canvas.draw()
@@ -81,6 +85,7 @@ def generate_video_from_slices(
     maxvals: tuple[float | None, float | None, float | None] = (None, None, None),
     coordinate_edges_um: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
     aspect: Literal["auto", "equal"] = "equal",
+    cmap: str = "default",
 ) -> str:
     """Generates an MP4 video from time-series slice data using parallel processing.
 
@@ -135,6 +140,7 @@ def generate_video_from_slices(
         plot_interpolation=plot_interpolation,
         coordinate_edges_um=coordinate_edges_um,
         aspect=aspect,
+        cmap=cmap,
     )
     slice_arr_list = [(xy_slice[t], xz_slice[t], yz_slice[t]) for t in range(time_steps)]
     if num_worker is None:

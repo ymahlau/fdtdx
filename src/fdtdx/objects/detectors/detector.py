@@ -273,6 +273,7 @@ class Detector(SimulationObject, ABC):
         self,
         state: dict[str, np.ndarray],
         progress: Progress | None = None,
+        cmap: str = "default",
         aspect: Literal["auto", "equal"] = "equal",
     ) -> dict[str, Figure | str]:
         """Generates plots or videos from recorded detector data.
@@ -369,6 +370,7 @@ class Detector(SimulationObject, ABC):
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,
                     aspect=aspect,
+                    cmap=cmap,
                 )
                 figs["sliced_plot"] = fig
             else:
@@ -388,6 +390,7 @@ class Detector(SimulationObject, ABC):
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,
                     aspect=aspect,
+                    cmap=cmap,
                 )
                 figs["sliced_video"] = path
             else:
@@ -410,6 +413,7 @@ class Detector(SimulationObject, ABC):
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,
                     aspect=aspect,
+                    cmap=cmap,
                 )
                 figs[k] = fig
         elif squeezed_ndim == 4 and self.num_time_steps_recorded > 1:
@@ -430,6 +434,7 @@ class Detector(SimulationObject, ABC):
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,
                     aspect=aspect,
+                    cmap=cmap,
                 )
                 figs[k] = path
         else:
