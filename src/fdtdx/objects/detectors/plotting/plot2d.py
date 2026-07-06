@@ -1,3 +1,5 @@
+from typing import Literal
+
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
@@ -14,6 +16,7 @@ def plot_2d_from_slices(
     maxvals: tuple[float | None, float | None, float | None] = (None, None, None),
     plot_interpolation: str = "gaussian",
     plot_dpi: int | None = None,
+    aspect: float | Literal["equal", "auto"] = "equal",
 ) -> Figure:
     """Plot orthogonal slices using either uniform spacing or rectilinear edges.
 
@@ -61,6 +64,7 @@ def plot_2d_from_slices(
             0,
             xy_slice.shape[1] * res_y,
         )
+        assert minvals[0] is not None and maxvals[0] is not None
         cax1 = ax1.imshow(
             xy_slice.T,
             cmap=cmap,
@@ -68,7 +72,7 @@ def plot_2d_from_slices(
             vmax=maxvals[0],
             extent=extent1,
             interpolation=plot_interpolation,
-            aspect="equal",
+            aspect=aspect,
             origin="lower",
         )
     else:
@@ -81,7 +85,7 @@ def plot_2d_from_slices(
             vmax=maxvals[0],
             shading="auto",
         )
-        ax1.set_aspect("equal")
+        ax1.set_aspect(aspect)
     ax1.set_xlabel("X axis (µm)")
     ax1.set_ylabel("Y axis (µm)")
 
@@ -97,6 +101,7 @@ def plot_2d_from_slices(
             0,
             xz_slice.shape[1] * res_z,
         )
+        assert minvals[1] is not None and maxvals[1] is not None
         cax2 = ax2.imshow(
             xz_slice.T,
             cmap=cmap,
@@ -104,7 +109,7 @@ def plot_2d_from_slices(
             vmax=maxvals[1],
             extent=extent2,
             interpolation=plot_interpolation,
-            aspect="equal",
+            aspect=aspect,
             origin="lower",
         )
     else:
@@ -117,7 +122,7 @@ def plot_2d_from_slices(
             vmax=maxvals[1],
             shading="auto",
         )
-        ax2.set_aspect("equal")
+        ax2.set_aspect(aspect)
     ax2.set_xlabel("X axis (µm)")
     ax2.set_ylabel("Z axis (µm)")
 
@@ -132,6 +137,7 @@ def plot_2d_from_slices(
             0,
             yz_slice.shape[1] * res_z,
         )
+        assert minvals[2] is not None and maxvals[2] is not None
         cax3 = ax3.imshow(
             yz_slice.T,
             cmap=cmap,
@@ -139,7 +145,7 @@ def plot_2d_from_slices(
             vmax=maxvals[2],
             extent=extent3,
             interpolation=plot_interpolation,
-            aspect="equal",
+            aspect=aspect,
             origin="lower",
         )
     else:
@@ -152,7 +158,7 @@ def plot_2d_from_slices(
             vmax=maxvals[2],
             shading="auto",
         )
-        ax3.set_aspect("equal")
+        ax3.set_aspect(aspect)
     ax3.set_xlabel("Y axis (µm)")
     ax3.set_ylabel("Z axis (µm)")
 
