@@ -34,6 +34,11 @@ def plot_2d_from_slices(
         maxvals: Per-slice color maxima.
         plot_interpolation: Interpolation used by the legacy uniform imshow path.
         plot_dpi: Figure DPI.
+        cmap: str = "default": Color map for the detector plots. "default" is a custom
+            red-blue seaborn color map.
+        aspect: Literal["auto", "equal"]: Size aspect of the detector plots.
+            "equal" (default) uses the same scale for all axes.
+            "auto" ajusts each axis's scale to fit the figure size.
 
     Returns:
         Matplotlib figure with XY, XZ, and YZ panels.

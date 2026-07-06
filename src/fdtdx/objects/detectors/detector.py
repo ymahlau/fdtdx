@@ -285,6 +285,11 @@ class Detector(SimulationObject, ABC):
         Args:
             state (dict[str, np.ndarray]): Dictionary containing recorded field data arrays.
             progress (Progress | None, optional): Optional progress bar for video generation.
+            cmap: str = "default": Color map for the detector plots. "default" is a custom
+                                   red-blue seaborn color map.
+            aspect: Literal["auto", "equal"]: Size aspect of the detector plots.
+                    "equal" (default) uses the same scale for all axes.
+                    "auto" ajusts each axis's scale to fit the figure size.
 
         Returns:
             dict[str, Figure | str]: Dictionary mapping plot names to either
