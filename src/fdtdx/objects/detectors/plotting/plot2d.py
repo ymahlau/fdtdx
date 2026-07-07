@@ -69,10 +69,10 @@ def plot_2d_from_slices(
     assert minvals[0] is not None and maxvals[0] is not None
     if coordinate_edges_um is None:
         extent1 = (
-            0,
-            xy_slice.shape[0] * res_x,
-            0,
-            xy_slice.shape[1] * res_y,
+            -xy_slice.shape[0] * res_x / 2,
+            xy_slice.shape[0] * res_x / 2,
+            -xy_slice.shape[0] * res_x / 2,
+            xy_slice.shape[1] * res_y / 2,
         )
         cax1 = ax1.imshow(
             xy_slice.T,
@@ -106,10 +106,10 @@ def plot_2d_from_slices(
     assert minvals[1] is not None and maxvals[1] is not None
     if coordinate_edges_um is None:
         extent2 = (
-            0,
-            xz_slice.shape[0] * res_x,
-            0,
-            xz_slice.shape[1] * res_z,
+            -xz_slice.shape[0] * res_x / 2,
+            xz_slice.shape[0] * res_x / 2,
+            -xz_slice.shape[0] * res_x / 2,
+            xz_slice.shape[1] * res_z / 2,
         )
         cax2 = ax2.imshow(
             xz_slice.T,
@@ -142,10 +142,10 @@ def plot_2d_from_slices(
     assert minvals[2] is not None and maxvals[2] is not None
     if coordinate_edges_um is None:
         extent3 = (
-            0,
-            yz_slice.shape[0] * res_y,
-            0,
-            yz_slice.shape[1] * res_z,
+            -yz_slice.shape[0] * res_y / 2,
+            yz_slice.shape[0] * res_y / 2,
+            -yz_slice.shape[0] * res_y / 2,
+            yz_slice.shape[0] * res_y / 2,
         )
         cax3 = ax3.imshow(
             yz_slice.T,
