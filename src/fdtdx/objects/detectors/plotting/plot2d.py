@@ -16,7 +16,7 @@ def plot_2d_from_slices(
     maxvals: tuple[float | None, float | None, float | None] = (None, None, None),
     plot_interpolation: str = "gaussian",
     plot_dpi: int | None = None,
-    aspect: float | Literal["equal", "auto"] = "equal",
+    aspect: Literal["equal", "auto"] = "equal",
     cmap: str = "default",
 ) -> Figure:
     """Plot orthogonal slices using either uniform spacing or rectilinear edges.
@@ -38,7 +38,7 @@ def plot_2d_from_slices(
             red-blue seaborn color map.
         aspect: Literal["auto", "equal"]: Size aspect of the detector plots.
             "equal" (default) uses the same scale for all axes.
-            "auto" ajusts each axis's scale to fit the figure size.
+            "auto" adjusts each axis's scale to fit the figure size.
 
     Returns:
         Matplotlib figure with XY, XZ, and YZ panels.
@@ -66,6 +66,7 @@ def plot_2d_from_slices(
 
     # Create XY plane plot
     ax1 = fig.add_subplot(131)
+    assert minvals[0] is not None and maxvals[0] is not None
     if coordinate_edges_um is None:
         extent1 = (
             0,
@@ -73,7 +74,6 @@ def plot_2d_from_slices(
             0,
             xy_slice.shape[1] * res_y,
         )
-        assert minvals[0] is not None and maxvals[0] is not None
         cax1 = ax1.imshow(
             xy_slice.T,
             cmap=color_map,

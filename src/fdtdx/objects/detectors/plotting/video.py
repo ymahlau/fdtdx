@@ -113,7 +113,7 @@ def generate_video_from_slices(
             red-blue seaborn color map.
         aspect: Literal["auto", "equal"]: Size aspect of the detector plots.
             "equal" (default) uses the same scale for all axes.
-            "auto" ajusts each axis's scale to fit the figure size.
+            "auto" adjusts each axis's scale to fit the figure size.
 
     Returns:
         str: Path to the generated MP4 video file

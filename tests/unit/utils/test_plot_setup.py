@@ -10,6 +10,7 @@ import pytest
 matplotlib.use("Agg")
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
 
 from fdtdx.core.grid import RectilinearGrid
 from fdtdx.utils.plot_setup import plot_setup, plot_setup_from_side
@@ -96,7 +97,7 @@ class TestPlotSetupFromSide:
         container = _make_container()
         _fig, ax = plt.subplots()
         with pytest.raises(ValueError, match="Invalid viewing_side"):
-            plot_setup_from_side(config=config, objects=container, viewing_side="w", ax=ax)
+            plot_setup_from_side(config=config, objects=container, viewing_side="w", ax=ax)  # type: ignore
         plt.close("all")
 
     def test_nonuniform_grid_uses_physical_extents(self):
@@ -107,17 +108,12 @@ class TestPlotSetupFromSide:
             y_edges=jnp.asarray([-2.5e-6, -0.5e-6, 2.5e-6]),  # centered: total 5µm
             z_edges=jnp.asarray([-0.5e-6, 0.5e-6]),  # centered: total 1µm
         )
-        config.grid = RectilinearGrid(
-            x_edges=jnp.asarray([-2.0e-6, -1.0e-6, 2.0e-6]),  # centered: total 4µm
-            y_edges=jnp.asarray([-2.5e-6, -0.5e-6, 2.5e-6]),  # centered: total 5µm
-            z_edges=jnp.asarray([-0.5e-6, 0.5e-6]),  # centered: total 1µm
-        )
         obj = _MockObj("box", "blue", ((1, 2), (0, 2), (0, 1)))
         container = _make_container(objects=[obj], volume_grid_shape=(2, 2, 1))
         _fig, ax = plt.subplots()
         plot_setup_from_side(config=config, objects=container, viewing_side="z", ax=ax, plot_legend=False)
 
-        patch = ax.patches[0]
+        patch: Rectangle = ax.patches[0]  # type: ignore
         assert patch.get_x() == pytest.approx(-1.0)
         assert patch.get_width() == pytest.approx(3.0)
         assert patch.get_y() == pytest.approx(-2.5)
@@ -203,7 +199,7 @@ class TestPlotSetupFromSide:
             viewing_side="z",
             ax=ax,
             plot_legend=False,
-            exclude_object_list=[obj_b],
+            exclude_object_list=[obj_b],  # type: ignore
         )
         assert len(ax.patches) == 1
         plt.close("all")
@@ -302,7 +298,7 @@ class TestPlotSetup:
             objects=container,
             axs=axs,
             plot_legend=False,
-            exclude_object_list=[obj_b],
+            exclude_object_list=[obj_b],  # type: ignore
         )
         # Each of the 3 axes should show only obj_a (1 patch each)
         for ax in axs:
