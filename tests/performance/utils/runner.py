@@ -6,9 +6,7 @@ from pathlib import Path
 _RESULTS_DIR = Path(__file__).parents[2] / "results"
 
 
-def compile_fn(
-    fn, fn_kwargs: dict, *, static_argnames: tuple[str, ...] = ()
-) -> tuple[any, float, dict]:
+def compile_fn(fn, fn_kwargs: dict, *, static_argnames: tuple[str, ...] = ()) -> tuple[any, float, dict]:
     """JIT-compile ``fn`` without executing it.
 
     Static args are baked into the compiled artifact and must not be passed at

@@ -74,10 +74,15 @@ class CouplerConfig:
         return (self.domain_x, self.domain_y, self.domain_z)
 
     def layer_specs(self) -> list[GDSLayerSpec]:
-        return [GDSLayerSpec(
-            gds_layer=1, material_name="si",
-            thickness=self.si_thickness, z_base=self.si_z_base, name="si_core",
-        )]
+        return [
+            GDSLayerSpec(
+                gds_layer=1,
+                material_name="si",
+                thickness=self.si_thickness,
+                z_base=self.si_z_base,
+                name="si_core",
+            )
+        ]
 
 
 _COUPLER = CouplerConfig(
@@ -93,9 +98,9 @@ _COUPLER = CouplerConfig(
     si_z_base=4e-6 / 2 - 220e-9 / 2,
     ports={
         "o1": {"x_m": -10e-6, "y_m": -1.632e-6, "width_m": 0.5e-6, "orientation": 180.0},
-        "o2": {"x_m": -10e-6, "y_m":  2.368e-6, "width_m": 0.5e-6, "orientation": 180.0},
-        "o3": {"x_m":  30e-6, "y_m":  2.368e-6, "width_m": 0.5e-6, "orientation":   0.0},
-        "o4": {"x_m":  30e-6, "y_m": -1.632e-6, "width_m": 0.5e-6, "orientation":   0.0},
+        "o2": {"x_m": -10e-6, "y_m": 2.368e-6, "width_m": 0.5e-6, "orientation": 180.0},
+        "o3": {"x_m": 30e-6, "y_m": 2.368e-6, "width_m": 0.5e-6, "orientation": 0.0},
+        "o4": {"x_m": 30e-6, "y_m": -1.632e-6, "width_m": 0.5e-6, "orientation": 0.0},
     },
     source_port="o1",
     detector_ports=[("det_thru", "o4"), ("det_cross", "o3")],
@@ -113,7 +118,7 @@ def _dx(cells_per_lambda: int, n: float) -> float:
 
 
 def _make_grid(cells_per_lambda: int) -> RectilinearGrid:
-    n_si  = math.sqrt(fdtdx.constants.relative_permittivity_silicon)
+    n_si = math.sqrt(fdtdx.constants.relative_permittivity_silicon)
     n_sio2 = math.sqrt(fdtdx.constants.relative_permittivity_silica)
     dx_f = _dx(cells_per_lambda, n_si)
     dx_c = _dx(cells_per_lambda, n_sio2)
@@ -122,18 +127,22 @@ def _make_grid(cells_per_lambda: int) -> RectilinearGrid:
     x_edges = np.linspace(0.0, cfg.domain_x, round(cfg.domain_x / dx_f) + 1)
 
     y_lo, y_hi = 0.5e-6, cfg.domain_y - 0.5e-6
-    y_edges = np.concatenate([
-        np.linspace(0.0, y_lo, round(y_lo / dx_c) + 1),
-        np.linspace(y_lo, y_hi, round((y_hi - y_lo) / dx_f) + 1)[1:],
-        np.linspace(y_hi, cfg.domain_y, round((cfg.domain_y - y_hi) / dx_c) + 1)[1:],
-    ])
+    y_edges = np.concatenate(
+        [
+            np.linspace(0.0, y_lo, round(y_lo / dx_c) + 1),
+            np.linspace(y_lo, y_hi, round((y_hi - y_lo) / dx_f) + 1)[1:],
+            np.linspace(y_hi, cfg.domain_y, round((cfg.domain_y - y_hi) / dx_c) + 1)[1:],
+        ]
+    )
 
     z_lo, z_hi = 1.0e-6, 3.0e-6
-    z_edges = np.concatenate([
-        np.linspace(0.0, z_lo, round(z_lo / dx_c) + 1),
-        np.linspace(z_lo, z_hi, round((z_hi - z_lo) / dx_f) + 1)[1:],
-        np.linspace(z_hi, cfg.domain_z, round((cfg.domain_z - z_hi) / dx_c) + 1)[1:],
-    ])
+    z_edges = np.concatenate(
+        [
+            np.linspace(0.0, z_lo, round(z_lo / dx_c) + 1),
+            np.linspace(z_lo, z_hi, round((z_hi - z_lo) / dx_f) + 1)[1:],
+            np.linspace(z_hi, cfg.domain_z, round((cfg.domain_z - z_hi) / dx_c) + 1)[1:],
+        ]
+    )
 
     return RectilinearGrid(
         x_edges=jnp.asarray(x_edges),
@@ -187,16 +196,17 @@ def _setup(
 
     key = jax.random.PRNGKey(0)
     obj_container, arrays, params, config, _ = place_objects(
-        object_list=objects, config=config, constraints=constraints, key=key,
+        object_list=objects,
+        config=config,
+        constraints=constraints,
+        key=key,
     )
     arrays = fdtdx.extend_material_to_pml(objects=obj_container, arrays=arrays)
     arrays, obj_container, _ = apply_params(arrays, obj_container, params, key)
 
     figs_dir.mkdir(exist_ok=True)
-    fdtdx.plot_setup(config=config, objects=obj_container,
-                     filename=figs_dir / f"setup_cpl{cells_per_lambda}.png")
-    fdtdx.plot_material(config=config, arrays=arrays,
-                        filename=figs_dir / f"material_cpl{cells_per_lambda}.png")
+    fdtdx.plot_setup(config=config, objects=obj_container, filename=figs_dir / f"setup_cpl{cells_per_lambda}.png")
+    fdtdx.plot_material(config=config, arrays=arrays, filename=figs_dir / f"material_cpl{cells_per_lambda}.png")
 
     return obj_container, arrays, config
 
@@ -227,9 +237,12 @@ def _run(
     output_dir: Path,
 ) -> tuple[list[float], int | None, str | None, str | None, any]:
     return run_compiled(
-        compiled, dynamic_kwargs,
-        name=name, n_reps=n_reps,
-        do_trace=do_trace, do_memory=do_memory,
+        compiled,
+        dynamic_kwargs,
+        name=name,
+        n_reps=n_reps,
+        do_trace=do_trace,
+        do_memory=do_memory,
         output_dir=output_dir,
     )
 
@@ -240,18 +253,23 @@ def _run(
 
 
 @pytest.mark.performance
-@pytest.mark.parametrize("cells_per_lambda", [
-    pytest.param(10, id="coarse"),
-    pytest.param(15, id="med",  marks=pytest.mark.perf_med),
-    pytest.param(20, id="fine", marks=pytest.mark.perf_fine),
-])
+@pytest.mark.parametrize(
+    "cells_per_lambda",
+    [
+        pytest.param(10, id="coarse"),
+        pytest.param(15, id="med", marks=pytest.mark.perf_med),
+        pytest.param(20, id="fine", marks=pytest.mark.perf_fine),
+    ],
+)
 def test_directional_coupler(cells_per_lambda, perf_env, perf_sink, perf_run_dir, perf_options):
     """FDTD benchmark for the GDS-imported SOI directional coupler."""
     bench_name = f"si_coupler_gds_cpl{cells_per_lambda}"
     figs_dir = perf_run_dir / "figs"
 
     objects, arrays, config = _setup(
-        cells_per_lambda, figs_dir=figs_dir, with_phasor_detectors=perf_options.visualize,
+        cells_per_lambda,
+        figs_dir=figs_dir,
+        with_phasor_detectors=perf_options.visualize,
     )
 
     static_mem: int | None = None
@@ -264,7 +282,8 @@ def test_directional_coupler(cells_per_lambda, perf_env, perf_sink, perf_run_dir
 
     compiled, compile_s, dynamic_kwargs = _compile(objects, arrays, config)
     run_s, peak_mem, trace_path, mem_profile, final_state = _run(
-        compiled, dynamic_kwargs,
+        compiled,
+        dynamic_kwargs,
         name=bench_name,
         n_reps=perf_options.reps,
         do_trace=perf_options.trace,

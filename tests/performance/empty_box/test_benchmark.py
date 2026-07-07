@@ -27,7 +27,7 @@ from fdtdx.fdtd.wrapper import run_fdtd
 
 from ..utils import BenchmarkResult, compile_fn, run_compiled
 
-_DOMAIN_SIZE = 10e-6   # physical interior side length (metres)
+_DOMAIN_SIZE = 10e-6  # physical interior side length (metres)
 _PML_CELLS = 8
 _WAVELENGTH = 1550e-9
 
@@ -37,9 +37,7 @@ _WAVELENGTH = 1550e-9
 # ---------------------------------------------------------------------------
 
 
-def _setup(
-    cells_per_lambda: int, *, figs_dir: Path
-) -> tuple[ObjectContainer, ArrayContainer, SimulationConfig]:
+def _setup(cells_per_lambda: int, *, figs_dir: Path) -> tuple[ObjectContainer, ArrayContainer, SimulationConfig]:
     c0 = 3e8
     dx = _WAVELENGTH / cells_per_lambda
     total_size = _DOMAIN_SIZE + 2 * _PML_CELLS * dx
@@ -81,15 +79,16 @@ def _setup(
 
     key = jax.random.PRNGKey(0)
     obj_container, arrays, params, config, _ = place_objects(
-        object_list=objects, config=config, constraints=constraints, key=key,
+        object_list=objects,
+        config=config,
+        constraints=constraints,
+        key=key,
     )
     arrays, obj_container, _ = apply_params(arrays, obj_container, params, key)
 
     figs_dir.mkdir(exist_ok=True)
-    fdtdx.plot_setup(config=config, objects=obj_container,
-                     filename=figs_dir / f"setup_cpl{cells_per_lambda}.png")
-    fdtdx.plot_material(config=config, arrays=arrays,
-                        filename=figs_dir / f"material_cpl{cells_per_lambda}.png")
+    fdtdx.plot_setup(config=config, objects=obj_container, filename=figs_dir / f"setup_cpl{cells_per_lambda}.png")
+    fdtdx.plot_material(config=config, arrays=arrays, filename=figs_dir / f"material_cpl{cells_per_lambda}.png")
 
     return obj_container, arrays, config
 
@@ -121,9 +120,12 @@ def _run(
     output_dir: Path,
 ) -> tuple[list[float], int | None, str | None, str | None, any]:
     return run_compiled(
-        compiled, dynamic_kwargs,
-        name=name, n_reps=n_reps,
-        do_trace=do_trace, do_memory=do_memory,
+        compiled,
+        dynamic_kwargs,
+        name=name,
+        n_reps=n_reps,
+        do_trace=do_trace,
+        do_memory=do_memory,
         output_dir=output_dir,
     )
 
@@ -134,11 +136,14 @@ def _run(
 
 
 @pytest.mark.performance
-@pytest.mark.parametrize("cells_per_lambda", [
-    pytest.param(10, id="coarse"),
-    pytest.param(15, id="med",  marks=pytest.mark.perf_med),
-    pytest.param(20, id="fine", marks=pytest.mark.perf_fine),
-])
+@pytest.mark.parametrize(
+    "cells_per_lambda",
+    [
+        pytest.param(10, id="coarse"),
+        pytest.param(15, id="med", marks=pytest.mark.perf_med),
+        pytest.param(20, id="fine", marks=pytest.mark.perf_fine),
+    ],
+)
 def test_empty_box(cells_per_lambda, perf_env, perf_sink, perf_run_dir, perf_options):
     """Measure forward-only MCUPS for a uniform PML box with early energy stopping."""
     bench_name = f"empty_box_cpl{cells_per_lambda}"
@@ -147,7 +152,8 @@ def test_empty_box(cells_per_lambda, perf_env, perf_sink, perf_run_dir, perf_opt
     objects, arrays, config = _setup(cells_per_lambda, figs_dir=figs_dir)
     compiled, compile_s, dynamic_kwargs = _compile(objects, arrays, config)
     run_s, peak_mem, trace_path, mem_profile, final_state = _run(
-        compiled, dynamic_kwargs,
+        compiled,
+        dynamic_kwargs,
         name=bench_name,
         n_reps=perf_options.reps,
         do_trace=perf_options.trace,
