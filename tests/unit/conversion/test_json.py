@@ -259,3 +259,20 @@ class TestJsonRoundtrip:
         restored = import_from_json(export_json_str(original))
         assert restored["items"] == [1, 2, 3]
         assert restored["value"] == 42
+
+    def test_roundtrip_numpy_array(self):
+        """Test roundtrip of a numpy array."""
+        import numpy as np
+        original = np.array([[1.0, 2.0], [3.0, 4.0]])
+        restored = import_from_json(export_json_str(original))
+        assert isinstance(restored, np.ndarray)
+        np.testing.assert_array_equal(restored, original)
+
+    def test_roundtrip_jax_array(self):
+        """Test roundtrip of a JAX array."""
+        import numpy as np
+        original = jnp.array([[1.0, 2.0], [3.0, 4.0]])
+        restored = import_from_json(export_json_str(original))
+        assert isinstance(restored, np.ndarray)
+        np.testing.assert_array_equal(restored, np.asarray(original))
+
