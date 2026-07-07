@@ -71,7 +71,7 @@ def plot_2d_from_slices(
         extent1 = (
             -xy_slice.shape[0] * res_x / 2,
             xy_slice.shape[0] * res_x / 2,
-            -xy_slice.shape[0] * res_x / 2,
+            -xy_slice.shape[1] * res_x / 2,
             xy_slice.shape[1] * res_y / 2,
         )
         cax1 = ax1.imshow(
@@ -108,7 +108,7 @@ def plot_2d_from_slices(
         extent2 = (
             -xz_slice.shape[0] * res_x / 2,
             xz_slice.shape[0] * res_x / 2,
-            -xz_slice.shape[0] * res_x / 2,
+            -xz_slice.shape[1] * res_x / 2,
             xz_slice.shape[1] * res_z / 2,
         )
         cax2 = ax2.imshow(
@@ -144,8 +144,8 @@ def plot_2d_from_slices(
         extent3 = (
             -yz_slice.shape[0] * res_y / 2,
             yz_slice.shape[0] * res_y / 2,
-            -yz_slice.shape[0] * res_y / 2,
-            yz_slice.shape[0] * res_y / 2,
+            -yz_slice.shape[1] * res_y / 2,
+            yz_slice.shape[1] * res_y / 2,
         )
         cax3 = ax3.imshow(
             yz_slice.T,
