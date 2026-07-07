@@ -344,14 +344,17 @@ def test_run_simulation_with_jsonsetup(setup_simulation_inputs, tmp_path):
 def test_extruded_polygon_json():
     """Test JSON serialization and deserialization of ExtrudedPolygon."""
     import numpy as np
+
     from fdtdx.objects.static_material.polygon import ExtrudedPolygon
 
-    verts = np.array([
-        [-0.5e-6, -0.5e-6],
-        [0.5e-6, -0.5e-6],
-        [0.5e-6, 0.5e-6],
-        [-0.5e-6, 0.5e-6],
-    ])
+    verts = np.array(
+        [
+            [-0.5e-6, -0.5e-6],
+            [0.5e-6, -0.5e-6],
+            [0.5e-6, 0.5e-6],
+            [-0.5e-6, 0.5e-6],
+        ]
+    )
     materials = {"si": Material(permittivity=12.0)}
     poly = ExtrudedPolygon(
         name="test_poly",
@@ -376,11 +379,10 @@ def test_extruded_polygon_json():
 def test_gds_layer_object_json():
     """Test JSON serialization and deserialization of GDSLayerObject."""
     import numpy as np
+
     from fdtdx.objects.static_material.gds_layer_stack import GDSLayerObject
 
-    polygons = [
-        np.array([[-0.5e-6, -0.5e-6], [0.5e-6, -0.5e-6], [0.5e-6, 0.5e-6], [-0.5e-6, 0.5e-6]])
-    ]
+    polygons = [np.array([[-0.5e-6, -0.5e-6], [0.5e-6, -0.5e-6], [0.5e-6, 0.5e-6], [-0.5e-6, 0.5e-6]])]
     materials = {"si": Material(permittivity=12.0)}
     obj = GDSLayerObject(
         name="gds_layer",
@@ -404,4 +406,3 @@ def test_gds_layer_object_json():
     assert rec.gds_center == (0.0, 0.0)
     assert len(rec.polygons) == 1
     np.testing.assert_array_equal(rec.polygons[0], polygons[0])
-
