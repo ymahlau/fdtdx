@@ -103,6 +103,7 @@ def plot_2d_from_slices(
     # Create XZ plane plot
 
     ax2 = fig.add_subplot(132)
+    assert minvals[1] is not None and maxvals[1] is not None
     if coordinate_edges_um is None:
         extent2 = (
             0,
@@ -110,7 +111,6 @@ def plot_2d_from_slices(
             0,
             xz_slice.shape[1] * res_z,
         )
-        assert minvals[1] is not None and maxvals[1] is not None
         cax2 = ax2.imshow(
             xz_slice.T,
             cmap=color_map,
@@ -139,6 +139,7 @@ def plot_2d_from_slices(
 
     # # Create YZ plane plot
     ax3 = fig.add_subplot(133)
+    assert minvals[2] is not None and maxvals[2] is not None
     if coordinate_edges_um is None:
         extent3 = (
             0,
@@ -146,7 +147,6 @@ def plot_2d_from_slices(
             0,
             yz_slice.shape[1] * res_z,
         )
-        assert minvals[2] is not None and maxvals[2] is not None
         cax3 = ax3.imshow(
             yz_slice.T,
             cmap=color_map,
