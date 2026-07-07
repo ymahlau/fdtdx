@@ -100,6 +100,29 @@ class ObjectContainer(TreeClass):
         return [o for o in self.objects if isinstance(o, BaseBoundary)]
 
     @property
+    def any_object_subpixel_smoothing(self) -> bool:
+        """True if any static multi-material object requests sub-pixel dielectric smoothing.
+
+        When True the permittivity must be allocated as a full 9-component tensor (the smoothing
+        produces an anisotropic effective permittivity at interface cells), regardless of the fact that
+        every underlying material is isotropic.
+        """
+        return any(getattr(o, "subpixel_smoothing", False) for o in self.static_material_objects)
+
+    @property
+    def any_object_subpixel_full_tensor(self) -> bool:
+        """True if any smoothed object requests the full 9-component tensor (vs the cheap 3-comp diagonal).
+
+        When True the permittivity is allocated as a full 9-component tensor and the anisotropic update
+        kernel is used; when False (all smoothed objects diagonal) a 3-component diagonal allocation runs on
+        the cheaper elementwise update, which is exact for axis-aligned interfaces.
+        """
+        return any(
+            getattr(o, "subpixel_smoothing", False) and getattr(o, "subpixel_full_tensor", False)
+            for o in self.static_material_objects
+        )
+
+    @property
     def all_objects_non_magnetic(self) -> bool:
         def _fn(m: Material):
             return not m.is_magnetic
