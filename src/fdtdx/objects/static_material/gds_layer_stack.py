@@ -453,7 +453,9 @@ def _offset_polygons(polygons: list[np.ndarray], offset: float) -> list[np.ndarr
     Returns the possibly-empty list of resulting polygon vertex arrays (erosion can remove a shape entirely
     or split it; dilation can merge shapes — handled downstream by OR-ing the rasterized masks).
     """
-    gpolys = [gdstk.Polygon(np.asarray(p)) for p in polygons]
+    # gdstk.Polygon's type stub declares a ``Sequence[tuple[float, float]]``; feed it explicit vertex
+    # tuples (an ndarray works at runtime but trips the static type checker).
+    gpolys = [gdstk.Polygon([(float(x), float(y)) for x, y in np.asarray(p)]) for p in polygons]
     # gdstk.offset snaps to an internal integer grid of size ``precision``; its 1e-3 default assumes
     # micron-scale layout coordinates, but here coordinates are in METRES (~1e-6), so a coarse precision
     # would collapse the shape. Scale precision to the coordinate magnitude (~7 significant digits).
