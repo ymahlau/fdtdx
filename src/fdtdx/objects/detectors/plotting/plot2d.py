@@ -64,6 +64,20 @@ def plot_2d_from_slices(
     res_z = resolutions[2] / 1.0e-6
     colorbar_shrink = 0.5
 
+    # Center rectilinear coordinates for plotting
+    if coordinate_edges_um is not None:
+        # Center the x, y and z coordinate edges
+        center_x = (coordinate_edges_um[0][0] + coordinate_edges_um[0][-1]) / 2
+        center_y = (coordinate_edges_um[1][0] + coordinate_edges_um[1][-1]) / 2
+        center_z = (coordinate_edges_um[2][0] + coordinate_edges_um[2][-1]) / 2
+
+        # Subtract the center from all edges
+        x_edges_centered = coordinate_edges_um[0] - center_x
+        y_edges_centered = coordinate_edges_um[1] - center_y
+        z_edges_centered = coordinate_edges_um[2] - center_z
+    else:
+        x_edges_centered = y_edges_centered = z_edges_centered = None
+
     # Create XY plane plot
     ax1 = fig.add_subplot(131)
     assert minvals[0] is not None and maxvals[0] is not None
@@ -85,9 +99,10 @@ def plot_2d_from_slices(
             origin="lower",
         )
     else:
+        assert x_edges_centered is not None and y_edges_centered is not None
         cax1 = ax1.pcolormesh(
-            coordinate_edges_um[0],
-            coordinate_edges_um[1],
+            x_edges_centered,
+            y_edges_centered,
             xy_slice.T,
             cmap=color_map,
             vmin=minvals[0],
@@ -122,9 +137,10 @@ def plot_2d_from_slices(
             origin="lower",
         )
     else:
+        assert x_edges_centered is not None and z_edges_centered is not None
         cax2 = ax2.pcolormesh(
-            coordinate_edges_um[0],
-            coordinate_edges_um[2],
+            x_edges_centered,
+            z_edges_centered,
             xz_slice.T,
             cmap=color_map,
             vmin=minvals[1],
@@ -158,9 +174,10 @@ def plot_2d_from_slices(
             origin="lower",
         )
     else:
+        assert y_edges_centered is not None and z_edges_centered is not None
         cax3 = ax3.pcolormesh(
-            coordinate_edges_um[1],
-            coordinate_edges_um[2],
+            y_edges_centered,
+            z_edges_centered,
             yz_slice.T,
             cmap=color_map,
             vmin=minvals[2],
