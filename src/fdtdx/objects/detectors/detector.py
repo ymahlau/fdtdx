@@ -308,7 +308,7 @@ class Detector(SimulationObject, ABC):
         # Resolve cmap
         if cmap == "default":
             if self._signed_data:
-                resolved_cmap = "bwr"
+                resolved_cmap = "RdBu_r"
             else:
                 resolved_cmap = "inferno"
         else:
