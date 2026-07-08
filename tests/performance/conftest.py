@@ -80,6 +80,13 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=False,
         help="Include fine-resolution variants of all benchmarks.",
     )
+    g.addoption(
+        "--perf-max-steps",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Limit full benchmarks to at most N FDTD steps for short diagnostic runs.",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -113,6 +120,7 @@ class PerfOptions:
     memory: bool
     visualize: bool
     reps: int
+    max_steps: int | None
 
 
 @pytest.fixture(scope="session")
@@ -122,6 +130,7 @@ def perf_options(request: pytest.FixtureRequest) -> PerfOptions:
         memory=request.config.getoption("perf_memory"),
         visualize=request.config.getoption("perf_visualize"),
         reps=request.config.getoption("--perf-reps"),
+        max_steps=request.config.getoption("--perf-max-steps"),
     )
 
 

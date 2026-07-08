@@ -28,8 +28,8 @@ import pytest
 import fdtdx
 from fdtdx.core.grid import RectilinearGrid
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
+from fdtdx.fdtd.fdtd import custom_fdtd_forward
 from fdtdx.fdtd.initialization import apply_params, place_objects
-from fdtdx.fdtd.wrapper import run_fdtd
 from fdtdx.materials import Material
 from fdtdx.objects.static_material.gds_layer_stack import GDSLayerSpec
 
@@ -215,15 +215,31 @@ def _compile(
     objects: ObjectContainer,
     arrays: ArrayContainer,
     config: fdtdx.SimulationConfig,
+    *,
+    max_steps: int | None = None,
 ) -> tuple[any, float, dict]:
+    end_time = config.time_steps_total
+    if max_steps is not None:
+        if max_steps <= 0:
+            raise ValueError(f"max_steps must be positive, got {max_steps}")
+        end_time = min(end_time, max_steps)
+
     fn_kwargs = dict(
         arrays=arrays,
         objects=objects,
         config=config,
         key=jax.random.PRNGKey(0),
-        show_progress=True,
+        reset_container=True,
+        record_detectors=True,
+        start_time=0,
+        end_time=end_time,
+        show_progress=False,
     )
-    return compile_fn(run_fdtd, fn_kwargs, static_argnames=("show_progress",))
+    return compile_fn(
+        custom_fdtd_forward,
+        fn_kwargs,
+        static_argnames=("reset_container", "record_detectors", "start_time", "end_time", "show_progress"),
+    )
 
 
 def _run(
@@ -280,7 +296,12 @@ def test_directional_coupler(cells_per_lambda, perf_env, perf_sink, perf_run_dir
     except Exception:
         pass
 
-    compiled, compile_s, dynamic_kwargs = _compile(objects, arrays, config)
+    compiled, compile_s, dynamic_kwargs = _compile(
+        objects,
+        arrays,
+        config,
+        max_steps=perf_options.max_steps,
+    )
     run_s, peak_mem, trace_path, mem_profile, final_state = _run(
         compiled,
         dynamic_kwargs,
@@ -291,7 +312,8 @@ def test_directional_coupler(cells_per_lambda, perf_env, perf_sink, perf_run_dir
         output_dir=perf_run_dir,
     )
 
-    _, final_arrays = final_state
+    final_time_step, final_arrays = final_state
+    measured_steps = int(jax.device_get(final_time_step))
     jax.block_until_ready(final_arrays)
 
     states = jax.device_get(final_arrays.detector_states)
@@ -306,7 +328,7 @@ def test_directional_coupler(cells_per_lambda, perf_env, perf_sink, perf_run_dir
     result = BenchmarkResult(
         name=bench_name,
         grid_shape=(len(grid.x_edges) - 1, len(grid.y_edges) - 1, len(grid.z_edges) - 1),
-        time_steps=config.time_steps_total,
+        time_steps=measured_steps,
         compile_seconds=compile_s,
         run_seconds=run_s,
         env=perf_env,
@@ -317,6 +339,8 @@ def test_directional_coupler(cells_per_lambda, perf_env, perf_sink, perf_run_dir
     )
     perf_sink.append(result)
     print(f"\n  {result.summary()}")
+    if measured_steps != config.time_steps_total:
+        print(f"  (max steps={config.time_steps_total}, measured prefix={measured_steps})")
 
     if perf_options.visualize:
         n_si = math.sqrt(fdtdx.constants.relative_permittivity_silicon)
