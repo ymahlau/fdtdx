@@ -313,8 +313,11 @@ def _import_obj_from_json(obj: dict | list | float | int | str | bool | None) ->
             kwargs = {k: _import_obj_from_json(v) for k, v in vals.items()}
             return cls(**kwargs)
         # sequence
-        imported_vals = [_import_obj_from_json(v) for v in vals]
-        return cls(imported_vals)
+        if isinstance(vals, list):
+            imported_vals = [_import_obj_from_json(v) for v in vals]
+            return cls(imported_vals)
+        # 0-d numpy/jax array: ndarray.tolist() returns a bare scalar, not a list
+        return cls(_import_obj_from_json(vals))
     # dictionary
     if name == "dict":
         return {k: _import_obj_from_json(v) for k, v in obj.items() if k not in ["__module__", "__name__"]}

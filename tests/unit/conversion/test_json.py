@@ -277,3 +277,23 @@ class TestJsonRoundtrip:
         restored = import_from_json(export_json_str(original))
         assert isinstance(restored, np.ndarray)
         np.testing.assert_array_equal(restored, np.asarray(original))
+
+    def test_roundtrip_0d_numpy_array(self):
+        """Test roundtrip of a 0-d numpy array (scalar array)."""
+        import numpy as np
+
+        original = np.array(3.14)
+        restored = import_from_json(export_json_str(original))
+        assert isinstance(restored, np.ndarray)
+        assert restored.shape == ()
+        np.testing.assert_array_equal(restored, original)
+
+    def test_roundtrip_0d_jax_array(self):
+        """Test roundtrip of a 0-d JAX array (scalar array)."""
+        import numpy as np
+
+        original = jnp.array(3.14)
+        restored = import_from_json(export_json_str(original))
+        assert isinstance(restored, np.ndarray)
+        assert restored.shape == ()
+        np.testing.assert_array_equal(restored, np.asarray(original))
