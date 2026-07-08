@@ -2,7 +2,6 @@ from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
-import seaborn as sns
 from matplotlib.figure import Figure
 
 
@@ -18,6 +17,7 @@ def plot_2d_from_slices(
     plot_dpi: int | None = None,
     aspect: Literal["equal", "auto"] = "equal",
     cmap: str = "default",
+    signed_data: bool = True,
 ) -> Figure:
     """Plot orthogonal slices using either uniform spacing or rectilinear edges.
 
@@ -34,31 +34,38 @@ def plot_2d_from_slices(
         maxvals: Per-slice color maxima.
         plot_interpolation: Interpolation used by the legacy uniform imshow path.
         plot_dpi: Figure DPI.
-        cmap: str = "default": Color map for the detector plots. "default" is a custom
-            red-blue seaborn color map.
+        cmap: str = "default": Color map for the detector plots. "default" is inferno
+            for unsigned data and bwr for signed data.
         aspect: Literal["auto", "equal"]: Size aspect of the detector plots.
             "equal" (default) uses the same scale for all axes.
             "auto" adjusts each axis's scale to fit the figure size.
+        signed_data: bool: Whether the data is signed (fields, phasors, mode_overlaps...)
+            or unsigned (energy, Poynting flux). Used to choose a colormap and scale its values.
 
     Returns:
         Matplotlib figure with XY, XZ, and YZ panels.
     """
     slices = [xy_slice, xz_slice, yz_slice]
     for a in range(3):
-        if minvals[a] is None:
-            min_list = list(minvals)
-            min_list[a] = slices[a].min()
-            minvals = min_list[0], min_list[1], min_list[2]
-        if maxvals[a] is None:
-            max_list = list(maxvals)
-            max_list[a] = slices[a].max()
-            maxvals = max_list[0], max_list[1], max_list[2]
+        if signed_data:
+            if minvals[a] is None or maxvals[a] is None:
+                abs_max = float(np.abs(slices[a]).max())
+                min_list, max_list = list(minvals), list(maxvals)
+                min_list[a] = -abs_max
+                max_list[a] = abs_max
+                minvals = (min_list[0], min_list[1], min_list[2])
+                maxvals = (max_list[0], max_list[1], max_list[2])
+        else:
+            if minvals[a] is None:
+                min_list = list(minvals)
+                min_list[a] = 0.0
+                minvals = (min_list[0], min_list[1], min_list[2])
+            if maxvals[a] is None:
+                max_list = list(maxvals)
+                max_list[a] = slices[a].max()
+                maxvals = (max_list[0], max_list[1], max_list[2])
 
     fig = plt.figure(figsize=(20, 10), dpi=plot_dpi)
-    if cmap == "default":
-        color_map = sns.diverging_palette(220, 20, as_cmap=True)
-    else:
-        color_map = cmap
     res_x = resolutions[0] / 1.0e-6  # Convert to µm
     res_y = resolutions[1] / 1.0e-6
     res_z = resolutions[2] / 1.0e-6
@@ -90,7 +97,7 @@ def plot_2d_from_slices(
         )
         cax1 = ax1.imshow(
             xy_slice.T,
-            cmap=color_map,
+            cmap=cmap,
             vmin=minvals[0],
             vmax=maxvals[0],
             extent=extent1,
@@ -104,7 +111,7 @@ def plot_2d_from_slices(
             x_edges_centered,
             y_edges_centered,
             xy_slice.T,
-            cmap=color_map,
+            cmap=cmap,
             vmin=minvals[0],
             vmax=maxvals[0],
             shading="auto",
@@ -128,7 +135,7 @@ def plot_2d_from_slices(
         )
         cax2 = ax2.imshow(
             xz_slice.T,
-            cmap=color_map,
+            cmap=cmap,
             vmin=minvals[1],
             vmax=maxvals[1],
             extent=extent2,
@@ -142,7 +149,7 @@ def plot_2d_from_slices(
             x_edges_centered,
             z_edges_centered,
             xz_slice.T,
-            cmap=color_map,
+            cmap=cmap,
             vmin=minvals[1],
             vmax=maxvals[1],
             shading="auto",
@@ -165,7 +172,7 @@ def plot_2d_from_slices(
         )
         cax3 = ax3.imshow(
             yz_slice.T,
-            cmap=color_map,
+            cmap=cmap,
             vmin=minvals[2],
             vmax=maxvals[2],
             extent=extent3,
@@ -179,7 +186,7 @@ def plot_2d_from_slices(
             y_edges_centered,
             z_edges_centered,
             yz_slice.T,
-            cmap=color_map,
+            cmap=cmap,
             vmin=minvals[2],
             vmax=maxvals[2],
             shading="auto",

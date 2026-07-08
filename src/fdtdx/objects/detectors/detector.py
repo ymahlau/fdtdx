@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Literal, Self
+from typing import ClassVar, Literal, Self
 
 import jax
 import jax.numpy as jnp
@@ -61,6 +61,13 @@ class Detector(SimulationObject, ABC):
 
     #: DPI resolution for plots. Defaults to None.
     plot_dpi: int | None = frozen_field(default=None)
+
+    #: Whether this detector records signed, zero-centered data (e.g. field
+    #: components Ex/Ey/Ez/Hx/Hy/Hz) vs. strictly non-negative data (e.g. energy
+    #: density, |E|^2, Poynting magnitude). Controls the default colormap and
+    #: normalization used by draw_plot. Override in subclasses that record
+    #: non-negative quantities.
+    _signed_data: ClassVar[bool] = True
 
     _num_time_steps_on: int = frozen_private_field()
     _is_on_at_time_step_arr: jax.Array = private_field()
@@ -283,13 +290,13 @@ class Detector(SimulationObject, ABC):
         for time-varying data.
 
         Args:
-            state (dict[str, np.ndarray]): Dictionary containing recorded field data arrays.
-            progress (Progress | None, optional): Optional progress bar for video generation.
-            cmap: str = "default": Color map for the detector plots. "default" is a custom
-                                   red-blue seaborn color map.
+            state: dict[str, np.ndarray]: Dictionary containing recorded field data arrays.
+            progress: Progress | None, optional: Optional progress bar for video generation.
+            cmap: str = "default": Color map for the detector plots. "default" is inferno
+                for unsigned data and bwr for signed data.
             aspect: Literal["auto", "equal"]: Size aspect of the detector plots.
-                    "equal" (default) uses the same scale for all axes.
-                    "auto" adjusts each axis's scale to fit the figure size.
+                "equal" (default) uses the same scale for all axes.
+                "auto" adjusts each axis's scale to fit the figure size.
 
         Returns:
             dict[str, Figure | str]: Dictionary mapping plot names to either
@@ -297,6 +304,16 @@ class Detector(SimulationObject, ABC):
         """
         squeezed_arrs = {}
         squeezed_ndim = None
+
+        # Resolve cmap
+        if cmap == "default":
+            if self._signed_data:
+                resolved_cmap = "bwr"
+            else:
+                resolved_cmap = "inferno"
+        else:
+            resolved_cmap = cmap
+
         for k, v in state.items():
             v_squeezed = v.squeeze()
             if self.inverse and self.if_inverse_plot_backwards and self.num_time_steps_recorded > 1:
@@ -375,7 +392,8 @@ class Detector(SimulationObject, ABC):
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,
                     aspect=aspect,
-                    cmap=cmap,
+                    cmap=resolved_cmap,
+                    signed_data=self._signed_data,
                 )
                 figs["sliced_plot"] = fig
             else:
@@ -395,7 +413,8 @@ class Detector(SimulationObject, ABC):
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,
                     aspect=aspect,
-                    cmap=cmap,
+                    cmap=resolved_cmap,
+                    signed_data=self._signed_data,
                 )
                 figs["sliced_video"] = path
             else:
@@ -418,7 +437,8 @@ class Detector(SimulationObject, ABC):
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,
                     aspect=aspect,
-                    cmap=cmap,
+                    cmap=resolved_cmap,
+                    signed_data=self._signed_data,
                 )
                 figs[k] = fig
         elif squeezed_ndim == 4 and self.num_time_steps_recorded > 1:
@@ -439,7 +459,8 @@ class Detector(SimulationObject, ABC):
                     plot_dpi=self.plot_dpi,
                     plot_interpolation=self.plot_interpolation,
                     aspect=aspect,
-                    cmap=cmap,
+                    cmap=resolved_cmap,
+                    signed_data=self._signed_data,
                 )
                 figs[k] = path
         else:
