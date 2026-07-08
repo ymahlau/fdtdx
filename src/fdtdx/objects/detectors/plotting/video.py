@@ -1,7 +1,7 @@
 import multiprocessing as mp
 import tempfile
 from functools import partial
-from typing import Callable
+from typing import Callable, Literal
 
 import matplotlib
 
@@ -24,6 +24,8 @@ def plot_from_slices(
     plot_dpi: int | None,
     plot_interpolation: str,
     coordinate_edges_um: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
+    aspect: Literal["auto", "equal"] = "equal",
+    cmap: str = "default",
 ):
     xy_slice, xz_slice, yz_slice = slice_tuple
 
@@ -37,6 +39,8 @@ def plot_from_slices(
         maxvals=maxvals,
         plot_dpi=plot_dpi,
         plot_interpolation=plot_interpolation,
+        aspect=aspect,
+        cmap=cmap,
     )
     # Convert matplotlib figure to a numpy array
     fig.canvas.draw()
@@ -80,6 +84,8 @@ def generate_video_from_slices(
     minvals: tuple[float | None, float | None, float | None] = (None, None, None),
     maxvals: tuple[float | None, float | None, float | None] = (None, None, None),
     coordinate_edges_um: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
+    aspect: Literal["auto", "equal"] = "equal",
+    cmap: str = "default",
 ) -> str:
     """Generates an MP4 video from time-series slice data using parallel processing.
 
@@ -103,6 +109,11 @@ def generate_video_from_slices(
             scaling. None values are auto-scaled. Defaults to (None, None, None)
         maxvals (tuple[float | None, float | None, float | None]): Tuple of maximum values for colormap scaling.
             None values are auto-scaled. Defaults to (None, None, None).
+        cmap: str = "default": Color map for the detector plots. "default" is a custom
+            red-blue seaborn color map.
+        aspect: Literal["auto", "equal"]: Size aspect of the detector plots.
+            "equal" (default) uses the same scale for all axes.
+            "auto" adjusts each axis's scale to fit the figure size.
 
     Returns:
         str: Path to the generated MP4 video file
@@ -133,6 +144,8 @@ def generate_video_from_slices(
         plot_dpi=plot_dpi,
         plot_interpolation=plot_interpolation,
         coordinate_edges_um=coordinate_edges_um,
+        aspect=aspect,
+        cmap=cmap,
     )
     slice_arr_list = [(xy_slice[t], xz_slice[t], yz_slice[t]) for t in range(time_steps)]
     if num_worker is None:
