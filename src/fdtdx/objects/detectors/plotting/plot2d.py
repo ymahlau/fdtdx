@@ -65,6 +65,15 @@ def plot_2d_from_slices(
                 max_list[a] = slices[a].max()
                 maxvals = (max_list[0], max_list[1], max_list[2])
 
+    # Resolve cmap if not done before
+    if cmap == "default":
+        if signed_data:
+            resolved_cmap = "RdBu_r"
+        else:
+            resolved_cmap = "inferno"
+    else:
+        resolved_cmap = cmap
+
     fig = plt.figure(figsize=(20, 10), dpi=plot_dpi)
     res_x = resolutions[0] / 1.0e-6  # Convert to µm
     res_y = resolutions[1] / 1.0e-6
@@ -97,7 +106,7 @@ def plot_2d_from_slices(
         )
         cax1 = ax1.imshow(
             xy_slice.T,
-            cmap=cmap,
+            cmap=resolved_cmap,
             vmin=minvals[0],
             vmax=maxvals[0],
             extent=extent1,
@@ -111,7 +120,7 @@ def plot_2d_from_slices(
             x_edges_centered,
             y_edges_centered,
             xy_slice.T,
-            cmap=cmap,
+            cmap=resolved_cmap,
             vmin=minvals[0],
             vmax=maxvals[0],
             shading="auto",
@@ -135,7 +144,7 @@ def plot_2d_from_slices(
         )
         cax2 = ax2.imshow(
             xz_slice.T,
-            cmap=cmap,
+            cmap=resolved_cmap,
             vmin=minvals[1],
             vmax=maxvals[1],
             extent=extent2,
@@ -149,7 +158,7 @@ def plot_2d_from_slices(
             x_edges_centered,
             z_edges_centered,
             xz_slice.T,
-            cmap=cmap,
+            cmap=resolved_cmap,
             vmin=minvals[1],
             vmax=maxvals[1],
             shading="auto",
@@ -172,7 +181,7 @@ def plot_2d_from_slices(
         )
         cax3 = ax3.imshow(
             yz_slice.T,
-            cmap=cmap,
+            cmap=resolved_cmap,
             vmin=minvals[2],
             vmax=maxvals[2],
             extent=extent3,
@@ -186,7 +195,7 @@ def plot_2d_from_slices(
             y_edges_centered,
             z_edges_centered,
             yz_slice.T,
-            cmap=cmap,
+            cmap=resolved_cmap,
             vmin=minvals[2],
             vmax=maxvals[2],
             shading="auto",
