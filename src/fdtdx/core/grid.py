@@ -5,7 +5,7 @@ from matplotlib.path import Path
 
 from fdtdx import constants
 from fdtdx.core.axis import get_transverse_axes
-from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field, frozen_private_field
+from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field, frozen_private_field, private_field
 from fdtdx.core.misc import validate_symmetric_axis_cells
 
 
@@ -312,6 +312,7 @@ class RectilinearGrid(TreeClass):
     _min_spacings: tuple[float, float, float] = frozen_private_field()
     _is_uniform: bool = frozen_private_field()
     _uniform_spacing: float | None = frozen_private_field()
+    _cell_widths: tuple[jax.Array, jax.Array, jax.Array] = private_field(repr=False)
 
     def __post_init__(self):
         object.__setattr__(self, "x_edges", jnp.asarray(self.x_edges))
@@ -326,6 +327,7 @@ class RectilinearGrid(TreeClass):
                 raise ValueError(f"Grid edge coordinates for axis {axis} must be strictly increasing.")
         edge_arrays_np = tuple(np.asarray(edges) for edges in (self.x_edges, self.y_edges, self.z_edges))
         width_arrays = tuple(np.diff(edges) for edges in edge_arrays_np)
+        object.__setattr__(self, "_cell_widths", tuple(jnp.asarray(widths) for widths in width_arrays))
         min_spacings = tuple(float(np.min(widths)) for widths in width_arrays)
         spacing = float(width_arrays[0][0])
         # Uniformity is a *relative* property. The absolute width jitter of a perfectly uniform
@@ -463,17 +465,17 @@ class RectilinearGrid(TreeClass):
     @property
     def dx(self) -> jax.Array:
         """Cell widths along x in metres."""
-        return jnp.diff(self.x_edges)
+        return self._cell_widths[0]
 
     @property
     def dy(self) -> jax.Array:
         """Cell widths along y in metres."""
-        return jnp.diff(self.y_edges)
+        return self._cell_widths[1]
 
     @property
     def dz(self) -> jax.Array:
         """Cell widths along z in metres."""
-        return jnp.diff(self.z_edges)
+        return self._cell_widths[2]
 
     @property
     def min_spacing(self) -> float:
