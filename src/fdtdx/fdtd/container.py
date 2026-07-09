@@ -103,9 +103,10 @@ class ObjectContainer(TreeClass):
     def any_object_subpixel_smoothing(self) -> bool:
         """True if any static multi-material object requests sub-pixel dielectric smoothing.
 
-        When True the permittivity must be allocated as a full 9-component tensor (the smoothing
-        produces an anisotropic effective permittivity at interface cells), regardless of the fact that
-        every underlying material is isotropic.
+        When True the permittivity must be allocated as an anisotropic effective permittivity at
+        interface cells even though every underlying material is isotropic. The default (diagonal)
+        variant uses a 3-component allocation; a full 9-component tensor is only used when
+        ``any_object_subpixel_full_tensor`` is also True.
         """
         return any(getattr(o, "subpixel_smoothing", False) for o in self.static_material_objects)
 

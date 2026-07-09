@@ -33,7 +33,8 @@ class StaticMultiMaterialObject(OrderableObject, ABC):
     #: al. (Meep): arithmetic mean of ``eps`` for the field components tangential to the interface and
     #: harmonic mean of ``eps`` for the component normal to it. This removes the first-order staircasing
     #: error of the Yee grid at strong dielectric jumps (2nd-order accuracy). Forces the whole
-    #: simulation to allocate a 9-component permittivity tensor. Requires the object to provide a
+    #: simulation to allocate an anisotropic permittivity tensor (3-component diagonal by default, or a
+    #: full 9-component tensor when ``subpixel_full_tensor`` is set). Requires the object to provide a
     #: fractional ``get_fill_fraction_for_shape`` (the default falls back to the binary mask, which
     #: still yields a valid but only cell-wide normal). See issue #373.
     subpixel_smoothing: bool = frozen_field(default=False)

@@ -75,6 +75,10 @@ class GDSLayerSpec:
     #: the default cheap 3-component diagonal. See
     #: :attr:`~fdtdx.objects.static_material.static.StaticMultiMaterialObject.subpixel_full_tensor`.
     subpixel_full_tensor: bool = False
+    #: Number of sub-samples per axis used to estimate the in-plane fill fraction when
+    #: ``subpixel_smoothing`` is on. See
+    #: :attr:`~fdtdx.objects.static_material.gds_layer_stack.GDSLayerObject.fill_supersample`.
+    fill_supersample: int = 8
     color: Color | None = XKCD_LIGHT_GREY
 
 
@@ -137,11 +141,18 @@ class GDSLayerObject(StaticMultiMaterialObject):
     #: Face that keeps the nominal footprint: ``"bottom"``, ``"middle"`` or ``"top"``.
     reference_plane: Literal["bottom", "middle", "top"] = frozen_field(default="bottom")
 
+    #: Number of sub-samples per axis used to estimate the in-plane fill fraction for sub-pixel
+    #: smoothing (see :meth:`get_fill_fraction_for_shape`). Higher values give a more accurate fill
+    #: fraction / interface normal at a quadratic cost in this (CPU-side, one-time) rasterization step.
+    fill_supersample: int = frozen_field(default=8)
+
     def __post_init__(self):
         if not 0.0 < self.sidewall_angle < 180.0:
             raise ValueError(f"sidewall_angle must lie in (0, 180) degrees (90 = vertical), got {self.sidewall_angle}.")
         if self.reference_plane not in ("bottom", "middle", "top"):
             raise ValueError(f"reference_plane must be one of 'bottom', 'middle', 'top'; got {self.reference_plane!r}.")
+        if self.fill_supersample < 1:
+            raise ValueError(f"fill_supersample must be >= 1, got {self.fill_supersample}.")
 
     @property
     def horizontal_axis(self) -> int:
@@ -304,9 +315,6 @@ class GDSLayerObject(StaticMultiMaterialObject):
         idx = all_names.index(self.material_name)
         return jnp.ones(self.grid_shape, dtype=jnp.int32) * idx
 
-    #: Number of sub-samples per axis used to estimate the in-plane fill fraction.
-    _FILL_SUPERSAMPLE: int = 8
-
     def get_fill_fraction_for_shape(self) -> jax.Array:
         """Analytic per-cell fill fraction of the extruded (optionally trapezoidal) polygon, in ``[0, 1]``.
 
@@ -358,14 +366,14 @@ class GDSLayerObject(StaticMultiMaterialObject):
 
         if self.sidewall_angle == 90.0 or max_offset < 0.5 * pitch or n_z == 0:
             # Vertical wall (or sub-cell taper): separable fast path on the nominal footprint.
-            f_xy = self._fill_fraction_2d(self._FILL_SUPERSAMPLE)  # (n_h, n_v)
+            f_xy = self._fill_fraction_2d(self.fill_supersample)  # (n_h, n_v)
             frac = f_xy[:, :, None] * f_z[None, None, :]
         else:
             # Tilted wall: the footprint fraction varies with height -> per z-slice offset footprint.
             frac = np.zeros((n_h, n_v, n_z), dtype=float)
             for k in range(n_z):
                 offset = (float(z_centers[k]) - z_ref) * tan  # >0 erodes (angle<90), <0 dilates
-                frac[:, :, k] = self._fill_fraction_2d(self._FILL_SUPERSAMPLE, offset=offset) * f_z[k]
+                frac[:, :, k] = self._fill_fraction_2d(self.fill_supersample, offset=offset) * f_z[k]
         return jnp.asarray(frac, dtype=float)
 
     def _fill_fraction_2d(self, supersample: int, offset: float = 0.0) -> np.ndarray:
@@ -694,6 +702,7 @@ def gds_layer_stack(
             reference_plane=spec.reference_plane,
             subpixel_smoothing=spec.subpixel_smoothing,
             subpixel_full_tensor=spec.subpixel_full_tensor,
+            fill_supersample=spec.fill_supersample,
             partial_real_shape=(None, None, spec.thickness),
         )
 

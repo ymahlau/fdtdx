@@ -586,6 +586,21 @@ def _init_arrays(
     # variant keeps the off-diagonal terms and forces a 9-component allocation (anisotropic kernel).
     subpixel_permittivity = objects.any_object_subpixel_smoothing
     subpixel_full_tensor = objects.any_object_subpixel_full_tensor
+    if subpixel_permittivity and not isotropic_permittivity:
+        # The eps_bar/eps_h blend below (isotropic-background assumption) only ever reads the xx
+        # component of the background and object material, so yy/zz/off-diagonal anisotropy on either
+        # side of a smoothed interface is silently dropped rather than rejected or routed through a
+        # dedicated anisotropic path. Not yet handled - see fdtdx#400.
+        warnings.warn(
+            "`subpixel_smoothing=True` is combined with an anisotropic material somewhere in the "
+            "simulation. Sub-pixel smoothing currently assumes locally isotropic permittivity at "
+            "interface cells (only the xx component of the background/material is used to compute the "
+            "smoothed value); any yy/zz or off-diagonal anisotropy is silently ignored there. Use "
+            "isotropic materials on and around sub-pixel-smoothed objects until this is properly "
+            "supported.",
+            UserWarning,
+            stacklevel=2,
+        )
     if subpixel_permittivity:
         isotropic_permittivity = False
         diagonally_anisotropic_permittivity = not subpixel_full_tensor
