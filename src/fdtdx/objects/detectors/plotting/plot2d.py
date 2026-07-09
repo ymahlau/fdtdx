@@ -34,7 +34,7 @@ def plot_2d_from_slices(
         maxvals: Per-slice color maxima.
         plot_interpolation: Interpolation used by the legacy uniform imshow path.
         plot_dpi: Figure DPI.
-        cmap: str = "default": Color map for the detector plots. "default" is inferno
+        cmap: str = "default": Color map for the detector plots. "default" is turbo
             for unsigned data and bwr for signed data.
         aspect: Literal["auto", "equal"]: Size aspect of the detector plots.
             "equal" (default) uses the same scale for all axes.
@@ -70,7 +70,7 @@ def plot_2d_from_slices(
         if signed_data:
             resolved_cmap = "RdBu_r"
         else:
-            resolved_cmap = "inferno"
+            resolved_cmap = "turbo"
     else:
         resolved_cmap = cmap
 

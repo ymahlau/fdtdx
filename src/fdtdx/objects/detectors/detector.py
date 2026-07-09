@@ -292,7 +292,7 @@ class Detector(SimulationObject, ABC):
         Args:
             state: dict[str, np.ndarray]: Dictionary containing recorded field data arrays.
             progress: Progress | None, optional: Optional progress bar for video generation.
-            cmap: str = "default": Color map for the detector plots. "default" is inferno
+            cmap: str = "default": Color map for the detector plots. "default" is turbo
                 for unsigned data and bwr for signed data.
             aspect: Literal["auto", "equal"]: Size aspect of the detector plots.
                 "equal" (default) uses the same scale for all axes.
@@ -310,7 +310,7 @@ class Detector(SimulationObject, ABC):
             if self._signed_data:
                 resolved_cmap = "RdBu_r"
             else:
-                resolved_cmap = "inferno"
+                resolved_cmap = "turbo"
         else:
             resolved_cmap = cmap
 
