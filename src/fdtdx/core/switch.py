@@ -35,6 +35,22 @@ class OnOffSwitch(TreeClass):
     #: interval of the switch
     interval: int = frozen_field(default=1)
 
+    @property
+    def is_default_always_on(self) -> bool:
+        """Return whether the switch is the default all-steps-on switch."""
+        return (
+            not self.is_always_off
+            and self.fixed_on_time_steps is None
+            and self.interval == 1
+            and self.start_time is None
+            and self.start_after_periods is None
+            and self.end_time is None
+            and self.end_after_periods is None
+            and self.on_for_time is None
+            and self.on_for_periods is None
+            and self.period is None
+        )
+
     def calculate_on_list(
         self,
         num_total_time_steps: int,
