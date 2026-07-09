@@ -4,6 +4,11 @@ import dataclasses
 import math
 
 
+def grid_shape_from_config(config) -> tuple[int, int, int]:
+    g = config.grid
+    return (len(g.x_edges) - 1, len(g.y_edges) - 1, len(g.z_edges) - 1)
+
+
 @dataclasses.dataclass
 class BenchmarkResult:
     name: str

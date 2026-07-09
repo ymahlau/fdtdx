@@ -37,7 +37,9 @@ from ..utils import (
     BenchmarkResult,
     build_scene,
     compile_fn,
+    grid_shape_from_config,
     plot_field_intensity,
+    read_memory_stats,
     run_compiled,
 )
 
@@ -242,27 +244,6 @@ def _compile(
     )
 
 
-def _run(
-    compiled,
-    dynamic_kwargs: dict,
-    *,
-    name: str,
-    n_reps: int,
-    do_trace: bool,
-    do_memory: bool,
-    output_dir: Path,
-) -> tuple[list[float], int | None, str | None, str | None, any]:
-    return run_compiled(
-        compiled,
-        dynamic_kwargs,
-        name=name,
-        n_reps=n_reps,
-        do_trace=do_trace,
-        do_memory=do_memory,
-        output_dir=output_dir,
-    )
-
-
 # ---------------------------------------------------------------------------
 # Benchmark test
 # ---------------------------------------------------------------------------
@@ -288,13 +269,7 @@ def test_directional_coupler(cells_per_lambda, perf_env, perf_sink, perf_run_dir
         with_phasor_detectors=perf_options.visualize,
     )
 
-    static_mem: int | None = None
-    try:
-        stats = jax.devices()[0].memory_stats()
-        if stats:
-            static_mem = stats.get("bytes_in_use")
-    except Exception:
-        pass
+    static_mem = read_memory_stats().get("bytes_in_use")
 
     compiled, compile_s, dynamic_kwargs = _compile(
         objects,
@@ -302,7 +277,7 @@ def test_directional_coupler(cells_per_lambda, perf_env, perf_sink, perf_run_dir
         config,
         max_steps=perf_options.max_steps,
     )
-    run_s, peak_mem, trace_path, mem_profile, final_state = _run(
+    run_s, peak_mem, trace_path, mem_profile, final_state = run_compiled(
         compiled,
         dynamic_kwargs,
         name=bench_name,
@@ -324,10 +299,9 @@ def test_directional_coupler(cells_per_lambda, perf_env, perf_sink, perf_run_dir
         t = float((jnp.abs(amp).squeeze() ** 2) / norm_power)
         print(f"  T({det_name}): {t:.4f}  ({t * 100:.1f}%)")
 
-    grid = config.grid
     result = BenchmarkResult(
         name=bench_name,
-        grid_shape=(len(grid.x_edges) - 1, len(grid.y_edges) - 1, len(grid.z_edges) - 1),
+        grid_shape=grid_shape_from_config(config),
         time_steps=measured_steps,
         compile_seconds=compile_s,
         run_seconds=run_s,

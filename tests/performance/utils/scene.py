@@ -16,21 +16,7 @@ def port_to_sim_coords(
     domain_shape: tuple[float, float, float],
     gds_center: tuple[float, float],
 ) -> tuple[float, float]:
-    """Convert a GDS port position to absolute simulation coordinates (metres).
-
-    The simulation domain runs from 0 to domain_size on each axis, so:
-
-        sim_x = port_x + domain_x/2 - gds_center_x
-        sim_y = port_y + domain_y/2 - gds_center_y
-
-    Args:
-        port: Port dict with keys ``x_m`` and ``y_m`` in metres.
-        domain_shape: (x, y, z) total simulation domain in metres.
-        gds_center: GDS (x, y) coordinate in metres that maps to the simulation centre.
-
-    Returns:
-        (sim_x, sim_y) in absolute simulation metres (0 to domain_size).
-    """
+    """GDS port -> absolute sim coords: the domain runs 0..domain_size, centred on gds_center."""
     return (
         port["x_m"] + domain_shape[0] / 2.0 - gds_center[0],
         port["y_m"] + domain_shape[1] / 2.0 - gds_center[1],
@@ -45,19 +31,7 @@ def build_domain(
     sim_time: float,
     dtype=None,
 ) -> tuple:
-    """Create SimulationVolume, PML boundaries, background fill, and SimulationConfig.
-
-    Args:
-        domain_shape: (x, y, z) total domain extents in metres including PML.
-        pml_cells: Number of PML cells on each face.
-        background_material: :class:`fdtdx.Material` filling the entire volume.
-        grid: Grid object (:class:`fdtdx.RectilinearGrid` or :class:`fdtdx.UniformGrid`).
-        sim_time: Total simulation time in seconds.
-        dtype: JAX dtype for field arrays; defaults to ``jnp.float32``.
-
-    Returns:
-        ``(objects, constraints, config, volume)``
-    """
+    """Create SimulationVolume, PML boundaries, background fill, and SimulationConfig."""
     import jax.numpy as jnp_
 
     import fdtdx
@@ -105,18 +79,7 @@ def add_gds_geometry(
     volume,
     gds_center: tuple[float, float],
 ) -> None:
-    """Import GDS polygons and add extruded layer objects to the scene in-place.
-
-    Args:
-        objects: Scene object list to extend.
-        constraints: Scene constraint list to extend.
-        gds_path: Path to the ``.gds`` file.
-        cell_name: GDS cell containing the device polygons.
-        layer_specs: List of :class:`~fdtdx.objects.static_material.gds_layer_stack.GDSLayerSpec`.
-        materials: Dict mapping material name strings to :class:`fdtdx.Material`.
-        volume: :class:`fdtdx.SimulationVolume` used for size/position constraints.
-        gds_center: GDS (x, y) coordinate in metres mapped to the simulation centre.
-    """
+    """Import GDS polygons and add extruded layer objects to the scene in-place."""
     from fdtdx.objects.static_material.gds_layer_stack import gds_layer_stack
 
     gds_objs, gds_cons = gds_layer_stack(
@@ -129,6 +92,19 @@ def add_gds_geometry(
     )
     objects.extend(gds_objs)
     constraints.extend(gds_cons)
+
+
+def _place_at_port(obj, name: str, port: dict, volume, domain_shape, gds_center, span_y: float) -> list:
+    """Constraints placing ``obj`` at ``port``'s position, spanning ``volume`` in z."""
+    import fdtdx
+
+    sim_x, sim_y = port_to_sim_coords(port, domain_shape, gds_center)
+    return [
+        obj.same_size(volume, axes=(2,)),
+        obj.place_at_center(volume, axes=(2,)),
+        fdtdx.RealCoordinateConstraint(object=name, axes=(0,), sides=("-",), coordinates=(sim_x,)),
+        fdtdx.RealCoordinateConstraint(object=name, axes=(1,), sides=("-",), coordinates=(sim_y - span_y / 2,)),
+    ]
 
 
 def add_mode_source(
@@ -146,26 +122,9 @@ def add_mode_source(
     filter_pol: str | None = "te",
     direction: str = "+",
 ) -> None:
-    """Add a :class:`fdtdx.ModePlaneSource` placed at a port position.
-
-    Args:
-        objects: Scene object list to extend.
-        constraints: Scene constraint list to extend.
-        port: Port dict with keys ``x_m``, ``y_m`` in metres.
-        name: Unique object name for this source.
-        wave_character: :class:`fdtdx.WaveCharacter` (wavelength / frequency).
-        temporal_profile: Temporal envelope (e.g. :class:`fdtdx.GaussianPulseProfile`).
-        volume: :class:`fdtdx.SimulationVolume` reference for constraints.
-        domain_shape: (x, y, z) total domain in metres.
-        gds_center: GDS (x, y) in metres mapped to the simulation centre.
-        span_y: Transverse (y) extent of the source cross-section in metres.
-        mode_index: Waveguide mode order (0 = fundamental).
-        filter_pol: Polarisation filter ``"te"``, ``"tm"``, or ``None``.
-        direction: Propagation direction ``"+"`` or ``"-"``.
-    """
+    """Add a :class:`fdtdx.ModePlaneSource` placed at a port position."""
     import fdtdx
 
-    sim_x, sim_y = port_to_sim_coords(port, domain_shape, gds_center)
     source = fdtdx.ModePlaneSource(
         name=name,
         partial_grid_shape=(1, None, None),
@@ -176,24 +135,7 @@ def add_mode_source(
         mode_index=mode_index,
         filter_pol=filter_pol,
     )
-    constraints.extend(
-        [
-            source.same_size(volume, axes=(2,)),
-            source.place_at_center(volume, axes=(2,)),
-            fdtdx.RealCoordinateConstraint(
-                object=name,
-                axes=(0,),
-                sides=("-",),
-                coordinates=(sim_x,),
-            ),
-            fdtdx.RealCoordinateConstraint(
-                object=name,
-                axes=(1,),
-                sides=("-",),
-                coordinates=(sim_y - span_y / 2,),
-            ),
-        ]
-    )
+    constraints.extend(_place_at_port(source, name, port, volume, domain_shape, gds_center, span_y))
     objects.append(source)
 
 
@@ -212,26 +154,9 @@ def add_mode_detector(
     direction: str = "+",
     scaling_mode: str = "pulse",
 ) -> None:
-    """Add a :class:`fdtdx.ModeOverlapDetector` placed at a port position.
-
-    Args:
-        objects: Scene object list to extend.
-        constraints: Scene constraint list to extend.
-        port: Port dict with keys ``x_m``, ``y_m`` in metres.
-        name: Unique object name for this detector.
-        wave_characters: Tuple of :class:`fdtdx.WaveCharacter` objects.
-        volume: :class:`fdtdx.SimulationVolume` reference for constraints.
-        domain_shape: (x, y, z) total domain in metres.
-        gds_center: GDS (x, y) in metres mapped to the simulation centre.
-        span_y: Transverse (y) extent in metres.
-        mode_index: Waveguide mode order.
-        filter_pol: Polarisation filter or ``None``.
-        direction: Propagation direction ``"+"`` or ``"-"``.
-        scaling_mode: ``"pulse"`` (default) or ``"continuous"``.
-    """
+    """Add a :class:`fdtdx.ModeOverlapDetector` placed at a port position."""
     import fdtdx
 
-    sim_x, sim_y = port_to_sim_coords(port, domain_shape, gds_center)
     det = fdtdx.ModeOverlapDetector(
         name=name,
         partial_grid_shape=(1, None, None),
@@ -242,24 +167,7 @@ def add_mode_detector(
         filter_pol=filter_pol,
         scaling_mode=scaling_mode,
     )
-    constraints.extend(
-        [
-            det.same_size(volume, axes=(2,)),
-            det.place_at_center(volume, axes=(2,)),
-            fdtdx.RealCoordinateConstraint(
-                object=name,
-                axes=(0,),
-                sides=("-",),
-                coordinates=(sim_x,),
-            ),
-            fdtdx.RealCoordinateConstraint(
-                object=name,
-                axes=(1,),
-                sides=("-",),
-                coordinates=(sim_y - span_y / 2,),
-            ),
-        ]
-    )
+    constraints.extend(_place_at_port(det, name, port, volume, domain_shape, gds_center, span_y))
     objects.append(det)
 
 
@@ -271,22 +179,10 @@ def extend_gds_with_port_stubs(
     gds_center: tuple[float, float],
     domain_shape: tuple[float, float, float],
 ) -> Path:
-    """Return path to a temp GDS with waveguide stub rectangles added at each port.
+    """Return path to a temp GDS with each port waveguide extended to the domain boundary.
 
-    Extends each port waveguide from the port position to the domain boundary,
-    ensuring the mode source injects into a continuous waveguide rather than a
-    Si/cladding discontinuity.
-
-    Args:
-        gds_path: Path to the original ``.gds`` file.
-        cell_name: GDS cell to modify.
-        ports: Port dict ``{port_name: {"x_m", "y_m", "width_m", "orientation"}}``.
-        layer_specs: Layer specs from which GDS layer/datatype are extracted.
-        gds_center: GDS (x, y) in metres mapped to simulation centre.
-        domain_shape: (x, y, z) total domain in metres.
-
-    Returns:
-        Path to a temporary ``.gds`` file with stubs added.
+    Without this, the mode source would inject into a Si/cladding discontinuity
+    instead of a continuous waveguide.
     """
     import gdstk
 
@@ -334,15 +230,7 @@ def add_phasor_monitors(
     wave_character,
     z_height: float,
 ) -> None:
-    """Add a top-view XY frequency-domain field monitor to the scene in-place.
-
-    Args:
-        objects: Scene object list to extend.
-        constraints: Scene constraint list to extend.
-        volume: :class:`fdtdx.SimulationVolume` reference.
-        wave_character: :class:`fdtdx.WaveCharacter` giving the monitoring wavelength.
-        z_height: z coordinate in simulation space (metres) for the XY slice.
-    """
+    """Add a top-view XY frequency-domain field monitor to the scene in-place."""
     import fdtdx
 
     det_xy = fdtdx.PhasorDetector(
@@ -396,32 +284,6 @@ def build_scene(
     Combines :func:`build_domain`, :func:`add_gds_geometry`,
     :func:`add_mode_source`, :func:`add_mode_detector`, and
     :func:`add_phasor_monitors` into a single call.
-
-    Args:
-        gds_path: Path to the ``.gds`` file.
-        cell_name: GDS cell name.
-        layer_specs: List of :class:`~fdtdx.objects.static_material.gds_layer_stack.GDSLayerSpec`.
-        materials: Dict mapping material names to :class:`fdtdx.Material`.
-        ports: Port dict ``{port_name: {"x_m", "y_m", "width_m", "orientation"}}``.
-        source_port: Key in ``ports`` to use as the excitation port.
-        detector_ports: ``[(detector_name, port_key), ...]``.
-        gds_center: GDS (x, y) in metres mapped to the simulation centre.
-        domain_shape: (x, y, z) total domain in metres including PML.
-        pml_cells: PML thickness in grid cells on every face.
-        background_material: :class:`fdtdx.Material` for the cladding fill.
-        wave_char: :class:`fdtdx.WaveCharacter` for the source and all detectors.
-        temporal_profile: Source temporal envelope.
-        grid: :class:`fdtdx.RectilinearGrid` or :class:`fdtdx.UniformGrid`.
-        sim_time: Total simulation time in seconds.
-        source_span_y: Transverse (y) span in metres for the source and detectors.
-        norm_det_dx: x-offset in metres from the source port for the normalisation detector.
-        norm_det_name: Name for the normalisation detector.
-        with_port_stubs: Extend port waveguides to the domain boundary.
-        with_phasor_monitors: Add an XY :class:`fdtdx.PhasorDetector` monitor.
-        phasor_z_height: z coordinate (metres) for the XY phasor slice.
-
-    Returns:
-        ``(objects, constraints, config, volume)``
     """
     objects, constraints, config, volume = build_domain(
         domain_shape=domain_shape,

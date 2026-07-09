@@ -25,7 +25,7 @@ from fdtdx.fdtd.initialization import apply_params, place_objects
 from fdtdx.fdtd.stop_conditions import EnergyThresholdCondition
 from fdtdx.fdtd.wrapper import run_fdtd
 
-from ..utils import BenchmarkResult, compile_fn, run_compiled
+from ..utils import BenchmarkResult, compile_fn, grid_shape_from_config, run_compiled
 
 _DOMAIN_SIZE = 10e-6  # physical interior side length (metres)
 _PML_CELLS = 8
@@ -109,27 +109,6 @@ def _compile(
     return compile_fn(run_fdtd, fn_kwargs, static_argnames=("show_progress",))
 
 
-def _run(
-    compiled,
-    dynamic_kwargs: dict,
-    *,
-    name: str,
-    n_reps: int,
-    do_trace: bool,
-    do_memory: bool,
-    output_dir: Path,
-) -> tuple[list[float], int | None, str | None, str | None, any]:
-    return run_compiled(
-        compiled,
-        dynamic_kwargs,
-        name=name,
-        n_reps=n_reps,
-        do_trace=do_trace,
-        do_memory=do_memory,
-        output_dir=output_dir,
-    )
-
-
 # ---------------------------------------------------------------------------
 # Benchmark test
 # ---------------------------------------------------------------------------
@@ -151,7 +130,7 @@ def test_empty_box(cells_per_lambda, perf_env, perf_sink, perf_run_dir, perf_opt
 
     objects, arrays, config = _setup(cells_per_lambda, figs_dir=figs_dir)
     compiled, compile_s, dynamic_kwargs = _compile(objects, arrays, config)
-    run_s, peak_mem, trace_path, mem_profile, final_state = _run(
+    run_s, peak_mem, trace_path, mem_profile, final_state = run_compiled(
         compiled,
         dynamic_kwargs,
         name=bench_name,
@@ -163,10 +142,9 @@ def test_empty_box(cells_per_lambda, perf_env, perf_sink, perf_run_dir, perf_opt
 
     actual_steps = int(jax.device_get(final_state[0]))
 
-    grid = config.grid
     result = BenchmarkResult(
         name=bench_name,
-        grid_shape=(len(grid.x_edges) - 1, len(grid.y_edges) - 1, len(grid.z_edges) - 1),
+        grid_shape=grid_shape_from_config(config),
         time_steps=actual_steps,
         compile_seconds=compile_s,
         run_seconds=run_s,

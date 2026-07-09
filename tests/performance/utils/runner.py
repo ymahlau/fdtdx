@@ -87,7 +87,7 @@ def run_compiled(
 
     peak_memory_bytes: int | None = None
     if do_memory:
-        stats = _read_memory_stats()
+        stats = read_memory_stats()
         peak = stats.get("peak_bytes_in_use") or stats.get("bytes_in_use")
         if peak:
             peak_memory_bytes = int(peak)
@@ -95,7 +95,7 @@ def run_compiled(
     return run_seconds, peak_memory_bytes, trace_path, memory_profile_path, result
 
 
-def _read_memory_stats() -> dict[str, int]:
+def read_memory_stats() -> dict[str, int]:
     import jax
 
     try:
@@ -105,4 +105,4 @@ def _read_memory_stats() -> dict[str, int]:
 
 
 def _reset_peak_memory() -> None:
-    _read_memory_stats()
+    read_memory_stats()
