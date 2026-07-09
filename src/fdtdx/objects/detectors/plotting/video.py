@@ -112,7 +112,7 @@ def generate_video_from_slices(
             scaling. None values are auto-scaled. Defaults to (None, None, None)
         maxvals (tuple[float | None, float | None, float | None]): Tuple of maximum values for colormap scaling.
             None values are auto-scaled. Defaults to (None, None, None).
-        resolved_cmap: str = "default": Color map for the detector plots.
+        cmap: str = "default": Color map for the detector plots.
         aspect: Literal["auto", "equal"]: Size aspect of the detector plots.
             "equal" (default) uses the same scale for all axes.
             "auto" adjusts each axis's scale to fit the figure size.
