@@ -181,8 +181,11 @@ class PerfectlyMatchedLayer(BaseBoundary):
         else:
             psi_1_new, psi_2_new = psi_1, psi_2
 
-        corr_1 = (inv_kappa - 1.0) * d_field_1 + psi_1_new
-        corr_2 = (inv_kappa - 1.0) * d_field_2 + psi_2_new
+        if self.kappa_start == 1.0 and self.kappa_end == 1.0:
+            corr_1, corr_2 = psi_1_new, psi_2_new
+        else:
+            corr_1 = (inv_kappa - 1.0) * d_field_1 + psi_1_new
+            corr_2 = (inv_kappa - 1.0) * d_field_2 + psi_2_new
 
         return corr_1, corr_2, psi_1_new, psi_2_new
 
@@ -241,7 +244,7 @@ class PerfectlyMatchedLayer(BaseBoundary):
             dtype: Data type for the array
 
         Returns:
-            jax.Array: Graded profile array with shape self.grid_shape
+            Broadcast-shaped E/H profile arrays with grading along only the PML axis.
         """
         L = self.thickness  # Total thickness of PML
 
@@ -269,11 +272,7 @@ class PerfectlyMatchedLayer(BaseBoundary):
         shape[self.axis] = L
         profileE_reshaped = profileE_1d.reshape(shape)
         profileH_reshaped = profileH_1d.reshape(shape)
-        # Broadcast to full grid_shape
-        profileE = jnp.broadcast_to(profileE_reshaped, self.grid_shape)
-        profileH = jnp.broadcast_to(profileH_reshaped, self.grid_shape)
-
-        return profileE, profileH
+        return profileE_reshaped, profileH_reshaped
 
     def _compute_nonuniform_pml_depths(self, dtype) -> tuple[jax.Array, jax.Array, float]:
         """Return E/H physical depths into a non-uniform PML.

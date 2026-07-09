@@ -190,12 +190,14 @@ class TestPMLThickness:
 class TestPMLComputeProfile:
     """Tests for PerfectlyMatchedLayer._compute_pml_profile."""
 
-    def test_profile_shape_matches_grid_shape(self, micro_config, jax_key):
+    def test_profile_shape_is_broadcastable_to_grid_shape(self, micro_config, jax_key):
         pml = make_pml(axis=0, direction="-", thickness=10)
         placed = place_pml(pml, micro_config, jax_key, volume_shape=(30, 20, 20))
         profileE, profileH = placed._compute_pml_profile(0.0, 1.0, 3.0, jnp.float32)
-        assert profileE.shape == (10, 20, 20)
-        assert profileH.shape == (10, 20, 20)
+        assert profileE.shape == (10, 1, 1)
+        assert profileH.shape == (10, 1, 1)
+        assert jnp.broadcast_to(profileE, placed.grid_shape).shape == (10, 20, 20)
+        assert jnp.broadcast_to(profileH, placed.grid_shape).shape == (10, 20, 20)
 
     def test_profile_dtype(self, micro_config, jax_key):
         pml = make_pml(axis=0, direction="-", thickness=10)
@@ -232,13 +234,15 @@ class TestPMLComputeProfile:
         pml = make_pml(axis=1, direction="+", thickness=6)
         placed = place_pml(pml, micro_config, jax_key, volume_shape=(15, 20, 10))
         profileE, _profileH = placed._compute_pml_profile(0.0, 1.0, 1.0, jnp.float32)
-        assert profileE.shape == (15, 6, 10)
+        assert profileE.shape == (1, 6, 1)
+        assert jnp.broadcast_to(profileE, placed.grid_shape).shape == (15, 6, 10)
 
     def test_profile_axis2_shape(self, micro_config, jax_key):
         pml = make_pml(axis=2, direction="-", thickness=5)
         placed = place_pml(pml, micro_config, jax_key, volume_shape=(10, 10, 20))
         profileE, _profileH = placed._compute_pml_profile(0.0, 1.0, 1.0, jnp.float32)
-        assert profileE.shape == (10, 10, 5)
+        assert profileE.shape == (1, 1, 5)
+        assert jnp.broadcast_to(profileE, placed.grid_shape).shape == (10, 10, 5)
 
     def test_nonuniform_profile_uses_physical_depth_min_side(self, jax_key):
         """Stretched PML profiles are graded by physical distance into the boundary."""
