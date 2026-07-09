@@ -1,5 +1,9 @@
 """Unit tests for fdtdx.core.jax.sharding module."""
 
+import os
+import subprocess
+import sys
+import textwrap
 from unittest import mock
 from unittest.mock import MagicMock
 
@@ -13,6 +17,7 @@ from fdtdx.core.jax.sharding import (
     create_named_sharded_matrix,
     get_dtype_bytes,
     get_named_sharding_from_shape,
+    pin_to_single_device,
     pretty_print_sharding,
 )
 
@@ -198,3 +203,105 @@ class TestCreateNamedShardedMatrix:
     def test_has_named_sharding(self):
         result = create_named_sharded_matrix(shape=(4, 6), value=1.0, sharding_axis=0, dtype=jnp.float32, backend="cpu")
         assert isinstance(result.sharding, jax.sharding.NamedSharding)
+
+
+# ---- pin_to_single_device ----
+
+
+def _run_in_subprocess_with_devices(num_devices: int, body: str) -> None:
+    """Run ``body`` in a fresh interpreter with ``num_devices`` virtual CPU devices.
+
+    ``jax.devices()`` reflects the platform's device count only at JAX's first backend
+    initialisation, which has already happened (with a single forced CPU device, see
+    ``tests/conftest.py``) by the time this test module runs. A real multi-device mesh can
+    therefore only be exercised in a separate process started with
+    ``XLA_FLAGS=--xla_force_host_platform_device_count=N`` set beforehand. Mocking
+    ``jax.devices()`` to return the same physical device twice is not a substitute here:
+    unlike the mesh-shape/spec checks elsewhere in this file, ``pin_to_single_device`` calls
+    ``jax.lax.with_sharding_constraint`` eagerly, which raises ValueError ("the input arrays
+    must be from distinct devices") when the mesh contains a duplicated physical device.
+    """
+    env = {
+        **os.environ,
+        "JAX_PLATFORMS": "cpu",
+        "XLA_FLAGS": f"--xla_force_host_platform_device_count={num_devices}",
+    }
+    result = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent(body)],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=60,
+    )
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+
+
+class TestPinToSingleDevice:
+    """Tests for the pin_to_single_device helper."""
+
+    def test_single_device_is_noop_identity(self):
+        # The default test session forces a single CPU device (see tests/conftest.py).
+        assert len(jax.devices()) == 1
+        arr = jnp.arange(12.0).reshape(3, 4)
+        result = pin_to_single_device(arr)
+        assert result is arr
+
+    def test_multi_device_preserves_shape_dtype_and_values(self):
+        _run_in_subprocess_with_devices(
+            2,
+            """
+            import jax, jax.numpy as jnp
+            from fdtdx.core.jax.sharding import pin_to_single_device
+
+            assert len(jax.devices()) == 2
+            arr = jnp.arange(24.0, dtype=jnp.float32).reshape(4, 6)
+            out = pin_to_single_device(arr)
+            assert out.shape == arr.shape
+            assert out.dtype == arr.dtype
+            assert bool(jnp.array_equal(out, arr))
+            """,
+        )
+
+    def test_multi_device_result_is_replicated_named_sharding(self):
+        _run_in_subprocess_with_devices(
+            2,
+            """
+            import jax, jax.numpy as jnp
+            from fdtdx.core.jax.sharding import pin_to_single_device
+
+            out = pin_to_single_device(jnp.zeros((4, 6), dtype=jnp.float32))
+            assert isinstance(out.sharding, jax.sharding.NamedSharding)
+            # Fully replicated: an empty PartitionSpec, not sharded along any axis.
+            assert tuple(out.sharding.spec) == ()
+            assert "shard" in out.sharding.mesh.axis_names
+            """,
+        )
+
+    def test_multi_device_compatible_with_sliced_x_sharded_parent(self):
+        """Regression test for the exact usage in ModePlaneSource / ModeOverlapDetector:
+        pinning a plane sliced out of an x-sharded array inside a jit must not raise JAX's
+        "Received incompatible devices for jitted computation" error, which is what happens
+        if the sliced plane were instead placed on a plain SingleDeviceSharding (device 0)
+        while the surrounding computation is compiled over the full device mesh.
+        """
+        _run_in_subprocess_with_devices(
+            2,
+            """
+            import jax, jax.numpy as jnp
+            from fdtdx.core.jax.sharding import create_named_sharded_matrix, pin_to_single_device
+
+            # (component, Nx, Ny, Nz) permittivity-like array, x-sharded on axis=1.
+            arr = create_named_sharded_matrix(
+                (3, 8, 6, 6), value=2.0, dtype=jnp.float32, sharding_axis=1, backend="cpu"
+            )
+
+            @jax.jit
+            def slice_and_pin(a):
+                plane = a[:, 2:3, :, :]
+                return pin_to_single_device(plane)
+
+            out = slice_and_pin(arr)
+            assert out.shape == (3, 1, 6, 6)
+            assert bool(jnp.allclose(out, 2.0))
+            """,
+        )

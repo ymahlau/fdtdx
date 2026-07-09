@@ -41,6 +41,36 @@ def get_named_sharding_from_shape(
 counter = 0
 
 
+def pin_to_single_device(arr: jax.Array) -> jax.Array:
+    """Pin ``arr`` to a single-device replicated layout via ``with_sharding_constraint``.
+
+    On a multi-device run the field/material arrays are x-sharded (NamedSharding
+    ``P(None,'shard',None,None)``). When a thin transverse plane is sliced out of such an
+    array and fed to a host ``pure_callback`` (the Tidy3D mode solver, which runs at
+    ``{maximal device=0}``), XLA must materialise a single-device operand for the callback.
+    Without an explicit constraint XLA may conservatively all-gather the *parent* array to
+    satisfy the callback's single-device requirement. Pinning the already-sliced PLANE to a
+    single-device replicated sharding tells XLA to gather only the thin band (a few-hundred-KB
+    plane), never the full ~100M-cell domain.
+
+    No-op on a single-device run (``len(jax.devices()) == 1``): returns ``arr`` unchanged so the
+    single-GPU path stays byte-identical (no sharding constraint is inserted at all).
+    """
+    if len(jax.devices()) == 1:
+        return arr
+    # REPLICATED sharding over the FULL device mesh -- NOT SingleDeviceSharding, whose {device 0}
+    # device set is incompatible with the [0,1,...] set of the surrounding x-sharded computation
+    # (jit raises "Received incompatible devices for jitted computation"). A replicated
+    # PartitionSpec() keeps the thin sliced plane on the full mesh but UN-sharded, so XLA gathers
+    # only the small plane (a few-hundred KB) to materialise the callback operand, never the full
+    # x-sharded ~100M-cell domain, while staying device-set-compatible with the parent computation.
+    compute_devices = jax.devices()
+    devices = mesh_utils.create_device_mesh((len(compute_devices),), devices=compute_devices)
+    mesh = jax.sharding.Mesh(devices=devices, axis_names=(SHARD_STR,))
+    replicated = jax.sharding.NamedSharding(mesh, jax.sharding.PartitionSpec())
+    return jax.lax.with_sharding_constraint(arr, replicated)
+
+
 def get_dtype_bytes(dtype: jnp.dtype) -> int:
     return jnp.dtype(dtype).itemsize
 
