@@ -29,6 +29,25 @@ def run_fdtd(
                 "setting stopping_condition=None."
             )
 
+    if (
+        config.gradient_config is not None
+        and config.gradient_config.method == "reversible"
+        and arrays.dispersive_c1 is not None
+    ):
+        # The fully anisotropic update path has no closed-form time reversal for
+        # dispersion. Checked here (shape-based) in addition to initialization
+        # time, since the gradient config can be swapped after place_objects.
+        tensor_path = (
+            arrays.inv_permittivities.shape[0] == 9
+            or (arrays.electric_conductivity is not None and arrays.electric_conductivity.shape[0] == 9)
+            or (arrays.dispersive_c3 is not None and arrays.dispersive_c3.shape[1] == 9)
+        )
+        if tensor_path:
+            raise NotImplementedError(
+                "Dispersion combined with oriented poles or off-diagonal material tensors supports "
+                "only the 'checkpointed' gradient method, not 'reversible'."
+            )
+
     if config.gradient_config is None:
         # only forward simulation, use standard while loop of checkpointed fdtd
         return checkpointed_fdtd(

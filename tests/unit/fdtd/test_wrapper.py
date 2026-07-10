@@ -16,6 +16,10 @@ class TestRunFdtd:
     @pytest.fixture
     def setup(self):
         mock_arrays = Mock(spec=ArrayContainer)
+        # non-dispersive scene: the reversible-method tensor-dispersion guard
+        # inspects these before dispatching
+        mock_arrays.dispersive_c1 = None
+        mock_arrays.dispersive_c3 = None
         mock_objects = Mock(spec=ObjectContainer)
         mock_config = Mock(spec=SimulationConfig)
         mock_config.gradient_config = None

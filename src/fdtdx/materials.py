@@ -7,7 +7,7 @@ import numpy as np
 from fdtdx import constants
 from fdtdx.core.jax.pytrees import TreeClass, frozen_field
 from fdtdx.core.wavelength import WaveCharacter
-from fdtdx.dispersion import DispersionModel, compute_pole_coefficients_per_axis
+from fdtdx.dispersion import DispersionModel, compute_pole_coefficients_tensor
 
 
 def _normalize_material_property(
@@ -400,6 +400,17 @@ class Material(TreeClass):
             dispersion model applies the same parameters to all three axes.
         """
         return self.dispersion is None or self.dispersion.is_isotropic
+
+    @property
+    def has_axis_aligned_dispersion(self) -> bool:
+        """Check whether the material's dispersion (if any) is free of oriented poles.
+
+        Returns:
+            bool: True if the material is non-dispersive or no pole of its
+            dispersion model carries an orientation (i.e. the susceptibility
+            tensor is diagonal in the grid frame).
+        """
+        return self.dispersion is None or not self.dispersion.has_off_diagonal_coupling
 
     @classmethod
     def from_complex_permittivity(
@@ -885,13 +896,13 @@ def compute_allowed_dispersive_coefficients(
     dt: float,
     max_num_poles: int,
     num_components: int,
+    coupling_components: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Compute per-material discrete-time dispersive recurrence coefficients.
 
     For each material (in the canonical sorted order used elsewhere), returns
-    arrays of shape ``(num_materials, max_num_poles, num_components)``
-    containing the ``c1``, ``c2``, ``c3``, ``c4`` coefficients from
-    :func:`fdtdx.dispersion.compute_pole_coefficients_per_axis`. Materials with
+    the ``c1``, ``c2``, ``c3``, ``c4`` coefficients from
+    :func:`fdtdx.dispersion.compute_pole_coefficients_tensor`. Materials with
     fewer poles than ``max_num_poles``, or non-dispersive materials, get
     zero-padded slots (so the polarization term automatically vanishes on those
     voxels). ``c4`` is zero for Lorentz/Drude poles and only non-zero for CCPR
@@ -901,39 +912,59 @@ def compute_allowed_dispersive_coefficients(
         materials: Dictionary mapping material names to Material objects.
         dt: Simulation time step (seconds).
         max_num_poles: Maximum pole count to pad every material to. When 0,
-            returns four ``(num_materials, 0, num_components)``-shaped arrays.
-        num_components: Size of the trailing component axis — 1 when all
-            materials have isotropic dispersion, 3 for per-axis (diagonally
-            anisotropic) dispersion.
+            returns zero-pole arrays.
+        num_components: Size of the trailing component axis of the recurrence
+            coefficients ``c1``/``c2`` — 1 when all materials have isotropic
+            dispersion, 3 for per-axis dispersion.
+        coupling_components: Size of the trailing axis of the field couplings
+            ``c3``/``c4`` — additionally allows 9 (row-major 3x3 coupling
+            tensor) when any material has oriented poles. Defaults to
+            ``num_components``.
 
     Returns:
-        Four numpy arrays of shape ``(num_materials, max_num_poles, num_components)``
-        with ``c1``, ``c2``, ``c3``, ``c4``.
+        Four numpy arrays: ``c1``, ``c2`` of shape
+        ``(num_materials, max_num_poles, num_components)`` and ``c3``, ``c4``
+        of shape ``(num_materials, max_num_poles, coupling_components)``.
     """
+    if coupling_components is None:
+        coupling_components = num_components
     if num_components not in (1, 3):
         raise ValueError(f"num_components must be 1 or 3, got {num_components}.")
+    if coupling_components not in (1, 3, 9):
+        raise ValueError(f"coupling_components must be 1, 3 or 9, got {coupling_components}.")
     ordered = compute_ordered_material_name_tuples(materials)
     num_mats = len(ordered)
     c1 = np.zeros((num_mats, max_num_poles, num_components), dtype=np.float64)
     c2 = np.zeros((num_mats, max_num_poles, num_components), dtype=np.float64)
-    c3 = np.zeros((num_mats, max_num_poles, num_components), dtype=np.float64)
-    c4 = np.zeros((num_mats, max_num_poles, num_components), dtype=np.float64)
+    c3 = np.zeros((num_mats, max_num_poles, coupling_components), dtype=np.float64)
+    c4 = np.zeros((num_mats, max_num_poles, coupling_components), dtype=np.float64)
     if max_num_poles == 0:
         return c1, c2, c3, c4
+    diag_entries = (0, 4, 8)
     for m_idx, (_, mat) in enumerate(ordered):
         if mat.dispersion is None:
             continue
         if num_components == 1 and not mat.has_isotropic_dispersion:
             raise ValueError("num_components=1 requires isotropic dispersion, but a material has per-axis poles.")
+        if coupling_components < 9 and not mat.has_axis_aligned_dispersion:
+            raise ValueError(
+                "coupling_components < 9 requires axis-aligned dispersion, but a material has oriented poles."
+            )
         poles = mat.dispersion.poles
-        c1_vals, c2_vals, c3_vals, c4_vals = compute_pole_coefficients_per_axis(poles, dt)
+        c1_vals, c2_vals, c3_vals, c4_vals = compute_pole_coefficients_tensor(poles, dt)
         n = len(poles)
         # For num_components == 1 the isotropy check above guarantees all three
-        # axis columns are identical, so keeping only the first is exact.
+        # axis columns are identical, so keeping only the first is exact. For
+        # coupling_components < 9 the axis-alignment check guarantees the
+        # coupling tensors are diagonal, so keeping diagonal entries is exact.
         c1[m_idx, :n] = c1_vals[:, :num_components]
         c2[m_idx, :n] = c2_vals[:, :num_components]
-        c3[m_idx, :n] = c3_vals[:, :num_components]
-        c4[m_idx, :n] = c4_vals[:, :num_components]
+        if coupling_components == 9:
+            c3[m_idx, :n] = c3_vals
+            c4[m_idx, :n] = c4_vals
+        else:
+            c3[m_idx, :n] = c3_vals[:, diag_entries[:coupling_components]]
+            c4[m_idx, :n] = c4_vals[:, diag_entries[:coupling_components]]
     return c1, c2, c3, c4
 
 
