@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import math
+import statistics
 
 
 def grid_shape_from_config(config) -> tuple[int, int, int]:
@@ -32,7 +33,6 @@ class BenchmarkResult:
         return self.total_cell_updates / min(self.run_seconds) / 1e6
 
     def to_dict(self) -> dict:
-        runs = sorted(self.run_seconds)
         d: dict = {
             "name": self.name,
             "grid_shape": list(self.grid_shape),
@@ -40,7 +40,7 @@ class BenchmarkResult:
             "total_cell_updates": self.total_cell_updates,
             "compile_seconds": self.compile_seconds,
             "run_seconds_best": min(self.run_seconds),
-            "run_seconds_median": runs[len(runs) // 2],
+            "run_seconds_median": statistics.median(self.run_seconds),
             "run_seconds_worst": max(self.run_seconds),
             "mcups": self.mcups,
             "env": self.env,

@@ -57,9 +57,10 @@ def plot_field_intensity(
 
     domain_x_m, domain_y_m, _ = domain_shape
     gds_cx_um = gds_center[0] * 1e6
+    gds_cy_um = gds_center[1] * 1e6
 
     x_edges_um = np.array(config.grid.x_edges) * 1e6 - domain_x_m * 1e6 / 2 + gds_cx_um
-    y_edges_um = np.array(config.grid.y_edges) * 1e6 - domain_y_m * 1e6 / 2
+    y_edges_um = np.array(config.grid.y_edges) * 1e6 - domain_y_m * 1e6 / 2 + gds_cy_um
 
     xc = 0.5 * (x_edges_um[:-1] + x_edges_um[1:])
     yc = 0.5 * (y_edges_um[:-1] + y_edges_um[1:])

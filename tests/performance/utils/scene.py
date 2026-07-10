@@ -304,16 +304,20 @@ def build_scene(
             domain_shape=domain_shape,
         )
 
-    add_gds_geometry(
-        objects,
-        constraints,
-        gds_path=import_gds,
-        cell_name=cell_name,
-        layer_specs=layer_specs,
-        materials=materials,
-        volume=volume,
-        gds_center=gds_center,
-    )
+    try:
+        add_gds_geometry(
+            objects,
+            constraints,
+            gds_path=import_gds,
+            cell_name=cell_name,
+            layer_specs=layer_specs,
+            materials=materials,
+            volume=volume,
+            gds_center=gds_center,
+        )
+    finally:
+        if import_gds != gds_path:
+            Path(import_gds).unlink(missing_ok=True)
 
     add_mode_source(
         objects,
@@ -355,6 +359,8 @@ def build_scene(
         )
 
     if with_phasor_monitors:
+        if phasor_z_height is None:
+            raise ValueError("phasor_z_height must be set when with_phasor_monitors=True")
         add_phasor_monitors(
             objects,
             constraints,

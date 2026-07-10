@@ -23,6 +23,7 @@ def _git_sha() -> str:
             ["git", "rev-parse", "--short", "HEAD"],
             capture_output=True,
             text=True,
+            timeout=5,
             cwd=Path(__file__).parent,
         )
         return result.stdout.strip() or "unknown"

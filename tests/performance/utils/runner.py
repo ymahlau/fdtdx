@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
+from typing import Any
 
 _RESULTS_DIR = Path(__file__).parents[2] / "results"
 
 
-def compile_fn(fn, fn_kwargs: dict, *, static_argnames: tuple[str, ...] = ()) -> tuple[any, float, dict]:
+def compile_fn(fn, fn_kwargs: dict, *, static_argnames: tuple[str, ...] = ()) -> tuple[Any, float, dict]:
     """JIT-compile ``fn`` without executing it.
 
     Static args are baked into the compiled artifact and must not be passed at
@@ -34,7 +35,7 @@ def run_compiled(
     do_trace: bool = False,
     do_memory: bool = False,
     output_dir: Path | None = None,
-) -> tuple[list[float], int | None, str | None, str | None, any]:
+) -> tuple[list[float], int | None, str | None, str | None, Any]:
     """Time ``n_reps`` executions of a pre-compiled JAX function.
 
     Args:
@@ -49,6 +50,15 @@ def run_compiled(
 
     Returns:
         ``(run_seconds, peak_memory_bytes, trace_path, memory_profile_path, last_result)``
+
+    Note:
+        ``peak_memory_bytes`` is JAX's ``peak_bytes_in_use`` sampled after the run.
+        JAX has no stable public API to reset that high-water mark, so
+        ``_reset_peak_memory`` below only *samples* stats rather than clearing them
+        (see https://github.com/jax-ml/jax/issues/8096). This means the reported
+        peak can include earlier setup/compilation allocations from this process,
+        not just the timed run — treat it as an upper bound, not an isolated
+        per-run measurement.
     """
     import jax
 
@@ -105,4 +115,9 @@ def read_memory_stats() -> dict[str, int]:
 
 
 def _reset_peak_memory() -> None:
+    """Not an actual reset: JAX exposes no public API to clear peak_bytes_in_use.
+
+    This just forces a stats read before the timed run; see the Note on
+    ``run_compiled`` for what that means for ``peak_memory_bytes``.
+    """
     read_memory_stats()
