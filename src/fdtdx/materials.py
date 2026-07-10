@@ -434,15 +434,25 @@ class Material(TreeClass):
             pick :math:`\sigma`; it is not stored on the material and need not
             match any source.
 
+        Anisotropy: every 3x3 tensor component may be complex. The real parts
+        form the permittivity tensor and the imaginary parts map component-wise
+        to a real conductivity tensor :math:`\sigma_{ij} = \omega_0 \varepsilon_0
+        \varepsilon''_{ij}`, both handled by the full-tensor update equations.
+        In particular a Hermitian :math:`\varepsilon` (imaginary off-diagonals,
+        e.g. gyrotropic media) maps to an antisymmetric real :math:`\sigma`.
+
         Args:
             permittivity: Complex relative permittivity :math:`\varepsilon' + i\varepsilon''`.
-                Scalar (isotropic) or a flat 3-tuple (diagonally anisotropic).
+                Scalar (isotropic), flat 3-tuple (diagonally anisotropic),
+                flat 9-tuple ``(xx, xy, xz, yx, yy, yz, zx, zy, zz)`` or nested
+                3x3 tuple (fully anisotropic).
             reference: Reference wave characteristic. Provide exactly one of
                 ``reference``, ``wavelength``, or ``frequency``.
             wavelength: Free-space reference wavelength (m).
             frequency: Reference frequency (Hz).
             permeability: Optional complex relative permeability
-                :math:`\mu' + i\mu''`. Defaults to ``1.0`` (non-magnetic, lossless).
+                :math:`\mu' + i\mu''`, in the same formats as ``permittivity``.
+                Defaults to ``1.0`` (non-magnetic, lossless).
 
         Returns:
             Material: Material with real permittivity/permeability and the derived
@@ -451,6 +461,13 @@ class Material(TreeClass):
         omega = _resolve_reference_omega(reference, wavelength, frequency)
         eps_real, sigma_e = _split_complex_property(permittivity, omega, constants.eps0)
         mu_real, sigma_m = _split_complex_property(permeability, omega, constants.mu0)
+        eps_mat = np.array(_normalize_material_property(eps_real), dtype=np.float64).reshape(3, 3)
+        det = float(np.linalg.det(eps_mat))
+        if abs(det) < 1e-9 * max(1.0, float(np.abs(eps_mat).max()) ** 3):
+            raise ValueError(
+                "The real part of the complex permittivity tensor is singular (determinant ~ 0). "
+                "FDTDX stores the inverse permittivity, so the real part must be an invertible 3x3 tensor."
+            )
         return cls(
             permittivity=eps_real,
             permeability=mu_real,
@@ -486,7 +503,11 @@ class Material(TreeClass):
 
         Args:
             refractive_index: Complex refractive index :math:`n + i\kappa`. Scalar
-                (isotropic) or a flat 3-tuple (diagonally anisotropic).
+                (isotropic) or a flat 3-tuple (diagonally anisotropic). Full
+                tensors are rejected: the permittivity is the *matrix* square of
+                the refractive-index tensor, not the elementwise square — build
+                the permittivity tensor directly via
+                :meth:`from_complex_permittivity` instead.
             reference: Reference wave characteristic. Provide exactly one of
                 ``reference``, ``wavelength``, or ``frequency``.
             wavelength: Free-space reference wavelength (m).
@@ -496,6 +517,11 @@ class Material(TreeClass):
             Material: The equivalent lossy material.
         """
         if isinstance(refractive_index, tuple):
+            if len(refractive_index) != 3 or any(isinstance(n, tuple) for n in refractive_index):
+                raise ValueError(
+                    "from_refractive_index accepts a scalar or a flat 3-tuple; for full tensors build the "
+                    "permittivity directly via from_complex_permittivity (matrix vs elementwise square)."
+                )
             permittivity: complex | tuple = tuple(complex(n) ** 2 for n in refractive_index)
         else:
             permittivity = complex(refractive_index) ** 2
@@ -531,9 +557,12 @@ class Material(TreeClass):
 
         Args:
             permittivity: Real relative permittivity :math:`\varepsilon'`. Scalar
-                (isotropic) or a flat 3-tuple (diagonally anisotropic).
-            loss_tangent: Loss tangent :math:`\tan\delta`. Scalar, or a flat
-                3-tuple matching ``permittivity``.
+                (isotropic), flat 3-tuple (diagonally anisotropic), or flat
+                9-tuple (fully anisotropic).
+            loss_tangent: Loss tangent :math:`\tan\delta`. Scalar (applied to
+                every tensor component, i.e. :math:`\varepsilon'' = \varepsilon'
+                \tan\delta` as a tensor scaling), or a flat tuple matching
+                ``permittivity``.
             reference: Reference wave characteristic. Provide exactly one of
                 ``reference``, ``wavelength``, or ``frequency``.
             wavelength: Free-space reference wavelength (m).
@@ -544,8 +573,15 @@ class Material(TreeClass):
             Material: The equivalent lossy material.
         """
         if isinstance(permittivity, tuple) or isinstance(loss_tangent, tuple):
-            eps_t = permittivity if isinstance(permittivity, tuple) else (permittivity,) * 3
-            tan_t = loss_tangent if isinstance(loss_tangent, tuple) else (loss_tangent,) * 3
+            if (isinstance(permittivity, tuple) and any(isinstance(v, tuple) for v in permittivity)) or (
+                isinstance(loss_tangent, tuple) and any(isinstance(v, tuple) for v in loss_tangent)
+            ):
+                raise ValueError(
+                    "from_loss_tangent accepts scalars or flat tuples (3 or 9 components), not nested tuples."
+                )
+            n = len(permittivity) if isinstance(permittivity, tuple) else len(cast(tuple, loss_tangent))
+            eps_t = permittivity if isinstance(permittivity, tuple) else (permittivity,) * n
+            tan_t = loss_tangent if isinstance(loss_tangent, tuple) else (loss_tangent,) * n
             if len(eps_t) != len(tan_t):
                 raise ValueError(
                     f"permittivity and loss_tangent must have matching lengths, got {len(eps_t)} and {len(tan_t)}."
@@ -619,7 +655,8 @@ def _split_complex_property(
 
     Returns:
         tuple: A ``(real_part, conductivity)`` pair, each matching the input
-        shape (scalar float or tuple of floats).
+        shape (scalar float or flat tuple of floats; a nested 3x3 input is
+        flattened to a row-major 9-tuple).
     """
 
     def _component(v) -> tuple[float, float]:
@@ -627,13 +664,16 @@ def _split_complex_property(
         return float(cv.real), omega * vacuum_constant * float(cv.imag)
 
     if isinstance(value, tuple):
+        if any(isinstance(v, tuple) for v in value):
+            # Nested 3x3 tensor: flatten to a row-major 9-tuple first.
+            if len(value) != 3 or not all(isinstance(v, tuple) and len(v) == 3 for v in value):
+                raise ValueError(
+                    "Nested complex material properties must be a 3x3 tuple ((xx, xy, xz), (yx, yy, yz), (zx, zy, zz))."
+                )
+            value = tuple(entry for row in value for entry in row)
         reals: list[float] = []
         conds: list[float] = []
         for v in value:
-            if isinstance(v, tuple):
-                raise ValueError(
-                    "Complex material constructors accept a scalar or a flat tuple of components, not a nested tuple."
-                )
             r, s = _component(v)
             reals.append(r)
             conds.append(s)
