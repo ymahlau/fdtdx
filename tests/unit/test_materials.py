@@ -846,3 +846,47 @@ class TestLossyMaterialConstructors:
 
         with pytest.raises(ValueError):
             Material.from_complex_permittivity(((2.0 + 0.1j, 0.0, 0.0),), wavelength=self._WL)
+
+
+class TestStaticNegativePermittivityWarning:
+    def test_negative_diagonal_entry_warns(self):
+        with pytest.warns(UserWarning, match="unconditionally unstable"):
+            Material(permittivity=(-2.0, 1.0, 1.0))
+
+    def test_zero_diagonal_entry_warns(self):
+        with pytest.warns(UserWarning, match="unconditionally unstable"):
+            Material(permittivity=0.0)
+
+    def test_negative_eps_inf_warns_even_with_dispersion(self):
+        from fdtdx.dispersion import DispersionModel, DrudePole
+
+        disp = DispersionModel(poles=(DrudePole(plasma_frequency=2e15, damping=1e13),))
+        with pytest.warns(UserWarning, match="unconditionally unstable"):
+            Material(permittivity=-2.0, dispersion=disp)
+
+    def test_positive_permittivity_does_not_warn(self):
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            Material(permittivity=2.25)
+            Material(permittivity=(2.0, 3.0, 4.0))
+            # negative off-diagonals of a positive-definite tensor are fine
+            Material(permittivity=(2.0, -0.5, 0.0, -0.5, 2.0, 0.0, 0.0, 0.0, 2.0))
+
+
+class TestHasIsotropicDispersion:
+    def test_non_dispersive_material(self):
+        assert Material(permittivity=2.25).has_isotropic_dispersion
+
+    def test_isotropic_dispersion(self):
+        from fdtdx.dispersion import DispersionModel, LorentzPole
+
+        disp = DispersionModel(poles=(LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0),))
+        assert Material(permittivity=2.25, dispersion=disp).has_isotropic_dispersion
+
+    def test_per_axis_dispersion(self):
+        from fdtdx.dispersion import DispersionModel, DrudePole
+
+        disp = DispersionModel(poles=(DrudePole(plasma_frequency=(2e15, 0.0, 0.0), damping=1e13),))
+        assert not Material(permittivity=2.25, dispersion=disp).has_isotropic_dispersion

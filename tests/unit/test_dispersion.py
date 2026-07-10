@@ -11,6 +11,7 @@ from fdtdx.dispersion import (
     Pole,
     compute_eps_spectrum_from_coefficients,
     compute_pole_coefficients,
+    compute_pole_coefficients_per_axis,
     susceptibility_from_coefficients,
 )
 from fdtdx.materials import (
@@ -156,11 +157,11 @@ class TestAllowedDispersiveCoefficients:
             "air": Material(permittivity=1.0),
             "si": Material(permittivity=11.7),
         }
-        c1, c2, c3, c4 = compute_allowed_dispersive_coefficients(mats, dt=1e-17, max_num_poles=0)
-        assert c1.shape == (2, 0)
-        assert c2.shape == (2, 0)
-        assert c3.shape == (2, 0)
-        assert c4.shape == (2, 0)
+        c1, c2, c3, c4 = compute_allowed_dispersive_coefficients(mats, dt=1e-17, max_num_poles=0, num_components=1)
+        assert c1.shape == (2, 0, 1)
+        assert c2.shape == (2, 0, 1)
+        assert c3.shape == (2, 0, 1)
+        assert c4.shape == (2, 0, 1)
 
     def test_max_num_dispersive_poles_helper(self):
         mats = {
@@ -196,8 +197,8 @@ class TestAllowedDispersiveCoefficients:
                 ),
             ),
         }
-        c1, c2, c3, c4 = compute_allowed_dispersive_coefficients(mats, dt=1e-17, max_num_poles=2)
-        assert c1.shape == (3, 2)
+        c1, c2, c3, c4 = compute_allowed_dispersive_coefficients(mats, dt=1e-17, max_num_poles=2, num_components=1)
+        assert c1.shape == (3, 2, 1)
         # Lorentz/Drude materials have no dE/dt coupling -> c4 all zero.
         assert np.all(c4 == 0.0)
         # Non-dispersive material (air) must have all-zero coefficients.
@@ -323,3 +324,215 @@ class TestCCPRPole:
 
         for omega in (0.5e15, 1.8e15, 2.6e15):
             assert m.susceptibility(omega) == pytest.approx(cp_chi(omega), rel=1e-9)
+
+
+class TestPerAxisPoles:
+    """Per-axis (diagonally anisotropic) pole parameters."""
+
+    def test_scalar_pole_is_isotropic_and_axes_uniform(self):
+        p = LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0)
+        assert p.is_isotropic
+        assert p.omega_0_axes == (1e15, 1e15, 1e15)
+        assert p.gamma_axes == (1e13, 1e13, 1e13)
+        assert p.coupling_sq_axes == pytest.approx((2e30, 2e30, 2e30))
+        assert p.coupling_edot_axes == (0.0, 0.0, 0.0)
+
+    def test_per_axis_lorentz_axes_values(self):
+        p = LorentzPole(
+            resonance_frequency=(1e15, 2e15, 3e15),
+            damping=(1e13, 2e13, 3e13),
+            delta_epsilon=(1.0, 2.0, 0.0),
+        )
+        assert not p.is_isotropic
+        assert p.omega_0_axes == (1e15, 2e15, 3e15)
+        assert p.gamma_axes == (1e13, 2e13, 3e13)
+        assert p.coupling_sq_axes == pytest.approx((1e30, 2.0 * 4e30, 0.0))
+
+    def test_per_axis_drude_axes_values(self):
+        p = DrudePole(plasma_frequency=(2e15, 0.0, 0.0), damping=1e13)
+        assert not p.is_isotropic
+        assert p.omega_0_axes == (0.0, 0.0, 0.0)
+        assert p.coupling_sq_axes == pytest.approx((4e30, 0.0, 0.0))
+
+    def test_per_axis_ccpr_axes_values(self):
+        qx = complex(-1.0e13, -2.0e15)
+        qy = complex(-2.0e13, -1.5e15)
+        rx = complex(1.0e14, 5.0e14)
+        ry = complex(-3.0e14, 2.0e14)
+        p = CCPRPole(pole=(qx, qy, qy), residue=(rx, ry, ry))
+        assert not p.is_isotropic
+        assert p.omega_0_axes[0] == pytest.approx(abs(qx))
+        assert p.omega_0_axes[1] == pytest.approx(abs(qy))
+        assert p.gamma_axes[0] == pytest.approx(-2.0 * qx.real)
+        assert p.coupling_sq_axes[1] == pytest.approx(-2.0 * (ry * qy.conjugate()).real)
+        assert p.coupling_edot_axes[0] == pytest.approx(2.0 * rx.real)
+        assert p.coupling_edot_axes[1] == pytest.approx(2.0 * ry.real)
+
+    def test_scalar_accessors_raise_for_per_axis_pole(self):
+        p = LorentzPole(resonance_frequency=(1e15, 2e15, 3e15), damping=1e13, delta_epsilon=2.0)
+        with pytest.raises(ValueError, match="omega_0_axes"):
+            _ = p.omega_0
+        with pytest.raises(ValueError, match="coupling_sq_axes"):
+            _ = p.coupling_sq
+        # damping is uniform, so its scalar accessor still works
+        assert p.gamma == 1e13
+
+    def test_invalid_tuple_length_raises(self):
+        p = LorentzPole(resonance_frequency=(1e15, 2e15), damping=1e13, delta_epsilon=2.0)  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="3-tuple"):
+            _ = p.omega_0_axes
+
+    def test_model_is_isotropic(self):
+        iso = DispersionModel(poles=(LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0),))
+        aniso = DispersionModel(poles=(DrudePole(plasma_frequency=(2e15, 0.0, 0.0), damping=1e13),))
+        assert iso.is_isotropic
+        assert not aniso.is_isotropic
+
+    def test_susceptibility_axes_matches_scalar_for_isotropic(self):
+        m = DispersionModel(poles=(LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0),))
+        for omega in (0.5e15, 1.5e15):
+            chi_axes = m.susceptibility_axes(omega)
+            chi = m.susceptibility(omega)
+            assert chi_axes[0] == chi
+            assert chi_axes[1] == chi
+            assert chi_axes[2] == chi
+
+    def test_susceptibility_raises_for_anisotropic_model(self):
+        m = DispersionModel(poles=(DrudePole(plasma_frequency=(2e15, 0.0, 0.0), damping=1e13),))
+        with pytest.raises(ValueError, match="susceptibility_axes"):
+            m.susceptibility(1e15)
+        with pytest.raises(ValueError, match="susceptibility_axes"):
+            m.permittivity(1e15)
+
+    def test_per_axis_susceptibility_matches_independent_models(self):
+        # A per-axis model must equal three independent isotropic models per axis.
+        w0 = (1e15, 2e15, 1.5e15)
+        g = (1e13, 3e13, 2e13)
+        de = (2.0, 0.5, 1.0)
+        m = DispersionModel(poles=(LorentzPole(resonance_frequency=w0, damping=g, delta_epsilon=de),))
+        for omega in (0.7e15, 1.8e15):
+            chi_axes = m.susceptibility_axes(omega)
+            for ax in range(3):
+                ref = DispersionModel(
+                    poles=(LorentzPole(resonance_frequency=w0[ax], damping=g[ax], delta_epsilon=de[ax]),)
+                )
+                assert chi_axes[ax] == pytest.approx(ref.susceptibility(omega), rel=1e-12)
+
+    def test_zero_coupling_axis_contributes_zero(self):
+        m = DispersionModel(poles=(LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=(2.0, 0.0, 0.0)),))
+        chi_axes = m.susceptibility_axes(1.2e15)
+        assert chi_axes[0] != 0.0
+        assert chi_axes[1] == 0.0
+        assert chi_axes[2] == 0.0
+
+    def test_permittivity_axes_with_tuple_eps_inf(self):
+        m = DispersionModel(poles=(DrudePole(plasma_frequency=(2e15, 0.0, 0.0), damping=1e13),))
+        eps = m.permittivity_axes(1e15, eps_inf=(2.0, 3.0, 4.0))
+        chi = m.susceptibility_axes(1e15)
+        assert eps[0] == pytest.approx(2.0 + chi[0])
+        assert eps[1] == pytest.approx(3.0)
+        assert eps[2] == pytest.approx(4.0)
+
+
+class TestPerAxisCoefficients:
+    def test_per_axis_coefficient_shapes_and_closed_form(self):
+        w0 = (1e15, 2e15, 3e15)
+        g = (1e13, 2e13, 3e13)
+        de = (1.0, 2.0, 3.0)
+        p = LorentzPole(resonance_frequency=w0, damping=g, delta_epsilon=de)
+        dt = 4e-18
+        c1, c2, c3, c4 = compute_pole_coefficients_per_axis((p,), dt=dt)
+        assert c1.shape == (1, 3)
+        for ax in range(3):
+            denom = 1.0 + 0.5 * g[ax] * dt
+            assert c1[0, ax] == pytest.approx((2.0 - w0[ax] ** 2 * dt**2) / denom, rel=1e-12)
+            assert c2[0, ax] == pytest.approx(-(1.0 - 0.5 * g[ax] * dt) / denom, rel=1e-12)
+            assert c3[0, ax] == pytest.approx((de[ax] * w0[ax] ** 2 * dt**2) / denom, rel=1e-12)
+            assert c4[0, ax] == 0.0
+
+    def test_empty_poles_return_empty_arrays(self):
+        c1, _c2, _c3, c4 = compute_pole_coefficients_per_axis((), dt=1e-17)
+        assert c1.shape == (0, 3)
+        assert c4.shape == (0, 3)
+
+    def test_wrapper_matches_per_axis_for_isotropic(self):
+        poles = (
+            LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0),
+            DrudePole(plasma_frequency=2e15, damping=5e13),
+        )
+        dt = 4e-18
+        c1s, c2s, c3s, c4s = compute_pole_coefficients(poles, dt=dt)
+        c1a, c2a, c3a, c4a = compute_pole_coefficients_per_axis(poles, dt=dt)
+        assert c1s.shape == (2,)
+        for scalar, axes in ((c1s, c1a), (c2s, c2a), (c3s, c3a), (c4s, c4a)):
+            assert np.array_equal(scalar, axes[:, 0])
+            assert np.array_equal(axes[:, 0], axes[:, 1])
+            assert np.array_equal(axes[:, 0], axes[:, 2])
+
+    def test_wrapper_raises_for_per_axis_pole(self):
+        p = DrudePole(plasma_frequency=(2e15, 0.0, 0.0), damping=1e13)
+        with pytest.raises(ValueError, match="per-axis"):
+            compute_pole_coefficients((p,), dt=1e-17)
+
+    def test_per_axis_stability_check_names_axis(self):
+        # gamma * dt >= 2 only on the y axis must raise and identify the axis.
+        p = LorentzPole(resonance_frequency=1e15, damping=(1e13, 3e17, 1e13), delta_epsilon=1.0)
+        with pytest.raises(ValueError, match="axis y"):
+            compute_pole_coefficients_per_axis((p,), dt=1e-17)
+
+    def test_eps_spectrum_averages_component_axis(self):
+        # With a 3-component coefficient axis the spectrum helper must average
+        # the per-axis susceptibilities (mirroring its eps_inf reduction).
+        p = LorentzPole(resonance_frequency=(1e15, 2e15, 1.5e15), damping=1e13, delta_epsilon=(2.0, 1.0, 0.5))
+        dt = 4e-18
+        c1, c2, c3, c4 = compute_pole_coefficients_per_axis((p,), dt=dt)
+        # shape (num_poles, 3, 1) with a single spatial cell
+        c1a, c2a, c3a, c4a = (x[:, :, None] for x in (c1, c2, c3, c4))
+        eps_inf = 2.25
+        inv_eps = np.full((1, 1), 1.0 / eps_inf)
+        omegas = np.array([0.7e15, 1.9e15])
+        eps = compute_eps_spectrum_from_coefficients(c1a, c2a, c3a, inv_eps, omegas, dt, c4=c4a)
+        m = DispersionModel(poles=(p,))
+        for i, omega in enumerate(omegas):
+            chi_axes = m.susceptibility_axes(float(omega))
+            expected = eps_inf + sum(chi_axes) / 3.0
+            assert eps[i] == pytest.approx(expected, rel=1e-9)
+
+
+class TestAllowedDispersiveCoefficientsPerAxis:
+    def test_three_component_output(self):
+        mats = {
+            "air": Material(permittivity=1.0),
+            "hbn_like": Material(
+                permittivity=(4.9, 4.9, 2.9),
+                dispersion=DispersionModel(
+                    poles=(
+                        LorentzPole(
+                            resonance_frequency=(2.6e14, 2.6e14, 1.5e14),
+                            damping=(9e11, 9e11, 7e11),
+                            delta_epsilon=(2.0, 2.0, 0.5),
+                        ),
+                    )
+                ),
+            ),
+        }
+        c1, _c2, c3, _c4 = compute_allowed_dispersive_coefficients(mats, dt=1e-17, max_num_poles=1, num_components=3)
+        assert c1.shape == (2, 1, 3)
+        # air row is all zero
+        assert np.all(c1[0] == 0.0)
+        # per-axis columns differ for the anisotropic material
+        assert c3[1, 0, 0] != c3[1, 0, 2]
+
+    def test_num_components_one_with_anisotropic_material_raises(self):
+        mats = {
+            "aniso": Material(
+                permittivity=1.0,
+                dispersion=DispersionModel(poles=(DrudePole(plasma_frequency=(2e15, 0.0, 0.0), damping=1e13),)),
+            ),
+        }
+        with pytest.raises(ValueError, match="isotropic dispersion"):
+            compute_allowed_dispersive_coefficients(mats, dt=1e-17, max_num_poles=1, num_components=1)
+
+    def test_invalid_num_components_raises(self):
+        with pytest.raises(ValueError, match="num_components"):
+            compute_allowed_dispersive_coefficients({}, dt=1e-17, max_num_poles=0, num_components=2)

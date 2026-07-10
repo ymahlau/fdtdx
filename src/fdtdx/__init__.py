@@ -43,6 +43,7 @@ from fdtdx.dispersion import (
     compute_eps_spectrum_from_coefficients,
     compute_impedance_corrected_temporal_profile,
     compute_pole_coefficients,
+    compute_pole_coefficients_per_axis,
 )
 from fdtdx.fdtd.backward import full_backward
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, ParameterContainer, SimulationState
@@ -252,6 +253,7 @@ __all__ = [
     "compute_integrated_power",
     "compute_mode",
     "compute_pole_coefficients",
+    "compute_pole_coefficients_per_axis",
     "compute_poynting_flux",
     "detectors_from_gds_ports",
     "export_arrays_snapshot_to_vti",

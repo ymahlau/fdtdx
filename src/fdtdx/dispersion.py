@@ -48,6 +48,19 @@ Stability requires :math:`\\gamma \\Delta t < 2`; in the physical regime
 of interest :math:`\\gamma \\Delta t \\ll 1`, so :math:`c_2 \\approx -1`,
 which makes the backward (reverse-time) recurrence numerically stable
 after algebraic inversion.
+
+Anisotropic (per-axis) dispersion
+---------------------------------
+Every pole parameter accepts either a scalar (isotropic, applied to all
+three axes) or a 3-tuple ``(x, y, z)`` giving a different value per grid
+axis. This yields a diagonally anisotropic susceptibility tensor
+:math:`\\chi(\\omega) = \\mathrm{diag}(\\chi_x, \\chi_y, \\chi_z)` — enough to
+model uniaxial/biaxial crystals and hyperbolic media (e.g. hBN) whose
+optical axes align with the grid. A pole that only acts on one axis is
+expressed by zeroing its strength on the others, e.g.
+``LorentzPole(resonance_frequency=w0, damping=g, delta_epsilon=(2.25, 0.0, 0.0))``:
+with zero coupling the polarization on that axis stays identically zero.
+Off-diagonal (rotated) dispersive tensors are not supported.
 """
 
 from __future__ import annotations
@@ -62,6 +75,24 @@ from fdtdx.constants import eps0
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 
 
+def _broadcast_axis_param(value: float | complex | tuple) -> tuple:
+    """Normalize a pole parameter to a per-axis 3-tuple ``(x, y, z)``.
+
+    Scalars are broadcast to all three axes; 3-tuples pass through unchanged.
+    """
+    if isinstance(value, tuple):
+        if len(value) != 3:
+            raise ValueError(
+                f"Per-axis pole parameters must be a scalar or a 3-tuple (x, y, z), got a tuple of length {len(value)}."
+            )
+        return value
+    return (value, value, value)
+
+
+def _is_uniform(axes: tuple) -> bool:
+    return bool(axes[0] == axes[1] == axes[2])
+
+
 @autoinit
 class Pole(TreeClass, ABC):
     """Abstract base class for a single 2nd-order ADE pole.
@@ -69,27 +100,40 @@ class Pole(TreeClass, ABC):
     Concrete subclasses store physically-meaningful parameters
     (e.g. ``delta_epsilon`` for Lorentz, ``omega_p`` for Drude) and
     expose the unified ``(omega_0, gamma, coupling_sq)`` triplet the
-    FDTD loop needs via abstract properties. New pole types can
+    FDTD loop needs via per-axis properties. New pole types can
     subclass :class:`Pole` as long as they fit the 2nd-order
     ODE form.
+
+    Every parameter may differ per grid axis (diagonally anisotropic
+    dispersion); the canonical accessors are the ``*_axes`` properties
+    returning ``(x, y, z)`` tuples. The scalar accessors (``omega_0`` etc.)
+    are a convenience for isotropic poles and raise for per-axis ones.
     """
 
+    def _uniform_or_raise(self, axes: tuple, name: str) -> float:
+        if not _is_uniform(axes):
+            raise ValueError(
+                f"{type(self).__name__} has per-axis parameters; use the per-axis "
+                f"accessor '{name}_axes' instead of the scalar '{name}'."
+            )
+        return axes[0]
+
     @property
     @abstractmethod
-    def omega_0(self) -> float:
-        """Resonance angular frequency (rad/s). Zero for pure Drude poles."""
+    def omega_0_axes(self) -> tuple[float, float, float]:
+        """Per-axis resonance angular frequency (rad/s). Zero for pure Drude poles."""
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def gamma(self) -> float:
-        """Damping rate (rad/s)."""
+    def gamma_axes(self) -> tuple[float, float, float]:
+        """Per-axis damping rate (rad/s)."""
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def coupling_sq(self) -> float:
-        """Effective squared coupling frequency ``K`` (rad^2/s^2).
+    def coupling_sq_axes(self) -> tuple[float, float, float]:
+        """Per-axis effective squared coupling frequency ``K`` (rad^2/s^2).
 
         ``delta_epsilon * omega_0**2`` for a Lorentz pole and
         ``omega_p**2`` for a Drude pole.
@@ -100,16 +144,58 @@ class Pole(TreeClass, ABC):
         raise NotImplementedError
 
     @property
-    def coupling_edot(self) -> float:
-        """Coefficient ``b`` of the ``dE/dt`` driving term (rad/s).
+    def coupling_edot_axes(self) -> tuple[float, float, float]:
+        """Per-axis coefficient ``b`` of the ``dE/dt`` driving term (rad/s).
 
         Zero for Lorentz and Drude poles (their susceptibility numerator has no
         ``omega`` term). A non-zero value is what distinguishes a general
         complex-conjugate pole-residue (CCPR) pole — it corresponds to a
         non-zero real part of the residue and adds the ``b E'`` term to the ADE.
-        Defaults to ``0.0`` so existing pole types need not override it.
+        Defaults to all-zero so existing pole types need not override it.
         """
-        return 0.0
+        return (0.0, 0.0, 0.0)
+
+    @property
+    def is_isotropic(self) -> bool:
+        """Whether all pole parameters are identical on the three axes."""
+        return (
+            _is_uniform(self.omega_0_axes)
+            and _is_uniform(self.gamma_axes)
+            and _is_uniform(self.coupling_sq_axes)
+            and _is_uniform(self.coupling_edot_axes)
+        )
+
+    @property
+    def omega_0(self) -> float:
+        """Resonance angular frequency (rad/s). Zero for pure Drude poles.
+
+        Raises ``ValueError`` for per-axis poles; use :attr:`omega_0_axes`.
+        """
+        return self._uniform_or_raise(self.omega_0_axes, "omega_0")
+
+    @property
+    def gamma(self) -> float:
+        """Damping rate (rad/s).
+
+        Raises ``ValueError`` for per-axis poles; use :attr:`gamma_axes`.
+        """
+        return self._uniform_or_raise(self.gamma_axes, "gamma")
+
+    @property
+    def coupling_sq(self) -> float:
+        """Effective squared coupling frequency ``K`` (rad^2/s^2).
+
+        Raises ``ValueError`` for per-axis poles; use :attr:`coupling_sq_axes`.
+        """
+        return self._uniform_or_raise(self.coupling_sq_axes, "coupling_sq")
+
+    @property
+    def coupling_edot(self) -> float:
+        """Coefficient ``b`` of the ``dE/dt`` driving term (rad/s).
+
+        Raises ``ValueError`` for per-axis poles; use :attr:`coupling_edot_axes`.
+        """
+        return self._uniform_or_raise(self.coupling_edot_axes, "coupling_edot")
 
 
 @autoinit
@@ -120,29 +206,38 @@ class LorentzPole(Pole):
 
     .. math::
         \\chi(\\omega) = \\frac{\\Delta\\varepsilon \\cdot \\omega_0^2}{\\omega_0^2 - \\omega^2 - i\\gamma\\omega}.
+
+    Each parameter is either a scalar (isotropic) or a per-axis 3-tuple
+    ``(x, y, z)`` for diagonally anisotropic dispersion. An axis without a
+    resonance is expressed by a zero ``delta_epsilon`` entry on that axis.
     """
 
     #: Resonance angular frequency (rad/s). Must be > 0.
-    resonance_frequency: float = frozen_field()
+    #: Scalar or per-axis 3-tuple.
+    resonance_frequency: float | tuple[float, float, float] = frozen_field()
 
-    #: Damping rate (rad/s). Must be >= 0.
-    damping: float = frozen_field()
+    #: Damping rate (rad/s). Must be >= 0. Scalar or per-axis 3-tuple.
+    damping: float | tuple[float, float, float] = frozen_field()
 
     #: Oscillator strength (dimensionless); the zero-frequency
-    #: contribution to the susceptibility.
-    delta_epsilon: float = frozen_field()
+    #: contribution to the susceptibility. Scalar or per-axis 3-tuple.
+    delta_epsilon: float | tuple[float, float, float] = frozen_field()
 
     @property
-    def omega_0(self) -> float:
-        return float(self.resonance_frequency)
+    def omega_0_axes(self) -> tuple[float, float, float]:
+        w = _broadcast_axis_param(self.resonance_frequency)
+        return (float(w[0]), float(w[1]), float(w[2]))
 
     @property
-    def gamma(self) -> float:
-        return float(self.damping)
+    def gamma_axes(self) -> tuple[float, float, float]:
+        g = _broadcast_axis_param(self.damping)
+        return (float(g[0]), float(g[1]), float(g[2]))
 
     @property
-    def coupling_sq(self) -> float:
-        return float(self.delta_epsilon) * float(self.resonance_frequency) ** 2
+    def coupling_sq_axes(self) -> tuple[float, float, float]:
+        w = self.omega_0_axes
+        de = _broadcast_axis_param(self.delta_epsilon)
+        return (float(de[0]) * w[0] ** 2, float(de[1]) * w[1] ** 2, float(de[2]) * w[2] ** 2)
 
 
 @autoinit
@@ -155,25 +250,33 @@ class DrudePole(Pole):
         \\chi(\\omega) = -\\frac{\\omega_p^2}{\\omega^2 + i\\gamma\\omega},
 
     equivalent to a Lorentz pole with ``omega_0 = 0``.
+
+    Each parameter is either a scalar (isotropic) or a per-axis 3-tuple
+    ``(x, y, z)`` for diagonally anisotropic dispersion — e.g.
+    ``plasma_frequency=(wp, 0.0, 0.0)`` gives a metallic (hyperbolic)
+    response only along x.
     """
 
     #: Plasma angular frequency (rad/s). Must be > 0.
-    plasma_frequency: float = frozen_field()
+    #: Scalar or per-axis 3-tuple.
+    plasma_frequency: float | tuple[float, float, float] = frozen_field()
 
-    #: Damping rate (rad/s). Must be >= 0.
-    damping: float = frozen_field()
-
-    @property
-    def omega_0(self) -> float:
-        return 0.0
+    #: Damping rate (rad/s). Must be >= 0. Scalar or per-axis 3-tuple.
+    damping: float | tuple[float, float, float] = frozen_field()
 
     @property
-    def gamma(self) -> float:
-        return float(self.damping)
+    def omega_0_axes(self) -> tuple[float, float, float]:
+        return (0.0, 0.0, 0.0)
 
     @property
-    def coupling_sq(self) -> float:
-        return float(self.plasma_frequency) ** 2
+    def gamma_axes(self) -> tuple[float, float, float]:
+        g = _broadcast_axis_param(self.damping)
+        return (float(g[0]), float(g[1]), float(g[2]))
+
+    @property
+    def coupling_sq_axes(self) -> tuple[float, float, float]:
+        wp = _broadcast_axis_param(self.plasma_frequency)
+        return (float(wp[0]) ** 2, float(wp[1]) ** 2, float(wp[2]) ** 2)
 
 
 @autoinit
@@ -205,31 +308,51 @@ class CCPRPole(Pole):
     vector-fitted permittivity data.
 
     A stable, passive (lossy) medium requires ``Re(q) < 0`` (so ``gamma > 0``).
+
+    Both ``pole`` and ``residue`` are either scalars (isotropic) or per-axis
+    3-tuples ``(x, y, z)`` for diagonally anisotropic dispersion (e.g. a
+    vector-fitted uniaxial material with a different ``(q, r)`` set per axis).
     """
 
     #: Complex pole ``q`` (rad/s). ``Re(q) < 0`` for a stable, lossy medium.
-    pole: complex = frozen_field()
+    #: Scalar or per-axis 3-tuple.
+    pole: complex | tuple[complex, complex, complex] = frozen_field()
 
-    #: Complex residue ``r`` (rad/s).
-    residue: complex = frozen_field()
-
-    @property
-    def omega_0(self) -> float:
-        return float(abs(complex(self.pole)))
+    #: Complex residue ``r`` (rad/s). Scalar or per-axis 3-tuple.
+    residue: complex | tuple[complex, complex, complex] = frozen_field()
 
     @property
-    def gamma(self) -> float:
-        return float(-2.0 * complex(self.pole).real)
+    def omega_0_axes(self) -> tuple[float, float, float]:
+        q = _broadcast_axis_param(self.pole)
+        return (float(abs(complex(q[0]))), float(abs(complex(q[1]))), float(abs(complex(q[2]))))
 
     @property
-    def coupling_sq(self) -> float:
-        q = complex(self.pole)
-        r = complex(self.residue)
-        return float(-2.0 * (r * q.conjugate()).real)
+    def gamma_axes(self) -> tuple[float, float, float]:
+        q = _broadcast_axis_param(self.pole)
+        return (
+            float(-2.0 * complex(q[0]).real),
+            float(-2.0 * complex(q[1]).real),
+            float(-2.0 * complex(q[2]).real),
+        )
 
     @property
-    def coupling_edot(self) -> float:
-        return float(2.0 * complex(self.residue).real)
+    def coupling_sq_axes(self) -> tuple[float, float, float]:
+        q = _broadcast_axis_param(self.pole)
+        r = _broadcast_axis_param(self.residue)
+        return (
+            float(-2.0 * (complex(r[0]) * complex(q[0]).conjugate()).real),
+            float(-2.0 * (complex(r[1]) * complex(q[1]).conjugate()).real),
+            float(-2.0 * (complex(r[2]) * complex(q[2]).conjugate()).real),
+        )
+
+    @property
+    def coupling_edot_axes(self) -> tuple[float, float, float]:
+        r = _broadcast_axis_param(self.residue)
+        return (
+            float(2.0 * complex(r[0]).real),
+            float(2.0 * complex(r[1]).real),
+            float(2.0 * complex(r[2]).real),
+        )
 
     @classmethod
     def from_critical_point(
@@ -288,11 +411,46 @@ class DispersionModel(TreeClass):
         """Number of poles in this model."""
         return len(self.poles)
 
+    @property
+    def is_isotropic(self) -> bool:
+        """Whether every pole applies the same parameters to all three axes."""
+        return all(p.is_isotropic for p in self.poles)
+
+    def susceptibility_axes(self, omega: complex | float) -> tuple[complex, complex, complex]:
+        """Evaluate the per-axis complex susceptibility :math:`(\\chi_x, \\chi_y, \\chi_z)`.
+
+        Uses the ``exp(-i omega t)`` Fourier convention (damping appears
+        with a ``-i gamma omega`` term in the Lorentz denominator). For an
+        isotropic model all three entries are equal.
+
+        Args:
+            omega: Angular frequency (rad/s).
+
+        Returns:
+            tuple: :math:`\\chi_a(\\omega) = \\sum_p \\chi_{p,a}(\\omega)` for
+            each axis ``a`` in ``(x, y, z)``.
+        """
+        w = complex(omega)
+        totals = [0.0 + 0.0j, 0.0 + 0.0j, 0.0 + 0.0j]
+        for p in self.poles:
+            omega_0 = p.omega_0_axes
+            gamma = p.gamma_axes
+            coupling_sq = p.coupling_sq_axes
+            coupling_edot = p.coupling_edot_axes
+            for ax in range(3):
+                denom = omega_0[ax] ** 2 - w * w - 1j * gamma[ax] * w
+                numer = coupling_sq[ax] - 1j * w * coupling_edot[ax]
+                totals[ax] = totals[ax] + numer / denom
+        return (totals[0], totals[1], totals[2])
+
     def susceptibility(self, omega: complex | float) -> complex:
         """Evaluate the complex susceptibility :math:`\\chi(\\omega)`.
 
         Uses the ``exp(-i omega t)`` Fourier convention (damping appears
         with a ``-i gamma omega`` term in the Lorentz denominator).
+
+        Raises ``ValueError`` for models with per-axis poles; use
+        :meth:`susceptibility_axes` for those.
 
         Args:
             omega: Angular frequency (rad/s).
@@ -300,16 +458,36 @@ class DispersionModel(TreeClass):
         Returns:
             complex: :math:`\\chi(\\omega) = \\sum_p \\chi_p(\\omega)`.
         """
-        w = complex(omega)
-        total = 0.0 + 0.0j
-        for p in self.poles:
-            denom = p.omega_0**2 - w * w - 1j * p.gamma * w
-            numer = p.coupling_sq - 1j * w * p.coupling_edot
-            total = total + numer / denom
-        return total
+        if not self.is_isotropic:
+            raise ValueError(
+                "DispersionModel has per-axis poles; use susceptibility_axes(omega) for the (x, y, z) values."
+            )
+        return self.susceptibility_axes(omega)[0]
+
+    def permittivity_axes(
+        self,
+        omega: complex | float,
+        eps_inf: float | tuple[float, float, float] = 1.0,
+    ) -> tuple[complex, complex, complex]:
+        """Per-axis complex relative permittivity :math:`\\varepsilon_a(\\omega) = \\varepsilon_{\\infty,a} + \\chi_a(\\omega)`.
+
+        Args:
+            omega: Angular frequency (rad/s).
+            eps_inf: High-frequency permittivity — scalar or per-axis
+                3-tuple (the diagonal of the ε∞ tensor). Defaults to 1.0.
+
+        Returns:
+            tuple: Relative permittivity at ``omega`` per axis ``(x, y, z)``.
+        """
+        chi = self.susceptibility_axes(omega)
+        e = _broadcast_axis_param(eps_inf)
+        return (complex(e[0]) + chi[0], complex(e[1]) + chi[1], complex(e[2]) + chi[2])
 
     def permittivity(self, omega: complex | float, eps_inf: float = 1.0) -> complex:
         """Complex relative permittivity :math:`\\varepsilon(\\omega) = \\varepsilon_\\infty + \\chi(\\omega)`.
+
+        Raises ``ValueError`` for models with per-axis poles; use
+        :meth:`permittivity_axes` for those.
 
         Args:
             omega: Angular frequency (rad/s).
@@ -321,13 +499,14 @@ class DispersionModel(TreeClass):
         return eps_inf + self.susceptibility(omega)
 
 
-def compute_pole_coefficients(
+def compute_pole_coefficients_per_axis(
     poles: tuple[Pole, ...],
     dt: float,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Compute the discrete-time ADE recurrence coefficients.
+    """Compute the per-axis discrete-time ADE recurrence coefficients.
 
-    For each pole, returns ``(c1, c2, c3, c4)`` with (``D = 1 + gamma dt / 2``)
+    For each pole and grid axis, returns ``(c1, c2, c3, c4)`` with
+    (``D = 1 + gamma dt / 2``)
 
     .. math::
         c_1 = \\frac{2 - \\omega_0^2 \\Delta t^2}{D}, \\quad
@@ -341,37 +520,72 @@ def compute_pole_coefficients(
 
     :math:`p_p^{n+1} = c_1 p_p^n + c_2 p_p^{n-1} + c_3 E^n + c_4 E^{n+1}`.
 
-    For Lorentz and Drude poles ``b = 0``, so ``c4 = 0`` and ``c3`` reduces to
-    the classic :math:`K \\Delta t^2 / D` — making those pole types
-    bit-identical to before this coefficient was added.
+    For isotropic poles the three axis columns are identical. For Lorentz and
+    Drude poles ``b = 0``, so ``c4 = 0`` and ``c3`` reduces to the classic
+    :math:`K \\Delta t^2 / D`.
 
     Args:
         poles: Tuple of poles (may be empty).
         dt: Simulation time step (seconds).
 
     Returns:
+        Four ``numpy`` arrays of shape ``(len(poles), 3)`` with ``c1``, ``c2``,
+        ``c3``, ``c4`` per pole and axis. For an empty pole tuple, returns four
+        ``(0, 3)`` arrays.
+    """
+    n = len(poles)
+    c1 = np.zeros((n, 3), dtype=np.float64)
+    c2 = np.zeros((n, 3), dtype=np.float64)
+    c3 = np.zeros((n, 3), dtype=np.float64)
+    c4 = np.zeros((n, 3), dtype=np.float64)
+    for i, p in enumerate(poles):
+        omega_0 = p.omega_0_axes
+        gamma = p.gamma_axes
+        coupling_sq = p.coupling_sq_axes
+        coupling_edot = p.coupling_edot_axes
+        for ax in range(3):
+            gamma_dt = gamma[ax] * dt
+            if gamma_dt >= 2.0:
+                axis_note = "" if p.is_isotropic else f" on axis {'xyz'[ax]}"
+                raise ValueError(
+                    f"Pole {i} ({type(p).__name__}) has gamma * dt = {gamma_dt:.4g} >= 2{axis_note}; "
+                    "the reversible ADE update requires gamma * dt < 2 (physically gamma * dt << 1). "
+                    "Lower the damping or reduce the time step."
+                )
+            denom = 1.0 + 0.5 * gamma_dt
+            c1[i, ax] = (2.0 - (omega_0[ax] ** 2) * (dt**2)) / denom
+            c2[i, ax] = -(1.0 - 0.5 * gamma_dt) / denom
+            c3[i, ax] = (coupling_sq[ax] * dt**2 - coupling_edot[ax] * dt) / denom
+            c4[i, ax] = (coupling_edot[ax] * dt) / denom
+    return c1, c2, c3, c4
+
+
+def compute_pole_coefficients(
+    poles: tuple[Pole, ...],
+    dt: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Compute the discrete-time ADE recurrence coefficients of isotropic poles.
+
+    Scalar-per-pole variant of :func:`compute_pole_coefficients_per_axis` (see
+    there for the coefficient definitions). Raises ``ValueError`` when any
+    pole has per-axis parameters — use the per-axis function for those.
+
+    Args:
+        poles: Tuple of isotropic poles (may be empty).
+        dt: Simulation time step (seconds).
+
+    Returns:
         Four ``numpy`` arrays of shape ``(len(poles),)`` with ``c1``, ``c2``,
         ``c3``, ``c4``. For an empty pole tuple, returns four empty arrays.
     """
-    n = len(poles)
-    c1 = np.zeros(n, dtype=np.float64)
-    c2 = np.zeros(n, dtype=np.float64)
-    c3 = np.zeros(n, dtype=np.float64)
-    c4 = np.zeros(n, dtype=np.float64)
     for i, p in enumerate(poles):
-        gamma_dt = p.gamma * dt
-        if gamma_dt >= 2.0:
+        if not p.is_isotropic:
             raise ValueError(
-                f"Pole {i} ({type(p).__name__}) has gamma * dt = {gamma_dt:.4g} >= 2; "
-                "the reversible ADE update requires gamma * dt < 2 (physically gamma * dt << 1). "
-                "Lower the damping or reduce the time step."
+                f"Pole {i} ({type(p).__name__}) has per-axis parameters; "
+                "use compute_pole_coefficients_per_axis instead."
             )
-        denom = 1.0 + 0.5 * gamma_dt
-        c1[i] = (2.0 - (p.omega_0**2) * (dt**2)) / denom
-        c2[i] = -(1.0 - 0.5 * gamma_dt) / denom
-        c3[i] = (p.coupling_sq * dt**2 - p.coupling_edot * dt) / denom
-        c4[i] = (p.coupling_edot * dt) / denom
-    return c1, c2, c3, c4
+    c1, c2, c3, c4 = compute_pole_coefficients_per_axis(poles, dt)
+    return c1[:, 0], c2[:, 0], c3[:, 0], c4[:, 0]
 
 
 def susceptibility_from_coefficients(
@@ -472,9 +686,11 @@ def compute_eps_spectrum_from_coefficients(
     :func:`compute_impedance_corrected_temporal_profile`.
 
     Args:
-        c1: ADE coefficient array of shape ``(num_poles, 1, *spatial)`` as
-            stored on :class:`~fdtdx.fdtd.container.ArrayContainer` (the
-            middle size-1 axis is the material-component broadcast axis).
+        c1: ADE coefficient array of shape ``(num_poles, num_components, *spatial)``
+            as stored on :class:`~fdtdx.fdtd.container.ArrayContainer`, with
+            ``num_components in (1, 3)`` (the material-component axis; size 3
+            for per-axis anisotropic dispersion). Anisotropic components are
+            averaged, mirroring the ``inv_eps_inf`` reduction.
         c2: ADE coefficient array, same shape as ``c1``.
         c3: ADE coefficient array, same shape as ``c1``.
         inv_eps_inf: Per-cell inverse of the high-frequency permittivity,
@@ -519,15 +735,18 @@ def compute_eps_spectrum_from_coefficients(
     else:
         raise ValueError(f"Unexpected inv_eps_inf leading dimension {num_components}; expected 1, 3, or 9.")
 
-    # Broadcast: omegas over (M,); coefficient arrays have shape (P, 1, *spatial).
-    # After [None, ...] prepend: (M, P, 1, *spatial).
+    # Broadcast: omegas over (M,); coefficient arrays have shape (P, C, *spatial)
+    # with C in (1, 3). After [None, ...] prepend: (M, P, C, *spatial).
     omega_dt = (omegas_np * dt).reshape((-1,) + (1,) * c1_np.ndim)
     numer = a_dt2[None, ...] - 1j * omega_dt * b_dt[None, ...]
     denom = omega0_sq_dt2[None, ...] - omega_dt**2 - 1j * gamma_dt[None, ...] * omega_dt
     safe_denom = np.where(pole_mask[None, ...], denom, 1.0 + 0.0j)
     chi_per_pole = np.where(pole_mask[None, ...], numer / safe_denom, 0.0 + 0.0j)
-    chi_per_cell = chi_per_pole.sum(axis=1)  # sum over pole axis → (M, 1, *spatial)
-    chi_per_cell = chi_per_cell[:, 0]  # drop component broadcast axis → (M, *spatial)
+    chi_per_cell = chi_per_pole.sum(axis=1)  # sum over pole axis → (M, C, *spatial)
+    # Average the material-component axis (identity for C = 1), mirroring the
+    # eps_inf reduction above — this scalar spectrum feeds an impedance filter
+    # that has no notion of polarization.
+    chi_per_cell = chi_per_cell.mean(axis=1)  # → (M, *spatial)
 
     eps_per_cell = eps_inf_per_cell[None, ...] + chi_per_cell  # (M, *spatial)
 

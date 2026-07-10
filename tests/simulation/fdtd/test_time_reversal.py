@@ -13,6 +13,7 @@ from contextlib import contextmanager
 
 import jax
 import jax.numpy as jnp
+import pytest
 
 import fdtdx
 from fdtdx.config import GradientConfig, SimulationConfig
@@ -362,7 +363,7 @@ class TestTimeReversalDispersiveLorentz:
     """
 
     @staticmethod
-    def _build():
+    def _build(material=None):
         config = SimulationConfig(
             time=_SIM_TIME,
             grid=UniformGrid(spacing=_RESOLUTION),
@@ -385,12 +386,13 @@ class TestTimeReversalDispersiveLorentz:
         objects.extend(bound_dict.values())
         constraints.extend(c_list)
 
-        material = fdtdx.Material(
-            permittivity=2.0,
-            dispersion=fdtdx.DispersionModel(
-                poles=(fdtdx.LorentzPole(resonance_frequency=2e15, damping=1e13, delta_epsilon=1.5),),
-            ),
-        )
+        if material is None:
+            material = fdtdx.Material(
+                permittivity=2.0,
+                dispersion=fdtdx.DispersionModel(
+                    poles=(fdtdx.LorentzPole(resonance_frequency=2e15, damping=1e13, delta_epsilon=1.5),),
+                ),
+            )
         slab_cells = _VOLUME_CELLS // 2
         slab = fdtdx.UniformMaterialObject(
             partial_grid_shape=(None, None, slab_cells),
@@ -415,12 +417,30 @@ class TestTimeReversalDispersiveLorentz:
         arrays, obj_container, _ = fdtdx.apply_params(arrays, obj_container, params, key)
         return obj_container, arrays, config
 
-    def test_fields_and_polarization_reconstructed_exactly(self):
-        obj, arrays, config = self._build()
+    @pytest.mark.parametrize("per_axis", [False, True], ids=["isotropic", "per_axis"])
+    def test_fields_and_polarization_reconstructed_exactly(self, per_axis):
+        material = None
+        if per_axis:
+            # Per-axis pole parameters (with non-zero coupling on every axis so
+            # the seeded polarization stays recoverable everywhere in the slab).
+            material = fdtdx.Material(
+                permittivity=(2.0, 2.5, 3.0),
+                dispersion=fdtdx.DispersionModel(
+                    poles=(
+                        fdtdx.LorentzPole(
+                            resonance_frequency=(2e15, 2.5e15, 3e15),
+                            damping=(1e13, 2e13, 1.5e13),
+                            delta_epsilon=(1.5, 0.5, 1.0),
+                        ),
+                    ),
+                ),
+            )
+        obj, arrays, config = self._build(material)
         # Allocation sanity: the slab should have triggered allocation.
         assert arrays.fields.dispersive_P_curr is not None
         assert arrays.fields.dispersive_P_prev is not None
         assert arrays.dispersive_c3 is not None
+        assert arrays.dispersive_c3.shape[1] == (3 if per_axis else 1)
 
         key = jax.random.PRNGKey(42)
         k_E, k_H, k_Pc, k_Pp = jax.random.split(key, 4)

@@ -208,6 +208,20 @@ class ObjectContainer(TreeClass):
         return self._is_material_fn_true_for_all(_fn)
 
     @property
+    def all_objects_isotropic_dispersion(self) -> bool:
+        """Whether every dispersive material applies the same poles to all three axes.
+
+        Drives the size of the material-component axis of the dispersive
+        coefficient arrays: 1 (broadcast) when ``True``, 3 (per-axis, diagonally
+        anisotropic dispersion) when ``False``.
+        """
+
+        def _fn(m: Material):
+            return m.has_isotropic_dispersion
+
+        return self._is_material_fn_true_for_all(_fn)
+
+    @property
     def max_num_dispersive_poles(self) -> int:
         """Maximum number of dispersive poles required across all objects.
 
@@ -246,7 +260,7 @@ class ObjectContainer(TreeClass):
         def _material_has_edot(m: Material) -> bool:
             if m.dispersion is None:
                 return False
-            return any(p.coupling_edot != 0.0 for p in m.dispersion.poles)
+            return any(b != 0.0 for p in m.dispersion.poles for b in p.coupling_edot_axes)
 
         for o in self.objects:
             if isinstance(o, UniformMaterialObject):
@@ -398,27 +412,34 @@ class ArrayContainer(TreeClass):
     magnetic_conductivity: jax.Array | None = None
 
     #: Per-cell dispersive recurrence coefficient c1. Shape
-    #: ``(num_poles, 1, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
+    #: ``(num_poles, num_components, Nx, Ny, Nz)`` with ``num_components`` 1
+    #: (isotropic dispersion, broadcast over the field components) or 3
+    #: (per-axis / diagonally anisotropic dispersion). ``None`` for
+    #: non-dispersive simulations.
     dispersive_c1: jax.Array | None = None
 
     #: Per-cell dispersive recurrence coefficient c2. Shape
-    #: ``(num_poles, 1, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
+    #: ``(num_poles, num_components, Nx, Ny, Nz)``, ``num_components in (1, 3)``.
+    #: ``None`` for non-dispersive simulations.
     dispersive_c2: jax.Array | None = None
 
     #: Per-cell dispersive recurrence coefficient c3. Shape
-    #: ``(num_poles, 1, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
+    #: ``(num_poles, num_components, Nx, Ny, Nz)``, ``num_components in (1, 3)``.
+    #: ``None`` for non-dispersive simulations.
     dispersive_c3: jax.Array | None = None
 
     #: Per-cell dispersive recurrence coefficient c4 (the ``dE/dt`` / CCPR
-    #: coupling to ``E^{n+1}``). Shape ``(num_poles, 1, Nx, Ny, Nz)``. ``None``
-    #: unless at least one CCPR pole with non-zero ``coupling_edot`` is present;
-    #: Lorentz/Drude-only sims leave it ``None`` and skip the CCPR update path.
+    #: coupling to ``E^{n+1}``). Shape ``(num_poles, num_components, Nx, Ny, Nz)``,
+    #: ``num_components in (1, 3)``. ``None`` unless at least one CCPR pole with
+    #: non-zero ``coupling_edot`` is present; Lorentz/Drude-only sims leave it
+    #: ``None`` and skip the CCPR update path.
     dispersive_c4: jax.Array | None = None
 
     #: Per-cell cached ``1 / c2`` with non-dispersive cells set to 0. Lets the
     #: reverse-time ADE update avoid a ``jnp.where`` + division per step.
     #: Derived from ``dispersive_c2``; never differentiated independently.
-    #: Shape ``(num_poles, 1, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
+    #: Shape ``(num_poles, num_components, Nx, Ny, Nz)``, ``num_components in
+    #: (1, 3)``. ``None`` for non-dispersive simulations.
     dispersive_inv_c2: jax.Array | None = None
 
     #: Backup of inverse permittivity values array.
