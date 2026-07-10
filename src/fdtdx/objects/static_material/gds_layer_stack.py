@@ -50,17 +50,35 @@ class GDSLayerSpec:
     #: convention: ``polyslab_angle_rad = deg2rad(90 - sidewall_angle)``.)
     #:
     #: .. note::
-    #:    For ``sidewall_angle != 90`` the trapezoidal profile is **staircased** on the z-grid: each
-    #:    z-slice is eroded/dilated to a whole number of cells, so the wall is approximated by discrete
-    #:    steps rather than a continuous slope.  This is therefore less accurate than Tidy3D's analytic
-    #:    ``PolySlab`` (which represents the slanted face exactly).  A sub-cell fill-fraction treatment
-    #:    that would remove the staircasing is tracked as a follow-up in issue #373.
+    #:    For ``sidewall_angle != 90`` the *binary* voxelization (:meth:`GDSLayerObject.get_voxel_mask_for_shape`)
+    #:    **staircases** the trapezoidal profile on the z-grid: each z-slice is eroded/dilated to a whole
+    #:    number of cells, so the wall is approximated by discrete steps rather than a continuous slope.
+    #:    Enabling ``subpixel_smoothing`` removes this staircasing: the fill fraction is then computed per
+    #:    z-slice on the laterally offset footprint, giving a sub-cell-accurate slanted face whose interface
+    #:    normal tilts with the wall (issue #373).
     sidewall_angle: float = 90.0
     #: Which face keeps the nominal polygon footprint when ``sidewall_angle != 90``.
     #: ``"bottom"`` (default) keeps the base footprint and tapers the top inward for an angle ``< 90``;
     #: ``"top"`` keeps the top footprint; ``"middle"`` keeps the mid-height footprint and splits the
     #: taper symmetrically. Mirrors ``PolySlab.reference_plane``.
     reference_plane: Literal["bottom", "middle", "top"] = "bottom"
+    #: Enable sub-pixel dielectric smoothing for this layer (see
+    #: :attr:`~fdtdx.objects.static_material.static.StaticMultiMaterialObject.subpixel_smoothing`).
+    #: When ``True`` the layer is voxelised with an analytic fill fraction (supersampled footprint x
+    #: fractional z-coverage of the top/bottom faces) and the assembler builds a 2nd-order-accurate
+    #: anisotropic effective permittivity at the interface cells. Removes the staircasing of both the
+    #: in-plane polygon edges and the horizontal layer faces on the Yee grid. Defaults to a cheap
+    #: 3-component diagonal tensor (exact for axis-aligned interfaces); set ``subpixel_full_tensor`` for
+    #: the full 9-component tensor.
+    subpixel_smoothing: bool = False
+    #: Keep the full 9-component smoothing tensor (accurate for tilted sidewalls, ~3x heavier) instead of
+    #: the default cheap 3-component diagonal. See
+    #: :attr:`~fdtdx.objects.static_material.static.StaticMultiMaterialObject.subpixel_full_tensor`.
+    subpixel_full_tensor: bool = False
+    #: Number of sub-samples per axis used to estimate the in-plane fill fraction when
+    #: ``subpixel_smoothing`` is on. See
+    #: :attr:`~fdtdx.objects.static_material.gds_layer_stack.GDSLayerObject.fill_supersample`.
+    fill_supersample: int = 8
     color: Color | None = XKCD_LIGHT_GREY
 
 
@@ -123,11 +141,18 @@ class GDSLayerObject(StaticMultiMaterialObject):
     #: Face that keeps the nominal footprint: ``"bottom"``, ``"middle"`` or ``"top"``.
     reference_plane: Literal["bottom", "middle", "top"] = frozen_field(default="bottom")
 
+    #: Number of sub-samples per axis used to estimate the in-plane fill fraction for sub-pixel
+    #: smoothing (see :meth:`get_fill_fraction_for_shape`). Higher values give a more accurate fill
+    #: fraction / interface normal at a quadratic cost in this (CPU-side, one-time) rasterization step.
+    fill_supersample: int = frozen_field(default=8)
+
     def __post_init__(self):
         if not 0.0 < self.sidewall_angle < 180.0:
             raise ValueError(f"sidewall_angle must lie in (0, 180) degrees (90 = vertical), got {self.sidewall_angle}.")
         if self.reference_plane not in ("bottom", "middle", "top"):
             raise ValueError(f"reference_plane must be one of 'bottom', 'middle', 'top'; got {self.reference_plane!r}.")
+        if self.fill_supersample < 1:
+            raise ValueError(f"fill_supersample must be >= 1, got {self.fill_supersample}.")
 
     @property
     def horizontal_axis(self) -> int:
@@ -290,10 +315,163 @@ class GDSLayerObject(StaticMultiMaterialObject):
         idx = all_names.index(self.material_name)
         return jnp.ones(self.grid_shape, dtype=jnp.int32) * idx
 
+    def get_fill_fraction_for_shape(self) -> jax.Array:
+        """Analytic per-cell fill fraction of the extruded (optionally trapezoidal) polygon, in ``[0, 1]``.
+
+        The fraction is the product of an in-plane footprint coverage and the z-extent coverage:
+
+        * ``f_xy`` — the in-plane fraction of each cell covered by the polygon footprint, estimated by
+          super-sampling :meth:`polygon_to_mask_at_points` on an ``N x N`` grid inside every cell; and
+        * ``f_z`` — the fraction of each z-cell overlapped by the layer's physical z-extent
+          ``[z_base, z_base + thickness]`` (partial coverage at the top and bottom faces).
+
+        When ``sidewall_angle != 90`` the footprint shrinks/grows with height, so ``f_xy`` is recomputed
+        per z-slice on the laterally offset polygon (``offset(z) = (z - z_ref) * tan(90deg - angle)``,
+        matching :meth:`_extrude_with_sidewall`), giving a sub-cell-accurate trapezoidal profile whose
+        interface normal (recovered from the fill gradient) tilts with the wall. For a vertical wall, or
+        when the total lateral taper stays below half a cell (the common sub-cell case), the cheaper
+        separable ``f_xy(x, y) * f_z(z)`` form on the nominal footprint is used — it is identical there.
+
+        Returns:
+            jax.Array: Float array of shape ``self.grid_shape`` with values in ``[0, 1]``.
+        """
+        if self.axis != 2:
+            raise ValueError(
+                f"GDSLayerObject.get_fill_fraction_for_shape only supports axis=2 (z-extrusion); got axis={self.axis}."
+            )
+        n_h = self.grid_shape[self.horizontal_axis]
+        n_v = self.grid_shape[self.vertical_axis]
+        n_z = self.grid_shape[self.axis]
+        f_z = self._z_fill_fraction()  # (n_z,)
+
+        z_centers = self._z_centers(n_z)  # relative to layer base
+        tan = float(np.tan(np.deg2rad(90.0 - self.sidewall_angle)))
+        grid = self._config.resolved_grid
+        if grid is None:
+            pitch = float(self._config.uniform_spacing())
+        else:
+            pitch = min(
+                float(np.min(grid.cell_widths(self.horizontal_axis))),
+                float(np.min(grid.cell_widths(self.vertical_axis))),
+            )
+        if z_centers.size == 0:
+            z_ref = 0.0
+        elif self.reference_plane == "bottom":
+            z_ref = float(z_centers[0])
+        elif self.reference_plane == "top":
+            z_ref = float(z_centers[-1])
+        else:
+            z_ref = 0.5 * (float(z_centers[0]) + float(z_centers[-1]))
+        max_offset = abs(tan) * float(np.max(np.abs(z_centers - z_ref))) if z_centers.size else 0.0
+
+        if self.sidewall_angle == 90.0 or max_offset < 0.5 * pitch or n_z == 0:
+            # Vertical wall (or sub-cell taper): separable fast path on the nominal footprint.
+            f_xy = self._fill_fraction_2d(self.fill_supersample)  # (n_h, n_v)
+            frac = f_xy[:, :, None] * f_z[None, None, :]
+        else:
+            # Tilted wall: the footprint fraction varies with height -> per z-slice offset footprint.
+            frac = np.zeros((n_h, n_v, n_z), dtype=float)
+            for k in range(n_z):
+                offset = (float(z_centers[k]) - z_ref) * tan  # >0 erodes (angle<90), <0 dilates
+                frac[:, :, k] = self._fill_fraction_2d(self.fill_supersample, offset=offset) * f_z[k]
+        return jnp.asarray(frac, dtype=float)
+
+    def _fill_fraction_2d(self, supersample: int, offset: float = 0.0) -> np.ndarray:
+        """Super-sampled in-plane area fraction of the polygon footprint, shape ``(n_h, n_v)``.
+
+        ``offset`` (metres) laterally erodes (``offset > 0``) or dilates (``offset < 0``) the footprint
+        before rasterizing — the fractional analogue of :func:`_offset_mask`, used for the trapezoidal
+        sidewall profile.
+        """
+        n_h = self.grid_shape[self.horizontal_axis]
+        n_v = self.grid_shape[self.vertical_axis]
+
+        origin_h = self.gds_center[0]
+        origin_v = self.gds_center[1]
+        local_polygons = [poly - np.array([origin_h, origin_v]) for poly in self.polygons]
+        if abs(offset) > 1e-15 and len(local_polygons) > 0:
+            local_polygons = _offset_polygons(local_polygons, offset)
+        if len(local_polygons) == 0:
+            return np.zeros((n_h, n_v), dtype=float)
+
+        grid = self._config.resolved_grid
+        if grid is None:
+            res = self._config.uniform_spacing()
+            real_h = self.real_shape[self.horizontal_axis]
+            real_v = self.real_shape[self.vertical_axis]
+            h_edges = -real_h / 2.0 + np.arange(n_h + 1) * res
+            v_edges = -real_v / 2.0 + np.arange(n_v + 1) * res
+            h_obj_center = 0.0
+            v_obj_center = 0.0
+        else:
+            h_lower, h_upper = self.grid_slice_tuple[self.horizontal_axis]
+            v_lower, v_upper = self.grid_slice_tuple[self.vertical_axis]
+            h_edges_all = np.asarray(grid.edges(self.horizontal_axis))
+            v_edges_all = np.asarray(grid.edges(self.vertical_axis))
+            h_edges = h_edges_all[h_lower : h_upper + 1]
+            v_edges = v_edges_all[v_lower : v_upper + 1]
+            h_obj_center = 0.5 * (h_edges_all[h_lower] + h_edges_all[h_upper])
+            v_obj_center = 0.5 * (v_edges_all[v_lower] + v_edges_all[v_upper])
+
+        # Sub-sample centres inside every cell: cell [edge_lo, edge_hi] -> edge_lo + (s+0.5)/S * width.
+        s = (np.arange(supersample) + 0.5) / supersample
+        h_lo = h_edges[:-1]
+        h_hi = h_edges[1:]
+        v_lo = v_edges[:-1]
+        v_hi = v_edges[1:]
+        h_sub = (h_lo[:, None] + s[None, :] * (h_hi - h_lo)[:, None]).ravel() - h_obj_center
+        v_sub = (v_lo[:, None] + s[None, :] * (v_hi - v_lo)[:, None]).ravel() - v_obj_center
+
+        inside = np.zeros((n_h * supersample, n_v * supersample), dtype=bool)
+        for poly in local_polygons:
+            inside |= polygon_to_mask_at_points(x_coords=h_sub, y_coords=v_sub, polygon_vertices=poly)
+        frac = inside.reshape(n_h, supersample, n_v, supersample).mean(axis=(1, 3))
+        return np.asarray(frac, dtype=float)
+
+    def _z_fill_fraction(self) -> np.ndarray:
+        """Fraction of each z-cell overlapped by the layer extent ``[0, thickness]``, shape ``(n_z,)``."""
+        n_z = self.grid_shape[self.axis]
+        grid = self._config.resolved_grid
+        if grid is None:
+            res = self._config.uniform_spacing()
+            z_lo = np.arange(n_z) * res
+            z_hi = z_lo + res
+        else:
+            z_l, z_u = self.grid_slice_tuple[self.axis]
+            z_edges = np.asarray(grid.edges(self.axis))
+            base = z_edges[z_l]
+            z_lo = z_edges[z_l:z_u] - base
+            z_hi = z_edges[z_l + 1 : z_u + 1] - base
+        lo = np.maximum(z_lo, 0.0)
+        hi = np.minimum(z_hi, self.thickness)
+        overlap = np.clip(hi - lo, 0.0, None)
+        width = z_hi - z_lo
+        return np.where(width > 0, overlap / width, 0.0)
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+
+def _offset_polygons(polygons: list[np.ndarray], offset: float) -> list[np.ndarray]:
+    """Erode (``offset > 0``) or dilate (``offset < 0``) polygons by a physical distance (metres).
+
+    Uses :func:`gdstk.offset` (exact polygon inset/outset), the continuous analogue of :func:`_offset_mask`.
+    Returns the possibly-empty list of resulting polygon vertex arrays (erosion can remove a shape entirely
+    or split it; dilation can merge shapes — handled downstream by OR-ing the rasterized masks).
+    """
+    # gdstk.Polygon's type stub declares a ``Sequence[tuple[float, float]]``; feed it explicit vertex
+    # tuples (an ndarray works at runtime but trips the static type checker).
+    gpolys = [gdstk.Polygon([(float(x), float(y)) for x, y in np.asarray(p)]) for p in polygons]
+    # gdstk.offset snaps to an internal integer grid of size ``precision``; its 1e-3 default assumes
+    # micron-scale layout coordinates, but here coordinates are in METRES (~1e-6), so a coarse precision
+    # would collapse the shape. Scale precision to the coordinate magnitude (~7 significant digits).
+    scale = max((float(np.max(np.abs(p))) for p in polygons if len(p)), default=1.0)
+    precision = max(scale, abs(offset)) * 1e-7
+    # gdstk.offset: positive distance grows the shape, so negate to make offset>0 erode (shrink).
+    result = gdstk.offset(gpolys, -offset, use_union=True, precision=precision)
+    return [np.asarray(p.points) for p in result]
 
 
 def _offset_mask(mask_2d: np.ndarray, offset: float, pitch_h: float, pitch_v: float) -> np.ndarray:
@@ -522,6 +700,9 @@ def gds_layer_stack(
             thickness=spec.thickness,
             sidewall_angle=spec.sidewall_angle,
             reference_plane=spec.reference_plane,
+            subpixel_smoothing=spec.subpixel_smoothing,
+            subpixel_full_tensor=spec.subpixel_full_tensor,
+            fill_supersample=spec.fill_supersample,
             partial_real_shape=(None, None, spec.thickness),
         )
 

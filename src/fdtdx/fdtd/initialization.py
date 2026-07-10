@@ -580,6 +580,31 @@ def _init_arrays(
     diagonally_anisotropic_electric_conductivity = objects.all_objects_diagonally_anisotropic_electric_conductivity
     diagonally_anisotropic_magnetic_conductivity = objects.all_objects_diagonally_anisotropic_magnetic_conductivity
 
+    # Sub-pixel smoothing produces an anisotropic effective permittivity at interface cells even when
+    # every material is isotropic. The DIAGONAL variant (default) keeps only eps_ii and allocates a
+    # 3-component array (cheap elementwise update, exact for axis-aligned interfaces); the FULL-TENSOR
+    # variant keeps the off-diagonal terms and forces a 9-component allocation (anisotropic kernel).
+    subpixel_permittivity = objects.any_object_subpixel_smoothing
+    subpixel_full_tensor = objects.any_object_subpixel_full_tensor
+    if subpixel_permittivity and not isotropic_permittivity:
+        # The eps_bar/eps_h blend below (isotropic-background assumption) only ever reads the xx
+        # component of the background and object material, so yy/zz/off-diagonal anisotropy on either
+        # side of a smoothed interface is silently dropped rather than rejected or routed through a
+        # dedicated anisotropic path. Not yet handled - see fdtdx#400.
+        warnings.warn(
+            "`subpixel_smoothing=True` is combined with an anisotropic material somewhere in the "
+            "simulation. Sub-pixel smoothing currently assumes locally isotropic permittivity at "
+            "interface cells (only the xx component of the background/material is used to compute the "
+            "smoothed value); any yy/zz or off-diagonal anisotropy is silently ignored there. Use "
+            "isotropic materials on and around sub-pixel-smoothed objects until this is properly "
+            "supported.",
+            UserWarning,
+            stacklevel=2,
+        )
+    if subpixel_permittivity:
+        isotropic_permittivity = False
+        diagonally_anisotropic_permittivity = not subpixel_full_tensor
+
     # Get component counts for each property
     if isotropic_permittivity:
         num_perm_components = 1
@@ -846,7 +871,8 @@ def _init_arrays(
 
         elif isinstance(o, (StaticMultiMaterialObject)):
             indices = o.get_material_mapping()
-            mask = o.get_voxel_mask_for_shape()
+            use_subpixel = subpixel_permittivity and getattr(o, "subpixel_smoothing", False)
+            mask = o.get_fill_fraction_for_shape() if use_subpixel else o.get_voxel_mask_for_shape()
 
             # compute_allowed_permittivities returns list of tuples with length 1 (isotropic), 3 (diagonally anisotropic), or 9 (fully anisotropic)
             allowed_perms = jnp.asarray(
@@ -862,9 +888,34 @@ def _init_arrays(
             component_values = jnp.moveaxis(allowed_perms[indices], -1, 0)
             perm_slice = _invert_property(inv_permittivities[:, *o.grid_slice])
 
-            # Linearly interpolate in the forward domain
-            perm_slice = perm_slice + mask * (component_values - perm_slice)
-            inv_permittivities = inv_permittivities.at[:, *o.grid_slice].set(_invert_property(perm_slice))
+            if use_subpixel:
+                # Farjadpour et al. (Meep) sub-pixel smoothing. Blend the object material (eps2) with the
+                # current background (eps1, treated as locally isotropic) using the cell fill fraction:
+                #   eps_bar (tangential) = arithmetic mean, eps_h (normal) = harmonic mean,
+                #   eps_eff = eps_bar * I - (eps_bar - eps_h) * (n (x) n).
+                # Interior cells (mask in {0,1}, normal = 0) collapse to the bulk value, so the formula is
+                # applied uniformly across the object's slice with no interface masking.
+                normal = o.get_interface_normal_for_shape()  # (3, *grid_shape), unit / zero
+                eps1 = perm_slice[0]  # background xx (locally isotropic background assumption)
+                eps2 = component_values[0]  # object material xx (= its isotropic permittivity)
+                eps_bar = mask * eps2 + (1.0 - mask) * eps1
+                eps_h = 1.0 / (mask / eps2 + (1.0 - mask) / eps1)
+                delta = eps_bar - eps_h  # (*grid_shape)
+                if subpixel_full_tensor:
+                    # 9-component: eps_bar * I - delta * (n (x) n). The arithmetic (I) part reuses the same
+                    # forward-domain linear blend as the isotropic path.
+                    perm_arith = perm_slice + mask[None, ...] * (component_values - perm_slice)
+                    nn_outer = jnp.stack([normal[a] * normal[b] for a in range(3) for b in range(3)], axis=0)
+                    perm_smoothed = perm_arith - delta[None, ...] * nn_outer
+                else:
+                    # 3-component diagonal: eps_ii = eps_bar - delta * n_i**2 (the diagonal of the tensor
+                    # above). Exact for axis-aligned interfaces; runs on the cheap elementwise update.
+                    perm_smoothed = jnp.stack([eps_bar - delta * normal[i] ** 2 for i in range(3)], axis=0)
+                inv_permittivities = inv_permittivities.at[:, *o.grid_slice].set(_invert_property(perm_smoothed))
+            else:
+                # Linearly interpolate in the forward domain
+                perm_slice = perm_slice + mask * (component_values - perm_slice)
+                inv_permittivities = inv_permittivities.at[:, *o.grid_slice].set(_invert_property(perm_slice))
 
             if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
                 allowed_perms = jnp.asarray(
