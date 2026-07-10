@@ -87,8 +87,3 @@ python-version = "3.14"
 
 [tool.hatch.metadata]
 allow-direct-references = true
-
-[dependency-groups]
-dev = [
-    "tensorboard>=2.21.0",
-]
