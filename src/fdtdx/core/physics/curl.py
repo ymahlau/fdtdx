@@ -229,17 +229,22 @@ def curl_E(
     dy_scale = _metric_scale(config, axis=1, shape=shape, stencil="forward")
     dz_scale = _metric_scale(config, axis=2, shape=shape, stencil="forward")
 
-    dyEz = (jnp.roll(E_pad[2], -1, axis=1) - E_pad[2])[1:-1, 1:-1, 1:-1] * dy_scale
-    dzEy = (jnp.roll(E_pad[1], -1, axis=2) - E_pad[1])[1:-1, 1:-1, 1:-1] * dz_scale
-    dzEx = (jnp.roll(E_pad[0], -1, axis=2) - E_pad[0])[1:-1, 1:-1, 1:-1] * dz_scale
-    dxEz = (jnp.roll(E_pad[2], -1, axis=0) - E_pad[2])[1:-1, 1:-1, 1:-1] * dx_scale
-    dxEy = (jnp.roll(E_pad[1], -1, axis=0) - E_pad[1])[1:-1, 1:-1, 1:-1] * dx_scale
-    dyEx = (jnp.roll(E_pad[0], -1, axis=1) - E_pad[0])[1:-1, 1:-1, 1:-1] * dy_scale
+    Ex = E_pad[0]
+    Ey = E_pad[1]
+    Ez = E_pad[2]
+    center = (slice(1, -1), slice(1, -1), slice(1, -1))
+
+    dyEz = (Ez[1:-1, 2:, 1:-1] - Ez[center]) * dy_scale
+    dzEy = (Ey[1:-1, 1:-1, 2:] - Ey[center]) * dz_scale
+    dzEx = (Ex[1:-1, 1:-1, 2:] - Ex[center]) * dz_scale
+    dxEz = (Ez[2:, 1:-1, 1:-1] - Ez[center]) * dx_scale
+    dxEy = (Ey[2:, 1:-1, 1:-1] - Ey[center]) * dx_scale
+    dyEx = (Ex[1:-1, 2:, 1:-1] - Ex[center]) * dy_scale
 
     curl_x = dyEz - dzEy
     curl_y = dzEx - dxEz
     curl_z = dxEy - dyEx
-    curl = jnp.stack((curl_x, curl_y, curl_z), axis=0)
+    curl_components = [curl_x, curl_y, curl_z]
 
     psi_H_updated = {}
 
@@ -264,11 +269,12 @@ def curl_E(
             d_field_1, d_field_2, psi_1, psi_2, is_curl_E=True, simulate_boundaries=simulate_boundaries
         )
 
-        curl = curl.at[i, *pml.grid_slice].add(-corr_1)
-        curl = curl.at[j, *pml.grid_slice].add(corr_2)
+        curl_components[i] = curl_components[i].at[pml.grid_slice].add(-corr_1)
+        curl_components[j] = curl_components[j].at[pml.grid_slice].add(corr_2)
 
         psi_H_updated[pml.name] = (psi_1_new, psi_2_new)
 
+    curl = jnp.stack(curl_components, axis=0)
     return curl, psi_H_updated
 
 
@@ -310,17 +316,22 @@ def curl_H(
     dy_scale = _metric_scale(config, axis=1, shape=shape, stencil="backward")
     dz_scale = _metric_scale(config, axis=2, shape=shape, stencil="backward")
 
-    dyHz = (H_pad[2] - jnp.roll(H_pad[2], 1, axis=1))[1:-1, 1:-1, 1:-1] * dy_scale
-    dzHy = (H_pad[1] - jnp.roll(H_pad[1], 1, axis=2))[1:-1, 1:-1, 1:-1] * dz_scale
-    dzHx = (H_pad[0] - jnp.roll(H_pad[0], 1, axis=2))[1:-1, 1:-1, 1:-1] * dz_scale
-    dxHz = (H_pad[2] - jnp.roll(H_pad[2], 1, axis=0))[1:-1, 1:-1, 1:-1] * dx_scale
-    dxHy = (H_pad[1] - jnp.roll(H_pad[1], 1, axis=0))[1:-1, 1:-1, 1:-1] * dx_scale
-    dyHx = (H_pad[0] - jnp.roll(H_pad[0], 1, axis=1))[1:-1, 1:-1, 1:-1] * dy_scale
+    Hx = H_pad[0]
+    Hy = H_pad[1]
+    Hz = H_pad[2]
+    center = (slice(1, -1), slice(1, -1), slice(1, -1))
+
+    dyHz = (Hz[center] - Hz[1:-1, :-2, 1:-1]) * dy_scale
+    dzHy = (Hy[center] - Hy[1:-1, 1:-1, :-2]) * dz_scale
+    dzHx = (Hx[center] - Hx[1:-1, 1:-1, :-2]) * dz_scale
+    dxHz = (Hz[center] - Hz[:-2, 1:-1, 1:-1]) * dx_scale
+    dxHy = (Hy[center] - Hy[:-2, 1:-1, 1:-1]) * dx_scale
+    dyHx = (Hx[center] - Hx[1:-1, :-2, 1:-1]) * dy_scale
 
     curl_x = dyHz - dzHy
     curl_y = dzHx - dxHz
     curl_z = dxHy - dyHx
-    curl = jnp.stack((curl_x, curl_y, curl_z), axis=0)
+    curl_components = [curl_x, curl_y, curl_z]
 
     psi_E_updated = {}
 
@@ -344,9 +355,10 @@ def curl_H(
             d_field_1, d_field_2, psi_1, psi_2, is_curl_E=False, simulate_boundaries=simulate_boundaries
         )
 
-        curl = curl.at[i, *pml.grid_slice].add(-corr_1)
-        curl = curl.at[j, *pml.grid_slice].add(corr_2)
+        curl_components[i] = curl_components[i].at[pml.grid_slice].add(-corr_1)
+        curl_components[j] = curl_components[j].at[pml.grid_slice].add(corr_2)
 
         psi_E_updated[pml.name] = (psi_1_new, psi_2_new)
 
+    curl = jnp.stack(curl_components, axis=0)
     return curl, psi_E_updated

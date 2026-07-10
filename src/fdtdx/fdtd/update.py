@@ -5,6 +5,7 @@ from fdtdx.config import SimulationConfig
 from fdtdx.constants import eta0
 from fdtdx.core.misc import expand_to_3x3, pad_fields
 from fdtdx.core.physics.curl import curl_E, curl_H, interpolate_fields
+from fdtdx.core.switch import OnOffSwitch
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.misc import (
     add_boundary_interfaces,
@@ -15,6 +16,11 @@ from fdtdx.fdtd.misc import (
     compute_anisotropic_update_matrices_reverse,
 )
 from fdtdx.objects.detectors.detector import Detector
+
+
+def _source_uses_default_always_on_switch(source) -> bool:
+    switch = getattr(source, "switch", None)
+    return isinstance(switch, OnOffSwitch) and switch.is_default_always_on
 
 
 def get_wrap_padding_axes(objects: ObjectContainer) -> tuple[bool, bool, bool]:
@@ -317,6 +323,15 @@ def update_E(
         E = jnp.stack((Ex, Ey, Ez), axis=0)
 
     for source in objects.sources:
+        if _source_uses_default_always_on_switch(source):
+            E = source.update_E(
+                E=E,
+                inv_permittivities=arrays.inv_permittivities,
+                inv_permeabilities=arrays.inv_permeabilities,
+                time_step=time_step,
+                inverse=False,
+            )
+            continue
 
         def _update():
             adj_time_step = source.adjust_time_step_by_on_off(time_step)
@@ -362,6 +377,15 @@ def update_E_reverse(
     """
     E = arrays.fields.E
     for source in objects.sources:
+        if _source_uses_default_always_on_switch(source):
+            E = source.update_E(
+                E,
+                inv_permittivities=arrays.inv_permittivities,
+                inv_permeabilities=arrays.inv_permeabilities,
+                time_step=time_step,
+                inverse=True,
+            )
+            continue
 
         def _update():
             adj_time_step = source.adjust_time_step_by_on_off(time_step)
@@ -653,6 +677,15 @@ def update_H(
         H = jnp.stack((Hx, Hy, Hz), axis=0)
 
     for source in objects.sources:
+        if _source_uses_default_always_on_switch(source):
+            H = source.update_H(
+                H=H,
+                inv_permittivities=arrays.inv_permittivities,
+                inv_permeabilities=arrays.inv_permeabilities,
+                time_step=time_step + 0.5,
+                inverse=False,
+            )
+            continue
 
         def _update():
             adj_time_step = source.adjust_time_step_by_on_off(time_step)
@@ -698,6 +731,15 @@ def update_H_reverse(
     """
     H = arrays.fields.H
     for source in objects.sources:
+        if _source_uses_default_always_on_switch(source):
+            H = source.update_H(
+                H,
+                inv_permittivities=arrays.inv_permittivities,
+                inv_permeabilities=arrays.inv_permeabilities,
+                time_step=time_step + 0.5,
+                inverse=True,
+            )
+            continue
 
         def _update():
             adj_time_step = source.adjust_time_step_by_on_off(time_step)
