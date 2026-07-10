@@ -52,13 +52,12 @@ def run_compiled(
         ``(run_seconds, peak_memory_bytes, trace_path, memory_profile_path, last_result)``
 
     Note:
-        ``peak_memory_bytes`` is JAX's ``peak_bytes_in_use`` sampled after the run.
-        JAX has no stable public API to reset that high-water mark, so
-        ``_reset_peak_memory`` below only *samples* stats rather than clearing them
-        (see https://github.com/jax-ml/jax/issues/8096). This means the reported
-        peak can include earlier setup/compilation allocations from this process,
-        not just the timed run — treat it as an upper bound, not an isolated
-        per-run measurement.
+        ``peak_memory_bytes`` is JAX's ``peak_bytes_in_use``, read after the run.
+        JAX has no stable public API to reset that high-water mark before timing
+        starts (see https://github.com/jax-ml/jax/issues/8096), so this is the
+        peak since process start, not an isolated per-run measurement — earlier
+        setup/compilation allocations in this process count too. Treat it as an
+        upper bound.
     """
     import jax
 
@@ -73,7 +72,6 @@ def run_compiled(
             memory_profile_path = str(mem_dir / f"{name}.pb")
         except Exception:
             pass
-        _reset_peak_memory()
 
     run_seconds: list[float] = []
     trace_path: str | None = None
@@ -112,12 +110,3 @@ def read_memory_stats() -> dict[str, int]:
         return jax.devices()[0].memory_stats() or {}
     except Exception:
         return {}
-
-
-def _reset_peak_memory() -> None:
-    """Not an actual reset: JAX exposes no public API to clear peak_bytes_in_use.
-
-    This just forces a stats read before the timed run; see the Note on
-    ``run_compiled`` for what that means for ``peak_memory_bytes``.
-    """
-    read_memory_stats()
