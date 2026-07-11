@@ -19,7 +19,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import jax
 import jax.numpy as jnp
@@ -121,7 +121,7 @@ def extend_gds_with_port_stubs(cfg: CouplerConfig) -> Path:
 
     lib = gdstk.read_gds(str(cfg.gds_path))
     real_cells = {c.name: c for c in lib.cells if not c.name.startswith("$$$")}
-    target = real_cells[cfg.cell_name]
+    target = cast(Any, real_cells[cfg.cell_name])
     left_um = (cfg.gds_center[0] - cfg.domain_x / 2) * 1e6
     right_um = (cfg.gds_center[0] + cfg.domain_x / 2) * 1e6
 
@@ -180,7 +180,9 @@ def add_mode_detector(
     objects.append(det)
 
 
-def setup_scene(cells_per_lambda: int, cfg: CouplerConfig) -> tuple[ObjectContainer, ArrayContainer, fdtdx.SimulationConfig]:
+def setup_scene(
+    cells_per_lambda: int, cfg: CouplerConfig
+) -> tuple[ObjectContainer, ArrayContainer, fdtdx.SimulationConfig]:
     n_si = math.sqrt(fdtdx.constants.relative_permittivity_silicon)
     dx_fine = dx(cells_per_lambda, n_si, cfg)
     sim_time = 2.0 * n_si * cfg.domain_x / 3e8
@@ -241,9 +243,15 @@ def setup_scene(cells_per_lambda: int, cfg: CouplerConfig) -> tuple[ObjectContai
     objects.append(source)
 
     norm_port = {**cfg.ports["o1"], "x_m": cfg.ports["o1"]["x_m"] + dx_fine}
-    add_mode_detector(objects, constraints, name="det_source", port=norm_port, wave_char=wave_char, volume=volume, cfg=cfg)
-    add_mode_detector(objects, constraints, name="det_thru", port=cfg.ports["o4"], wave_char=wave_char, volume=volume, cfg=cfg)
-    add_mode_detector(objects, constraints, name="det_cross", port=cfg.ports["o3"], wave_char=wave_char, volume=volume, cfg=cfg)
+    add_mode_detector(
+        objects, constraints, name="det_source", port=norm_port, wave_char=wave_char, volume=volume, cfg=cfg
+    )
+    add_mode_detector(
+        objects, constraints, name="det_thru", port=cfg.ports["o4"], wave_char=wave_char, volume=volume, cfg=cfg
+    )
+    add_mode_detector(
+        objects, constraints, name="det_cross", port=cfg.ports["o3"], wave_char=wave_char, volume=volume, cfg=cfg
+    )
 
     key = jax.random.PRNGKey(0)
     obj_container, arrays, params, config, _ = place_objects(objects, config, constraints, key)
@@ -320,7 +328,8 @@ def run_compiled(
 
 
 def grid_shape(config: fdtdx.SimulationConfig) -> tuple[int, int, int]:
-    return (len(config.grid.x_edges) - 1, len(config.grid.y_edges) - 1, len(config.grid.z_edges) - 1)
+    grid = cast(RectilinearGrid, config.grid)
+    return (len(grid.x_edges) - 1, len(grid.y_edges) - 1, len(grid.z_edges) - 1)
 
 
 def read_memory_stats() -> dict[str, int]:
@@ -350,7 +359,7 @@ def capture_env() -> dict[str, Any]:
         "cpu_model": cpu_model(),
         "cpu_count_logical": os.cpu_count(),
         "devices": devices,
-        "jax_x64_enabled": jax.config.jax_enable_x64,
+        "jax_x64_enabled": jax.config.read("jax_enable_x64"),
     }
 
 
@@ -422,11 +431,11 @@ def main() -> None:
     mcups = total_cell_updates / min(run_seconds) / 1e6
 
     states = jax.device_get(final_arrays.detector_states)
-    norm = objects["det_source"].compute_overlap(states["det_source"])
+    norm = cast(Any, objects["det_source"]).compute_overlap(states["det_source"])
     norm_power = float(jnp.abs(norm).squeeze() ** 2)
     transmissions = {}
     for det_name in ("det_thru", "det_cross"):
-        amp = objects[det_name].compute_overlap(states[det_name])
+        amp = cast(Any, objects[det_name]).compute_overlap(states[det_name])
         transmissions[det_name] = float((jnp.abs(amp).squeeze() ** 2) / norm_power)
 
     result: dict[str, Any] = {
@@ -452,10 +461,7 @@ def main() -> None:
     result_path.write_text(json.dumps(payload, indent=2))
 
     print(f"grid={shape} steps={measured_steps} compile={compile_seconds:.2f}s")
-    print(
-        f"run_best={min(run_seconds):.3f}s run_median={statistics.median(run_seconds):.3f}s "
-        f"MCUPS={mcups:.1f}"
-    )
+    print(f"run_best={min(run_seconds):.3f}s run_median={statistics.median(run_seconds):.3f}s MCUPS={mcups:.1f}")
     print(f"T(det_thru)={transmissions['det_thru']:.4f} T(det_cross)={transmissions['det_cross']:.4f}")
     if static_memory_bytes is not None:
         print(f"static_mem={static_memory_bytes / 1024**2:.0f}MB")
