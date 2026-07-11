@@ -433,6 +433,11 @@ def main() -> None:
     states = jax.device_get(final_arrays.detector_states)
     norm = cast(Any, objects["det_source"]).compute_overlap(states["det_source"])
     norm_power = float(jnp.abs(norm).squeeze() ** 2)
+    if not math.isfinite(norm_power) or norm_power <= 0:
+        raise RuntimeError(
+            "Source detector overlap is zero or non-finite; cannot normalize "
+            f"transmissions. Check source/detector mode placement. norm_power={norm_power}"
+        )
     transmissions = {}
     for det_name in ("det_thru", "det_cross"):
         amp = cast(Any, objects[det_name]).compute_overlap(states[det_name])
@@ -458,7 +463,7 @@ def main() -> None:
     }
     payload = {"session_timestamp": timestamp, "env": capture_env(), "result": result}
     result_path = run_dir / "results.json"
-    result_path.write_text(json.dumps(payload, indent=2))
+    result_path.write_text(json.dumps(payload, indent=2, allow_nan=False))
 
     print(f"grid={shape} steps={measured_steps} compile={compile_seconds:.2f}s")
     print(f"run_best={min(run_seconds):.3f}s run_median={statistics.median(run_seconds):.3f}s MCUPS={mcups:.1f}")
