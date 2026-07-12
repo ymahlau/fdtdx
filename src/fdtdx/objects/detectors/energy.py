@@ -91,19 +91,11 @@ class EnergyDetector(Detector):
         inv_permittivity: jax.Array,
         inv_permeability: jax.Array | float,
     ) -> DetectorState:
-        cur_E = E[:, *self.grid_slice]
-        cur_H = H[:, *self.grid_slice]
-        cur_inv_permittivity = inv_permittivity[:, *self.grid_slice]
-        if isinstance(inv_permeability, jax.Array) and inv_permeability.ndim > 0:
-            cur_inv_permeability = inv_permeability[:, *self.grid_slice]
-        else:
-            cur_inv_permeability = inv_permeability
-
         energy = compute_energy(
-            E=cur_E,
-            H=cur_H,
-            inv_permittivity=cur_inv_permittivity,
-            inv_permeability=cur_inv_permeability,
+            E=E,
+            H=H,
+            inv_permittivity=inv_permittivity,
+            inv_permeability=inv_permeability,
         )
 
         arr_idx = self._time_step_to_arr_idx[time_step]

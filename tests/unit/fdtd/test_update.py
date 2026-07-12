@@ -580,15 +580,26 @@ class TestUpdateHReverse:
 
 
 class TestUpdateDetectorStates:
-    """Tests for update_detector_states."""
+    """Tests for update_detector_states (region-restricted + activity-gated recording)."""
 
-    def _make_detector(self, name="det1", exact_interpolation=False):
+    # An interior slice on the 4^3 test domain (stencil reads [0..3], in-bounds on every axis).
+    INTERIOR_GST = ((1, 3), (1, 3), (1, 3))
+    # An edge-touching slice (reaches index -1 / N on the stencil halo → needs the full-domain path).
+    EDGE_GST = ((0, 4), (0, 4), (0, 4))
+
+    def _make_detector(self, name="det1", exact_interpolation=False, grid_slice_tuple=INTERIOR_GST):
         d = Mock()
         d.name = name
         d.exact_interpolation = exact_interpolation
+        d.grid_slice_tuple = grid_slice_tuple
+        d.grid_slice = tuple(slice(s, e) for (s, e) in grid_slice_tuple)
         d._is_on_at_time_step_arr = [True] * 100
         d.update.return_value = {"value": jnp.zeros((1,))}
         return d
+
+    def _init_state(self, det):
+        """Initial detector_states matching the mock's update return layout."""
+        return {det.name: {"value": jnp.zeros((1,))}}
 
     def _make_det_objects(self, **kwargs):
         """Build a mock ObjectContainer for detector tests (includes volume)."""
@@ -602,22 +613,16 @@ class TestUpdateDetectorStates:
         return obj
 
     def test_forward_uses_forward_detectors(self):
-        """inverse=False iterates over objects.forward_detectors."""
+        """inverse=False iterates over objects.forward_detectors; cond fires once per detector."""
         det = self._make_detector()
         objects = self._make_det_objects(forward_detectors=[det])
-        arrays = _make_arrays(detector_states={det.name: {}})
+        arrays = _make_arrays(detector_states=self._init_state(det))
         H_prev = jnp.zeros(FIELD_SHAPE)
 
-        with (
-            patch(
-                "fdtdx.fdtd.update.interpolate_fields",
-                return_value=(jnp.ones(FIELD_SHAPE), jnp.ones(FIELD_SHAPE)),
-            ),
-            patch(
-                "fdtdx.fdtd.update.jax.lax.cond",
-                side_effect=lambda cond, t, f, e, h, d: t(e, h, d),
-            ) as mock_cond,
-        ):
+        with patch(
+            "fdtdx.fdtd.update.jax.lax.cond",
+            side_effect=lambda cond, t, f, e, h, hp, d: t(e, h, hp, d),
+        ) as mock_cond:
             update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=False)
         mock_cond.assert_called_once()
 
@@ -625,19 +630,13 @@ class TestUpdateDetectorStates:
         """inverse=True iterates over objects.backward_detectors."""
         det = self._make_detector()
         objects = self._make_det_objects(backward_detectors=[det])
-        arrays = _make_arrays(detector_states={det.name: {}})
+        arrays = _make_arrays(detector_states=self._init_state(det))
         H_prev = jnp.zeros(FIELD_SHAPE)
 
-        with (
-            patch(
-                "fdtdx.fdtd.update.interpolate_fields",
-                return_value=(jnp.ones(FIELD_SHAPE), jnp.ones(FIELD_SHAPE)),
-            ),
-            patch(
-                "fdtdx.fdtd.update.jax.lax.cond",
-                side_effect=lambda cond, t, f, e, h, d: t(e, h, d),
-            ) as mock_cond,
-        ):
+        with patch(
+            "fdtdx.fdtd.update.jax.lax.cond",
+            side_effect=lambda cond, t, f, e, h, hp, d: t(e, h, hp, d),
+        ) as mock_cond:
             update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=True)
         mock_cond.assert_called_once()
 
@@ -647,88 +646,118 @@ class TestUpdateDetectorStates:
         arrays = _make_arrays(detector_states={})
         H_prev = jnp.zeros(FIELD_SHAPE)
 
-        with (
-            patch(
-                "fdtdx.fdtd.update.interpolate_fields",
-                return_value=(jnp.ones(FIELD_SHAPE), jnp.ones(FIELD_SHAPE)),
-            ),
-            patch("fdtdx.fdtd.update.jax.lax.cond") as mock_cond,
-        ):
+        with patch("fdtdx.fdtd.update.jax.lax.cond") as mock_cond:
             update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=False)
         mock_cond.assert_not_called()
 
-    def test_exact_interpolation_passes_interpolated_fields(self):
-        """exact_interpolation=True: helper_fn receives interpolated E and H."""
-        det = self._make_detector(exact_interpolation=True)
+    def test_interior_exact_interpolates_haloed_region(self):
+        """A strictly-interior exact detector interpolates its haloed region, not the full domain."""
+        det = self._make_detector(exact_interpolation=True, grid_slice_tuple=self.INTERIOR_GST)
         objects = self._make_det_objects(forward_detectors=[det])
-        arrays = _make_arrays(detector_states={det.name: {}})
-        H_prev = jnp.zeros(FIELD_SHAPE)
-        interp_E = jnp.ones(FIELD_SHAPE) * 42.0
-        interp_H = jnp.ones(FIELD_SHAPE) * 99.0
-        captured = {}
-
-        def fake_cond(cond_val, t_fn, f_fn, e_arg, h_arg, d_arg):
-            captured["E"] = e_arg
-            captured["H"] = h_arg
-            return t_fn(e_arg, h_arg, d_arg)
-
-        with (
-            patch("fdtdx.fdtd.update.interpolate_fields", return_value=(interp_E, interp_H)),
-            patch("fdtdx.fdtd.update.jax.lax.cond", side_effect=fake_cond),
-        ):
-            update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=False)
-
-        assert jnp.allclose(captured["E"], interp_E)
-        assert jnp.allclose(captured["H"], interp_H)
-
-    def test_no_interpolation_passes_raw_fields(self):
-        """exact_interpolation=False: helper_fn receives raw arrays.fields.E and arrays.fields.H."""
-        det = self._make_detector(exact_interpolation=False)
-        objects = self._make_det_objects(forward_detectors=[det])
-        raw_E = jnp.ones(FIELD_SHAPE) * 5.0
-        raw_H = jnp.ones(FIELD_SHAPE) * 6.0
-        arrays = _make_arrays(E=raw_E, H=raw_H, detector_states={det.name: {}})
-        H_prev = jnp.zeros(FIELD_SHAPE)
-        captured = {}
-
-        def fake_cond(cond_val, t_fn, f_fn, e_arg, h_arg, d_arg):
-            captured["E"] = e_arg
-            captured["H"] = h_arg
-            return t_fn(e_arg, h_arg, d_arg)
-
-        with (
-            patch(
-                "fdtdx.fdtd.update.interpolate_fields",
-                return_value=(jnp.ones(FIELD_SHAPE) * 99.0, jnp.ones(FIELD_SHAPE) * 99.0),
-            ),
-            patch("fdtdx.fdtd.update.jax.lax.cond", side_effect=fake_cond),
-        ):
-            update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=False)
-
-        # Should receive the raw fields, not the interpolated ones
-        assert jnp.allclose(captured["E"], raw_E)
-        assert jnp.allclose(captured["H"], raw_H)
-
-    def test_interpolate_fields_receives_h_avg(self):
-        """interpolate_fields receives padded (H_prev + arrays.fields.H) / 2 as H_pad."""
-        objects = self._make_det_objects(forward_detectors=[])
+        raw_E = jnp.arange(3 * NX * NY * NZ, dtype=jnp.float32).reshape(FIELD_SHAPE)
         H_field = jnp.ones(FIELD_SHAPE) * 4.0
         H_prev = jnp.ones(FIELD_SHAPE) * 2.0
-        arrays = _make_arrays(H=H_field, detector_states={})
+        region = (jnp.ones((3, 2, 2, 2)) * 7.0, jnp.ones((3, 2, 2, 2)) * 8.0)
+        arrays = _make_arrays(E=raw_E, H=H_field, detector_states=self._init_state(det))
 
-        with patch(
-            "fdtdx.fdtd.update.interpolate_fields",
-            return_value=(jnp.zeros(FIELD_SHAPE), jnp.zeros(FIELD_SHAPE)),
-        ) as mock_interp:
+        with (
+            patch("fdtdx.fdtd.update.interpolate_fields", return_value=region) as mock_interp,
+            patch("fdtdx.fdtd.update.jax.lax.cond", side_effect=lambda cond, t, f, e, h, hp, d: t(e, h, hp, d)),
+        ):
             update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=False)
 
-        # H_pad is the padded version of (H_prev + H_field) / 2
-        # With no boundaries, padding is constant (zero-pad)
-        expected_H_avg = (H_prev + H_field) / 2  # all 3.0
-        actual_H_pad = mock_interp.call_args[1]["H_pad"]
-        # The padded array has shape (3, NX+2, NY+2, NZ+2), interior should match
-        assert actual_H_pad.shape == (3, NX + 2, NY + 2, NZ + 2)
-        assert jnp.allclose(actual_H_pad[:, 1:-1, 1:-1, 1:-1], expected_H_avg)
+        # Interpolated once over the region — INTERIOR_GST grown by the 1-cell halo → [0:4] blocks —
+        # with the matching region_slice, and never over the full padded domain.
+        mock_interp.assert_called_once()
+        assert mock_interp.call_args.kwargs["region_slice"] == self.INTERIOR_GST
+        assert jnp.allclose(mock_interp.call_args.args[0], raw_E[:, 0:4, 0:4, 0:4])
+        assert jnp.allclose(mock_interp.call_args.args[1], jnp.ones((3, 4, 4, 4)) * 3.0)  # (2 + 4) / 2
+        assert jnp.allclose(det.update.call_args.kwargs["E"], region[0])
+
+    def test_edge_exact_uses_full_domain_interpolation(self):
+        """An edge-touching exact detector falls back to the full-domain (padded) interpolation."""
+        det = self._make_detector(exact_interpolation=True, grid_slice_tuple=self.EDGE_GST)
+        objects = self._make_det_objects(forward_detectors=[det])
+        arrays = _make_arrays(detector_states=self._init_state(det))
+        H_prev = jnp.zeros(FIELD_SHAPE)
+        full = (jnp.ones(FIELD_SHAPE) * 42.0, jnp.ones(FIELD_SHAPE) * 99.0)
+
+        with (
+            patch("fdtdx.fdtd.update.interpolate_fields", return_value=full) as mock_interp,
+            patch("fdtdx.fdtd.update.jax.lax.cond", side_effect=lambda cond, t, f, e, h, hp, d: t(e, h, hp, d)),
+        ):
+            update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=False)
+
+        # Full-domain path: interpolate the padded fields (no region_slice); detector gets the slice.
+        mock_interp.assert_called_once()
+        assert mock_interp.call_args.kwargs.get("region_slice") is None
+        assert jnp.allclose(det.update.call_args.kwargs["E"], full[0])  # EDGE_GST spans the whole domain
+
+    def test_non_exact_passes_raw_region_slice(self):
+        """exact_interpolation=False: detector receives the raw (non-interpolated) region slice."""
+        det = self._make_detector(exact_interpolation=False, grid_slice_tuple=self.INTERIOR_GST)
+        objects = self._make_det_objects(forward_detectors=[det])
+        raw_E = jnp.arange(3 * NX * NY * NZ, dtype=jnp.float32).reshape(FIELD_SHAPE)
+        raw_H = raw_E * 2.0
+        arrays = _make_arrays(E=raw_E, H=raw_H, detector_states=self._init_state(det))
+        H_prev = jnp.zeros(FIELD_SHAPE)
+
+        with (
+            patch("fdtdx.fdtd.update.interpolate_fields") as mock_interp,
+            patch("fdtdx.fdtd.update.jax.lax.cond", side_effect=lambda cond, t, f, e, h, hp, d: t(e, h, hp, d)),
+        ):
+            update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=False)
+
+        mock_interp.assert_not_called()
+        assert jnp.allclose(det.update.call_args.kwargs["E"], raw_E[:, 1:3, 1:3, 1:3])
+        assert jnp.allclose(det.update.call_args.kwargs["H"], raw_H[:, 1:3, 1:3, 1:3])
+
+    def test_materials_are_region_sliced(self):
+        """The detector receives inv_permittivity/permeability restricted to its region."""
+        det = self._make_detector(exact_interpolation=False, grid_slice_tuple=self.INTERIOR_GST)
+        objects = self._make_det_objects(forward_detectors=[det])
+        inv_eps = jnp.arange(3 * NX * NY * NZ, dtype=jnp.float32).reshape(FIELD_SHAPE)
+        inv_mu = inv_eps + 100.0
+        arrays = _make_arrays(
+            inv_permittivities=inv_eps, inv_permeabilities=inv_mu, detector_states=self._init_state(det)
+        )
+        H_prev = jnp.zeros(FIELD_SHAPE)
+
+        with patch("fdtdx.fdtd.update.jax.lax.cond", side_effect=lambda cond, t, f, e, h, hp, d: t(e, h, hp, d)):
+            update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=False)
+
+        assert jnp.allclose(det.update.call_args.kwargs["inv_permittivity"], inv_eps[:, 1:3, 1:3, 1:3])
+        assert jnp.allclose(det.update.call_args.kwargs["inv_permeability"], inv_mu[:, 1:3, 1:3, 1:3])
+
+    def test_update_exception_is_wrapped_with_detector_context(self):
+        """An exception inside update() (e.g. a double-slice broadcast error) names the detector and cause."""
+        det = self._make_detector(exact_interpolation=False, grid_slice_tuple=self.INTERIOR_GST)
+        det.update.side_effect = TypeError("Incompatible types for broadcasting")
+        objects = self._make_det_objects(forward_detectors=[det])
+        arrays = _make_arrays(detector_states=self._init_state(det))
+        H_prev = jnp.zeros(FIELD_SHAPE)
+
+        with (
+            patch("fdtdx.fdtd.update.jax.lax.cond", side_effect=lambda cond, t, f, e, h, hp, d: t(e, h, hp, d)),
+            pytest.raises(Exception, match="double slicing") as exc_info,
+        ):
+            update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=False)
+        assert isinstance(exc_info.value.__cause__, TypeError)
+
+    def test_state_layout_drift_raises_descriptive_error(self):
+        """An update() that changes its state layout (as double-slicing grid_slice would) fails clearly."""
+        det = self._make_detector(exact_interpolation=False, grid_slice_tuple=self.INTERIOR_GST)
+        # Re-slicing the already-restricted region by the domain-level grid_slice empties the arrays.
+        det.update.return_value = {"value": jnp.zeros((0,))}
+        objects = self._make_det_objects(forward_detectors=[det])
+        arrays = _make_arrays(detector_states=self._init_state(det))
+        H_prev = jnp.zeros(FIELD_SHAPE)
+
+        with (
+            patch("fdtdx.fdtd.update.jax.lax.cond", side_effect=lambda cond, t, f, e, h, hp, d: t(e, h, hp, d)),
+            pytest.raises(Exception, match="double slicing"),
+        ):
+            update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=False)
 
 
 # ─── TestCollectInterfaces ────────────────────────────────────────────────────

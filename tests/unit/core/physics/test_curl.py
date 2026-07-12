@@ -127,6 +127,33 @@ def test_interpolate_fields_nonuniform_center_to_edge_weights():
     assert jnp.allclose(E_interp[0][1:, :, :-1], expected[1:, :, :-1], atol=1e-6)
 
 
+def _region_config(nonuniform):
+    if not nonuniform:
+        return SimulationConfig(time=400e-15, grid=UniformGrid(spacing=1.0), courant_factor=0.99)
+    edges = jnp.cumsum(jnp.asarray([0.0, 1.0, 2.0, 1.5, 3.0, 1.0, 2.5, 2.0, 1.2]))
+    return SimulationConfig(
+        time=400e-15, grid=RectilinearGrid(x_edges=edges, y_edges=1.3 * edges, z_edges=0.7 * edges), courant_factor=0.99
+    )
+
+
+def test_interpolate_fields_region_matches_full_domain_slice():
+    """interpolate_fields on an interior haloed sub-block (region_slice) equals slicing the full result."""
+    n = 8
+    raw = jnp.arange(2 * 3 * n * n * n, dtype=jnp.float32).reshape(2, 3, n, n, n)
+    E, H = jnp.sin(raw[0]), jnp.cos(raw[1])
+    for nonuniform in (False, True):
+        config = _region_config(nonuniform)
+        full_E, full_H = interpolate_fields(
+            pad_fields(E, (False, False, False)), pad_fields(H, (False, False, False)), config=config
+        )
+        for gst in (((2, 6), (2, 6), (2, 6)), ((1, 7), (3, 4), (2, 5))):
+            region = (slice(None), *(slice(s, e) for (s, e) in gst))
+            block = (slice(None), *(slice(s - 1, e + 1) for (s, e) in gst))
+            reg_E, reg_H = interpolate_fields(E[block], H[block], config=config, region_slice=gst)
+            assert jnp.allclose(reg_E, full_E[region], atol=1e-6)
+            assert jnp.allclose(reg_H, full_H[region], atol=1e-6)
+
+
 # ──────────────────────────────────────────────────────────────
 # curl_E
 # ──────────────────────────────────────────────────────────────

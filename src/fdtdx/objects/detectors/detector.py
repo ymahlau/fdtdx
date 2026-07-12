@@ -248,6 +248,10 @@ class Detector(SimulationObject, ABC):
     ) -> DetectorState:
         """Updates detector state with current field values.
 
+        Note that fields and materials arrive already restricted to this detector's ``grid_slice``
+        and, when ``exact_interpolation`` is set, already co-located onto the E_z Yee point, so
+        implementations must not slice ``grid_slice`` again.
+
         Args:
             time_step (jax.Array): Current simulation time step.
             E (jax.Array): Electric field array.
