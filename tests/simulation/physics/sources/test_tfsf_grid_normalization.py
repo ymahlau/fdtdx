@@ -7,10 +7,11 @@ by roughly (dz / dx)^2 in power.
 """
 
 import jax
+import jax.numpy as jnp
 import numpy as np
 
 import fdtdx
-from fdtdx.core.grid import QuasiUniformGrid, UniformGrid
+from fdtdx.core.grid import QuasiUniformGrid, RectilinearGrid, UniformGrid
 
 _DX = 25e-9
 _LXY = 0.8e-6
@@ -75,4 +76,25 @@ def test_tfsf_injection_is_grid_metric_independent():
     flux_quasi = _run_flux(QuasiUniformGrid(dx=_DX, dy=_DX, dz=2 * _DX))
     ratio = flux_quasi / flux_uniform
     # Without the metric factor on the TFSF correction, the ratio is ~3 (see #392).
+    assert 0.95 < ratio < 1.05, f"TFSF injected power depends on grid metric: ratio={ratio:.3f}"
+
+
+def test_tfsf_injection_is_grid_metric_independent_on_graded_grid():
+    """Same check on a grid whose spacing varies along the propagation axis.
+
+    The source plane then sits between cells of different widths, exercising the
+    backward-stencil neighbor averaging of the injected correction.
+    """
+    nxy = round(_LXY / _DX)
+    nz = round(_LZ / _DX)
+    xy_edges = jnp.asarray(np.arange(nxy + 1) * _DX)
+    cells = np.arange(nz, dtype=float)
+    widths = _DX * (1.0 + 0.3 * np.sin(2.0 * np.pi * (cells + 0.5) / nz))
+    widths *= _LZ / widths.sum()
+    z_edges = jnp.asarray(np.concatenate([[0.0], np.cumsum(widths)]))
+    graded = RectilinearGrid(x_edges=xy_edges, y_edges=xy_edges, z_edges=z_edges)
+
+    flux_uniform = _run_flux(UniformGrid(spacing=_DX))
+    flux_graded = _run_flux(graded)
+    ratio = flux_graded / flux_uniform
     assert 0.95 < ratio < 1.05, f"TFSF injected power depends on grid metric: ratio={ratio:.3f}"
