@@ -5,6 +5,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from fdtdx.constants import c as c0
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.dispersion import (
     compute_eps_spectrum_from_coefficients,
@@ -307,6 +308,33 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         # the real impedance of the local medium.
         raise NotImplementedError()
 
+    def _metric_scale_at_plane(self, stencil: str) -> jax.Array | float:
+        """Computes the local derivative scale along the propagation axis at the source plane.
+
+        On non-uniform grids, spatial derivatives are scaled by the local cell width.
+        Returns 1.0 on uniform grids.
+
+        Args:
+            stencil (str): Either "backward" or "forward" difference stencil.
+
+        Returns:
+            jax.Array | float: Scalar scale factor for the injected field corrections.
+        """
+        config = self._config
+        if not config.has_nonuniform_grid:
+            return 1.0
+        grid = config.resolved_grid
+        assert grid is not None
+        widths = grid.cell_widths(self.propagation_axis)
+        start = self.grid_slice_tuple[self.propagation_axis][0]
+        width = widths[start]
+        if stencil == "backward":
+            width = 0.5 * (width + widths[max(start - 1, 0)])
+        elif stencil != "forward":
+            raise ValueError(f"Unknown derivative stencil: {stencil}")
+        reference_spacing = c0 * config.time_step_duration / config.courant_number
+        return reference_spacing / width
+
     def update_E(
         self,
         E: jax.Array,
@@ -320,7 +348,7 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
             raise Exception("Need to apply random key before calling update")
 
         delta_t = self._config.time_step_duration
-        c = self._config.courant_number
+        c = self._config.courant_number * self._metric_scale_at_plane("backward")
 
         # Determine if fully anisotropic
         is_fully_anisotropic = inv_permittivities.ndim > 0 and inv_permittivities.shape[0] == 9
@@ -441,7 +469,7 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
             raise Exception("Need to apply random key before calling update")
 
         delta_t = self._config.time_step_duration
-        c = self._config.courant_number
+        c = self._config.courant_number * self._metric_scale_at_plane("forward")
 
         # Determine if fully anisotropic
         is_fully_anisotropic = (
