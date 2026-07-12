@@ -88,9 +88,7 @@ def _configs():
     uniform = fdtdx.SimulationConfig(time=1e-13, grid=UniformGrid(spacing=_RES))
     widths = np.array([1.0, 1.4, 0.8, 1.2, 1.0, 1.5, 0.9, 1.3, 1.1, 0.7, 1.6, 1.0]) * _RES
     edges = jnp.asarray(np.concatenate([[0.0], np.cumsum(widths)]))
-    nonuniform = fdtdx.SimulationConfig(
-        time=1e-13, grid=RectilinearGrid(x_edges=edges, y_edges=edges, z_edges=edges)
-    )
+    nonuniform = fdtdx.SimulationConfig(time=1e-13, grid=RectilinearGrid(x_edges=edges, y_edges=edges, z_edges=edges))
     return {"uniform": uniform, "nonuniform": nonuniform}
 
 

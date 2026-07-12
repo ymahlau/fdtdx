@@ -40,9 +40,7 @@ def test_stride_one_matches_default(simulation_config, small_grid_slice, random_
         PhasorDetector(wave_characters=(wave,), dft_subsample=1), simulation_config, small_grid_slice, random_key
     )
     assert one_det._dft_stride == default_det._dft_stride == 1
-    assert np.array_equal(
-        np.asarray(one_det._is_on_at_time_step_arr), np.asarray(default_det._is_on_at_time_step_arr)
-    )
+    assert np.array_equal(np.asarray(one_det._is_on_at_time_step_arr), np.asarray(default_det._is_on_at_time_step_arr))
 
 
 def test_explicit_stride_thins_on_list(simulation_config, small_grid_slice, random_key, wave):
@@ -139,7 +137,12 @@ def test_subsample_recovers_amplitude(random_key):
     freq = 1e14
     omega = 2 * math.pi * freq
     small_slice = ((0, 8), (0, 8), (0, 8))
-    common = dict(wave_characters=(WaveCharacter(frequency=freq),), scaling_mode="continuous", components=("Ex",), reduce_volume=True)
+    common = dict(
+        wave_characters=(WaveCharacter(frequency=freq),),
+        scaling_mode="continuous",
+        components=("Ex",),
+        reduce_volume=True,
+    )
 
     exact = PhasorDetector(**common, dft_subsample=1).place_on_grid(small_slice, config, random_key)
     auto = PhasorDetector(**common, dft_subsample="auto").place_on_grid(small_slice, config, random_key)

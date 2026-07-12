@@ -55,9 +55,7 @@ def _build(dft_subsample=1, with_gradient=True):
         polarization=0,
         amplitude=1.0,
     )
-    constraints.append(
-        source.set_grid_coordinates(axes=(0, 1, 2), sides=("-", "-", "-"), coordinates=(_VOL // 2,) * 3)
-    )
+    constraints.append(source.set_grid_coordinates(axes=(0, 1, 2), sides=("-", "-", "-"), coordinates=(_VOL // 2,) * 3))
     objects.append(source)
 
     det = fdtdx.PhasorDetector(
