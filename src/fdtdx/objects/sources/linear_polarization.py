@@ -7,8 +7,7 @@ import numpy as np
 
 from fdtdx.core.grid import calculate_time_offset_yee
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
-from fdtdx.core.linalg import get_wave_vector_raw, rotate_vector
-from fdtdx.core.misc import expand_to_3x3, linear_interpolated_indexing, normalize_polarization_for_source
+from fdtdx.core.misc import expand_to_3x3, linear_interpolated_indexing, tilted_polarization_vectors
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.dispersion import effective_inv_permittivity
 from fdtdx.objects.sources.tfsf import TFSFPlaneSource, _build_dispersive_H_filter
@@ -161,27 +160,19 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
                 c4=c4_slice,
             )
 
-        # determine E/H polarization
-        e_pol_raw, h_pol_raw = normalize_polarization_for_source(
+        center, azimuth, elevation = self._get_random_parts(key)
+
+        # determine E/H polarization and the (tilted) wave vector — shared with the
+        # analytic Gaussian mode-overlap detector via tilted_polarization_vectors.
+        e_pol, h_pol, wave_vector = tilted_polarization_vectors(
             direction=self.direction,
             propagation_axis=self.propagation_axis,
             fixed_E_polarization_vector=self.fixed_E_polarization_vector,
             fixed_H_polarization_vector=self.fixed_H_polarization_vector,
+            azimuth_radians=azimuth,
+            elevation_radians=elevation,
             dtype=self._config.dtype,
         )
-        wave_vector_raw = get_wave_vector_raw(
-            direction=self.direction,
-            propagation_axis=self.propagation_axis,
-            dtype=self._config.dtype,
-        )
-
-        center, azimuth, elevation = self._get_random_parts(key)
-
-        # tilt polarizations
-        axes_tpl = (self.horizontal_axis, self.vertical_axis, self.propagation_axis)
-        wave_vector = rotate_vector(wave_vector_raw, azimuth, elevation, axes_tpl)
-        e_pol = rotate_vector(e_pol_raw, azimuth, elevation, axes_tpl)
-        h_pol = rotate_vector(h_pol_raw, azimuth, elevation, axes_tpl)
 
         # update is amplitude multiplied by polarization
         amplitude_raw = self._get_amplitude_raw(center)[None, ...]
