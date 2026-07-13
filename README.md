@@ -39,9 +39,7 @@ Also check out our [whitepaper](https://arxiv.org/abs/2412.12360) for some examp
 Install FDTDX using pip:
 
 ```bash
-pip install fdtdx  # Basic CPU-Installation
-pip install fdtdx[cuda12]  # GPU-Acceleration (Highly Recommended!)
-pip install fdtdx[rocm]   # AMD-GPU (only python<=3.12)
+pip install fdtdx
 ```
 
 For development installation, see the contributing guidelines!
