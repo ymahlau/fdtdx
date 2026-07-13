@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.constants import c as c0
 from fdtdx.core.grid import RectilinearGrid, UniformGrid
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.objects.sources.linear_polarization import GaussianPlaneSource
@@ -153,6 +154,59 @@ class TestTFSFPlaneSourceProperties:
         assert center.shape == (2,)
         assert jnp.abs(center[0] - 1.5) <= 0.5
         assert jnp.abs(center[1] - 2.5) <= 0.5
+
+
+class TestMetricScaleAtPlane:
+    """Tests for the local derivative scale of the TFSF injection (regression for #392)."""
+
+    # Graded z widths so the backward stencil averages two differing neighbor widths.
+    Z_WIDTHS = np.array([80e-9, 90e-9, 100e-9, 110e-9, 120e-9, 130e-9, 140e-9, 150e-9])
+
+    def _place(self, config, jax_key, z_slice):
+        source = GaussianPlaneSource(
+            partial_grid_shape=(8, 8, 1),
+            wave_character=WaveCharacter(wavelength=1.55e-6),
+            direction="+",
+            radius=1e-6,
+            fixed_E_polarization_vector=(1, 0, 0),
+        )
+        return source.place_on_grid(((0, 8), (0, 8), z_slice), config, jax_key)
+
+    def _graded_config(self):
+        xy_edges = jnp.asarray(np.arange(9) * 100e-9)
+        z_edges = jnp.asarray(np.concatenate([[0.0], np.cumsum(self.Z_WIDTHS)]))
+        grid = RectilinearGrid(x_edges=xy_edges, y_edges=xy_edges, z_edges=z_edges)
+        return SimulationConfig(time=100e-15, grid=grid, backend="cpu")
+
+    def test_uniform_grid_returns_one(self, micro_config, jax_key):
+        """On uniform grids the scale is exactly 1 for both stencils."""
+        placed = self._place(micro_config, jax_key, z_slice=(4, 5))
+        assert placed._metric_scale_at_plane("backward") == 1.0
+        assert placed._metric_scale_at_plane("forward") == 1.0
+
+    def test_graded_grid_uses_local_widths(self, jax_key):
+        """Forward uses the plane's cell width; backward averages the two adjacent widths."""
+        config = self._graded_config()
+        placed = self._place(config, jax_key, z_slice=(4, 5))
+        ref = c0 * config.time_step_duration / config.courant_number
+        forward = float(placed._metric_scale_at_plane("forward"))
+        backward = float(placed._metric_scale_at_plane("backward"))
+        assert forward == pytest.approx(ref / self.Z_WIDTHS[4], rel=1e-6)
+        assert backward == pytest.approx(ref / (0.5 * (self.Z_WIDTHS[4] + self.Z_WIDTHS[3])), rel=1e-6)
+
+    def test_plane_at_domain_edge_replicates_first_width(self, jax_key):
+        """The backward stencil at index 0 has no previous cell and reuses the first width."""
+        config = self._graded_config()
+        placed = self._place(config, jax_key, z_slice=(0, 1))
+        ref = c0 * config.time_step_duration / config.courant_number
+        backward = float(placed._metric_scale_at_plane("backward"))
+        assert backward == pytest.approx(ref / self.Z_WIDTHS[0], rel=1e-6)
+
+    def test_invalid_stencil_raises(self, jax_key):
+        """An unknown stencil name is rejected."""
+        placed = self._place(self._graded_config(), jax_key, z_slice=(4, 5))
+        with pytest.raises(ValueError, match="stencil"):
+            placed._metric_scale_at_plane("centered")
 
 
 class TestTFSFPlaneSourceRandomization:
