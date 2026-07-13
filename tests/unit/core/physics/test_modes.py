@@ -623,6 +623,119 @@ class TestAnisotropicModeComputation:
         assert perm_passed.shape[0] == 9
 
 
+class TestBackwardModePhaseConvention:
+    """Regression tests for the spurious global ±i phase on backward ("-") modes (tidy3d >= 2.9).
+
+    "+" and "-" modes must share the same phase convention exactly.
+    """
+
+    frequency = 3e8 / 1.55e-6
+    resolution = 100e-9
+
+    def _strip_waveguide_inv_eps(self, num_components: int):
+        """Strip waveguide cross-section, propagation along x (axis 0)."""
+        shape = (num_components, 1, 20, 15)
+        eps = np.ones(shape)
+        core = (slice(None), slice(None), slice(7, 13), slice(6, 10))
+        if num_components == 1:
+            eps[core] = 3.48**2
+        elif num_components == 3:
+            eps[0][core[1:]] = 3.48**2
+            eps[1][core[1:]] = 3.40**2
+            eps[2][core[1:]] = 3.45**2
+        elif num_components == 9:
+            # symmetric (reciprocal) tensor with off-diagonal xy coupling;
+            # inv_permittivities holds the INVERSE tensor, so build eps first
+            eps_full = np.tile(np.eye(3).reshape(9, 1, 1, 1), (1, *shape[1:]))
+            eps_mat = np.array(
+                [
+                    [3.48**2, 0.3, 0.0],
+                    [0.3, 3.40**2, 0.0],
+                    [0.0, 0.0, 3.45**2],
+                ]
+            )
+            inv_mat = np.linalg.inv(eps_mat)
+            for i in range(9):
+                eps_full[i][core[1:]] = inv_mat.reshape(9)[i]
+            return jnp.asarray(eps_full)
+        return jnp.asarray(1.0 / eps)
+
+    def _compute_both_directions(self, inv_eps):
+        results = {}
+        for direction in ["+", "-"]:
+            E, H, neff = compute_mode(
+                frequency=self.frequency,
+                inv_permittivities=inv_eps,
+                inv_permeabilities=1.0,
+                resolution=self.resolution,
+                direction=direction,
+                mode_index=0,
+            )
+            results[direction] = (np.asarray(E), np.asarray(H), complex(neff))
+        return results
+
+    def _assert_backward_is_reciprocity_transform(self, results, propagation_axis=0):
+        Ep, Hp, neff_p = results["+"]
+        Em, Hm, neff_m = results["-"]
+
+        assert neff_m == pytest.approx(neff_p, rel=1e-6)
+
+        # reciprocity transform in the physical frame: longitudinal E and
+        # transverse H flip sign, transverse E and longitudinal H are unchanged
+        expected_E = Ep.copy()
+        expected_E[propagation_axis] *= -1
+        expected_H = -Hp.copy()
+        expected_H[propagation_axis] *= -1
+
+        scale = np.abs(Ep).max()
+        np.testing.assert_allclose(Em, expected_E, atol=1e-5 * scale)
+        np.testing.assert_allclose(Hm, expected_H, atol=1e-5 * np.abs(Hp).max())
+
+        # real Poynting flux must be -1 (normalized) along the propagation axis
+        S = np.cross(np.conj(Em), Hm, axisa=0, axisb=0, axisc=0)
+        flux = 0.5 * np.real(S[propagation_axis]).sum()
+        assert flux == pytest.approx(-1.0, abs=1e-3)
+
+        # lossless mode: transverse E of the backward mode must be purely real
+        # (the ±i bug made it purely imaginary)
+        transverse = [ax for ax in range(3) if ax != propagation_axis]
+        max_trans = max(np.abs(Em[ax]).max() for ax in transverse)
+        for ax in transverse:
+            assert np.abs(Em[ax].imag).max() <= 1e-5 * max_trans
+
+    def test_backward_mode_isotropic(self):
+        """Isotropic (diagonal solver path): '-' equals reciprocity transform of '+'."""
+        results = self._compute_both_directions(self._strip_waveguide_inv_eps(1))
+        self._assert_backward_is_reciprocity_transform(results)
+
+    def test_backward_mode_diagonal_anisotropic(self):
+        """Diagonal anisotropic (3 components): '-' equals reciprocity transform of '+'."""
+        results = self._compute_both_directions(self._strip_waveguide_inv_eps(3))
+        self._assert_backward_is_reciprocity_transform(results)
+
+    def test_backward_mode_symmetric_tensorial(self):
+        """Symmetric tensorial eps (9 components, reciprocal): tensorial solver path."""
+        try:
+            results = self._compute_both_directions(self._strip_waveguide_inv_eps(9))
+        except Exception as e:  # tidy3d raises inside a jax.pure_callback (JaxRuntimeError)
+            if "tensorial mode solver" in str(e):
+                pytest.skip("tensorial mode solver requires tidy3d-extras")
+            raise
+        self._assert_backward_is_reciprocity_transform(results)
+
+    def test_backward_mode_non_reciprocal_raises(self):
+        """Asymmetric (non-reciprocal) eps tensor: '-' is not supported and must raise."""
+        eps = np.tile(np.eye(3).reshape(9, 1, 1), (1, 20, 15))
+        eps[1] = 0.3  # eps_xy != eps_yx
+        with pytest.raises(NotImplementedError, match="reciprocity"):
+            tidy3d_mode_computation_wrapper(
+                frequency=self.frequency,
+                permittivity_cross_section=eps,
+                coords=[np.arange(21) * 0.1, np.arange(16) * 0.1],
+                direction="-",
+            )
+
+
 class TestTidy3DModeComputationWrapper:
     """Test the tidy3d_mode_computation_wrapper function."""
 
