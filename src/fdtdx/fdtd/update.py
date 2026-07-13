@@ -220,8 +220,10 @@ def update_E(
             disp_c3 = arrays.dispersive_c3
             disp_c4 = arrays.dispersive_c4
             assert P_prev is not None and disp_c1 is not None and disp_c2 is not None and disp_c3 is not None
-            # disp_c* are (num_poles, 1, Nx, Ny, Nz); arrays.fields.E is (3, Nx, Ny, Nz).
-            # Right-aligned broadcasting produces (num_poles, 3, Nx, Ny, Nz) without
+            # disp_c* are (num_poles, 1|3, Nx, Ny, Nz) — the component axis is 1
+            # (isotropic dispersion, broadcast) or 3 (per-axis anisotropic
+            # dispersion); arrays.fields.E is (3, Nx, Ny, Nz). Right-aligned
+            # broadcasting produces (num_poles, 3, Nx, Ny, Nz) either way without
             # an explicit newaxis — skip the reshape so the HLO stays flat.
             # P_hat is the explicit part of the recurrence (independent of E^{n+1}).
             P_hat = disp_c1 * P_curr + disp_c2 * P_prev + disp_c3 * arrays.fields.E

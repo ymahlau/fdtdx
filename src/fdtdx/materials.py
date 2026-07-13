@@ -1,4 +1,5 @@
 import math
+import warnings
 from typing import cast
 
 import numpy as np
@@ -6,7 +7,7 @@ import numpy as np
 from fdtdx import constants
 from fdtdx.core.jax.pytrees import TreeClass, frozen_field
 from fdtdx.core.wavelength import WaveCharacter
-from fdtdx.dispersion import DispersionModel, compute_pole_coefficients
+from fdtdx.dispersion import DispersionModel, compute_pole_coefficients_per_axis
 
 
 def _normalize_material_property(
@@ -207,6 +208,16 @@ class Material(TreeClass):
         object.__setattr__(self, "electric_conductivity", _normalize_material_property(electric_conductivity))
         object.__setattr__(self, "magnetic_conductivity", _normalize_material_property(magnetic_conductivity))
         object.__setattr__(self, "dispersion", dispersion)
+        eps = self.permittivity
+        diag = (eps[0], eps[4], eps[8])
+        if any(isinstance(v, (int, float)) and v <= 0.0 for v in diag):
+            warnings.warn(
+                "Material has a non-positive static permittivity on the diagonal, which is "
+                "unconditionally unstable in explicit FDTD. To model Re(eps) < 0 in-band (metals, "
+                "hyperbolic media), keep eps_inf >= 1 and use a DispersionModel (e.g. a DrudePole).",
+                UserWarning,
+                stacklevel=2,
+            )
 
     @property
     def is_all_isotropic(self) -> bool:
@@ -379,6 +390,16 @@ class Material(TreeClass):
             bool: True if a :class:`DispersionModel` with at least one pole is attached.
         """
         return self.dispersion is not None and self.dispersion.num_poles > 0
+
+    @property
+    def has_isotropic_dispersion(self) -> bool:
+        """Check whether the material's dispersion (if any) is isotropic.
+
+        Returns:
+            bool: True if the material is non-dispersive or every pole of its
+            dispersion model applies the same parameters to all three axes.
+        """
+        return self.dispersion is None or self.dispersion.is_isotropic
 
     @classmethod
     def from_complex_permittivity(
@@ -823,45 +844,56 @@ def compute_allowed_dispersive_coefficients(
     materials: dict[str, Material],
     dt: float,
     max_num_poles: int,
+    num_components: int,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Compute per-material discrete-time dispersive recurrence coefficients.
 
     For each material (in the canonical sorted order used elsewhere), returns
-    arrays of shape ``(num_materials, max_num_poles)`` containing the
-    ``c1``, ``c2``, ``c3``, ``c4`` coefficients from
-    :func:`fdtdx.dispersion.compute_pole_coefficients`. Materials with fewer
-    poles than ``max_num_poles``, or non-dispersive materials, get zero-padded
-    slots (so the polarization term automatically vanishes on those voxels).
-    ``c4`` is zero for Lorentz/Drude poles and only non-zero for CCPR poles.
+    arrays of shape ``(num_materials, max_num_poles, num_components)``
+    containing the ``c1``, ``c2``, ``c3``, ``c4`` coefficients from
+    :func:`fdtdx.dispersion.compute_pole_coefficients_per_axis`. Materials with
+    fewer poles than ``max_num_poles``, or non-dispersive materials, get
+    zero-padded slots (so the polarization term automatically vanishes on those
+    voxels). ``c4`` is zero for Lorentz/Drude poles and only non-zero for CCPR
+    poles.
 
     Args:
         materials: Dictionary mapping material names to Material objects.
         dt: Simulation time step (seconds).
         max_num_poles: Maximum pole count to pad every material to. When 0,
-            returns four ``(num_materials, 0)``-shaped arrays.
+            returns four ``(num_materials, 0, num_components)``-shaped arrays.
+        num_components: Size of the trailing component axis — 1 when all
+            materials have isotropic dispersion, 3 for per-axis (diagonally
+            anisotropic) dispersion.
 
     Returns:
-        Four numpy arrays of shape ``(num_materials, max_num_poles)``
+        Four numpy arrays of shape ``(num_materials, max_num_poles, num_components)``
         with ``c1``, ``c2``, ``c3``, ``c4``.
     """
+    if num_components not in (1, 3):
+        raise ValueError(f"num_components must be 1 or 3, got {num_components}.")
     ordered = compute_ordered_material_name_tuples(materials)
     num_mats = len(ordered)
-    c1 = np.zeros((num_mats, max_num_poles), dtype=np.float64)
-    c2 = np.zeros((num_mats, max_num_poles), dtype=np.float64)
-    c3 = np.zeros((num_mats, max_num_poles), dtype=np.float64)
-    c4 = np.zeros((num_mats, max_num_poles), dtype=np.float64)
+    c1 = np.zeros((num_mats, max_num_poles, num_components), dtype=np.float64)
+    c2 = np.zeros((num_mats, max_num_poles, num_components), dtype=np.float64)
+    c3 = np.zeros((num_mats, max_num_poles, num_components), dtype=np.float64)
+    c4 = np.zeros((num_mats, max_num_poles, num_components), dtype=np.float64)
     if max_num_poles == 0:
         return c1, c2, c3, c4
     for m_idx, (_, mat) in enumerate(ordered):
         if mat.dispersion is None:
             continue
+        if num_components == 1 and not mat.has_isotropic_dispersion:
+            raise ValueError("num_components=1 requires isotropic dispersion, but a material has per-axis poles.")
         poles = mat.dispersion.poles
-        c1_vals, c2_vals, c3_vals, c4_vals = compute_pole_coefficients(poles, dt)
+        c1_vals, c2_vals, c3_vals, c4_vals = compute_pole_coefficients_per_axis(poles, dt)
         n = len(poles)
-        c1[m_idx, :n] = c1_vals
-        c2[m_idx, :n] = c2_vals
-        c3[m_idx, :n] = c3_vals
-        c4[m_idx, :n] = c4_vals
+        # For num_components == 1 the isotropy check above guarantees all three
+        # axis columns are identical, so keeping only the first is exact.
+        c1[m_idx, :n] = c1_vals[:, :num_components]
+        c2[m_idx, :n] = c2_vals[:, :num_components]
+        c3[m_idx, :n] = c3_vals[:, :num_components]
+        c4[m_idx, :n] = c4_vals[:, :num_components]
     return c1, c2, c3, c4
 
 

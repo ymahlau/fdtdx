@@ -4,6 +4,7 @@ from typing import Self
 import jax
 import jax.numpy as jnp
 import numpy as np
+from loguru import logger
 
 from fdtdx.constants import c as c0
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
@@ -87,6 +88,20 @@ def _build_dispersive_H_filter(
     c3_np = np.asarray(c3_slice)
     c4_np = None if c4_slice is None else np.asarray(c4_slice)
     inv_eps_inf_np = np.asarray(inv_eps_inf_slice)
+
+    # With per-axis (anisotropic) dispersion the coefficient arrays carry one
+    # value per component; the scalar impedance filter below can only use a
+    # component average. Warn once at setup so the approximation is visible.
+    if c1_np.shape[0] > 0 and c1_np.shape[1] > 1:
+        anisotropic = any(
+            bool(np.any(arr != arr[:, :1])) for arr in (c1_np, c2_np, c3_np) + (() if c4_np is None else (c4_np,))
+        )
+        if anisotropic:
+            logger.warning(
+                "TFSF source overlaps a material with per-axis (anisotropic) dispersion; the broadband "
+                "impedance filter uses a component-averaged eps(omega). The carrier-frequency amplitude "
+                "stays exact per component, but broadband impedance matching is approximate here."
+            )
 
     eps_spectrum = compute_eps_spectrum_from_coefficients(
         c1=c1_np,
