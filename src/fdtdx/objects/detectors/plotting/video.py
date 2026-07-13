@@ -142,7 +142,7 @@ def generate_video_from_slices(
                 elif maxlist[a] is not None:
                     # Keep user input, set values symmetrically
                     # maxvals[a] is guaranteed to be not None here
-                    minlist[a] = -cast(float, minlist[a])
+                    minlist[a] = -cast(float, maxlist[a])
         else:  # Data is unsigned
             if minlist[a] is None:
                 minlist[a] = 0.0
