@@ -7,7 +7,9 @@ import numpy as np
 from loguru import logger
 
 from fdtdx.constants import c as c0
+from fdtdx.core.axis import get_oriented_transverse_axes
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
+from fdtdx.core.misc import expand_to_3x3
 from fdtdx.dispersion import (
     compute_eps_spectrum_from_coefficients,
     compute_impedance_corrected_temporal_profile,
@@ -131,6 +133,274 @@ def _build_dispersive_H_filter(
         eps_center=eps_center,
     )
     return jnp.asarray(s_H, dtype=dtype)
+
+
+def _source_impedance(
+    inv_permittivities: jax.Array,
+    inv_permeabilities: jax.Array | float,
+    e_pol: jax.Array,
+    h_pol: jax.Array,
+) -> jax.Array:
+    """Wave impedance seen by a plane-wave source along its polarization.
+
+    For isotropic / diagonally anisotropic media this is the scalar
+    ``sqrt(inv_eps / inv_mu)`` (i.e. ``sqrt(mu / eps)``). For fully anisotropic
+    media (9-component tensors) the permittivity and permeability tensors are
+    inverted and projected onto the E- and H-polarization directions before
+    taking the ratio. Shared by the single-plane source and the box region so
+    the impedance normalization is computed in exactly one place.
+
+    Args:
+        inv_permittivities: Inverse permittivity, already sliced to the source
+            cells. Scalar/1/3/9-component leading axis.
+        inv_permeabilities: Inverse permeability (same layout) or a float.
+        e_pol: Electric polarization unit vector, shape ``(3,)``.
+        h_pol: Magnetic polarization unit vector, shape ``(3,)``.
+
+    Returns:
+        The impedance array (or scalar) to divide the injected H field by.
+    """
+    if (
+        isinstance(inv_permittivities, jax.Array) and inv_permittivities.ndim >= 1 and inv_permittivities.shape[0] == 9
+    ) or (
+        isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim >= 1 and inv_permeabilities.shape[0] == 9
+    ):
+        # convert to 3x3 tensors
+        inv_eps_tensor = expand_to_3x3(inv_permittivities)  # shape: (3, 3, Nx, Ny, Nz)
+        inv_mu_tensor = expand_to_3x3(inv_permeabilities)  # shape: (3, 3, Nx, Ny, Nz)
+
+        # invert to get eps and mu tensors
+        perm = (2, 3, 4, 0, 1)  # (3, 3, nx, ny, nz) -> (nx, ny, nz, 3, 3)
+        inv_perm = (3, 4, 0, 1, 2)  # (nx, ny, nz, 3, 3) -> (3, 3, nx, ny, nz)
+        eps = jnp.linalg.inv(inv_eps_tensor.transpose(perm)).transpose(inv_perm)
+        mu = jnp.linalg.inv(inv_mu_tensor.transpose(perm)).transpose(inv_perm)
+
+        # compute effective permittivity and permeability along polarization directions
+        eps_eff = jnp.einsum("i,ijxyz,j->xyz", e_pol, eps, e_pol)
+        mu_eff = jnp.einsum("i,ijxyz,j->xyz", h_pol, mu, h_pol)
+        impedance = jnp.sqrt(mu_eff / eps_eff)
+    else:
+        impedance = jnp.sqrt(inv_permittivities / inv_permeabilities)
+    return impedance
+
+
+def _tfsf_inject_E_face(
+    E: jax.Array,
+    *,
+    grid_slice,
+    normal_axis: int,
+    sign: int,
+    incident_H: jax.Array,
+    time_offset_H: jax.Array,
+    temporal_H_filter: jax.Array | None,
+    inv_permittivities: jax.Array,
+    c: jax.Array | float,
+    time_step: jax.Array,
+    delta_t: float,
+    temporal_profile: TemporalProfile,
+    wave_character,
+    static_amplitude_factor: float,
+) -> jax.Array:
+    """Inject the incident-H TFSF correction into E on a single face.
+
+    A TFSF face couples the two field components tangential to the face
+    (``a``, ``b`` = the transverse axes of ``normal_axis``): the update of E[a]
+    is driven by the incident H[b] and E[b] by the incident H[a], with the
+    curl orientation baked into the signs (``g_H[a]=+H_b``, ``g_H[b]=-H_a``).
+    The face-normal component only picks up a correction under full anisotropy
+    (off-diagonal tensor bleed). The single-plane :class:`TFSFPlaneSource` is
+    the special case ``normal_axis == propagation_axis``; the box source calls
+    this once per active face with the face's outward-normal ``sign``.
+
+    Args:
+        E: Full-domain electric field array ``(3, Nx, Ny, Nz)``.
+        grid_slice: The face slice (size 1 along ``normal_axis``).
+        normal_axis: Axis normal to the face (0/1/2).
+        sign: Geometric injection sign (+1 min face, -1 max face; negated for
+            the reverse/adjoint update).
+        incident_H: Incident H profile on the face, shape ``(3, *face)``.
+        time_offset_H: Per-component Yee time offsets on the face ``(3, *face)``.
+        temporal_H_filter: Broadband impedance-corrected H profile (dispersive
+            media) or ``None`` to use the raw temporal profile.
+        inv_permittivities: Full-domain inverse permittivity array.
+        c: Courant number scaled by the local metric factor (backward stencil).
+        time_step: Current (possibly on/off-adjusted) time step.
+        delta_t: Simulation time-step duration (seconds).
+        temporal_profile: Source temporal profile.
+        wave_character: Source carrier WaveCharacter.
+        static_amplitude_factor: Static amplitude multiplier.
+
+    Returns:
+        The E array with the face correction added.
+    """
+    a_axis, b_axis = get_oriented_transverse_axes(normal_axis)
+
+    is_fully_anisotropic = inv_permittivities.ndim > 0 and inv_permittivities.shape[0] == 9
+    inv_permittivity_slice = inv_permittivities[:, *grid_slice]
+
+    amplitude_H = {}
+    for axis in (a_axis, b_axis):
+        if temporal_H_filter is None:
+            time_H = (time_step + time_offset_H[axis]) * delta_t
+            amplitude_H[axis] = (
+                temporal_profile.get_amplitude(
+                    time=time_H,
+                    period=wave_character.get_period(),
+                    phase_shift=wave_character.phase_shift,
+                )
+                * static_amplitude_factor
+            )
+        else:
+            idx_arr = time_step + time_offset_H[axis]
+            xp = jnp.arange(temporal_H_filter.shape[0], dtype=idx_arr.dtype)
+            amplitude_H[axis] = (
+                jnp.interp(idx_arr, xp, temporal_H_filter, left=0.0, right=0.0) * static_amplitude_factor
+            )
+
+    inject_complex_H = jnp.iscomplexobj(incident_H) and temporal_H_filter is None
+    amplitude_H_quad = {}
+    if inject_complex_H:
+        for axis in (a_axis, b_axis):
+            time_H = (time_step + time_offset_H[axis]) * delta_t
+            amplitude_H_quad[axis] = (
+                temporal_profile.get_amplitude(
+                    time=time_H,
+                    period=wave_character.get_period(),
+                    phase_shift=wave_character.phase_shift - 0.5 * np.pi,
+                )
+                * static_amplitude_factor
+            )
+
+    def incident_H_component(axis):
+        if inject_complex_H:
+            return jnp.real(incident_H[axis]) * amplitude_H[axis] + jnp.imag(incident_H[axis]) * amplitude_H_quad[axis]
+        return incident_H[axis] * amplitude_H[axis]
+
+    if is_fully_anisotropic:
+        H_b_inc = jax.lax.stop_gradient(incident_H_component(b_axis))
+        H_a_inc = jax.lax.stop_gradient(incident_H_component(a_axis))
+
+        def get_inv_eps(row, col):
+            return inv_permittivity_slice[row * 3 + col]
+
+        for row in (normal_axis, a_axis, b_axis):
+            correction = c * (get_inv_eps(row, a_axis) * (+H_b_inc) + get_inv_eps(row, b_axis) * (-H_a_inc))
+            E = E.at[row, *grid_slice].add(sign * correction)
+        return E
+
+    else:
+        H_b_inc = incident_H_component(b_axis)
+        H_b_inc = H_b_inc * c * inv_permittivity_slice[a_axis]
+        H_b_inc = jax.lax.stop_gradient(H_b_inc)
+
+        H_a_inc = incident_H_component(a_axis)
+        H_a_inc = H_a_inc * c * inv_permittivity_slice[b_axis]
+        H_a_inc = jax.lax.stop_gradient(H_a_inc)
+
+        E = E.at[a_axis, *grid_slice].add(sign * H_b_inc)
+        E = E.at[b_axis, *grid_slice].add(-sign * H_a_inc)
+        return E
+
+
+def _tfsf_inject_H_face(
+    H: jax.Array,
+    *,
+    grid_slice,
+    normal_axis: int,
+    sign: int,
+    incident_E: jax.Array,
+    time_offset_E: jax.Array,
+    inv_permeabilities: jax.Array | float,
+    c: jax.Array | float,
+    time_step: jax.Array,
+    delta_t: float,
+    temporal_profile: TemporalProfile,
+    wave_character,
+    static_amplitude_factor: float,
+) -> jax.Array:
+    """Inject the incident-E TFSF correction into H on a single face.
+
+    Symmetric counterpart of :func:`_tfsf_inject_E_face`: the tangential H
+    components are driven by the incident E of the other tangential axis
+    (``g_E[a]=-E_b``, ``g_E[b]=+E_a``). See that function for the parameter
+    conventions; ``time_offset_E``/``incident_E`` replace their H analogues and
+    ``c`` uses the forward metric stencil.
+
+    Returns:
+        The H array with the face correction added.
+    """
+    a_axis, b_axis = get_oriented_transverse_axes(normal_axis)
+
+    is_fully_anisotropic = (
+        isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0 and inv_permeabilities.shape[0] == 9
+    )
+
+    if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
+        inv_permeability_slice = inv_permeabilities[:, *grid_slice]
+    else:
+        inv_permeability_slice = inv_permeabilities
+
+    amplitude_E = {}
+    for axis in (a_axis, b_axis):
+        time_E = (time_step + time_offset_E[axis]) * delta_t
+        amplitude_E[axis] = (
+            temporal_profile.get_amplitude(
+                time=time_E,
+                period=wave_character.get_period(),
+                phase_shift=wave_character.phase_shift,
+            )
+            * static_amplitude_factor
+        )
+
+    inject_complex_E = jnp.iscomplexobj(incident_E)
+    amplitude_E_quad = {}
+    if inject_complex_E:
+        for axis in (a_axis, b_axis):
+            time_E = (time_step + time_offset_E[axis]) * delta_t
+            amplitude_E_quad[axis] = (
+                temporal_profile.get_amplitude(
+                    time=time_E,
+                    period=wave_character.get_period(),
+                    phase_shift=wave_character.phase_shift - 0.5 * np.pi,
+                )
+                * static_amplitude_factor
+            )
+
+    def incident_E_component(axis):
+        if inject_complex_E:
+            return jnp.real(incident_E[axis]) * amplitude_E[axis] + jnp.imag(incident_E[axis]) * amplitude_E_quad[axis]
+        return incident_E[axis] * amplitude_E[axis]
+
+    if is_fully_anisotropic:
+        E_a_inc = jax.lax.stop_gradient(incident_E_component(a_axis))
+        E_b_inc = jax.lax.stop_gradient(incident_E_component(b_axis))
+
+        def get_inv_mu(row, col):
+            return inv_permeability_slice[row * 3 + col]  # type: ignore
+
+        for row in (normal_axis, a_axis, b_axis):
+            correction = c * (get_inv_mu(row, a_axis) * (-E_b_inc) + get_inv_mu(row, b_axis) * (+E_a_inc))
+            H = H.at[row, *grid_slice].add(sign * correction)
+        return H
+
+    else:
+        E_a_inc = incident_E_component(a_axis)
+        if isinstance(inv_permeability_slice, jax.Array) and inv_permeability_slice.ndim > 1:
+            E_a_inc = E_a_inc * c * inv_permeability_slice[b_axis]
+        else:
+            E_a_inc = E_a_inc * c * inv_permeability_slice
+        E_a_inc = jax.lax.stop_gradient(E_a_inc)
+
+        E_b_inc = incident_E_component(b_axis)
+        if isinstance(inv_permeability_slice, jax.Array) and inv_permeability_slice.ndim > 1:
+            E_b_inc = E_b_inc * c * inv_permeability_slice[a_axis]
+        else:
+            E_b_inc = E_b_inc * c * inv_permeability_slice
+        E_b_inc = jax.lax.stop_gradient(E_b_inc)
+
+        H = H.at[b_axis, *grid_slice].add(sign * E_a_inc)
+        H = H.at[a_axis, *grid_slice].add(-sign * E_b_inc)
+        return H
 
 
 @autoinit
@@ -323,14 +593,24 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         # the real impedance of the local medium.
         raise NotImplementedError()
 
-    def _metric_scale_at_plane(self, stencil: str) -> jax.Array | float:
-        """Computes the local derivative scale along the propagation axis at the source plane.
+    def _metric_scale_at_plane(
+        self,
+        stencil: str,
+        normal_axis: int | None = None,
+        start_index: int | None = None,
+    ) -> jax.Array | float:
+        """Computes the local derivative scale across a face along its normal axis.
 
         On non-uniform grids, spatial derivatives are scaled by the local cell width.
         Returns 1.0 on uniform grids.
 
         Args:
             stencil (str): Either "backward" or "forward" difference stencil.
+            normal_axis (int | None): Axis normal to the face. Defaults to the
+                propagation axis (the single-plane case).
+            start_index (int | None): Grid index of the face along ``normal_axis``.
+                Defaults to this object's slice start on that axis. The box source
+                passes a per-face index so each face uses its own cell width.
 
         Returns:
             jax.Array | float: Scalar scale factor for the injected field corrections.
@@ -340,11 +620,14 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
             return 1.0
         grid = config.resolved_grid
         assert grid is not None
-        widths = grid.cell_widths(self.propagation_axis)
-        start = self.grid_slice_tuple[self.propagation_axis][0]
-        width = widths[start]
+        if normal_axis is None:
+            normal_axis = self.propagation_axis
+        if start_index is None:
+            start_index = self.grid_slice_tuple[normal_axis][0]
+        widths = grid.cell_widths(normal_axis)
+        width = widths[start_index]
         if stencil == "backward":
-            width = 0.5 * (width + widths[max(start - 1, 0)])
+            width = 0.5 * (width + widths[max(start_index - 1, 0)])
         elif stencil != "forward":
             raise ValueError(f"Unknown derivative stencil: {stencil}")
         reference_spacing = c0 * config.time_step_duration / config.courant_number
@@ -362,114 +645,28 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         if self._E is None or self._H is None or self._time_offset_E is None or self._time_offset_H is None:
             raise Exception("Need to apply random key before calling update")
 
-        delta_t = self._config.time_step_duration
-        c = self._config.courant_number * self._metric_scale_at_plane("backward")
-
-        # Determine if fully anisotropic
-        is_fully_anisotropic = inv_permittivities.ndim > 0 and inv_permittivities.shape[0] == 9
-
-        # Slice the permittivity tensor at the TFSF boundary, shape: (num_components, Nx, Ny, Nz)
-        inv_permittivity_slice = inv_permittivities[:, *self.grid_slice]
-
-        # Calculate time points for H fields
-        h_axis, v_axis, p_axis = self.horizontal_axis, self.vertical_axis, self.propagation_axis
-        time_H = {}
-        amplitude_H = {}
-        for axis in [h_axis, v_axis, p_axis]:
-            time_H[axis] = (time_step + self._time_offset_H[axis]) * delta_t
-            if self._temporal_H_filter is None:
-                amplitude_H[axis] = (
-                    self.temporal_profile.get_amplitude(
-                        time=time_H[axis],
-                        period=self.wave_character.get_period(),
-                        phase_shift=self.wave_character.phase_shift,
-                    )
-                    * self.static_amplitude_factor
-                )
-            else:
-                # Dispersive background: look up the precomputed broadband
-                # impedance-corrected H profile at the Yee-offset time step.
-                # The time offset is spatially resolved — one fractional
-                # index per source cell — so use jnp.interp which preserves
-                # the array shape and zeros out-of-range samples (matching
-                # the raw profile's behavior at the source on/off boundaries).
-                idx_arr = time_step + self._time_offset_H[axis]
-                xp = jnp.arange(self._temporal_H_filter.shape[0], dtype=idx_arr.dtype)
-                amplitude_H[axis] = (
-                    jnp.interp(idx_arr, xp, self._temporal_H_filter, left=0.0, right=0.0) * self.static_amplitude_factor
-                )
-
-        # Complex (lossy) modal profile: inject the eigenmode's transverse phase
-        # via a quadrature (cos/sin) decomposition so the launched field is
-        # Re{M(x)·e^{-iθ}} rather than Re{M(x)}·cosθ. Only the get_amplitude path
-        # ever carries a complex profile (the dispersive H-filter path always sees
-        # a real profile), so the sin term reuses get_amplitude with a -pi/2 carrier
-        # shift. For a real profile the branch is skipped (bit-identical).
-        inject_complex_H = jnp.iscomplexobj(self._H) and self._temporal_H_filter is None
-        amplitude_H_quad = {}
-        if inject_complex_H:
-            for axis in [h_axis, v_axis, p_axis]:
-                amplitude_H_quad[axis] = (
-                    self.temporal_profile.get_amplitude(
-                        time=time_H[axis],
-                        period=self.wave_character.get_period(),
-                        phase_shift=self.wave_character.phase_shift - 0.5 * np.pi,
-                    )
-                    * self.static_amplitude_factor
-                )
-
-        def incident_H(axis):
-            if inject_complex_H:
-                return jnp.real(self._H[axis]) * amplitude_H[axis] + jnp.imag(self._H[axis]) * amplitude_H_quad[axis]
-            return self._H[axis] * amplitude_H[axis]
-
-        # if direction is negative, updates are reversed
+        # if direction is negative, updates are reversed; inverse update is inverted
         sign = 1 if self.direction == "+" else -1
-        # inverse update is inverted
         if inverse:
             sign = -sign
 
-        if is_fully_anisotropic:
-            # vertical incident wave part
-            H_v_inc = jax.lax.stop_gradient(incident_H(v_axis))
-            # horizontal incident wave part
-            H_h_inc = jax.lax.stop_gradient(incident_H(h_axis))
-
-            def get_inv_eps(row, col):
-                # get inverse permittivity tensor element at (row, col)
-                idx = row * 3 + col
-                return inv_permittivity_slice[idx]
-
-            # update uses -H_v, we have to subtract update, resulting in +H_v
-            # update uses +H_h, we have to subtract update, resulting in -H_h
-            E_p_correction = c * (get_inv_eps(p_axis, h_axis) * (+H_v_inc) + get_inv_eps(p_axis, v_axis) * (-H_h_inc))
-            E = E.at[p_axis, *self.grid_slice].add(sign * E_p_correction)
-            E_h_correction = c * (get_inv_eps(h_axis, h_axis) * (+H_v_inc) + get_inv_eps(h_axis, v_axis) * (-H_h_inc))
-            E = E.at[h_axis, *self.grid_slice].add(sign * E_h_correction)
-            E_v_correction = c * (get_inv_eps(v_axis, h_axis) * (+H_v_inc) + get_inv_eps(v_axis, v_axis) * (-H_h_inc))
-            E = E.at[v_axis, *self.grid_slice].add(sign * E_v_correction)
-
-            return E
-
-        else:
-            # vertical incident wave part
-            H_v_inc = incident_H(v_axis)
-            # Use horizontal component of inv_permittivity for H_v calculation
-            H_v_inc = H_v_inc * c * inv_permittivity_slice[h_axis]
-            H_v_inc = jax.lax.stop_gradient(H_v_inc)
-
-            # horizontal incident wave part
-            H_h_inc = incident_H(h_axis)
-            # Use vertical component of inv_permittivity for H_h calculation
-            H_h_inc = H_h_inc * c * inv_permittivity_slice[v_axis]
-            H_h_inc = jax.lax.stop_gradient(H_h_inc)
-
-            # update uses -H_v, we have to subtract update, resulting in +H_v
-            E = E.at[h_axis, *self.grid_slice].add(sign * H_v_inc)
-            # update uses +H_h, we have to subtract update, resulting in -H_h
-            E = E.at[v_axis, *self.grid_slice].add(-sign * H_h_inc)
-
-            return E
+        c = self._config.courant_number * self._metric_scale_at_plane("backward")
+        return _tfsf_inject_E_face(
+            E,
+            grid_slice=self.grid_slice,
+            normal_axis=self.propagation_axis,
+            sign=sign,
+            incident_H=self._H,
+            time_offset_H=self._time_offset_H,
+            temporal_H_filter=self._temporal_H_filter,
+            inv_permittivities=inv_permittivities,
+            c=c,
+            time_step=time_step,
+            delta_t=self._config.time_step_duration,
+            temporal_profile=self.temporal_profile,
+            wave_character=self.wave_character,
+            static_amplitude_factor=self.static_amplitude_factor,
+        )
 
     def update_H(
         self,
@@ -483,108 +680,24 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         if self._E is None or self._H is None or self._time_offset_E is None or self._time_offset_H is None:
             raise Exception("Need to apply random key before calling update")
 
-        delta_t = self._config.time_step_duration
-        c = self._config.courant_number * self._metric_scale_at_plane("forward")
-
-        # Determine if fully anisotropic
-        is_fully_anisotropic = (
-            isinstance(inv_permeabilities, jax.Array)
-            and inv_permeabilities.ndim > 0
-            and inv_permeabilities.shape[0] == 9
-        )
-
-        if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
-            # Slice the permeability tensor at the TFSF boundary, shape: (num_components, Nx, Ny, Nz)
-            inv_permeability_slice = inv_permeabilities[:, *self.grid_slice]
-        else:
-            inv_permeability_slice = inv_permeabilities
-
-        # Calculate time points for E fields
-        h_axis, v_axis, p_axis = self.horizontal_axis, self.vertical_axis, self.propagation_axis
-        time_E = {}
-        amplitude_E = {}
-        for axis in [h_axis, v_axis, p_axis]:
-            time_E[axis] = (time_step + self._time_offset_E[axis]) * delta_t
-            amplitude_E[axis] = (
-                self.temporal_profile.get_amplitude(
-                    time=time_E[axis],
-                    period=self.wave_character.get_period(),
-                    phase_shift=self.wave_character.phase_shift,
-                )
-                * self.static_amplitude_factor
-            )
-
-        # Complex (lossy) modal profile: inject the eigenmode's transverse phase
-        # via a quadrature (cos/sin) decomposition (see update_E). Bit-identical
-        # for a real profile.
-        inject_complex_E = jnp.iscomplexobj(self._E)
-        amplitude_E_quad = {}
-        if inject_complex_E:
-            for axis in [h_axis, v_axis, p_axis]:
-                amplitude_E_quad[axis] = (
-                    self.temporal_profile.get_amplitude(
-                        time=time_E[axis],
-                        period=self.wave_character.get_period(),
-                        phase_shift=self.wave_character.phase_shift - 0.5 * np.pi,
-                    )
-                    * self.static_amplitude_factor
-                )
-
-        def incident_E(axis):
-            if inject_complex_E:
-                return jnp.real(self._E[axis]) * amplitude_E[axis] + jnp.imag(self._E[axis]) * amplitude_E_quad[axis]
-            return self._E[axis] * amplitude_E[axis]
-
-        # if direction is negative, updates are reversed
+        # if direction is negative, updates are reversed; inverse update is inverted
         sign = 1 if self.direction == "+" else -1
-        # inverse update is inverted
         if inverse:
             sign = -sign
 
-        if is_fully_anisotropic:
-            # horizontal incident wave part
-            E_h_inc = jax.lax.stop_gradient(incident_E(h_axis))
-            # vertical incident wave part
-            E_v_inc = jax.lax.stop_gradient(incident_E(v_axis))
-
-            def get_inv_mu(row, col):
-                # get inverse permeability tensor element at (row, col)
-                idx = row * 3 + col
-                return inv_permeability_slice[idx]  # type: ignore
-
-            # update uses +E_h, we have to add update, resulting in +E_h
-            # update uses -E_v, we have to add update, resulting in -E_v
-            H_p_correction = c * (get_inv_mu(p_axis, h_axis) * (-E_v_inc) + get_inv_mu(p_axis, v_axis) * (+E_h_inc))
-            H = H.at[p_axis, *self.grid_slice].add(sign * H_p_correction)
-            H_h_correction = c * (get_inv_mu(h_axis, h_axis) * (-E_v_inc) + get_inv_mu(h_axis, v_axis) * (+E_h_inc))
-            H = H.at[h_axis, *self.grid_slice].add(sign * H_h_correction)
-            H_v_correction = c * (get_inv_mu(v_axis, h_axis) * (-E_v_inc) + get_inv_mu(v_axis, v_axis) * (+E_h_inc))
-            H = H.at[v_axis, *self.grid_slice].add(sign * H_v_correction)
-
-            return H
-
-        else:
-            # horizontal incident wave part
-            E_h_inc = incident_E(h_axis)
-            # Use vertical component of inv_permeability for E_h calculation
-            if isinstance(inv_permeability_slice, jax.Array) and inv_permeability_slice.ndim > 1:
-                E_h_inc = E_h_inc * c * inv_permeability_slice[v_axis]
-            else:
-                E_h_inc = E_h_inc * c * inv_permeability_slice
-            E_h_inc = jax.lax.stop_gradient(E_h_inc)
-
-            # vertical incident wave part
-            E_v_inc = incident_E(v_axis)
-            # Use horizontal component of inv_permeability for E_v calculation
-            if isinstance(inv_permeability_slice, jax.Array) and inv_permeability_slice.ndim > 1:
-                E_v_inc = E_v_inc * c * inv_permeability_slice[h_axis]
-            else:
-                E_v_inc = E_v_inc * c * inv_permeability_slice
-            E_v_inc = jax.lax.stop_gradient(E_v_inc)
-
-            # update used +E_h, we have to add update, resulting in +E_h
-            H = H.at[v_axis, *self.grid_slice].add(sign * E_h_inc)
-            # update used -E_v, we have to add update, resulting in -E_v
-            H = H.at[h_axis, *self.grid_slice].add(-sign * E_v_inc)
-
-            return H
+        c = self._config.courant_number * self._metric_scale_at_plane("forward")
+        return _tfsf_inject_H_face(
+            H,
+            grid_slice=self.grid_slice,
+            normal_axis=self.propagation_axis,
+            sign=sign,
+            incident_E=self._E,
+            time_offset_E=self._time_offset_E,
+            inv_permeabilities=inv_permeabilities,
+            c=c,
+            time_step=time_step,
+            delta_t=self._config.time_step_duration,
+            temporal_profile=self.temporal_profile,
+            wave_character=self.wave_character,
+            static_amplitude_factor=self.static_amplitude_factor,
+        )

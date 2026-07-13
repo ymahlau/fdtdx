@@ -117,6 +117,7 @@ from fdtdx.objects.sources.profile import (
     SingleFrequencyProfile,
     TemporalProfile,
 )
+from fdtdx.objects.sources.tfsf_region import TFSFPlaneSourceRegion
 from fdtdx.objects.static_material.cylinder import Cylinder
 from fdtdx.objects.static_material.gds_layer_stack import (
     GDSLayerObject,
@@ -232,6 +233,7 @@ __all__ = [
     "StandardToInversePermittivityRange",
     "StandardToPlusOneMinusOneRange",
     "SubpixelSmoothedProjection",
+    "TFSFPlaneSourceRegion",
     "TanhProjection",
     "TemporalProfile",
     "TreeClass",

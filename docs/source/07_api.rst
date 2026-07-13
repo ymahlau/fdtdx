@@ -122,6 +122,7 @@ API
     fdtdx.SubpixelSmoothedProjection
     fdtdx.TanhProjection
     fdtdx.TemporalProfile
+    fdtdx.TFSFPlaneSourceRegion
     fdtdx.TreeClass
     fdtdx.unfold_array
     fdtdx.unfold_detector_states
