@@ -16,6 +16,7 @@ API
     fdtdx.calculate_sparams
     fdtdx.CCPRPole
     fdtdx.circular_brush
+    fdtdx.ClosedSurfacePoyntingFluxDetector
     fdtdx.ClosestIndex
     fdtdx.Color
     fdtdx.compute_energy
