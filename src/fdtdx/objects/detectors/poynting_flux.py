@@ -109,10 +109,7 @@ class PoyntingFluxDetector(Detector):
         inv_permeability: jax.Array | float,
     ) -> DetectorState:
         del inv_permeability, inv_permittivity
-        cur_E = E[:, *self.grid_slice]
-        cur_H = H[:, *self.grid_slice]
-
-        pf = compute_poynting_flux(cur_E, cur_H).real
+        pf = compute_poynting_flux(E, H).real
         if not self.keep_all_components:
             pf = pf[self.propagation_axis]
         if self.direction == "-":

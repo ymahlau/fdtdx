@@ -186,8 +186,8 @@ class TestDiffractiveDetectorUpdate:
 
         new_state = det.update(
             time_step=jnp.array(0),
-            E=constant_E_field,
-            H=constant_H_field,
+            E=constant_E_field[:, *det.grid_slice],
+            H=constant_H_field[:, *det.grid_slice],
             state=state,
             inv_permittivity=inv_permittivity,
             inv_permeability=inv_permeability,
@@ -209,8 +209,8 @@ class TestDiffractiveDetectorUpdate:
         det = det.place_on_grid(plane_grid_slice, simulation_config, random_key)
         state = det.init_state()
 
-        E = jnp.zeros((3, 8, 8, 8), dtype=jnp.float32)
-        H = jnp.zeros((3, 8, 8, 8), dtype=jnp.float32)
+        E = jnp.zeros((3, 8, 8, 8), dtype=jnp.float32)[:, *det.grid_slice]
+        H = jnp.zeros((3, 8, 8, 8), dtype=jnp.float32)[:, *det.grid_slice]
 
         new_state = det.update(
             time_step=jnp.array(0),
@@ -278,8 +278,8 @@ class TestDiffractiveDetectorUpdate:
 
         new_state = det.update(
             time_step=jnp.array(0),
-            E=constant_E_field,
-            H=constant_H_field,
+            E=constant_E_field[:, *det.grid_slice],
+            H=constant_H_field[:, *det.grid_slice],
             state=state,
             inv_permittivity=inv_permittivity,
             inv_permeability=inv_permeability,
@@ -308,16 +308,16 @@ class TestDiffractiveDetectorUpdate:
 
         new_pos = det_pos.update(
             jnp.array(0),
-            sinusoidal_E_field,
-            sinusoidal_H_field,
+            sinusoidal_E_field[:, *det_pos.grid_slice],
+            sinusoidal_H_field[:, *det_pos.grid_slice],
             state_pos,
             inv_permittivity,
             inv_permeability,
         )
         new_neg = det_neg.update(
             jnp.array(0),
-            sinusoidal_E_field,
-            sinusoidal_H_field,
+            sinusoidal_E_field[:, *det_neg.grid_slice],
+            sinusoidal_H_field[:, *det_neg.grid_slice],
             state_neg,
             inv_permittivity,
             inv_permeability,
@@ -346,8 +346,8 @@ class TestDiffractiveDetectorUpdate:
 
         new_state = det.update(
             time_step=jnp.array(0),
-            E=sinusoidal_E_field,
-            H=sinusoidal_H_field,
+            E=sinusoidal_E_field[:, *det.grid_slice],
+            H=sinusoidal_H_field[:, *det.grid_slice],
             state=state,
             inv_permittivity=inv_permittivity,
             inv_permeability=inv_permeability,
@@ -372,8 +372,8 @@ class TestDiffractiveDetectorUpdate:
 
         new_state = det.update(
             time_step=jnp.array(0),
-            E=sinusoidal_E_field,
-            H=sinusoidal_H_field,
+            E=sinusoidal_E_field[:, *det.grid_slice],
+            H=sinusoidal_H_field[:, *det.grid_slice],
             state=state,
             inv_permittivity=inv_permittivity,
             inv_permeability=inv_permeability,
@@ -398,8 +398,8 @@ class TestDiffractiveDetectorUpdate:
 
         new_state = det.update(
             time_step=jnp.array(0),
-            E=constant_E_field,
-            H=constant_H_field,
+            E=constant_E_field[:, *det.grid_slice],
+            H=constant_H_field[:, *det.grid_slice],
             state=state,
             inv_permittivity=inv_permittivity,
             inv_permeability=inv_permeability,
@@ -425,8 +425,8 @@ class TestDiffractiveDetectorUpdate:
 
         new_state = det.update(
             time_step=jnp.array(0),
-            E=constant_E_field,
-            H=constant_H_field,
+            E=constant_E_field[:, *det.grid_slice],
+            H=constant_H_field[:, *det.grid_slice],
             state=state,
             inv_permittivity=inv_permittivity,
             inv_permeability=inv_permeability,

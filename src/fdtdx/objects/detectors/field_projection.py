@@ -354,14 +354,9 @@ class FieldProjectionDetectorBase(PhasorDetector):
 
         del inv_permeability, inv_permittivity
         time_passed = time_step * self._config.time_step_duration
-        if self.scaling_mode == "continuous":
-            static_scale = 2 / self.num_time_steps_recorded
-        elif self.scaling_mode == "pulse":
-            static_scale = 1
-        else:
-            raise Exception(f"Invalid scaling mode: {self.scaling_mode=}")
+        static_scale = self._static_scale()
 
-        fields = jnp.concatenate((E[:, *self.grid_slice], H[:, *self.grid_slice]), axis=0)
+        fields = jnp.concatenate((E, H), axis=0)
         phase_angles = self._angular_frequencies * time_passed
         phasors = jnp.exp(1j * phase_angles)
         phasors = phasors.reshape((len(self._angular_frequencies),) + (1,) * fields.ndim)

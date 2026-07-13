@@ -15,7 +15,7 @@ from fdtdx.fdtd.misc import (
     compute_anisotropic_update_matrices,
     compute_anisotropic_update_matrices_reverse,
 )
-from fdtdx.objects.detectors.detector import Detector
+from fdtdx.objects.detectors.detector import Detector, DetectorState
 
 
 def _source_uses_default_always_on_switch(source) -> bool:
@@ -864,6 +864,36 @@ def update_H_reverse(
     return arrays
 
 
+def _check_updated_state_layout(detector: Detector, old: DetectorState, new: DetectorState) -> None:
+    """Checks that a detector update kept the layout of its initialized state.
+
+    A mismatch usually means the update sliced `self.grid_slice` on fields that were already
+    restricted to the detector region (double slicing).
+
+    Args:
+        detector (Detector): Detector whose state was updated.
+        old (DetectorState): Detector state before the update.
+        new (DetectorState): Detector state returned by the update.
+
+    Raises:
+        Exception: If the updated state has different keys, shapes or dtypes than before.
+    """
+    problems = [f"state keys changed from {sorted(old)} to {sorted(new)}"] if set(old) != set(new) else []
+    problems += [
+        f"'{k}' expected shape {jnp.shape(old[k])} / dtype {jnp.result_type(old[k])}, "
+        f"got {jnp.shape(new[k])} / {jnp.result_type(new[k])}"
+        for k in old
+        if k in new and (jnp.shape(old[k]) != jnp.shape(new[k]) or jnp.result_type(old[k]) != jnp.result_type(new[k]))
+    ]
+    if problems:
+        raise Exception(
+            f"Detector '{detector.name}': update() returned a state that does not match its initialized "
+            f"layout: {'; '.join(problems)}. Note that fields and materials are passed to Detector.update() "
+            "already restricted to the detector's grid_slice, so slicing self.grid_slice inside update() "
+            "(double slicing) is the most common cause."
+        )
+
+
 def update_detector_states(
     time_step: jax.Array,
     arrays: ArrayContainer,
@@ -874,10 +904,10 @@ def update_detector_states(
 ) -> ArrayContainer:
     """Updates detector states based on current field values.
 
-    Handles field interpolation for accurate detector measurements. By default,
-    interpolation is disabled for performance during optimization, but can be
-    enabled for final evaluation. Interpolation is needed due to the staggered
-    nature of E and H fields on the Yee grid.
+    Handles field interpolation for accurate detector measurements. Interpolation
+    is enabled by default, but can be disabled per detector for performance during
+    optimization. Interpolation is needed due to the staggered nature of E and H
+    fields on the Yee grid.
 
     Args:
         time_step (jax.Array): Current simulation time step
@@ -888,34 +918,76 @@ def update_detector_states(
 
     Returns:
         ArrayContainer: Updated ArrayContainer with new detector states
+
+    Notes:
+        Each detector receives fields and materials already restricted to its `grid_slice`. Since
+        the interpolation stencil only reaches the neighboring cell, a strictly interior detector
+        is interpolated over its region plus a one-cell halo; the full-domain interpolation is
+        only built as a shared fallback for detectors touching a domain edge, where the boundary
+        padding matters.
     """
-    E_pad = pad_fields_for_boundaries(arrays.fields.E, objects, config)
-    H_avg_pad = pad_fields_for_boundaries((H_prev + arrays.fields.H) / 2, objects, config)
-    interpolated_E, interpolated_H = interpolate_fields(
-        E_pad=E_pad,
-        H_pad=H_avg_pad,
-        config=config,
-    )
-
-    def helper_fn(E_input, H_input, detector: Detector):
-        return detector.update(
-            time_step=time_step,
-            E=E_input,
-            H=H_input,
-            state=arrays.detector_states[detector.name],
-            inv_permittivity=arrays.inv_permittivities,
-            inv_permeability=arrays.inv_permeabilities,
-        )
-
     state = arrays.detector_states
     to_update = objects.backward_detectors if inverse else objects.forward_detectors
+    if not to_update:
+        return arrays
+
+    grid_shape = objects.volume.grid_shape
+
+    def is_interior(detector: Detector) -> bool:
+        # The co-location stencil reads domain indices [s-1 .. e]; interior iff that stays in-bounds.
+        return all(s >= 1 and e <= grid_shape[a] - 1 for a, (s, e) in enumerate(detector.grid_slice_tuple))
+
+    # The full-domain interpolation is only needed for exact detectors whose stencil reaches a domain edge.
+    full = None
+    if any(d.exact_interpolation and not is_interior(d) for d in to_update):
+        full = interpolate_fields(
+            E_pad=pad_fields_for_boundaries(arrays.fields.E, objects, config),
+            H_pad=pad_fields_for_boundaries((H_prev + arrays.fields.H) / 2, objects, config),
+            config=config,
+        )
+
+    def helper_fn(E: jax.Array, H: jax.Array, H_prev: jax.Array, detector: Detector) -> DetectorState:
+        gs = detector.grid_slice
+        if not detector.exact_interpolation:
+            E_reg, H_reg = E[:, *gs], H[:, *gs]
+        elif is_interior(detector):
+            block = (slice(None), *(slice(s - 1, e + 1) for (s, e) in detector.grid_slice_tuple))
+            H_avg = (H_prev[block] + H[block]) / 2
+            E_reg, H_reg = interpolate_fields(E[block], H_avg, config=config, region_slice=detector.grid_slice_tuple)
+        else:
+            assert full is not None  # built above whenever an edge-touching exact detector exists
+            E_reg, H_reg = full[0][:, *gs], full[1][:, *gs]
+        # inv_permeabilities is a plain scalar when all materials are non-magnetic.
+        inv_mu = arrays.inv_permeabilities
+        try:
+            new_state = detector.update(
+                time_step=time_step,
+                E=E_reg,
+                H=H_reg,
+                state=state[detector.name],
+                inv_permittivity=arrays.inv_permittivities[:, *gs],
+                inv_permeability=inv_mu[:, *gs] if isinstance(inv_mu, jax.Array) and inv_mu.ndim > 0 else inv_mu,
+            )
+        except Exception as e:
+            raise Exception(
+                f"Detector '{detector.name}': update() raised while recording (see exception above). Fields "
+                "and materials are passed to Detector.update() already restricted to the detector's "
+                "grid_slice, so slicing self.grid_slice inside update() (double slicing) is a common cause "
+                "of shape errors here."
+            ) from e
+        _check_updated_state_layout(detector, state[detector.name], new_state)
+        return new_state
+
     for d in to_update:
+        # E already lives at the detector's integer time step; H lives at half steps, so exact
+        # detectors time-center H as (H_prev + H) / 2 on their region inside the branch.
         state[d.name] = jax.lax.cond(
             d._is_on_at_time_step_arr[time_step],
             helper_fn,
-            lambda e, h, _: state[d.name],
-            interpolated_E if d.exact_interpolation else arrays.fields.E,
-            interpolated_H if d.exact_interpolation else arrays.fields.H,
+            lambda e, h, h_prev, detector: state[detector.name],
+            arrays.fields.E,
+            arrays.fields.H,
+            H_prev,
             d,
         )
     arrays = arrays.aset("detector_states", state)

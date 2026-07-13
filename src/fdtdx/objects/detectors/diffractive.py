@@ -137,13 +137,9 @@ class DiffractiveDetector(Detector):
         plane_dims = get_transverse_axes(prop_axis)
         Nx, Ny = [self.grid_shape[i] for i in plane_dims]
 
-        # Get current field values at the specified plane
-        cur_E = E[:, *self.grid_slice]  # Shape: (3, nx, ny, 1)
-        cur_H = H[:, *self.grid_slice]  # Shape: (3, nx, ny, 1)
-
         # Remove the normal axis dimension since it should be 1
-        cur_E = jnp.squeeze(cur_E, axis=prop_axis + 1)  # Shape: (3, nx, ny)
-        cur_H = jnp.squeeze(cur_H, axis=prop_axis + 1)  # Shape: (3, nx, ny)
+        cur_E = jnp.squeeze(E, axis=prop_axis + 1)  # Shape: (3, nx, ny)
+        cur_H = jnp.squeeze(H, axis=prop_axis + 1)  # Shape: (3, nx, ny)
 
         transverse_centers = self._transverse_centers(plane_dims)
         if transverse_centers is None:
