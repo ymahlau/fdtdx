@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 import jax
 import jax.numpy as jnp
 
@@ -38,6 +40,9 @@ class EnergyDetector(Detector):
     #: If "mean", aggregates slices by averaging instead of using position.
     #: If None, mean is used. Defaults to None.
     aggregate: str | None = frozen_field(default=None)  # e.g., "mean"
+
+    # Electromagnetic energy is positive.
+    _signed_data: ClassVar[bool] = False
 
     def _slice_position_to_index(self, axis: int, real_pos: float | None, axis_len: int) -> int | jax.Array:
         """Map a requested physical slice position to a local energy index.

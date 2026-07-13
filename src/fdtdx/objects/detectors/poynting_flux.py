@@ -1,4 +1,4 @@
-from typing import Literal, Self
+from typing import ClassVar, Literal, Self
 
 import jax
 import jax.numpy as jnp
@@ -37,6 +37,9 @@ class PoyntingFluxDetector(Detector):
     keep_all_components: bool = frozen_field(default=False)
 
     _cached_face_area_weights: jax.Array = private_field()
+
+    # Poynting flux is positive.
+    _signed_data: ClassVar[bool] = False
 
     @property
     def propagation_axis(self) -> int:
