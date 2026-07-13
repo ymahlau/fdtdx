@@ -1,7 +1,7 @@
 import multiprocessing as mp
 import tempfile
 from functools import partial
-from typing import Callable, Literal
+from typing import Callable, Literal, cast
 
 import matplotlib
 
@@ -124,24 +124,30 @@ def generate_video_from_slices(
         str: Path to the generated MP4 video file
     """
     slices = [xy_slice, xz_slice, yz_slice]
+    minlist = list(minvals)  # Convert to list for mutability
+    maxlist = list(maxvals)  # Convert to list for mutability
+    # Reset max and min color values
     for a in range(3):
         if signed_data:
             if minvals[a] is None or maxvals[a] is None:
-                abs_max = float(np.abs(slices[a]).max())
-                min_list, max_list = list(minvals), list(maxvals)
-                min_list[a] = -abs_max
-                max_list[a] = abs_max
-                minvals = (min_list[0], min_list[1], min_list[2])
-                maxvals = (max_list[0], max_list[1], max_list[2])
-        else:
-            if minvals[a] is None:
-                min_list = list(minvals)
-                min_list[a] = 0.0
-                minvals = (min_list[0], min_list[1], min_list[2])
-            if maxvals[a] is None:
-                max_list = list(maxvals)
-                max_list[a] = slices[a].max()
-                maxvals = (max_list[0], max_list[1], max_list[2])
+                if minlist[a] is None and maxlist[a] is None:
+                    # Set values symmetrically with absolute maximum
+                    abs_max = float(np.abs(slices[a]).max())
+                    minlist[a] = -abs_max
+                    maxlist[a] = abs_max
+                elif minlist[a] is not None:
+                    # Keep user input, set values symmetrically
+                    # minvals[a] is guaranteed to be not None here
+                    maxlist[a] = -cast(float, minlist[a])
+                elif maxlist[a] is not None:
+                    # Keep user input, set values symmetrically
+                    # maxvals[a] is guaranteed to be not None here
+                    minlist[a] = -cast(float, minlist[a])
+        else:  # Data is unsigned
+            if minlist[a] is None:
+                minlist[a] = 0.0
+            if maxlist[a] is None:
+                maxlist[a] = float(slices[a].max())
 
     _, path = tempfile.mkstemp(suffix=".mp4")
 

@@ -60,7 +60,7 @@ def plot_2d_from_slices(
                 elif minlist[a] is not None:
                     # Keep user input, set values symmetrically
                     # minvals[a] is guaranteed to be not None here
-                    minlist[a] = -cast(float, maxlist[a])
+                    maxlist[a] = -cast(float, minlist[a])
                 elif maxlist[a] is not None:
                     # Keep user input, set values symmetrically
                     # maxvals[a] is guaranteed to be not None here
