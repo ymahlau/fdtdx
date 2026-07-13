@@ -1,5 +1,8 @@
 """Integration tests for fdtdx.conversion.json module."""
 
+import json
+from importlib.metadata import version
+
 import jax
 import jax.numpy as jnp
 import pytest
@@ -291,6 +294,7 @@ def test_jsonsetup_dumps_and_loads(setup_simulation_inputs):
     )
 
     s = setup.dumps()
+    assert json.loads(s)["__fdtdx_version__"] == version("fdtdx")
     setup2 = JsonSetup.loads(s)
 
     assert isinstance(setup2, JsonSetup)

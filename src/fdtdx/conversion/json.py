@@ -2,6 +2,7 @@ import dataclasses
 import importlib
 import json
 from dataclasses import dataclass
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -79,7 +80,7 @@ class JsonSetup:
         """
         export_format: dict[str, Any] = {
             "__schema__": "fdtdx.place_objects.v1",
-            "__fdtdx_version__": "0.6.0",
+            "__fdtdx_version__": version("fdtdx"),
             "config": self.config,
             "object_list": self.object_list,
             "constraints": self.constraints,
