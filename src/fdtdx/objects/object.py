@@ -1,6 +1,6 @@
 from abc import ABC
 from dataclasses import dataclass
-from typing import Literal, Self
+from typing import TYPE_CHECKING, Literal, Self
 
 import jax
 
@@ -14,6 +14,10 @@ from fdtdx.core.jax.pytrees import (
     private_field,
 )
 from fdtdx.core.misc import ensure_slice_tuple
+
+if TYPE_CHECKING:
+    from fdtdx.fdtd.container import ObjectContainer
+
 from fdtdx.typing import (
     INVALID_SLICE_TUPLE_3D,
     UNDEFINED_SHAPE_3D,
@@ -324,6 +328,25 @@ class SimulationObject(TreeClass, ABC):
         del dispersive_c1, dispersive_c2, dispersive_c3, dispersive_c4
         del electric_conductivity
         return self
+
+    def validate_placement(self, objects: "ObjectContainer") -> list[str]:
+        """Validate this object against the fully-resolved object container.
+
+        Called once by :func:`~fdtdx.fdtd.initialization.place_objects` after every
+        object has been placed and the container built, giving cross-object checks
+        (e.g. a source verifying the boundaries around it) a place to run. Returns a
+        list of human-readable error messages; an empty list means the placement is
+        valid. The default implementation performs no checks.
+
+        Args:
+            objects (ObjectContainer): The fully-resolved container of all placed
+                objects (exposes ``.volume``, ``.boundary_objects``, ``.sources``, ...).
+
+        Returns:
+            list[str]: Error messages describing invalid placement, or ``[]``.
+        """
+        del objects
+        return []
 
     def place_relative_to(
         self,

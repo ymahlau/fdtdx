@@ -247,6 +247,19 @@ def place_objects(
         volume_idx=0,
     )
 
+    # Step 9b: Cross-object placement validation. Now that every object is placed and
+    # the container exists, give each object a chance to validate itself against the
+    # others (e.g. a TFSF region checking the boundaries around it). Accumulate all
+    # messages and raise once, mirroring the constraint-resolution error handling above.
+    placement_errors = {
+        obj.name: errs for obj in objects_container.objects if (errs := obj.validate_placement(objects_container))
+    }
+    if placement_errors:
+        formatted = "\n".join(
+            f"  - {name}:\n" + "\n".join(f"      * {msg}" for msg in msgs) for name, msgs in placement_errors.items()
+        )
+        raise ValueError(f"Invalid object placement:\n{formatted}")
+
     # Step 10: Initialize parameters and arrays
     assert key is not None
     key, subkey = jax.random.split(key)

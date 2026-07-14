@@ -69,7 +69,12 @@ from fdtdx.objects.detectors.field_projection import (
 )
 from fdtdx.objects.detectors.mode import ModeOverlapDetector
 from fdtdx.objects.detectors.phasor import PhasorDetector
-from fdtdx.objects.detectors.poynting_flux import PoyntingFluxDetector
+from fdtdx.objects.detectors.poynting_flux import (
+    ClosedSurfacePhasorPoyntingFluxDetector,
+    ClosedSurfacePoyntingFluxDetector,
+    PhasorPoyntingFluxDetector,
+    PoyntingFluxDetector,
+)
 from fdtdx.objects.device.device import Device
 from fdtdx.objects.device.parameters.continuous import (
     GaussianSmoothing2D,
@@ -117,6 +122,7 @@ from fdtdx.objects.sources.profile import (
     SingleFrequencyProfile,
     TemporalProfile,
 )
+from fdtdx.objects.sources.tfsf_region import TFSFPlaneSourceRegion
 from fdtdx.objects.static_material.cylinder import Cylinder
 from fdtdx.objects.static_material.gds_layer_stack import (
     GDSLayerObject,
@@ -161,6 +167,8 @@ __all__ = [
     "BoundaryConfig",
     "BrushConstraint2D",
     "CCPRPole",
+    "ClosedSurfacePhasorPoyntingFluxDetector",
+    "ClosedSurfacePoyntingFluxDetector",
     "ClosestIndex",
     "Color",
     "ConnectHolesAndStructures",
@@ -206,6 +214,7 @@ __all__ = [
     "PerfectlyMatchedLayer",
     "PeriodicBoundary",
     "PhasorDetector",
+    "PhasorPoyntingFluxDetector",
     "PillarDiscretization",
     "PointDipoleSource",
     "PointSymmetry2D",
@@ -232,6 +241,7 @@ __all__ = [
     "StandardToInversePermittivityRange",
     "StandardToPlusOneMinusOneRange",
     "SubpixelSmoothedProjection",
+    "TFSFPlaneSourceRegion",
     "TanhProjection",
     "TemporalProfile",
     "TreeClass",

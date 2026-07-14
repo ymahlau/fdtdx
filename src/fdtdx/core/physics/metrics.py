@@ -117,6 +117,46 @@ def compute_poynting_flux(E: jax.Array, H: jax.Array, axis: int = 0) -> jax.Arra
     )
 
 
+def net_poynting_flux_through_box(
+    poynting_vector: jax.Array,
+    active_axes: tuple[int, ...],
+    area_weights: tuple[jax.Array, ...],
+) -> jax.Array:
+    """Net outward Poynting flux through the faces of a rectangular box.
+
+    Integrates the outward-normal component of the Poynting vector over the six
+    (or fewer) faces of a box, accumulating **per cell** so that non-uniform
+    grids -- where the transverse cell areas differ from cell to cell within a
+    single face -- are handled exactly. For each active axis ``a`` the maximum
+    face (outward normal ``+a``) contributes ``+Sum(S_a * area)`` and the minimum
+    face (outward normal ``-a``) contributes ``-Sum(S_a * area)``.
+
+    A face pair on an axis of size one lands on the same cell and cancels to
+    zero, so thin or periodic axes may be omitted from ``active_axes`` without
+    changing the result.
+
+    Args:
+        poynting_vector (jax.Array): Real Poynting vector of shape
+            ``(3, Nx, Ny, Nz)`` sampled on the box cells (already co-located onto
+            a common Yee point by the detector interpolation).
+        active_axes (tuple[int, ...]): Axes whose two faces contribute to the sum.
+        area_weights (tuple[jax.Array, ...]): Indexed by axis; ``area_weights[a]``
+            holds the per-cell transverse face areas for a face normal to ``a``,
+            broadcastable to ``poynting_vector[a]`` (size one along axis ``a``).
+            Per-cell weighting is what makes the integral exact on non-uniform
+            grids.
+
+    Returns:
+        jax.Array: Scalar net outward flux (positive means net power leaving the
+        box).
+    """
+    net = jnp.zeros((), dtype=poynting_vector.dtype)
+    for a in active_axes:
+        weighted = poynting_vector[a] * area_weights[a]
+        net = net + jnp.take(weighted, -1, axis=a).sum() - jnp.take(weighted, 0, axis=a).sum()
+    return net
+
+
 def compute_integrated_power(
     E: jax.Array,
     H: jax.Array,
