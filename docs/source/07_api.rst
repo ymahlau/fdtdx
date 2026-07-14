@@ -16,6 +16,7 @@ API
     fdtdx.calculate_sparams
     fdtdx.CCPRPole
     fdtdx.circular_brush
+    fdtdx.ClosedSurfacePhasorPoyntingFluxDetector
     fdtdx.ClosedSurfacePoyntingFluxDetector
     fdtdx.ClosestIndex
     fdtdx.Color
@@ -84,6 +85,7 @@ API
     fdtdx.PerfectlyMatchedLayer
     fdtdx.PeriodicBoundary
     fdtdx.PhasorDetector
+    fdtdx.PhasorPoyntingFluxDetector
     fdtdx.PillarDiscretization
     fdtdx.place_objects
     fdtdx.plot_field_slice
