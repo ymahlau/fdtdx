@@ -7,8 +7,9 @@ import pytest
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.core.grid import UniformGrid
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer
-from fdtdx.fdtd.fdtd import checkpointed_fdtd, custom_fdtd_forward, reversible_fdtd
+from fdtdx.fdtd.fdtd import _reversible_slice_boundaries, checkpointed_fdtd, custom_fdtd_forward, reversible_fdtd
 from fdtdx.fdtd.stop_conditions import TimeStepCondition
+from fdtdx.interfaces.recorder import Recorder
 from fdtdx.objects.object import SimulationObject
 
 
@@ -86,6 +87,81 @@ def config_checkpointed():
 @pytest.fixture
 def key():
     return jax.random.PRNGKey(0)
+
+
+class TestReversibleSliceBoundaries:
+    """Tests for the slice-boundary helper of the sliced reversible backward pass."""
+
+    @pytest.mark.parametrize(
+        "time_steps_total,num_slices",
+        [(10, 1), (10, 2), (10, 3), (10, 7), (10, 10), (37, 5), (420, 4), (5, 5), (1, 1)],
+    )
+    def test_boundaries_are_valid_partition(self, time_steps_total, num_slices):
+        b = _reversible_slice_boundaries(time_steps_total, num_slices)
+        # k + 1 boundaries, from 0 to T inclusive
+        assert len(b) == num_slices + 1
+        assert b[0] == 0
+        assert b[-1] == time_steps_total
+        # strictly increasing (distinct) and every slice has length >= 1
+        assert b == sorted(b)
+        assert len(set(b)) == len(b)
+        assert all(b[i + 1] - b[i] >= 1 for i in range(num_slices))
+
+    def test_single_slice_is_full_range(self):
+        """num_slices == 1 (num_checkpoints_reversible == 0) yields no interior boundaries."""
+        b = _reversible_slice_boundaries(123, 1)
+        assert b == [0, 123]
+        assert b[1:-1] == []  # no interior checkpoints
+
+    def test_every_step_checkpointed(self):
+        """num_slices == T yields a boundary at every integer time step."""
+        b = _reversible_slice_boundaries(6, 6)
+        assert b == [0, 1, 2, 3, 4, 5, 6]
+
+
+def _reversible_grad_config(config, num_ckpt):
+    """Attach a reversible GradientConfig (empty recorder) with the given interior-checkpoint count.
+
+    Returns the updated config and the matching zero-initialized recording_state. The dummy scene
+    has no PML, so the recorder needs no interface buffers (``input_shape_dtypes={}``).
+    """
+    recorder = Recorder(modules=[])
+    recorder, recording_state = recorder.init_state(
+        input_shape_dtypes={},
+        max_time_steps=config.time_steps_total,
+        backend="cpu",
+    )
+    config = config.aset(
+        "gradient_config",
+        GradientConfig(method="reversible", recorder=recorder, num_checkpoints_reversible=num_ckpt),
+    )
+    return config, recording_state
+
+
+class TestSlicedReversibleFdtd:
+    """Smoke tests exercising the segmented forward + checkpoint-reset backward under jax.grad."""
+
+    def test_grad_runs_with_interior_checkpoints(self, dummy_arrays, dummy_objects, config_few_steps, key):
+        config, recording_state = _reversible_grad_config(config_few_steps, num_ckpt=2)
+        arrays = dummy_arrays.aset("recording_state", recording_state)
+
+        def loss(inv_eps):
+            a = arrays.aset("inv_permittivities", inv_eps)
+            _, out = reversible_fdtd(a, dummy_objects, config, key, show_progress=False)
+            return jnp.sum(out.fields.E**2) + jnp.sum(out.fields.H**2)
+
+        val, grad = jax.value_and_grad(loss)(arrays.inv_permittivities)
+        assert jnp.isfinite(val)
+        assert jnp.all(jnp.isfinite(grad))
+        assert grad.shape == arrays.inv_permittivities.shape
+
+    def test_too_many_checkpoints_raises(self, dummy_arrays, dummy_objects, config_few_steps, key):
+        # num_checkpoints_reversible == time_steps_total means num_slices == T + 1 > T.
+        num_ckpt = config_few_steps.time_steps_total
+        config, recording_state = _reversible_grad_config(config_few_steps, num_ckpt=num_ckpt)
+        arrays = dummy_arrays.aset("recording_state", recording_state)
+        with pytest.raises(Exception, match="num_checkpoints_reversible must be <="):
+            reversible_fdtd(arrays, dummy_objects, config, key, show_progress=False)
 
 
 class TestReversibleFdtd:

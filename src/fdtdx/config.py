@@ -32,11 +32,25 @@ class GradientConfig(TreeClass):
     #: Needs to be provided for checkpointing gradient computation. Defaults to None.
     num_checkpoints: int | None = frozen_field(default=None)
 
+    #: Number of interior full-field checkpoints for the ``"reversible"`` method.
+    #: The reversible backward pass reconstructs the field state by running the simulation in
+    #: reverse; for lossy/dispersive materials this reverse reconstruction can accumulate numerical
+    #: error over the full trajectory. Setting this to ``k - 1`` partitions the run into ``k`` slices
+    #: and stores a full-field checkpoint at each interior slice boundary during the forward pass. The
+    #: backward pass then resets the reverse reconstruction to the exact checkpoint at every boundary,
+    #: bounding the reconstruction drift to a single slice (``~time_steps_total / k`` steps) at the
+    #: cost of O(k) field memory. The default ``0`` reproduces the classic single full reverse pass
+    #: (no interior checkpoints; only the final field, which is available for free, is used). Ignored
+    #: by the ``"checkpointed"`` method. Must not exceed ``time_steps_total - 1``.
+    num_checkpoints_reversible: int = frozen_field(default=0)
+
     def __post_init__(self):
         if self.method == "reversible" and self.recorder is None:
             raise Exception("Need Recorder in gradient config to compute reversible gradients")
         if self.method == "checkpointed" and self.num_checkpoints is None:
             raise Exception("Need Checkpoint Number in gradient config to compute checkpointed gradients")
+        if self.num_checkpoints_reversible < 0:
+            raise Exception("num_checkpoints_reversible must be >= 0")
 
 
 @autoinit

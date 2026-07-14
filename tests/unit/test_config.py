@@ -39,6 +39,21 @@ class TestGradientConfigConstruction:
         with pytest.raises(Exception, match="Need Checkpoint Number in gradient config"):
             GradientConfig(method="checkpointed")
 
+    def test_num_checkpoints_reversible_defaults_to_zero(self):
+        """The sliced-reversible checkpoint count defaults to 0 (classic full reverse pass)."""
+        config = GradientConfig(method="reversible", recorder=MagicMock())
+        assert config.num_checkpoints_reversible == 0
+
+    def test_num_checkpoints_reversible_accepts_positive(self):
+        """A positive interior-checkpoint count is stored as given."""
+        config = GradientConfig(method="reversible", recorder=MagicMock(), num_checkpoints_reversible=3)
+        assert config.num_checkpoints_reversible == 3
+
+    def test_num_checkpoints_reversible_negative_raises(self):
+        """A negative interior-checkpoint count is rejected."""
+        with pytest.raises(Exception, match="num_checkpoints_reversible must be >= 0"):
+            GradientConfig(method="reversible", recorder=MagicMock(), num_checkpoints_reversible=-1)
+
 
 def _create_mock_backend(platform="cpu"):
     """Helper to create mock backend for SimulationConfig tests."""
