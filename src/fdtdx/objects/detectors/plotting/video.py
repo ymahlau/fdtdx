@@ -159,8 +159,8 @@ def generate_video_from_slices(
     partial_fn = partial(
         plt_fn,
         resolutions=resolutions,
-        minvals=minvals,
-        maxvals=maxvals,
+        minvals=(minlist[0], minlist[1], minlist[2]),
+        maxvals=(maxlist[0], maxlist[1], maxlist[2]),
         plot_dpi=plot_dpi,
         plot_interpolation=plot_interpolation,
         coordinate_edges_um=coordinate_edges_um,
