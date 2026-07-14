@@ -95,15 +95,22 @@ class TestApplyPopulatesFaces:
         assert len(placed._face_normal_axes) == 6
         assert len(placed._face_incident_E) == 6
         assert len(placed._face_incident_H) == 6
-        # min faces +1, max faces -1
+        # The box is a staggered two-node connecting condition: the tangential-E
+        # correction sits on the total-field E node adjacent to the surface, and the
+        # tangential-H correction half a cell further, on the scattered-side H node.
+        # min faces +1, max faces -1.
         for i, (normal, sign) in enumerate(zip(placed._face_normal_axes, placed._face_signs)):
-            lo, hi = placed._face_slice_tuples[i][normal]
-            assert hi - lo == 1  # face is one cell thick along its normal
+            e_lo, e_hi = placed._face_E_slice_tuples[i][normal]
+            h_lo, h_hi = placed._face_H_slice_tuples[i][normal]
+            assert e_hi - e_lo == 1 and h_hi - h_lo == 1  # each plane is one cell thick
             box_lo, box_hi = placed.grid_slice_tuple[normal]
-            if lo == box_lo:
-                assert sign == 1
-            else:
-                assert lo == box_hi - 1 and sign == -1
+            if sign == 1:  # min face
+                assert e_lo == box_lo  # E on the surface node
+                assert h_lo == box_lo - 1  # H half a cell outside (scattered side)
+            else:  # max face
+                assert sign == -1
+                assert e_lo == box_hi  # E on the scattered node past the box
+                assert h_lo == box_hi - 1  # H on the total-field surface node
         # no dispersion -> no H filters
         assert all(f is None for f in placed._face_H_filter)
 

@@ -77,7 +77,16 @@ class TFSFPlaneSourceRegion(TFSFPlaneSource):
     # Per-face static metadata (excluded from pytree traversal).
     _face_normal_axes: tuple[int, ...] | None = frozen_private_field(default=None)
     _face_signs: tuple[int, ...] | None = frozen_private_field(default=None)
-    _face_slice_tuples: tuple | None = frozen_private_field(default=None)
+    # A TFSF box is a two-node (staggered) connecting condition: the tangential E
+    # correction sits on the total-field E node adjacent to the surface, and the
+    # tangential H correction sits half a cell further, on the scattered-side H
+    # node. These are DIFFERENT Yee cells (see ``apply``), so each face stores an
+    # E-plane slice (where update_E writes) and an H-plane slice (where update_H
+    # writes). Co-locating them — as a naive single-plane injector would — leaves
+    # a net magnetic correction at the box edges/corners that never radiates away
+    # and accumulates as a static field (the "hot corner" artifact).
+    _face_E_slice_tuples: tuple | None = frozen_private_field(default=None)
+    _face_H_slice_tuples: tuple | None = frozen_private_field(default=None)
 
     # Per-face traced leaves (parallel to the metadata tuples above).
     _face_incident_E: tuple | None = private_field(default=None)
@@ -113,6 +122,27 @@ class TFSFPlaneSourceRegion(TFSFPlaneSource):
         spacing = config.uniform_spacing()
         edges = [jnp.arange(self.grid_shape[axis] + 1, dtype=config.dtype) * spacing for axis in range(3)]
         return edges[0], edges[1], edges[2]
+
+    def _normal_cell_window(self, normal_axis: int, abs_cell_index: int) -> jax.Array:
+        """Two-edge window (box-corner origin) for one cell along ``normal_axis``.
+
+        Used to phase the incident field at a specific Yee plane. ``abs_cell_index``
+        is an absolute grid index and may lie one cell outside the box (the H node
+        just below the min face, or the E node just above the max face), so the
+        window is built from the resolved grid / spacing rather than ``_box_edges``
+        (which only spans the box interior).
+        """
+        config = self._config
+        lower = self.grid_slice_tuple[normal_axis][0]
+        if config.has_nonuniform_grid:
+            grid = config.resolved_grid
+            assert grid is not None
+            edges = grid.edges(normal_axis)
+            origin = edges[lower]
+            return edges[abs_cell_index : abs_cell_index + 2] - origin
+        spacing = config.uniform_spacing()
+        rel = abs_cell_index - lower
+        return jnp.asarray([rel * spacing, (rel + 1) * spacing], dtype=config.dtype)
 
     def _active_faces(self) -> list[tuple[int, Literal["-", "+"]]]:
         """Enumerate ``(normal_axis, side)`` for every injected face.
@@ -173,7 +203,8 @@ class TFSFPlaneSourceRegion(TFSFPlaneSource):
 
         normal_axes: list[int] = []
         signs: list[int] = []
-        slice_tuples: list = []
+        e_slice_tuples: list = []
+        h_slice_tuples: list = []
         inc_E_list: list = []
         inc_H_list: list = []
         toff_E_list: list = []
@@ -182,29 +213,35 @@ class TFSFPlaneSourceRegion(TFSFPlaneSource):
 
         for normal_axis, side in self._active_faces():
             lower, upper = box_slice[normal_axis]
+            # Two-node connecting condition (see class docstring / _face_*_slice_tuples):
+            #   * the tangential-E correction sits on the total-field E node adjacent
+            #     to the TFSF surface,
+            #   * the tangential-H correction sits half a cell further on the
+            #     scattered-side H node.
+            # Because H_a/H_b are staggered +1/2 along the normal, the H node is at
+            # (E node - 1) for a min face and coincident-index-minus-nothing for a
+            # max face; concretely:
             if side == "-":
-                face_norm_slice = (lower, lower + 1)
                 sign = 1  # min face
-                normal_edges = box_edges[normal_axis][0:2]
+                e_abs = lower  # total-field E node on the surface
+                h_abs = lower - 1  # scattered-side H node, half a cell outside
             else:
-                face_norm_slice = (upper - 1, upper)
                 sign = -1  # max face
-                normal_edges = box_edges[normal_axis][-2:]
+                e_abs = upper  # scattered-side E node just past the last total node
+                h_abs = upper - 1  # total-field H node on the surface
 
-            face_slice_tuple = list(box_slice)
-            face_slice_tuple[normal_axis] = face_norm_slice
-            face_slice_tuple = tuple(face_slice_tuple)
-            face_slice = tuple(slice(a, b) for (a, b) in face_slice_tuple)
-            face_shape = tuple(b - a for (a, b) in face_slice_tuple)
+            e_slice_tuple = self._normal_plane_slice(normal_axis, e_abs)
+            h_slice_tuple = self._normal_plane_slice(normal_axis, h_abs)
+            e_face_slice = tuple(slice(a, b) for (a, b) in e_slice_tuple)
+            face_shape = tuple(b - a for (a, b) in e_slice_tuple)  # H plane has the same shape
 
-            coord_edges = list(box_edges)
-            coord_edges[normal_axis] = normal_edges
-            coord_edges = (coord_edges[0], coord_edges[1], coord_edges[2])
-
-            # material at this face
-            inv_eps_face = inv_permittivities[:, *face_slice]
+            # Incident amplitude is sampled from the medium at the E node (the
+            # tangential-E correction plane). E_inc is material-independent; only the
+            # H_inc amplitude carries the impedance, and the source region is assumed
+            # locally homogeneous across the half-cell E/H offset.
+            inv_eps_face = inv_permittivities[:, *e_face_slice]
             if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
-                inv_mu_face = inv_permeabilities[:, *face_slice]
+                inv_mu_face = inv_permeabilities[:, *e_face_slice]
             else:
                 inv_mu_face = inv_permeabilities
             inv_eps_inf_face = inv_eps_face  # raw ε∞ before any carrier correction
@@ -212,10 +249,10 @@ class TFSFPlaneSourceRegion(TFSFPlaneSource):
             # dispersive carrier-frequency correction (matches the single-plane source)
             c1_s = c2_s = c3_s = c4_s = None
             if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
-                c1_s = dispersive_c1[:, :, *face_slice]
-                c2_s = dispersive_c2[:, :, *face_slice]
-                c3_s = dispersive_c3[:, :, *face_slice]
-                c4_s = None if dispersive_c4 is None else dispersive_c4[:, :, *face_slice]
+                c1_s = dispersive_c1[:, :, *e_face_slice]
+                c2_s = dispersive_c2[:, :, *e_face_slice]
+                c3_s = dispersive_c3[:, :, *e_face_slice]
+                c4_s = None if dispersive_c4 is None else dispersive_c4[:, :, *e_face_slice]
                 inv_eps_face = effective_inv_permittivity(
                     inv_eps=inv_eps_face,
                     c1=c1_s,
@@ -232,17 +269,33 @@ class TFSFPlaneSourceRegion(TFSFPlaneSource):
             H_face = self.amplitude * h_pol[:, None, None, None] / impedance
             H_inc = jnp.broadcast_to(H_face, (3, *face_shape)).astype(config.dtype)
 
-            time_offset_E, time_offset_H = calculate_time_offset_yee(
-                center=jnp.zeros(2, dtype=config.dtype),
-                wave_vector=wave_vector,
-                inv_permittivities=inv_eps_face,
-                inv_permeabilities=inv_mu_face,
-                resolution=resolution,
-                time_step_duration=config.time_step_duration,
-                e_polarization=e_pol,
-                h_polarization=h_pol,
-                coordinate_edges=coord_edges,
-                center_physical=center_physical,
+            # Phase the incident field at the exact Yee plane each correction uses:
+            # incident E (for the H correction) at the E node, incident H (for the E
+            # correction) at the H node. Sampling at the naive single-plane position
+            # is what left the uncancelled static corner field.
+            time_offset_E, _ = self._plane_time_offsets(
+                normal_axis,
+                e_abs,
+                box_edges,
+                wave_vector,
+                e_pol,
+                h_pol,
+                inv_permittivities,
+                inv_permeabilities,
+                resolution,
+                center_physical,
+            )
+            _, time_offset_H = self._plane_time_offsets(
+                normal_axis,
+                h_abs,
+                box_edges,
+                wave_vector,
+                e_pol,
+                h_pol,
+                inv_permittivities,
+                inv_permeabilities,
+                resolution,
+                center_physical,
             )
 
             filt = None
@@ -262,7 +315,8 @@ class TFSFPlaneSourceRegion(TFSFPlaneSource):
 
             normal_axes.append(normal_axis)
             signs.append(sign)
-            slice_tuples.append(face_slice_tuple)
+            e_slice_tuples.append(e_slice_tuple)
+            h_slice_tuples.append(h_slice_tuple)
             inc_E_list.append(E_inc)
             inc_H_list.append(H_inc)
             toff_E_list.append(time_offset_E)
@@ -271,13 +325,62 @@ class TFSFPlaneSourceRegion(TFSFPlaneSource):
 
         self = self.aset("_face_normal_axes", tuple(normal_axes), create_new_ok=True)
         self = self.aset("_face_signs", tuple(signs), create_new_ok=True)
-        self = self.aset("_face_slice_tuples", tuple(slice_tuples), create_new_ok=True)
+        self = self.aset("_face_E_slice_tuples", tuple(e_slice_tuples), create_new_ok=True)
+        self = self.aset("_face_H_slice_tuples", tuple(h_slice_tuples), create_new_ok=True)
         self = self.aset("_face_incident_E", tuple(inc_E_list), create_new_ok=True)
         self = self.aset("_face_incident_H", tuple(inc_H_list), create_new_ok=True)
         self = self.aset("_face_time_offset_E", tuple(toff_E_list), create_new_ok=True)
         self = self.aset("_face_time_offset_H", tuple(toff_H_list), create_new_ok=True)
         self = self.aset("_face_H_filter", tuple(filt_list), create_new_ok=True)
         return self
+
+    def _normal_plane_slice(self, normal_axis: int, abs_index: int) -> tuple:
+        """Return the box slice with ``normal_axis`` restricted to the single cell ``abs_index``."""
+        slice_tuple = list(self.grid_slice_tuple)
+        slice_tuple[normal_axis] = (abs_index, abs_index + 1)
+        return tuple(slice_tuple)
+
+    def _plane_time_offsets(
+        self,
+        normal_axis: int,
+        abs_index: int,
+        box_edges: tuple[jax.Array, jax.Array, jax.Array],
+        wave_vector: jax.Array,
+        e_pol: jax.Array,
+        h_pol: jax.Array,
+        inv_permittivities: jax.Array,
+        inv_permeabilities: jax.Array | float,
+        resolution: float,
+        center_physical: jax.Array,
+    ) -> tuple[jax.Array, jax.Array]:
+        """Yee time offsets for the incident field phased at the cell ``abs_index``.
+
+        The transverse coordinates come from the shared ``box_edges`` (box-corner
+        origin) so every face and plane stays phase-coherent; only the normal-axis
+        window moves to ``abs_index`` (which may be one cell outside the box).
+        """
+        config = self._config
+        coord_edges = list(box_edges)
+        coord_edges[normal_axis] = self._normal_cell_window(normal_axis, abs_index)
+        coord_edges = (coord_edges[0], coord_edges[1], coord_edges[2])
+        plane_slice = tuple(slice(a, b) for (a, b) in self._normal_plane_slice(normal_axis, abs_index))
+        inv_eps = inv_permittivities[:, *plane_slice]
+        if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
+            inv_mu = inv_permeabilities[:, *plane_slice]
+        else:
+            inv_mu = inv_permeabilities
+        return calculate_time_offset_yee(
+            center=jnp.zeros(2, dtype=config.dtype),
+            wave_vector=wave_vector,
+            inv_permittivities=inv_eps,
+            inv_permeabilities=inv_mu,
+            resolution=resolution,
+            time_step_duration=config.time_step_duration,
+            e_polarization=e_pol,
+            h_polarization=h_pol,
+            coordinate_edges=coord_edges,
+            center_physical=center_physical,
+        )
 
     def update_E(
         self,
@@ -290,7 +393,7 @@ class TFSFPlaneSourceRegion(TFSFPlaneSource):
         del inv_permeabilities
         normal_axes = self._face_normal_axes
         signs = self._face_signs
-        slice_tuples = self._face_slice_tuples
+        slice_tuples = self._face_E_slice_tuples  # E correction lives on the total-field E node
         incident_H = self._face_incident_H
         time_offset_H = self._face_time_offset_H
         h_filter = self._face_H_filter
@@ -340,7 +443,7 @@ class TFSFPlaneSourceRegion(TFSFPlaneSource):
         del inv_permittivities
         normal_axes = self._face_normal_axes
         signs = self._face_signs
-        slice_tuples = self._face_slice_tuples
+        slice_tuples = self._face_H_slice_tuples  # H correction lives on the scattered-side H node
         incident_E = self._face_incident_E
         time_offset_E = self._face_time_offset_E
         if normal_axes is None or signs is None or slice_tuples is None or incident_E is None or time_offset_E is None:
@@ -394,6 +497,24 @@ class TFSFPlaneSourceRegion(TFSFPlaneSource):
 
         box_slice = self.grid_slice_tuple
         volume_slice = objects.volume.grid_slice_tuple
+
+        # Every confined (non-periodic) face needs one cell of scattered-field margin
+        # on each side: the staggered connecting condition writes the tangential-H
+        # correction on the node one cell below the min face (index lower-1) and the
+        # tangential-E correction on the node one cell above the max face (index
+        # upper). Without the margin those planes fall outside the domain.
+        for a in range(3):
+            if a in periodic:
+                continue
+            box_lo, box_hi = box_slice[a]
+            vol_lo, vol_hi = volume_slice[a]
+            if box_lo - 1 < vol_lo or box_hi + 1 > vol_hi:
+                errors.append(
+                    f"TFSF box has no scattered-field margin on axis {a} (box {box_slice[a]} vs domain "
+                    f"{volume_slice[a]}); a confined TFSF face needs at least one cell between the box and the "
+                    f"domain edge on both sides. Shrink the box or enlarge the domain/boundary on axis {a}."
+                )
+
         for a in periodic:
             if a == p_axis or a not in (0, 1, 2):
                 continue

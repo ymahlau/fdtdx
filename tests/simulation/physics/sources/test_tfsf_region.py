@@ -183,6 +183,75 @@ def test_dispersive_background_filter_and_run():
     assert np.all(np.isfinite(np.array(out.fields.E)))
 
 
+def test_no_corner_energy_accumulation():
+    """The box corners (where propagation caps meet confinement faces) must not
+    accumulate energy.
+
+    Regression guard for the staggered connecting condition: a naive TFSF box that
+    co-locates the tangential-E and tangential-H corrections on the face plane
+    leaves an uncancelled, non-radiating magnetic correction at the box edges. In
+    lossless vacuum that residual is quasi-static, so it never leaves and — under a
+    sustained (CW) drive — the corners run many times hotter than the interior
+    incident wave. With the corrections placed on their proper Yee half-cells the
+    corners stay at or below the interior level.
+
+    Mirrors the reported failure mode: E polarized along the periodic/wrap axis (z),
+    propagation +x, confined along y. The pre-fix code gives corner/interior ~15x;
+    the fix keeps it below ~1.
+    """
+    spacing = 15e-9
+    pml = 8
+    domain = 480e-9 + 2 * pml * spacing
+    box_cells = 16
+
+    config = fdtdx.SimulationConfig(
+        time=50e-15,
+        grid=fdtdx.UniformGrid(spacing=spacing),
+        backend="cpu",
+        dtype=jnp.float32,
+        gradient_config=None,
+    )
+    volume = fdtdx.SimulationVolume(partial_real_shape=(domain, domain, 2 * spacing))
+    region = fdtdx.TFSFPlaneSourceRegion(
+        name="src",
+        partial_grid_shape=(box_cells, box_cells, None),
+        propagation_axis=0,
+        direction="+",
+        wave_character=fdtdx.WaveCharacter(wavelength=_WAVELENGTH),
+        fixed_E_polarization_vector=(0, 0, 1),  # E along the periodic/wrap axis
+        periodic_axes=(2,),
+    )
+    override = {"min_z": "periodic", "max_z": "periodic"}
+    bound_cfg = fdtdx.BoundaryConfig.from_uniform_bound(boundary_type="pml", thickness=pml, override_types=override)
+    bd, bc = fdtdx.boundary_objects_from_config(bound_cfg, volume)
+    constraints = [region.place_at_center(volume), region.same_size(volume, axes=(2,)), *bc]
+
+    key = jax.random.PRNGKey(0)
+    objects, arrays, params, config, key = fdtdx.place_objects(
+        object_list=[volume, region, *bd.values()], config=config, constraints=constraints, key=key
+    )
+    arrays, objects, _ = fdtdx.apply_params(arrays, objects, params, key)
+    _, out = fdtdx.run_fdtd(arrays=arrays, objects=objects, config=config, key=key, show_progress=False)
+
+    E = np.array(out.fields.E)
+    H = np.array(out.fields.H)
+    assert np.all(np.isfinite(E)) and np.all(np.isfinite(H))
+    energy = (E**2).sum(0) + (H**2).sum(0)  # total EM energy density (eta0-normalized)
+
+    placed = next(o for o in objects.objects if isinstance(o, fdtdx.TFSFPlaneSourceRegion))
+    (x0, x1), (y0, y1), _ = [placed.grid_slice_tuple[i] for i in range(3)]
+    interior = energy[x0 + 4 : x1 - 4, y0 + 4 : y1 - 4, :].mean()
+    # peak over 3x3 blocks straddling each of the four cap/confinement corners
+    corner_peak = max(
+        energy[sx, sy, :].max()
+        for sx in (slice(x0 - 1, x0 + 2), slice(x1 - 2, x1 + 1))
+        for sy in (slice(y0 - 1, y0 + 2), slice(y1 - 2, y1 + 1))
+    )
+    assert interior > 1e-3, "incident wave should fill the box interior"
+    ratio = corner_peak / interior
+    assert ratio < 3.0, f"box corners accumulate energy: corner/interior = {ratio:.2f} (pre-fix ~15x)"
+
+
 def test_region_gradient_finite():
     """Differentiate a field-energy loss through the box source (checkpointed path)."""
     objects, arrays, _params, config, key = _build(periodic_axes=(), prop=0, box_cells=12, domain=1.4e-6, pml=5)
