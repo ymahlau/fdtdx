@@ -130,29 +130,15 @@ def reversible_fdtd(
     )
     _forward_body_with_progress, _close_pbar = _wrap_body_with_progress(_forward_body, pbar)
 
-    def reversible_fdtd_base(
-        arr: ArrayContainer,
-    ) -> SimulationState:
-        state = (jnp.asarray(0, dtype=jnp.int32), arr)
-        state = eqxi.while_loop(
-            max_steps=config.time_steps_total,
-            cond_fun=lambda s: config.time_steps_total > s[0],
-            body_fun=_forward_body_with_progress,
-            init_val=state,
-            kind="lax",
-        )
-        return (state[0], state[1])
-
     def segmented_forward(
         arr: ArrayContainer,
     ) -> tuple[SimulationState, list[FieldState]]:
         """Run the forward pass in ``num_slices`` consecutive segments, capturing checkpoints.
 
-        Numerically identical to ``reversible_fdtd_base`` (same sequence of ``forward`` steps and
-        boundary recording), but after each of the first ``num_slices - 1`` segments the current
-        full ``FieldState`` at the interior boundary ``s_i`` is captured. For a single slice
-        (``num_slices == 1``) this runs exactly one while-loop over ``[0, time_steps_total]`` and
-        returns an empty checkpoint list, i.e. identical behavior to ``reversible_fdtd_base``.
+        This is the single source of truth for the reversible forward stepping. After each of the
+        first ``num_slices - 1`` segments the current full ``FieldState`` at the interior boundary
+        ``s_i`` is captured. For a single slice (``num_slices == 1``) this runs exactly one
+        while-loop over ``[0, time_steps_total]`` and returns an empty checkpoint list.
         """
         state = (jnp.asarray(0, dtype=jnp.int32), arr)
         checkpoints: list[FieldState] = []
@@ -168,6 +154,14 @@ def reversible_fdtd(
             if seg < num_slices - 1:
                 checkpoints.append(state[1].fields)
         return (state[0], state[1]), checkpoints
+
+    def reversible_fdtd_base(
+        arr: ArrayContainer,
+    ) -> SimulationState:
+        # Delegates to segmented_forward (single source of truth for the forward stepping) and
+        # discards the checkpoints - the non-gradient primal path needs only the final state.
+        state, _ = segmented_forward(arr)
+        return state
 
     @jax.custom_vjp
     def reversible_fdtd_primal(
