@@ -114,6 +114,8 @@ class JsonSetup:
             "UniformPlaneSource",
             "LinearlyPolarizedPlaneSource",
             # detectors
+            "ClosedSurfacePhasorPoyntingFluxDetector",
+            "ClosedSurfacePoyntingFluxDetector",
             "EnergyDetector",
             "FieldDetector",
             "FieldProjectionAngleDetector",
@@ -121,6 +123,7 @@ class JsonSetup:
             "FieldProjectionKSpaceDetector",
             "ModeOverlapDetector",
             "PhasorDetector",
+            "PhasorPoyntingFluxDetector",
             "PoyntingFluxDetector",
             # boundary
             "PerfectlyMatchedLayer",
