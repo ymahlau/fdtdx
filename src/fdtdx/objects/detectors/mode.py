@@ -157,9 +157,7 @@ class ModeOverlapDetector(PhasorDetector):
         dispersive_c4: jax.Array | None = None,
     ) -> Self:
         del key
-        # Pin the sliced PLANE to a single-device replicated layout (no-op on 1 GPU): the slice
-        # feeds the host mode-solver pure_callback (device 0), so this gathers only the thin band
-        # rather than letting XLA all-gather the full x-sharded parent array.
+        # Pin the sliced plane to a single device (see pin_to_single_device docstring for why).
         inv_permittivity_slice = pin_to_single_device(inv_permittivities[:, *self.grid_slice])
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
             inv_permeability_slice = pin_to_single_device(inv_permeabilities[:, *self.grid_slice])

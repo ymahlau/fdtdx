@@ -14,6 +14,7 @@ import pytest
 import fdtdx.core.jax.sharding as sharding_module
 from fdtdx.constants import SHARD_STR
 from fdtdx.core.jax.sharding import (
+    _replicated_mesh_sharding,
     create_named_sharded_matrix,
     get_dtype_bytes,
     get_named_sharding_from_shape,
@@ -205,6 +206,42 @@ class TestCreateNamedShardedMatrix:
         assert isinstance(result.sharding, jax.sharding.NamedSharding)
 
 
+# ---- _replicated_mesh_sharding ----
+
+
+class TestReplicatedMeshSharding:
+    """Tests for the _replicated_mesh_sharding helper, split out of pin_to_single_device so this
+    (pure, cheap) mesh/sharding construction can be covered in-process -- unlike pin_to_single_device's
+    own data placement, it does not require genuinely distinct physical devices, so a MOCKED duplicated
+    device list is a faithful, subprocess-free test (the corresponding data placement is exercised
+    separately by TestPinToSingleDevice's subprocess-based multi-device tests below)."""
+
+    def test_single_device_replicated_spec(self):
+        cpu = CPU_DEVICES[0]
+        result = _replicated_mesh_sharding([cpu])
+        assert isinstance(result, jax.sharding.NamedSharding)
+        assert tuple(result.spec) == ()
+        assert result.mesh.devices.shape == (1,)
+
+    def test_duplicated_device_list_replicated_spec(self):
+        # A duplicated physical device (simulating >1 "device" without needing real distinct hardware)
+        # is accepted by mesh/sharding CONSTRUCTION -- only the actual data placement in
+        # pin_to_single_device requires genuine distinctness (see module docstring above).
+        cpu = CPU_DEVICES[0]
+        result = _replicated_mesh_sharding([cpu, cpu])
+        assert isinstance(result, jax.sharding.NamedSharding)
+        assert tuple(result.spec) == ()
+        assert result.mesh.devices.shape == (2,)
+        assert SHARD_STR in result.mesh.axis_names
+
+    def test_result_usable_as_pin_to_single_device_input(self):
+        """pin_to_single_device calls this helper directly with jax.devices() -- confirm the two agree
+        on shape/axis-name conventions for a real (single, non-mocked) device list."""
+        expected = _replicated_mesh_sharding(jax.devices())
+        assert isinstance(expected, jax.sharding.NamedSharding)
+        assert expected.mesh.devices.shape == (len(jax.devices()),)
+
+
 # ---- pin_to_single_device ----
 
 
@@ -217,9 +254,9 @@ def _run_in_subprocess_with_devices(num_devices: int, body: str) -> None:
     therefore only be exercised in a separate process started with
     ``XLA_FLAGS=--xla_force_host_platform_device_count=N`` set beforehand. Mocking
     ``jax.devices()`` to return the same physical device twice is not a substitute here:
-    unlike the mesh-shape/spec checks elsewhere in this file, ``pin_to_single_device`` calls
-    ``jax.lax.with_sharding_constraint`` eagerly, which raises ValueError ("the input arrays
-    must be from distinct devices") when the mesh contains a duplicated physical device.
+    unlike the mesh-shape/spec checks elsewhere in this file, ``pin_to_single_device`` places
+    data onto a real device mesh eagerly, which requires genuinely distinct physical devices
+    (a mesh built from a duplicated device raises at construction/placement time).
     """
     env = {
         **os.environ,
@@ -303,5 +340,48 @@ class TestPinToSingleDevice:
             out = slice_and_pin(arr)
             assert out.shape == (3, 1, 6, 6)
             assert bool(jnp.allclose(out, 2.0))
+            """,
+        )
+
+    def test_multi_device_compatible_with_pure_callback_output(self):
+        """Regression test for compute_mode's usage: pinning the RAW OUTPUT of a
+        jax.pure_callback (as returned by the Tidy3D mode solver) must not raise "Cannot
+        convert GSPMDSharding {maximal device=0} into SdyArray". A pure_callback's result
+        carries a maximal/single-device GSPMDSharding -- a fundamentally different
+        representation than the ordinary NamedSharding case covered by the sliced-input
+        test above, which XLA's Shardy partitioner cannot convert via
+        jax.lax.with_sharding_constraint (this failed before this fix; device_put succeeds
+        because it performs the placement directly instead of a Shardy-mediated re-shard).
+        """
+        _run_in_subprocess_with_devices(
+            2,
+            """
+            import numpy as np
+            import jax, jax.numpy as jnp
+            from fdtdx.core.jax.sharding import create_named_sharded_matrix, pin_to_single_device
+
+            arr = create_named_sharded_matrix(
+                (3, 8, 6, 6), value=2.0, dtype=jnp.float32, sharding_axis=1, backend="cpu"
+            )
+
+            def host_fn(x):
+                # Stand-in for the Tidy3D mode-solver call in compute_mode: an arbitrary
+                # host-side computation returning a NEW array (not just a passthrough).
+                return np.asarray(x) * 3.0
+
+            @jax.jit
+            def slice_callback_and_pin(a):
+                plane = a[:, 2:3, :, :]
+                raw = jax.pure_callback(
+                    host_fn, jax.ShapeDtypeStruct(plane.shape, plane.dtype), plane
+                )
+                pinned = pin_to_single_device(raw)
+                # Mirrors compute_mode's jnp.expand_dims(mode_E_raw, ...) right after pinning --
+                # the exact next op that raised before this fix.
+                return jnp.expand_dims(pinned, axis=0)
+
+            out = slice_callback_and_pin(arr)
+            assert out.shape == (1, 3, 1, 6, 6)
+            assert bool(jnp.allclose(out, 6.0))
             """,
         )
