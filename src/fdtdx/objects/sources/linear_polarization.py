@@ -333,8 +333,11 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
         radii: tuple[float, float],
         std: float,
     ) -> jax.Array:  # shape (*grid_shape)
+        # (width, height, 2) grid in the same (horizontal, vertical) order as
+        # ``center`` and ``radii``; an xy-indexed meshgrid swaps the
+        # coordinates on non-square planes and misplaces the spot.
         grid = (
-            jnp.stack(jnp.meshgrid(*map(jnp.arange, (height, width)), indexing="xy"), axis=-1) - jnp.asarray(center)
+            jnp.stack(jnp.meshgrid(jnp.arange(width), jnp.arange(height), indexing="ij"), axis=-1) - jnp.asarray(center)
         ) / jnp.asarray(radii)
         euc_dist = (grid**2).sum(axis=-1)
 
