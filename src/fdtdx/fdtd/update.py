@@ -305,16 +305,55 @@ def update_E(
             assert arrays.dispersive_c4 is None
             if disp_c3.shape[1] == 9:
                 # E at each row's Yee location: diagonal entries use the local
-                # component, off-diagonal entries the averaged neighbor.
-                e_at = (
-                    (arrays.fields.E[0], Ey_x_avg, Ez_x_avg),
-                    (Ex_y_avg, arrays.fields.E[1], Ez_y_avg),
-                    (Ex_z_avg, Ey_z_avg, arrays.fields.E[2]),
-                )
-                coupling = jnp.stack(
-                    [sum(disp_c3[:, 3 * i + j] * e_at[i][j] for j in range(3)) for i in range(3)],
-                    axis=1,
-                )
+                # component, off-diagonal entries the averaged neighbor with
+                # symmetrized pair weights restricted to material cells,
+                #   w(r, s) = stencil(r, s) * (c(r) m(s) + m(r) c(s)) / 2,  m = (c != 0),
+                # so the coupling blocks stay mutual adjoints where c varies.
+                # Plain c(r) * avg(E) couples boundary cells to vacuum neighbors
+                # that do not couple back, and the resulting non-normal operator
+                # amplifies boundary modes of media with off-diagonal coupling and
+                # mixed-sign permittivity. Uniform c reduces to the plain form.
+
+                def _avg_offdiag(arr_pad: jax.Array, component: int, location: int):
+                    # mirrors avg_anisotropic_E_component with the leading pole
+                    # axis offsetting the spatial axes by one
+                    la, ca = location + 1, component + 1
+                    return (
+                        arr_pad
+                        + jnp.roll(arr_pad, -1, axis=la)
+                        + jnp.roll(arr_pad, 1, axis=ca)
+                        + jnp.roll(arr_pad, (-1, 1), axis=(la, ca))
+                    )[:, 1:-1, 1:-1, 1:-1] / 4
+
+                avg_at = {
+                    (0, 1): Ey_x_avg,
+                    (0, 2): Ez_x_avg,
+                    (1, 0): Ex_y_avg,
+                    (1, 2): Ez_y_avg,
+                    (2, 0): Ex_z_avg,
+                    (2, 1): Ey_z_avg,
+                }
+                rows = []
+                for i in range(3):
+                    row = disp_c3[:, 3 * i + i] * arrays.fields.E[i]
+                    for j in range(3):
+                        if j == i:
+                            continue
+                        cij = disp_c3[:, 3 * i + j]
+                        if aniso_widths is None:
+                            pad = ((0, 0), (1, 1), (1, 1), (1, 1))
+                            cij_pad = jnp.pad(cij, pad, mode="edge")
+                            mask_pad = (cij_pad != 0.0).astype(cij.dtype)
+                            row = row + 0.5 * (
+                                cij * _avg_offdiag(mask_pad * E_pad[j], component=j, location=i)
+                                + (cij != 0.0) * _avg_offdiag(cij_pad * E_pad[j], component=j, location=i)
+                            )
+                        else:
+                            # non-uniform grids keep the legacy form for now (the
+                            # weighted symmetrization needs matching edge weights)
+                            row = row + cij * avg_at[(i, j)]
+                    rows.append(row)
+                coupling = jnp.stack(rows, axis=1)
             else:
                 coupling = disp_c3 * arrays.fields.E
             P_hat = disp_c1 * P_curr + disp_c2 * P_prev + coupling
