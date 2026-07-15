@@ -91,6 +91,12 @@ def _build_dispersive_H_filter(
     c4_np = None if c4_slice is None else np.asarray(c4_slice)
     inv_eps_inf_np = np.asarray(inv_eps_inf_slice)
 
+    # All-zero coupling in the source slice (non-dispersive material at the
+    # source plane) means eps(omega) is flat and the filter is the identity —
+    # skip it rather than allocate the full broadband spectrum.
+    if c3_np.size == 0 or (not np.any(c3_np) and (c4_np is None or not np.any(c4_np))):
+        return jnp.asarray(raw_samples, dtype=dtype)
+
     # With per-axis (anisotropic) dispersion the coefficient arrays carry one
     # value per component; the scalar impedance filter below can only use a
     # component average. Warn once at setup so the approximation is visible.
