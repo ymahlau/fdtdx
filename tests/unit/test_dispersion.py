@@ -626,14 +626,19 @@ class TestOrientedPoles:
             DrudePole(plasma_frequency=1e15, damping=1e13, orientation=(0.0, 0.0, 0.0))
 
     def test_non_finite_orientation_raises(self):
-        # NaN would slip through the norm check (nan < eps is False); huge
-        # components overflow the norm to inf and normalize to zeros.
+        # NaN would slip through a plain norm check (nan < eps is False)
         with pytest.raises(ValueError, match="finite"):
             DrudePole(plasma_frequency=1e15, damping=1e13, orientation=(float("nan"), 0.0, 0.0))
         with pytest.raises(ValueError, match="finite"):
             DrudePole(plasma_frequency=1e15, damping=1e13, orientation=(float("inf"), 1.0, 0.0))
-        with pytest.raises(ValueError, match="finite"):
-            DrudePole(plasma_frequency=1e15, damping=1e13, orientation=(1e200, 1e200, 0.0))
+
+    def test_huge_orientation_normalizes(self):
+        # finite but overflow-prone components: the scale-first norm must
+        # normalize these instead of rejecting them
+        p = DrudePole(plasma_frequency=1e15, damping=1e13, orientation=(1e200, 1e200, 0.0))
+        assert p.orientation == pytest.approx((2**-0.5, 2**-0.5, 0.0))
+        p = DrudePole(plasma_frequency=1e15, damping=1e13, orientation=(1e-200, 0.0, 0.0))
+        assert p.orientation == pytest.approx((1.0, 0.0, 0.0))
 
     def test_oriented_ccpr_with_edot_raises(self):
         with pytest.raises(NotImplementedError, match="dE/dt"):

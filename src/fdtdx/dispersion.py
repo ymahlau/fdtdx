@@ -258,10 +258,15 @@ class Pole(TreeClass, ABC):
         arr = np.asarray(vec, dtype=np.float64)
         if not np.all(np.isfinite(arr)):
             raise ValueError(f"Pole orientation components must be finite, got {vec!r}.")
-        norm = float(np.linalg.norm(arr))
-        if not np.isfinite(norm) or norm < 1e-12:
-            raise ValueError("Pole orientation must be a non-zero vector with finite norm.")
-        object.__setattr__(self, "orientation", (float(arr[0]) / norm, float(arr[1]) / norm, float(arr[2]) / norm))
+        scale = float(np.max(np.abs(arr)))
+        if scale == 0.0:
+            raise ValueError("Pole orientation must be a non-zero vector.")
+        # scale first so the squared terms cannot overflow for large components
+        scaled = arr / scale
+        norm = float(np.linalg.norm(scaled))
+        object.__setattr__(
+            self, "orientation", (float(scaled[0]) / norm, float(scaled[1]) / norm, float(scaled[2]) / norm)
+        )
         for name in ("omega_0", "gamma", "coupling_sq"):
             if not _is_uniform(getattr(self, f"{name}_axes")):
                 raise ValueError(
