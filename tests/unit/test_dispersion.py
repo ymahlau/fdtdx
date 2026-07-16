@@ -134,14 +134,18 @@ class TestComputePoleCoefficients:
         assert c3[1] > 0
 
     def test_gamma_dt_at_least_two_raises(self):
-        # gamma * dt >= 2 violates the |c2| < 1 root condition.
+        # gamma * dt >= 2 drives c2 to 0 (and positive beyond), so the reversible
+        # (reverse-time) ADE update -- which divides by c2 -- is no longer well
+        # conditioned. This is a reversibility conditioning bound, separate from
+        # the forward unit-circle (Jury) criterion omega_0 * dt < 2; note |c2| < 1
+        # itself holds for every gamma * dt > 0.
         p = LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0)
         with pytest.raises(ValueError, match="gamma"):
             compute_pole_coefficients((p,), dt=2.0 / p.gamma)
 
     def test_omega0_dt_at_least_two_raises(self):
-        # omega_0 * dt >= 2 violates the |c1| < 1 - c2 root condition (roots leave
-        # the unit circle) even when gamma * dt is tiny.
+        # omega_0 * dt >= 2 violates the forward Jury bound |c1| < 1 - c2 (the
+        # recurrence roots leave the unit circle) even when gamma * dt is tiny.
         p = LorentzPole(resonance_frequency=1e15, damping=1e10, delta_epsilon=2.0)
         with pytest.raises(ValueError, match=r"omega_0 \* dt"):
             compute_pole_coefficients((p,), dt=2.0 / p.omega_0)
@@ -151,6 +155,15 @@ class TestComputePoleCoefficients:
         p = LorentzPole(resonance_frequency=1e15, damping=1e10, delta_epsilon=2.0)
         c1, _, _, _ = compute_pole_coefficients((p,), dt=1.9 / p.omega_0)
         assert np.isfinite(c1[0])
+
+    def test_zero_coupling_pole_skips_bounds(self):
+        # A Lorentz pole with delta_epsilon = 0 contributes nothing (coupling_sq =
+        # 0, so c3 = 0 and the polarization stays zero); its unused omega_0 / gamma
+        # must not trip the stability bounds even when both products exceed 2.
+        p = LorentzPole(resonance_frequency=3e17, damping=3e17, delta_epsilon=0.0)
+        c1, c2, c3, c4 = compute_pole_coefficients((p,), dt=1e-17)
+        assert c3[0] == 0.0 and c4[0] == 0.0
+        assert np.isfinite(c1[0]) and np.isfinite(c2[0])
 
 
 class TestMaterialIsDispersive:
@@ -504,6 +517,19 @@ class TestPerAxisCoefficients:
         p = LorentzPole(resonance_frequency=(1e15, 1e15, 3e17), damping=1e13, delta_epsilon=1.0)
         with pytest.raises(ValueError, match=r"omega_0 \* dt.*axis z"):
             compute_pole_coefficients_per_axis((p,), dt=1e-17)
+
+    def test_per_axis_inert_axes_skip_bounds(self):
+        # resonance only on x (delta_epsilon = 0 on y, z).
+        # A large unused omega_0 AND gamma on the inert y/z axes must not raise.
+        p = LorentzPole(
+            resonance_frequency=(1e15, 3e17, 3e17),
+            damping=(1e13, 3e17, 3e17),
+            delta_epsilon=(2.0, 0.0, 0.0),
+        )
+        c1, c2, c3, _ = compute_pole_coefficients_per_axis((p,), dt=1e-17)
+        # Inert axes carry zero coupling; the active x axis is fine (omega_0*dt<2).
+        assert c3[0, 1] == 0.0 and c3[0, 2] == 0.0
+        assert np.all(np.isfinite(c1)) and np.all(np.isfinite(c2))
 
     def test_eps_spectrum_averages_component_axis(self):
         # With a 3-component coefficient axis the spectrum helper must average

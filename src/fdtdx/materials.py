@@ -936,26 +936,57 @@ def _min_dispersive_divisor(mat: Material, dt: float) -> tuple[float, int]:
     return min_div, worst_ax
 
 
-def _max_safe_courant_factor(mat: Material, dt: float, courant_factor: float, threshold: float) -> float:
-    """Largest ``courant_factor`` keeping ``mat``'s implicit divisor ``>= threshold``.
+def _max_safe_courant_factor(
+    mat: Material,
+    dt: float,
+    courant_factor: float,
+    threshold: float,
+    scan_steps: int = 512,
+) -> float:
+    """Largest ``courant_factor`` below which ``mat`` stays stable at every step.
 
-    ``dt`` is proportional to ``courant_factor`` on every grid type, so scaling the
-    time step by ``s`` scales the divisor correction (``~ dt``) by ``s``. As
-    ``s -> 0`` the divisor tends to ``1`` (safe) and at ``s = 1`` it is below the
-    threshold (why we are here), so a simple bisection on ``s`` brackets the
-    crossing. Recomputing ``c4`` at each ``s * dt`` handles the weak
-    ``D = 1 + gamma * dt / 2`` nonlinearity exactly rather than assuming strict
-    linearity.
+    ``dt`` is proportional to ``courant_factor`` on every grid type, so scaling
+    the time step by ``s`` scales directly to a ``courant_factor``. Each pole's
+    ``c4_p(s) = b_p * (s * dt) / (1 + gamma_p * s * dt / 2)`` is individually
+    monotonic in ``s`` (its sign is that of ``b_p``), but the *sum* over poles
+    with mixed ``b_p`` signs and dampings — plus the linearly growing
+    conductivity term — is not necessarily monotonic and may cross ``threshold``
+    several times. To keep it genuinely safe (every value below ``X``
+    stable), we search for the *first* crossing from ``s = 0`` (where the
+    divisor is ``~ 1``): a forward scan brackets it, then bisection refines.
+    Recomputing the divisor at each ``s * dt`` handles the weak
+    ``D = 1 + gamma * dt / 2`` nonlinearity exactly.
     """
-    lo, hi = 0.0, 1.0  # lo: safe scale (divisor -> 1), hi: current (unsafe) scale
-    for _ in range(60):
+    n = max(1, scan_steps)
+    prev = 0.0  # last safe scale (divisor >= threshold); s = 0 gives divisor ~ 1
+    hi = None
+    for k in range(1, n + 1):
+        s = k / n
+        div, _ = _min_dispersive_divisor(mat, s * dt)
+        if div < threshold:
+            hi = s
+            break
+        prev = s
+    if hi is None:
+        # No sub-threshold scan point found. Unreachable via the validator (it
+        # only calls this when the divisor at s = 1 is already below threshold),
+        # but stay conservative if invoked directly.
+        return 0.5 * courant_factor
+    lo = prev  # bracket [lo, hi]: divisor(lo) >= threshold, divisor(hi) < threshold
+    for _ in range(50):
         mid = 0.5 * (lo + hi)
         div, _ = _min_dispersive_divisor(mat, mid * dt)
         if div >= threshold:
             lo = mid
         else:
             hi = mid
-    return lo * courant_factor
+    result = lo * courant_factor
+    if result <= 0.0:
+        return 0.0
+    # Floor to 3 significant figures so the reported "<= X" is never rounded
+    # ABOVE the true first-crossing boundary (nearest-rounding could over-promise).
+    scale = 10.0 ** (math.floor(math.log10(result)) - 2)
+    return math.floor(result / scale) * scale
 
 
 def validate_dispersive_divisor_stability(

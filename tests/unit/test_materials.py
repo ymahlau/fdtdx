@@ -950,6 +950,27 @@ class TestDispersiveDivisorStability:
         dt_safe = self.DT * (cf_max / 0.99)
         assert _min_dispersive_divisor(mat, dt_safe)[0] >= 0.01 - 1e-9
 
+    def test_recommended_courant_factor_is_conservative_for_mixed_sign_poles(self):
+        # The divisor is a sum of individually-monotonic c4 terms with mixed
+        # residue signs, so it need not be monotonic in the time step. The
+        # recommendation must be the FIRST crossing from zero: EVERY scale below
+        # it must be stable, not just the returned point.
+        from fdtdx.dispersion import CCPRPole, DispersionModel
+        from fdtdx.materials import _min_dispersive_divisor, validate_dispersive_divisor_stability
+
+        poles = (
+            CCPRPole(pole=complex(-2e14, -2e15), residue=complex(-1.2e16, 1e15)),  # strong b < 0
+            CCPRPole(pole=complex(-4e15, -8e15), residue=complex(3e15, 5e14)),  # b > 0
+        )
+        mat = Material(permittivity=2.0, dispersion=DispersionModel(poles=poles))
+        with pytest.raises(ValueError) as exc:
+            validate_dispersive_divisor_stability({"m": mat}, dt=self.DT, courant_factor=0.99)
+        cf_max = float(str(exc.value).split("lower courant_factor to <= ")[1].split(" ")[0])
+        s_max = cf_max / 0.99
+        # Conservativeness invariant: divisor >= threshold at every scale up to s_max.
+        scales = [s_max * k / 400 for k in range(1, 401)]
+        assert min(_min_dispersive_divisor(mat, s * self.DT)[0] for s in scales) >= 0.01 - 1e-9
+
     def test_stable_ccpr_material_does_not_raise_or_warn(self):
         import warnings
 
