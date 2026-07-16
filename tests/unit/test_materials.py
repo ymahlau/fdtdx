@@ -1083,6 +1083,11 @@ class TestComplexTensorConstructors:
         with pytest.raises(ValueError, match="singular"):
             Material.from_complex_permittivity(eps, wavelength=self._WL)
 
+    def test_from_complex_permittivity_singular_permeability_raises(self):
+        mu = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0 + 0.5j)
+        with pytest.raises(ValueError, match="permeability tensor is singular"):
+            Material.from_complex_permittivity(4.0, permeability=mu, wavelength=self._WL)
+
     def test_from_complex_permittivity_malformed_nested_raises(self):
         with pytest.raises(ValueError, match="3x3"):
             Material.from_complex_permittivity(((1.0, 0.0), (0.0, 1.0)), wavelength=self._WL)

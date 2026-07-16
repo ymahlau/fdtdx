@@ -892,6 +892,20 @@ def test_oriented_dispersion_reversible_raises(simple_config, simple_volume):
         place_objects([simple_volume, obj], config, [constraint], key)
 
 
+def test_oriented_dispersion_nonuniform_grid_raises():
+    """The symmetrized off-diagonal interface coupling assumes a uniform grid."""
+    from fdtdx.core.grid import RectilinearGrid
+
+    spacings = np.tile([1.0e-7, 1.3e-7], 15)
+    edges = jnp.asarray(np.concatenate([[0.0], np.cumsum(spacings)]))
+    grid = RectilinearGrid(x_edges=edges, y_edges=edges, z_edges=edges)
+    config = SimulationConfig(grid=grid, time=1e-14, backend="cpu")
+    volume = SimulationVolume(name="volume", partial_grid_shape=(30, 30, 30), material=_oriented_lorentz_material())
+    key = jax.random.PRNGKey(0)
+    with pytest.raises(NotImplementedError, match="non-uniform"):
+        place_objects([volume], config, [], key)
+
+
 def test_ccpr_edot_plus_tensor_path_raises(simple_config, simple_volume):
     """A CCPR pole with dE/dt coupling cannot be combined with off-diagonal
     material tensors: the tensor-branch ADE has no implicit c4 solve."""

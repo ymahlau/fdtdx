@@ -255,10 +255,13 @@ class Pole(TreeClass, ABC):
         vec = self.orientation
         if not isinstance(vec, tuple) or len(vec) != 3:
             raise ValueError(f"Pole orientation must be a 3-tuple (x, y, z), got {vec!r}.")
-        norm = float(np.sqrt(float(vec[0]) ** 2 + float(vec[1]) ** 2 + float(vec[2]) ** 2))
-        if norm < 1e-12:
-            raise ValueError("Pole orientation must be a non-zero vector.")
-        object.__setattr__(self, "orientation", (float(vec[0]) / norm, float(vec[1]) / norm, float(vec[2]) / norm))
+        arr = np.asarray(vec, dtype=np.float64)
+        if not np.all(np.isfinite(arr)):
+            raise ValueError(f"Pole orientation components must be finite, got {vec!r}.")
+        norm = float(np.linalg.norm(arr))
+        if not np.isfinite(norm) or norm < 1e-12:
+            raise ValueError("Pole orientation must be a non-zero vector with finite norm.")
+        object.__setattr__(self, "orientation", (float(arr[0]) / norm, float(arr[1]) / norm, float(arr[2]) / norm))
         for name in ("omega_0", "gamma", "coupling_sq"):
             if not _is_uniform(getattr(self, f"{name}_axes")):
                 raise ValueError(
@@ -1135,8 +1138,12 @@ def compute_eps_spectrum_from_coefficients(
     # Reduce inv_eps_inf → scalar eps_inf per spatial cell.
     num_components = inv_eps_np.shape[0]
     if num_components == 9:
-        diag = np.stack([inv_eps_np[0], inv_eps_np[4], inv_eps_np[8]], axis=0)
-        eps_inf_per_cell = np.mean(1.0 / diag, axis=0)
+        # inv_eps_inf stores the inverse tensor and diag(eps) != 1/diag(eps^-1)
+        # when off-diagonal terms exist: invert each cell's 3x3 before averaging.
+        spatial = inv_eps_np.shape[1:]
+        inv_mats = np.moveaxis(inv_eps_np.reshape(3, 3, -1), -1, 0)
+        eps_diag_mean = np.trace(np.linalg.inv(inv_mats), axis1=-2, axis2=-1) / 3.0
+        eps_inf_per_cell = eps_diag_mean.reshape(spatial)
     elif num_components in (1, 3):
         eps_inf_per_cell = np.mean(1.0 / inv_eps_np, axis=0)
     else:

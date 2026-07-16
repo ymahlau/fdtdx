@@ -685,6 +685,11 @@ def _init_arrays(
                 "only the 'checkpointed' gradient method; the fully anisotropic ADE update has no "
                 "closed-form time reversal."
             )
+        if not axis_aligned_dispersion and config.has_nonuniform_grid:
+            raise NotImplementedError(
+                "Oriented poles (off-diagonal dispersive coupling) are not supported on non-uniform "
+                "grids; the symmetrized interface coupling requires matching edge weights."
+            )
     if not axis_aligned_dispersion:
         # Oriented poles: force the 9-component permittivity tier so the fully
         # anisotropic kernel (whose ADE block applies the coupling tensor) runs.

@@ -550,6 +550,23 @@ class TestPerAxisCoefficients:
             expected = eps_inf + sum(chi_axes) / 3.0
             assert eps[i] == pytest.approx(expected, rel=1e-9)
 
+    def test_eps_spectrum_tensor_eps_inf_inverted_properly(self):
+        # inv_eps_inf stores the inverse tensor: with off-diagonal entries,
+        # diag(eps) != 1/diag(eps^-1), so the helper must invert per cell.
+        p = LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0, orientation=(1.0, 1.0, 0.0))
+        dt = 4e-18
+        c1, c2, c3, c4 = compute_pole_coefficients_tensor((p,), dt)
+        c1a, c2a, c3a, c4a = (x[:, :, None] for x in (c1, c2, c3, c4))
+        eps_inf_mat = np.array([[2.5, 0.4, 0.0], [0.4, 2.0, 0.1], [0.0, 0.1, 3.0]])
+        inv_eps = np.linalg.inv(eps_inf_mat).reshape(9, 1)
+        omegas = np.array([0.7e15, 1.3e15])
+        eps = compute_eps_spectrum_from_coefficients(c1a, c2a, c3a, inv_eps, omegas, dt, c4=c4a)
+        m = DispersionModel(poles=(p,))
+        for i, omega in enumerate(omegas):
+            chi = m.susceptibility_tensor(float(omega))
+            expected = np.trace(eps_inf_mat) / 3.0 + np.trace(chi) / 3.0
+            assert eps[i] == pytest.approx(expected, rel=1e-6)
+
 
 class TestAllowedDispersiveCoefficientsPerAxis:
     def test_three_component_output(self):
@@ -607,6 +624,16 @@ class TestOrientedPoles:
     def test_zero_orientation_raises(self):
         with pytest.raises(ValueError, match="non-zero"):
             DrudePole(plasma_frequency=1e15, damping=1e13, orientation=(0.0, 0.0, 0.0))
+
+    def test_non_finite_orientation_raises(self):
+        # NaN would slip through the norm check (nan < eps is False); huge
+        # components overflow the norm to inf and normalize to zeros.
+        with pytest.raises(ValueError, match="finite"):
+            DrudePole(plasma_frequency=1e15, damping=1e13, orientation=(float("nan"), 0.0, 0.0))
+        with pytest.raises(ValueError, match="finite"):
+            DrudePole(plasma_frequency=1e15, damping=1e13, orientation=(float("inf"), 1.0, 0.0))
+        with pytest.raises(ValueError, match="finite"):
+            DrudePole(plasma_frequency=1e15, damping=1e13, orientation=(1e200, 1e200, 0.0))
 
     def test_oriented_ccpr_with_edot_raises(self):
         with pytest.raises(NotImplementedError, match="dE/dt"):
@@ -812,3 +839,19 @@ class TestAllowedCoefficientsCoupling:
         assert np.allclose(c3_full[0, 0, (0, 4, 8)], c3_diag[0, 0])
         off_diag = [i for i in range(9) if i not in (0, 4, 8)]
         assert np.allclose(c3_full[0, 0, off_diag], 0.0)
+
+    def test_per_axis_material_with_scalar_coupling_raises(self):
+        # coupling_components=1 keeps only the xx entry, which would silently
+        # drop the yy/zz couplings of a per-axis pole.
+        mats = {
+            "per_axis": Material(
+                permittivity=1.0,
+                dispersion=DispersionModel(
+                    poles=(LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=(1.0, 2.0, 3.0)),)
+                ),
+            ),
+        }
+        with pytest.raises(ValueError, match="coupling_components=1"):
+            compute_allowed_dispersive_coefficients(
+                mats, dt=1e-17, max_num_poles=1, num_components=3, coupling_components=1
+            )

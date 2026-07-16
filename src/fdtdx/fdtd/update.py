@@ -325,14 +325,8 @@ def update_E(
                         + jnp.roll(arr_pad, (-1, 1), axis=(la, ca))
                     )[:, 1:-1, 1:-1, 1:-1] / 4
 
-                avg_at = {
-                    (0, 1): Ey_x_avg,
-                    (0, 2): Ez_x_avg,
-                    (1, 0): Ex_y_avg,
-                    (1, 2): Ez_y_avg,
-                    (2, 0): Ex_z_avg,
-                    (2, 1): Ey_z_avg,
-                }
+                # Initialization rejects oriented poles on non-uniform grids, so
+                # the uniform 4-point stencil is always valid here.
                 rows = []
                 for i in range(3):
                     row = disp_c3[:, 3 * i + i] * arrays.fields.E[i]
@@ -340,18 +334,13 @@ def update_E(
                         if j == i:
                             continue
                         cij = disp_c3[:, 3 * i + j]
-                        if aniso_widths is None:
-                            pad = ((0, 0), (1, 1), (1, 1), (1, 1))
-                            cij_pad = jnp.pad(cij, pad, mode="edge")
-                            mask_pad = (cij_pad != 0.0).astype(cij.dtype)
-                            row = row + 0.5 * (
-                                cij * _avg_offdiag(mask_pad * E_pad[j], component=j, location=i)
-                                + (cij != 0.0) * _avg_offdiag(cij_pad * E_pad[j], component=j, location=i)
-                            )
-                        else:
-                            # non-uniform grids keep the legacy form for now (the
-                            # weighted symmetrization needs matching edge weights)
-                            row = row + cij * avg_at[(i, j)]
+                        pad = ((0, 0), (1, 1), (1, 1), (1, 1))
+                        cij_pad = jnp.pad(cij, pad, mode="edge")
+                        mask_pad = (cij_pad != 0.0).astype(cij.dtype)
+                        row = row + 0.5 * (
+                            cij * _avg_offdiag(mask_pad * E_pad[j], component=j, location=i)
+                            + (cij != 0.0) * _avg_offdiag(cij_pad * E_pad[j], component=j, location=i)
+                        )
                     rows.append(row)
                 coupling = jnp.stack(rows, axis=1)
             else:

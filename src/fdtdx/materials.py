@@ -472,13 +472,14 @@ class Material(TreeClass):
         omega = _resolve_reference_omega(reference, wavelength, frequency)
         eps_real, sigma_e = _split_complex_property(permittivity, omega, constants.eps0)
         mu_real, sigma_m = _split_complex_property(permeability, omega, constants.mu0)
-        eps_mat = np.array(_normalize_material_property(eps_real), dtype=np.float64).reshape(3, 3)
-        det = float(np.linalg.det(eps_mat))
-        if abs(det) < 1e-9 * max(1.0, float(np.abs(eps_mat).max()) ** 3):
-            raise ValueError(
-                "The real part of the complex permittivity tensor is singular (determinant ~ 0). "
-                "FDTDX stores the inverse permittivity, so the real part must be an invertible 3x3 tensor."
-            )
+        for name, real_part in (("permittivity", eps_real), ("permeability", mu_real)):
+            mat = np.array(_normalize_material_property(real_part), dtype=np.float64).reshape(3, 3)
+            det = float(np.linalg.det(mat))
+            if abs(det) < 1e-9 * max(1.0, float(np.abs(mat).max()) ** 3):
+                raise ValueError(
+                    f"The real part of the complex {name} tensor is singular (determinant ~ 0). "
+                    f"FDTDX stores the inverse {name}, so the real part must be an invertible 3x3 tensor."
+                )
         return cls(
             permittivity=eps_real,
             permeability=mu_real,
@@ -946,6 +947,8 @@ def compute_allowed_dispersive_coefficients(
             continue
         if num_components == 1 and not mat.has_isotropic_dispersion:
             raise ValueError("num_components=1 requires isotropic dispersion, but a material has per-axis poles.")
+        if coupling_components == 1 and not mat.has_isotropic_dispersion:
+            raise ValueError("coupling_components=1 requires isotropic dispersion, but a material has per-axis poles.")
         if coupling_components < 9 and not mat.has_axis_aligned_dispersion:
             raise ValueError(
                 "coupling_components < 9 requires axis-aligned dispersion, but a material has oriented poles."
