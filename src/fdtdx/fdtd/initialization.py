@@ -17,11 +17,13 @@ from fdtdx.dispersion import compute_pole_coefficients_per_axis
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, ParameterContainer
 from fdtdx.fdtd.symmetry import apply_mode_symmetry, make_symmetry_walls, reduce_resolved_slices
 from fdtdx.materials import (
+    Material,
     compute_allowed_dispersive_coefficients,
     compute_allowed_electric_conductivities,
     compute_allowed_magnetic_conductivities,
     compute_allowed_permeabilities,
     compute_allowed_permittivities,
+    validate_dispersive_divisor_stability,
 )
 from fdtdx.objects.boundaries.bloch import BlochBoundary
 from fdtdx.objects.device.parameters.transform import ParameterType
@@ -508,6 +510,34 @@ def apply_params(
     )
 
     return arrays, new_objects, info
+
+
+def _collect_labeled_materials(objects: ObjectContainer) -> dict[str, Material]:
+    """Collect every material in the simulation, labeled for diagnostics.
+
+    Single-material objects (``UniformMaterialObject``) are keyed by the object
+    name; multi-material objects (``Device``, ``StaticMultiMaterialObject``) by
+    ``"<object name>:<material key>"``. Duck-typed on ``material`` / ``materials``
+    to avoid importing every object subclass.
+
+    Args:
+        objects (ObjectContainer): Container with the placed simulation objects.
+
+    Returns:
+        dict[str, Material]: Mapping of label to material.
+    """
+    labeled: dict[str, Material] = {}
+    for o in objects.objects:
+        mat = getattr(o, "material", None)
+        if isinstance(mat, Material):
+            labeled[o.name] = mat
+            continue
+        mats = getattr(o, "materials", None)
+        if isinstance(mats, dict):
+            for key, m in mats.items():
+                if isinstance(m, Material):
+                    labeled[f"{o.name}:{key}"] = m
+    return labeled
 
 
 def _init_arrays(
@@ -1058,6 +1088,19 @@ def _init_arrays(
     dispersive_inv_c2 = None
     if dispersive_c2 is not None:
         dispersive_inv_c2 = jnp.where(dispersive_c2 == 0, 0.0, 1.0 / dispersive_c2)
+
+    # Validate CCPR dispersive stability once, on concrete host values. Only CCPR
+    # (non-zero dE/dt coupling) poles have a non-trivial implicit divisor, so the
+    # gate keeps Lorentz/Drude-only sims free of this cost. The full-tensor path
+    # (which has no ADE block) is already rejected for any dispersive material by
+    # the NotImplementedError guard above, so this only runs on the ADE-active
+    # 1/3-component paths whose divisor is exactly what update_E computes.
+    if objects.has_dispersive_edot:
+        validate_dispersive_divisor_stability(
+            _collect_labeled_materials(objects),
+            dt=config.time_step_duration,
+            courant_factor=config.courant_factor,
+        )
 
     # Save backup of initial inv_permittivities when using etched_devices
     using_etching = any(d.use_etching for d in objects.devices)

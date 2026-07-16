@@ -890,3 +890,127 @@ class TestHasIsotropicDispersion:
 
         disp = DispersionModel(poles=(DrudePole(plasma_frequency=(2e15, 0.0, 0.0), damping=1e13),))
         assert not Material(permittivity=2.25, dispersion=disp).has_isotropic_dispersion
+
+
+class TestDispersiveDivisorStability:
+    """Per-material implicit-update divisor validation for CCPR poles.
+
+    The CCPR polarization couples to E^{n+1} through c4, so update_E divides by
+    ``divisor = 1 + inv_eps * sum(c4) [+ conductivity term]``. A large negative
+    Re(residue) makes c4 negative and can drive the divisor to zero (huge ring-up)
+    or below zero (NaN). dt ~ 1.9e-16 corresponds to a ~1e-7 m grid at
+    courant_factor 0.99.
+    """
+
+    DT = 1.9e-16
+
+    @staticmethod
+    def _ccpr_material(re_residue, eps_inf=2.0, electric_conductivity=0.0):
+        from fdtdx.dispersion import CCPRPole, DispersionModel
+
+        pole = CCPRPole(pole=complex(-1e13, -2e15), residue=complex(re_residue, 1e15))
+        return Material(
+            permittivity=eps_inf,
+            electric_conductivity=electric_conductivity,
+            dispersion=DispersionModel(poles=(pole,)),
+        )
+
+    def test_non_positive_divisor_raises_with_name_and_courant_hint(self):
+        from fdtdx.materials import validate_dispersive_divisor_stability
+
+        mat = self._ccpr_material(-6e15)  # drives the divisor below zero
+        with pytest.raises(ValueError, match="gold") as exc:
+            validate_dispersive_divisor_stability({"gold": mat}, dt=self.DT, courant_factor=0.99)
+        msg = str(exc.value)
+        assert "non-positive" in msg
+        assert "courant_factor" in msg
+
+    def test_near_zero_divisor_warns(self):
+        from fdtdx.materials import validate_dispersive_divisor_stability
+
+        # A mildly-negative residue keeps the divisor positive but small; a wide
+        # explicit threshold makes the warn band robust (default 0.01 is narrow).
+        mat = self._ccpr_material(-4e15)
+        with pytest.warns(UserWarning, match="courant_factor"):
+            validate_dispersive_divisor_stability(
+                {"gold": mat}, dt=self.DT, courant_factor=0.99, near_zero_threshold=0.5
+            )
+
+    def test_recommended_courant_factor_is_below_current_and_stabilizes(self):
+        from fdtdx.materials import _min_dispersive_divisor, validate_dispersive_divisor_stability
+
+        mat = self._ccpr_material(-6e15)
+        with pytest.raises(ValueError) as exc:
+            validate_dispersive_divisor_stability({"gold": mat}, dt=self.DT, courant_factor=0.99)
+        # Parse the recommended courant_factor out of the message.
+        msg = str(exc.value)
+        cf_max = float(msg.split("lower courant_factor to <= ")[1].split(" ")[0])
+        assert 0.0 < cf_max < 0.99
+        # dt scales with courant_factor: at the recommended cf the divisor recovers.
+        dt_safe = self.DT * (cf_max / 0.99)
+        assert _min_dispersive_divisor(mat, dt_safe)[0] >= 0.01 - 1e-9
+
+    def test_recommended_courant_factor_is_conservative_for_mixed_sign_poles(self):
+        # The divisor is a sum of individually-monotonic c4 terms with mixed
+        # residue signs, so it need not be monotonic in the time step. The
+        # recommendation must be the FIRST crossing from zero: EVERY scale below
+        # it must be stable, not just the returned point.
+        from fdtdx.dispersion import CCPRPole, DispersionModel
+        from fdtdx.materials import _min_dispersive_divisor, validate_dispersive_divisor_stability
+
+        poles = (
+            CCPRPole(pole=complex(-2e14, -2e15), residue=complex(-1.2e16, 1e15)),  # strong b < 0
+            CCPRPole(pole=complex(-4e15, -8e15), residue=complex(3e15, 5e14)),  # b > 0
+        )
+        mat = Material(permittivity=2.0, dispersion=DispersionModel(poles=poles))
+        with pytest.raises(ValueError) as exc:
+            validate_dispersive_divisor_stability({"m": mat}, dt=self.DT, courant_factor=0.99)
+        cf_max = float(str(exc.value).split("lower courant_factor to <= ")[1].split(" ")[0])
+        s_max = cf_max / 0.99
+        # Conservativeness invariant: divisor >= threshold at every scale up to s_max.
+        scales = [s_max * k / 400 for k in range(1, 401)]
+        assert min(_min_dispersive_divisor(mat, s * self.DT)[0] for s in scales) >= 0.01 - 1e-9
+
+    def test_stable_ccpr_material_does_not_raise_or_warn(self):
+        import warnings
+
+        from fdtdx.materials import validate_dispersive_divisor_stability
+
+        mat = self._ccpr_material(-2e15)  # divisor ~ 0.6, comfortably positive
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            validate_dispersive_divisor_stability({"safe": mat}, dt=self.DT, courant_factor=0.99)
+
+    def test_lorentz_and_drude_are_skipped(self):
+        import warnings
+
+        from fdtdx.dispersion import DispersionModel, DrudePole, LorentzPole
+        from fdtdx.materials import validate_dispersive_divisor_stability
+
+        lorentz = Material(
+            permittivity=2.0,
+            dispersion=DispersionModel(poles=(LorentzPole(resonance_frequency=2e15, damping=1e13, delta_epsilon=1.5),)),
+        )
+        drude = Material(
+            permittivity=1.0,
+            dispersion=DispersionModel(poles=(DrudePole(plasma_frequency=1.37e16, damping=1e14),)),
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            validate_dispersive_divisor_stability({"lorentz": lorentz, "drude": drude}, dt=self.DT, courant_factor=0.99)
+
+    def test_per_axis_instability_names_axis(self):
+        from fdtdx.materials import validate_dispersive_divisor_stability
+
+        # Anisotropic eps_inf: only the low-permittivity x axis destabilizes.
+        mat = self._ccpr_material(-6e15, eps_inf=(2.0, 8.0, 8.0))
+        with pytest.raises(ValueError, match="axis x"):
+            validate_dispersive_divisor_stability({"aniso": mat}, dt=self.DT, courant_factor=0.99)
+
+    def test_conductivity_term_relaxes_the_bound(self):
+        from fdtdx.materials import _min_dispersive_divisor
+
+        # The conductivity term is >= 0, so adding loss increases the divisor.
+        lossless = self._ccpr_material(-6e15, electric_conductivity=0.0)
+        lossy = self._ccpr_material(-6e15, electric_conductivity=5e5)
+        assert _min_dispersive_divisor(lossy, self.DT)[0] > _min_dispersive_divisor(lossless, self.DT)[0]

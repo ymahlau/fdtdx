@@ -44,10 +44,38 @@ step ``dt``:
     c_2 = -\\frac{1 - \\gamma \\Delta t / 2}{1 + \\gamma \\Delta t / 2}, \\quad
     c_3 = \\frac{K \\Delta t^2}{1 + \\gamma \\Delta t / 2}
 
-Stability requires :math:`\\gamma \\Delta t < 2`; in the physical regime
-of interest :math:`\\gamma \\Delta t \\ll 1`, so :math:`c_2 \\approx -1`,
-which makes the backward (reverse-time) recurrence numerically stable
-after algebraic inversion.
+Two *independent* conditions constrain the coefficients; both are enforced in
+:func:`compute_pole_coefficients_per_axis` (only on axes where the pole
+actually couples, since a zero-coupling axis keeps its polarization
+identically zero):
+
+* **Forward unit-circle (Jury) stability.** The roots of
+  :math:`z^2 - c_1 z - c_2 = 0` lie inside the unit circle iff
+  :math:`|c_2| < 1` *and* :math:`|c_1| < 1 - c_2`. The first holds for every
+  :math:`\\gamma \\Delta t > 0` (:math:`c_2 = 0` at :math:`\\gamma \\Delta t = 2`
+  and :math:`|c_2| \\to 1` only as :math:`\\gamma \\Delta t \\to 0` or
+  :math:`\\infty`), so it is not the binding constraint. The second is
+  algebraically equivalent to :math:`\\omega_0 \\Delta t < 2` (independent of
+  :math:`\\gamma`), which is therefore the forward-stability bound.
+* **Reverse-update conditioning.** The backward (reverse-time) recurrence is
+  formed by dividing through by :math:`c_2`, so :math:`c_2` must stay bounded
+  away from zero. This is a *separate* requirement, :math:`\\gamma \\Delta t < 2`
+  (:math:`c_2 = 0` exactly at :math:`\\gamma \\Delta t = 2`); in the physical
+  regime :math:`\\gamma \\Delta t \\ll 1` so :math:`c_2 \\approx -1` and the
+  inversion is well conditioned. It is a conditioning bound for reversibility,
+  not a forward unit-circle criterion.
+
+For CCPR poles the polarization couples to :math:`E^{n+1}` through
+:math:`c_4`, so the E-field update divides by a per-cell implicit factor
+:math:`1 + \\varepsilon_\\infty^{-1} \\sum_p c_{4,p}\\ (+\\ c\\,\\sigma\\,\\eta_0\\,\\varepsilon_\\infty^{-1} / 2)`.
+This must stay positive in every cell; as it approaches :math:`0^+` the
+transient gain (:math:`\\approx 1/\\text{divisor}`) explodes and accuracy
+collapses. Since :math:`c_4 \\propto \\Delta t \\propto` ``courant_factor``,
+the divisor can be kept safe by lowering ``courant_factor``. This per-cell
+condition is checked at initialization by
+:func:`fdtdx.materials.validate_dispersive_divisor_stability` (Lorentz and
+Drude poles have :math:`c_4 = 0`, so their divisor is always
+:math:`\\geq 1`).
 
 Anisotropic (per-axis) dispersion
 ---------------------------------
@@ -545,12 +573,26 @@ def compute_pole_coefficients_per_axis(
         coupling_edot = p.coupling_edot_axes
         for ax in range(3):
             gamma_dt = gamma[ax] * dt
-            if gamma_dt >= 2.0:
+            omega0_dt = omega_0[ax] * dt
+            # The stability bounds only bind on axes where the pole actually
+            # couples. A zero-coupling axis (e.g. a Lorentz pole with
+            # delta_epsilon = 0 there, the documented way to express an absent
+            # resonance) has c3 = c4 = 0, so its polarization stays identically
+            # zero and its unused omega_0 / gamma are irrelevant.
+            axis_active = coupling_sq[ax] != 0.0 or coupling_edot[ax] != 0.0
+            if axis_active and gamma_dt >= 2.0:
                 axis_note = "" if p.is_isotropic else f" on axis {'xyz'[ax]}"
                 raise ValueError(
                     f"Pole {i} ({type(p).__name__}) has gamma * dt = {gamma_dt:.4g} >= 2{axis_note}; "
                     "the reversible ADE update requires gamma * dt < 2 (physically gamma * dt << 1). "
                     "Lower the damping or reduce the time step."
+                )
+            if axis_active and omega0_dt >= 2.0:
+                axis_note = "" if p.is_isotropic else f" on axis {'xyz'[ax]}"
+                raise ValueError(
+                    f"Pole {i} ({type(p).__name__}) has omega_0 * dt = {omega0_dt:.4g} >= 2{axis_note}; "
+                    "the ADE recurrence roots leave the unit circle (requires omega_0 * dt < 2, "
+                    "physically omega_0 * dt << 1). Lower the resonance frequency or reduce the time step."
                 )
             denom = 1.0 + 0.5 * gamma_dt
             c1[i, ax] = (2.0 - (omega_0[ax] ** 2) * (dt**2)) / denom
