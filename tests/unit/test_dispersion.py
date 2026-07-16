@@ -133,6 +133,25 @@ class TestComputePoleCoefficients:
         # c3 for Drude should be non-zero because coupling_sq = omega_p**2
         assert c3[1] > 0
 
+    def test_gamma_dt_at_least_two_raises(self):
+        # gamma * dt >= 2 violates the |c2| < 1 root condition.
+        p = LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0)
+        with pytest.raises(ValueError, match="gamma"):
+            compute_pole_coefficients((p,), dt=2.0 / p.gamma)
+
+    def test_omega0_dt_at_least_two_raises(self):
+        # omega_0 * dt >= 2 violates the |c1| < 1 - c2 root condition (roots leave
+        # the unit circle) even when gamma * dt is tiny.
+        p = LorentzPole(resonance_frequency=1e15, damping=1e10, delta_epsilon=2.0)
+        with pytest.raises(ValueError, match=r"omega_0 \* dt"):
+            compute_pole_coefficients((p,), dt=2.0 / p.omega_0)
+
+    def test_omega0_dt_just_below_two_is_ok(self):
+        # Just under the bound must not raise.
+        p = LorentzPole(resonance_frequency=1e15, damping=1e10, delta_epsilon=2.0)
+        c1, _, _, _ = compute_pole_coefficients((p,), dt=1.9 / p.omega_0)
+        assert np.isfinite(c1[0])
+
 
 class TestMaterialIsDispersive:
     def test_material_is_not_dispersive_by_default(self):
@@ -478,6 +497,12 @@ class TestPerAxisCoefficients:
         # gamma * dt >= 2 only on the y axis must raise and identify the axis.
         p = LorentzPole(resonance_frequency=1e15, damping=(1e13, 3e17, 1e13), delta_epsilon=1.0)
         with pytest.raises(ValueError, match="axis y"):
+            compute_pole_coefficients_per_axis((p,), dt=1e-17)
+
+    def test_per_axis_omega0_stability_check_names_axis(self):
+        # omega_0 * dt >= 2 only on the z axis must raise and identify the axis.
+        p = LorentzPole(resonance_frequency=(1e15, 1e15, 3e17), damping=1e13, delta_epsilon=1.0)
+        with pytest.raises(ValueError, match=r"omega_0 \* dt.*axis z"):
             compute_pole_coefficients_per_axis((p,), dt=1e-17)
 
     def test_eps_spectrum_averages_component_axis(self):

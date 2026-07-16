@@ -897,6 +897,124 @@ def compute_allowed_dispersive_coefficients(
     return c1, c2, c3, c4
 
 
+def _min_dispersive_divisor(mat: Material, dt: float) -> tuple[float, int]:
+    r"""Minimum per-cell implicit-update divisor for a dispersive material.
+
+    Mirrors the ``divisor`` computed in :func:`fdtdx.fdtd.update.update_E` for a
+    cell fully occupied by ``mat``:
+
+    .. math::
+        \text{divisor}_a = 1 + \varepsilon_{\infty,a}^{-1} \sum_p c_{4,p,a}
+        + \tfrac{1}{2}\, \sigma_a\, c_0\, \Delta t\, \eta_0\, \varepsilon_{\infty,a}^{-1}
+
+    per axis ``a``. The ``courant_number`` that scales both the conductivity term
+    and the (resolution-scaled) conductivity array cancels, so the divisor depends
+    only on ``dt``, the diagonal ``eps_inf``, the physical conductivity, and the
+    pole ``c4`` coefficients. The conductivity term is always ``>= 0``, so the
+    binding constraint is ``1 + inv_eps * sum(c4)``.
+
+    Args:
+        mat: A dispersive material (``mat.dispersion`` must not be ``None``).
+        dt: Simulation time step (seconds).
+
+    Returns:
+        tuple: ``(min_divisor, worst_axis)`` — the smallest divisor over the three
+        grid axes and the axis index at which it occurs.
+    """
+    assert mat.dispersion is not None
+    _, _, _, c4 = compute_pole_coefficients_per_axis(mat.dispersion.poles, dt)
+    sum_c4 = c4.sum(axis=0)  # (3,) sum over poles, per axis
+    eps_inf = (mat.permittivity[0], mat.permittivity[4], mat.permittivity[8])
+    sigma = (mat.electric_conductivity[0], mat.electric_conductivity[4], mat.electric_conductivity[8])
+    min_div, worst_ax = math.inf, 0
+    for ax in range(3):
+        inv_eps = 1.0 / eps_inf[ax]
+        cond = 0.5 * sigma[ax] * constants.c * dt * constants.eta0 * inv_eps  # >= 0
+        div = 1.0 + inv_eps * float(sum_c4[ax]) + cond
+        if div < min_div:
+            min_div, worst_ax = div, ax
+    return min_div, worst_ax
+
+
+def _max_safe_courant_factor(mat: Material, dt: float, courant_factor: float, threshold: float) -> float:
+    """Largest ``courant_factor`` keeping ``mat``'s implicit divisor ``>= threshold``.
+
+    ``dt`` is proportional to ``courant_factor`` on every grid type, so scaling the
+    time step by ``s`` scales the divisor correction (``~ dt``) by ``s``. As
+    ``s -> 0`` the divisor tends to ``1`` (safe) and at ``s = 1`` it is below the
+    threshold (why we are here), so a simple bisection on ``s`` brackets the
+    crossing. Recomputing ``c4`` at each ``s * dt`` handles the weak
+    ``D = 1 + gamma * dt / 2`` nonlinearity exactly rather than assuming strict
+    linearity.
+    """
+    lo, hi = 0.0, 1.0  # lo: safe scale (divisor -> 1), hi: current (unsafe) scale
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        div, _ = _min_dispersive_divisor(mat, mid * dt)
+        if div >= threshold:
+            lo = mid
+        else:
+            hi = mid
+    return lo * courant_factor
+
+
+def validate_dispersive_divisor_stability(
+    materials: dict[str, Material],
+    dt: float,
+    courant_factor: float,
+    near_zero_threshold: float = 0.01,
+) -> None:
+    r"""Validate the per-cell implicit-update divisor of CCPR dispersive materials.
+
+    For CCPR poles (non-zero ``dE/dt`` coupling) the E-field update divides by a
+    per-cell factor ``1 + inv_eps * sum(c4) [+ conductivity term]`` (see
+    :func:`fdtdx.fdtd.update.update_E`). This must stay positive; as it approaches
+    ``0^+`` the transient gain (``~ 1/divisor``) explodes and accuracy collapses.
+    Lorentz and Drude poles have ``c4 = 0``, so their divisor is always ``>= 1``
+    and they are skipped.
+
+    Checked per distinct material rather than per assembled cell: a cell holds one
+    material's coefficients, so this covers every static cell, names the offending
+    material, and — because a CONTINUOUS device's interpolated divisor
+    ``1 + sum(c4)(t) / eps(t)`` is a monotonic (Moebius) function of the mix ``t``
+    — the bracketing materials bound the device-interpolated cells too.
+
+    Args:
+        materials: Mapping of label -> :class:`Material` for every material in the
+            simulation. Labels appear verbatim in the error/warning messages.
+        dt: Simulation time step (seconds).
+        courant_factor: The configured ``courant_factor`` (for the remediation hint).
+        near_zero_threshold: Warn when ``0 < divisor < near_zero_threshold``; raise
+            when ``divisor <= 0``.
+
+    Raises:
+        ValueError: If any material's divisor is non-positive (unconditionally
+            unstable / NaN).
+    """
+    for name, mat in materials.items():
+        if mat.dispersion is None:
+            continue
+        # c4 != 0 only for CCPR / non-zero dE/dt coupling; Lorentz & Drude are safe.
+        if not any(b != 0.0 for p in mat.dispersion.poles for b in p.coupling_edot_axes):
+            continue
+        min_div, worst_ax = _min_dispersive_divisor(mat, dt)
+        if min_div >= near_zero_threshold:
+            continue
+        cf_max = _max_safe_courant_factor(mat, dt, courant_factor, near_zero_threshold)
+        axis_note = f" on axis {'xyz'[worst_ax]}" if not (mat.is_all_isotropic and mat.dispersion.is_isotropic) else ""
+        detail = (
+            f"Dispersive material '{name}' has an implicit E-update divisor = {min_div:.4g}{axis_note} "
+            "(1 + inv_eps * sum(c4) [+ conductivity term]); this factor divides the E-field update, so as "
+            "it approaches 0 the transient gain (~1/divisor) explodes and accuracy collapses. The divisor "
+            f"scales with the time step, so lower courant_factor to <= {cf_max:.3g} (currently {courant_factor:.3g})."
+        )
+        if min_div <= 0.0:
+            raise ValueError(
+                detail + " The divisor is non-positive, which makes the ADE update unconditionally unstable (NaN)."
+            )
+        warnings.warn(detail, UserWarning, stacklevel=2)
+
+
 def compute_ordered_names(
     materials: dict[str, Material],
 ) -> list[str]:

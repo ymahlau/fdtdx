@@ -11,7 +11,7 @@ import pytest
 
 from fdtdx.config import SimulationConfig
 from fdtdx.constants import c as c0
-from fdtdx.dispersion import DispersionModel, DrudePole, LorentzPole, compute_pole_coefficients
+from fdtdx.dispersion import CCPRPole, DispersionModel, DrudePole, LorentzPole, compute_pole_coefficients
 from fdtdx.fdtd.initialization import apply_params, place_objects
 from fdtdx.materials import Material
 from fdtdx.objects.device.device import Device
@@ -403,6 +403,65 @@ def test_fully_anisotropic_plus_dispersive_raises(simple_config, simple_volume):
     key = jax.random.PRNGKey(0)
     with pytest.raises(NotImplementedError, match="fully anisotropic"):
         place_objects([simple_volume, obj1, obj2], simple_config, constraints, key)
+
+
+def _unstable_ccpr_material(eps_inf=2.0):
+    """CCPR material whose implicit-update divisor goes non-positive at the
+    ``simple_config`` time step (~1.9e-16 s), i.e. large negative Re(residue)."""
+    pole = CCPRPole(pole=complex(-1e13, -2e15), residue=complex(-6e15, 1e15))
+    return Material(permittivity=eps_inf, dispersion=DispersionModel(poles=(pole,)))
+
+
+def test_unstable_ccpr_material_raises_at_placement(simple_config, simple_volume):
+    """A CCPR material with a non-positive implicit divisor must be rejected by
+    place_objects (via _init_arrays -> validate_dispersive_divisor_stability)."""
+    obj = UniformMaterialObject(name="gold", partial_grid_shape=(10, 10, 10), material=_unstable_ccpr_material())
+    constraint = GridCoordinateConstraint(
+        object="gold", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+    key = jax.random.PRNGKey(0)
+    with pytest.raises(ValueError, match="gold"):
+        place_objects([simple_volume, obj], simple_config, [constraint], key)
+
+
+def test_lowering_courant_factor_stabilizes_ccpr(simple_config, simple_volume):
+    """The remediation actually works: the same material places cleanly once the
+    courant_factor is lowered below the value reported in the error message."""
+    obj = UniformMaterialObject(name="gold", partial_grid_shape=(10, 10, 10), material=_unstable_ccpr_material())
+    constraint = GridCoordinateConstraint(
+        object="gold", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+    key = jax.random.PRNGKey(0)
+    with pytest.raises(ValueError) as exc:
+        place_objects([simple_volume, obj], simple_config, [constraint], key)
+    cf_max = float(str(exc.value).split("lower courant_factor to <= ")[1].split(" ")[0])
+    safe_config = simple_config.aset("courant_factor", 0.9 * cf_max)
+    # Must not raise now.
+    place_objects([simple_volume, obj], safe_config, [constraint], key)
+
+
+def test_stable_ccpr_material_places_cleanly(simple_config, simple_volume):
+    """A CCPR material with a comfortably positive divisor places without error."""
+    pole = CCPRPole(pole=complex(-1e13, -2e15), residue=complex(-2e15, 1e15))
+    mat = Material(permittivity=2.0, dispersion=DispersionModel(poles=(pole,)))
+    obj = UniformMaterialObject(name="metal", partial_grid_shape=(10, 10, 10), material=mat)
+    constraint = GridCoordinateConstraint(
+        object="metal", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+    key = jax.random.PRNGKey(0)
+    _, arrays, _, _, _ = place_objects([simple_volume, obj], simple_config, [constraint], key)
+    assert arrays.dispersive_c4 is not None
+
+
+def test_lorentz_material_unaffected_by_ccpr_validation(simple_config, simple_volume):
+    """A Lorentz-only sim (c4 = 0) is not subject to the divisor validation and
+    places cleanly even at the default courant_factor."""
+    obj = UniformMaterialObject(name="slab", partial_grid_shape=(10, 10, 10), material=_lorentz_material(eps_inf=2.0))
+    constraint = GridCoordinateConstraint(
+        object="slab", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+    key = jax.random.PRNGKey(0)
+    place_objects([simple_volume, obj], simple_config, [constraint], key)
 
 
 def test_non_dispersive_unused_import_guard():

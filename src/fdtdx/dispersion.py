@@ -44,10 +44,26 @@ step ``dt``:
     c_2 = -\\frac{1 - \\gamma \\Delta t / 2}{1 + \\gamma \\Delta t / 2}, \\quad
     c_3 = \\frac{K \\Delta t^2}{1 + \\gamma \\Delta t / 2}
 
-Stability requires :math:`\\gamma \\Delta t < 2`; in the physical regime
-of interest :math:`\\gamma \\Delta t \\ll 1`, so :math:`c_2 \\approx -1`,
-which makes the backward (reverse-time) recurrence numerically stable
-after algebraic inversion.
+Stability of the polarization recurrence requires both roots of
+:math:`z^2 - c_1 z - c_2 = 0` to lie inside the unit circle, which (via the
+Jury conditions) reduces to the two per-pole bounds
+:math:`\\gamma \\Delta t < 2` and :math:`\\omega_0 \\Delta t < 2`. In the
+physical regime of interest both products are :math:`\\ll 1`, so
+:math:`c_2 \\approx -1`, which makes the backward (reverse-time) recurrence
+numerically stable after algebraic inversion. Both bounds are enforced in
+:func:`compute_pole_coefficients_per_axis`.
+
+For CCPR poles the polarization couples to :math:`E^{n+1}` through
+:math:`c_4`, so the E-field update divides by a per-cell implicit factor
+:math:`1 + \\varepsilon_\\infty^{-1} \\sum_p c_{4,p}\\ (+\\ c\\,\\sigma\\,\\eta_0\\,\\varepsilon_\\infty^{-1} / 2)`.
+This must stay positive in every cell; as it approaches :math:`0^+` the
+transient gain (:math:`\\approx 1/\\text{divisor}`) explodes and accuracy
+collapses. Since :math:`c_4 \\propto \\Delta t \\propto` ``courant_factor``,
+the divisor can be kept safe by lowering ``courant_factor``. This per-cell
+condition is checked at initialization by
+:func:`fdtdx.materials.validate_dispersive_divisor_stability` (Lorentz and
+Drude poles have :math:`c_4 = 0`, so their divisor is always
+:math:`\\geq 1`).
 
 Anisotropic (per-axis) dispersion
 ---------------------------------
@@ -551,6 +567,14 @@ def compute_pole_coefficients_per_axis(
                     f"Pole {i} ({type(p).__name__}) has gamma * dt = {gamma_dt:.4g} >= 2{axis_note}; "
                     "the reversible ADE update requires gamma * dt < 2 (physically gamma * dt << 1). "
                     "Lower the damping or reduce the time step."
+                )
+            omega0_dt = omega_0[ax] * dt
+            if omega0_dt >= 2.0:
+                axis_note = "" if p.is_isotropic else f" on axis {'xyz'[ax]}"
+                raise ValueError(
+                    f"Pole {i} ({type(p).__name__}) has omega_0 * dt = {omega0_dt:.4g} >= 2{axis_note}; "
+                    "the ADE recurrence roots leave the unit circle (requires omega_0 * dt < 2, "
+                    "physically omega_0 * dt << 1). Lower the resonance frequency or reduce the time step."
                 )
             denom = 1.0 + 0.5 * gamma_dt
             c1[i, ax] = (2.0 - (omega_0[ax] ** 2) * (dt**2)) / denom
