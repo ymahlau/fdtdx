@@ -996,8 +996,10 @@ def _min_dispersive_divisor(mat: Material, dt: float) -> tuple[float, int]:
         grid axes and the axis index at which it occurs.
     """
     assert mat.dispersion is not None
-    _, _, _, c4 = compute_pole_coefficients_per_axis(mat.dispersion.poles, dt)
-    sum_c4 = c4.sum(axis=0)  # (3,) sum over poles, per axis
+    # tensor variant handles every pole type; oriented poles have no dE/dt
+    # coupling, so their diagonal c4 entries are zero and drop out here
+    _, _, _, c4 = compute_pole_coefficients_tensor(mat.dispersion.poles, dt)
+    sum_c4 = c4[:, (0, 4, 8)].sum(axis=0)  # (3,) diagonal c4 summed over poles, per axis
     eps_inf = (mat.permittivity[0], mat.permittivity[4], mat.permittivity[8])
     sigma = (mat.electric_conductivity[0], mat.electric_conductivity[4], mat.electric_conductivity[8])
     min_div, worst_ax = math.inf, 0

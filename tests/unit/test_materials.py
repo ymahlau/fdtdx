@@ -1015,6 +1015,23 @@ class TestDispersiveDivisorStability:
         lossy = self._ccpr_material(-6e15, electric_conductivity=5e5)
         assert _min_dispersive_divisor(lossy, self.DT)[0] > _min_dispersive_divisor(lossless, self.DT)[0]
 
+    def test_oriented_pole_alongside_ccpr_is_handled(self):
+        import warnings
+
+        from fdtdx.dispersion import CCPRPole, DispersionModel, LorentzPole
+        from fdtdx.materials import validate_dispersive_divisor_stability
+
+        # An oriented pole has no dE/dt coupling and must not trip the
+        # per-axis-only coefficient path when a CCPR pole sits next to it.
+        poles = (
+            LorentzPole(resonance_frequency=2e15, damping=1e13, delta_epsilon=1.5, orientation=(1.0, 1.0, 0.0)),
+            CCPRPole(pole=complex(-1e13, -2e15), residue=complex(-2e15, 1e15)),
+        )
+        mat = Material(permittivity=2.0, dispersion=DispersionModel(poles=poles))
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            validate_dispersive_divisor_stability({"mixed": mat}, dt=self.DT, courant_factor=0.99)
+
 
 class TestComplexTensorConstructors:
     """Complex full-tensor (9-component / nested 3x3) permittivity constructors."""
