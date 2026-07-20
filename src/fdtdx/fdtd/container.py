@@ -27,6 +27,8 @@ from fdtdx.objects.static_material.static import StaticMultiMaterialObject, Unif
 # Type alias for parameter dictionaries containing JAX arrays
 ParameterContainer = dict[str, dict[str, jax.Array] | jax.Array]
 
+_ObjT = TypeVar("_ObjT", bound=SimulationObject)
+
 
 @autoinit
 class ObjectContainer(TreeClass):
@@ -42,8 +44,6 @@ class ObjectContainer(TreeClass):
 
     #: Index of the volume object in the object list.
     volume_idx: int = frozen_field()
-
-    _ObjT = TypeVar("_ObjT", bound=SimulationObject)
 
     def filter_objects(
         self,
