@@ -5,7 +5,7 @@ and array data within FDTD simulations. It includes support for different object
 like sources, detectors, PML boundaries, Bloch/periodic boundaries, and devices.
 """
 
-from typing import Callable, Self
+from typing import Callable, Iterator, Self, TypeVar
 
 import jax
 import jax.numpy as jnp
@@ -27,6 +27,8 @@ from fdtdx.objects.static_material.static import StaticMultiMaterialObject, Unif
 # Type alias for parameter dictionaries containing JAX arrays
 ParameterContainer = dict[str, dict[str, jax.Array] | jax.Array]
 
+_ObjT = TypeVar("_ObjT", bound=SimulationObject)
+
 
 @autoinit
 class ObjectContainer(TreeClass):
@@ -43,6 +45,17 @@ class ObjectContainer(TreeClass):
     #: Index of the volume object in the object list.
     volume_idx: int = frozen_field()
 
+    def filter_objects(
+        self,
+        object_type: type[_ObjT] | tuple[type[_ObjT], ...],
+        predicate: Callable[[_ObjT], bool] | None = None,
+    ) -> list[_ObjT]:
+        """Refactor filtering functions of object lists using proper filtering."""
+        result = [o for o in self.object_list if isinstance(o, object_type)]
+        if predicate is not None:
+            result = [o for o in result if predicate(o)]
+        return result
+
     @property
     def volume(self) -> SimulationObject:
         return self.object_list[self.volume_idx]
@@ -53,51 +66,51 @@ class ObjectContainer(TreeClass):
 
     @property
     def static_material_objects(self) -> list[UniformMaterialObject | StaticMultiMaterialObject]:
-        return [o for o in self.objects if isinstance(o, (UniformMaterialObject, StaticMultiMaterialObject))]
+        return self.filter_objects((UniformMaterialObject, StaticMultiMaterialObject))
 
     @property
     def sources(self) -> list[Source]:
-        return [o for o in self.objects if isinstance(o, Source)]
+        return self.filter_objects(Source)
 
     @property
     def devices(self) -> list[Device]:
-        return [o for o in self.objects if isinstance(o, Device)]
+        return self.filter_objects(Device)
 
     @property
     def detectors(self) -> list[Detector]:
-        return [o for o in self.objects if isinstance(o, Detector)]
+        return self.filter_objects(Detector)
 
     @property
     def forward_detectors(self) -> list[Detector]:
-        return [o for o in self.detectors if not o.inverse]
+        return self.filter_objects(Detector, predicate=lambda o: not o.inverse)
 
     @property
     def backward_detectors(self) -> list[Detector]:
-        return [o for o in self.detectors if o.inverse]
+        return self.filter_objects(Detector, predicate=lambda o: o.inverse)
 
     @property
     def pml_objects(self) -> list[PerfectlyMatchedLayer]:
-        return [o for o in self.objects if isinstance(o, PerfectlyMatchedLayer)]
+        return self.filter_objects(PerfectlyMatchedLayer)
 
     @property
     def periodic_objects(self) -> list[BlochBoundary]:
-        return [o for o in self.objects if isinstance(o, BlochBoundary) and not o.needs_complex_fields]
+        return self.filter_objects(BlochBoundary, predicate=lambda o: not o.needs_complex_fields)
 
     @property
     def pec_objects(self) -> list[PerfectElectricConductor]:
-        return [o for o in self.objects if isinstance(o, PerfectElectricConductor)]
+        return self.filter_objects(PerfectElectricConductor)
 
     @property
     def pmc_objects(self) -> list[PerfectMagneticConductor]:
-        return [o for o in self.objects if isinstance(o, PerfectMagneticConductor)]
+        return self.filter_objects(PerfectMagneticConductor)
 
     @property
     def bloch_objects(self) -> list[BlochBoundary]:
-        return [o for o in self.objects if isinstance(o, BlochBoundary)]
+        return self.filter_objects(BlochBoundary)
 
     @property
     def boundary_objects(self) -> list[BaseBoundary]:
-        return [o for o in self.objects if isinstance(o, BaseBoundary)]
+        return self.filter_objects(BaseBoundary)
 
     @property
     def any_object_subpixel_smoothing(self) -> bool:
@@ -207,6 +220,22 @@ class ObjectContainer(TreeClass):
 
         return self._is_material_fn_true_for_all(_fn)
 
+    @staticmethod
+    def _as_materials(m: "Material | dict[str, Material]") -> Iterator[Material]:
+        if isinstance(m, Material):
+            yield m
+        elif isinstance(m, dict):
+            yield from m.values()
+
+    def _iter_materials(self) -> Iterator[Material]:
+        for o in self.static_material_objects:  # UniformMaterialObject | StaticMultiMaterialObject
+            if isinstance(o, UniformMaterialObject):
+                yield o.material
+            else:
+                yield from self._as_materials(o.materials)
+        for o in self.devices:
+            yield from self._as_materials(o.materials)
+
     @property
     def all_objects_isotropic_dispersion(self) -> bool:
         """Whether every dispersive material applies the same poles to all three axes.
@@ -231,21 +260,10 @@ class ObjectContainer(TreeClass):
         polarization arrays, which are zero-padded for materials with fewer
         poles.
         """
-        n = 0
-        for o in self.objects:
-            if isinstance(o, UniformMaterialObject):
-                disp = o.material.dispersion
-                if disp is not None:
-                    n = max(n, disp.num_poles)
-            elif isinstance(o, Device):
-                for m in o.materials.values():
-                    if m.dispersion is not None:
-                        n = max(n, m.dispersion.num_poles)
-            elif isinstance(o, StaticMultiMaterialObject):
-                for m in o.materials.values():
-                    if m.dispersion is not None:
-                        n = max(n, m.dispersion.num_poles)
-        return n
+        return max(
+            (m.dispersion.num_poles for m in self._iter_materials() if m.dispersion is not None),
+            default=0,
+        )
 
     @property
     def has_dispersive_edot(self) -> bool:
@@ -262,37 +280,13 @@ class ObjectContainer(TreeClass):
                 return False
             return any(b != 0.0 for p in m.dispersion.poles for b in p.coupling_edot_axes)
 
-        for o in self.objects:
-            if isinstance(o, UniformMaterialObject):
-                if _material_has_edot(o.material):
-                    return True
-            elif isinstance(o, (Device, StaticMultiMaterialObject)):
-                for m in o.materials.values():
-                    if _material_has_edot(m):
-                        return True
-        return False
+        return any(_material_has_edot(m) for m in self._iter_materials())
 
     def _is_material_fn_true_for_all(
         self,
         fn: Callable[[Material], bool],
     ) -> bool:
-        for o in self.objects:
-            if isinstance(o, UniformMaterialObject):
-                m = o.material
-            elif isinstance(o, Device):
-                m = o.materials
-            elif isinstance(o, StaticMultiMaterialObject):
-                m = o.materials
-            else:
-                continue
-            if isinstance(m, Material):
-                if not fn(m):
-                    return False
-            elif isinstance(m, dict):
-                for v in m.values():
-                    if not fn(v):
-                        return False
-        return True
+        return all(fn(m) for m in self._iter_materials())
 
     def __iter__(self):
         return iter(self.object_list)
