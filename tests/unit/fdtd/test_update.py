@@ -878,3 +878,29 @@ class TestAddInterfaces:
         ):
             result = add_interfaces(jnp.array(0), arrays, objects, config, key)
         assert result.recording_state is new_state
+
+
+class TestPadOffdiagCoefficients:
+    """The coefficient halo must match the field halo's boundary semantics."""
+
+    def test_wrap_on_periodic_axes(self):
+        from fdtdx.fdtd.update import pad_offdiag_coefficients
+
+        cij = jnp.arange(2 * 3 * 4 * 5, dtype=jnp.float32).reshape(2, 3, 4, 5)
+        padded = pad_offdiag_coefficients(cij, (True, False, True))
+        # periodic x: halo takes the value from the far side
+        assert jnp.array_equal(padded[:, 0, 1:-1, 1:-1], cij[:, -1])
+        assert jnp.array_equal(padded[:, -1, 1:-1, 1:-1], cij[:, 0])
+        # non-periodic y: halo replicates the edge
+        assert jnp.array_equal(padded[:, 1:-1, 0, 1:-1], cij[:, :, 0])
+        assert jnp.array_equal(padded[:, 1:-1, -1, 1:-1], cij[:, :, -1])
+        # periodic z wraps
+        assert jnp.array_equal(padded[:, 1:-1, 1:-1, 0], cij[:, :, :, -1])
+
+    def test_interior_untouched(self):
+        from fdtdx.fdtd.update import pad_offdiag_coefficients
+
+        cij = jnp.arange(1 * 2 * 2 * 2, dtype=jnp.float32).reshape(1, 2, 2, 2)
+        padded = pad_offdiag_coefficients(cij, (False, False, False))
+        assert padded.shape == (1, 4, 4, 4)
+        assert jnp.array_equal(padded[:, 1:-1, 1:-1, 1:-1], cij)

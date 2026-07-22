@@ -152,6 +152,30 @@ def get_anisotropic_averaging_widths(
     return (widths[0], widths[1], widths[2])
 
 
+def pad_offdiag_coefficients(cij: jax.Array, periodic_axes: tuple[bool, bool, bool]) -> jax.Array:
+    """Coefficient halo for the symmetrized off-diagonal dispersive coupling.
+
+    Matches the boundary semantics of the field halo: wrap on periodic axes so
+    the pair weight across the boundary uses the true neighbor coefficient,
+    edge replication elsewhere (the field halo is zero there, so the halo value
+    is inert). Coefficients carry no Bloch phase. The leading axis is the pole
+    axis; the three trailing axes are spatial.
+
+    Args:
+        cij: Coefficient array of shape ``(num_poles, Nx, Ny, Nz)``.
+        periodic_axes: Which spatial axes use periodic (wrap) boundaries.
+
+    Returns:
+        Padded array of shape ``(num_poles, Nx+2, Ny+2, Nz+2)``.
+    """
+    padded = cij
+    for axis, periodic in enumerate(periodic_axes):
+        pad_width = [(0, 0)] * cij.ndim
+        pad_width[axis + 1] = (1, 1)
+        padded = jnp.pad(padded, pad_width, mode="wrap" if periodic else "edge")
+    return padded
+
+
 def update_E(
     time_step: jax.Array,
     arrays: ArrayContainer,
@@ -327,6 +351,7 @@ def update_E(
 
                 # Initialization rejects oriented poles on non-uniform grids, so
                 # the uniform 4-point stencil is always valid here.
+                periodic_axes = get_wrap_padding_axes(objects)
                 rows = []
                 for i in range(3):
                     row = disp_c3[:, 3 * i + i] * arrays.fields.E[i]
@@ -334,8 +359,7 @@ def update_E(
                         if j == i:
                             continue
                         cij = disp_c3[:, 3 * i + j]
-                        pad = ((0, 0), (1, 1), (1, 1), (1, 1))
-                        cij_pad = jnp.pad(cij, pad, mode="edge")
+                        cij_pad = pad_offdiag_coefficients(cij, periodic_axes)
                         mask_pad = (cij_pad != 0.0).astype(cij.dtype)
                         row = row + 0.5 * (
                             cij * _avg_offdiag(mask_pad * E_pad[j], component=j, location=i)
