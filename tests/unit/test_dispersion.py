@@ -12,6 +12,7 @@ from fdtdx.dispersion import (
     compute_eps_spectrum_from_coefficients,
     compute_pole_coefficients,
     compute_pole_coefficients_per_axis,
+    compute_pole_coefficients_tensor,
     susceptibility_from_coefficients,
 )
 from fdtdx.materials import (
@@ -549,6 +550,23 @@ class TestPerAxisCoefficients:
             expected = eps_inf + sum(chi_axes) / 3.0
             assert eps[i] == pytest.approx(expected, rel=1e-9)
 
+    def test_eps_spectrum_tensor_eps_inf_inverted_properly(self):
+        # inv_eps_inf stores the inverse tensor: with off-diagonal entries,
+        # diag(eps) != 1/diag(eps^-1), so the helper must invert per cell.
+        p = LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0, orientation=(1.0, 1.0, 0.0))
+        dt = 4e-18
+        c1, c2, c3, c4 = compute_pole_coefficients_tensor((p,), dt)
+        c1a, c2a, c3a, c4a = (x[:, :, None] for x in (c1, c2, c3, c4))
+        eps_inf_mat = np.array([[2.5, 0.4, 0.0], [0.4, 2.0, 0.1], [0.0, 0.1, 3.0]])
+        inv_eps = np.linalg.inv(eps_inf_mat).reshape(9, 1)
+        omegas = np.array([0.7e15, 1.3e15])
+        eps = compute_eps_spectrum_from_coefficients(c1a, c2a, c3a, inv_eps, omegas, dt, c4=c4a)
+        m = DispersionModel(poles=(p,))
+        for i, omega in enumerate(omegas):
+            chi = m.susceptibility_tensor(float(omega))
+            expected = np.trace(eps_inf_mat) / 3.0 + np.trace(chi) / 3.0
+            assert eps[i] == pytest.approx(expected, rel=1e-6)
+
 
 class TestAllowedDispersiveCoefficientsPerAxis:
     def test_three_component_output(self):
@@ -587,3 +605,258 @@ class TestAllowedDispersiveCoefficientsPerAxis:
     def test_invalid_num_components_raises(self):
         with pytest.raises(ValueError, match="num_components"):
             compute_allowed_dispersive_coefficients({}, dt=1e-17, max_num_poles=0, num_components=2)
+
+
+class TestOrientedPoles:
+    """Oriented poles: 1D oscillators along a unit vector (off-diagonal coupling)."""
+
+    def test_orientation_normalized_and_flags(self):
+        p = LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0, orientation=(1.0, 1.0, 0.0))
+        assert p.is_oriented and not p.is_isotropic
+        assert p.orientation == pytest.approx((2**-0.5, 2**-0.5, 0.0))
+
+    def test_orientation_with_per_axis_params_raises(self):
+        with pytest.raises(ValueError, match="scalar"):
+            LorentzPole(
+                resonance_frequency=(1e15, 2e15, 3e15), damping=1e13, delta_epsilon=2.0, orientation=(1.0, 0.0, 0.0)
+            )
+
+    def test_zero_orientation_raises(self):
+        with pytest.raises(ValueError, match="non-zero"):
+            DrudePole(plasma_frequency=1e15, damping=1e13, orientation=(0.0, 0.0, 0.0))
+
+    def test_non_finite_orientation_raises(self):
+        # NaN would slip through a plain norm check (nan < eps is False)
+        with pytest.raises(ValueError, match="finite"):
+            DrudePole(plasma_frequency=1e15, damping=1e13, orientation=(float("nan"), 0.0, 0.0))
+        with pytest.raises(ValueError, match="finite"):
+            DrudePole(plasma_frequency=1e15, damping=1e13, orientation=(float("inf"), 1.0, 0.0))
+
+    def test_huge_orientation_normalizes(self):
+        # finite but overflow-prone components: the scale-first norm must
+        # normalize these instead of rejecting them
+        p = DrudePole(plasma_frequency=1e15, damping=1e13, orientation=(1e200, 1e200, 0.0))
+        assert p.orientation == pytest.approx((2**-0.5, 2**-0.5, 0.0))
+        p = DrudePole(plasma_frequency=1e15, damping=1e13, orientation=(1e-200, 0.0, 0.0))
+        assert p.orientation == pytest.approx((1.0, 0.0, 0.0))
+
+    def test_oriented_ccpr_with_edot_raises(self):
+        with pytest.raises(NotImplementedError, match="dE/dt"):
+            CCPRPole(pole=complex(-1e13, -2e15), residue=complex(1e14, 5e14), orientation=(1.0, 0.0, 0.0))
+        # a purely imaginary residue has no dE/dt coupling and is allowed
+        p = CCPRPole(pole=complex(-1e13, -2e15), residue=complex(0.0, 5e14), orientation=(1.0, 0.0, 0.0))
+        assert p.is_oriented
+
+    def test_tensor_coefficients_closed_form(self):
+        p = LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0, orientation=(1.0, 1.0, 0.0))
+        dt = 4e-18
+        c1, _c2, c3, c4 = compute_pole_coefficients_tensor((p,), dt)
+        assert c1.shape == (1, 3) and c3.shape == (1, 9)
+        u = np.asarray(p.orientation)
+        denom = 1.0 + 0.5 * p.gamma * dt
+        expected = (p.coupling_sq * dt**2 / denom) * np.outer(u, u)
+        mat = c3[0].reshape(3, 3)
+        assert np.allclose(mat, expected)
+        assert np.allclose(mat, mat.T)
+        assert np.all(np.linalg.eigvalsh(mat) >= -1e-30)
+        assert np.allclose(c4[0], 0.0)
+
+    def test_tensor_coefficients_per_axis_pole_is_diagonal(self):
+        pa = LorentzPole(resonance_frequency=(1e15, 2e15, 3e15), damping=1e13, delta_epsilon=(1.0, 2.0, 3.0))
+        dt = 4e-18
+        _, _, c3t, _ = compute_pole_coefficients_tensor((pa,), dt)
+        _, _, c3a, _ = compute_pole_coefficients_per_axis((pa,), dt)
+        assert np.allclose(c3t[0].reshape(3, 3), np.diag(c3a[0]))
+
+    def test_tensor_coefficients_negative_coupling_raises(self):
+        p = LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=-2.0, orientation=(1.0, 0.0, 0.0))
+        with pytest.raises(ValueError, match="passivity"):
+            compute_pole_coefficients_tensor((p,), 4e-18)
+
+    def test_per_axis_function_rejects_oriented(self):
+        p = LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0, orientation=(0.0, 1.0, 0.0))
+        with pytest.raises(ValueError, match="tensor"):
+            compute_pole_coefficients_per_axis((p,), 4e-18)
+
+
+class TestRotatedModel:
+    def _model(self):
+        return DispersionModel(
+            poles=(LorentzPole(resonance_frequency=(1e15, 2e15, 3e15), damping=1e13, delta_epsilon=(1.0, 2.0, 0.5)),)
+        )
+
+    def test_rotation_identity(self):
+        import math
+
+        m = self._model()
+        ang = math.pi / 6
+        mr = m.rotated((0.0, 0.0, ang))
+        assert mr.has_off_diagonal_coupling and len(mr.poles) == 3
+        r_mat = np.array([[math.cos(ang), -math.sin(ang), 0.0], [math.sin(ang), math.cos(ang), 0.0], [0.0, 0.0, 1.0]])
+        for omega in (0.7e15, 1.8e15):
+            assert np.allclose(mr.susceptibility_tensor(omega), r_mat @ m.susceptibility_tensor(omega) @ r_mat.T)
+
+    def test_euler_and_matrix_input_agree(self):
+        import math
+
+        m = self._model()
+        ang = math.pi / 5
+        by_euler = m.rotated((0.0, 0.0, ang))
+        by_matrix = m.rotated(
+            (
+                (math.cos(ang), -math.sin(ang), 0.0),
+                (math.sin(ang), math.cos(ang), 0.0),
+                (0.0, 0.0, 1.0),
+            )
+        )
+        assert np.allclose(by_euler.susceptibility_tensor(1.3e15), by_matrix.susceptibility_tensor(1.3e15))
+
+    def test_signed_permutation_stays_per_axis(self):
+        import math
+
+        m = self._model()
+        m90 = m.rotated((0.0, 0.0, math.pi / 2))
+        assert not m90.has_off_diagonal_coupling
+        chi90 = m90.susceptibility_axes(1.3e15)
+        chi = m.susceptibility_axes(1.3e15)
+        assert chi90 == (chi[1], chi[0], chi[2])
+
+    def test_improper_rotation_raises(self):
+        with pytest.raises(ValueError, match="proper rotation"):
+            self._model().rotated(((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, -1.0)))
+
+    def test_zero_strength_axes_dropped(self):
+        m = DispersionModel(
+            poles=(DrudePole(plasma_frequency=(2e15, 0.0, 0.0), damping=1e13),),
+        )
+        mr = m.rotated((0.0, 0.0, 0.3))
+        assert len(mr.poles) == 1
+        assert mr.poles[0].is_oriented
+
+    def test_susceptibility_axes_raises_for_oriented(self):
+        mr = self._model().rotated((0.0, 0.0, 0.3))
+        with pytest.raises(ValueError, match="susceptibility_tensor"):
+            mr.susceptibility_axes(1e15)
+
+    def test_monoclinic_two_oscillators_vs_analytic(self):
+        import math
+
+        ang = math.pi / 6
+        u1 = (1.0, 0.0, 0.0)
+        u2 = (math.cos(ang), math.sin(ang), 0.0)
+        p1 = LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0, orientation=u1)
+        p2 = LorentzPole(resonance_frequency=2e15, damping=2e13, delta_epsilon=0.5, orientation=u2)
+        m = DispersionModel(poles=(p1, p2))
+        omega = 1.4e15
+        expected = np.zeros((3, 3), dtype=complex)
+        for p, u in ((p1, u1), (p2, u2)):
+            chi = p.coupling_sq / (p.omega_0**2 - omega**2 - 1j * p.gamma * omega)
+            expected += chi * np.outer(np.asarray(u), np.asarray(u))
+        assert np.allclose(m.susceptibility_tensor(omega), expected)
+        # genuinely off-diagonal and symmetric
+        assert abs(m.susceptibility_tensor(omega)[0, 1]) > 0
+
+
+class TestMixedTierSampling:
+    """Setup-time sampling helpers with 9-component couplings / permittivities."""
+
+    def test_susceptibility_from_coefficients_9_coupling(self):
+        p = LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0, orientation=(1.0, 1.0, 0.0))
+        dt = 4e-18
+        c1, c2, c3, c4 = compute_pole_coefficients_tensor((p,), dt)
+        omega = 1.3e15
+        chi = susceptibility_from_coefficients(
+            c1=c1[:, :, None], c2=c2[:, :, None], c3=c3[:, :, None], omega=omega, dt=dt, c4=c4[:, :, None]
+        )
+        assert chi.shape == (9, 1)
+        m = DispersionModel(poles=(p,))
+        expected = m.susceptibility_tensor(omega).reshape(-1)
+        # float32 roundtrip through the coefficient inversion (2 - c1*D cancels)
+        assert np.allclose(np.asarray(chi[:, 0]), expected, rtol=1e-2, atol=1e-6)
+
+    def test_effective_inv_permittivity_tensor_path_no_inf(self):
+        # 9-component inv_eps with vacuum cells (zero off-diagonals) — the old
+        # elementwise 1/inv_eps would produce inf there.
+        import jax.numpy as jnp
+
+        from fdtdx.dispersion import effective_inv_permittivity
+
+        inv_eps = jnp.zeros((9, 2, 1, 1)).at[(0, 4, 8), :].set(1.0)
+        p = LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0, orientation=(1.0, 1.0, 0.0))
+        dt = 4e-18
+        c1, c2, c3, _c4 = compute_pole_coefficients_tensor((p,), dt)
+        # pole only in cell 0
+        c1a = jnp.zeros((1, 3, 2, 1, 1)).at[:, :, 0].set(c1[0][None, :, None, None])
+        c2a = jnp.zeros((1, 3, 2, 1, 1)).at[:, :, 0].set(c2[0][None, :, None, None])
+        c3a = jnp.zeros((1, 9, 2, 1, 1)).at[:, :, 0].set(c3[0][None, :, None, None])
+        omega = 1.3e15
+        result = effective_inv_permittivity(inv_eps, c1a, c2a, c3a, omega, dt)
+        assert result.shape == (9, 2, 1, 1)
+        assert bool(jnp.all(jnp.isfinite(result)))
+        # vacuum cell stays identity
+        assert np.allclose(np.asarray(result[(0, 4, 8), 1]), 1.0, atol=1e-6)
+        # dispersive cell matches inverse of Re(I + chi); float32 coefficient
+        # roundtrip limits the agreement to ~1e-3 relative
+        m = DispersionModel(poles=(p,))
+        eps_mat = np.eye(3) + np.real(m.susceptibility_tensor(omega))
+        expected = np.linalg.inv(eps_mat).reshape(-1)
+        assert np.allclose(np.asarray(result[:, 0, 0, 0]), expected, rtol=1e-2, atol=1e-4)
+
+
+class TestAllowedCoefficientsCoupling:
+    def test_oriented_material_requires_9_coupling(self):
+        mats = {
+            "oriented": Material(
+                permittivity=1.0,
+                dispersion=DispersionModel(
+                    poles=(
+                        LorentzPole(
+                            resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0, orientation=(1.0, 1.0, 0.0)
+                        ),
+                    )
+                ),
+            ),
+        }
+        with pytest.raises(ValueError, match="axis-aligned"):
+            compute_allowed_dispersive_coefficients(mats, dt=1e-17, max_num_poles=1, num_components=3)
+        c1, _, c3, _ = compute_allowed_dispersive_coefficients(
+            mats, dt=1e-17, max_num_poles=1, num_components=3, coupling_components=9
+        )
+        assert c1.shape == (1, 1, 3)
+        assert c3.shape == (1, 1, 9)
+        assert c3[0, 0, 1] != 0.0  # off-diagonal weight present
+
+    def test_diagonal_material_reduces_exactly(self):
+        mats = {
+            "per_axis": Material(
+                permittivity=1.0,
+                dispersion=DispersionModel(
+                    poles=(LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=(1.0, 2.0, 3.0)),)
+                ),
+            ),
+        }
+        _, _, c3_full, _ = compute_allowed_dispersive_coefficients(
+            mats, dt=1e-17, max_num_poles=1, num_components=3, coupling_components=9
+        )
+        _, _, c3_diag, _ = compute_allowed_dispersive_coefficients(
+            mats, dt=1e-17, max_num_poles=1, num_components=3, coupling_components=3
+        )
+        assert np.allclose(c3_full[0, 0, (0, 4, 8)], c3_diag[0, 0])
+        off_diag = [i for i in range(9) if i not in (0, 4, 8)]
+        assert np.allclose(c3_full[0, 0, off_diag], 0.0)
+
+    def test_per_axis_material_with_scalar_coupling_raises(self):
+        # coupling_components=1 keeps only the xx entry, which would silently
+        # drop the yy/zz couplings of a per-axis pole.
+        mats = {
+            "per_axis": Material(
+                permittivity=1.0,
+                dispersion=DispersionModel(
+                    poles=(LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=(1.0, 2.0, 3.0)),)
+                ),
+            ),
+        }
+        with pytest.raises(ValueError, match="coupling_components=1"):
+            compute_allowed_dispersive_coefficients(
+                mats, dt=1e-17, max_num_poles=1, num_components=3, coupling_components=1
+            )

@@ -27,6 +27,7 @@ API
     fdtdx.compute_mode
     fdtdx.compute_pole_coefficients
     fdtdx.compute_pole_coefficients_per_axis
+    fdtdx.compute_pole_coefficients_tensor
     fdtdx.compute_poynting_flux
     fdtdx.ConnectHolesAndStructures
     fdtdx.CustomTimeSignalProfile

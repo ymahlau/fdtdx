@@ -13,7 +13,7 @@ from fdtdx.core.jax.default_key import default_key
 from fdtdx.core.jax.guards import check_not_tracing
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
 from fdtdx.core.jax.ste import straight_through_estimator
-from fdtdx.dispersion import compute_pole_coefficients_per_axis
+from fdtdx.dispersion import compute_pole_coefficients_tensor
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, ParameterContainer
 from fdtdx.fdtd.symmetry import apply_mode_symmetry, make_symmetry_walls, reduce_resolved_slices
 from fdtdx.materials import (
@@ -333,9 +333,11 @@ def apply_params(
     diagonally_anisotropic = num_perm_components == 3
 
     num_dispersive_poles = arrays.dispersive_c1.shape[0] if arrays.dispersive_c1 is not None else 0
-    # Component axis of the dispersive coefficient arrays: 1 (isotropic
-    # dispersion, broadcast) or 3 (per-axis anisotropic dispersion).
+    # Component axes of the dispersive coefficient arrays: c1/c2 carry 1
+    # (isotropic, broadcast) or 3 (per-axis) components; the couplings c3/c4
+    # additionally allow 9 (row-major 3x3 tensor, oriented poles).
     num_disp_components = arrays.dispersive_c1.shape[1] if arrays.dispersive_c1 is not None else 1
+    num_disp_coupling_components = arrays.dispersive_c3.shape[1] if arrays.dispersive_c3 is not None else 1
 
     if arrays.initial_inv_permittivities is not None:
         arrays = arrays.at["inv_permittivities"].set(arrays.initial_inv_permittivities)
@@ -380,6 +382,7 @@ def apply_params(
                 dt=dt,
                 max_num_poles=num_dispersive_poles,
                 num_components=num_disp_components,
+                coupling_components=num_disp_coupling_components,
             )
             allowed_c1_arr = jnp.asarray(allowed_c1_np, dtype=arrays.dispersive_c1.dtype)
             allowed_c2_arr = jnp.asarray(allowed_c2_np, dtype=arrays.dispersive_c2.dtype)
@@ -654,6 +657,45 @@ def _init_arrays(
         isotropic_permittivity = False
         diagonally_anisotropic_permittivity = not subpixel_full_tensor
 
+    # Dispersion tiers. The recurrence coefficients c1/c2 carry 1 (isotropic,
+    # broadcast) or 3 (per-axis) components; the field couplings c3/c4
+    # additionally widen to 9 (row-major 3x3 tensor per pole) when any pole is
+    # oriented. Oriented dispersion — and dispersion combined with fully
+    # anisotropic material tensors — runs through the fully anisotropic update
+    # kernel, which carries its own ADE block but no closed-form time reversal
+    # and no CCPR dE/dt solve.
+    num_dispersive_poles = objects.max_num_dispersive_poles
+    num_disp_components = 1 if objects.all_objects_isotropic_dispersion else 3
+    axis_aligned_dispersion = objects.all_objects_axis_aligned_dispersion
+    num_disp_coupling_components = num_disp_components if axis_aligned_dispersion else 9
+    tensor_dispersion_path = num_dispersive_poles > 0 and (
+        not axis_aligned_dispersion
+        or not (isotropic_permittivity or diagonally_anisotropic_permittivity)
+        or not (isotropic_electric_conductivity or diagonally_anisotropic_electric_conductivity)
+    )
+    if tensor_dispersion_path:
+        if objects.has_dispersive_edot:
+            raise NotImplementedError(
+                "CCPR poles with a dE/dt coupling (non-zero Re(residue)) cannot be combined with "
+                "oriented poles or fully anisotropic (off-diagonal) material tensors."
+            )
+        if config.gradient_config is not None and config.gradient_config.method == "reversible":
+            raise NotImplementedError(
+                "Dispersion combined with oriented poles or off-diagonal material tensors supports "
+                "only the 'checkpointed' gradient method; the fully anisotropic ADE update has no "
+                "closed-form time reversal."
+            )
+        if not axis_aligned_dispersion and config.has_nonuniform_grid:
+            raise NotImplementedError(
+                "Oriented poles (off-diagonal dispersive coupling) are not supported on non-uniform "
+                "grids; the symmetrized interface coupling requires matching edge weights."
+            )
+    if not axis_aligned_dispersion:
+        # Oriented poles: force the 9-component permittivity tier so the fully
+        # anisotropic kernel (whose ADE block applies the coupling tensor) runs.
+        isotropic_permittivity = False
+        diagonally_anisotropic_permittivity = False
+
     # Get component counts for each property
     if isotropic_permittivity:
         num_perm_components = 1
@@ -730,11 +772,6 @@ def _init_arrays(
         conductivity_spacing = constants.c * config.time_step_duration / config.courant_number
 
     # dispersive ADE auxiliary arrays - all None unless any material is dispersive.
-    # Per-cell coefficients are broadcast over the field components via a size-1
-    # component axis when all dispersion is isotropic, or carry one value per
-    # axis (size 3) for per-axis (diagonally anisotropic) dispersion.
-    num_dispersive_poles = objects.max_num_dispersive_poles
-    num_disp_components = 1 if objects.all_objects_isotropic_dispersion else 3
     # ``dispersive_c4`` (the CCPR dE/dt coupling) is only allocated when at least
     # one pole in the sim has a non-zero ``coupling_edot``. Lorentz/Drude-only
     # sims leave it None so the ADE update takes the classic path unchanged.
@@ -746,19 +783,6 @@ def _init_arrays(
     dispersive_c3 = None
     dispersive_c4 = None
     if num_dispersive_poles > 0:
-        if not (isotropic_permittivity or diagonally_anisotropic_permittivity):
-            raise NotImplementedError(
-                "Dispersive materials cannot be combined with fully anisotropic "
-                "(off-diagonal) permittivity tensors in v1."
-            )
-        if not (isotropic_electric_conductivity or diagonally_anisotropic_electric_conductivity):
-            # The full-tensor update branch (taken whenever sigma_E has 9
-            # components) has no ADE block, so allowing this would silently
-            # skip the polarization update everywhere in the simulation.
-            raise NotImplementedError(
-                "Dispersive materials cannot be combined with fully anisotropic "
-                "(off-diagonal) electric conductivity tensors in v1."
-            )
         dispersive_P_curr = create_named_sharded_matrix(
             (num_dispersive_poles, 3, *volume_shape),
             value=0.0,
@@ -788,7 +812,7 @@ def _init_arrays(
             backend=config.backend,
         )
         dispersive_c3 = create_named_sharded_matrix(
-            (num_dispersive_poles, num_disp_components, *volume_shape),
+            (num_dispersive_poles, num_disp_coupling_components, *volume_shape),
             value=0.0,
             dtype=config.dtype,
             sharding_axis=2,
@@ -796,7 +820,7 @@ def _init_arrays(
         )
         if allocate_c4:
             dispersive_c4 = create_named_sharded_matrix(
-                (num_dispersive_poles, num_disp_components, *volume_shape),
+                (num_dispersive_poles, num_disp_coupling_components, *volume_shape),
                 value=0.0,
                 dtype=config.dtype,
                 sharding_axis=2,
@@ -906,33 +930,41 @@ def _init_arrays(
                 # and drive an ADE update on cells that shouldn't have one.
                 assert dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None
                 poles = o.material.dispersion.poles if o.material.dispersion is not None else ()
-                c1_vals, c2_vals, c3_vals, c4_vals = compute_pole_coefficients_per_axis(
-                    poles, config.time_step_duration
-                )
+                c1_vals, c2_vals, c3_vals, c4_vals = compute_pole_coefficients_tensor(poles, config.time_step_duration)
                 n = len(poles)
                 c1_padded = jnp.zeros((num_dispersive_poles, num_disp_components), dtype=config.dtype)
                 c2_padded = jnp.zeros((num_dispersive_poles, num_disp_components), dtype=config.dtype)
-                c3_padded = jnp.zeros((num_dispersive_poles, num_disp_components), dtype=config.dtype)
-                c4_padded = jnp.zeros((num_dispersive_poles, num_disp_components), dtype=config.dtype)
+                c3_padded = jnp.zeros((num_dispersive_poles, num_disp_coupling_components), dtype=config.dtype)
+                c4_padded = jnp.zeros((num_dispersive_poles, num_disp_coupling_components), dtype=config.dtype)
                 if n > 0:
                     # For num_disp_components == 1 all poles in the simulation are
                     # isotropic (per all_objects_isotropic_dispersion), so the
                     # three per-axis columns are identical and keeping the first
-                    # is exact.
+                    # is exact. Likewise a coupling tier < 9 implies axis-aligned
+                    # dispersion, so keeping diagonal coupling entries is exact.
+                    if num_disp_coupling_components == 9:
+                        c3_reduced, c4_reduced = c3_vals, c4_vals
+                    else:
+                        diag_entries = (0, 4, 8)[:num_disp_coupling_components]
+                        c3_reduced = c3_vals[:, diag_entries]
+                        c4_reduced = c4_vals[:, diag_entries]
                     c1_padded = c1_padded.at[:n].set(jnp.asarray(c1_vals[:, :num_disp_components], dtype=config.dtype))
                     c2_padded = c2_padded.at[:n].set(jnp.asarray(c2_vals[:, :num_disp_components], dtype=config.dtype))
-                    c3_padded = c3_padded.at[:n].set(jnp.asarray(c3_vals[:, :num_disp_components], dtype=config.dtype))
-                    c4_padded = c4_padded.at[:n].set(jnp.asarray(c4_vals[:, :num_disp_components], dtype=config.dtype))
-                # Broadcast (num_poles, num_components) → (num_poles, num_components, Nx, Ny, Nz) over grid_slice
+                    c3_padded = c3_padded.at[:n].set(jnp.asarray(c3_reduced, dtype=config.dtype))
+                    c4_padded = c4_padded.at[:n].set(jnp.asarray(c4_reduced, dtype=config.dtype))
+                # Broadcast (num_poles, num_components) → (num_poles, num_components, Nx, Ny, Nz) over grid_slice.
+                # The recurrence coefficients and field couplings can carry
+                # different component counts (e.g. 3 vs 9 for oriented poles).
                 slice_shape = dispersive_c1[:, :, *o.grid_slice].shape
+                coupling_slice_shape = dispersive_c3[:, :, *o.grid_slice].shape
                 c1_block = jnp.broadcast_to(c1_padded[:, :, None, None, None], slice_shape)
                 c2_block = jnp.broadcast_to(c2_padded[:, :, None, None, None], slice_shape)
-                c3_block = jnp.broadcast_to(c3_padded[:, :, None, None, None], slice_shape)
+                c3_block = jnp.broadcast_to(c3_padded[:, :, None, None, None], coupling_slice_shape)
                 dispersive_c1 = dispersive_c1.at[:, :, *o.grid_slice].set(c1_block)
                 dispersive_c2 = dispersive_c2.at[:, :, *o.grid_slice].set(c2_block)
                 dispersive_c3 = dispersive_c3.at[:, :, *o.grid_slice].set(c3_block)
                 if dispersive_c4 is not None:
-                    c4_block = jnp.broadcast_to(c4_padded[:, :, None, None, None], slice_shape)
+                    c4_block = jnp.broadcast_to(c4_padded[:, :, None, None, None], coupling_slice_shape)
                     dispersive_c4 = dispersive_c4.at[:, :, *o.grid_slice].set(c4_block)
 
         elif isinstance(o, (StaticMultiMaterialObject)):
@@ -1037,6 +1069,7 @@ def _init_arrays(
                     dt=config.time_step_duration,
                     max_num_poles=num_dispersive_poles,
                     num_components=num_disp_components,
+                    coupling_components=num_disp_coupling_components,
                 )
                 # Shape (num_materials, num_poles, num_components) -> index by (Nx, Ny, Nz) ->
                 # (Nx, Ny, Nz, num_poles, num_components) -> moveaxis -> (num_poles, num_components, Nx, Ny, Nz)

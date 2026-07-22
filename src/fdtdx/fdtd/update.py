@@ -152,6 +152,30 @@ def get_anisotropic_averaging_widths(
     return (widths[0], widths[1], widths[2])
 
 
+def pad_offdiag_coefficients(cij: jax.Array, periodic_axes: tuple[bool, bool, bool]) -> jax.Array:
+    """Coefficient halo for the symmetrized off-diagonal dispersive coupling.
+
+    Matches the boundary semantics of the field halo: wrap on periodic axes so
+    the pair weight across the boundary uses the true neighbor coefficient,
+    edge replication elsewhere (the field halo is zero there, so the halo value
+    is inert). Coefficients carry no Bloch phase. The leading axis is the pole
+    axis; the three trailing axes are spatial.
+
+    Args:
+        cij: Coefficient array of shape ``(num_poles, Nx, Ny, Nz)``.
+        periodic_axes: Which spatial axes use periodic (wrap) boundaries.
+
+    Returns:
+        Padded array of shape ``(num_poles, Nx+2, Ny+2, Nz+2)``.
+    """
+    padded = cij
+    for axis, periodic in enumerate(periodic_axes):
+        pad_width = [(0, 0)] * cij.ndim
+        pad_width[axis + 1] = (1, 1)
+        padded = jnp.pad(padded, pad_width, mode="wrap" if periodic else "edge")
+    return padded
+
+
 def update_E(
     time_step: jax.Array,
     arrays: ArrayContainer,
@@ -261,9 +285,8 @@ def update_E(
         # E^(n+1) = A @ E^(n) + B @ curl(H^(n+1/2))
         A, B = compute_anisotropic_update_matrices(inv_eps, sigma_E, c, eta0)
 
-        # We need to pad the fields and curl to account for ghost cells when computing the averages
+        # We need to pad the fields to account for ghost cells when computing the averages
         E_pad = pad_fields_for_boundaries(arrays.fields.E, objects, config)
-        curl_pad = pad_fields_for_boundaries(curl, objects, config)
 
         # Spacing weights for the off-diagonal average (None on a uniform grid).
         aniso_widths = get_anisotropic_averaging_widths(config)
@@ -286,6 +309,73 @@ def update_E(
         Ez_y_avg = avg_anisotropic_E_component(
             E_pad, component=2, location=1, aniso_widths=aniso_widths
         )  # calc Ez at location of Ey
+
+        # Dispersive (ADE) correction. Same recurrence as the diagonal branch,
+        # except the field coupling may be a full 3x3 tensor per pole (oriented
+        # poles): each off-diagonal entry multiplies the neighboring E component
+        # averaged to the target component's Yee location. The polarization term
+        # delta enters the E update exactly like the curl (both are currents on
+        # the RHS of Ampere's law): since B = c * M1^-1 @ inv_eps, folding
+        # curl += delta / c before the curl averages yields M1^-1 @ inv_eps @ delta
+        # including its off-diagonal spatial averaging — no extra solve needed.
+        # CCPR c4 poles are rejected at initialization for this branch.
+        if arrays.fields.dispersive_P_curr is not None:
+            P_curr = arrays.fields.dispersive_P_curr
+            P_prev = arrays.fields.dispersive_P_prev
+            disp_c1 = arrays.dispersive_c1
+            disp_c2 = arrays.dispersive_c2
+            disp_c3 = arrays.dispersive_c3
+            assert P_prev is not None and disp_c1 is not None and disp_c2 is not None and disp_c3 is not None
+            assert arrays.dispersive_c4 is None
+            if disp_c3.shape[1] == 9:
+                # E at each row's Yee location: diagonal entries use the local
+                # component, off-diagonal entries the averaged neighbor with
+                # symmetrized pair weights restricted to material cells,
+                #   w(r, s) = stencil(r, s) * (c(r) m(s) + m(r) c(s)) / 2,  m = (c != 0),
+                # so the coupling blocks stay mutual adjoints where c varies.
+                # Plain c(r) * avg(E) couples boundary cells to vacuum neighbors
+                # that do not couple back, and the resulting non-normal operator
+                # amplifies boundary modes of media with off-diagonal coupling and
+                # mixed-sign permittivity. Uniform c reduces to the plain form.
+
+                def _avg_offdiag(arr_pad: jax.Array, component: int, location: int):
+                    # mirrors avg_anisotropic_E_component with the leading pole
+                    # axis offsetting the spatial axes by one
+                    la, ca = location + 1, component + 1
+                    return (
+                        arr_pad
+                        + jnp.roll(arr_pad, -1, axis=la)
+                        + jnp.roll(arr_pad, 1, axis=ca)
+                        + jnp.roll(arr_pad, (-1, 1), axis=(la, ca))
+                    )[:, 1:-1, 1:-1, 1:-1] / 4
+
+                # Initialization rejects oriented poles on non-uniform grids, so
+                # the uniform 4-point stencil is always valid here.
+                periodic_axes = get_wrap_padding_axes(objects)
+                rows = []
+                for i in range(3):
+                    row = disp_c3[:, 3 * i + i] * arrays.fields.E[i]
+                    for j in range(3):
+                        if j == i:
+                            continue
+                        cij = disp_c3[:, 3 * i + j]
+                        cij_pad = pad_offdiag_coefficients(cij, periodic_axes)
+                        mask_pad = (cij_pad != 0.0).astype(cij.dtype)
+                        row = row + 0.5 * (
+                            cij * _avg_offdiag(mask_pad * E_pad[j], component=j, location=i)
+                            + (cij != 0.0) * _avg_offdiag(cij_pad * E_pad[j], component=j, location=i)
+                        )
+                    rows.append(row)
+                coupling = jnp.stack(rows, axis=1)
+            else:
+                coupling = disp_c3 * arrays.fields.E
+            P_hat = disp_c1 * P_curr + disp_c2 * P_prev + coupling
+            delta = jnp.sum(P_curr - P_hat, axis=0)
+            curl = curl + delta / c
+            arrays = arrays.aset("fields->dispersive_P_prev", P_curr)
+            arrays = arrays.aset("fields->dispersive_P_curr", P_hat)
+
+        curl_pad = pad_fields_for_boundaries(curl, objects, config)
         curlHx_y_avg = avg_anisotropic_E_component(
             curl_pad, component=0, location=1, aniso_widths=aniso_widths
         )  # calc curl(H)x at location of Ey
@@ -466,6 +556,15 @@ def update_E_reverse(
             E = (E - c * curl * inv_eps) / factor
 
     else:
+        if arrays.fields.dispersive_P_curr is not None:
+            # The tensor-branch ADE has no closed-form time reversal (the
+            # off-diagonal coupling mixes neighboring cells through the Yee
+            # averages). Guarded at initialization; kept here defensively since
+            # full_backward is public API.
+            raise NotImplementedError(
+                "Time-reversal of dispersion on the fully anisotropic update path is not supported; "
+                "use the 'checkpointed' gradient method."
+            )
         # Full anisotropic case: expand inv_eps and sigma_E to (3, 3, Nx, Ny, Nz)
         inv_eps = expand_to_3x3(inv_eps)
         sigma_E = expand_to_3x3(sigma_E)

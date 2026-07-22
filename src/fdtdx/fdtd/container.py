@@ -241,12 +241,26 @@ class ObjectContainer(TreeClass):
         """Whether every dispersive material applies the same poles to all three axes.
 
         Drives the size of the material-component axis of the dispersive
-        coefficient arrays: 1 (broadcast) when ``True``, 3 (per-axis, diagonally
-        anisotropic dispersion) when ``False``.
+        recurrence coefficients ``c1``/``c2``: 1 (broadcast) when ``True``, 3
+        (per-axis, diagonally anisotropic dispersion) when ``False``.
         """
 
         def _fn(m: Material):
             return m.has_isotropic_dispersion
+
+        return self._is_material_fn_true_for_all(_fn)
+
+    @property
+    def all_objects_axis_aligned_dispersion(self) -> bool:
+        """Whether no dispersive material carries oriented poles.
+
+        When ``False``, at least one material has an off-diagonal coupling
+        tensor: the field couplings ``c3``/``c4`` are widened to 9 components
+        and the simulation runs through the fully anisotropic update path.
+        """
+
+        def _fn(m: Material):
+            return m.has_axis_aligned_dispersion
 
         return self._is_material_fn_true_for_all(_fn)
 
@@ -417,9 +431,10 @@ class ArrayContainer(TreeClass):
     #: ``None`` for non-dispersive simulations.
     dispersive_c2: jax.Array | None = None
 
-    #: Per-cell dispersive recurrence coefficient c3. Shape
-    #: ``(num_poles, num_components, Nx, Ny, Nz)``, ``num_components in (1, 3)``.
-    #: ``None`` for non-dispersive simulations.
+    #: Per-cell dispersive field coupling c3. Shape
+    #: ``(num_poles, num_components, Nx, Ny, Nz)``, ``num_components in (1, 3, 9)``
+    #: — 9 encodes a row-major 3x3 coupling tensor per pole (oriented poles,
+    #: off-diagonal dispersion). ``None`` for non-dispersive simulations.
     dispersive_c3: jax.Array | None = None
 
     #: Per-cell dispersive recurrence coefficient c4 (the ``dE/dt`` / CCPR

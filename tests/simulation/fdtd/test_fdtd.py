@@ -745,3 +745,58 @@ class TestSlicedReversibleGradient:
             f"sliced reversible gradient did not converge to the checkpointed reference: "
             f"rel_errs={rel_errs} for num_checkpoints_reversible={checkpoint_counts}"
         )
+
+
+class TestOrientedDispersionGradients:
+    """Oriented (off-diagonal) dispersion is checkpointed-only: gradients must
+    flow and be finite through checkpointed_fdtd; the reversible path is
+    rejected elsewhere (wrapper + initialization guards)."""
+
+    def test_checkpointed_gradient_finite_and_nontrivial(self):
+        oriented_material = fdtdx.Material(
+            permittivity=2.0,
+            dispersion=fdtdx.DispersionModel(
+                poles=(
+                    fdtdx.LorentzPole(
+                        resonance_frequency=2e15,
+                        damping=1e13,
+                        delta_epsilon=1.5,
+                        orientation=(1.0, 1.0, 0.0),
+                    ),
+                ),
+            ),
+        )
+
+        obj, arrays, config = _build_lossy_dispersive_scene(dtype=jnp.float32, material=oriented_material)
+        assert arrays.dispersive_c3 is not None and arrays.dispersive_c3.shape[1] == 9
+        arrays, config = _attach_gradient(arrays, config, obj, method="checkpointed")
+
+        def loss_fn(c3):
+            arr = ArrayContainer(
+                fields=FieldState(
+                    E=arrays.fields.E,
+                    H=arrays.fields.H,
+                    psi_E=arrays.fields.psi_E,
+                    psi_H=arrays.fields.psi_H,
+                    dispersive_P_curr=arrays.fields.dispersive_P_curr,
+                    dispersive_P_prev=arrays.fields.dispersive_P_prev,
+                ),
+                inv_permittivities=arrays.inv_permittivities,
+                inv_permeabilities=arrays.inv_permeabilities,
+                detector_states=arrays.detector_states,
+                recording_state=arrays.recording_state,
+                electric_conductivity=arrays.electric_conductivity,
+                magnetic_conductivity=arrays.magnetic_conductivity,
+                dispersive_c1=arrays.dispersive_c1,
+                dispersive_c2=arrays.dispersive_c2,
+                dispersive_c3=c3,
+                dispersive_inv_c2=arrays.dispersive_inv_c2,
+            )
+            _, out = checkpointed_fdtd(arr, obj, config, jax.random.PRNGKey(99), show_progress=False)
+            return jnp.sum(jnp.real(out.fields.E) ** 2)
+
+        loss, grads = jax.value_and_grad(loss_fn)(arrays.dispersive_c3)
+        assert jnp.isfinite(loss)
+        assert bool(jnp.all(jnp.isfinite(grads)))
+        # gradient reaches the off-diagonal coupling entries
+        assert float(jnp.max(jnp.abs(grads[:, 1]))) > 0.0
