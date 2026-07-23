@@ -7,6 +7,7 @@ import numpy as np
 from fdtdx import constants
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
+from fdtdx.core.jax.sharding import pin_to_single_device
 from fdtdx.core.null import Null
 from fdtdx.core.physics.modes import compute_mode
 from fdtdx.dispersion import effective_complex_inv_permittivity
@@ -156,9 +157,10 @@ class ModeOverlapDetector(PhasorDetector):
         dispersive_c4: jax.Array | None = None,
     ) -> Self:
         del key
-        inv_permittivity_slice = inv_permittivities[:, *self.grid_slice]
+        # Pin the sliced plane to a single device (see pin_to_single_device docstring for why).
+        inv_permittivity_slice = pin_to_single_device(inv_permittivities[:, *self.grid_slice])
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
-            inv_permeability_slice = inv_permeabilities[:, *self.grid_slice]
+            inv_permeability_slice = pin_to_single_device(inv_permeabilities[:, *self.grid_slice])
         else:
             inv_permeability_slice = inv_permeabilities
 
