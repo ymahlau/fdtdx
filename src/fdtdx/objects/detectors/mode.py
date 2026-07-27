@@ -1,3 +1,4 @@
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Literal, Self, Sequence
@@ -33,50 +34,56 @@ def gaussian_mode_fields(
     fixed_H_polarization_vector: tuple[float, float, float] | None = None,
     azimuth_angle: float = 0.0,
     elevation_angle: float = 0.0,
+    divergence_angle: float = 0.0,
     center: tuple[float, float] = (0.0, 0.0),
+    wavelength: float | jax.Array,
     refractive_index: float | jax.Array = 1.0,
-    wavenumber: float | jax.Array = 0.0,
     dtype: jnp.dtype = jnp.float32,
 ) -> tuple[jax.Array, jax.Array]:
-    """Build an analytic Gaussian beam profile on a detector / source plane.
+    """Build the transverse profile of a Gaussian beam on a detector / source plane.
 
-    The transverse amplitude is a Gaussian ``exp(-r^2 / radius^2)``. Polarization and the
-    propagation direction are handled exactly like :class:`~fdtdx.GaussianPlaneSource`:
-    the raw E/H polarization vectors come from
-    :func:`~fdtdx.core.misc.normalize_polarization_for_source`, and a non-zero
-    ``azimuth_angle`` / ``elevation_angle`` tilts the wave vector and both polarization
-    vectors via :func:`~fdtdx.core.linalg.rotate_vector` (degrees, same convention as the
-    source). In FDTDX's :math:`\\eta_0`-normalized units a plane wave satisfies
-    ``|H| = n * |E|``, so ``H`` is scaled by ``refractive_index``.
+    The beam's cross-section at a single plane — no ``z`` dependence, waist evolution or
+    Gouy phase. ``radius`` is the spot size there and ``divergence_angle`` the wavefront
+    curvature; paraxially this is ``exp(i k r^2 / 2q)`` with
+    ``1/q = tan(divergence_angle)/radius + 2i/(k radius^2)`` and the medium wavenumber
+    ``k = 2 pi n / wavelength``.
 
-    Under a tilt, a transverse phase ramp ``exp(i k_t . r)`` (with ``k = wavenumber`` the
-    medium wavenumber) is applied so the reference wavefront matches a beam propagating at
-    that angle; at normal incidence no ramp is applied and the mode stays real-valued
-    (identical to the un-tilted case).
+    Polarization and propagation direction follow :class:`~fdtdx.GaussianPlaneSource`
+    exactly, via :func:`~fdtdx.core.misc.tilted_polarization_vectors`. Phase is zero at the
+    beam center; without tilt or divergence the mode is real. Assumes ``mu_r = 1`` —
+    ``|H| = n |E|`` and ``k`` derive from the permittivity alone.
 
     Args:
-        coordinates: ``(X, Y, Z)`` cell-center coordinate meshgrids, each of shape
-            ``grid_shape`` (singleton on ``propagation_axis``). Same physical convention
-            as the grid (center-origin once the grid is resolved, see #363).
+        coordinates: ``(X, Y, Z)`` cell-center meshgrids of shape ``grid_shape`` (singleton
+            on ``propagation_axis``), center-origin like the grid.
         propagation_axis: Physical propagation axis (0=x, 1=y, 2=z).
-        radius: Gaussian ``1/e`` amplitude radius in metres.
+        radius: Positive ``1/e`` amplitude radius at this plane, in metres, measured in the
+            beam's own cross-section.
         direction: ``"+"`` (forward) or ``"-"`` (backward) along ``propagation_axis``.
-        polarization_axis: Convenience selector — transverse axis the E field points
-            along. Mutually exclusive with ``fixed_E/H_polarization_vector``. Defaults to
-            the first transverse axis (ascending index order).
+        polarization_axis: Transverse axis the E field points along. Mutually exclusive
+            with ``fixed_E/H_polarization_vector``. Defaults to the first transverse axis.
         fixed_E_polarization_vector: Explicit E polarization 3-vector (mirrors the source).
         fixed_H_polarization_vector: Explicit H polarization 3-vector (mirrors the source).
         azimuth_angle: Propagation tilt around the vertical axis, in degrees.
         elevation_angle: Propagation tilt around the horizontal axis, in degrees.
-        center: Transverse center offset ``(off_t0, off_t1)`` in metres for the two
-            transverse axes in ascending index order.
-        refractive_index: Local medium index used for the ``|H| = n |E|`` ratio.
-        wavenumber: Medium wavenumber ``k = n * omega / c`` used for the tilt phase ramp.
+        divergence_angle: Wavefront cone half-angle at this plane, in degrees, taken at the
+            ``1/e`` radius: ``tan(angle) = radius / R``. ``0.0`` is flat phase (collimated,
+            or a plane at the waist); positive diverges, negative converges. Far from the
+            waist this equals the far-field divergence ``lambda / (pi w_0 n)``.
+        center: Transverse center offset ``(off_t0, off_t1)`` in metres, ascending axes.
+        wavelength: Vacuum wavelength in metres, setting the tilt ramp and the curvature.
+        refractive_index: Local medium index, for the ``|H| = n |E|`` ratio and ``k``.
         dtype: Float dtype used to build polarization/rotation vectors.
 
     Returns:
-        Tuple ``(mode_E, mode_H)``, each of shape ``(3, *grid_shape)`` (complex under tilt).
+        ``(mode_E, mode_H)``, each ``(3, *grid_shape)``; complex under tilt or divergence.
+
+    Raises:
+        ValueError: If ``radius`` is not positive, or ``polarization_axis`` conflicts with
+            an explicit polarization vector / is not transverse.
     """
+    if radius <= 0:
+        raise ValueError(f"radius must be positive, got {radius}")
     if polarization_axis is not None and (
         fixed_E_polarization_vector is not None or fixed_H_polarization_vector is not None
     ):
@@ -103,15 +110,30 @@ def gaussian_mode_fields(
         dtype=dtype,
     )
     is_tilted = azimuth_angle != 0.0 or elevation_angle != 0.0
+    is_curved = divergence_angle != 0.0
 
     t0, t1 = get_transverse_axes(propagation_axis)
     transverse_0 = coordinates[t0] - center[0]
     transverse_1 = coordinates[t1] - center[1]
-    amplitude = jnp.exp(-(transverse_0**2 + transverse_1**2) / (radius**2))
 
+    # Radius measured in the beam's own cross-section, i.e. projected onto the plane
+    # orthogonal to the wave vector (same footprint as GaussianPlaneSource). Since the
+    # propagation-axis coordinate is zero here, |r_perp|^2 = |r|^2 - (r . k_hat)^2.
+    along_k = wave_vector[t0] * transverse_0 + wave_vector[t1] * transverse_1
+    r_perp_squared = transverse_0**2 + transverse_1**2
     if is_tilted:
-        # Transverse phase ramp matching a tilted wavefront (phase 0 at the plane center).
-        phase_arg = wavenumber * (wave_vector[t0] * transverse_0 + wave_vector[t1] * transverse_1)
+        r_perp_squared = r_perp_squared - along_k**2
+
+    amplitude = jnp.exp(-r_perp_squared / (radius**2))
+
+    if is_tilted or is_curved:
+        wavenumber = 2.0 * jnp.pi * refractive_index / wavelength
+        phase_arg = jnp.zeros_like(amplitude)
+        if is_tilted:
+            phase_arg = phase_arg + wavenumber * along_k  # tilted wavefront ramp
+        if is_curved:
+            inv_curvature_radius = float(np.tan(np.deg2rad(divergence_angle))) / radius
+            phase_arg = phase_arg + 0.5 * wavenumber * inv_curvature_radius * r_perp_squared
         amplitude = amplitude * jnp.exp(1j * phase_arg)
 
     mode_E = amplitude[None, ...] * e_pol[:, None, None, None]
@@ -128,14 +150,14 @@ def gaussian_mode_function(
     fixed_H_polarization_vector: tuple[float, float, float] | None = None,
     azimuth_angle: float = 0.0,
     elevation_angle: float = 0.0,
+    divergence_angle: float = 0.0,
     center: tuple[float, float] = (0.0, 0.0),
 ) -> Callable[..., tuple[jax.Array, jax.Array]]:
     """Return a ``mode_function`` for :class:`CustomModeOverlapDetector` (analytic Gaussian).
 
-    The returned callable derives the local refractive index (and the medium wavenumber
-    for tilted beams) from the permittivity slice and delegates to
-    :func:`gaussian_mode_fields`. See that function for the meaning of the arguments,
-    including polarization selection and ``azimuth_angle`` / ``elevation_angle`` tilt.
+    The returned callable derives the local refractive index from the permittivity slice and
+    delegates to :func:`gaussian_mode_fields`; see that function for the arguments,
+    including the ``mu_r = 1`` assumption.
     """
 
     def _mode_function(
@@ -145,8 +167,8 @@ def gaussian_mode_function(
         propagation_axis: int,
         inv_permittivity: jax.Array,
     ) -> tuple[jax.Array, jax.Array]:
+        """Evaluate the Gaussian at one frequency, taking the index from the plane."""
         refractive_index = jnp.sqrt(jnp.mean(1.0 / inv_permittivity))
-        wavenumber = refractive_index * 2.0 * jnp.pi * frequency / c
         return gaussian_mode_fields(
             coordinates,
             propagation_axis,
@@ -157,9 +179,10 @@ def gaussian_mode_function(
             fixed_H_polarization_vector=fixed_H_polarization_vector,
             azimuth_angle=azimuth_angle,
             elevation_angle=elevation_angle,
+            divergence_angle=divergence_angle,
             center=center,
+            wavelength=c / frequency,
             refractive_index=refractive_index,
-            wavenumber=wavenumber,
             dtype=inv_permittivity.dtype,
         )
 
@@ -200,6 +223,7 @@ class BaseModeOverlapDetector(PhasorDetector, ABC):
 
     @property
     def propagation_axis(self) -> int:
+        """Physical axis normal to the detector plane, i.e. the singleton grid axis."""
         if sum([a == 1 for a in self.grid_shape]) != 1:
             raise Exception(f"Invalid ModeOverlapDetector shape: {self.grid_shape}")
         return self.grid_shape.index(1)
@@ -210,6 +234,7 @@ class BaseModeOverlapDetector(PhasorDetector, ABC):
         config: SimulationConfig,
         key: jax.Array,
     ) -> Self:
+        """Place the detector and cache the plane's face-area weights."""
         self = super().place_on_grid(
             grid_slice_tuple=grid_slice_tuple,
             config=config,
@@ -296,6 +321,7 @@ class BaseModeOverlapDetector(PhasorDetector, ABC):
         electric_conductivity: jax.Array | None = None,
         dispersive_c4: jax.Array | None = None,
     ) -> Self:
+        """Precompute and store the reference mode fields for every wave character."""
         del key
         inv_permittivity_slice = inv_permittivities[:, *self.grid_slice]
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
@@ -476,6 +502,7 @@ class ModeOverlapDetector(BaseModeOverlapDetector):
         config: SimulationConfig,
         key: jax.Array,
     ) -> Self:
+        """Place the detector and validate the bend arguments."""
         self = super().place_on_grid(
             grid_slice_tuple=grid_slice_tuple,
             config=config,
@@ -528,6 +555,7 @@ class ModeOverlapDetector(BaseModeOverlapDetector):
         inv_permittivity_slice: jax.Array,
         inv_permeability_slice: jax.Array | float,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
+        """Solve the reference mode with the waveguide mode solver."""
         return compute_mode(
             frequency=wave_character.get_frequency(),
             inv_permittivities=inv_permittivity_slice,
@@ -590,6 +618,7 @@ class CustomModeOverlapDetector(BaseModeOverlapDetector):
         inv_permittivity_slice: jax.Array,
         inv_permeability_slice: jax.Array | float,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
+        """Evaluate the user-supplied ``mode_function`` on the detector plane."""
         del inv_permeability_slice
         coordinates = self._plane_coordinates()
         inv_permittivity_slice = self._as_real_inv_permittivity(inv_permittivity_slice)
@@ -613,23 +642,23 @@ class CustomModeOverlapDetector(BaseModeOverlapDetector):
 
 @autoinit
 class GaussianModeOverlapDetector(BaseModeOverlapDetector):
-    """Mode-overlap detector using an analytic Gaussian beam as the reference mode.
+    """Mode-overlap detector using an analytic Gaussian profile as the reference mode.
 
-    Convenience wrapper around :func:`gaussian_mode_fields`: the reference mode is a
-    transverse Gaussian amplitude profile with ``|H| = n |E|`` (local medium index ``n``
-    derived from the permittivity slice). Polarization and the propagation angle are
-    configured exactly like :class:`~fdtdx.GaussianPlaneSource` — pick an explicit
-    polarization vector (or a transverse axis) and tilt the beam with
-    ``azimuth_angle`` / ``elevation_angle``. No mode solver is involved.
+    Wrapper around :func:`gaussian_mode_fields`. Everything is stated *at the detector
+    plane*: ``mode_radius`` is the spot size there and ``divergence_angle`` the wavefront
+    curvature there, so a collimated beam (the default), a tilted beam, and a diverging or
+    converging one are all expressible without a mode solver. The reference is a transverse
+    cross-section, not a propagating beam. Polarization and propagation angle are configured
+    exactly like :class:`~fdtdx.GaussianPlaneSource`. Assumes ``mu_r = 1``.
 
-    Dispersion-aware: in a dispersive medium ``n`` (and the tilt wavenumber ``k = n ω/c``)
-    is taken from the effective permittivity :math:`\\mathrm{Re}(\\varepsilon_\\infty +
-    \\chi(\\omega_c))` at each wave character's carrier frequency, via the shared
-    :meth:`BaseModeOverlapDetector.apply` correction — the same one ``ModeOverlapDetector``
-    and ``ModePlaneSource`` use — not :math:`\\varepsilon_\\infty`.
+    Dispersion-aware: ``n`` (and the wavenumber ``k = n ω/c``) come from the effective
+    permittivity :math:`\\mathrm{Re}(\\varepsilon_\\infty + \\chi(\\omega_c))` at each wave
+    character's carrier frequency via :meth:`BaseModeOverlapDetector.apply`, not
+    :math:`\\varepsilon_\\infty`.
     """
 
-    #: Gaussian ``1/e`` amplitude radius (beam waist) in metres.
+    #: Gaussian ``1/e`` amplitude radius *at the detector plane*, in metres. Must be
+    #: positive. This is the spot size on this plane, not the waist of the beam.
     mode_radius: float = frozen_field()
 
     #: Direction of propagation, "+" (forward) or "-" (backward) along the plane normal.
@@ -652,12 +681,62 @@ class GaussianModeOverlapDetector(BaseModeOverlapDetector):
     #: Propagation tilt around the horizontal axis, in degrees (off-normal incidence).
     elevation_angle: float = frozen_field(default=0.0)
 
+    #: Wavefront cone half-angle at the detector plane, in degrees, taken at the ``1/e``
+    #: radius: ``tan(angle) = mode_radius / R``. ``0.0`` (default) is a flat phase front —
+    #: a collimated beam, or a plane at the beam waist. Positive diverges, negative
+    #: converges. Far from the waist this equals the far-field divergence
+    #: ``lambda / (pi w_0 n)``. Curves the wavefront; unlike ``azimuth_angle`` /
+    #: ``elevation_angle`` it does not tilt the propagation direction.
+    divergence_angle: float = frozen_field(default=0.0)
+
     #: Transverse center offset ``(off_t0, off_t1)`` in metres for the two transverse axes
     #: (ascending index order), in the same physical coordinates as the grid.
     center: tuple[float, float] = frozen_field(default=(0.0, 0.0))
 
     #: Whether to renormalize the mode to unit Poynting flux over the detector plane.
     normalize: bool = frozen_field(default=True)
+
+    def place_on_grid(
+        self: Self,
+        grid_slice_tuple: SliceTuple3D,
+        config: SimulationConfig,
+        key: jax.Array,
+    ) -> Self:
+        """Place the detector, validate ``mode_radius`` and warn on a truncated beam."""
+        self = super().place_on_grid(grid_slice_tuple=grid_slice_tuple, config=config, key=key)
+        if self.mode_radius <= 0:
+            raise ValueError(f"mode_radius must be positive, got {self.mode_radius}")
+        self._warn_if_truncated()
+        return self
+
+    def _warn_if_truncated(self) -> None:
+        """Warn if the detector plane clips the reference mode above ~1% amplitude.
+
+        The overlap only integrates over the detector's own footprint, so a beam wider than
+        the plane is silently under-reported. A clean measurement needs a transverse
+        half-extent of ``>~ 3 x mode_radius`` (edge amplitude ``~0.01%``). Assumes the beam
+        is centered, so this is the best-case truncation amplitude.
+        """
+        grid = self._config.resolved_grid
+        half_extents = []
+        for axis in get_transverse_axes(self.propagation_axis):
+            lower, upper = self.grid_slice_tuple[axis]
+            if grid is not None:
+                extent = grid.axis_extent(axis, (lower, upper))
+            else:
+                extent = (upper - lower) * self._config.uniform_spacing()
+            half_extents.append(0.5 * extent)
+        edge_distance = min(half_extents)
+        truncation_amplitude = float(np.exp(-((edge_distance / self.mode_radius) ** 2)))
+        if truncation_amplitude > 0.01:
+            warnings.warn(
+                f"GaussianModeOverlapDetector '{self.name}': the detector plane truncates the reference "
+                f"mode at {truncation_amplitude * 100:.1f}% amplitude (nearest edge at "
+                f"{edge_distance / self.mode_radius:.2f} x mode_radius), so the overlap under-reports "
+                f"the coupled power. Enlarge the detector to >~ 3 x mode_radius transversely.",
+                UserWarning,
+                stacklevel=2,
+            )
 
     def _compute_mode_fields(
         self,
@@ -666,11 +745,11 @@ class GaussianModeOverlapDetector(BaseModeOverlapDetector):
         inv_permittivity_slice: jax.Array,
         inv_permeability_slice: jax.Array | float,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
+        """Evaluate the analytic Gaussian profile on the detector plane."""
         del inv_permeability_slice
         coordinates = self._plane_coordinates()
         inv_permittivity_slice = self._as_real_inv_permittivity(inv_permittivity_slice)
         refractive_index = jnp.sqrt(jnp.mean(1.0 / inv_permittivity_slice))
-        wavenumber = refractive_index * 2.0 * jnp.pi * wave_character.get_frequency() / c
         mode_E, mode_H = gaussian_mode_fields(
             coordinates,
             self.propagation_axis,
@@ -681,9 +760,10 @@ class GaussianModeOverlapDetector(BaseModeOverlapDetector):
             fixed_H_polarization_vector=self.fixed_H_polarization_vector,
             azimuth_angle=self.azimuth_angle,
             elevation_angle=self.elevation_angle,
+            divergence_angle=self.divergence_angle,
             center=self.center,
+            wavelength=wave_character.get_wavelength(),
             refractive_index=refractive_index,
-            wavenumber=wavenumber,
             dtype=self._config.dtype,
         )
         if self.normalize:
