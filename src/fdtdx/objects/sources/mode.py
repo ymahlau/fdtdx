@@ -10,6 +10,7 @@ from fdtdx import constants
 from fdtdx.core.axis import get_transverse_axes
 from fdtdx.core.grid import calculate_time_offset_yee
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
+from fdtdx.core.jax.sharding import pin_to_single_device
 from fdtdx.core.linalg import get_wave_vector_raw
 from fdtdx.core.physics.metrics import compute_energy
 from fdtdx.core.physics.modes import compute_mode
@@ -112,10 +113,11 @@ class ModePlaneSource(TFSFPlaneSource):
             raise NotImplementedError()
 
         # inv_permittivities shape: (3, Nx, Ny, Nz) - slice with component dimension
-        inv_permittivity_slice = inv_permittivities[:, *self.grid_slice]
+        # Pin the sliced plane to a single device (see pin_to_single_device docstring for why).
+        inv_permittivity_slice = pin_to_single_device(inv_permittivities[:, *self.grid_slice])
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
             # inv_permeabilities shape: (3, Nx, Ny, Nz) - slice with component dimension
-            inv_permeability_slice = inv_permeabilities[:, *self.grid_slice]
+            inv_permeability_slice = pin_to_single_device(inv_permeabilities[:, *self.grid_slice])
         else:
             inv_permeability_slice = inv_permeabilities
 

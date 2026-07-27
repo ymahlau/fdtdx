@@ -10,6 +10,7 @@ from jax.typing import ArrayLike
 from tidy3d.components.mode.solver import compute_modes as _compute_modes
 
 from fdtdx.core.axis import get_transverse_axes
+from fdtdx.core.jax.sharding import pin_to_single_device
 from fdtdx.core.misc import expand_to_3x3
 from fdtdx.core.physics.metrics import normalize_by_poynting_flux
 
@@ -361,6 +362,14 @@ def compute_mode(
         jax.lax.stop_gradient(c0_um),
         jax.lax.stop_gradient(c1_um),
     )
+    # pure_callback executes on a single host device ({maximal device=0}); its OUTPUT, like the sliced
+    # INPUT above, needs an explicit sharding reconciliation before further ops run it through the
+    # surrounding x-sharded multi-device computation -- otherwise XLA/Shardy cannot convert the callback's
+    # single-device GSPMDSharding into an SdyArray at the next op (observed: jnp.expand_dims below raises
+    # "Cannot convert GSPMDSharding {maximal device=0} into SdyArray" on >1 device).
+    mode_E_raw = pin_to_single_device(mode_E_raw)
+    mode_H_raw = pin_to_single_device(mode_H_raw)
+    eff_idx = pin_to_single_device(eff_idx)   # third callback output -- same fix, easy to miss
     mode_E = jnp.expand_dims(mode_E_raw, axis=propagation_axis + 1)
     mode_H = jnp.expand_dims(mode_H_raw, axis=propagation_axis + 1)
 
