@@ -466,7 +466,18 @@ def update_E_reverse(
 
     Returns:
         ArrayContainer: Updated ArrayContainer with reversed E field values
+
+    Raises:
+        NotImplementedError: If the simulation contains dispersive materials. The ADE
+            polarization state has no supported time reversal, so neither this update
+            nor the ``full_backward`` / ``backward`` API can reconstruct it.
     """
+    if arrays.fields.dispersive_P_curr is not None:
+        raise NotImplementedError(
+            "Dispersive time-reversible gradient computation under active development. "
+            "Use GradientConfig(method='checkpointed') instead."
+        )
+
     E = arrays.fields.E
     for source in objects.sources:
         if _source_uses_default_always_on_switch(source):
@@ -513,58 +524,14 @@ def update_E_reverse(
 
     if not inv_eps_is_full_tensor and not sigma_E_is_full_tensor:
         # Isotropic and diagonal anisotropic case
-        # Capture E^{n+1} (post source-inverse, pre field-recovery) — the CCPR
-        # polarization inversion below needs it for the c4*E^{n+1} term. For the
-        # E-recovery itself the c4/D_kappa contributions cancel exactly, so that
-        # formula is unchanged from the non-CCPR case.
-        E_np1 = E
         factor = 1
         if sigma_E is not None:
             E = E * (1 + c * sigma_E * eta0 * inv_eps / 2)
             factor = 1 - c * sigma_E * eta0 * inv_eps / 2
 
-        # Dispersive (ADE) reverse correction. At reverse time, arrays.fields.dispersive_P_curr
-        # holds P^(n+1) and arrays.fields.dispersive_P_prev holds P^n. The forward update added
-        # inv_eps * sum(P^n - P^(n+1)) inside the lossy factor; subtract it here to
-        # recover E^n. Non-dispersive cells (all zero arrays) contribute zero.
-        if arrays.fields.dispersive_P_curr is not None:
-            P_curr_r = arrays.fields.dispersive_P_curr
-            P_prev_r = arrays.fields.dispersive_P_prev
-            disp_c1_r = arrays.dispersive_c1
-            disp_c3_r = arrays.dispersive_c3
-            disp_c4_r = arrays.dispersive_c4
-            disp_inv_c2_r = arrays.dispersive_inv_c2
-            assert (
-                P_prev_r is not None and disp_c1_r is not None and disp_c3_r is not None and disp_inv_c2_r is not None
-            )
-            delta_sum = jnp.sum(P_prev_r - P_curr_r, axis=0)
-            E = (E - c * curl * inv_eps - inv_eps * delta_sum) / factor
-            # Invert the polarization recurrence:
-            # P^(n+1) = c1 * P^n + c2 * P^(n-1) + c3 * E^n + c4 * E^(n+1)
-            # =>  P^(n-1) = (P^(n+1) - c1 * P^n - c3 * E^n - c4 * E^(n+1)) / c2
-            # Using precomputed inv_c2 (with non-dispersive cells zeroed) replaces
-            # a per-step jnp.where + division with a single multiply. Non-dispersive
-            # cells have inv_c2 = 0 and P_curr = P_prev = 0, so the product is zero.
-            # E is now the recovered E^n; the c4 term (CCPR only) uses E^(n+1).
-            P_prev_new = P_curr_r - disp_c1_r * P_prev_r - disp_c3_r * E
-            if disp_c4_r is not None:
-                P_prev_new = P_prev_new - disp_c4_r * E_np1
-            P_prev_new = P_prev_new * disp_inv_c2_r
-            arrays = arrays.aset("fields->dispersive_P_curr", P_prev_r)
-            arrays = arrays.aset("fields->dispersive_P_prev", P_prev_new)
-        else:
-            E = (E - c * curl * inv_eps) / factor
+        E = (E - c * curl * inv_eps) / factor
 
     else:
-        if arrays.fields.dispersive_P_curr is not None:
-            # The tensor-branch ADE has no closed-form time reversal (the
-            # off-diagonal coupling mixes neighboring cells through the Yee
-            # averages). Guarded at initialization; kept here defensively since
-            # full_backward is public API.
-            raise NotImplementedError(
-                "Time-reversal of dispersion on the fully anisotropic update path is not supported; "
-                "use the 'checkpointed' gradient method."
-            )
         # Full anisotropic case: expand inv_eps and sigma_E to (3, 3, Nx, Ny, Nz)
         inv_eps = expand_to_3x3(inv_eps)
         sigma_E = expand_to_3x3(sigma_E)

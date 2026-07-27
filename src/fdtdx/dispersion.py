@@ -44,26 +44,17 @@ step ``dt``:
     c_2 = -\\frac{1 - \\gamma \\Delta t / 2}{1 + \\gamma \\Delta t / 2}, \\quad
     c_3 = \\frac{K \\Delta t^2}{1 + \\gamma \\Delta t / 2}
 
-Two *independent* conditions constrain the coefficients; both are enforced in
-:func:`compute_pole_coefficients_per_axis` (only on axes where the pole
-actually couples, since a zero-coupling axis keeps its polarization
-identically zero):
-
-* **Forward unit-circle (Jury) stability.** The roots of
-  :math:`z^2 - c_1 z - c_2 = 0` lie inside the unit circle iff
-  :math:`|c_2| < 1` *and* :math:`|c_1| < 1 - c_2`. The first holds for every
-  :math:`\\gamma \\Delta t > 0` (:math:`c_2 = 0` at :math:`\\gamma \\Delta t = 2`
-  and :math:`|c_2| \\to 1` only as :math:`\\gamma \\Delta t \\to 0` or
-  :math:`\\infty`), so it is not the binding constraint. The second is
-  algebraically equivalent to :math:`\\omega_0 \\Delta t < 2` (independent of
-  :math:`\\gamma`), which is therefore the forward-stability bound.
-* **Reverse-update conditioning.** The backward (reverse-time) recurrence is
-  formed by dividing through by :math:`c_2`, so :math:`c_2` must stay bounded
-  away from zero. This is a *separate* requirement, :math:`\\gamma \\Delta t < 2`
-  (:math:`c_2 = 0` exactly at :math:`\\gamma \\Delta t = 2`); in the physical
-  regime :math:`\\gamma \\Delta t \\ll 1` so :math:`c_2 \\approx -1` and the
-  inversion is well conditioned. It is a conditioning bound for reversibility,
-  not a forward unit-circle criterion.
+**Forward unit-circle (Jury) stability** constrains the coefficients and is
+enforced in :func:`compute_pole_coefficients_per_axis` (only on axes where the
+pole actually couples, since a zero-coupling axis keeps its polarization
+identically zero). The roots of :math:`z^2 - c_1 z - c_2 = 0` lie inside the
+unit circle iff :math:`|c_2| < 1` *and* :math:`|c_1| < 1 - c_2`. The first
+holds for every :math:`\\gamma \\Delta t > 0` (:math:`c_2 = 0` at
+:math:`\\gamma \\Delta t = 2` and :math:`|c_2| \\to 1` only as
+:math:`\\gamma \\Delta t \\to 0` or :math:`\\infty`), so it is not the binding
+constraint. The second is algebraically equivalent to
+:math:`\\omega_0 \\Delta t < 2` (independent of :math:`\\gamma`), which is
+therefore the stability bound.
 
 For CCPR poles the polarization couples to :math:`E^{n+1}` through
 :math:`c_4`, so the E-field update divides by a per-cell implicit factor
@@ -99,8 +90,13 @@ polaritons), where each IR-active phonon oscillates along its own,
 generally non-orthogonal, direction. :meth:`DispersionModel.rotated`
 converts a per-axis model into oriented poles for the common case of a
 crystal rotated relative to the grid. Oriented dispersion runs through the
-fully anisotropic update path and currently supports only the
-``checkpointed`` gradient method.
+fully anisotropic update path.
+
+Gradients
+---------
+Dispersive simulations currently support only the ``checkpointed`` gradient
+method; the ``reversible`` method rejects them (reversing the ADE polarization
+recurrence is under active development).
 """
 
 from __future__ import annotations
@@ -806,8 +802,7 @@ def compute_pole_coefficients_per_axis(
         c_4 = \\frac{b \\Delta t}{D},
 
     where ``a = coupling_sq`` is the ``E`` coupling and ``b = coupling_edot`` is
-    the ``dE/dt`` coupling. The recurrence uses a forward difference for the
-    ``dE/dt`` term so it stays compatible with the reversible time stepping:
+    the ``dE/dt`` coupling, which is discretized with a forward difference:
 
     :math:`p_p^{n+1} = c_1 p_p^n + c_2 p_p^{n-1} + c_3 E^n + c_4 E^{n+1}`.
 
@@ -841,19 +836,12 @@ def compute_pole_coefficients_per_axis(
         for ax in range(3):
             gamma_dt = gamma[ax] * dt
             omega0_dt = omega_0[ax] * dt
-            # The stability bounds only bind on axes where the pole actually
+            # The stability bound only binds on axes where the pole actually
             # couples. A zero-coupling axis (e.g. a Lorentz pole with
             # delta_epsilon = 0 there, the documented way to express an absent
             # resonance) has c3 = c4 = 0, so its polarization stays identically
             # zero and its unused omega_0 / gamma are irrelevant.
             axis_active = coupling_sq[ax] != 0.0 or coupling_edot[ax] != 0.0
-            if axis_active and gamma_dt >= 2.0:
-                axis_note = "" if p.is_isotropic else f" on axis {'xyz'[ax]}"
-                raise ValueError(
-                    f"Pole {i} ({type(p).__name__}) has gamma * dt = {gamma_dt:.4g} >= 2{axis_note}; "
-                    "the reversible ADE update requires gamma * dt < 2 (physically gamma * dt << 1). "
-                    "Lower the damping or reduce the time step."
-                )
             if axis_active and omega0_dt >= 2.0:
                 axis_note = "" if p.is_isotropic else f" on axis {'xyz'[ax]}"
                 raise ValueError(
@@ -931,11 +919,15 @@ def compute_pole_coefficients_tensor(
         coupling_edot = p.coupling_edot_axes
         for ax in range(3):
             gamma_dt = gamma[ax] * dt
-            if gamma_dt >= 2.0:
+            omega0_dt = omega_0[ax] * dt
+            # Same forward-stability bound (and same zero-coupling exemption) as
+            # compute_pole_coefficients_per_axis.
+            axis_active = coupling_sq[ax] != 0.0 or coupling_edot[ax] != 0.0
+            if axis_active and omega0_dt >= 2.0:
                 raise ValueError(
-                    f"Pole {i} ({type(p).__name__}) has gamma * dt = {gamma_dt:.4g} >= 2; "
-                    "the ADE update requires gamma * dt < 2 (physically gamma * dt << 1). "
-                    "Lower the damping or reduce the time step."
+                    f"Pole {i} ({type(p).__name__}) has omega_0 * dt = {omega0_dt:.4g} >= 2; "
+                    "the ADE recurrence roots leave the unit circle (requires omega_0 * dt < 2, "
+                    "physically omega_0 * dt << 1). Lower the resonance frequency or reduce the time step."
                 )
             denom = 1.0 + 0.5 * gamma_dt
             c1[i, ax] = (2.0 - (omega_0[ax] ** 2) * (dt**2)) / denom

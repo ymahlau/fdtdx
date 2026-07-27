@@ -34,7 +34,7 @@ class GradientConfig(TreeClass):
 
     #: Number of interior full-field checkpoints for the ``"reversible"`` method.
     #: The reversible backward pass reconstructs the field state by running the simulation in
-    #: reverse; for lossy/dispersive materials this reverse reconstruction can accumulate numerical
+    #: reverse; for lossy materials this reverse reconstruction can accumulate numerical
     #: error over the full trajectory. Setting this to ``k - 1`` partitions the run into ``k`` slices
     #: and stores a full-field checkpoint at each interior slice boundary during the forward pass. The
     #: backward pass then resets the reverse reconstruction to the exact checkpoint at every boundary,
