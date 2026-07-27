@@ -444,13 +444,6 @@ class ArrayContainer(TreeClass):
     #: ``None`` and skip the CCPR update path.
     dispersive_c4: jax.Array | None = None
 
-    #: Per-cell cached ``1 / c2`` with non-dispersive cells set to 0. Lets the
-    #: reverse-time ADE update avoid a ``jnp.where`` + division per step.
-    #: Derived from ``dispersive_c2``; never differentiated independently.
-    #: Shape ``(num_poles, num_components, Nx, Ny, Nz)``, ``num_components in
-    #: (1, 3)``. ``None`` for non-dispersive simulations.
-    dispersive_inv_c2: jax.Array | None = None
-
     #: Backup of inverse permittivity values array.
     #: Only used when etching a device.
     initial_inv_permittivities: jax.Array | None = None
@@ -479,7 +472,7 @@ class ArrayContainer(TreeClass):
         # FieldState now holds the dispersive ADE polarization (dispersive_P_curr/prev)
         # alongside E/H/psi, so this single tree.map zeroes all dynamic per-timestep
         # state at once (``None`` leaves stay ``None`` for non-dispersive sims).
-        # Coefficient arrays (c1/c2/c3/inv_c2) are material properties and preserved.
+        # Coefficient arrays (c1/c2/c3/c4) are material properties and preserved.
         arrays = self.aset("fields", jax.tree.map(jnp.zeros_like, self.fields))
 
         detector_states = self.detector_states

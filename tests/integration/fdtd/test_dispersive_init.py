@@ -415,9 +415,24 @@ def test_fully_anisotropic_plus_dispersive_allocates(simple_config, simple_volum
     assert arrays.dispersive_c3.shape[1] == 1
 
 
+def test_isotropic_dispersive_reversible_raises(simple_config, simple_volume):
+    """Any dispersive material rejects the 'reversible' gradient method at
+    initialization — reversing the ADE recurrence is not supported."""
+    from fdtdx.config import GradientConfig
+    from fdtdx.interfaces.recorder import Recorder
+
+    obj = UniformMaterialObject(name="slab", partial_grid_shape=(10, 10, 10), material=_lorentz_material())
+    constraint = GridCoordinateConstraint(
+        object="slab", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+    config = simple_config.aset("gradient_config", GradientConfig(method="reversible", recorder=Recorder(modules=[])))
+    key = jax.random.PRNGKey(0)
+    with pytest.raises(NotImplementedError, match="under active development"):
+        place_objects([simple_volume, obj], config, [constraint], key)
+
+
 def test_fully_anisotropic_plus_dispersive_reversible_raises(simple_config, simple_volume):
-    """The fully anisotropic ADE path has no closed-form time reversal, so the
-    'reversible' gradient method must be rejected at initialization."""
+    """Same rejection on the fully anisotropic ADE path."""
     from fdtdx.config import GradientConfig
     from fdtdx.interfaces.recorder import Recorder
 
@@ -675,7 +690,6 @@ def test_per_axis_dispersion_allocates_3_component_coefficients(simple_config, s
     assert arrays.dispersive_c1.shape == (1, 3, Nx, Ny, Nz)
     assert arrays.dispersive_c2.shape == (1, 3, Nx, Ny, Nz)
     assert arrays.dispersive_c3.shape == (1, 3, Nx, Ny, Nz)
-    assert arrays.dispersive_inv_c2.shape == (1, 3, Nx, Ny, Nz)
     # polarization state keeps its (num_poles, 3, ...) shape
     assert arrays.fields.dispersive_P_curr.shape == (1, 3, Nx, Ny, Nz)
 
@@ -792,11 +806,6 @@ def test_device_per_axis_dispersive_continuous_and_discrete(simple_config, simpl
             assert jnp.allclose(arrays.dispersive_c3[0, ax, xs, ys, zs], c3_ref[0, ax])
         # x and z couplings differ by construction
         assert c3_ref[0, 0] != c3_ref[0, 2]
-        # inv_c2 must be the exact reciprocal of the stored c2
-        assert jnp.allclose(
-            arrays.dispersive_inv_c2[0, :, xs, ys, zs] * arrays.dispersive_c2[0, :, xs, ys, zs],
-            1.0,
-        )
 
 
 def test_full_tensor_sigma_plus_dispersive_allocates(simple_config, simple_volume):

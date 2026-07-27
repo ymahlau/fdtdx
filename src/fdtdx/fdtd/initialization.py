@@ -465,14 +465,9 @@ def apply_params(
             new_c1 = arrays.dispersive_c1.at[:, :, *device.grid_slice].set(new_c1_slice)
             new_c2 = arrays.dispersive_c2.at[:, :, *device.grid_slice].set(new_c2_slice)
             new_c3 = arrays.dispersive_c3.at[:, :, *device.grid_slice].set(new_c3_slice)
-            # Recompute inv_c2 from the post-interpolation c2. Do NOT interpolate
-            # inv_c2 directly: 1/avg(c2) != avg(1/c2), and the reverse-time ADE
-            # relies on inv_c2 being the exact reciprocal of the stored c2.
-            new_inv_c2 = jnp.where(new_c2 == 0, 0.0, 1.0 / new_c2)
             arrays = arrays.at["dispersive_c1"].set(new_c1)
             arrays = arrays.at["dispersive_c2"].set(new_c2)
             arrays = arrays.at["dispersive_c3"].set(new_c3)
-            arrays = arrays.at["dispersive_inv_c2"].set(new_inv_c2)
             if write_dispersive_c4:
                 assert arrays.dispersive_c4 is not None
                 new_c4 = arrays.dispersive_c4.at[:, :, *device.grid_slice].set(new_c4_slice)
@@ -662,9 +657,23 @@ def _init_arrays(
     # additionally widen to 9 (row-major 3x3 tensor per pole) when any pole is
     # oriented. Oriented dispersion — and dispersion combined with fully
     # anisotropic material tensors — runs through the fully anisotropic update
-    # kernel, which carries its own ADE block but no closed-form time reversal
-    # and no CCPR dE/dt solve.
+    # kernel, which carries its own ADE block but no CCPR dE/dt solve.
     num_dispersive_poles = objects.max_num_dispersive_poles
+
+    # Dispersive materials support only the checkpointed gradient method. Reversing the
+    # ADE polarization recurrence is not currently supported. Checked here for the
+    # earliest possible error; ``reversible_fdtd`` repeats the check because the gradient
+    # config can be swapped after ``place_objects``.
+    if (
+        num_dispersive_poles > 0
+        and config.gradient_config is not None
+        and config.gradient_config.method == "reversible"
+    ):
+        raise NotImplementedError(
+            "Dispersive time-reversible gradient computation under active development. "
+            "Use GradientConfig(method='checkpointed') instead."
+        )
+
     num_disp_components = 1 if objects.all_objects_isotropic_dispersion else 3
     axis_aligned_dispersion = objects.all_objects_axis_aligned_dispersion
     num_disp_coupling_components = num_disp_components if axis_aligned_dispersion else 9
@@ -678,12 +687,6 @@ def _init_arrays(
             raise NotImplementedError(
                 "CCPR poles with a dE/dt coupling (non-zero Re(residue)) cannot be combined with "
                 "oriented poles or fully anisotropic (off-diagonal) material tensors."
-            )
-        if config.gradient_config is not None and config.gradient_config.method == "reversible":
-            raise NotImplementedError(
-                "Dispersion combined with oriented poles or off-diagonal material tensors supports "
-                "only the 'checkpointed' gradient method; the fully anisotropic ADE update has no "
-                "closed-form time reversal."
             )
         if not axis_aligned_dispersion and config.has_nonuniform_grid:
             raise NotImplementedError(
@@ -1116,18 +1119,12 @@ def _init_arrays(
         )
         config = config.aset("gradient_config", grad_cfg)
 
-    # Cache 1/c2 with non-dispersive cells zeroed so update_E_reverse can replace
-    # its ``jnp.where(c2 == 0, ..., / c2)`` pair with a single multiply.
-    dispersive_inv_c2 = None
-    if dispersive_c2 is not None:
-        dispersive_inv_c2 = jnp.where(dispersive_c2 == 0, 0.0, 1.0 / dispersive_c2)
-
     # Validate CCPR dispersive stability once, on concrete host values. Only CCPR
     # (non-zero dE/dt coupling) poles have a non-trivial implicit divisor, so the
-    # gate keeps Lorentz/Drude-only sims free of this cost. The full-tensor path
-    # (which has no ADE block) is already rejected for any dispersive material by
-    # the NotImplementedError guard above, so this only runs on the ADE-active
-    # 1/3-component paths whose divisor is exactly what update_E computes.
+    # gate keeps Lorentz/Drude-only sims free of this cost. CCPR poles on the
+    # full-tensor path are already rejected by the NotImplementedError guard above,
+    # so this only runs on the 1/3-component paths whose divisor is exactly what
+    # update_E computes.
     if objects.has_dispersive_edot:
         validate_dispersive_divisor_stability(
             _collect_labeled_materials(objects),
@@ -1158,7 +1155,6 @@ def _init_arrays(
         dispersive_c2=dispersive_c2,
         dispersive_c3=dispersive_c3,
         dispersive_c4=dispersive_c4,
-        dispersive_inv_c2=dispersive_inv_c2,
         initial_inv_permittivities=initial_inv_permittivities,
     )
     return arrays, config, info

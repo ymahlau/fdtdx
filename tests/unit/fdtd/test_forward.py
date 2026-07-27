@@ -307,12 +307,6 @@ class TestForwardSingleArgsWrapper:
                 psi_H=arrays.fields.psi_H,
                 inv_permittivities=arrays.inv_permittivities,
                 inv_permeabilities=arrays.inv_permeabilities,
-                dispersive_P_curr=None,
-                dispersive_P_prev=None,
-                dispersive_c1=None,
-                dispersive_c2=None,
-                dispersive_c3=None,
-                dispersive_c4=None,
                 detector_states=arrays.detector_states,
                 recording_state=arrays.recording_state,
                 config=config,
@@ -339,8 +333,8 @@ class TestForwardSingleArgsWrapper:
             assert call_kwargs["record_boundaries"] is True
             assert call_kwargs["simulate_boundaries"] is True
 
-    def test_wrapper_returns_all_14_unpacked_fields(self, arrays, config, objects, key):
-        """Wrapper unpacks the returned SimulationState into 15 individual values."""
+    def test_wrapper_returns_all_unpacked_fields(self, arrays, config, objects, key):
+        """Wrapper unpacks the returned SimulationState into 9 individual values."""
         result_arrays = ArrayContainer(
             fields=FieldState(
                 E=arrays.fields.E * 2.0,
@@ -364,12 +358,6 @@ class TestForwardSingleArgsWrapper:
                 psi_H=arrays.fields.psi_H,
                 inv_permittivities=arrays.inv_permittivities,
                 inv_permeabilities=arrays.inv_permeabilities,
-                dispersive_P_curr=None,
-                dispersive_P_prev=None,
-                dispersive_c1=None,
-                dispersive_c2=None,
-                dispersive_c3=None,
-                dispersive_c4=None,
                 detector_states=arrays.detector_states,
                 recording_state=arrays.recording_state,
                 config=config,
@@ -380,7 +368,7 @@ class TestForwardSingleArgsWrapper:
                 simulate_boundaries=False,
             )
 
-            assert len(result) == 15
+            assert len(result) == 9
             assert result[0] == 7  # time_step
             assert jnp.array_equal(result[1], result_arrays.fields.E)
             assert jnp.array_equal(result[2], result_arrays.fields.H)
@@ -388,11 +376,5 @@ class TestForwardSingleArgsWrapper:
             assert result[4] is result_arrays.fields.psi_H
             assert jnp.array_equal(result[5], result_arrays.inv_permittivities)
             assert jnp.array_equal(result[6], result_arrays.inv_permeabilities)
-            assert result[7] is result_arrays.fields.dispersive_P_curr
-            assert result[8] is result_arrays.fields.dispersive_P_prev
-            assert result[9] is result_arrays.dispersive_c1
-            assert result[10] is result_arrays.dispersive_c2
-            assert result[11] is result_arrays.dispersive_c3
-            assert result[12] is result_arrays.dispersive_c4
-            assert result[13] is result_arrays.detector_states
-            assert result[14] is result_arrays.recording_state
+            assert result[7] is result_arrays.detector_states
+            assert result[8] is result_arrays.recording_state

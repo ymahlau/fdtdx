@@ -134,15 +134,20 @@ class TestComputePoleCoefficients:
         # c3 for Drude should be non-zero because coupling_sq = omega_p**2
         assert c3[1] > 0
 
-    def test_gamma_dt_at_least_two_raises(self):
-        # gamma * dt >= 2 drives c2 to 0 (and positive beyond), so the reversible
-        # (reverse-time) ADE update -- which divides by c2 -- is no longer well
-        # conditioned. This is a reversibility conditioning bound, separate from
-        # the forward unit-circle (Jury) criterion omega_0 * dt < 2; note |c2| < 1
-        # itself holds for every gamma * dt > 0.
-        p = LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0)
-        with pytest.raises(ValueError, match="gamma"):
-            compute_pole_coefficients((p,), dt=2.0 / p.gamma)
+    def test_large_gamma_dt_is_accepted(self):
+        # gamma * dt >= 2 drives c2 to 0 (and positive beyond) but keeps the
+        # forward recurrence inside the unit circle: |c2| < 1 holds for every
+        # gamma * dt > 0, and the binding Jury bound is omega_0 * dt < 2. It is
+        # therefore not rejected (it used to be, as a conditioning bound for the
+        # reverse-time ADE update, which no longer exists).
+        # Heavily overdamped (gamma >> omega_0) so that gamma * dt == 2 while
+        # omega_0 * dt stays far below the Jury bound.
+        p = LorentzPole(resonance_frequency=1e12, damping=1e16, delta_epsilon=2.0)
+        dt = 2.0 / p.gamma
+        assert p.omega_0 * dt < 2.0
+        c1, c2, c3, _ = compute_pole_coefficients((p,), dt=dt)
+        assert np.all(np.isfinite(c1)) and np.all(np.isfinite(c3))
+        assert np.allclose(c2, 0.0), "gamma * dt == 2 must put c2 exactly at zero"
 
     def test_omega0_dt_at_least_two_raises(self):
         # omega_0 * dt >= 2 violates the forward Jury bound |c1| < 1 - c2 (the
@@ -507,11 +512,12 @@ class TestPerAxisCoefficients:
         with pytest.raises(ValueError, match="per-axis"):
             compute_pole_coefficients((p,), dt=1e-17)
 
-    def test_per_axis_stability_check_names_axis(self):
-        # gamma * dt >= 2 only on the y axis must raise and identify the axis.
+    def test_per_axis_large_gamma_dt_is_accepted(self):
+        # A large gamma on the y axis alone is not a stability violation (only
+        # omega_0 * dt >= 2 is); the coefficients must stay finite.
         p = LorentzPole(resonance_frequency=1e15, damping=(1e13, 3e17, 1e13), delta_epsilon=1.0)
-        with pytest.raises(ValueError, match="axis y"):
-            compute_pole_coefficients_per_axis((p,), dt=1e-17)
+        c1, c2, c3, _ = compute_pole_coefficients_per_axis((p,), dt=1e-17)
+        assert np.all(np.isfinite(c1)) and np.all(np.isfinite(c2)) and np.all(np.isfinite(c3))
 
     def test_per_axis_omega0_stability_check_names_axis(self):
         # omega_0 * dt >= 2 only on the z axis must raise and identify the axis.

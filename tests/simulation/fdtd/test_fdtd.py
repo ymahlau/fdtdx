@@ -194,12 +194,23 @@ class TestReversibleFdtdGradients:
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-def _build_lossy_dispersive_scene(dtype, material=None):
-    """Lorentz + σ_E = 100 S/m + dipole, periodic. The scene where the recent
+#: Lossy, non-dispersive slab material. Reversible gradients support loss but not
+#: dispersion, so every reversible-path test uses this (or a lossless variant).
+_LOSSY_MATERIAL = fdtdx.Material(permittivity=2.0, electric_conductivity=1e2)
+
+#: Strongly lossy variant. The reverse pass turns loss into gain, so a large σ_E is
+#: what makes reverse-reconstruction drift visible in float32 (at σ_E = 1e2 the drift
+#: sits at the float32 noise floor and cannot be distinguished from it).
+_HIGH_LOSS_MATERIAL = fdtdx.Material(permittivity=2.0, electric_conductivity=1e4)
+
+
+def _build_slab_scene(dtype, material=None):
+    """Slab + dipole, periodic boundaries. The scene where the recent
     conductivity-not-forwarded bug actually mattered.
 
-    ``material`` overrides the slab material (used by the per-axis dispersive
-    gradient cross-check below).
+    Defaults to a Lorentz-dispersive slab with σ_E = 100 S/m; ``material``
+    overrides it (e.g. lossless, lossy non-dispersive, per-axis or oriented
+    dispersion).
     """
     config = SimulationConfig(
         time=_SIM_TIME,
@@ -402,8 +413,6 @@ class TestReversibleVsCheckpointedGradient:
                 H=arrays.fields.H,
                 psi_E=arrays.fields.psi_E,
                 psi_H=arrays.fields.psi_H,
-                dispersive_P_curr=arrays.fields.dispersive_P_curr,
-                dispersive_P_prev=arrays.fields.dispersive_P_prev,
             ),
             inv_permittivities=inv_permittivities,
             inv_permeabilities=arrays.inv_permeabilities,
@@ -411,16 +420,12 @@ class TestReversibleVsCheckpointedGradient:
             recording_state=arrays.recording_state,
             electric_conductivity=arrays.electric_conductivity,
             magnetic_conductivity=arrays.magnetic_conductivity,
-            dispersive_c1=arrays.dispersive_c1,
-            dispersive_c2=arrays.dispersive_c2,
-            dispersive_c3=arrays.dispersive_c3,
-            dispersive_inv_c2=arrays.dispersive_inv_c2,
         )
         return arrays
 
     @staticmethod
     def _run_inv_eps(method, dtype):
-        obj, arrays, config = _build_lossy_dispersive_scene(dtype=dtype)
+        obj, arrays, config = _build_slab_scene(dtype=dtype, material=_LOSSY_MATERIAL)
         arrays, config = _attach_gradient(arrays, config, obj, method=method)
 
         def loss_fn(inv_eps):
@@ -492,60 +497,20 @@ class TestReversibleVsCheckpointedGradient:
             rel = max_diff / (max_abs + 1e-30)
             assert rel < 1e-5, f"μ⁻¹ gradient mismatch: max|Δ|={max_diff:.3e}, max|grad|={max_abs:.3e}, rel={rel:.3e}"
 
-    def test_gradients_agree_dispersive_c3_float64(self):
-        """Cross-validate gradient w.r.t. dispersive_c3 — the ADE coefficient
-        whose VJP path differs most between reversible (algebraic inversion
-        of the recurrence in update_E_reverse) and checkpointed (forward
-        recurrence differentiated by jax)."""
 
-        def run(method):
-            obj, arrays, config = _build_lossy_dispersive_scene(dtype=jnp.float64)
-            arrays, config = _attach_gradient(arrays, config, obj, method=method)
+class TestPerAxisDispersiveGradientCheckpointed:
+    """PER-AXIS (diagonally anisotropic) dispersion: the ``c3`` coefficient array
+    carries a 3-entry component axis instead of the broadcast size-1 axis, and
+    each axis has different pole parameters.
 
-            def loss_fn(c3):
-                arr = ArrayContainer(
-                    fields=FieldState(
-                        E=arrays.fields.E,
-                        H=arrays.fields.H,
-                        psi_E=arrays.fields.psi_E,
-                        psi_H=arrays.fields.psi_H,
-                        dispersive_P_curr=arrays.fields.dispersive_P_curr,
-                        dispersive_P_prev=arrays.fields.dispersive_P_prev,
-                    ),
-                    inv_permittivities=arrays.inv_permittivities,
-                    inv_permeabilities=arrays.inv_permeabilities,
-                    detector_states=arrays.detector_states,
-                    recording_state=arrays.recording_state,
-                    electric_conductivity=arrays.electric_conductivity,
-                    magnetic_conductivity=arrays.magnetic_conductivity,
-                    dispersive_c1=arrays.dispersive_c1,
-                    dispersive_c2=arrays.dispersive_c2,
-                    dispersive_c3=c3,
-                    dispersive_inv_c2=arrays.dispersive_inv_c2,
-                )
-                fdtd_impl = reversible_fdtd if method == "reversible" else checkpointed_fdtd
-                _, out = fdtd_impl(arr, obj, config, jax.random.PRNGKey(99), show_progress=False)
-                return jnp.sum(jnp.real(out.fields.E) ** 2)
+    Dispersion is checkpointed-only, so there is no reversible path to
+    cross-check against; the oracle here is a central finite difference of the
+    forward loss, per component axis.
+    """
 
-            return jax.value_and_grad(loss_fn)(arrays.dispersive_c3)
-
-        with _x64_enabled():
-            loss_rev, grad_rev = run("reversible")
-            loss_chk, grad_chk = run("checkpointed")
-            assert jnp.isfinite(loss_rev) and jnp.isfinite(loss_chk)
-            assert jnp.allclose(loss_rev, loss_chk, rtol=1e-9, atol=1e-12)
-            max_abs = float(jnp.max(jnp.abs(grad_rev) + jnp.abs(grad_chk)))
-            max_diff = float(jnp.max(jnp.abs(grad_rev - grad_chk)))
-            rel = max_diff / (max_abs + 1e-30)
-            assert rel < 1e-5, f"c3 gradient mismatch: max|Δ|={max_diff:.3e}, max|grad|={max_abs:.3e}, rel={rel:.3e}"
-
-    def test_gradients_agree_per_axis_dispersive_c3_float64(self):
-        """Same c3 cross-check with PER-AXIS (diagonally anisotropic) dispersion:
-        the coefficient arrays carry a 3-entry component axis instead of the
-        broadcast size-1 axis, and each axis has different pole parameters.
-        Validates that the elementwise forward/reverse ADE updates and the VJP
-        stay exact when the coefficients vary per field component."""
-        per_axis_material = fdtdx.Material(
+    @staticmethod
+    def _material():
+        return fdtdx.Material(
             permittivity=(2.0, 2.5, 3.0),
             electric_conductivity=1e2,
             dispersion=fdtdx.DispersionModel(
@@ -559,10 +524,11 @@ class TestReversibleVsCheckpointedGradient:
             ),
         )
 
-        def run(method):
-            obj, arrays, config = _build_lossy_dispersive_scene(dtype=jnp.float64, material=per_axis_material)
+    def test_gradient_matches_finite_difference_per_axis_float64(self):
+        with _x64_enabled():
+            obj, arrays, config = _build_slab_scene(dtype=jnp.float64, material=self._material())
             assert arrays.dispersive_c3 is not None and arrays.dispersive_c3.shape[1] == 3
-            arrays, config = _attach_gradient(arrays, config, obj, method=method)
+            arrays, config = _attach_gradient(arrays, config, obj, method="checkpointed")
 
             def loss_fn(c3):
                 arr = ArrayContainer(
@@ -583,30 +549,29 @@ class TestReversibleVsCheckpointedGradient:
                     dispersive_c1=arrays.dispersive_c1,
                     dispersive_c2=arrays.dispersive_c2,
                     dispersive_c3=c3,
-                    dispersive_inv_c2=arrays.dispersive_inv_c2,
                 )
-                fdtd_impl = reversible_fdtd if method == "reversible" else checkpointed_fdtd
-                _, out = fdtd_impl(arr, obj, config, jax.random.PRNGKey(99), show_progress=False)
+                _, out = checkpointed_fdtd(arr, obj, config, jax.random.PRNGKey(99), show_progress=False)
                 return jnp.sum(jnp.real(out.fields.E) ** 2)
 
-            return jax.value_and_grad(loss_fn)(arrays.dispersive_c3)
+            c3 = arrays.dispersive_c3
+            loss, grad = jax.value_and_grad(loss_fn)(c3)
+            assert jnp.isfinite(loss) and jnp.all(jnp.isfinite(grad))
 
-        with _x64_enabled():
-            loss_rev, grad_rev = run("reversible")
-            loss_chk, grad_chk = run("checkpointed")
-            assert jnp.isfinite(loss_rev) and jnp.isfinite(loss_chk)
-            assert jnp.allclose(loss_rev, loss_chk, rtol=1e-9, atol=1e-12)
-            max_abs = float(jnp.max(jnp.abs(grad_rev) + jnp.abs(grad_chk)))
-            max_diff = float(jnp.max(jnp.abs(grad_rev - grad_chk)))
-            rel = max_diff / (max_abs + 1e-30)
-            assert rel < 1e-5, (
-                f"per-axis c3 gradient mismatch: max|Δ|={max_diff:.3e}, max|grad|={max_abs:.3e}, rel={rel:.3e}"
-            )
+            # One active voxel per component axis: AD must match a central FD.
+            for ax in range(3):
+                xs, ys, zs = jnp.where(c3[0, ax] != 0, size=1, fill_value=0)
+                idx = (0, ax, int(xs[0]), int(ys[0]), int(zs[0]))
+                h = 1e-4 * float(jnp.abs(c3[idx])) + 1e-10
+                fd = (loss_fn(c3.at[idx].add(h)) - loss_fn(c3.at[idx].add(-h))) / (2.0 * h)
+                ad = grad[idx]
+                diff = float(jnp.abs(ad - fd))
+                rel = diff / (float(jnp.abs(ad) + jnp.abs(fd)) + 1e-30)
+                assert rel < 1e-4 or diff < 1e-8, f"axis {ax}: AD={float(ad):.6e}, FD={float(fd):.6e}, rel={rel:.3e}"
+
             # The per-axis gradient must genuinely differ across the component
-            # axis inside the slab — otherwise this test degenerates to the
-            # isotropic case.
-            gx = float(jnp.max(jnp.abs(grad_rev[:, 0])))
-            gy = float(jnp.max(jnp.abs(grad_rev[:, 1])))
+            # axis inside the slab — otherwise this degenerates to the isotropic case.
+            gx = float(jnp.max(jnp.abs(grad[:, 0])))
+            gy = float(jnp.max(jnp.abs(grad[:, 1])))
             assert gx != gy
 
 
@@ -623,7 +588,7 @@ class TestSlicedReversibleGradient:
     1. In a numerically benign (lossless, exactly reversible) regime, adding checkpoints must not
        change a correct gradient — the reset lands on the same field the reverse pass would have
        reconstructed anyway.
-    2. In a lossy/dispersive regime where the reverse reconstruction drifts, more checkpoints must
+    2. In a lossy regime where the reverse reconstruction drifts, more checkpoints must
        drive the reversible gradient toward the checkpointed reference (exact autodiff) — never
        away from it.
     """
@@ -637,8 +602,6 @@ class TestSlicedReversibleGradient:
                     H=arrays.fields.H,
                     psi_E=arrays.fields.psi_E,
                     psi_H=arrays.fields.psi_H,
-                    dispersive_P_curr=arrays.fields.dispersive_P_curr,
-                    dispersive_P_prev=arrays.fields.dispersive_P_prev,
                 ),
                 inv_permittivities=inv_eps,
                 inv_permeabilities=arrays.inv_permeabilities,
@@ -646,10 +609,6 @@ class TestSlicedReversibleGradient:
                 recording_state=arrays.recording_state,
                 electric_conductivity=arrays.electric_conductivity,
                 magnetic_conductivity=arrays.magnetic_conductivity,
-                dispersive_c1=arrays.dispersive_c1,
-                dispersive_c2=arrays.dispersive_c2,
-                dispersive_c3=arrays.dispersive_c3,
-                dispersive_inv_c2=arrays.dispersive_inv_c2,
             )
             _, out = reversible_fdtd(arr, obj, config, jax.random.PRNGKey(99), show_progress=False)
             return jnp.sum(jnp.real(out.fields.E) ** 2)
@@ -663,7 +622,7 @@ class TestSlicedReversibleGradient:
         """
         lossless_material = fdtdx.Material(permittivity=2.0)  # no loss, no dispersion
         with _x64_enabled():
-            obj, arrays, config = _build_lossy_dispersive_scene(dtype=jnp.float64, material=lossless_material)
+            obj, arrays, config = _build_slab_scene(dtype=jnp.float64, material=lossless_material)
             t_total = config.time_steps_total
 
             def grad_for(num_ckpt):
@@ -684,14 +643,14 @@ class TestSlicedReversibleGradient:
                 assert rel < 1e-8, f"checkpoints changed benign gradient (num_ckpt={num_ckpt}): rel={rel:.3e}"
 
     def test_checkpoints_converge_to_checkpointed_reference_lossy(self):
-        """Lossy + dispersive scene: the reversible gradient with checkpoints must converge to the
+        """Strongly lossy scene: the reversible gradient with checkpoints must converge to the
         checkpointed-autodiff reference. More checkpoints must not increase the relative error, and
-        enough checkpoints must bring it below tolerance. Float32 is used because that is where the
+        enough checkpoints must bring it below tolerance. Float32 + a large σ_E is where the
         reverse-reconstruction drift (lossy forward = gain in reverse) is numerically visible."""
         dtype = jnp.float32
 
         # Reference: exact autodiff through the checkpointed loop.
-        obj_r, arrays_r, config_r = _build_lossy_dispersive_scene(dtype=dtype)
+        obj_r, arrays_r, config_r = _build_slab_scene(dtype=dtype, material=_HIGH_LOSS_MATERIAL)
         arrays_r, config_r = _attach_gradient(arrays_r, config_r, obj_r, method="checkpointed")
 
         def ref_loss(inv_eps):
@@ -701,8 +660,6 @@ class TestSlicedReversibleGradient:
                     H=arrays_r.fields.H,
                     psi_E=arrays_r.fields.psi_E,
                     psi_H=arrays_r.fields.psi_H,
-                    dispersive_P_curr=arrays_r.fields.dispersive_P_curr,
-                    dispersive_P_prev=arrays_r.fields.dispersive_P_prev,
                 ),
                 inv_permittivities=inv_eps,
                 inv_permeabilities=arrays_r.inv_permeabilities,
@@ -710,10 +667,6 @@ class TestSlicedReversibleGradient:
                 recording_state=arrays_r.recording_state,
                 electric_conductivity=arrays_r.electric_conductivity,
                 magnetic_conductivity=arrays_r.magnetic_conductivity,
-                dispersive_c1=arrays_r.dispersive_c1,
-                dispersive_c2=arrays_r.dispersive_c2,
-                dispersive_c3=arrays_r.dispersive_c3,
-                dispersive_inv_c2=arrays_r.dispersive_inv_c2,
             )
             _, out = checkpointed_fdtd(arr, obj_r, config_r, jax.random.PRNGKey(99), show_progress=False)
             return jnp.sum(jnp.real(out.fields.E) ** 2)
@@ -722,7 +675,7 @@ class TestSlicedReversibleGradient:
         ref_norm = float(jnp.max(jnp.abs(grad_ref))) + 1e-30
 
         def reversible_rel_err(num_ckpt):
-            obj, arrays, config = _build_lossy_dispersive_scene(dtype=dtype)
+            obj, arrays, config = _build_slab_scene(dtype=dtype, material=_HIGH_LOSS_MATERIAL)
             arrays, config = _attach_gradient(
                 arrays, config, obj, method="reversible", num_checkpoints_reversible=num_ckpt
             )
@@ -767,7 +720,7 @@ class TestOrientedDispersionGradients:
             ),
         )
 
-        obj, arrays, config = _build_lossy_dispersive_scene(dtype=jnp.float32, material=oriented_material)
+        obj, arrays, config = _build_slab_scene(dtype=jnp.float32, material=oriented_material)
         assert arrays.dispersive_c3 is not None and arrays.dispersive_c3.shape[1] == 9
         arrays, config = _attach_gradient(arrays, config, obj, method="checkpointed")
 
@@ -790,7 +743,6 @@ class TestOrientedDispersionGradients:
                 dispersive_c1=arrays.dispersive_c1,
                 dispersive_c2=arrays.dispersive_c2,
                 dispersive_c3=c3,
-                dispersive_inv_c2=arrays.dispersive_inv_c2,
             )
             _, out = checkpointed_fdtd(arr, obj, config, jax.random.PRNGKey(99), show_progress=False)
             return jnp.sum(jnp.real(out.fields.E) ** 2)
