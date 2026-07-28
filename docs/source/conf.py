@@ -104,14 +104,3 @@ mathjax3_config = {
 import sphinx.util.inspect
 
 _original_object_description = sphinx.util.inspect.object_description
-
-def _safe_object_description(obj, *args, **kwargs):
-    try:
-        return _original_object_description(obj, *args, **kwargs)
-    except Exception:
-        try:
-            return f"<{obj.__class__.__name__} object>"
-        except Exception:
-            return "<object>"
-
-sphinx.util.inspect.object_description = _safe_object_description # type: ignore
