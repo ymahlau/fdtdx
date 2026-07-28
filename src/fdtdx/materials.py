@@ -1,4 +1,5 @@
 import math
+import warnings
 from typing import cast
 
 import numpy as np
@@ -6,7 +7,7 @@ import numpy as np
 from fdtdx import constants
 from fdtdx.core.jax.pytrees import TreeClass, frozen_field
 from fdtdx.core.wavelength import WaveCharacter
-from fdtdx.dispersion import DispersionModel, compute_pole_coefficients
+from fdtdx.dispersion import DispersionModel, compute_pole_coefficients_tensor
 
 
 def _normalize_material_property(
@@ -207,6 +208,16 @@ class Material(TreeClass):
         object.__setattr__(self, "electric_conductivity", _normalize_material_property(electric_conductivity))
         object.__setattr__(self, "magnetic_conductivity", _normalize_material_property(magnetic_conductivity))
         object.__setattr__(self, "dispersion", dispersion)
+        eps = self.permittivity
+        diag = (eps[0], eps[4], eps[8])
+        if any(isinstance(v, (int, float)) and v <= 0.0 for v in diag):
+            warnings.warn(
+                "Material has a non-positive static permittivity on the diagonal, which is "
+                "unconditionally unstable in explicit FDTD. To model Re(eps) < 0 in-band (metals, "
+                "hyperbolic media), keep eps_inf >= 1 and use a DispersionModel (e.g. a DrudePole).",
+                UserWarning,
+                stacklevel=2,
+            )
 
     @property
     def is_all_isotropic(self) -> bool:
@@ -380,6 +391,27 @@ class Material(TreeClass):
         """
         return self.dispersion is not None and self.dispersion.num_poles > 0
 
+    @property
+    def has_isotropic_dispersion(self) -> bool:
+        """Check whether the material's dispersion (if any) is isotropic.
+
+        Returns:
+            bool: True if the material is non-dispersive or every pole of its
+            dispersion model applies the same parameters to all three axes.
+        """
+        return self.dispersion is None or self.dispersion.is_isotropic
+
+    @property
+    def has_axis_aligned_dispersion(self) -> bool:
+        """Check whether the material's dispersion (if any) is free of oriented poles.
+
+        Returns:
+            bool: True if the material is non-dispersive or no pole of its
+            dispersion model carries an orientation (i.e. the susceptibility
+            tensor is diagonal in the grid frame).
+        """
+        return self.dispersion is None or not self.dispersion.has_off_diagonal_coupling
+
     @classmethod
     def from_complex_permittivity(
         cls,
@@ -413,15 +445,25 @@ class Material(TreeClass):
             pick :math:`\sigma`; it is not stored on the material and need not
             match any source.
 
+        Anisotropy: every 3x3 tensor component may be complex. The real parts
+        form the permittivity tensor and the imaginary parts map component-wise
+        to a real conductivity tensor :math:`\sigma_{ij} = \omega_0 \varepsilon_0
+        \varepsilon''_{ij}`, both handled by the full-tensor update equations.
+        In particular a Hermitian :math:`\varepsilon` (imaginary off-diagonals,
+        e.g. gyrotropic media) maps to an antisymmetric real :math:`\sigma`.
+
         Args:
             permittivity: Complex relative permittivity :math:`\varepsilon' + i\varepsilon''`.
-                Scalar (isotropic) or a flat 3-tuple (diagonally anisotropic).
+                Scalar (isotropic), flat 3-tuple (diagonally anisotropic),
+                flat 9-tuple ``(xx, xy, xz, yx, yy, yz, zx, zy, zz)`` or nested
+                3x3 tuple (fully anisotropic).
             reference: Reference wave characteristic. Provide exactly one of
                 ``reference``, ``wavelength``, or ``frequency``.
             wavelength: Free-space reference wavelength (m).
             frequency: Reference frequency (Hz).
             permeability: Optional complex relative permeability
-                :math:`\mu' + i\mu''`. Defaults to ``1.0`` (non-magnetic, lossless).
+                :math:`\mu' + i\mu''`, in the same formats as ``permittivity``.
+                Defaults to ``1.0`` (non-magnetic, lossless).
 
         Returns:
             Material: Material with real permittivity/permeability and the derived
@@ -430,6 +472,14 @@ class Material(TreeClass):
         omega = _resolve_reference_omega(reference, wavelength, frequency)
         eps_real, sigma_e = _split_complex_property(permittivity, omega, constants.eps0)
         mu_real, sigma_m = _split_complex_property(permeability, omega, constants.mu0)
+        for name, real_part in (("permittivity", eps_real), ("permeability", mu_real)):
+            mat = np.array(_normalize_material_property(real_part), dtype=np.float64).reshape(3, 3)
+            det = float(np.linalg.det(mat))
+            if abs(det) < 1e-9 * max(1.0, float(np.abs(mat).max()) ** 3):
+                raise ValueError(
+                    f"The real part of the complex {name} tensor is singular (determinant ~ 0). "
+                    f"FDTDX stores the inverse {name}, so the real part must be an invertible 3x3 tensor."
+                )
         return cls(
             permittivity=eps_real,
             permeability=mu_real,
@@ -465,7 +515,11 @@ class Material(TreeClass):
 
         Args:
             refractive_index: Complex refractive index :math:`n + i\kappa`. Scalar
-                (isotropic) or a flat 3-tuple (diagonally anisotropic).
+                (isotropic) or a flat 3-tuple (diagonally anisotropic). Full
+                tensors are rejected: the permittivity is the *matrix* square of
+                the refractive-index tensor, not the elementwise square — build
+                the permittivity tensor directly via
+                :meth:`from_complex_permittivity` instead.
             reference: Reference wave characteristic. Provide exactly one of
                 ``reference``, ``wavelength``, or ``frequency``.
             wavelength: Free-space reference wavelength (m).
@@ -475,6 +529,11 @@ class Material(TreeClass):
             Material: The equivalent lossy material.
         """
         if isinstance(refractive_index, tuple):
+            if len(refractive_index) != 3 or any(isinstance(n, tuple) for n in refractive_index):
+                raise ValueError(
+                    "from_refractive_index accepts a scalar or a flat 3-tuple; for full tensors build the "
+                    "permittivity directly via from_complex_permittivity (matrix vs elementwise square)."
+                )
             permittivity: complex | tuple = tuple(complex(n) ** 2 for n in refractive_index)
         else:
             permittivity = complex(refractive_index) ** 2
@@ -510,9 +569,12 @@ class Material(TreeClass):
 
         Args:
             permittivity: Real relative permittivity :math:`\varepsilon'`. Scalar
-                (isotropic) or a flat 3-tuple (diagonally anisotropic).
-            loss_tangent: Loss tangent :math:`\tan\delta`. Scalar, or a flat
-                3-tuple matching ``permittivity``.
+                (isotropic), flat 3-tuple (diagonally anisotropic), or flat
+                9-tuple (fully anisotropic).
+            loss_tangent: Loss tangent :math:`\tan\delta`. Scalar (applied to
+                every tensor component, i.e. :math:`\varepsilon'' = \varepsilon'
+                \tan\delta` as a tensor scaling), or a flat tuple matching
+                ``permittivity``.
             reference: Reference wave characteristic. Provide exactly one of
                 ``reference``, ``wavelength``, or ``frequency``.
             wavelength: Free-space reference wavelength (m).
@@ -523,8 +585,15 @@ class Material(TreeClass):
             Material: The equivalent lossy material.
         """
         if isinstance(permittivity, tuple) or isinstance(loss_tangent, tuple):
-            eps_t = permittivity if isinstance(permittivity, tuple) else (permittivity,) * 3
-            tan_t = loss_tangent if isinstance(loss_tangent, tuple) else (loss_tangent,) * 3
+            if (isinstance(permittivity, tuple) and any(isinstance(v, tuple) for v in permittivity)) or (
+                isinstance(loss_tangent, tuple) and any(isinstance(v, tuple) for v in loss_tangent)
+            ):
+                raise ValueError(
+                    "from_loss_tangent accepts scalars or flat tuples (3 or 9 components), not nested tuples."
+                )
+            n = len(permittivity) if isinstance(permittivity, tuple) else len(cast(tuple, loss_tangent))
+            eps_t = permittivity if isinstance(permittivity, tuple) else (permittivity,) * n
+            tan_t = loss_tangent if isinstance(loss_tangent, tuple) else (loss_tangent,) * n
             if len(eps_t) != len(tan_t):
                 raise ValueError(
                     f"permittivity and loss_tangent must have matching lengths, got {len(eps_t)} and {len(tan_t)}."
@@ -598,7 +667,8 @@ def _split_complex_property(
 
     Returns:
         tuple: A ``(real_part, conductivity)`` pair, each matching the input
-        shape (scalar float or tuple of floats).
+        shape (scalar float or flat tuple of floats; a nested 3x3 input is
+        flattened to a row-major 9-tuple).
     """
 
     def _component(v) -> tuple[float, float]:
@@ -606,13 +676,16 @@ def _split_complex_property(
         return float(cv.real), omega * vacuum_constant * float(cv.imag)
 
     if isinstance(value, tuple):
+        if any(isinstance(v, tuple) for v in value):
+            # Nested 3x3 tensor: flatten to a row-major 9-tuple first.
+            if len(value) != 3 or not all(isinstance(v, tuple) and len(v) == 3 for v in value):
+                raise ValueError(
+                    "Nested complex material properties must be a 3x3 tuple ((xx, xy, xz), (yx, yy, yz), (zx, zy, zz))."
+                )
+            value = tuple(entry for row in value for entry in row)
         reals: list[float] = []
         conds: list[float] = []
         for v in value:
-            if isinstance(v, tuple):
-                raise ValueError(
-                    "Complex material constructors accept a scalar or a flat tuple of components, not a nested tuple."
-                )
             r, s = _component(v)
             reals.append(r)
             conds.append(s)
@@ -823,46 +896,230 @@ def compute_allowed_dispersive_coefficients(
     materials: dict[str, Material],
     dt: float,
     max_num_poles: int,
+    num_components: int,
+    coupling_components: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Compute per-material discrete-time dispersive recurrence coefficients.
 
     For each material (in the canonical sorted order used elsewhere), returns
-    arrays of shape ``(num_materials, max_num_poles)`` containing the
-    ``c1``, ``c2``, ``c3``, ``c4`` coefficients from
-    :func:`fdtdx.dispersion.compute_pole_coefficients`. Materials with fewer
-    poles than ``max_num_poles``, or non-dispersive materials, get zero-padded
-    slots (so the polarization term automatically vanishes on those voxels).
-    ``c4`` is zero for Lorentz/Drude poles and only non-zero for CCPR poles.
+    the ``c1``, ``c2``, ``c3``, ``c4`` coefficients from
+    :func:`fdtdx.dispersion.compute_pole_coefficients_tensor`. Materials with
+    fewer poles than ``max_num_poles``, or non-dispersive materials, get
+    zero-padded slots (so the polarization term automatically vanishes on those
+    voxels). ``c4`` is zero for Lorentz/Drude poles and only non-zero for CCPR
+    poles.
 
     Args:
         materials: Dictionary mapping material names to Material objects.
         dt: Simulation time step (seconds).
         max_num_poles: Maximum pole count to pad every material to. When 0,
-            returns four ``(num_materials, 0)``-shaped arrays.
+            returns zero-pole arrays.
+        num_components: Size of the trailing component axis of the recurrence
+            coefficients ``c1``/``c2`` — 1 when all materials have isotropic
+            dispersion, 3 for per-axis dispersion.
+        coupling_components: Size of the trailing axis of the field couplings
+            ``c3``/``c4`` — additionally allows 9 (row-major 3x3 coupling
+            tensor) when any material has oriented poles. Defaults to
+            ``num_components``.
 
     Returns:
-        Four numpy arrays of shape ``(num_materials, max_num_poles)``
-        with ``c1``, ``c2``, ``c3``, ``c4``.
+        Four numpy arrays: ``c1``, ``c2`` of shape
+        ``(num_materials, max_num_poles, num_components)`` and ``c3``, ``c4``
+        of shape ``(num_materials, max_num_poles, coupling_components)``.
     """
+    if coupling_components is None:
+        coupling_components = num_components
+    if num_components not in (1, 3):
+        raise ValueError(f"num_components must be 1 or 3, got {num_components}.")
+    if coupling_components not in (1, 3, 9):
+        raise ValueError(f"coupling_components must be 1, 3 or 9, got {coupling_components}.")
     ordered = compute_ordered_material_name_tuples(materials)
     num_mats = len(ordered)
-    c1 = np.zeros((num_mats, max_num_poles), dtype=np.float64)
-    c2 = np.zeros((num_mats, max_num_poles), dtype=np.float64)
-    c3 = np.zeros((num_mats, max_num_poles), dtype=np.float64)
-    c4 = np.zeros((num_mats, max_num_poles), dtype=np.float64)
+    c1 = np.zeros((num_mats, max_num_poles, num_components), dtype=np.float64)
+    c2 = np.zeros((num_mats, max_num_poles, num_components), dtype=np.float64)
+    c3 = np.zeros((num_mats, max_num_poles, coupling_components), dtype=np.float64)
+    c4 = np.zeros((num_mats, max_num_poles, coupling_components), dtype=np.float64)
     if max_num_poles == 0:
         return c1, c2, c3, c4
+    diag_entries = (0, 4, 8)
     for m_idx, (_, mat) in enumerate(ordered):
         if mat.dispersion is None:
             continue
+        if num_components == 1 and not mat.has_isotropic_dispersion:
+            raise ValueError("num_components=1 requires isotropic dispersion, but a material has per-axis poles.")
+        if coupling_components == 1 and not mat.has_isotropic_dispersion:
+            raise ValueError("coupling_components=1 requires isotropic dispersion, but a material has per-axis poles.")
+        if coupling_components < 9 and not mat.has_axis_aligned_dispersion:
+            raise ValueError(
+                "coupling_components < 9 requires axis-aligned dispersion, but a material has oriented poles."
+            )
         poles = mat.dispersion.poles
-        c1_vals, c2_vals, c3_vals, c4_vals = compute_pole_coefficients(poles, dt)
+        c1_vals, c2_vals, c3_vals, c4_vals = compute_pole_coefficients_tensor(poles, dt)
         n = len(poles)
-        c1[m_idx, :n] = c1_vals
-        c2[m_idx, :n] = c2_vals
-        c3[m_idx, :n] = c3_vals
-        c4[m_idx, :n] = c4_vals
+        # For num_components == 1 the isotropy check above guarantees all three
+        # axis columns are identical, so keeping only the first is exact. For
+        # coupling_components < 9 the axis-alignment check guarantees the
+        # coupling tensors are diagonal, so keeping diagonal entries is exact.
+        c1[m_idx, :n] = c1_vals[:, :num_components]
+        c2[m_idx, :n] = c2_vals[:, :num_components]
+        if coupling_components == 9:
+            c3[m_idx, :n] = c3_vals
+            c4[m_idx, :n] = c4_vals
+        else:
+            c3[m_idx, :n] = c3_vals[:, diag_entries[:coupling_components]]
+            c4[m_idx, :n] = c4_vals[:, diag_entries[:coupling_components]]
     return c1, c2, c3, c4
+
+
+def _min_dispersive_divisor(mat: Material, dt: float) -> tuple[float, int]:
+    r"""Minimum per-cell implicit-update divisor for a dispersive material.
+
+    Mirrors the ``divisor`` computed in :func:`fdtdx.fdtd.update.update_E` for a
+    cell fully occupied by ``mat``:
+
+    .. math::
+        \text{divisor}_a = 1 + \varepsilon_{\infty,a}^{-1} \sum_p c_{4,p,a}
+        + \tfrac{1}{2}\, \sigma_a\, c_0\, \Delta t\, \eta_0\, \varepsilon_{\infty,a}^{-1}
+
+    per axis ``a``. The ``courant_number`` that scales both the conductivity term
+    and the (resolution-scaled) conductivity array cancels, so the divisor depends
+    only on ``dt``, the diagonal ``eps_inf``, the physical conductivity, and the
+    pole ``c4`` coefficients. The conductivity term is always ``>= 0``, so the
+    binding constraint is ``1 + inv_eps * sum(c4)``.
+
+    Args:
+        mat: A dispersive material (``mat.dispersion`` must not be ``None``).
+        dt: Simulation time step (seconds).
+
+    Returns:
+        tuple: ``(min_divisor, worst_axis)`` — the smallest divisor over the three
+        grid axes and the axis index at which it occurs.
+    """
+    assert mat.dispersion is not None
+    # tensor variant handles every pole type; oriented poles have no dE/dt
+    # coupling, so their diagonal c4 entries are zero and drop out here
+    _, _, _, c4 = compute_pole_coefficients_tensor(mat.dispersion.poles, dt)
+    sum_c4 = c4[:, (0, 4, 8)].sum(axis=0)  # (3,) diagonal c4 summed over poles, per axis
+    eps_inf = (mat.permittivity[0], mat.permittivity[4], mat.permittivity[8])
+    sigma = (mat.electric_conductivity[0], mat.electric_conductivity[4], mat.electric_conductivity[8])
+    min_div, worst_ax = math.inf, 0
+    for ax in range(3):
+        inv_eps = 1.0 / eps_inf[ax]
+        cond = 0.5 * sigma[ax] * constants.c * dt * constants.eta0 * inv_eps  # >= 0
+        div = 1.0 + inv_eps * float(sum_c4[ax]) + cond
+        if div < min_div:
+            min_div, worst_ax = div, ax
+    return min_div, worst_ax
+
+
+def _max_safe_courant_factor(
+    mat: Material,
+    dt: float,
+    courant_factor: float,
+    threshold: float,
+    scan_steps: int = 512,
+) -> float:
+    """Largest ``courant_factor`` below which ``mat`` stays stable at every step.
+
+    ``dt`` is proportional to ``courant_factor`` on every grid type, so scaling
+    the time step by ``s`` scales directly to a ``courant_factor``. Each pole's
+    ``c4_p(s) = b_p * (s * dt) / (1 + gamma_p * s * dt / 2)`` is individually
+    monotonic in ``s`` (its sign is that of ``b_p``), but the *sum* over poles
+    with mixed ``b_p`` signs and dampings — plus the linearly growing
+    conductivity term — is not necessarily monotonic and may cross ``threshold``
+    several times. To keep it genuinely safe (every value below ``X``
+    stable), we search for the *first* crossing from ``s = 0`` (where the
+    divisor is ``~ 1``): a forward scan brackets it, then bisection refines.
+    Recomputing the divisor at each ``s * dt`` handles the weak
+    ``D = 1 + gamma * dt / 2`` nonlinearity exactly.
+    """
+    n = max(1, scan_steps)
+    prev = 0.0  # last safe scale (divisor >= threshold); s = 0 gives divisor ~ 1
+    hi = None
+    for k in range(1, n + 1):
+        s = k / n
+        div, _ = _min_dispersive_divisor(mat, s * dt)
+        if div < threshold:
+            hi = s
+            break
+        prev = s
+    if hi is None:
+        # No sub-threshold scan point found. Unreachable via the validator (it
+        # only calls this when the divisor at s = 1 is already below threshold),
+        # but stay conservative if invoked directly.
+        return 0.5 * courant_factor
+    lo = prev  # bracket [lo, hi]: divisor(lo) >= threshold, divisor(hi) < threshold
+    for _ in range(50):
+        mid = 0.5 * (lo + hi)
+        div, _ = _min_dispersive_divisor(mat, mid * dt)
+        if div >= threshold:
+            lo = mid
+        else:
+            hi = mid
+    result = lo * courant_factor
+    if result <= 0.0:
+        return 0.0
+    # Floor to 3 significant figures so the reported "<= X" is never rounded
+    # ABOVE the true first-crossing boundary (nearest-rounding could over-promise).
+    scale = 10.0 ** (math.floor(math.log10(result)) - 2)
+    return math.floor(result / scale) * scale
+
+
+def validate_dispersive_divisor_stability(
+    materials: dict[str, Material],
+    dt: float,
+    courant_factor: float,
+    near_zero_threshold: float = 0.01,
+) -> None:
+    r"""Validate the per-cell implicit-update divisor of CCPR dispersive materials.
+
+    For CCPR poles (non-zero ``dE/dt`` coupling) the E-field update divides by a
+    per-cell factor ``1 + inv_eps * sum(c4) [+ conductivity term]`` (see
+    :func:`fdtdx.fdtd.update.update_E`). This must stay positive; as it approaches
+    ``0^+`` the transient gain (``~ 1/divisor``) explodes and accuracy collapses.
+    Lorentz and Drude poles have ``c4 = 0``, so their divisor is always ``>= 1``
+    and they are skipped.
+
+    Checked per distinct material rather than per assembled cell: a cell holds one
+    material's coefficients, so this covers every static cell, names the offending
+    material, and — because a CONTINUOUS device's interpolated divisor
+    ``1 + sum(c4)(t) / eps(t)`` is a monotonic (Moebius) function of the mix ``t``
+    — the bracketing materials bound the device-interpolated cells too.
+
+    Args:
+        materials: Mapping of label -> :class:`Material` for every material in the
+            simulation. Labels appear verbatim in the error/warning messages.
+        dt: Simulation time step (seconds).
+        courant_factor: The configured ``courant_factor`` (for the remediation hint).
+        near_zero_threshold: Warn when ``0 < divisor < near_zero_threshold``; raise
+            when ``divisor <= 0``.
+
+    Raises:
+        ValueError: If any material's divisor is non-positive (unconditionally
+            unstable / NaN).
+    """
+    for name, mat in materials.items():
+        if mat.dispersion is None:
+            continue
+        # c4 != 0 only for CCPR / non-zero dE/dt coupling; Lorentz & Drude are safe.
+        if not any(b != 0.0 for p in mat.dispersion.poles for b in p.coupling_edot_axes):
+            continue
+        min_div, worst_ax = _min_dispersive_divisor(mat, dt)
+        if min_div >= near_zero_threshold:
+            continue
+        cf_max = _max_safe_courant_factor(mat, dt, courant_factor, near_zero_threshold)
+        axis_note = f" on axis {'xyz'[worst_ax]}" if not (mat.is_all_isotropic and mat.dispersion.is_isotropic) else ""
+        detail = (
+            f"Dispersive material '{name}' has an implicit E-update divisor = {min_div:.4g}{axis_note} "
+            "(1 + inv_eps * sum(c4) [+ conductivity term]); this factor divides the E-field update, so as "
+            "it approaches 0 the transient gain (~1/divisor) explodes and accuracy collapses. The divisor "
+            f"scales with the time step, so lower courant_factor to <= {cf_max:.3g} (currently {courant_factor:.3g})."
+        )
+        if min_div <= 0.0:
+            raise ValueError(
+                detail + " The divisor is non-positive, which makes the ADE update unconditionally unstable (NaN)."
+            )
+        warnings.warn(detail, UserWarning, stacklevel=2)
 
 
 def compute_ordered_names(

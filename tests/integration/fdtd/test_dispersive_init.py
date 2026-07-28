@@ -11,7 +11,7 @@ import pytest
 
 from fdtdx.config import SimulationConfig
 from fdtdx.constants import c as c0
-from fdtdx.dispersion import DispersionModel, DrudePole, LorentzPole, compute_pole_coefficients
+from fdtdx.dispersion import CCPRPole, DispersionModel, DrudePole, LorentzPole, compute_pole_coefficients
 from fdtdx.fdtd.initialization import apply_params, place_objects
 from fdtdx.materials import Material
 from fdtdx.objects.device.device import Device
@@ -387,9 +387,8 @@ def test_device_dispersive_discrete(simple_config, simple_volume):
     assert jnp.all(arrays2.dispersive_c3[0, 0, xs, ys, zs] == 0.0)
 
 
-def test_fully_anisotropic_plus_dispersive_raises(simple_config, simple_volume):
-    """Combining a fully anisotropic permittivity tensor with a dispersive material
-    should raise NotImplementedError from _init_arrays."""
+def _aniso_plus_dispersive_scene(simple_volume):
+    """Off-diagonal permittivity tensor slab next to a dispersive slab."""
     aniso = Material(
         permittivity=(2.0, 0.1, 0.0, 0.1, 2.5, 0.0, 0.0, 0.0, 3.0),  # off-diagonal
     )
@@ -400,9 +399,107 @@ def test_fully_anisotropic_plus_dispersive_raises(simple_config, simple_volume):
         GridCoordinateConstraint(object="aniso", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[2, 2, 2]),
         GridCoordinateConstraint(object="disp", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[15, 15, 15]),
     ]
+    return [simple_volume, obj1, obj2], constraints
+
+
+def test_fully_anisotropic_plus_dispersive_allocates(simple_config, simple_volume):
+    """Dispersion combined with an off-diagonal permittivity tensor runs through
+    the fully anisotropic update path: allocation succeeds with 9-component
+    permittivity while the (axis-aligned) dispersion keeps its natural tiers."""
+    objects_list, constraints = _aniso_plus_dispersive_scene(simple_volume)
     key = jax.random.PRNGKey(0)
-    with pytest.raises(NotImplementedError, match="fully anisotropic"):
-        place_objects([simple_volume, obj1, obj2], simple_config, constraints, key)
+    _, arrays, _, _, _ = place_objects(objects_list, simple_config, constraints, key)
+    assert arrays.inv_permittivities.shape[0] == 9
+    assert arrays.dispersive_c1 is not None
+    assert arrays.dispersive_c1.shape[1] == 1
+    assert arrays.dispersive_c3.shape[1] == 1
+
+
+def test_isotropic_dispersive_reversible_raises(simple_config, simple_volume):
+    """Any dispersive material rejects the 'reversible' gradient method at
+    initialization — reversing the ADE recurrence is not supported."""
+    from fdtdx.config import GradientConfig
+    from fdtdx.interfaces.recorder import Recorder
+
+    obj = UniformMaterialObject(name="slab", partial_grid_shape=(10, 10, 10), material=_lorentz_material())
+    constraint = GridCoordinateConstraint(
+        object="slab", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+    config = simple_config.aset("gradient_config", GradientConfig(method="reversible", recorder=Recorder(modules=[])))
+    key = jax.random.PRNGKey(0)
+    with pytest.raises(NotImplementedError, match="under active development"):
+        place_objects([simple_volume, obj], config, [constraint], key)
+
+
+def test_fully_anisotropic_plus_dispersive_reversible_raises(simple_config, simple_volume):
+    """Same rejection on the fully anisotropic ADE path."""
+    from fdtdx.config import GradientConfig
+    from fdtdx.interfaces.recorder import Recorder
+
+    objects_list, constraints = _aniso_plus_dispersive_scene(simple_volume)
+    config = simple_config.aset("gradient_config", GradientConfig(method="reversible", recorder=Recorder(modules=[])))
+    key = jax.random.PRNGKey(0)
+    with pytest.raises(NotImplementedError, match="checkpointed"):
+        place_objects(objects_list, config, constraints, key)
+
+
+def _unstable_ccpr_material(eps_inf=2.0):
+    """CCPR material whose implicit-update divisor goes non-positive at the
+    ``simple_config`` time step (~1.9e-16 s), i.e. large negative Re(residue)."""
+    pole = CCPRPole(pole=complex(-1e13, -2e15), residue=complex(-6e15, 1e15))
+    return Material(permittivity=eps_inf, dispersion=DispersionModel(poles=(pole,)))
+
+
+def test_unstable_ccpr_material_raises_at_placement(simple_config, simple_volume):
+    """A CCPR material with a non-positive implicit divisor must be rejected by
+    place_objects (via _init_arrays -> validate_dispersive_divisor_stability)."""
+    obj = UniformMaterialObject(name="gold", partial_grid_shape=(10, 10, 10), material=_unstable_ccpr_material())
+    constraint = GridCoordinateConstraint(
+        object="gold", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+    key = jax.random.PRNGKey(0)
+    with pytest.raises(ValueError, match="gold"):
+        place_objects([simple_volume, obj], simple_config, [constraint], key)
+
+
+def test_lowering_courant_factor_stabilizes_ccpr(simple_config, simple_volume):
+    """The remediation actually works: the same material places cleanly once the
+    courant_factor is lowered below the value reported in the error message."""
+    obj = UniformMaterialObject(name="gold", partial_grid_shape=(10, 10, 10), material=_unstable_ccpr_material())
+    constraint = GridCoordinateConstraint(
+        object="gold", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+    key = jax.random.PRNGKey(0)
+    with pytest.raises(ValueError) as exc:
+        place_objects([simple_volume, obj], simple_config, [constraint], key)
+    cf_max = float(str(exc.value).split("lower courant_factor to <= ")[1].split(" ")[0])
+    safe_config = simple_config.aset("courant_factor", 0.9 * cf_max)
+    # Must not raise now.
+    place_objects([simple_volume, obj], safe_config, [constraint], key)
+
+
+def test_stable_ccpr_material_places_cleanly(simple_config, simple_volume):
+    """A CCPR material with a comfortably positive divisor places without error."""
+    pole = CCPRPole(pole=complex(-1e13, -2e15), residue=complex(-2e15, 1e15))
+    mat = Material(permittivity=2.0, dispersion=DispersionModel(poles=(pole,)))
+    obj = UniformMaterialObject(name="metal", partial_grid_shape=(10, 10, 10), material=mat)
+    constraint = GridCoordinateConstraint(
+        object="metal", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+    key = jax.random.PRNGKey(0)
+    _, arrays, _, _, _ = place_objects([simple_volume, obj], simple_config, [constraint], key)
+    assert arrays.dispersive_c4 is not None
+
+
+def test_lorentz_material_unaffected_by_ccpr_validation(simple_config, simple_volume):
+    """A Lorentz-only sim (c4 = 0) is not subject to the divisor validation and
+    places cleanly even at the default courant_factor."""
+    obj = UniformMaterialObject(name="slab", partial_grid_shape=(10, 10, 10), material=_lorentz_material(eps_inf=2.0))
+    constraint = GridCoordinateConstraint(
+        object="slab", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+    key = jax.random.PRNGKey(0)
+    place_objects([simple_volume, obj], simple_config, [constraint], key)
 
 
 def test_non_dispersive_unused_import_guard():
@@ -550,3 +647,341 @@ def test_plane_source_apply_changes_with_dispersion(simple_config, simple_volume
     assert diff > 0.1, (
         f"|H_disp - H_vac| / |H_vac| = {diff:.3f} — source apply() did not see the dispersive coefficients"
     )
+
+
+# ---------------------------------------------------------------------------
+# Per-axis (diagonally anisotropic) dispersion
+# ---------------------------------------------------------------------------
+
+
+def _per_axis_lorentz_material(eps_inf=(2.0, 2.0, 3.0)):
+    from fdtdx.dispersion import compute_pole_coefficients_per_axis  # noqa: F401  (re-exported for tests below)
+
+    return Material(
+        permittivity=eps_inf,
+        dispersion=DispersionModel(
+            poles=(
+                LorentzPole(
+                    resonance_frequency=(2e15, 2e15, 1e15),
+                    damping=(1e13, 1e13, 2e13),
+                    delta_epsilon=(1.5, 1.5, 0.5),
+                ),
+            )
+        ),
+    )
+
+
+def test_per_axis_dispersion_allocates_3_component_coefficients(simple_config, simple_volume):
+    """A per-axis dispersive material widens the coefficient arrays to a
+    3-entry component axis and bakes per-axis values inside the object slice."""
+    from fdtdx.dispersion import compute_pole_coefficients_per_axis
+
+    material = _per_axis_lorentz_material()
+    obj = UniformMaterialObject(name="slab", partial_grid_shape=(10, 10, 10), material=material)
+    constraint = GridCoordinateConstraint(
+        object="slab", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+    key = jax.random.PRNGKey(0)
+    objects, arrays, _, config, _ = place_objects([simple_volume, obj], simple_config, [constraint], key)
+    placed = _placed(objects, "slab")
+
+    Nx, Ny, Nz = simple_volume.partial_grid_shape  # type: ignore[misc]
+    assert arrays.dispersive_c1 is not None
+    assert arrays.dispersive_c1.shape == (1, 3, Nx, Ny, Nz)
+    assert arrays.dispersive_c2.shape == (1, 3, Nx, Ny, Nz)
+    assert arrays.dispersive_c3.shape == (1, 3, Nx, Ny, Nz)
+    # polarization state keeps its (num_poles, 3, ...) shape
+    assert arrays.fields.dispersive_P_curr.shape == (1, 3, Nx, Ny, Nz)
+
+    c1_ref, c2_ref, c3_ref, _ = compute_pole_coefficients_per_axis(
+        material.dispersion.poles,  # type: ignore[union-attr]
+        config.time_step_duration,
+    )
+    xs, ys, zs = placed.grid_slice
+    for ax in range(3):
+        assert jnp.allclose(arrays.dispersive_c1[0, ax, xs, ys, zs], c1_ref[0, ax])
+        assert jnp.allclose(arrays.dispersive_c2[0, ax, xs, ys, zs], c2_ref[0, ax])
+        assert jnp.allclose(arrays.dispersive_c3[0, ax, xs, ys, zs], c3_ref[0, ax])
+    # the axis columns genuinely differ (x vs z resonance)
+    assert not jnp.allclose(arrays.dispersive_c1[0, 0, xs, ys, zs], arrays.dispersive_c1[0, 2, xs, ys, zs])
+    # outside the slab everything is zero
+    inside_mask = jnp.zeros((Nx, Ny, Nz), dtype=bool).at[xs, ys, zs].set(True)
+    assert jnp.all(arrays.dispersive_c3[0, :, ~inside_mask] == 0.0)
+
+
+def test_isotropic_dispersion_keeps_1_component_axis(simple_config, simple_volume):
+    """Purely isotropic dispersion must keep the memory-saving size-1 component
+    axis (regression guard for the per-axis feature)."""
+    obj = UniformMaterialObject(name="slab", partial_grid_shape=(10, 10, 10), material=_lorentz_material())
+    constraint = GridCoordinateConstraint(
+        object="slab", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+    key = jax.random.PRNGKey(0)
+    _, arrays, _, _, _ = place_objects([simple_volume, obj], simple_config, [constraint], key)
+    assert arrays.dispersive_c1.shape[1] == 1
+
+
+def test_static_multi_material_per_axis_coefficients(simple_config, simple_volume):
+    """A Sphere with a per-axis Drude material bakes per-axis coefficients
+    through the multi-material indexing path."""
+    from fdtdx.dispersion import compute_pole_coefficients_per_axis
+
+    per_axis_drude = Material(
+        permittivity=1.0,
+        dispersion=DispersionModel(poles=(DrudePole(plasma_frequency=(1.37e16, 0.0, 0.0), damping=1e14),)),
+    )
+    materials = {
+        "background": Material(permittivity=1.0),
+        "drude": per_axis_drude,
+    }
+    sphere = Sphere(
+        name="sphere",
+        materials=materials,
+        material_name="drude",
+        radius=5.0 * simple_config.uniform_spacing(),
+    )
+    constraint = GridCoordinateConstraint(object="sphere", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[8, 8, 8])
+    key = jax.random.PRNGKey(0)
+    objects, arrays, _, config, _ = place_objects([simple_volume, sphere], simple_config, [constraint], key)
+    placed = _placed(objects, "sphere")
+
+    assert arrays.dispersive_c3 is not None
+    assert arrays.dispersive_c3.shape[1] == 3
+
+    c1_ref, _, c3_ref, _ = compute_pole_coefficients_per_axis(
+        per_axis_drude.dispersion.poles,  # type: ignore[union-attr]
+        config.time_step_duration,
+    )
+    xs, ys, zs = placed.grid_slice
+    voxel_mask = placed.get_voxel_mask_for_shape().astype(bool)
+    inside_x = arrays.dispersive_c3[0, 0, xs, ys, zs]
+    inside_y = arrays.dispersive_c3[0, 1, xs, ys, zs]
+    # x axis carries the plasma coupling, y axis has none
+    assert jnp.allclose(inside_x[voxel_mask], c3_ref[0, 0])
+    assert c3_ref[0, 0] > 0.0
+    assert jnp.all(inside_y[voxel_mask] == 0.0)
+    # c1 is still non-zero on the y axis (recurrence exists, zero coupling)
+    assert jnp.allclose(arrays.dispersive_c1[0, 1, xs, ys, zs][voxel_mask], c1_ref[0, 1])
+
+
+def test_device_per_axis_dispersive_continuous_and_discrete(simple_config, simple_volume):
+    """Devices write per-axis coefficient stacks through both the CONTINUOUS
+    interpolation branch and the DISCRETE selection branch."""
+    from fdtdx.dispersion import compute_pole_coefficients_per_axis
+
+    per_axis_drude = Material(
+        permittivity=1.0,
+        dispersion=DispersionModel(poles=(DrudePole(plasma_frequency=(1.37e16, 0.0, 5.0e15), damping=1e14),)),
+    )
+    materials = {
+        "air": Material(permittivity=1.0),
+        "drude": per_axis_drude,
+    }
+    for transforms in ([], [ClosestIndex()]):
+        device = Device(
+            name="device",
+            partial_grid_shape=(10, 10, 10),
+            partial_voxel_grid_shape=(5, 5, 5),
+            materials=materials,
+            param_transforms=transforms,
+        )
+        constraint = GridCoordinateConstraint(
+            object="device", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+        )
+        key = jax.random.PRNGKey(0)
+        objects, arrays, params, config, _ = place_objects([simple_volume, device], simple_config, [constraint], key)
+        placed_device = _placed(objects, "device")
+        xs, ys, zs = placed_device.grid_slice
+
+        drude_params = {name: jnp.ones_like(p) for name, p in params.items()}
+        arrays, objects, _ = apply_params(arrays, objects, drude_params, key)
+
+        assert arrays.dispersive_c1.shape[1] == 3
+        c1_ref, _, c3_ref, _ = compute_pole_coefficients_per_axis(
+            per_axis_drude.dispersion.poles,  # type: ignore[union-attr]
+            config.time_step_duration,
+        )
+        for ax in range(3):
+            assert jnp.allclose(arrays.dispersive_c1[0, ax, xs, ys, zs], c1_ref[0, ax])
+            assert jnp.allclose(arrays.dispersive_c3[0, ax, xs, ys, zs], c3_ref[0, ax])
+        # x and z couplings differ by construction
+        assert c3_ref[0, 0] != c3_ref[0, 2]
+
+
+def test_full_tensor_sigma_plus_dispersive_allocates(simple_config, simple_volume):
+    """Dispersion combined with an off-diagonal conductivity tensor runs through
+    the fully anisotropic update path (which now carries the ADE block)."""
+    sigma_tensor = Material(
+        permittivity=2.0,
+        electric_conductivity=(1.0, 0.1, 0.0, 0.1, 1.0, 0.0, 0.0, 0.0, 1.0),  # off-diagonal
+    )
+    disp = _lorentz_material(eps_inf=2.0)
+    obj1 = UniformMaterialObject(name="sigma_slab", partial_grid_shape=(6, 6, 6), material=sigma_tensor)
+    obj2 = UniformMaterialObject(name="disp", partial_grid_shape=(6, 6, 6), material=disp)
+    constraints = [
+        GridCoordinateConstraint(object="sigma_slab", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[2, 2, 2]),
+        GridCoordinateConstraint(object="disp", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[15, 15, 15]),
+    ]
+    key = jax.random.PRNGKey(0)
+    _, arrays, _, _, _ = place_objects([simple_volume, obj1, obj2], simple_config, constraints, key)
+    assert arrays.electric_conductivity is not None
+    assert arrays.electric_conductivity.shape[0] == 9
+    assert arrays.dispersive_c3 is not None
+    # axis-aligned dispersion keeps its natural coupling tier
+    assert arrays.dispersive_c3.shape[1] == 1
+
+
+# ---------------------------------------------------------------------------
+# Oriented (off-diagonal) dispersion
+# ---------------------------------------------------------------------------
+
+
+def _oriented_lorentz_material(eps_inf=2.0):
+    from fdtdx.dispersion import LorentzPole
+
+    return Material(
+        permittivity=eps_inf,
+        dispersion=DispersionModel(
+            poles=(
+                LorentzPole(
+                    resonance_frequency=2e15,
+                    damping=1e13,
+                    delta_epsilon=1.5,
+                    orientation=(1.0, 1.0, 0.0),
+                ),
+            )
+        ),
+    )
+
+
+def test_oriented_dispersion_forces_tensor_tiers(simple_config, simple_volume):
+    """An oriented pole widens the coupling to 9 components and forces the
+    9-component permittivity tier so the fully anisotropic kernel runs."""
+    from fdtdx.dispersion import compute_pole_coefficients_tensor
+
+    material = _oriented_lorentz_material()
+    obj = UniformMaterialObject(name="slab", partial_grid_shape=(10, 10, 10), material=material)
+    constraint = GridCoordinateConstraint(
+        object="slab", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+    key = jax.random.PRNGKey(0)
+    objects, arrays, _, config, _ = place_objects([simple_volume, obj], simple_config, [constraint], key)
+    placed = _placed(objects, "slab")
+
+    assert arrays.inv_permittivities.shape[0] == 9
+    assert arrays.dispersive_c1.shape[1] == 3
+    assert arrays.dispersive_c3.shape[1] == 9
+    assert arrays.fields.dispersive_P_curr.shape[1] == 3
+
+    c1_ref, _, c3_ref, _ = compute_pole_coefficients_tensor(
+        material.dispersion.poles,  # type: ignore[union-attr]
+        config.time_step_duration,
+    )
+    xs, ys, zs = placed.grid_slice
+    for entry in range(9):
+        assert jnp.allclose(arrays.dispersive_c3[0, entry, xs, ys, zs], c3_ref[0, entry])
+    # the coupling tensor genuinely has off-diagonal weight (u = (1,1,0)/sqrt(2))
+    assert c3_ref[0, 1] != 0.0
+    for ax in range(3):
+        assert jnp.allclose(arrays.dispersive_c1[0, ax, xs, ys, zs], c1_ref[0, ax])
+
+
+def test_oriented_dispersion_reversible_raises(simple_config, simple_volume):
+    from fdtdx.config import GradientConfig
+    from fdtdx.interfaces.recorder import Recorder
+
+    material = _oriented_lorentz_material()
+    obj = UniformMaterialObject(name="slab", partial_grid_shape=(10, 10, 10), material=material)
+    constraint = GridCoordinateConstraint(
+        object="slab", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+    config = simple_config.aset("gradient_config", GradientConfig(method="reversible", recorder=Recorder(modules=[])))
+    key = jax.random.PRNGKey(0)
+    with pytest.raises(NotImplementedError, match="checkpointed"):
+        place_objects([simple_volume, obj], config, [constraint], key)
+
+
+def test_oriented_dispersion_nonuniform_grid_raises():
+    """The symmetrized off-diagonal interface coupling assumes a uniform grid."""
+    from fdtdx.core.grid import RectilinearGrid
+
+    spacings = np.tile([1.0e-7, 1.3e-7], 15)
+    edges = jnp.asarray(np.concatenate([[0.0], np.cumsum(spacings)]))
+    grid = RectilinearGrid(x_edges=edges, y_edges=edges, z_edges=edges)
+    config = SimulationConfig(grid=grid, time=1e-14, backend="cpu")
+    volume = SimulationVolume(name="volume", partial_grid_shape=(30, 30, 30), material=_oriented_lorentz_material())
+    key = jax.random.PRNGKey(0)
+    with pytest.raises(NotImplementedError, match="non-uniform"):
+        place_objects([volume], config, [], key)
+
+
+def test_ccpr_edot_plus_tensor_path_raises(simple_config, simple_volume):
+    """A CCPR pole with dE/dt coupling cannot be combined with off-diagonal
+    material tensors: the tensor-branch ADE has no implicit c4 solve."""
+    from fdtdx.dispersion import CCPRPole
+
+    ccpr_material = Material(
+        permittivity=1.0,
+        dispersion=DispersionModel(poles=(CCPRPole(pole=complex(-2e13, -1.8e15), residue=complex(3e14, -6e14)),)),
+    )
+    aniso = Material(permittivity=(2.0, 0.1, 0.0, 0.1, 2.5, 0.0, 0.0, 0.0, 3.0))
+    obj1 = UniformMaterialObject(name="ccpr", partial_grid_shape=(6, 6, 6), material=ccpr_material)
+    obj2 = UniformMaterialObject(name="aniso", partial_grid_shape=(6, 6, 6), material=aniso)
+    constraints = [
+        GridCoordinateConstraint(object="ccpr", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[2, 2, 2]),
+        GridCoordinateConstraint(object="aniso", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[15, 15, 15]),
+    ]
+    key = jax.random.PRNGKey(0)
+    with pytest.raises(NotImplementedError, match="dE/dt"):
+        place_objects([simple_volume, obj1, obj2], simple_config, constraints, key)
+
+
+def test_oriented_static_multi_material_and_device(simple_config, simple_volume):
+    """Oriented coupling tensors bake correctly through the multi-material
+    indexing path and the Device apply_params path."""
+    from fdtdx.dispersion import compute_pole_coefficients_tensor
+
+    oriented = _oriented_lorentz_material(eps_inf=1.0)
+    materials = {
+        "air": Material(permittivity=1.0),
+        "oriented": oriented,
+    }
+    sphere = Sphere(
+        name="sphere",
+        materials=materials,
+        material_name="oriented",
+        radius=5.0 * simple_config.uniform_spacing(),
+    )
+    constraint = GridCoordinateConstraint(object="sphere", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[8, 8, 8])
+    key = jax.random.PRNGKey(0)
+    objects, arrays, _, config, _ = place_objects([simple_volume, sphere], simple_config, [constraint], key)
+    placed = _placed(objects, "sphere")
+
+    assert arrays.dispersive_c3.shape[1] == 9
+    _, _, c3_ref, _ = compute_pole_coefficients_tensor(
+        oriented.dispersion.poles,  # type: ignore[union-attr]
+        config.time_step_duration,
+    )
+    xs, ys, zs = placed.grid_slice
+    voxel_mask = placed.get_voxel_mask_for_shape().astype(bool)
+    inside_xy = arrays.dispersive_c3[0, 1, xs, ys, zs]
+    assert jnp.allclose(inside_xy[voxel_mask], c3_ref[0, 1])
+    assert c3_ref[0, 1] != 0.0
+
+    device = Device(
+        name="device",
+        partial_grid_shape=(10, 10, 10),
+        partial_voxel_grid_shape=(5, 5, 5),
+        materials=dict(materials),
+        param_transforms=[],
+    )
+    constraint = GridCoordinateConstraint(
+        object="device", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+    objects, arrays, params, config, _ = place_objects([simple_volume, device], simple_config, [constraint], key)
+    placed_device = _placed(objects, "device")
+    xs, ys, zs = placed_device.grid_slice
+    full_params = {name: jnp.ones_like(p) for name, p in params.items()}
+    arrays, objects, _ = apply_params(arrays, objects, full_params, key)
+    assert arrays.dispersive_c3.shape[1] == 9
+    assert jnp.allclose(arrays.dispersive_c3[0, 1, xs, ys, zs], c3_ref[0, 1])

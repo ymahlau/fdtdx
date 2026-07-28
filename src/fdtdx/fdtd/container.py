@@ -5,7 +5,7 @@ and array data within FDTD simulations. It includes support for different object
 like sources, detectors, PML boundaries, Bloch/periodic boundaries, and devices.
 """
 
-from typing import Callable, Self
+from typing import Callable, Iterator, Self, TypeVar
 
 import jax
 import jax.numpy as jnp
@@ -27,6 +27,8 @@ from fdtdx.objects.static_material.static import StaticMultiMaterialObject, Unif
 # Type alias for parameter dictionaries containing JAX arrays
 ParameterContainer = dict[str, dict[str, jax.Array] | jax.Array]
 
+_ObjT = TypeVar("_ObjT", bound=SimulationObject)
+
 
 @autoinit
 class ObjectContainer(TreeClass):
@@ -43,6 +45,17 @@ class ObjectContainer(TreeClass):
     #: Index of the volume object in the object list.
     volume_idx: int = frozen_field()
 
+    def filter_objects(
+        self,
+        object_type: type[_ObjT] | tuple[type[_ObjT], ...],
+        predicate: Callable[[_ObjT], bool] | None = None,
+    ) -> list[_ObjT]:
+        """Refactor filtering functions of object lists using proper filtering."""
+        result = [o for o in self.object_list if isinstance(o, object_type)]
+        if predicate is not None:
+            result = [o for o in result if predicate(o)]
+        return result
+
     @property
     def volume(self) -> SimulationObject:
         return self.object_list[self.volume_idx]
@@ -53,51 +66,75 @@ class ObjectContainer(TreeClass):
 
     @property
     def static_material_objects(self) -> list[UniformMaterialObject | StaticMultiMaterialObject]:
-        return [o for o in self.objects if isinstance(o, (UniformMaterialObject, StaticMultiMaterialObject))]
+        return self.filter_objects((UniformMaterialObject, StaticMultiMaterialObject))
 
     @property
     def sources(self) -> list[Source]:
-        return [o for o in self.objects if isinstance(o, Source)]
+        return self.filter_objects(Source)
 
     @property
     def devices(self) -> list[Device]:
-        return [o for o in self.objects if isinstance(o, Device)]
+        return self.filter_objects(Device)
 
     @property
     def detectors(self) -> list[Detector]:
-        return [o for o in self.objects if isinstance(o, Detector)]
+        return self.filter_objects(Detector)
 
     @property
     def forward_detectors(self) -> list[Detector]:
-        return [o for o in self.detectors if not o.inverse]
+        return self.filter_objects(Detector, predicate=lambda o: not o.inverse)
 
     @property
     def backward_detectors(self) -> list[Detector]:
-        return [o for o in self.detectors if o.inverse]
+        return self.filter_objects(Detector, predicate=lambda o: o.inverse)
 
     @property
     def pml_objects(self) -> list[PerfectlyMatchedLayer]:
-        return [o for o in self.objects if isinstance(o, PerfectlyMatchedLayer)]
+        return self.filter_objects(PerfectlyMatchedLayer)
 
     @property
     def periodic_objects(self) -> list[BlochBoundary]:
-        return [o for o in self.objects if isinstance(o, BlochBoundary) and not o.needs_complex_fields]
+        return self.filter_objects(BlochBoundary, predicate=lambda o: not o.needs_complex_fields)
 
     @property
     def pec_objects(self) -> list[PerfectElectricConductor]:
-        return [o for o in self.objects if isinstance(o, PerfectElectricConductor)]
+        return self.filter_objects(PerfectElectricConductor)
 
     @property
     def pmc_objects(self) -> list[PerfectMagneticConductor]:
-        return [o for o in self.objects if isinstance(o, PerfectMagneticConductor)]
+        return self.filter_objects(PerfectMagneticConductor)
 
     @property
     def bloch_objects(self) -> list[BlochBoundary]:
-        return [o for o in self.objects if isinstance(o, BlochBoundary)]
+        return self.filter_objects(BlochBoundary)
 
     @property
     def boundary_objects(self) -> list[BaseBoundary]:
-        return [o for o in self.objects if isinstance(o, BaseBoundary)]
+        return self.filter_objects(BaseBoundary)
+
+    @property
+    def any_object_subpixel_smoothing(self) -> bool:
+        """True if any static multi-material object requests sub-pixel dielectric smoothing.
+
+        When True the permittivity must be allocated as an anisotropic effective permittivity at
+        interface cells even though every underlying material is isotropic. The default (diagonal)
+        variant uses a 3-component allocation; a full 9-component tensor is only used when
+        ``any_object_subpixel_full_tensor`` is also True.
+        """
+        return any(getattr(o, "subpixel_smoothing", False) for o in self.static_material_objects)
+
+    @property
+    def any_object_subpixel_full_tensor(self) -> bool:
+        """True if any smoothed object requests the full 9-component tensor (vs the cheap 3-comp diagonal).
+
+        When True the permittivity is allocated as a full 9-component tensor and the anisotropic update
+        kernel is used; when False (all smoothed objects diagonal) a 3-component diagonal allocation runs on
+        the cheaper elementwise update, which is exact for axis-aligned interfaces.
+        """
+        return any(
+            getattr(o, "subpixel_smoothing", False) and getattr(o, "subpixel_full_tensor", False)
+            for o in self.static_material_objects
+        )
 
     @property
     def all_objects_non_magnetic(self) -> bool:
@@ -183,6 +220,50 @@ class ObjectContainer(TreeClass):
 
         return self._is_material_fn_true_for_all(_fn)
 
+    @staticmethod
+    def _as_materials(m: "Material | dict[str, Material]") -> Iterator[Material]:
+        if isinstance(m, Material):
+            yield m
+        elif isinstance(m, dict):
+            yield from m.values()
+
+    def _iter_materials(self) -> Iterator[Material]:
+        for o in self.static_material_objects:  # UniformMaterialObject | StaticMultiMaterialObject
+            if isinstance(o, UniformMaterialObject):
+                yield o.material
+            else:
+                yield from self._as_materials(o.materials)
+        for o in self.devices:
+            yield from self._as_materials(o.materials)
+
+    @property
+    def all_objects_isotropic_dispersion(self) -> bool:
+        """Whether every dispersive material applies the same poles to all three axes.
+
+        Drives the size of the material-component axis of the dispersive
+        recurrence coefficients ``c1``/``c2``: 1 (broadcast) when ``True``, 3
+        (per-axis, diagonally anisotropic dispersion) when ``False``.
+        """
+
+        def _fn(m: Material):
+            return m.has_isotropic_dispersion
+
+        return self._is_material_fn_true_for_all(_fn)
+
+    @property
+    def all_objects_axis_aligned_dispersion(self) -> bool:
+        """Whether no dispersive material carries oriented poles.
+
+        When ``False``, at least one material has an off-diagonal coupling
+        tensor: the field couplings ``c3``/``c4`` are widened to 9 components
+        and the simulation runs through the fully anisotropic update path.
+        """
+
+        def _fn(m: Material):
+            return m.has_axis_aligned_dispersion
+
+        return self._is_material_fn_true_for_all(_fn)
+
     @property
     def max_num_dispersive_poles(self) -> int:
         """Maximum number of dispersive poles required across all objects.
@@ -193,21 +274,10 @@ class ObjectContainer(TreeClass):
         polarization arrays, which are zero-padded for materials with fewer
         poles.
         """
-        n = 0
-        for o in self.objects:
-            if isinstance(o, UniformMaterialObject):
-                disp = o.material.dispersion
-                if disp is not None:
-                    n = max(n, disp.num_poles)
-            elif isinstance(o, Device):
-                for m in o.materials.values():
-                    if m.dispersion is not None:
-                        n = max(n, m.dispersion.num_poles)
-            elif isinstance(o, StaticMultiMaterialObject):
-                for m in o.materials.values():
-                    if m.dispersion is not None:
-                        n = max(n, m.dispersion.num_poles)
-        return n
+        return max(
+            (m.dispersion.num_poles for m in self._iter_materials() if m.dispersion is not None),
+            default=0,
+        )
 
     @property
     def has_dispersive_edot(self) -> bool:
@@ -222,39 +292,15 @@ class ObjectContainer(TreeClass):
         def _material_has_edot(m: Material) -> bool:
             if m.dispersion is None:
                 return False
-            return any(p.coupling_edot != 0.0 for p in m.dispersion.poles)
+            return any(b != 0.0 for p in m.dispersion.poles for b in p.coupling_edot_axes)
 
-        for o in self.objects:
-            if isinstance(o, UniformMaterialObject):
-                if _material_has_edot(o.material):
-                    return True
-            elif isinstance(o, (Device, StaticMultiMaterialObject)):
-                for m in o.materials.values():
-                    if _material_has_edot(m):
-                        return True
-        return False
+        return any(_material_has_edot(m) for m in self._iter_materials())
 
     def _is_material_fn_true_for_all(
         self,
         fn: Callable[[Material], bool],
     ) -> bool:
-        for o in self.objects:
-            if isinstance(o, UniformMaterialObject):
-                m = o.material
-            elif isinstance(o, Device):
-                m = o.materials
-            elif isinstance(o, StaticMultiMaterialObject):
-                m = o.materials
-            else:
-                continue
-            if isinstance(m, Material):
-                if not fn(m):
-                    return False
-            elif isinstance(m, dict):
-                for v in m.values():
-                    if not fn(v):
-                        return False
-        return True
+        return all(fn(m) for m in self._iter_materials())
 
     def __iter__(self):
         return iter(self.object_list)
@@ -309,6 +355,9 @@ class ObjectContainer(TreeClass):
         return self
 
 
+PmlAuxField = dict[str, tuple[jax.Array, jax.Array]]
+
+
 @autoinit
 class FieldState(TreeClass):
     """Dynamic electromagnetic field state that evolves each time step.
@@ -323,12 +372,13 @@ class FieldState(TreeClass):
     #: Magnetic field array.
     H: jax.Array
 
-    #: PML auxiliary electric field, stored sparsely over the PML shell. Shape ``(6, M)``
-    #: where ``M`` is the number of shell cells (see ``ArrayContainer.pml_indices``).
-    psi_E: jax.Array
+    #: PML auxiliary electric field, stored as a dictionary mapping each PML
+    #: object's name to a tuple of two arrays (each of shape ``pml.grid_shape``).
+    psi_E: PmlAuxField
 
-    #: PML auxiliary magnetic field, stored sparsely over the PML shell. Shape ``(6, M)``.
-    psi_H: jax.Array
+    #: PML auxiliary magnetic field, stored as a dictionary mapping each PML
+    #: object's name to a tuple of two arrays (each of shape ``pml.grid_shape``).
+    psi_H: PmlAuxField
 
     #: Dispersive ADE polarization state at time step ``n``. Shape
     #: ``(num_poles, 3, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
@@ -351,21 +401,6 @@ class ArrayContainer(TreeClass):
     #: Dynamic electromagnetic fields (E, H and PML auxiliaries).
     fields: FieldState
 
-    #: Precomputed PML recurrence coefficient ``a``, gathered over the PML shell (shape ``(6, M)``).
-    #: See :func:`fdtdx.core.physics.curl.compute_pml_coefficients`.
-    pml_a: jax.Array
-
-    #: Precomputed PML recurrence coefficient ``b``, gathered over the PML shell (shape ``(6, M)``).
-    pml_b: jax.Array
-
-    #: Precomputed reciprocal PML stretching factor ``1 / kappa``, gathered over the PML shell (shape ``(6, M)``).
-    pml_inv_kappa: jax.Array
-
-    #: Grid coordinates ``(ix, iy, iz)`` of the ``M`` PML shell cells (shape ``(3, M)``, int32).
-    #: Used to gather field derivatives at and scatter PML corrections back into the full-volume curl.
-    #: ``M == 0`` when there are no PML boundaries (gather/scatter then reduce to no-ops).
-    pml_indices: jax.Array
-
     #: Inverse permittivity values array.
     inv_permittivities: jax.Array
 
@@ -385,28 +420,29 @@ class ArrayContainer(TreeClass):
     magnetic_conductivity: jax.Array | None = None
 
     #: Per-cell dispersive recurrence coefficient c1. Shape
-    #: ``(num_poles, 1, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
+    #: ``(num_poles, num_components, Nx, Ny, Nz)`` with ``num_components`` 1
+    #: (isotropic dispersion, broadcast over the field components) or 3
+    #: (per-axis / diagonally anisotropic dispersion). ``None`` for
+    #: non-dispersive simulations.
     dispersive_c1: jax.Array | None = None
 
     #: Per-cell dispersive recurrence coefficient c2. Shape
-    #: ``(num_poles, 1, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
+    #: ``(num_poles, num_components, Nx, Ny, Nz)``, ``num_components in (1, 3)``.
+    #: ``None`` for non-dispersive simulations.
     dispersive_c2: jax.Array | None = None
 
-    #: Per-cell dispersive recurrence coefficient c3. Shape
-    #: ``(num_poles, 1, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
+    #: Per-cell dispersive field coupling c3. Shape
+    #: ``(num_poles, num_components, Nx, Ny, Nz)``, ``num_components in (1, 3, 9)``
+    #: — 9 encodes a row-major 3x3 coupling tensor per pole (oriented poles,
+    #: off-diagonal dispersion). ``None`` for non-dispersive simulations.
     dispersive_c3: jax.Array | None = None
 
     #: Per-cell dispersive recurrence coefficient c4 (the ``dE/dt`` / CCPR
-    #: coupling to ``E^{n+1}``). Shape ``(num_poles, 1, Nx, Ny, Nz)``. ``None``
-    #: unless at least one CCPR pole with non-zero ``coupling_edot`` is present;
-    #: Lorentz/Drude-only sims leave it ``None`` and skip the CCPR update path.
+    #: coupling to ``E^{n+1}``). Shape ``(num_poles, num_components, Nx, Ny, Nz)``,
+    #: ``num_components in (1, 3)``. ``None`` unless at least one CCPR pole with
+    #: non-zero ``coupling_edot`` is present; Lorentz/Drude-only sims leave it
+    #: ``None`` and skip the CCPR update path.
     dispersive_c4: jax.Array | None = None
-
-    #: Per-cell cached ``1 / c2`` with non-dispersive cells set to 0. Lets the
-    #: reverse-time ADE update avoid a ``jnp.where`` + division per step.
-    #: Derived from ``dispersive_c2``; never differentiated independently.
-    #: Shape ``(num_poles, 1, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
-    dispersive_inv_c2: jax.Array | None = None
 
     #: Backup of inverse permittivity values array.
     #: Only used when etching a device.
@@ -436,7 +472,7 @@ class ArrayContainer(TreeClass):
         # FieldState now holds the dispersive ADE polarization (dispersive_P_curr/prev)
         # alongside E/H/psi, so this single tree.map zeroes all dynamic per-timestep
         # state at once (``None`` leaves stay ``None`` for non-dispersive sims).
-        # Coefficient arrays (c1/c2/c3/inv_c2) are material properties and preserved.
+        # Coefficient arrays (c1/c2/c3/c4) are material properties and preserved.
         arrays = self.aset("fields", jax.tree.map(jnp.zeros_like, self.fields))
 
         detector_states = self.detector_states

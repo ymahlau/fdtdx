@@ -339,16 +339,16 @@ class TestEnergyDetectorEdgeCases:
         detector = detector.place_on_grid(point_grid_slice, simulation_config, random_key)
         state = detector.init_state()
 
-        E = jnp.ones((3, 8, 8, 8), dtype=jnp.float32)
-        H = jnp.zeros((3, 8, 8, 8), dtype=jnp.float32)
+        E = jnp.ones((3, 8, 8, 8), dtype=jnp.float32)[:, *detector.grid_slice]
+        H = jnp.zeros((3, 8, 8, 8), dtype=jnp.float32)[:, *detector.grid_slice]
 
         new_state = detector.update(
             time_step=jnp.array(0),
             E=E,
             H=H,
             state=state,
-            inv_permittivity=inv_permittivity,
-            inv_permeability=inv_permeability,
+            inv_permittivity=inv_permittivity[:, *detector.grid_slice],
+            inv_permeability=inv_permeability,  # scalar for non-magnetic materials, never sliced
         )
 
         # Should be a single point
@@ -371,11 +371,11 @@ class TestEnergyDetectorEdgeCases:
 
         new_state = detector.update(
             time_step=jnp.array(0),
-            E=constant_E_field,
-            H=constant_H_field,
+            E=constant_E_field[:, *detector.grid_slice],
+            H=constant_H_field[:, *detector.grid_slice],
             state=state,
-            inv_permittivity=inv_permittivity,
-            inv_permeability=inv_permeability,
+            inv_permittivity=inv_permittivity[:, *detector.grid_slice],
+            inv_permeability=inv_permeability,  # scalar for non-magnetic materials, never sliced
         )
 
         assert new_state["energy"][0].shape == (8, 8, 1)

@@ -41,7 +41,7 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
         real_shape = list(self.partial_real_shape)
         grid_shape = list(self.partial_grid_shape)
         for ax, size in ((self.horizontal_axis, w), (self.vertical_axis, h)):
-            if real_shape[ax] is not None:
+            if real_shape[ax] is not None and real_shape[ax] != size:
                 raise Exception(
                     f"ExtrudedPolygon {self.name}: partial_real_shape for axis {ax} is derived from the "
                     f"vertex bounding box ({size:.3e} m). Do not specify it explicitly."

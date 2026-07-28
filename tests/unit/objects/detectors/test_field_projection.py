@@ -575,6 +575,33 @@ class TestFieldProjectionAngleDetector:
             expected = expected_fields[tuple(face_slices)] * static_scale
             assert np.allclose(np.asarray(updated[_surface_state_key(surface)])[0, 0], expected)
 
+    def test_box_pulse_update_weights_by_subsample_stride(self, random_key, single_frequency):
+        """Box-mode pulse scaling weights each kept sample by the dft_subsample stride."""
+        common = dict(wave_characters=single_frequency, scaling_mode="pulse", exclude_surfaces=("z+",))
+        grid_slice = ((0, 4), (0, 5), (0, 6))
+        exact = FieldProjectionAngleDetector(**common, dft_subsample=1)
+        exact = exact.place_on_grid(grid_slice, UNIFORM_CONFIG, random_key)
+        strided = FieldProjectionAngleDetector(**common, dft_subsample=3)
+        strided = strided.place_on_grid(grid_slice, UNIFORM_CONFIG, random_key)
+        fields_e = jnp.ones((3, 4, 5, 6), dtype=jnp.float32)
+        fields_h = 2.0 * jnp.ones((3, 4, 5, 6), dtype=jnp.float32)
+
+        def record(detector):
+            return detector.update(
+                time_step=jnp.asarray(0),
+                E=fields_e,
+                H=fields_h,
+                state=detector.init_state(),
+                inv_permittivity=jnp.ones((3, 4, 5, 6), dtype=jnp.float32),
+                inv_permeability=1.0,
+            )
+
+        exact_state = record(exact)
+        strided_state = record(strided)
+        assert set(strided_state) == set(exact_state)
+        for state_key in exact_state:
+            assert np.allclose(np.asarray(strided_state[state_key]), 3.0 * np.asarray(exact_state[state_key]))
+
     def test_surface_update_uses_single_phasor_state(self, random_key, single_frequency):
         detector = FieldProjectionAngleDetector(wave_characters=single_frequency, direction="+")
         detector = detector.place_on_grid(((0, 5), (0, 6), (0, 1)), UNIFORM_CONFIG, random_key)

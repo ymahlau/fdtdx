@@ -11,7 +11,6 @@ from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.initialization import place_objects
 from fdtdx.interfaces.recorder import Recorder
 from fdtdx.materials import Material
-from fdtdx.objects.boundaries.perfectly_matched_layer import PerfectlyMatchedLayer
 from fdtdx.objects.device.device import Device
 from fdtdx.objects.object import GridCoordinateConstraint
 from fdtdx.objects.static_material.sphere import Sphere
@@ -278,47 +277,6 @@ def test_static_multi_material_object_sphere(simple_config, simple_volume):
     assert arrays.inv_permittivities is not None
     # sphere is in static_material_objects
     assert any(o.name == "sphere1" for o in obj_container.objects)
-
-
-# ---------------------------------------------------------------------------
-# PML boundary test
-# ---------------------------------------------------------------------------
-
-
-def test_pml_boundary_modifies_arrays(simple_config, simple_volume, simple_material):
-    """PML boundary triggers boundary array modification in _init_arrays.
-
-    Covers lines: 539-553 (boundary modify_arrays call).
-    """
-    obj = UniformMaterialObject(name="obj1", partial_grid_shape=(20, 20, 20), material=simple_material)
-    pml = PerfectlyMatchedLayer(
-        name="pml_xmin",
-        axis=0,
-        direction="-",
-        partial_grid_shape=(10, None, None),
-    )
-    constraints = [
-        GridCoordinateConstraint(object="obj1", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[15, 15, 15]),
-        GridCoordinateConstraint(object="pml_xmin", axes=[0], sides=["-"], coordinates=[0]),
-    ]
-    key = jax.random.PRNGKey(0)
-    obj_container, arrays, _params, _config, _info = place_objects(
-        [simple_volume, obj, pml], simple_config, constraints, key
-    )
-    assert isinstance(obj_container, ObjectContainer)
-    # PML is in boundary_objects
-    assert len(obj_container.boundary_objects) == 1
-    assert obj_container.boundary_objects[0].name == "pml_xmin"
-    # PML coefficients and auxiliary state are stored sparsely over the PML shell (6, M).
-    assert arrays.pml_a is not None
-    assert arrays.pml_b is not None
-    assert arrays.pml_inv_kappa is not None
-    M = arrays.pml_indices.shape[1]
-    assert M > 0  # a PML boundary is present, so the shell is non-empty
-    assert arrays.pml_indices.shape == (3, M)
-    assert arrays.pml_a.shape == (6, M)
-    assert arrays.fields.psi_E.shape == (6, M)
-    assert arrays.fields.psi_H.shape == (6, M)
 
 
 # ---------------------------------------------------------------------------

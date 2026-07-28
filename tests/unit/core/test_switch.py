@@ -127,6 +127,14 @@ class TestOnOffSwitch:
         result = switch.calculate_on_list(num_total_time_steps=5, time_step_duration=1.0)
         assert result == [True, True, True, True, True]
 
+    def test_default_switch_is_default_always_on(self):
+        assert OnOffSwitch().is_default_always_on
+        assert not OnOffSwitch(interval=2).is_default_always_on
+        assert not OnOffSwitch(start_time=0.0).is_default_always_on
+        assert not OnOffSwitch(end_time=1.0).is_default_always_on
+        assert not OnOffSwitch(fixed_on_time_steps=[0]).is_default_always_on
+        assert not OnOffSwitch(is_always_off=True).is_default_always_on
+
     def test_calculate_on_list_with_interval(self):
         switch = OnOffSwitch(interval=3)
         result = switch.calculate_on_list(num_total_time_steps=7, time_step_duration=1.0)

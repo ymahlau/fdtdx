@@ -175,6 +175,23 @@ class TestPointDipoleSourceUpdateE:
         E_check = E_updated.at[2, 4, 4, 4].set(0.0)
         assert jnp.allclose(E_check, 0.0)
 
+    def test_axis_aligned_full_tensor_material_keeps_coupled_components(self, micro_config, jax_key):
+        placed = self._make_placed(micro_config, jax_key, polarization=0)
+        inv_perm = jnp.zeros((9, 8, 8, 8), dtype=jnp.float32)
+        inv_perm = inv_perm.at[0].set(1.0)
+        inv_perm = inv_perm.at[3].set(2.0)
+        inv_perm = inv_perm.at[6].set(3.0)
+        applied = placed.apply(jax_key, inv_perm, 1.0)
+
+        E = jnp.zeros((3, 8, 8, 8), dtype=jnp.float32)
+        time_step = jnp.array(10)
+
+        E_updated = applied.update_E(E, inv_perm, 1.0, time_step, inverse=False)
+        source_values = E_updated[:, 4, 4, 4]
+        assert not jnp.allclose(source_values[0], 0.0)
+        assert jnp.allclose(source_values[1], 2.0 * source_values[0], atol=1e-6)
+        assert jnp.allclose(source_values[2], 3.0 * source_values[0], atol=1e-6)
+
 
 class TestPointDipoleSourceUpdateH:
     """Tests for magnetic dipole update_H behavior."""

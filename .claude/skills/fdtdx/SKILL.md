@@ -112,7 +112,7 @@ Note the asymmetry: sigma_E multiplied by eta0, sigma_H divided by eta0.
 P_p^(n+1) = c1_p * P_p^n + c2_p * P_p^(n-1) + c3_p * E^n
 E        += inv_eps * sum_p (P_p^n - P_p^(n+1))
 ```
-`P` is stored normalized as `P/eps_0`, so it has the same units as `E` and no eta0 factor enters. The reverse-time update in `update_E_reverse` inverts this recurrence (`c2 ~ -1` in the physical regime keeps the inversion numerically stable).
+`P` is stored normalized as `P/eps_0`, so it has the same units as `E` and no eta0 factor enters. There is no reverse-time counterpart: dispersive simulations are **checkpointed-only** (see Gradient Strategies).
 
 ## Material System
 
@@ -148,16 +148,19 @@ c1 = (2 − ω₀²·dt²) / (1 + γ·dt/2)
 c2 = −(1 − γ·dt/2) / (1 + γ·dt/2)
 c3 =  (K·dt²)      / (1 + γ·dt/2)
 ```
-Stability needs `γ·dt < 2`; physically `γ·dt ≪ 1`, so `c2 ≈ −1` and the reverse-time inversion in `update_E_reverse` is well-conditioned.
+Stability (forward Jury bound) needs `ω₀·dt < 2`; `γ·dt` is unconstrained (`|c2| < 1` for any `γ·dt > 0`).
+
+**Per-axis (diagonally anisotropic) dispersion:** every pole parameter accepts a scalar or a per-axis 3-tuple `(x, y, z)` — e.g. `DrudePole(plasma_frequency=(wp, 0.0, 0.0), damping=g)` for a hyperbolic medium metallic only along x. The canonical pole accessors are `omega_0_axes`/`gamma_axes`/`coupling_sq_axes`/`coupling_edot_axes` (the scalar `omega_0` etc. raise for per-axis poles). `compute_pole_coefficients_per_axis` returns `(n_poles, 3)` coefficient arrays; `DispersionModel.susceptibility_axes(omega)` gives per-axis χ. Static negative ε is unconditionally unstable in FDTD — hyperbolic/metallic behavior must come from poles with ε∞ ≥ 1 (`Material.__init__` warns otherwise).
+
+**Oriented (off-diagonal) dispersion:** a pole may carry an `orientation` unit vector — a single 1D oscillator along `u` with coupling tensor `K u uᵀ` (scalar parameters only; oriented CCPR with dE/dt coupling raises). `DispersionModel.rotated(R)` (3x3 matrix or Euler angles) converts a per-axis model into oriented poles for tilted crystals (signed axis permutations stay per-axis; pole count can grow up to 3x otherwise). `compute_pole_coefficients_tensor` returns c1/c2 `(n, 3)` + c3/c4 `(n, 9)`; `susceptibility_tensor(omega)`/`permittivity_tensor` give the 3x3 χ/ε. Oriented dispersion forces the 9-component ε tier (fully anisotropic kernel, which carries its own ADE block with Yee-averaged off-diagonal coupling).
 
 **ArrayContainer fields** (all `None` unless any object is dispersive):
 - `dispersive_P_curr`, `dispersive_P_prev` — shape `(num_poles, 3, Nx, Ny, Nz)`, field-dtype (complex if `use_complex_fields`). Not differentiable (state-only; `None` cotangent in both gradient paths).
-- `dispersive_c1`, `dispersive_c2`, `dispersive_c3` — shape `(num_poles, 1, Nx, Ny, Nz)` (middle axis broadcasts over field components). Config dtype. Differentiable: cotangents flow through them in both the reversible and checkpointed paths.
-- `dispersive_inv_c2` — cached `1/c2`, closure-captured and `stop_gradient`'d so gradients flow through `c2` only and don't double-count.
+- `dispersive_c1`, `dispersive_c2`, `dispersive_c3` — shape `(num_poles, C, Nx, Ny, Nz)`. For `c1`/`c2`, `C = 1` when all dispersion is isotropic (middle axis broadcasts over field components) or `C = 3` for per-axis dispersion (gated by `ObjectContainer.all_objects_isotropic_dispersion`). The coupling `c3` (and `c4`) additionally widens to `C = 9` (row-major 3x3 tensor per pole) when any pole is oriented (gated by `ObjectContainer.all_objects_axis_aligned_dispersion`). Config dtype. Differentiable: cotangents flow through them on the checkpointed path.
 
 **Leading pole axis size:** `objects.max_num_dispersive_poles` — the max pole count across all `UniformMaterialObject`, `Device`, `StaticMultiMaterialObject`. Materials with fewer poles get zero-padded slots, so non-dispersive cells automatically contribute zero. `UniformMaterialObject` always writes the full zero-padded coefficient stack into its `grid_slice`, so a non-dispersive object placed over a dispersive one cleanly clears stale coefficients.
 
-**Restriction:** Dispersive materials cannot currently be combined with fully anisotropic (off-diagonal) permittivity tensors — `_init_arrays` raises `NotImplementedError`. Isotropic and diagonally anisotropic ε are both fine.
+**Restriction:** *Any* dispersive material supports only the `checkpointed` gradient method. `reversible` raises `NotImplementedError` at three layers — `place_objects`, `reversible_fdtd`/`run_fdtd`, and `update_E_reverse` (so the public `full_backward`/`backward` API raises too, gradients or not). Dispersion combined with fully anisotropic (off-diagonal) ε/σ tensors or oriented poles additionally runs through the fully anisotropic update path, where CCPR poles with a dE/dt coupling (`c4`) are rejected (no implicit tensor solve).
 
 **Devices with dispersive materials:** `apply_params` interpolates ADE coefficients the same way it interpolates `inv_permittivities` — linearly between the two bracketing materials for `CONTINUOUS` output, straight-through-estimator for `DISCRETE`. This is not equivalent to interpolating the pole *parameters*, but it keeps gradients smooth for inverse design.
 
@@ -259,8 +262,8 @@ E_full = fdtdx.unfold_fields(arrays.fields.E, config.symmetry, "E")  # (3, Nx, N
 - O(1) field memory, O(T) boundary memory (PML interfaces only)
 - Uses `@jax.custom_vjp` — forward pass runs simulation recording boundaries, backward pass reconstructs fields in reverse
 - Requires a `Recorder` with optional compression modules (e.g., `DtypeConversion(dtype=jnp.bfloat16)`)
-- Differentiable primals: `inv_permittivities`, `inv_permeabilities`, and (when present) `dispersive_c1/c2/c3`. Conductivity arrays and `dispersive_inv_c2` are closure-captured non-primals; `dispersive_P_curr/prev` thread through as state-only primals with `None` cotangent.
-- Dispersive reverse update: the ADE recurrence `P^(n+1) = c1·P^n + c2·P^(n-1) + c3·E^n` is algebraically inverted to recover `P^(n-1)` (see `update_E_reverse`). For lossy + dispersive + conductive cells the reverse E update subtracts `inv_eps * sum(P^n − P^(n+1))` before dividing by the loss factor.
+- Differentiable primals: `inv_permittivities`, `inv_permeabilities`. Conductivity arrays are closure-captured non-primals.
+- **Rejects dispersive materials** (`NotImplementedError`) — reversing the ADE polarization recurrence is under active development. Lossy (conductive) materials are supported; `num_checkpoints_reversible` bounds the reverse-reconstruction drift they cause.
 
 **Checkpointed FDTD** (`method="checkpointed"`):
 - Standard gradient checkpointing via `eqxi.while_loop(kind="checkpointed")`
@@ -420,7 +423,8 @@ assert jnp.all(jnp.isfinite(grads))
 - **Inverse storage**: Material arrays store `1/epsilon` and `1/mu`, not epsilon and mu directly. For dispersive materials, `Material.permittivity` represents ε∞ only — the full ε(ω) must be reconstructed via the dispersion model.
 - **Detector timing**: Detectors only record at timesteps where their `OnOffSwitch` is active. Check `switch` configuration if data appears missing.
 - **donate_argnames**: When JIT-compiling simulation functions, use `donate_argnames=["arrays"]` to allow JAX to reuse array memory.
-- **Dispersive + full anisotropic**: Not supported — `_init_arrays` raises `NotImplementedError`. Use diagonal anisotropy if you need directional ε alongside dispersion.
+- **Dispersion needs `method="checkpointed"`**: every dispersive gradient path raises under `reversible` (which is the *default* `GradientConfig` method — set it explicitly). Dispersion + full anisotropic is supported via the fully anisotropic kernel. Oriented poles force the 9-component ε tier for the whole simulation — memory and per-step cost grow accordingly; prefer per-axis poles when the optical axes align with the grid.
+- **Complex full tensors**: `Material.from_complex_permittivity` accepts flat 9-tuples / nested 3x3 complex tensors — real parts → ε tensor, imaginary parts → σ tensor (exact at one frequency). `from_refractive_index` rejects tensors (matrix vs elementwise square ambiguity).
 - **Dispersive pole count is max'd globally**: The `num_poles` leading axis size = `objects.max_num_dispersive_poles`. Adding one 3-pole material allocates 3 pole slots for every dispersive cell in the sim; non-dispersive cells still have their `c1/c2/c3` set to zero (ADE term vanishes) but consume array memory.
 - **Dispersive source impedance**: Inside a dispersive medium, never use ε∞ as the source's effective permittivity — call `effective_inv_permittivity` at ω_c. Broadband pulses additionally need the `_temporal_H_filter` path to avoid TFSF leakage at off-carrier frequencies.
 - **Stacking objects with mixed dispersion**: `UniformMaterialObject` always writes a full zero-padded pole-coefficient stack into its `grid_slice`, so placing a non-dispersive object over a dispersive one cleanly overwrites stale coefficients. Rely on this rather than assuming "no dispersion = leave coefficients alone".

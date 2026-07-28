@@ -37,6 +37,17 @@ def _contract_orientation(
     return inv_material * orient
 
 
+def _axis_aligned_diagonal_injection(
+    inv_material: jax.Array | float, azimuth_angle: float, elevation_angle: float
+) -> bool:
+    """Return whether an axis-aligned dipole can update only one field component."""
+    if azimuth_angle != 0.0 or elevation_angle != 0.0:
+        return False
+    if not isinstance(inv_material, jax.Array) or inv_material.ndim == 0:
+        return True
+    return inv_material.shape[0] in (1, 3)
+
+
 @autoinit
 class PointDipoleSource(Source):
     """Soft point dipole source (electric or magnetic).
@@ -185,15 +196,20 @@ class PointDipoleSource(Source):
         sign = -1.0 if not inverse else 1.0
 
         if isinstance(self._inv_eps_oriented, Null):
-            inv_eps_slice = inv_permittivities[:, *self.grid_slice]
-            inv_eps_oriented = _contract_orientation(inv_eps_slice, self._orientation)
+            inv_eps_source = inv_permittivities[:, *self.grid_slice]
+            inv_eps_oriented = _contract_orientation(inv_eps_source, self._orientation)
         else:
+            inv_eps_source = self._inv_eps_local
             inv_eps_oriented = self._inv_eps_oriented
 
         scale = c * self.amplitude * self.static_amplitude_factor * amplitude
-        for axis in range(3):
-            injection = scale * inv_eps_oriented[axis]
-            E = E.at[axis, *self.grid_slice].add(sign * injection.astype(E.dtype))
+        if _axis_aligned_diagonal_injection(inv_eps_source, self.azimuth_angle, self.elevation_angle):
+            injection = scale * inv_eps_oriented[self.polarization]
+            E = E.at[self.polarization, *self.grid_slice].add(sign * injection.astype(E.dtype))
+        else:
+            for axis in range(3):
+                injection = scale * inv_eps_oriented[axis]
+                E = E.at[axis, *self.grid_slice].add(sign * injection.astype(E.dtype))
 
         return E
 
@@ -226,11 +242,16 @@ class PointDipoleSource(Source):
                 inv_mu_source = inv_permeabilities[:, *self.grid_slice]
             inv_mu_oriented = _contract_orientation(inv_mu_source, self._orientation)
         else:
+            inv_mu_source = self._inv_mu_local
             inv_mu_oriented = self._inv_mu_oriented
 
         scale = c * self.amplitude * self.static_amplitude_factor * amplitude
-        for axis in range(3):
-            injection = scale * inv_mu_oriented[axis]
-            H = H.at[axis, *self.grid_slice].add(sign * injection.astype(H.dtype))
+        if _axis_aligned_diagonal_injection(inv_mu_source, self.azimuth_angle, self.elevation_angle):
+            injection = scale * inv_mu_oriented[self.polarization]
+            H = H.at[self.polarization, *self.grid_slice].add(sign * injection.astype(H.dtype))
+        else:
+            for axis in range(3):
+                injection = scale * inv_mu_oriented[axis]
+                H = H.at[axis, *self.grid_slice].add(sign * injection.astype(H.dtype))
 
         return H

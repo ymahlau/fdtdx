@@ -846,3 +846,290 @@ class TestLossyMaterialConstructors:
 
         with pytest.raises(ValueError):
             Material.from_complex_permittivity(((2.0 + 0.1j, 0.0, 0.0),), wavelength=self._WL)
+
+
+class TestStaticNegativePermittivityWarning:
+    def test_negative_diagonal_entry_warns(self):
+        with pytest.warns(UserWarning, match="unconditionally unstable"):
+            Material(permittivity=(-2.0, 1.0, 1.0))
+
+    def test_zero_diagonal_entry_warns(self):
+        with pytest.warns(UserWarning, match="unconditionally unstable"):
+            Material(permittivity=0.0)
+
+    def test_negative_eps_inf_warns_even_with_dispersion(self):
+        from fdtdx.dispersion import DispersionModel, DrudePole
+
+        disp = DispersionModel(poles=(DrudePole(plasma_frequency=2e15, damping=1e13),))
+        with pytest.warns(UserWarning, match="unconditionally unstable"):
+            Material(permittivity=-2.0, dispersion=disp)
+
+    def test_positive_permittivity_does_not_warn(self):
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            Material(permittivity=2.25)
+            Material(permittivity=(2.0, 3.0, 4.0))
+            # negative off-diagonals of a positive-definite tensor are fine
+            Material(permittivity=(2.0, -0.5, 0.0, -0.5, 2.0, 0.0, 0.0, 0.0, 2.0))
+
+
+class TestHasIsotropicDispersion:
+    def test_non_dispersive_material(self):
+        assert Material(permittivity=2.25).has_isotropic_dispersion
+
+    def test_isotropic_dispersion(self):
+        from fdtdx.dispersion import DispersionModel, LorentzPole
+
+        disp = DispersionModel(poles=(LorentzPole(resonance_frequency=1e15, damping=1e13, delta_epsilon=2.0),))
+        assert Material(permittivity=2.25, dispersion=disp).has_isotropic_dispersion
+
+    def test_per_axis_dispersion(self):
+        from fdtdx.dispersion import DispersionModel, DrudePole
+
+        disp = DispersionModel(poles=(DrudePole(plasma_frequency=(2e15, 0.0, 0.0), damping=1e13),))
+        assert not Material(permittivity=2.25, dispersion=disp).has_isotropic_dispersion
+
+
+class TestDispersiveDivisorStability:
+    """Per-material implicit-update divisor validation for CCPR poles.
+
+    The CCPR polarization couples to E^{n+1} through c4, so update_E divides by
+    ``divisor = 1 + inv_eps * sum(c4) [+ conductivity term]``. A large negative
+    Re(residue) makes c4 negative and can drive the divisor to zero (huge ring-up)
+    or below zero (NaN). dt ~ 1.9e-16 corresponds to a ~1e-7 m grid at
+    courant_factor 0.99.
+    """
+
+    DT = 1.9e-16
+
+    @staticmethod
+    def _ccpr_material(re_residue, eps_inf=2.0, electric_conductivity=0.0):
+        from fdtdx.dispersion import CCPRPole, DispersionModel
+
+        pole = CCPRPole(pole=complex(-1e13, -2e15), residue=complex(re_residue, 1e15))
+        return Material(
+            permittivity=eps_inf,
+            electric_conductivity=electric_conductivity,
+            dispersion=DispersionModel(poles=(pole,)),
+        )
+
+    def test_non_positive_divisor_raises_with_name_and_courant_hint(self):
+        from fdtdx.materials import validate_dispersive_divisor_stability
+
+        mat = self._ccpr_material(-6e15)  # drives the divisor below zero
+        with pytest.raises(ValueError, match="gold") as exc:
+            validate_dispersive_divisor_stability({"gold": mat}, dt=self.DT, courant_factor=0.99)
+        msg = str(exc.value)
+        assert "non-positive" in msg
+        assert "courant_factor" in msg
+
+    def test_near_zero_divisor_warns(self):
+        from fdtdx.materials import validate_dispersive_divisor_stability
+
+        # A mildly-negative residue keeps the divisor positive but small; a wide
+        # explicit threshold makes the warn band robust (default 0.01 is narrow).
+        mat = self._ccpr_material(-4e15)
+        with pytest.warns(UserWarning, match="courant_factor"):
+            validate_dispersive_divisor_stability(
+                {"gold": mat}, dt=self.DT, courant_factor=0.99, near_zero_threshold=0.5
+            )
+
+    def test_recommended_courant_factor_is_below_current_and_stabilizes(self):
+        from fdtdx.materials import _min_dispersive_divisor, validate_dispersive_divisor_stability
+
+        mat = self._ccpr_material(-6e15)
+        with pytest.raises(ValueError) as exc:
+            validate_dispersive_divisor_stability({"gold": mat}, dt=self.DT, courant_factor=0.99)
+        # Parse the recommended courant_factor out of the message.
+        msg = str(exc.value)
+        cf_max = float(msg.split("lower courant_factor to <= ")[1].split(" ")[0])
+        assert 0.0 < cf_max < 0.99
+        # dt scales with courant_factor: at the recommended cf the divisor recovers.
+        dt_safe = self.DT * (cf_max / 0.99)
+        assert _min_dispersive_divisor(mat, dt_safe)[0] >= 0.01 - 1e-9
+
+    def test_recommended_courant_factor_is_conservative_for_mixed_sign_poles(self):
+        # The divisor is a sum of individually-monotonic c4 terms with mixed
+        # residue signs, so it need not be monotonic in the time step. The
+        # recommendation must be the FIRST crossing from zero: EVERY scale below
+        # it must be stable, not just the returned point.
+        from fdtdx.dispersion import CCPRPole, DispersionModel
+        from fdtdx.materials import _min_dispersive_divisor, validate_dispersive_divisor_stability
+
+        poles = (
+            CCPRPole(pole=complex(-2e14, -2e15), residue=complex(-1.2e16, 1e15)),  # strong b < 0
+            CCPRPole(pole=complex(-4e15, -8e15), residue=complex(3e15, 5e14)),  # b > 0
+        )
+        mat = Material(permittivity=2.0, dispersion=DispersionModel(poles=poles))
+        with pytest.raises(ValueError) as exc:
+            validate_dispersive_divisor_stability({"m": mat}, dt=self.DT, courant_factor=0.99)
+        cf_max = float(str(exc.value).split("lower courant_factor to <= ")[1].split(" ")[0])
+        s_max = cf_max / 0.99
+        # Conservativeness invariant: divisor >= threshold at every scale up to s_max.
+        scales = [s_max * k / 400 for k in range(1, 401)]
+        assert min(_min_dispersive_divisor(mat, s * self.DT)[0] for s in scales) >= 0.01 - 1e-9
+
+    def test_stable_ccpr_material_does_not_raise_or_warn(self):
+        import warnings
+
+        from fdtdx.materials import validate_dispersive_divisor_stability
+
+        mat = self._ccpr_material(-2e15)  # divisor ~ 0.6, comfortably positive
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            validate_dispersive_divisor_stability({"safe": mat}, dt=self.DT, courant_factor=0.99)
+
+    def test_lorentz_and_drude_are_skipped(self):
+        import warnings
+
+        from fdtdx.dispersion import DispersionModel, DrudePole, LorentzPole
+        from fdtdx.materials import validate_dispersive_divisor_stability
+
+        lorentz = Material(
+            permittivity=2.0,
+            dispersion=DispersionModel(poles=(LorentzPole(resonance_frequency=2e15, damping=1e13, delta_epsilon=1.5),)),
+        )
+        drude = Material(
+            permittivity=1.0,
+            dispersion=DispersionModel(poles=(DrudePole(plasma_frequency=1.37e16, damping=1e14),)),
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            validate_dispersive_divisor_stability({"lorentz": lorentz, "drude": drude}, dt=self.DT, courant_factor=0.99)
+
+    def test_per_axis_instability_names_axis(self):
+        from fdtdx.materials import validate_dispersive_divisor_stability
+
+        # Anisotropic eps_inf: only the low-permittivity x axis destabilizes.
+        mat = self._ccpr_material(-6e15, eps_inf=(2.0, 8.0, 8.0))
+        with pytest.raises(ValueError, match="axis x"):
+            validate_dispersive_divisor_stability({"aniso": mat}, dt=self.DT, courant_factor=0.99)
+
+    def test_conductivity_term_relaxes_the_bound(self):
+        from fdtdx.materials import _min_dispersive_divisor
+
+        # The conductivity term is >= 0, so adding loss increases the divisor.
+        lossless = self._ccpr_material(-6e15, electric_conductivity=0.0)
+        lossy = self._ccpr_material(-6e15, electric_conductivity=5e5)
+        assert _min_dispersive_divisor(lossy, self.DT)[0] > _min_dispersive_divisor(lossless, self.DT)[0]
+
+    def test_oriented_pole_alongside_ccpr_is_handled(self):
+        import warnings
+
+        from fdtdx.dispersion import CCPRPole, DispersionModel, LorentzPole
+        from fdtdx.materials import validate_dispersive_divisor_stability
+
+        # An oriented pole has no dE/dt coupling and must not trip the
+        # per-axis-only coefficient path when a CCPR pole sits next to it.
+        poles = (
+            LorentzPole(resonance_frequency=2e15, damping=1e13, delta_epsilon=1.5, orientation=(1.0, 1.0, 0.0)),
+            CCPRPole(pole=complex(-1e13, -2e15), residue=complex(-2e15, 1e15)),
+        )
+        mat = Material(permittivity=2.0, dispersion=DispersionModel(poles=poles))
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            validate_dispersive_divisor_stability({"mixed": mat}, dt=self.DT, courant_factor=0.99)
+
+
+class TestComplexTensorConstructors:
+    """Complex full-tensor (9-component / nested 3x3) permittivity constructors."""
+
+    _WL = 1.55e-6  # reference wavelength (m)
+
+    def _omega(self):
+        import math
+
+        from fdtdx import constants
+
+        return 2.0 * math.pi * constants.c / self._WL
+
+    def test_from_complex_permittivity_flat_9_tuple(self):
+        import math
+
+        from fdtdx import constants
+
+        eps = (4.0 + 0.5j, 0.5 + 0.1j, 0.0, 0.5 + 0.1j, 3.0 + 0.2j, 0.0, 0.0, 0.0, 2.0 + 0.0j)
+        mat = Material.from_complex_permittivity(eps, wavelength=self._WL)
+        omega = self._omega()
+        for i, e in enumerate(eps):
+            assert math.isclose(mat.permittivity[i], complex(e).real, abs_tol=1e-15)
+            assert math.isclose(
+                mat.electric_conductivity[i], omega * constants.eps0 * complex(e).imag, rel_tol=1e-12, abs_tol=1e-15
+            )
+        assert not mat.is_diagonally_anisotropic_permittivity
+
+    def test_from_complex_permittivity_nested_3x3(self):
+        nested = (
+            (4.0 + 0.5j, 0.5 + 0.1j, 0.0),
+            (0.5 + 0.1j, 3.0 + 0.2j, 0.0),
+            (0.0, 0.0, 2.0 + 0.0j),
+        )
+        flat = tuple(entry for row in nested for entry in row)
+        mat_nested = Material.from_complex_permittivity(nested, wavelength=self._WL)
+        mat_flat = Material.from_complex_permittivity(flat, wavelength=self._WL)
+        assert mat_nested.permittivity == mat_flat.permittivity
+        assert mat_nested.electric_conductivity == mat_flat.electric_conductivity
+
+    def test_from_complex_permittivity_hermitian_gives_antisymmetric_sigma(self):
+        # A Hermitian eps (gyrotropic: imaginary off-diagonals) maps to an
+        # antisymmetric real conductivity tensor.
+        g = 0.3
+        eps = (2.0, 1j * g, 0.0, -1j * g, 2.0, 0.0, 0.0, 0.0, 2.0)
+        mat = Material.from_complex_permittivity(eps, wavelength=self._WL)
+        assert mat.permittivity == (2.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 2.0)
+        assert mat.electric_conductivity[1] == pytest.approx(-mat.electric_conductivity[3])
+        assert mat.electric_conductivity[1] != 0.0
+
+    def test_from_complex_permittivity_tensor_permeability(self):
+        import math
+
+        from fdtdx import constants
+
+        mu = (1.0 + 0.1j, 0.0, 0.0, 0.0, 2.0 + 0.0j, 0.0, 0.0, 0.0, 1.5 + 0.05j)
+        mat = Material.from_complex_permittivity(4.0, permeability=mu, wavelength=self._WL)
+        omega = self._omega()
+        assert mat.permeability == (1.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 1.5)
+        assert math.isclose(mat.magnetic_conductivity[0], omega * constants.mu0 * 0.1, rel_tol=1e-12)
+        assert math.isclose(mat.magnetic_conductivity[8], omega * constants.mu0 * 0.05, rel_tol=1e-12)
+
+    def test_from_complex_permittivity_singular_real_part_raises(self):
+        # Real part with a zero eigenvalue (zz entry zero) cannot be inverted.
+        eps = (2.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0 + 0.5j)
+        with pytest.raises(ValueError, match="singular"):
+            Material.from_complex_permittivity(eps, wavelength=self._WL)
+
+    def test_from_complex_permittivity_singular_permeability_raises(self):
+        mu = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0 + 0.5j)
+        with pytest.raises(ValueError, match="permeability tensor is singular"):
+            Material.from_complex_permittivity(4.0, permeability=mu, wavelength=self._WL)
+
+    def test_from_complex_permittivity_malformed_nested_raises(self):
+        with pytest.raises(ValueError, match="3x3"):
+            Material.from_complex_permittivity(((1.0, 0.0), (0.0, 1.0)), wavelength=self._WL)
+
+    def test_from_refractive_index_rejects_full_tensor(self):
+        with pytest.raises(ValueError, match="from_complex_permittivity"):
+            Material.from_refractive_index((1.5, 0.0, 0.0, 0.0, 1.5, 0.0, 0.0, 0.0, 1.5), wavelength=self._WL)
+        with pytest.raises(ValueError, match="from_complex_permittivity"):
+            Material.from_refractive_index(((1.5, 0.0, 0.0), (0.0, 1.5, 0.0), (0.0, 0.0, 1.5)), wavelength=self._WL)
+
+    def test_from_loss_tangent_flat_9_tuple(self):
+        import math
+
+        from fdtdx import constants
+
+        eps = (4.0, 0.5, 0.0, 0.5, 3.0, 0.0, 0.0, 0.0, 2.0)
+        tand = 0.01
+        mat = Material.from_loss_tangent(eps, tand, wavelength=self._WL)
+        omega = self._omega()
+        assert mat.permittivity == eps
+        for i, e in enumerate(eps):
+            assert math.isclose(
+                mat.electric_conductivity[i], omega * constants.eps0 * e * tand, rel_tol=1e-12, abs_tol=1e-18
+            )
+
+    def test_from_loss_tangent_rejects_nested(self):
+        with pytest.raises(ValueError, match="nested"):
+            Material.from_loss_tangent(((4.0, 0.0, 0.0), (0.0, 3.0, 0.0), (0.0, 0.0, 2.0)), 0.01, wavelength=self._WL)

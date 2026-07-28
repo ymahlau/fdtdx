@@ -51,7 +51,7 @@ This is a checklist that you should go through before making a PR. The individua
 * [ ] Check if all unit tests run: ``pytest tests/``
 * [ ] Check if all pre-commit checks are passing: ``uv run pre-commit run --all``
 * [ ] If you added any new features, that should be top-level imported, add them to ``__all__`` in ``src/fdtdx/__init__.py``
-* [ ] If you want your new feature to be present in the documentation, add an entry to ``docs/source/api.rst``
+* [ ] If you want your new feature to be present in the documentation, add an entry to ``docs/source/07_api.rst``
 * [ ] Optional: If you want to go above and beyond, add a notebook showcasing your feature in the `notebooks repository <https://github.com/ymahlau/fdtdx-notebooks/>`__. Afterwards you can add an entry in the docs to include your new notebook.
 
 
@@ -60,9 +60,9 @@ Creating and running unit tests
 
 Testing is an important part of software development. Therefore, we ask you to create unit tests for any software that you write for this repository. Please also run all unit tests before opening a pull request to make sure that all existing test cases still work as intended. 
 
-You can run the unit tests with the ``pytest`` command in the fdtdx repository. If you want to specify a single test file to run you could specify the file after the command itself: ``pytest tests/conversion/test_export.py`` 
+You can run the unit tests with the ``pytest`` command in the fdtdx repository. If you want to specify a single test file to run you could specify the file after the command itself: ``pytest tests/unit/conversion/test_json.py``
 
-The unit tests are located in the ``/tests`` folder, which mirrors the structure of the ``/src`` folder. Therefore, if you are adding software to a file in the /src folder, please add the test cases at the corresponding location in the /test folder.
+The unit tests are located in the ``/tests`` folder, which mirrors the structure of the ``/src`` folder. Therefore, if you are adding software to a file in the /src folder, please add the test cases at the corresponding location in the /tests folder.
 
 Pull Requests
 -------------

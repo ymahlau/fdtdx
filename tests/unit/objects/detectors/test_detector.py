@@ -150,8 +150,10 @@ class TestDrawPlotWaterfallAndSlices:
 
         assert "sliced_plot" in figs
         assert isinstance(figs["sliced_plot"], Figure)
-        assert figs["sliced_plot"].axes[0].get_xlim() == pytest.approx((0.0, 4.0))
-        assert figs["sliced_plot"].axes[0].get_ylim() == pytest.approx((0.0, 5.0))
+        assert figs["sliced_plot"].axes[0].get_xlim() == pytest.approx(
+            (-2.0, 2.0)
+        )  # plots use origin-at-center coordinates
+        assert figs["sliced_plot"].axes[0].get_ylim() == pytest.approx((-2.5, 2.5))
         plt.close(figs["sliced_plot"])
 
     def test_2d_single_timestep_wrong_keys_raises(self, simulation_config, small_grid_slice, random_key, single_switch):
