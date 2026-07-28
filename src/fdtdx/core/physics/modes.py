@@ -377,6 +377,15 @@ def compute_mode(
     return mode_E_norm, mode_H_norm, eff_idx
 
 
+def _is_reciprocal_tensor(components: Sequence[ArrayLike], tol: float = 1e-6) -> bool:
+    """Check whether a material tensor given as 9 row-major components is symmetric (reciprocal)."""
+    return bool(
+        np.max(np.abs(np.asarray(components[1]) - np.asarray(components[3]))) <= tol
+        and np.max(np.abs(np.asarray(components[2]) - np.asarray(components[6]))) <= tol
+        and np.max(np.abs(np.asarray(components[5]) - np.asarray(components[7]))) <= tol
+    )
+
+
 def tidy3d_mode_computation_wrapper(
     frequency: float,
     permittivity_cross_section: ArrayLike,
@@ -472,18 +481,35 @@ def tidy3d_mode_computation_wrapper(
             permeability_cross_section[8],
         ]
 
+    if direction == "-" and (
+        angle_theta != 0.0
+        or angle_phi != 0.0
+        or not _is_reciprocal_tensor(eps_cross)
+        or (mu_cross is not None and not _is_reciprocal_tensor(mu_cross))
+    ):
+        raise NotImplementedError(
+            "Backward ('-') modes are derived from the forward solve via the reciprocity transformation, "
+            "which requires symmetric material tensors and normal incidence."
+        )
+
+    # Always solve forward: tidy3d >= 2.9 normalizes backward modes with a 1/sqrt of their
+    # negative self-flux, tainting them with a spurious global phase of +-i.
     EH, neffs, _ = _compute_modes(
         eps_cross=eps_cross,
         coords=coords,
         freq=frequency,
         precision=precision,
         mode_spec=mode_spec,
-        direction=direction,
+        direction="+",
         mu_cross=mu_cross,
         plane_center=plane_center,
         symmetry=symmetry,
     )
     ((Ex, Ey, Ez), (Hx, Hy, Hz)) = EH.squeeze()
+
+    # Backward modes: reciprocity transformation (E_z -> -E_z, H_t -> -H_t) of the forward mode
+    if direction == "-":
+        Ez, Hx, Hy = -Ez, -Hx, -Hy
 
     if num_modes == 1:
         modes = [

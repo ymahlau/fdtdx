@@ -104,6 +104,7 @@ class ModeOverlapDetector(PhasorDetector):
         else:
             spacing = self._config.uniform_spacing()
             weights = jnp.ones(self.grid_shape, dtype=jnp.float32) * spacing * spacing
+        weights = weights / weights.mean()  # consistent with scaling in compute_mode
         self = self.aset("_cached_face_area_weights", weights, create_new_ok=True)
         return self
 

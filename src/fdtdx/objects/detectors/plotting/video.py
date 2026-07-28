@@ -1,7 +1,7 @@
 import multiprocessing as mp
 import tempfile
 from functools import partial
-from typing import Callable
+from typing import Callable, Literal, cast
 
 import matplotlib
 
@@ -24,6 +24,9 @@ def plot_from_slices(
     plot_dpi: int | None,
     plot_interpolation: str,
     coordinate_edges_um: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
+    aspect: Literal["auto", "equal"] = "equal",
+    cmap: str = "default",
+    signed_data: bool = True,
 ):
     xy_slice, xz_slice, yz_slice = slice_tuple
 
@@ -37,6 +40,9 @@ def plot_from_slices(
         maxvals=maxvals,
         plot_dpi=plot_dpi,
         plot_interpolation=plot_interpolation,
+        aspect=aspect,
+        cmap=cmap,
+        signed_data=signed_data,
     )
     # Convert matplotlib figure to a numpy array
     fig.canvas.draw()
@@ -80,6 +86,9 @@ def generate_video_from_slices(
     minvals: tuple[float | None, float | None, float | None] = (None, None, None),
     maxvals: tuple[float | None, float | None, float | None] = (None, None, None),
     coordinate_edges_um: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
+    aspect: Literal["auto", "equal"] = "equal",
+    cmap: str = "default",
+    signed_data: bool = True,
 ) -> str:
     """Generates an MP4 video from time-series slice data using parallel processing.
 
@@ -103,20 +112,42 @@ def generate_video_from_slices(
             scaling. None values are auto-scaled. Defaults to (None, None, None)
         maxvals (tuple[float | None, float | None, float | None]): Tuple of maximum values for colormap scaling.
             None values are auto-scaled. Defaults to (None, None, None).
+        cmap: str = "default": Color map for the detector plots. "default" is turbo
+            for unsigned data and RdBu_r for signed data.
+        aspect: Literal["auto", "equal"]: Size aspect of the detector plots.
+            "equal" (default) uses the same scale for all axes.
+            "auto" adjusts each axis's scale to fit the figure size.
+        signed_data: bool: Whether the data is signed (fields, phasors, mode_overlaps...)
+            or unsigned (energy, Poynting flux). Used to choose a colormap and scale its values.
 
     Returns:
         str: Path to the generated MP4 video file
     """
     slices = [xy_slice, xz_slice, yz_slice]
+    minlist = list(minvals)  # Convert to list for mutability
+    maxlist = list(maxvals)  # Convert to list for mutability
+    # Reset max and min color values
     for a in range(3):
-        if minvals[a] is None:
-            min_list = list(minvals)
-            min_list[a] = slices[a].min()
-            minvals = min_list[0], min_list[1], min_list[2]
-        if maxvals[a] is None:
-            max_list = list(maxvals)
-            max_list[a] = slices[a].max()
-            maxvals = max_list[0], max_list[1], max_list[2]
+        if signed_data:
+            if minvals[a] is None or maxvals[a] is None:
+                if minlist[a] is None and maxlist[a] is None:
+                    # Set values symmetrically with absolute maximum
+                    abs_max = float(np.abs(slices[a]).max())
+                    minlist[a] = -abs_max
+                    maxlist[a] = abs_max
+                elif minlist[a] is not None:
+                    # Keep user input, set values symmetrically
+                    # minvals[a] is guaranteed to be not None here
+                    maxlist[a] = -cast(float, minlist[a])
+                elif maxlist[a] is not None:
+                    # Keep user input, set values symmetrically
+                    # maxvals[a] is guaranteed to be not None here
+                    minlist[a] = -cast(float, maxlist[a])
+        else:  # Data is unsigned
+            if minlist[a] is None:
+                minlist[a] = 0.0
+            if maxlist[a] is None:
+                maxlist[a] = float(slices[a].max())
 
     _, path = tempfile.mkstemp(suffix=".mp4")
 
@@ -128,11 +159,14 @@ def generate_video_from_slices(
     partial_fn = partial(
         plt_fn,
         resolutions=resolutions,
-        minvals=minvals,
-        maxvals=maxvals,
+        minvals=(minlist[0], minlist[1], minlist[2]),
+        maxvals=(maxlist[0], maxlist[1], maxlist[2]),
         plot_dpi=plot_dpi,
         plot_interpolation=plot_interpolation,
         coordinate_edges_um=coordinate_edges_um,
+        aspect=aspect,
+        cmap=cmap,
+        signed_data=signed_data,
     )
     slice_arr_list = [(xy_slice[t], xz_slice[t], yz_slice[t]) for t in range(time_steps)]
     if num_worker is None:

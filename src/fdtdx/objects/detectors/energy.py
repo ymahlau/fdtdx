@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 import jax
 import jax.numpy as jnp
 
@@ -38,6 +40,9 @@ class EnergyDetector(Detector):
     #: If "mean", aggregates slices by averaging instead of using position.
     #: If None, mean is used. Defaults to None.
     aggregate: str | None = frozen_field(default=None)  # e.g., "mean"
+
+    # Electromagnetic energy is positive.
+    _signed_data: ClassVar[bool] = False
 
     def _slice_position_to_index(self, axis: int, real_pos: float | None, axis_len: int) -> int | jax.Array:
         """Map a requested physical slice position to a local energy index.
@@ -91,19 +96,11 @@ class EnergyDetector(Detector):
         inv_permittivity: jax.Array,
         inv_permeability: jax.Array | float,
     ) -> DetectorState:
-        cur_E = E[:, *self.grid_slice]
-        cur_H = H[:, *self.grid_slice]
-        cur_inv_permittivity = inv_permittivity[:, *self.grid_slice]
-        if isinstance(inv_permeability, jax.Array) and inv_permeability.ndim > 0:
-            cur_inv_permeability = inv_permeability[:, *self.grid_slice]
-        else:
-            cur_inv_permeability = inv_permeability
-
         energy = compute_energy(
-            E=cur_E,
-            H=cur_H,
-            inv_permittivity=cur_inv_permittivity,
-            inv_permeability=cur_inv_permeability,
+            E=E,
+            H=H,
+            inv_permittivity=inv_permittivity,
+            inv_permeability=inv_permeability,
         )
 
         arr_idx = self._time_step_to_arr_idx[time_step]

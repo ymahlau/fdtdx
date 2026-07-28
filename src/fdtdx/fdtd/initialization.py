@@ -4,7 +4,6 @@ from typing import Any, Sequence
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 from loguru import logger
 
 from fdtdx import constants
@@ -14,16 +13,17 @@ from fdtdx.core.jax.default_key import default_key
 from fdtdx.core.jax.guards import check_not_tracing
 from fdtdx.core.jax.sharding import create_named_sharded_matrix
 from fdtdx.core.jax.ste import straight_through_estimator
-from fdtdx.core.physics.curl import compute_pml_coefficients
+from fdtdx.dispersion import compute_pole_coefficients_tensor
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, ParameterContainer
 from fdtdx.fdtd.symmetry import apply_mode_symmetry, make_symmetry_walls, reduce_resolved_slices
 from fdtdx.materials import (
+    Material,
     compute_allowed_dispersive_coefficients,
     compute_allowed_electric_conductivities,
     compute_allowed_magnetic_conductivities,
     compute_allowed_permeabilities,
     compute_allowed_permittivities,
-    compute_pole_coefficients,
+    validate_dispersive_divisor_stability,
 )
 from fdtdx.objects.boundaries.bloch import BlochBoundary
 from fdtdx.objects.device.parameters.transform import ParameterType
@@ -249,6 +249,19 @@ def place_objects(
         volume_idx=0,
     )
 
+    # Step 9b: Cross-object placement validation. Now that every object is placed and
+    # the container exists, give each object a chance to validate itself against the
+    # others (e.g. a TFSF region checking the boundaries around it). Accumulate all
+    # messages and raise once, mirroring the constraint-resolution error handling above.
+    placement_errors = {
+        obj.name: errs for obj in objects_container.objects if (errs := obj.validate_placement(objects_container))
+    }
+    if placement_errors:
+        formatted = "\n".join(
+            f"  - {name}:\n" + "\n".join(f"      * {msg}" for msg in msgs) for name, msgs in placement_errors.items()
+        )
+        raise ValueError(f"Invalid object placement:\n{formatted}")
+
     # Step 10: Initialize parameters and arrays
     assert key is not None
     key, subkey = jax.random.split(key)
@@ -320,6 +333,11 @@ def apply_params(
     diagonally_anisotropic = num_perm_components == 3
 
     num_dispersive_poles = arrays.dispersive_c1.shape[0] if arrays.dispersive_c1 is not None else 0
+    # Component axes of the dispersive coefficient arrays: c1/c2 carry 1
+    # (isotropic, broadcast) or 3 (per-axis) components; the couplings c3/c4
+    # additionally allow 9 (row-major 3x3 tensor, oriented poles).
+    num_disp_components = arrays.dispersive_c1.shape[1] if arrays.dispersive_c1 is not None else 1
+    num_disp_coupling_components = arrays.dispersive_c3.shape[1] if arrays.dispersive_c3 is not None else 1
 
     if arrays.initial_inv_permittivities is not None:
         arrays = arrays.at["inv_permittivities"].set(arrays.initial_inv_permittivities)
@@ -363,6 +381,8 @@ def apply_params(
                 device.materials,
                 dt=dt,
                 max_num_poles=num_dispersive_poles,
+                num_components=num_disp_components,
+                coupling_components=num_disp_coupling_components,
             )
             allowed_c1_arr = jnp.asarray(allowed_c1_np, dtype=arrays.dispersive_c1.dtype)
             allowed_c2_arr = jnp.asarray(allowed_c2_np, dtype=arrays.dispersive_c2.dtype)
@@ -388,23 +408,24 @@ def apply_params(
             if write_dispersive:
                 assert allowed_c1_arr is not None and allowed_c2_arr is not None and allowed_c3_arr is not None
                 # Linear interpolation of dispersive coefficients between the two bracketing materials.
-                # allowed_cN_arr: (num_materials, num_poles) — here num_materials == 2.
-                # reshape to (num_poles, 1, 1, 1, 1) for broadcast over (num_poles, 1, Nx, Ny, Nz)
+                # allowed_cN_arr: (num_materials, num_poles, num_components) — here num_materials == 2.
+                # reshape to (num_poles, num_components, 1, 1, 1) for broadcast over
+                # (num_poles, num_components, Nx, Ny, Nz)
                 w0 = (1 - cur_material_indices)[None, None, ...]  # (1, 1, Nx, Ny, Nz)
                 w1 = cur_material_indices[None, None, ...]
-                c1_0 = allowed_c1_arr[0][:, None, None, None, None]  # (num_poles, 1, 1, 1, 1)
-                c1_1 = allowed_c1_arr[1][:, None, None, None, None]
-                c2_0 = allowed_c2_arr[0][:, None, None, None, None]
-                c2_1 = allowed_c2_arr[1][:, None, None, None, None]
-                c3_0 = allowed_c3_arr[0][:, None, None, None, None]
-                c3_1 = allowed_c3_arr[1][:, None, None, None, None]
+                c1_0 = allowed_c1_arr[0][:, :, None, None, None]  # (num_poles, num_components, 1, 1, 1)
+                c1_1 = allowed_c1_arr[1][:, :, None, None, None]
+                c2_0 = allowed_c2_arr[0][:, :, None, None, None]
+                c2_1 = allowed_c2_arr[1][:, :, None, None, None]
+                c3_0 = allowed_c3_arr[0][:, :, None, None, None]
+                c3_1 = allowed_c3_arr[1][:, :, None, None, None]
                 new_c1_slice = w0 * c1_0 + w1 * c1_1
                 new_c2_slice = w0 * c2_0 + w1 * c2_1
                 new_c3_slice = w0 * c3_0 + w1 * c3_1
                 if write_dispersive_c4:
                     assert allowed_c4_arr is not None
-                    c4_0 = allowed_c4_arr[0][:, None, None, None, None]
-                    c4_1 = allowed_c4_arr[1][:, None, None, None, None]
+                    c4_0 = allowed_c4_arr[0][:, :, None, None, None]
+                    c4_1 = allowed_c4_arr[1][:, :, None, None, None]
                     new_c4_slice = w0 * c4_0 + w1 * c4_1
         else:
             # Discrete material selection
@@ -422,13 +443,14 @@ def apply_params(
             if write_dispersive:
                 assert allowed_c1_arr is not None and allowed_c2_arr is not None and allowed_c3_arr is not None
                 int_idx = cur_material_indices.astype(jnp.int32)
-                # allowed_cN_arr[int_idx]: (Nx, Ny, Nz, num_poles) -> moveaxis -> (num_poles, Nx, Ny, Nz)
-                new_c1_slice = jnp.moveaxis(allowed_c1_arr[int_idx], -1, 0)[:, None, ...]
-                new_c2_slice = jnp.moveaxis(allowed_c2_arr[int_idx], -1, 0)[:, None, ...]
-                new_c3_slice = jnp.moveaxis(allowed_c3_arr[int_idx], -1, 0)[:, None, ...]
+                # allowed_cN_arr[int_idx]: (Nx, Ny, Nz, num_poles, num_components)
+                # -> moveaxis -> (num_poles, num_components, Nx, Ny, Nz)
+                new_c1_slice = jnp.moveaxis(allowed_c1_arr[int_idx], (-2, -1), (0, 1))
+                new_c2_slice = jnp.moveaxis(allowed_c2_arr[int_idx], (-2, -1), (0, 1))
+                new_c3_slice = jnp.moveaxis(allowed_c3_arr[int_idx], (-2, -1), (0, 1))
                 if write_dispersive_c4:
                     assert allowed_c4_arr is not None
-                    new_c4_slice = jnp.moveaxis(allowed_c4_arr[int_idx], -1, 0)[:, None, ...]
+                    new_c4_slice = jnp.moveaxis(allowed_c4_arr[int_idx], (-2, -1), (0, 1))
 
         # Update all components of inv_permittivities array at once
         new_inv_perm = arrays.inv_permittivities.at[:, *device.grid_slice].set(new_inv_perm_slice)
@@ -443,14 +465,9 @@ def apply_params(
             new_c1 = arrays.dispersive_c1.at[:, :, *device.grid_slice].set(new_c1_slice)
             new_c2 = arrays.dispersive_c2.at[:, :, *device.grid_slice].set(new_c2_slice)
             new_c3 = arrays.dispersive_c3.at[:, :, *device.grid_slice].set(new_c3_slice)
-            # Recompute inv_c2 from the post-interpolation c2. Do NOT interpolate
-            # inv_c2 directly: 1/avg(c2) != avg(1/c2), and the reverse-time ADE
-            # relies on inv_c2 being the exact reciprocal of the stored c2.
-            new_inv_c2 = jnp.where(new_c2 == 0, 0.0, 1.0 / new_c2)
             arrays = arrays.at["dispersive_c1"].set(new_c1)
             arrays = arrays.at["dispersive_c2"].set(new_c2)
             arrays = arrays.at["dispersive_c3"].set(new_c3)
-            arrays = arrays.at["dispersive_inv_c2"].set(new_inv_c2)
             if write_dispersive_c4:
                 assert arrays.dispersive_c4 is not None
                 new_c4 = arrays.dispersive_c4.at[:, :, *device.grid_slice].set(new_c4_slice)
@@ -491,6 +508,34 @@ def apply_params(
     )
 
     return arrays, new_objects, info
+
+
+def _collect_labeled_materials(objects: ObjectContainer) -> dict[str, Material]:
+    """Collect every material in the simulation, labeled for diagnostics.
+
+    Single-material objects (``UniformMaterialObject``) are keyed by the object
+    name; multi-material objects (``Device``, ``StaticMultiMaterialObject``) by
+    ``"<object name>:<material key>"``. Duck-typed on ``material`` / ``materials``
+    to avoid importing every object subclass.
+
+    Args:
+        objects (ObjectContainer): Container with the placed simulation objects.
+
+    Returns:
+        dict[str, Material]: Mapping of label to material.
+    """
+    labeled: dict[str, Material] = {}
+    for o in objects.objects:
+        mat = getattr(o, "material", None)
+        if isinstance(mat, Material):
+            labeled[o.name] = mat
+            continue
+        mats = getattr(o, "materials", None)
+        if isinstance(mats, dict):
+            for key, m in mats.items():
+                if isinstance(m, Material):
+                    labeled[f"{o.name}:{key}"] = m
+    return labeled
 
 
 def _init_arrays(
@@ -554,44 +599,21 @@ def _init_arrays(
         backend=config.backend,
     )
 
-    # Build the PML shell: the union of all PML regions. The CPML auxiliary state and
-    # coefficients are non-trivial only here, so they are stored sparsely over just these
-    # M cells (M == 0 when there are no PML boundaries, which makes the gather/scatter in
-    # curl_E/curl_H no-ops).
-    pml_mask = np.zeros(volume_shape, dtype=bool)
-    for pml in objects.pml_objects:
-        pml_mask[pml.grid_slice] = True
-    shell_ix, shell_iy, shell_iz = np.where(pml_mask)
-    num_pml_cells = int(shell_ix.size)
-    pml_indices = jnp.asarray(np.stack([shell_ix, shell_iy, shell_iz]).astype(np.int32))
-
-    # PML auxiliary fields psi_E / psi_H, stored compactly over the shell cells (6, M).
-    # Replicated (not spatially sharded): M is a flat index axis, not a grid axis.
-    psi_E = jnp.zeros((6, num_pml_cells), dtype=field_dtype)
-    psi_H = jnp.zeros((6, num_pml_cells), dtype=field_dtype)
-
-    # create alpha, kappa, and sigma arrays
-    alpha = create_named_sharded_matrix(
-        (6, *volume_shape),
-        sharding_axis=1,
-        value=0.0,
-        dtype=config.dtype,
-        backend=config.backend,
-    )
-    kappa = create_named_sharded_matrix(
-        (6, *volume_shape),
-        sharding_axis=1,
-        value=1.0,
-        dtype=config.dtype,
-        backend=config.backend,
-    )
-    sigma = create_named_sharded_matrix(
-        (6, *volume_shape),
-        sharding_axis=1,
-        value=0.0,
-        dtype=config.dtype,
-        backend=config.backend,
-    )
+    # PML auxiliary fields
+    psi_E = {
+        pml.name: (
+            jnp.zeros(pml.grid_shape, dtype=field_dtype),
+            jnp.zeros(pml.grid_shape, dtype=field_dtype),
+        )
+        for pml in objects.pml_objects
+    }
+    psi_H = {
+        pml.name: (
+            jnp.zeros(pml.grid_shape, dtype=field_dtype),
+            jnp.zeros(pml.grid_shape, dtype=field_dtype),
+        )
+        for pml in objects.pml_objects
+    }
 
     # Determine isotropy flags
     isotropic_permittivity = objects.all_objects_isotropic_permittivity
@@ -604,6 +626,78 @@ def _init_arrays(
     diagonally_anisotropic_permeability = objects.all_objects_diagonally_anisotropic_permeability
     diagonally_anisotropic_electric_conductivity = objects.all_objects_diagonally_anisotropic_electric_conductivity
     diagonally_anisotropic_magnetic_conductivity = objects.all_objects_diagonally_anisotropic_magnetic_conductivity
+
+    # Sub-pixel smoothing produces an anisotropic effective permittivity at interface cells even when
+    # every material is isotropic. The DIAGONAL variant (default) keeps only eps_ii and allocates a
+    # 3-component array (cheap elementwise update, exact for axis-aligned interfaces); the FULL-TENSOR
+    # variant keeps the off-diagonal terms and forces a 9-component allocation (anisotropic kernel).
+    subpixel_permittivity = objects.any_object_subpixel_smoothing
+    subpixel_full_tensor = objects.any_object_subpixel_full_tensor
+    if subpixel_permittivity and not isotropic_permittivity:
+        # The eps_bar/eps_h blend below (isotropic-background assumption) only ever reads the xx
+        # component of the background and object material, so yy/zz/off-diagonal anisotropy on either
+        # side of a smoothed interface is silently dropped rather than rejected or routed through a
+        # dedicated anisotropic path. Not yet handled - see fdtdx#400.
+        warnings.warn(
+            "`subpixel_smoothing=True` is combined with an anisotropic material somewhere in the "
+            "simulation. Sub-pixel smoothing currently assumes locally isotropic permittivity at "
+            "interface cells (only the xx component of the background/material is used to compute the "
+            "smoothed value); any yy/zz or off-diagonal anisotropy is silently ignored there. Use "
+            "isotropic materials on and around sub-pixel-smoothed objects until this is properly "
+            "supported.",
+            UserWarning,
+            stacklevel=2,
+        )
+    if subpixel_permittivity:
+        isotropic_permittivity = False
+        diagonally_anisotropic_permittivity = not subpixel_full_tensor
+
+    # Dispersion tiers. The recurrence coefficients c1/c2 carry 1 (isotropic,
+    # broadcast) or 3 (per-axis) components; the field couplings c3/c4
+    # additionally widen to 9 (row-major 3x3 tensor per pole) when any pole is
+    # oriented. Oriented dispersion — and dispersion combined with fully
+    # anisotropic material tensors — runs through the fully anisotropic update
+    # kernel, which carries its own ADE block but no CCPR dE/dt solve.
+    num_dispersive_poles = objects.max_num_dispersive_poles
+
+    # Dispersive materials support only the checkpointed gradient method. Reversing the
+    # ADE polarization recurrence is not currently supported. Checked here for the
+    # earliest possible error; ``reversible_fdtd`` repeats the check because the gradient
+    # config can be swapped after ``place_objects``.
+    if (
+        num_dispersive_poles > 0
+        and config.gradient_config is not None
+        and config.gradient_config.method == "reversible"
+    ):
+        raise NotImplementedError(
+            "Dispersive time-reversible gradient computation under active development. "
+            "Use GradientConfig(method='checkpointed') instead."
+        )
+
+    num_disp_components = 1 if objects.all_objects_isotropic_dispersion else 3
+    axis_aligned_dispersion = objects.all_objects_axis_aligned_dispersion
+    num_disp_coupling_components = num_disp_components if axis_aligned_dispersion else 9
+    tensor_dispersion_path = num_dispersive_poles > 0 and (
+        not axis_aligned_dispersion
+        or not (isotropic_permittivity or diagonally_anisotropic_permittivity)
+        or not (isotropic_electric_conductivity or diagonally_anisotropic_electric_conductivity)
+    )
+    if tensor_dispersion_path:
+        if objects.has_dispersive_edot:
+            raise NotImplementedError(
+                "CCPR poles with a dE/dt coupling (non-zero Re(residue)) cannot be combined with "
+                "oriented poles or fully anisotropic (off-diagonal) material tensors."
+            )
+        if not axis_aligned_dispersion and config.has_nonuniform_grid:
+            raise NotImplementedError(
+                "Oriented poles (off-diagonal dispersive coupling) are not supported on non-uniform "
+                "grids; the symmetrized interface coupling requires matching edge weights."
+            )
+    if not axis_aligned_dispersion:
+        # Oriented poles: force the 9-component permittivity tier so the fully
+        # anisotropic kernel (whose ADE block applies the coupling tensor) runs.
+        isotropic_permittivity = False
+        diagonally_anisotropic_permittivity = False
 
     # Get component counts for each property
     if isotropic_permittivity:
@@ -681,8 +775,6 @@ def _init_arrays(
         conductivity_spacing = constants.c * config.time_step_duration / config.courant_number
 
     # dispersive ADE auxiliary arrays - all None unless any material is dispersive.
-    # Per-cell coefficients are broadcast over component via a size-1 axis.
-    num_dispersive_poles = objects.max_num_dispersive_poles
     # ``dispersive_c4`` (the CCPR dE/dt coupling) is only allocated when at least
     # one pole in the sim has a non-zero ``coupling_edot``. Lorentz/Drude-only
     # sims leave it None so the ADE update takes the classic path unchanged.
@@ -694,11 +786,6 @@ def _init_arrays(
     dispersive_c3 = None
     dispersive_c4 = None
     if num_dispersive_poles > 0:
-        if not (isotropic_permittivity or diagonally_anisotropic_permittivity):
-            raise NotImplementedError(
-                "Dispersive materials cannot be combined with fully anisotropic "
-                "(off-diagonal) permittivity tensors in v1."
-            )
         dispersive_P_curr = create_named_sharded_matrix(
             (num_dispersive_poles, 3, *volume_shape),
             value=0.0,
@@ -714,21 +801,21 @@ def _init_arrays(
             backend=config.backend,
         )
         dispersive_c1 = create_named_sharded_matrix(
-            (num_dispersive_poles, 1, *volume_shape),
+            (num_dispersive_poles, num_disp_components, *volume_shape),
             value=0.0,
             dtype=config.dtype,
             sharding_axis=2,
             backend=config.backend,
         )
         dispersive_c2 = create_named_sharded_matrix(
-            (num_dispersive_poles, 1, *volume_shape),
+            (num_dispersive_poles, num_disp_components, *volume_shape),
             value=0.0,
             dtype=config.dtype,
             sharding_axis=2,
             backend=config.backend,
         )
         dispersive_c3 = create_named_sharded_matrix(
-            (num_dispersive_poles, 1, *volume_shape),
+            (num_dispersive_poles, num_disp_coupling_components, *volume_shape),
             value=0.0,
             dtype=config.dtype,
             sharding_axis=2,
@@ -736,7 +823,7 @@ def _init_arrays(
         )
         if allocate_c4:
             dispersive_c4 = create_named_sharded_matrix(
-                (num_dispersive_poles, 1, *volume_shape),
+                (num_dispersive_poles, num_disp_coupling_components, *volume_shape),
                 value=0.0,
                 dtype=config.dtype,
                 sharding_axis=2,
@@ -846,32 +933,47 @@ def _init_arrays(
                 # and drive an ADE update on cells that shouldn't have one.
                 assert dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None
                 poles = o.material.dispersion.poles if o.material.dispersion is not None else ()
-                c1_vals, c2_vals, c3_vals, c4_vals = compute_pole_coefficients(poles, config.time_step_duration)
+                c1_vals, c2_vals, c3_vals, c4_vals = compute_pole_coefficients_tensor(poles, config.time_step_duration)
                 n = len(poles)
-                c1_padded = jnp.zeros(num_dispersive_poles, dtype=config.dtype)
-                c2_padded = jnp.zeros(num_dispersive_poles, dtype=config.dtype)
-                c3_padded = jnp.zeros(num_dispersive_poles, dtype=config.dtype)
-                c4_padded = jnp.zeros(num_dispersive_poles, dtype=config.dtype)
+                c1_padded = jnp.zeros((num_dispersive_poles, num_disp_components), dtype=config.dtype)
+                c2_padded = jnp.zeros((num_dispersive_poles, num_disp_components), dtype=config.dtype)
+                c3_padded = jnp.zeros((num_dispersive_poles, num_disp_coupling_components), dtype=config.dtype)
+                c4_padded = jnp.zeros((num_dispersive_poles, num_disp_coupling_components), dtype=config.dtype)
                 if n > 0:
-                    c1_padded = c1_padded.at[:n].set(jnp.asarray(c1_vals, dtype=config.dtype))
-                    c2_padded = c2_padded.at[:n].set(jnp.asarray(c2_vals, dtype=config.dtype))
-                    c3_padded = c3_padded.at[:n].set(jnp.asarray(c3_vals, dtype=config.dtype))
-                    c4_padded = c4_padded.at[:n].set(jnp.asarray(c4_vals, dtype=config.dtype))
-                # Broadcast (num_poles,) → (num_poles, 1, Nx, Ny, Nz) over grid_slice
+                    # For num_disp_components == 1 all poles in the simulation are
+                    # isotropic (per all_objects_isotropic_dispersion), so the
+                    # three per-axis columns are identical and keeping the first
+                    # is exact. Likewise a coupling tier < 9 implies axis-aligned
+                    # dispersion, so keeping diagonal coupling entries is exact.
+                    if num_disp_coupling_components == 9:
+                        c3_reduced, c4_reduced = c3_vals, c4_vals
+                    else:
+                        diag_entries = (0, 4, 8)[:num_disp_coupling_components]
+                        c3_reduced = c3_vals[:, diag_entries]
+                        c4_reduced = c4_vals[:, diag_entries]
+                    c1_padded = c1_padded.at[:n].set(jnp.asarray(c1_vals[:, :num_disp_components], dtype=config.dtype))
+                    c2_padded = c2_padded.at[:n].set(jnp.asarray(c2_vals[:, :num_disp_components], dtype=config.dtype))
+                    c3_padded = c3_padded.at[:n].set(jnp.asarray(c3_reduced, dtype=config.dtype))
+                    c4_padded = c4_padded.at[:n].set(jnp.asarray(c4_reduced, dtype=config.dtype))
+                # Broadcast (num_poles, num_components) → (num_poles, num_components, Nx, Ny, Nz) over grid_slice.
+                # The recurrence coefficients and field couplings can carry
+                # different component counts (e.g. 3 vs 9 for oriented poles).
                 slice_shape = dispersive_c1[:, :, *o.grid_slice].shape
-                c1_block = jnp.broadcast_to(c1_padded[:, None, None, None, None], slice_shape)
-                c2_block = jnp.broadcast_to(c2_padded[:, None, None, None, None], slice_shape)
-                c3_block = jnp.broadcast_to(c3_padded[:, None, None, None, None], slice_shape)
+                coupling_slice_shape = dispersive_c3[:, :, *o.grid_slice].shape
+                c1_block = jnp.broadcast_to(c1_padded[:, :, None, None, None], slice_shape)
+                c2_block = jnp.broadcast_to(c2_padded[:, :, None, None, None], slice_shape)
+                c3_block = jnp.broadcast_to(c3_padded[:, :, None, None, None], coupling_slice_shape)
                 dispersive_c1 = dispersive_c1.at[:, :, *o.grid_slice].set(c1_block)
                 dispersive_c2 = dispersive_c2.at[:, :, *o.grid_slice].set(c2_block)
                 dispersive_c3 = dispersive_c3.at[:, :, *o.grid_slice].set(c3_block)
                 if dispersive_c4 is not None:
-                    c4_block = jnp.broadcast_to(c4_padded[:, None, None, None, None], slice_shape)
+                    c4_block = jnp.broadcast_to(c4_padded[:, :, None, None, None], coupling_slice_shape)
                     dispersive_c4 = dispersive_c4.at[:, :, *o.grid_slice].set(c4_block)
 
         elif isinstance(o, (StaticMultiMaterialObject)):
             indices = o.get_material_mapping()
-            mask = o.get_voxel_mask_for_shape()
+            use_subpixel = subpixel_permittivity and getattr(o, "subpixel_smoothing", False)
+            mask = o.get_fill_fraction_for_shape() if use_subpixel else o.get_voxel_mask_for_shape()
 
             # compute_allowed_permittivities returns list of tuples with length 1 (isotropic), 3 (diagonally anisotropic), or 9 (fully anisotropic)
             allowed_perms = jnp.asarray(
@@ -887,9 +989,34 @@ def _init_arrays(
             component_values = jnp.moveaxis(allowed_perms[indices], -1, 0)
             perm_slice = _invert_property(inv_permittivities[:, *o.grid_slice])
 
-            # Linearly interpolate in the forward domain
-            perm_slice = perm_slice + mask * (component_values - perm_slice)
-            inv_permittivities = inv_permittivities.at[:, *o.grid_slice].set(_invert_property(perm_slice))
+            if use_subpixel:
+                # Farjadpour et al. (Meep) sub-pixel smoothing. Blend the object material (eps2) with the
+                # current background (eps1, treated as locally isotropic) using the cell fill fraction:
+                #   eps_bar (tangential) = arithmetic mean, eps_h (normal) = harmonic mean,
+                #   eps_eff = eps_bar * I - (eps_bar - eps_h) * (n (x) n).
+                # Interior cells (mask in {0,1}, normal = 0) collapse to the bulk value, so the formula is
+                # applied uniformly across the object's slice with no interface masking.
+                normal = o.get_interface_normal_for_shape()  # (3, *grid_shape), unit / zero
+                eps1 = perm_slice[0]  # background xx (locally isotropic background assumption)
+                eps2 = component_values[0]  # object material xx (= its isotropic permittivity)
+                eps_bar = mask * eps2 + (1.0 - mask) * eps1
+                eps_h = 1.0 / (mask / eps2 + (1.0 - mask) / eps1)
+                delta = eps_bar - eps_h  # (*grid_shape)
+                if subpixel_full_tensor:
+                    # 9-component: eps_bar * I - delta * (n (x) n). The arithmetic (I) part reuses the same
+                    # forward-domain linear blend as the isotropic path.
+                    perm_arith = perm_slice + mask[None, ...] * (component_values - perm_slice)
+                    nn_outer = jnp.stack([normal[a] * normal[b] for a in range(3) for b in range(3)], axis=0)
+                    perm_smoothed = perm_arith - delta[None, ...] * nn_outer
+                else:
+                    # 3-component diagonal: eps_ii = eps_bar - delta * n_i**2 (the diagonal of the tensor
+                    # above). Exact for axis-aligned interfaces; runs on the cheap elementwise update.
+                    perm_smoothed = jnp.stack([eps_bar - delta * normal[i] ** 2 for i in range(3)], axis=0)
+                inv_permittivities = inv_permittivities.at[:, *o.grid_slice].set(_invert_property(perm_smoothed))
+            else:
+                # Linearly interpolate in the forward domain
+                perm_slice = perm_slice + mask * (component_values - perm_slice)
+                inv_permittivities = inv_permittivities.at[:, *o.grid_slice].set(_invert_property(perm_slice))
 
             if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
                 allowed_perms = jnp.asarray(
@@ -944,16 +1071,14 @@ def _init_arrays(
                     o.materials,
                     dt=config.time_step_duration,
                     max_num_poles=num_dispersive_poles,
+                    num_components=num_disp_components,
+                    coupling_components=num_disp_coupling_components,
                 )
-                # Shape (num_materials, num_poles) -> index by (Nx, Ny, Nz) ->
-                # (Nx, Ny, Nz, num_poles) -> moveaxis -> (num_poles, Nx, Ny, Nz)
-                c1_voxels = jnp.moveaxis(jnp.asarray(allowed_c1, dtype=config.dtype)[indices], -1, 0)
-                c2_voxels = jnp.moveaxis(jnp.asarray(allowed_c2, dtype=config.dtype)[indices], -1, 0)
-                c3_voxels = jnp.moveaxis(jnp.asarray(allowed_c3, dtype=config.dtype)[indices], -1, 0)
-                # broadcast over component axis
-                c1_voxels = c1_voxels[:, None, ...]
-                c2_voxels = c2_voxels[:, None, ...]
-                c3_voxels = c3_voxels[:, None, ...]
+                # Shape (num_materials, num_poles, num_components) -> index by (Nx, Ny, Nz) ->
+                # (Nx, Ny, Nz, num_poles, num_components) -> moveaxis -> (num_poles, num_components, Nx, Ny, Nz)
+                c1_voxels = jnp.moveaxis(jnp.asarray(allowed_c1, dtype=config.dtype)[indices], (-2, -1), (0, 1))
+                c2_voxels = jnp.moveaxis(jnp.asarray(allowed_c2, dtype=config.dtype)[indices], (-2, -1), (0, 1))
+                c3_voxels = jnp.moveaxis(jnp.asarray(allowed_c3, dtype=config.dtype)[indices], (-2, -1), (0, 1))
                 mask_bc = mask[None, None, ...]
                 diff = c1_voxels - dispersive_c1[:, :, *o.grid_slice]
                 dispersive_c1 = dispersive_c1.at[:, :, *o.grid_slice].add(mask_bc * diff)
@@ -962,7 +1087,7 @@ def _init_arrays(
                 diff = c3_voxels - dispersive_c3[:, :, *o.grid_slice]
                 dispersive_c3 = dispersive_c3.at[:, :, *o.grid_slice].add(mask_bc * diff)
                 if dispersive_c4 is not None:
-                    c4_voxels = jnp.moveaxis(jnp.asarray(allowed_c4, dtype=config.dtype)[indices], -1, 0)[:, None, ...]
+                    c4_voxels = jnp.moveaxis(jnp.asarray(allowed_c4, dtype=config.dtype)[indices], (-2, -1), (0, 1))
                     diff = c4_voxels - dispersive_c4[:, :, *o.grid_slice]
                     dispersive_c4 = dispersive_c4.at[:, :, *o.grid_slice].add(mask_bc * diff)
         else:
@@ -972,24 +1097,6 @@ def _init_arrays(
     detector_states = {}
     for d in objects.detectors:
         detector_states[d.name] = d.init_state()
-
-    # modify arrays for boundaries
-    for boundary in objects.boundary_objects:
-        if hasattr(boundary, "modify_arrays") and callable(getattr(boundary, "modify_arrays", None)):
-            modify_fn = getattr(boundary, "modify_arrays")
-            result = modify_fn(
-                alpha=alpha,
-                kappa=kappa,
-                sigma=sigma,
-                electric_conductivity=electric_conductivity,
-                magnetic_conductivity=magnetic_conductivity,
-            )
-            if result is not None:
-                alpha = result.get("alpha", alpha)
-                kappa = result.get("kappa", kappa)
-                sigma = result.get("sigma", sigma)
-                electric_conductivity = result.get("electric_conductivity", electric_conductivity)
-                magnetic_conductivity = result.get("magnetic_conductivity", magnetic_conductivity)
 
     # interfaces
     recording_state = None
@@ -1012,21 +1119,18 @@ def _init_arrays(
         )
         config = config.aset("gradient_config", grad_cfg)
 
-    # Cache 1/c2 with non-dispersive cells zeroed so update_E_reverse can replace
-    # its ``jnp.where(c2 == 0, ..., / c2)`` pair with a single multiply.
-    dispersive_inv_c2 = None
-    if dispersive_c2 is not None:
-        dispersive_inv_c2 = jnp.where(dispersive_c2 == 0, 0.0, 1.0 / dispersive_c2)
-
-    # Precompute the time-invariant CPML recurrence coefficients (full volume), then gather
-    # them onto the M PML shell cells. The full-volume arrays are transient setup scratch;
-    # only the gathered (6, M) coefficients persist in the ArrayContainer.
-    pml_a_full, pml_b_full, pml_inv_kappa_full = compute_pml_coefficients(
-        alpha, kappa, sigma, config.time_step_duration
-    )
-    pml_a = pml_a_full[:, shell_ix, shell_iy, shell_iz]
-    pml_b = pml_b_full[:, shell_ix, shell_iy, shell_iz]
-    pml_inv_kappa = pml_inv_kappa_full[:, shell_ix, shell_iy, shell_iz]
+    # Validate CCPR dispersive stability once, on concrete host values. Only CCPR
+    # (non-zero dE/dt coupling) poles have a non-trivial implicit divisor, so the
+    # gate keeps Lorentz/Drude-only sims free of this cost. CCPR poles on the
+    # full-tensor path are already rejected by the NotImplementedError guard above,
+    # so this only runs on the 1/3-component paths whose divisor is exactly what
+    # update_E computes.
+    if objects.has_dispersive_edot:
+        validate_dispersive_divisor_stability(
+            _collect_labeled_materials(objects),
+            dt=config.time_step_duration,
+            courant_factor=config.courant_factor,
+        )
 
     # Save backup of initial inv_permittivities when using etched_devices
     using_etching = any(d.use_etching for d in objects.devices)
@@ -1041,10 +1145,6 @@ def _init_arrays(
             dispersive_P_curr=dispersive_P_curr,
             dispersive_P_prev=dispersive_P_prev,
         ),
-        pml_a=pml_a,
-        pml_b=pml_b,
-        pml_inv_kappa=pml_inv_kappa,
-        pml_indices=pml_indices,
         inv_permittivities=inv_permittivities,
         inv_permeabilities=inv_permeabilities,
         detector_states=detector_states,
@@ -1055,7 +1155,6 @@ def _init_arrays(
         dispersive_c2=dispersive_c2,
         dispersive_c3=dispersive_c3,
         dispersive_c4=dispersive_c4,
-        dispersive_inv_c2=dispersive_inv_c2,
         initial_inv_permittivities=initial_inv_permittivities,
     )
     return arrays, config, info

@@ -39,7 +39,6 @@ class FieldDetector(Detector):
     ) -> DetectorState:
         del inv_permeability, inv_permittivity
 
-        E, H = E[:, *self.grid_slice], H[:, *self.grid_slice]
         fields = []
         if "Ex" in self.components:
             fields.append(E[0])

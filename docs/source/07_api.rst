@@ -16,6 +16,8 @@ API
     fdtdx.calculate_sparams
     fdtdx.CCPRPole
     fdtdx.circular_brush
+    fdtdx.ClosedSurfacePhasorPoyntingFluxDetector
+    fdtdx.ClosedSurfacePoyntingFluxDetector
     fdtdx.ClosestIndex
     fdtdx.Color
     fdtdx.compute_energy
@@ -24,6 +26,8 @@ API
     fdtdx.compute_integrated_power
     fdtdx.compute_mode
     fdtdx.compute_pole_coefficients
+    fdtdx.compute_pole_coefficients_per_axis
+    fdtdx.compute_pole_coefficients_tensor
     fdtdx.compute_poynting_flux
     fdtdx.ConnectHolesAndStructures
     fdtdx.CustomTimeSignalProfile
@@ -82,6 +86,7 @@ API
     fdtdx.PerfectlyMatchedLayer
     fdtdx.PeriodicBoundary
     fdtdx.PhasorDetector
+    fdtdx.PhasorPoyntingFluxDetector
     fdtdx.PillarDiscretization
     fdtdx.place_objects
     fdtdx.plot_field_slice
@@ -121,6 +126,7 @@ API
     fdtdx.SubpixelSmoothedProjection
     fdtdx.TanhProjection
     fdtdx.TemporalProfile
+    fdtdx.TFSFPlaneSourceRegion
     fdtdx.TreeClass
     fdtdx.unfold_array
     fdtdx.unfold_detector_states
