@@ -88,19 +88,3 @@ python-version = "3.14"
 [tool.hatch.metadata]
 allow-direct-references = true
 
-[tool.pydoclint]
-style = "google"
-exclude = '\.venv|\.git|\.tox|build|docs'
-# Types are handled by Sphinx autodoc_typehints, don't duplicate them:
-arg-type-hints-in-signature = true
-arg-type-hints-in-docstring = false
-
-# Allow basic descriptions for returns without strict type matching:
-check-return-types = false
-
-# Allow using #: comments for class attributes instead of docstrings:
-check-class-attributes = false
-
-# Ignore raise statements and short docstrings:
-skip-checking-raises = true
-skip-checking-short-docstrings = true
