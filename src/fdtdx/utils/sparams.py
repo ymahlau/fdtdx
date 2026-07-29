@@ -17,7 +17,7 @@ from fdtdx.fdtd.stop_conditions import EnergyThresholdCondition
 from fdtdx.fdtd.wrapper import run_fdtd
 from fdtdx.materials import Material
 from fdtdx.objects.boundaries.initialization import BoundaryConfig, boundary_objects_from_config
-from fdtdx.objects.detectors.mode import ModeOverlapDetector
+from fdtdx.objects.detectors.mode import BaseModeOverlapDetector, ModeOverlapDetector
 from fdtdx.objects.sources.mode import ModePlaneSource
 from fdtdx.objects.static_material.polygon import ExtrudedPolygon
 from fdtdx.objects.static_material.static import SimulationVolume
@@ -310,12 +310,12 @@ def calculate_sparam(
 
     input_det_state = final_arrays.detector_states[input_norm_name]
     input_det = objects[input_norm_name]
-    assert isinstance(input_det, ModeOverlapDetector)
+    assert isinstance(input_det, BaseModeOverlapDetector)
     input_overlap = input_det.compute_overlap(input_det_state)
 
     result: dict[tuple[str, str], jax.Array] = {}
     for obj in objects.object_list:
-        if isinstance(obj, ModeOverlapDetector):
+        if isinstance(obj, BaseModeOverlapDetector):
             state = final_arrays.detector_states[obj.name]
             raw_overlap = obj.compute_overlap(state)
             result[(obj.name, input_port_name)] = raw_overlap / input_overlap
@@ -378,7 +378,7 @@ def determine_input_norm_detector_name(name_part: str, objects: ObjectContainer)
     exact_matches = []
     results = []
     for obj in objects.object_list:
-        if isinstance(obj, ModeOverlapDetector):
+        if isinstance(obj, BaseModeOverlapDetector):
             if obj.name == exact_name:
                 exact_matches.append(obj.name)
             if name_part in obj.name:

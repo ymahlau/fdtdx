@@ -6,8 +6,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from fdtdx.core.axis import get_oriented_transverse_axes
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
-from fdtdx.core.linalg import get_orthogonal_vector
+from fdtdx.core.linalg import get_orthogonal_vector, get_wave_vector_raw, rotate_vector
 from fdtdx.materials import Material
 
 
@@ -502,6 +503,54 @@ def normalize_polarization_for_source(
             dtype=dtype,
         )
     return e_pol, h_pol
+
+
+def tilted_polarization_vectors(
+    direction: Literal["+", "-"],
+    propagation_axis: int,
+    *,
+    fixed_E_polarization_vector: tuple[float, float, float] | None = None,
+    fixed_H_polarization_vector: tuple[float, float, float] | None = None,
+    azimuth_radians: float | jax.Array = 0.0,
+    elevation_radians: float | jax.Array = 0.0,
+    dtype: jnp.dtype = jnp.float32,
+) -> tuple[jax.Array, jax.Array, jax.Array]:
+    """Resolve the E/H polarization unit vectors and wave vector of a plane wave.
+
+    Shared by the linearly-polarized plane sources and the analytic Gaussian
+    mode-overlap detector so both derive polarization and off-normal propagation
+    identically. The raw E/H polarization comes from
+    :func:`normalize_polarization_for_source`, the wave vector from
+    :func:`~fdtdx.core.linalg.get_wave_vector_raw`, and all three are rotated by the
+    azimuth/elevation angles (radians) about the ``(horizontal, vertical, propagation)``
+    axis triple via :func:`~fdtdx.core.linalg.rotate_vector` (a zero angle is the
+    identity, so normal incidence is unaffected).
+
+    Args:
+        direction: ``"+"`` (forward) or ``"-"`` (backward) along ``propagation_axis``.
+        propagation_axis: Physical propagation axis (0=x, 1=y, 2=z).
+        fixed_E_polarization_vector: Explicit E polarization 3-vector, or ``None``.
+        fixed_H_polarization_vector: Explicit H polarization 3-vector, or ``None``.
+        azimuth_radians: Tilt around the vertical axis, in radians.
+        elevation_radians: Tilt around the horizontal axis, in radians.
+        dtype: Float dtype used to build the vectors.
+
+    Returns:
+        ``(e_pol, h_pol, wave_vector)`` unit vectors, each of shape ``(3,)``.
+    """
+    e_pol, h_pol = normalize_polarization_for_source(
+        direction=direction,
+        propagation_axis=propagation_axis,
+        fixed_E_polarization_vector=fixed_E_polarization_vector,
+        fixed_H_polarization_vector=fixed_H_polarization_vector,
+        dtype=dtype,
+    )
+    wave_vector = get_wave_vector_raw(direction=direction, propagation_axis=propagation_axis, dtype=dtype)
+    axes_tpl = (*get_oriented_transverse_axes(propagation_axis), propagation_axis)
+    e_pol = rotate_vector(e_pol, azimuth_radians, elevation_radians, axes_tpl)
+    h_pol = rotate_vector(h_pol, azimuth_radians, elevation_radians, axes_tpl)
+    wave_vector = rotate_vector(wave_vector, azimuth_radians, elevation_radians, axes_tpl)
+    return e_pol, h_pol, wave_vector
 
 
 @overload
