@@ -142,6 +142,9 @@ API
     fdtdx.VerticalSymmetry2D
     fdtdx.VerticalSymmetry3D
     fdtdx.WaveCharacter
+    fdtdx.WindowProfile
+    fdtdx.TukeyWindowProfile
+    fdtdx.GaussianWindowProfile
     fdtdx.wavelength_to_period
     fdtdx.GDSLayerObject
     fdtdx.GDSLayerSpec
