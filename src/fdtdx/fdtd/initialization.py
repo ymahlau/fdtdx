@@ -162,8 +162,9 @@ def place_objects(
     # non-symmetric path is unchanged.
     dropped_names: set[str] = set()
     reduced_volume_shape = None
+    symmetry_clip_low: dict[str, tuple[int, int, int]] = {}
     if config.has_symmetry:
-        resolved_slices, dropped_names, reduced_volume_shape = reduce_resolved_slices(
+        resolved_slices, dropped_names, reduced_volume_shape, symmetry_clip_low = reduce_resolved_slices(
             resolved_slices=resolved_slices,
             object_map=object_map,
             config=config,
@@ -201,25 +202,26 @@ def place_objects(
         obj = object_map[name]
         assert key is not None
         key, subkey = jax.random.split(key)
-        placed_objects.append(
-            obj.place_on_grid(
-                grid_slice_tuple=slice_tuple,
-                config=config,
-                key=subkey,
-            )
+        placed = obj.place_on_grid(
+            grid_slice_tuple=slice_tuple,
+            config=config,
+            key=subkey,
         )
+        if name in symmetry_clip_low:
+            placed = placed.aset("_symmetry_clip_low", symmetry_clip_low[name])
+        placed_objects.append(placed)
 
     # Step 7: Place volume first (index 0)
     assert key is not None
     key, subkey = jax.random.split(key)
-    placed_objects.insert(
-        0,
-        volume_obj.place_on_grid(
-            grid_slice_tuple=resolved_slices[volume_obj.name],
-            config=config,
-            key=subkey,
-        ),
+    placed_volume = volume_obj.place_on_grid(
+        grid_slice_tuple=resolved_slices[volume_obj.name],
+        config=config,
+        key=subkey,
     )
+    if volume_obj.name in symmetry_clip_low:
+        placed_volume = placed_volume.aset("_symmetry_clip_low", symmetry_clip_low[volume_obj.name])
+    placed_objects.insert(0, placed_volume)
 
     # Step 8: Insert the PEC/PMC symmetry walls and forward the per-axis condition to mode
     # sources/detectors, then warn that the simulation now runs on the reduced domain.

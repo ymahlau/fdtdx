@@ -203,6 +203,9 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         u_basis = h_axis - jnp.dot(h_axis, wave_vector) * wave_vector
         u_basis = u_basis / jnp.linalg.norm(u_basis)
         v_basis = jnp.cross(wave_vector, u_basis)
+        # Orient along +vertical_axis; the raw cross product sign flips the sampled
+        # profile about ``center`` for some axis/direction combinations.
+        v_basis = v_basis * jnp.where(v_basis[self.vertical_axis] >= 0, 1.0, -1.0).astype(v_basis.dtype)
 
         # projection
         def project(point):
@@ -241,7 +244,8 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
                 inv_permittivity=inv_permittivities,
                 inv_permeability=inv_permeabilities,
             )
-            total_energy_root = jnp.sqrt(energy.sum())
+            # Under symmetry the plane is clipped; normalize by the full-domain energy.
+            total_energy_root = jnp.sqrt(energy.sum() * self._symmetry_fold_factor())
             E = E / total_energy_root
             H = H / total_energy_root
 
@@ -366,7 +370,7 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
             h_widths = horizontal_edges[1:] - horizontal_edges[:-1]
             v_widths = vertical_edges[1:] - vertical_edges[:-1]
             cell_areas = h_widths[:, None] * v_widths[None, :]
-            profile_2d = profile_2d / (profile_2d * cell_areas).sum()
+            profile_2d = profile_2d / ((profile_2d * cell_areas).sum() * self._symmetry_fold_factor())
             return jnp.expand_dims(profile_2d, axis=self.propagation_axis)
 
         grid_radius = self.radius / self._config.uniform_spacing()
@@ -378,7 +382,8 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
             radii=(grid_radius, grid_radius),
             std=self.std,
         )
-        return profile
+        # ``_gauss_profile`` normalizes over its own cells; rescale to the full-domain sum.
+        return profile / self._symmetry_fold_factor()
 
 
 @autoinit

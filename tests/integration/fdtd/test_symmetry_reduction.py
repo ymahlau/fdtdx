@@ -105,14 +105,16 @@ def test_symmetry_reduces_volume_and_inserts_walls():
     assert oc.volume.grid_shape == (20, 10, 10)
     assert arrays.fields.E.shape == (3, 20, 10, 10)
 
-    # PEC wall on y, PMC wall on z, each a single cell on the symmetry plane (min edge).
+    # PEC wall on y, a single cell on the symmetry plane (min edge).
     pec = oc.pec_objects
-    pmc = oc.pmc_objects
-    assert len(pec) == 1 and len(pmc) == 1
+    assert len(pec) == 1
     assert pec[0].axis == 1 and pec[0].direction == "-"
     assert pec[0]._grid_slice_tuple[1] == (0, 1)
-    assert pmc[0].axis == 2 and pmc[0].direction == "-"
-    assert pmc[0]._grid_slice_tuple[2] == (0, 1)
+
+    # No wall on the PMC z plane: the tangential-H node a magnetic mirror zeroes lies at local
+    # -1, outside the reduced array, where zero-padding already supplies it. A PMC object would
+    # zero tangential H a full cell inside the domain instead.
+    assert len(oc.pmc_objects) == 0
 
 
 def test_symmetry_clips_and_drops_objects():

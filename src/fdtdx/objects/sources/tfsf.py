@@ -527,6 +527,11 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         )
         return azimuth_radians, elevation_radians
 
+    def _symmetry_fold_factor(self) -> int:
+        """Factor relating a transverse sum over the reduced plane to the full-domain sum."""
+        clip = self._symmetry_clip_low
+        return 2 ** sum(1 for axis in (self.horizontal_axis, self.vertical_axis) if clip[axis] > 0)
+
     def _get_center(self, key: jax.Array) -> jax.Array:  # shape(2,)
         """Calculate the randomized source center.
 
@@ -534,22 +539,29 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         non-uniform grid, tilted projections and Gaussian profiles are sampled in
         physical coordinates, so the returned center is measured in metres from
         the source-slice lower edge along the transverse axes.
+
+        Under mirror symmetry the source is clipped to the kept half, so the center is
+        the *full-domain* center expressed in reduced-local coordinates: it lands on the
+        symmetry plane at the slice's lower edge rather than mid-slice.
         """
+        clip = self._symmetry_clip_low
         if self._config.has_nonuniform_grid:
             grid = self._config.resolved_grid
             assert grid is not None
-            local_edges = []
+            local_centers = []
             for axis in (self.horizontal_axis, self.vertical_axis):
                 lower, upper = self.grid_slice_tuple[axis]
                 edges = grid.edges(axis)[lower : upper + 1]
-                local_edges.append(edges - edges[0])
-            center_horizontal = 0.5 * local_edges[0][-1]
-            center_vertical = 0.5 * local_edges[1][-1]
+                edges = edges - edges[0]
+                # A clipped axis has the symmetry plane at its lower edge (local 0.0).
+                local_centers.append(jnp.asarray(0.0) if clip[axis] > 0 else 0.5 * edges[-1])
+            center_horizontal, center_vertical = local_centers
         else:
-            horizontal_size = self.grid_shape[self.horizontal_axis]
-            vertical_size = self.grid_shape[self.vertical_axis]
-            center_horizontal = (horizontal_size - 1) / 2
-            center_vertical = (vertical_size - 1) / 2
+            index_centers = []
+            for axis in (self.horizontal_axis, self.vertical_axis):
+                full_size = self.grid_shape[axis] + clip[axis]
+                index_centers.append((full_size - 1) / 2 - clip[axis])
+            center_horizontal, center_vertical = index_centers
 
         key, subkey = jax.random.split(key)
         horizontal_offset = jax.random.uniform(

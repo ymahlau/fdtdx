@@ -245,6 +245,15 @@ class SimulationObject(TreeClass, ABC):
     )
     _config: SimulationConfig = private_field()
 
+    #: Cells removed from this object's low side per axis by mirror-symmetry reduction.
+    _symmetry_clip_low: tuple[int, int, int] = frozen_private_field(default=(0, 0, 0))
+
+    @property
+    def unreduced_grid_shape(self) -> GridShape3D:
+        """This object's grid shape before symmetry reduction clipped it."""
+        shape, clip = self.grid_shape, self._symmetry_clip_low
+        return (shape[0] + clip[0], shape[1] + clip[1], shape[2] + clip[2])
+
     @property
     def grid_slice_tuple(self) -> SliceTuple3D:
         if self._grid_slice_tuple == INVALID_SLICE_TUPLE_3D:

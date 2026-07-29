@@ -30,7 +30,6 @@ from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.objects.boundaries.bloch import BlochBoundary
 from fdtdx.objects.boundaries.boundary import BaseBoundary
 from fdtdx.objects.boundaries.pec import PerfectElectricConductor
-from fdtdx.objects.boundaries.pmc import PerfectMagneticConductor
 from fdtdx.objects.detectors.diffractive import DiffractiveDetector
 from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.detectors.field import FieldDetector
@@ -105,7 +104,7 @@ def reduce_resolved_slices(
     object_map: dict[str, SimulationObject],
     config: SimulationConfig,
     volume_name: str,
-) -> tuple[dict[str, SliceTuple3D], set[str], tuple[int, int, int]]:
+) -> tuple[dict[str, SliceTuple3D], set[str], tuple[int, int, int], dict[str, tuple[int, int, int]]]:
     """Clip full-domain grid slices onto the symmetric (kept upper) half along each axis.
 
     Args:
@@ -115,9 +114,10 @@ def reduce_resolved_slices(
         volume_name (str): Name of the simulation volume object.
 
     Returns:
-        tuple: ``(new_slices, dropped_names, reduced_volume_shape)`` where ``new_slices`` excludes
-        the dropped objects, ``dropped_names`` lists objects entirely in the discarded half, and
-        ``reduced_volume_shape`` is the reduced volume grid shape ``(Nx', Ny', Nz')``.
+        tuple: ``(new_slices, dropped_names, reduced_volume_shape, clip_low)`` where ``new_slices``
+        excludes the dropped objects, ``dropped_names`` lists objects entirely in the discarded half,
+        ``reduced_volume_shape`` is the reduced volume grid shape ``(Nx', Ny', Nz')``, and
+        ``clip_low`` maps object name → cells removed from its low side per axis.
     """
     symmetry = config.symmetry
     vol_slice = resolved_slices[volume_name]
@@ -145,13 +145,17 @@ def reduce_resolved_slices(
 
     new_slices: dict[str, SliceTuple3D] = {}
     dropped: set[str] = set()
+    clip_low: dict[str, tuple[int, int, int]] = {}
     for name, sl in resolved_slices.items():
         if name == volume_name:
             new_slices[name] = (new_vol[0], new_vol[1], new_vol[2])
+            vol_cut = [mid_abs[a] - vol_slice[a][0] if symmetry[a] != 0 else 0 for a in range(3)]
+            clip_low[name] = (vol_cut[0], vol_cut[1], vol_cut[2])
             continue
 
         obj = object_map[name]
         clipped: list[tuple[int, int]] = []
+        cut: list[int] = []
         drop = False
         for a in range(3):
             s0, s1 = sl[a]
@@ -159,6 +163,7 @@ def reduce_resolved_slices(
                 m = mid_abs[a]
                 ns0 = max(s0, m) - m
                 ns1 = min(s1, vol_slice[a][1]) - m
+                cut.append(max(0, min(m, s1) - s0))
                 if ns1 <= ns0:
                     drop = True
                 elif s0 < m < s1 and (s0 + s1) != 2 * m:
@@ -170,6 +175,7 @@ def reduce_resolved_slices(
                     )
                 clipped.append((ns0, ns1))
             else:
+                cut.append(0)
                 clipped.append((s0, s1))
 
         if drop:
@@ -189,8 +195,9 @@ def reduce_resolved_slices(
             continue
 
         new_slices[name] = (clipped[0], clipped[1], clipped[2])
+        clip_low[name] = (cut[0], cut[1], cut[2])
 
-    return new_slices, dropped, reduced_volume_shape
+    return new_slices, dropped, reduced_volume_shape, clip_low
 
 
 def make_symmetry_walls(
@@ -199,7 +206,16 @@ def make_symmetry_walls(
     key: jax.Array,
     existing_names: set[str],
 ) -> list[SimulationObject]:
-    """Create the PEC/PMC wall objects sitting on each symmetry plane (reduced min edge).
+    """Create the PEC wall objects sitting on each electric symmetry plane (reduced min edge).
+
+    Only ``symmetry[a] == -1`` (PEC / electric mirror) gets an explicit wall. The symmetry plane
+    lies on the reduced domain's low cell *edge*, i.e. at local coordinate ``-0.5``. Along the
+    axis, tangential ``E`` has Yee offset 0, so its first node sits half a cell inside the domain
+    and the electric mirror has to be imposed explicitly. Tangential ``H`` has offset ``1/2``, so
+    the node that a magnetic mirror forces to zero sits at local ``-1`` — outside the array, where
+    zero-padding already supplies it. A ``PerfectMagneticConductor`` object would instead zero
+    tangential ``H`` at local ``0``, a full cell inside the domain, over-constraining the field
+    (measured ~30% error near the plane versus ~0.1% with the natural termination).
 
     Args:
         config (SimulationConfig): Simulation config; ``config.symmetry`` selects the axes/types.
@@ -208,12 +224,13 @@ def make_symmetry_walls(
         existing_names (set[str]): Names already in use, so wall names can be made unique.
 
     Returns:
-        list[SimulationObject]: PEC/PMC boundary objects, already placed on the reduced grid.
+        list[SimulationObject]: PEC boundary objects, already placed on the reduced grid. PMC
+        (``+1``) axes contribute nothing — their mirror is the zero-padded array edge.
     """
     walls: list[SimulationObject] = []
     used = set(existing_names)
     for a in range(3):
-        if config.symmetry[a] == 0:
+        if config.symmetry[a] != -1:
             continue
         name = f"_sym_wall_{_AXIS_NAMES[a]}"
         suffix = 0
@@ -227,8 +244,7 @@ def make_symmetry_walls(
             1 if a == 1 else None,
             1 if a == 2 else None,
         )
-        wall_cls = PerfectElectricConductor if config.symmetry[a] == -1 else PerfectMagneticConductor
-        wall = wall_cls(
+        wall = PerfectElectricConductor(
             name=name,
             axis=a,
             partial_grid_shape=partial_grid_shape,
