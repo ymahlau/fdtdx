@@ -892,7 +892,7 @@ def _build_lossy_dispersive_scene():
 
 
 def _make_disp_loss_fn(coef_name):
-    """Build a loss-fn closure that differentiates w.r.t. one of c1/c2/c3.
+    """Build a loss-fn closure that differentiates w.r.t. one of a1/a0/b1.
 
     Returns a static function compatible with ``jax.value_and_grad`` whose
     first positional argument is the chosen coefficient array. The remaining
@@ -901,10 +901,13 @@ def _make_disp_loss_fn(coef_name):
 
     def loss_fn(coef_value, arrays, objects, config, key, _fdtd):
         kwargs = {
-            "dispersive_c1": arrays.dispersive_c1,
-            "dispersive_c2": arrays.dispersive_c2,
-            "dispersive_c3": arrays.dispersive_c3,
+            "dispersive_a1": arrays.dispersive_a1,
+            "dispersive_a0": arrays.dispersive_a0,
+            "dispersive_b1": arrays.dispersive_b1,
             "dispersive_c4": arrays.dispersive_c4,
+            # c4 and b0 are allocated together; passing only c4 would make the
+            # update silently substitute b1 for b0 and change the physics.
+            "dispersive_b0": arrays.dispersive_b0,
         }
         kwargs[f"dispersive_{coef_name}"] = coef_value
         arr = ArrayContainer(
@@ -913,8 +916,8 @@ def _make_disp_loss_fn(coef_name):
                 H=arrays.fields.H,
                 psi_E=arrays.fields.psi_E,
                 psi_H=arrays.fields.psi_H,
-                dispersive_P_curr=arrays.fields.dispersive_P_curr,
-                dispersive_P_prev=arrays.fields.dispersive_P_prev,
+                dispersive_x1=arrays.fields.dispersive_x1,
+                dispersive_y2=arrays.fields.dispersive_y2,
             ),
             inv_permittivities=arrays.inv_permittivities,
             inv_permeabilities=arrays.inv_permeabilities,
@@ -953,7 +956,7 @@ def _coef_fd_check(coef_arr, loss_fn, arrays, obj, config, key, h_scale, h_floor
 
 
 class TestDispersiveCoefficientGradientCheckpointed:
-    """Verify that ``dispersive_c1/c2/c3`` are genuine differentiable inputs of
+    """Verify that ``dispersive_a1/a0/b1`` are genuine differentiable inputs of
     the checkpointed FDTD path: the AD gradient w.r.t. each coefficient at an
     interior dispersive voxel matches a central finite-difference estimate.
     """
@@ -963,15 +966,15 @@ class TestDispersiveCoefficientGradientCheckpointed:
         return _build_lossy_dispersive_scene()
 
     @staticmethod
-    def _loss_fn(dispersive_c3, arrays, objects, config, key):
+    def _loss_fn(dispersive_b1, arrays, objects, config, key):
         arrays = ArrayContainer(
             fields=FieldState(
                 E=arrays.fields.E,
                 H=arrays.fields.H,
                 psi_E=arrays.fields.psi_E,
                 psi_H=arrays.fields.psi_H,
-                dispersive_P_curr=arrays.fields.dispersive_P_curr,
-                dispersive_P_prev=arrays.fields.dispersive_P_prev,
+                dispersive_x1=arrays.fields.dispersive_x1,
+                dispersive_y2=arrays.fields.dispersive_y2,
             ),
             inv_permittivities=arrays.inv_permittivities,
             inv_permeabilities=arrays.inv_permeabilities,
@@ -979,9 +982,9 @@ class TestDispersiveCoefficientGradientCheckpointed:
             recording_state=arrays.recording_state,
             electric_conductivity=arrays.electric_conductivity,
             magnetic_conductivity=arrays.magnetic_conductivity,
-            dispersive_c1=arrays.dispersive_c1,
-            dispersive_c2=arrays.dispersive_c2,
-            dispersive_c3=dispersive_c3,
+            dispersive_a1=arrays.dispersive_a1,
+            dispersive_a0=arrays.dispersive_a0,
+            dispersive_b1=dispersive_b1,
         )
         _, out = checkpointed_fdtd(arrays, objects, config, key, show_progress=False)
         return jnp.sum(jnp.real(out.fields.E) ** 2)
@@ -989,7 +992,7 @@ class TestDispersiveCoefficientGradientCheckpointed:
     def test_gradient_through_c3_matches_finite_difference(self):
         obj, arrays, config = self._build()
         key = jax.random.PRNGKey(99)
-        c3 = arrays.dispersive_c3
+        c3 = arrays.dispersive_b1
         assert c3 is not None
 
         _, grads = jax.value_and_grad(self._loss_fn)(c3, arrays, obj, config, key)
@@ -1013,33 +1016,33 @@ class TestDispersiveCoefficientGradientCheckpointed:
             f"AD vs FD mismatch at {idx}: AD={float(ad):.6e}, FD={float(fd):.6e}, rel_err={float(rel_err):.3e}"
         )
 
-    def test_gradient_through_c1_matches_finite_difference(self):
+    def test_gradient_through_a1_matches_finite_difference(self):
         """Checkpointed path uses standard autodiff through ``eqxi.while_loop``
-        so c1 gradient flows naturally. Mirrors the reversible-path test."""
+        so the a1 gradient flows naturally. Mirrors the reversible-path test."""
         obj, arrays, config = self._build()
         key = jax.random.PRNGKey(99)
-        c1 = arrays.dispersive_c1
-        assert c1 is not None
-        loss_fn = _make_disp_loss_fn("c1")
+        a1 = arrays.dispersive_a1
+        assert a1 is not None
+        loss_fn = _make_disp_loss_fn("a1")
         ad, fd, rel_err, diff, idx = _coef_fd_check(
-            c1, loss_fn, arrays, obj, config, key, h_scale=1e-3, h_floor=1e-6, fdtd_impl=checkpointed_fdtd
+            a1, loss_fn, arrays, obj, config, key, h_scale=1e-3, h_floor=1e-6, fdtd_impl=checkpointed_fdtd
         )
         assert rel_err < 0.1 or diff < 1e-5, (
-            f"AD vs FD mismatch (c1) at {idx}: AD={float(ad):.6e}, FD={float(fd):.6e}, rel_err={float(rel_err):.3e}"
+            f"AD vs FD mismatch (a1) at {idx}: AD={float(ad):.6e}, FD={float(fd):.6e}, rel_err={float(rel_err):.3e}"
         )
 
-    def test_gradient_through_c2_matches_finite_difference(self):
-        """Checkpointed-path c2 gradient via standard autodiff."""
+    def test_gradient_through_a0_matches_finite_difference(self):
+        """Checkpointed-path a0 gradient via standard autodiff."""
         obj, arrays, config = self._build()
         key = jax.random.PRNGKey(99)
-        c2 = arrays.dispersive_c2
-        assert c2 is not None
-        loss_fn = _make_disp_loss_fn("c2")
+        a0 = arrays.dispersive_a0
+        assert a0 is not None
+        loss_fn = _make_disp_loss_fn("a0")
         ad, fd, rel_err, diff, idx = _coef_fd_check(
-            c2, loss_fn, arrays, obj, config, key, h_scale=1e-3, h_floor=1e-6, fdtd_impl=checkpointed_fdtd
+            a0, loss_fn, arrays, obj, config, key, h_scale=1e-3, h_floor=1e-6, fdtd_impl=checkpointed_fdtd
         )
         assert rel_err < 0.1 or diff < 1e-5, (
-            f"AD vs FD mismatch (c2) at {idx}: AD={float(ad):.6e}, FD={float(fd):.6e}, rel_err={float(rel_err):.3e}"
+            f"AD vs FD mismatch (a0) at {idx}: AD={float(ad):.6e}, FD={float(fd):.6e}, rel_err={float(rel_err):.3e}"
         )
 
 
@@ -1204,7 +1207,7 @@ class TestDispersiveReversibleRejected:
         obj, arrays, config = _build_lossy_dispersive_scene()
         # backward() restores recorded interfaces first, which needs a recorder.
         arrays, config = _add_gradient_config(arrays, config, obj)
-        assert arrays.fields.dispersive_P_curr is not None
+        assert arrays.fields.dispersive_x1 is not None
         with pytest.raises(NotImplementedError, match=self._MATCH):
             backward(
                 state=(jnp.asarray(1, dtype=jnp.int32), arrays),

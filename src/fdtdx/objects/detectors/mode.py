@@ -149,11 +149,12 @@ class ModeOverlapDetector(PhasorDetector):
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
-        dispersive_c1: jax.Array | None = None,
-        dispersive_c2: jax.Array | None = None,
-        dispersive_c3: jax.Array | None = None,
+        dispersive_a1: jax.Array | None = None,
+        dispersive_a0: jax.Array | None = None,
+        dispersive_b1: jax.Array | None = None,
         electric_conductivity: jax.Array | None = None,
         dispersive_c4: jax.Array | None = None,
+        dispersive_b0: jax.Array | None = None,
     ) -> Self:
         del key
         inv_permittivity_slice = inv_permittivities[:, *self.grid_slice]
@@ -162,12 +163,13 @@ class ModeOverlapDetector(PhasorDetector):
         else:
             inv_permeability_slice = inv_permeabilities
 
-        c1_slice = c2_slice = c3_slice = c4_slice = None
-        if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
-            c1_slice = dispersive_c1[:, :, *self.grid_slice]
-            c2_slice = dispersive_c2[:, :, *self.grid_slice]
-            c3_slice = dispersive_c3[:, :, *self.grid_slice]
+        a1_slice = a0_slice = b1_slice = c4_slice = b0_slice = None
+        if dispersive_a1 is not None and dispersive_a0 is not None and dispersive_b1 is not None:
+            a1_slice = dispersive_a1[:, :, *self.grid_slice]
+            a0_slice = dispersive_a0[:, :, *self.grid_slice]
+            b1_slice = dispersive_b1[:, :, *self.grid_slice]
             c4_slice = None if dispersive_c4 is None else dispersive_c4[:, :, *self.grid_slice]
+            b0_slice = None if dispersive_b0 is None else dispersive_b0[:, :, *self.grid_slice]
 
         # The reference mode is solved against the FULL complex epsilon at each
         # carrier frequency (eps_inf + chi(omega) + i*sigma/(eps0*omega)), so the
@@ -183,15 +185,16 @@ class ModeOverlapDetector(PhasorDetector):
         all_mode_neffs: list[jax.Array] = []
         for wc in self.wave_characters:
             inv_eps_i = inv_permittivity_slice
-            if c1_slice is not None or sigma_slice is not None:
+            if a1_slice is not None or sigma_slice is not None:
                 inv_eps_i = effective_complex_inv_permittivity(
                     inv_eps=inv_permittivity_slice,
                     omega=2.0 * np.pi * wc.get_frequency(),
                     dt=self._config.time_step_duration,
-                    c1=c1_slice,
-                    c2=c2_slice,
-                    c3=c3_slice,
+                    a1=a1_slice,
+                    a0=a0_slice,
+                    b1=b1_slice,
                     c4=c4_slice,
+                    b0=b0_slice,
                     electric_conductivity=sigma_slice,
                     conductivity_spacing=conductivity_spacing,
                 )

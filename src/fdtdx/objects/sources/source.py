@@ -70,21 +70,23 @@ class Source(SimulationObject, ABC):
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
-        dispersive_c1: jax.Array | None = None,
-        dispersive_c2: jax.Array | None = None,
-        dispersive_c3: jax.Array | None = None,
+        dispersive_a1: jax.Array | None = None,
+        dispersive_a0: jax.Array | None = None,
+        dispersive_b1: jax.Array | None = None,
         electric_conductivity: jax.Array | None = None,
         dispersive_c4: jax.Array | None = None,
+        dispersive_b0: jax.Array | None = None,
     ) -> Self:
         self = super().apply(
             key=key,
             inv_permittivities=inv_permittivities,
             inv_permeabilities=inv_permeabilities,
-            dispersive_c1=dispersive_c1,
-            dispersive_c2=dispersive_c2,
-            dispersive_c3=dispersive_c3,
+            dispersive_a1=dispersive_a1,
+            dispersive_a0=dispersive_a0,
+            dispersive_b1=dispersive_b1,
             electric_conductivity=electric_conductivity,
             dispersive_c4=dispersive_c4,
+            dispersive_b0=dispersive_b0,
         )
         self = self._update_on_arrays()
         return self

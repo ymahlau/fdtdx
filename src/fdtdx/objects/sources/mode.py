@@ -95,11 +95,12 @@ class ModePlaneSource(TFSFPlaneSource):
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
-        dispersive_c1: jax.Array | None = None,
-        dispersive_c2: jax.Array | None = None,
-        dispersive_c3: jax.Array | None = None,
+        dispersive_a1: jax.Array | None = None,
+        dispersive_a0: jax.Array | None = None,
+        dispersive_b1: jax.Array | None = None,
         electric_conductivity: jax.Array | None = None,
         dispersive_c4: jax.Array | None = None,
+        dispersive_b0: jax.Array | None = None,
     ) -> Self:
         del key
         if (
@@ -126,20 +127,22 @@ class ModePlaneSource(TFSFPlaneSource):
         # Frequency-correct the permittivity seen by the mode solver so that
         # mode profiles computed inside a dispersive medium reflect the true
         # epsilon at the carrier frequency, not epsilon_infinity.
-        c1_slice = c2_slice = c3_slice = c4_slice = None
-        if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
-            c1_slice = dispersive_c1[:, :, *self.grid_slice]
-            c2_slice = dispersive_c2[:, :, *self.grid_slice]
-            c3_slice = dispersive_c3[:, :, *self.grid_slice]
+        a1_slice = a0_slice = b1_slice = c4_slice = b0_slice = None
+        if dispersive_a1 is not None and dispersive_a0 is not None and dispersive_b1 is not None:
+            a1_slice = dispersive_a1[:, :, *self.grid_slice]
+            a0_slice = dispersive_a0[:, :, *self.grid_slice]
+            b1_slice = dispersive_b1[:, :, *self.grid_slice]
             c4_slice = None if dispersive_c4 is None else dispersive_c4[:, :, *self.grid_slice]
+            b0_slice = None if dispersive_b0 is None else dispersive_b0[:, :, *self.grid_slice]
             inv_permittivity_slice = effective_inv_permittivity(
                 inv_eps=inv_permittivity_slice,
-                c1=c1_slice,
-                c2=c2_slice,
-                c3=c3_slice,
+                a1=a1_slice,
+                a0=a0_slice,
+                b1=b1_slice,
                 omega=2.0 * np.pi * self.wave_character.get_frequency(),
                 dt=self._config.time_step_duration,
                 c4=c4_slice,
+                b0=b0_slice,
             )
 
         self = self.aset("_inv_permittivity", inv_permittivity_slice, create_new_ok=True)
@@ -153,15 +156,16 @@ class ModePlaneSource(TFSFPlaneSource):
         # double-count the absorption already integrated by the FDTD update.
         sigma_slice = None if electric_conductivity is None else electric_conductivity[:, *self.grid_slice]
         mode_inv_permittivity = inv_eps_inf_slice
-        if sigma_slice is not None or c1_slice is not None:
+        if sigma_slice is not None or a1_slice is not None:
             mode_inv_permittivity = effective_complex_inv_permittivity(
                 inv_eps=inv_eps_inf_slice,
                 omega=2.0 * np.pi * self.wave_character.get_frequency(),
                 dt=self._config.time_step_duration,
-                c1=c1_slice,
-                c2=c2_slice,
-                c3=c3_slice,
+                a1=a1_slice,
+                a0=a0_slice,
+                b1=b1_slice,
                 c4=c4_slice,
+                b0=b0_slice,
                 electric_conductivity=sigma_slice,
                 conductivity_spacing=(
                     None
@@ -190,7 +194,7 @@ class ModePlaneSource(TFSFPlaneSource):
         # modes are projected to real (bit-identical to before). The dispersive
         # path also stays real here because its broadband H-filter assumes a real
         # temporal profile.
-        keep_complex_mode = sigma_slice is not None and c1_slice is None
+        keep_complex_mode = sigma_slice is not None and a1_slice is None
         if not keep_complex_mode:
             mode_E, mode_H = jnp.real(mode_E), jnp.real(mode_H)
 
@@ -233,18 +237,19 @@ class ModePlaneSource(TFSFPlaneSource):
         # Note: bulk ε(ω) is averaged uniformly over the source cells; this
         # does not capture geometric modal dispersion (the fact that a
         # waveguide mode's effective index also depends on frequency).
-        if c1_slice is not None and c2_slice is not None and c3_slice is not None:
+        if a1_slice is not None and a0_slice is not None and b1_slice is not None:
             filtered = _build_dispersive_H_filter(
                 temporal_profile=self.temporal_profile,
                 wave_character=self.wave_character,
                 dt=self._config.time_step_duration,
                 num_time_steps=self._config.time_steps_total,
-                c1_slice=c1_slice,
-                c2_slice=c2_slice,
-                c3_slice=c3_slice,
+                a1_slice=a1_slice,
+                a0_slice=a0_slice,
+                b1_slice=b1_slice,
                 inv_eps_inf_slice=inv_eps_inf_slice,
                 dtype=self._config.dtype,
                 c4_slice=c4_slice,
+                b0_slice=b0_slice,
             )
             self = self.aset("_temporal_H_filter", filtered, create_new_ok=True)
         else:

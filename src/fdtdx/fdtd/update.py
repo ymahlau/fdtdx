@@ -232,45 +232,61 @@ def update_E(
         # E[i, x, y, z] = factor * E[i, x, y, z] + c * curl[i, x, y, z] * inv_eps[i, x, y, z]
         E = factor * arrays.fields.E + c * curl * inv_eps
 
-        # Dispersive (ADE) correction. Non-dispersive cells have c3 = 0, so P_hat =
-        # c1*P_curr + c2*P_prev and (P_curr - P_hat) reduces to a purely historical
-        # term that is also zero when P_curr and P_prev start at zero — so it's a
+        # Dispersive (ADE) correction, marched in the delta (zeta = z - 1) basis
+        #   dx1^n     = y2^n - a1 x1^n + b1 E^n      (= x1^{n+1} - x1^n)
+        #   y2^{n+1}  = y2^n - a0 x1^n + b0 E^n
+        #   x1^{n+1}  = x1^n + dx1^n
+        #   p^{n+1}   = x1^{n+1} + c4 E^{n+1}
+        # with the state y2 = x1 + x2 relative to the observer form. See
+        # fdtdx.dispersion for the derivation and for why this basis — not
+        # (c1, c2, beta1, c4, beta0) — is what keeps float32 usable: a0 is
+        # O((omega_0 dt)^2) and is *stored*, where 1 - c1 - c2 would be pure
+        # round-off. Non-dispersive cells have all coefficients zero, so
+        # b1 = b0 = 0 pins x1/y2 at zero and the polarization term vanishes — a
         # no-op outside dispersive regions. Only active when arrays are allocated.
-        if arrays.fields.dispersive_P_curr is not None:
-            P_curr = arrays.fields.dispersive_P_curr
-            P_prev = arrays.fields.dispersive_P_prev
-            disp_c1 = arrays.dispersive_c1
-            disp_c2 = arrays.dispersive_c2
-            disp_c3 = arrays.dispersive_c3
+        if arrays.fields.dispersive_x1 is not None:
+            x1 = arrays.fields.dispersive_x1
+            y2 = arrays.fields.dispersive_y2
+            disp_a1 = arrays.dispersive_a1
+            disp_a0 = arrays.dispersive_a0
+            disp_b1 = arrays.dispersive_b1
             disp_c4 = arrays.dispersive_c4
-            assert P_prev is not None and disp_c1 is not None and disp_c2 is not None and disp_c3 is not None
-            # disp_c* are (num_poles, 1|3, Nx, Ny, Nz) — the component axis is 1
-            # (isotropic dispersion, broadcast) or 3 (per-axis anisotropic
+            disp_b0 = arrays.dispersive_b0
+            assert y2 is not None and disp_a1 is not None and disp_a0 is not None and disp_b1 is not None
+            # Coefficients are (num_poles, 1|3, Nx, Ny, Nz) — the component axis is
+            # 1 (isotropic dispersion, broadcast) or 3 (per-axis anisotropic
             # dispersion); arrays.fields.E is (3, Nx, Ny, Nz). Right-aligned
             # broadcasting produces (num_poles, 3, Nx, Ny, Nz) either way without
             # an explicit newaxis — skip the reshape so the HLO stays flat.
-            # P_hat is the explicit part of the recurrence (independent of E^{n+1}).
-            P_hat = disp_c1 * P_curr + disp_c2 * P_prev + disp_c3 * arrays.fields.E
-            delta_hat = jnp.sum(P_curr - P_hat, axis=0)
-            E = E + inv_eps * delta_hat
+            E_n = arrays.fields.E
+            # b0 == b1 exactly when no pole is implicit (c4 = c5 = 0 => beta0 = 0),
+            # which is precisely when the b0 array is not allocated.
+            b0_eff = disp_b1 if disp_b0 is None else disp_b0
+            # dx1 is fully explicit; the implicit c4*E^{n+1} of p^{n+1} is folded
+            # into the divisor below.
+            dx1 = y2 - disp_a1 * x1 + disp_b1 * E_n
+            y2_new = y2 - disp_a0 * x1 + b0_eff * E_n
+            x1_new = x1 + dx1
+            # p^n - x1^{n+1} = c4 E^n - dx1. Computed from dx1 rather than by
+            # differencing p^n against x1^{n+1}: those are two nearly equal large
+            # numbers for a metal (|x1| ~ 400 |E|), and the subtraction would throw
+            # away most of the increment's significant digits. The c4 E^n term is
+            # what makes the E^n coefficient (1 - kappa + inv_eps*sum(c4)).
+            delta_p = -dx1 if disp_c4 is None else disp_c4 * E_n - dx1
+            E = E + inv_eps * jnp.sum(delta_p, axis=0)
             if disp_c4 is not None:
-                # CCPR: the polarization couples to E^{n+1} through c4. Fold the
-                # per-cell D_kappa = inv_eps*sum(c4) into the implicit divide
-                # (alongside the conductivity loss factor), then reconstruct the
-                # full P^{n+1} = P_hat + c4*E^{n+1} once E^{n+1} is known.
+                # The polarization couples to E^{n+1} through c4. Fold the per-cell
+                # inv_eps*sum(c4) into the implicit divide, alongside the
+                # conductivity loss factor.
                 divisor = 1 + inv_eps * jnp.sum(disp_c4, axis=0)
                 if sigma_E is not None:
                     divisor = divisor + c * sigma_E * eta0 * inv_eps / 2
                 E = E / divisor
-                P_new = P_hat + disp_c4 * E
-                arrays = arrays.aset("fields->dispersive_P_prev", P_curr)
-                arrays = arrays.aset("fields->dispersive_P_curr", P_new)
-            else:
-                arrays = arrays.aset("fields->dispersive_P_prev", P_curr)
-                arrays = arrays.aset("fields->dispersive_P_curr", P_hat)
-                if sigma_E is not None:
-                    # lossy update formula. Noop for conductivity = 0; see Schneider 3.12
-                    E = E / (1 + c * sigma_E * eta0 * inv_eps / 2)
+            elif sigma_E is not None:
+                # lossy update formula. Noop for conductivity = 0; see Schneider 3.12
+                E = E / (1 + c * sigma_E * eta0 * inv_eps / 2)
+            arrays = arrays.aset("fields->dispersive_x1", x1_new)
+            arrays = arrays.aset("fields->dispersive_y2", y2_new)
         elif sigma_E is not None:
             # update formula for lossy material. Simplifies to Noop for conductivity = 0
             # for details see Schneider, chapter 3.12
@@ -318,16 +334,18 @@ def update_E(
         # the RHS of Ampere's law): since B = c * M1^-1 @ inv_eps, folding
         # curl += delta / c before the curl averages yields M1^-1 @ inv_eps @ delta
         # including its off-diagonal spatial averaging — no extra solve needed.
-        # CCPR c4 poles are rejected at initialization for this branch.
-        if arrays.fields.dispersive_P_curr is not None:
-            P_curr = arrays.fields.dispersive_P_curr
-            P_prev = arrays.fields.dispersive_P_prev
-            disp_c1 = arrays.dispersive_c1
-            disp_c2 = arrays.dispersive_c2
-            disp_c3 = arrays.dispersive_c3
-            assert P_prev is not None and disp_c1 is not None and disp_c2 is not None and disp_c3 is not None
-            assert arrays.dispersive_c4 is None
-            if disp_c3.shape[1] == 9:
+        # Poles with a non-zero c4 (any dE/dt coupling, or any pole under the
+        # "bilinear" integrator) are rejected at initialization for this branch, so
+        # here c4 = beta0 = 0, hence b1 == b0 == c3 and p^n == x1^n.
+        if arrays.fields.dispersive_x1 is not None:
+            x1 = arrays.fields.dispersive_x1
+            y2 = arrays.fields.dispersive_y2
+            disp_a1 = arrays.dispersive_a1
+            disp_a0 = arrays.dispersive_a0
+            disp_b1 = arrays.dispersive_b1
+            assert y2 is not None and disp_a1 is not None and disp_a0 is not None and disp_b1 is not None
+            assert arrays.dispersive_c4 is None and arrays.dispersive_b0 is None
+            if disp_b1.shape[1] == 9:
                 # E at each row's Yee location: diagonal entries use the local
                 # component, off-diagonal entries the averaged neighbor with
                 # symmetrized pair weights restricted to material cells,
@@ -354,11 +372,11 @@ def update_E(
                 periodic_axes = get_wrap_padding_axes(objects)
                 rows = []
                 for i in range(3):
-                    row = disp_c3[:, 3 * i + i] * arrays.fields.E[i]
+                    row = disp_b1[:, 3 * i + i] * arrays.fields.E[i]
                     for j in range(3):
                         if j == i:
                             continue
-                        cij = disp_c3[:, 3 * i + j]
+                        cij = disp_b1[:, 3 * i + j]
                         cij_pad = pad_offdiag_coefficients(cij, periodic_axes)
                         mask_pad = (cij_pad != 0.0).astype(cij.dtype)
                         row = row + 0.5 * (
@@ -368,12 +386,15 @@ def update_E(
                     rows.append(row)
                 coupling = jnp.stack(rows, axis=1)
             else:
-                coupling = disp_c3 * arrays.fields.E
-            P_hat = disp_c1 * P_curr + disp_c2 * P_prev + coupling
-            delta = jnp.sum(P_curr - P_hat, axis=0)
+                coupling = disp_b1 * arrays.fields.E
+            # Delta basis, as in the diagonal branch. b0 == b1 here, so the same
+            # `coupling` term drives both states.
+            dx1 = y2 - disp_a1 * x1 + coupling
+            # c4 = 0 on this branch, so p^n == x1^n and p^{n+1} - p^n == dx1.
+            delta = -jnp.sum(dx1, axis=0)
             curl = curl + delta / c
-            arrays = arrays.aset("fields->dispersive_P_prev", P_curr)
-            arrays = arrays.aset("fields->dispersive_P_curr", P_hat)
+            arrays = arrays.aset("fields->dispersive_x1", x1 + dx1)
+            arrays = arrays.aset("fields->dispersive_y2", y2 - disp_a0 * x1 + coupling)
 
         curl_pad = pad_fields_for_boundaries(curl, objects, config)
         curlHx_y_avg = avg_anisotropic_E_component(
@@ -469,10 +490,10 @@ def update_E_reverse(
 
     Raises:
         NotImplementedError: If the simulation contains dispersive materials. The ADE
-            polarization state has no supported time reversal, so neither this update
-            nor the ``full_backward`` / ``backward`` API can reconstruct it.
+            state has no supported time reversal, so neither this update nor the
+            ``full_backward`` / ``backward`` API can reconstruct it.
     """
-    if arrays.fields.dispersive_P_curr is not None:
+    if arrays.fields.dispersive_x1 is not None:
         raise NotImplementedError(
             "Dispersive time-reversible gradient computation under active development. "
             "Use GradientConfig(method='checkpointed') instead."

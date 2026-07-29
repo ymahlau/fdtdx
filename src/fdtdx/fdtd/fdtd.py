@@ -86,8 +86,8 @@ def reversible_fdtd(
 
     Raises:
         NotImplementedError: If the simulation contains dispersive materials. Reversing
-            the ADE polarization recurrence is not supported; use the ``"checkpointed"``
-            gradient method for dispersive simulations.
+            the ADE recurrence is not supported; use the ``"checkpointed"`` gradient
+            method for dispersive simulations.
     """
     # if arrays.magnetic_conductivity is not None or arrays.electric_conductivity is not None:
     #     raise Exception(f"Reversible FDTD does not work with Conductive Materials")
@@ -95,7 +95,7 @@ def reversible_fdtd(
     # Checked here in addition to initialization time, since the gradient config can be
     # swapped after ``place_objects`` and this function can be called directly, bypassing
     # ``run_fdtd``.
-    if arrays.dispersive_c1 is not None or arrays.fields.dispersive_P_curr is not None:
+    if arrays.dispersive_a1 is not None or arrays.fields.dispersive_x1 is not None:
         raise NotImplementedError(
             "Dispersive time-reversible gradient computation under active development. "
             "Use GradientConfig(method='checkpointed') instead."

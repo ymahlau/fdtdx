@@ -697,13 +697,14 @@ def _make_arrays_mock(shape=(10, 10, 10)):
     arrays = Mock(spec=ArrayContainer)
     arrays.inv_permittivities = inv_perm
     arrays.inv_permeabilities = inv_permeab
-    arrays.dispersive_c1 = None
-    arrays.dispersive_c2 = None
-    arrays.dispersive_c3 = None
+    arrays.dispersive_a1 = None
+    arrays.dispersive_a0 = None
+    arrays.dispersive_b1 = None
     arrays.dispersive_c4 = None
+    arrays.dispersive_b0 = None
     arrays.electric_conductivity = None
-    arrays.dispersive_P_curr = None
-    arrays.dispersive_P_prev = None
+    arrays.dispersive_x1 = None
+    arrays.dispersive_y2 = None
     arrays.initial_inv_permittivities = None
     at_accessor = MagicMock()
 
@@ -714,10 +715,11 @@ def _make_arrays_mock(shape=(10, 10, 10)):
             result = Mock(spec=ArrayContainer)
             result.inv_permittivities = value if key == "inv_permittivities" else inv_perm
             result.inv_permeabilities = inv_permeab
-            result.dispersive_c1 = None
-            result.dispersive_c2 = None
-            result.dispersive_c3 = None
+            result.dispersive_a1 = None
+            result.dispersive_a0 = None
+            result.dispersive_b1 = None
             result.dispersive_c4 = None
+            result.dispersive_b0 = None
             result.electric_conductivity = None
             result.at = at_accessor
             return result
@@ -814,13 +816,14 @@ def test_apply_params_isotropic_components(mock_compute_perm):
     arrays = Mock(spec=ArrayContainer)
     arrays.inv_permittivities = inv_perm
     arrays.inv_permeabilities = inv_permeab
-    arrays.dispersive_c1 = None
-    arrays.dispersive_c2 = None
-    arrays.dispersive_c3 = None
+    arrays.dispersive_a1 = None
+    arrays.dispersive_a0 = None
+    arrays.dispersive_b1 = None
     arrays.dispersive_c4 = None
+    arrays.dispersive_b0 = None
     arrays.electric_conductivity = None
-    arrays.dispersive_P_curr = None
-    arrays.dispersive_P_prev = None
+    arrays.dispersive_x1 = None
+    arrays.dispersive_y2 = None
     arrays.initial_inv_permittivities = None
     at_accessor = MagicMock()
 
@@ -830,10 +833,11 @@ def test_apply_params_isotropic_components(mock_compute_perm):
             spec=ArrayContainer,
             inv_permittivities=v,
             inv_permeabilities=inv_permeab,
-            dispersive_c1=None,
-            dispersive_c2=None,
-            dispersive_c3=None,
+            dispersive_a1=None,
+            dispersive_a0=None,
+            dispersive_b1=None,
             dispersive_c4=None,
+            dispersive_b0=None,
             electric_conductivity=None,
             at=at_accessor,
         )
@@ -875,13 +879,14 @@ def test_apply_params_fully_anisotropic_continuous(mock_compute_perm):
     arrays = Mock(spec=ArrayContainer)
     arrays.inv_permittivities = inv_perm
     arrays.inv_permeabilities = inv_permeab
-    arrays.dispersive_c1 = None
-    arrays.dispersive_c2 = None
-    arrays.dispersive_c3 = None
+    arrays.dispersive_a1 = None
+    arrays.dispersive_a0 = None
+    arrays.dispersive_b1 = None
     arrays.dispersive_c4 = None
+    arrays.dispersive_b0 = None
     arrays.electric_conductivity = None
-    arrays.dispersive_P_curr = None
-    arrays.dispersive_P_prev = None
+    arrays.dispersive_x1 = None
+    arrays.dispersive_y2 = None
     arrays.initial_inv_permittivities = None
     at_accessor = MagicMock()
 
@@ -891,10 +896,11 @@ def test_apply_params_fully_anisotropic_continuous(mock_compute_perm):
             spec=ArrayContainer,
             inv_permittivities=v,
             inv_permeabilities=inv_permeab,
-            dispersive_c1=None,
-            dispersive_c2=None,
-            dispersive_c3=None,
+            dispersive_a1=None,
+            dispersive_a0=None,
+            dispersive_b1=None,
             dispersive_c4=None,
+            dispersive_b0=None,
             electric_conductivity=None,
             at=at_accessor,
         )
@@ -937,13 +943,14 @@ def test_apply_params_fully_anisotropic_discrete(mock_ste, mock_compute_perm):
     arrays = Mock(spec=ArrayContainer)
     arrays.inv_permittivities = inv_perm
     arrays.inv_permeabilities = inv_permeab
-    arrays.dispersive_c1 = None
-    arrays.dispersive_c2 = None
-    arrays.dispersive_c3 = None
+    arrays.dispersive_a1 = None
+    arrays.dispersive_a0 = None
+    arrays.dispersive_b1 = None
     arrays.dispersive_c4 = None
+    arrays.dispersive_b0 = None
     arrays.electric_conductivity = None
-    arrays.dispersive_P_curr = None
-    arrays.dispersive_P_prev = None
+    arrays.dispersive_x1 = None
+    arrays.dispersive_y2 = None
     arrays.initial_inv_permittivities = None
     at_accessor = MagicMock()
 
@@ -953,10 +960,11 @@ def test_apply_params_fully_anisotropic_discrete(mock_ste, mock_compute_perm):
             spec=ArrayContainer,
             inv_permittivities=v,
             inv_permeabilities=inv_permeab,
-            dispersive_c1=None,
-            dispersive_c2=None,
-            dispersive_c3=None,
+            dispersive_a1=None,
+            dispersive_a0=None,
+            dispersive_b1=None,
             dispersive_c4=None,
+            dispersive_b0=None,
             electric_conductivity=None,
             at=at_accessor,
         )
@@ -1003,13 +1011,14 @@ def test_apply_params_use_etching_continuous_isotropic(mock_compute_perm):
     arrays.initial_inv_permittivities = init_inv_perm
     arrays.inv_permittivities = init_inv_perm
     arrays.inv_permeabilities = inv_permeab
-    arrays.dispersive_c1 = None
-    arrays.dispersive_c2 = None
-    arrays.dispersive_c3 = None
+    arrays.dispersive_a1 = None
+    arrays.dispersive_a0 = None
+    arrays.dispersive_b1 = None
     arrays.dispersive_c4 = None
+    arrays.dispersive_b0 = None
     arrays.electric_conductivity = None
-    arrays.dispersive_P_curr = None
-    arrays.dispersive_P_prev = None
+    arrays.dispersive_x1 = None
+    arrays.dispersive_y2 = None
 
     at_accessor = MagicMock()
 
@@ -1021,13 +1030,14 @@ def test_apply_params_use_etching_continuous_isotropic(mock_compute_perm):
             result.inv_permittivities = value if key == "inv_permittivities" else arrays.inv_permittivities
             result.initial_inv_permittivities = arrays.initial_inv_permittivities
             result.inv_permeabilities = inv_permeab
-            result.dispersive_c1 = None
-            result.dispersive_c2 = None
-            result.dispersive_c3 = None
+            result.dispersive_a1 = None
+            result.dispersive_a0 = None
+            result.dispersive_b1 = None
             result.dispersive_c4 = None
+            result.dispersive_b0 = None
             result.electric_conductivity = None
-            result.dispersive_P_curr = None
-            result.dispersive_P_prev = None
+            result.dispersive_x1 = None
+            result.dispersive_y2 = None
             result.at = at_accessor
             return result
 
@@ -1084,13 +1094,14 @@ def test_apply_params_use_etching_continuous_fully_anisotropic(mock_compute_perm
     arrays.initial_inv_permittivities = init_inv_perm
     arrays.inv_permittivities = init_inv_perm
     arrays.inv_permeabilities = inv_permeab
-    arrays.dispersive_c1 = None
-    arrays.dispersive_c2 = None
-    arrays.dispersive_c3 = None
+    arrays.dispersive_a1 = None
+    arrays.dispersive_a0 = None
+    arrays.dispersive_b1 = None
     arrays.dispersive_c4 = None
+    arrays.dispersive_b0 = None
     arrays.electric_conductivity = None
-    arrays.dispersive_P_curr = None
-    arrays.dispersive_P_prev = None
+    arrays.dispersive_x1 = None
+    arrays.dispersive_y2 = None
 
     at_accessor = MagicMock()
 
@@ -1102,13 +1113,14 @@ def test_apply_params_use_etching_continuous_fully_anisotropic(mock_compute_perm
             result.inv_permittivities = value if key == "inv_permittivities" else arrays.inv_permittivities
             result.initial_inv_permittivities = arrays.initial_inv_permittivities
             result.inv_permeabilities = inv_permeab
-            result.dispersive_c1 = None
-            result.dispersive_c2 = None
-            result.dispersive_c3 = None
+            result.dispersive_a1 = None
+            result.dispersive_a0 = None
+            result.dispersive_b1 = None
             result.dispersive_c4 = None
+            result.dispersive_b0 = None
             result.electric_conductivity = None
-            result.dispersive_P_curr = None
-            result.dispersive_P_prev = None
+            result.dispersive_x1 = None
+            result.dispersive_y2 = None
             result.at = at_accessor
             return result
 

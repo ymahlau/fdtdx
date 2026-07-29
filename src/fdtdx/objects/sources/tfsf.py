@@ -23,12 +23,13 @@ def _build_dispersive_H_filter(
     wave_character,
     dt: float,
     num_time_steps: int,
-    c1_slice: jax.Array,
-    c2_slice: jax.Array,
-    c3_slice: jax.Array,
+    a1_slice: jax.Array,
+    a0_slice: jax.Array,
+    b1_slice: jax.Array,
     inv_eps_inf_slice: jax.Array,
     dtype: jnp.dtype = jnp.float32,
     c4_slice: jax.Array | None = None,
+    b0_slice: jax.Array | None = None,
 ) -> jax.Array:
     """Precompute the broadband-corrected H-side temporal profile for a TFSF source.
 
@@ -51,14 +52,17 @@ def _build_dispersive_H_filter(
         dt: Simulation time step (seconds).
         num_time_steps: ``config.time_steps_total`` — the length of the
             returned filter array.
-        c1_slice: ADE coefficient array sliced to the source cells.
-        c2_slice: ADE coefficient array sliced to the source cells.
-        c3_slice: ADE coefficient array sliced to the source cells.
+        a1_slice: Delta-basis ADE coefficient ``a1`` sliced to the source cells.
+        a0_slice: Delta-basis ADE coefficient ``a0`` sliced to the source cells.
+        b1_slice: Delta-basis field coupling ``b1`` sliced to the source cells.
         inv_eps_inf_slice: Raw ``1/ε∞`` at the source cells
             (before any carrier-frequency correction).
         dtype: Output dtype for the filtered profile. Should match the
             simulation's field dtype so float64 simulations are not
             silently downcast to float32. Defaults to float32.
+        c4_slice: Optional implicit-coupling array sliced to the source cells.
+        b0_slice: Optional delta-basis field coupling ``b0`` sliced to the
+            source cells. ``None`` means "equal to ``b1``".
 
     Returns:
         JAX array of shape ``(num_time_steps,)`` in ``dtype`` — the filtered
@@ -79,16 +83,17 @@ def _build_dispersive_H_filter(
     )
     raw_samples = np.asarray(raw_samples_jax, dtype=np.float64)
 
-    c1_np = np.asarray(c1_slice)
-    c2_np = np.asarray(c2_slice)
-    c3_np = np.asarray(c3_slice)
+    a1_np = np.asarray(a1_slice)
+    a0_np = np.asarray(a0_slice)
+    b1_np = np.asarray(b1_slice)
     c4_np = None if c4_slice is None else np.asarray(c4_slice)
+    b0_np = None if b0_slice is None else np.asarray(b0_slice)
     inv_eps_inf_np = np.asarray(inv_eps_inf_slice)
 
     # All-zero coupling in the source slice (non-dispersive material at the
     # source plane) means eps(omega) is flat and the filter is the identity —
     # skip it rather than allocate the broadband spectrum.
-    if c3_np.size == 0 or (not np.any(c3_np) and (c4_np is None or not np.any(c4_np))):
+    if b1_np.size == 0 or (not np.any(b1_np) and (c4_np is None or not np.any(c4_np))):
         return jnp.asarray(raw_samples, dtype=dtype)
 
     # Length-M zero-padded FFT for linear convolution.
@@ -100,10 +105,10 @@ def _build_dispersive_H_filter(
     # With per-axis (anisotropic) dispersion the coefficient arrays carry one
     # value per component; the scalar impedance filter below can only use a
     # component average. Warn once at setup so the approximation is visible.
-    if c1_np.shape[0] > 0 and c1_np.shape[1] > 1:
-        anisotropic = any(
-            bool(np.any(arr != arr[:, :1])) for arr in (c1_np, c2_np, c3_np) + (() if c4_np is None else (c4_np,))
-        )
+    if a1_np.shape[0] > 0 and a1_np.shape[1] > 1:
+        component_arrays = [a1_np, a0_np, b1_np]
+        component_arrays += [arr for arr in (c4_np, b0_np) if arr is not None]
+        anisotropic = any(bool(np.any(arr != arr[:, :1])) for arr in component_arrays)
         if anisotropic:
             logger.warning(
                 "TFSF source overlaps a material with per-axis (anisotropic) dispersion; the broadband "
@@ -112,23 +117,25 @@ def _build_dispersive_H_filter(
             )
 
     eps_spectrum = compute_eps_spectrum_from_coefficients(
-        c1=c1_np,
-        c2=c2_np,
-        c3=c3_np,
+        a1=a1_np,
+        a0=a0_np,
+        b1=b1_np,
         inv_eps_inf=inv_eps_inf_np,
         omegas=omegas_rfft,
         dt=dt,
         c4=c4_np,
+        b0=b0_np,
     )
     omega_c = 2.0 * np.pi * wave_character.get_frequency()
     eps_center_arr = compute_eps_spectrum_from_coefficients(
-        c1=c1_np,
-        c2=c2_np,
-        c3=c3_np,
+        a1=a1_np,
+        a0=a0_np,
+        b1=b1_np,
         inv_eps_inf=inv_eps_inf_np,
         omegas=np.array([omega_c], dtype=np.float64),
         dt=dt,
         c4=c4_np,
+        b0=b0_np,
     )
     eps_center = complex(eps_center_arr[0])
 
@@ -586,11 +593,12 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
-        dispersive_c1: jax.Array | None = None,
-        dispersive_c2: jax.Array | None = None,
-        dispersive_c3: jax.Array | None = None,
+        dispersive_a1: jax.Array | None = None,
+        dispersive_a0: jax.Array | None = None,
+        dispersive_b1: jax.Array | None = None,
         electric_conductivity: jax.Array | None = None,
         dispersive_c4: jax.Array | None = None,
+        dispersive_b0: jax.Array | None = None,
     ) -> Self:
         # Must populate self._E, self._H, self._time_offset_E, and self._time_offset_H.
         # When dispersive_* are provided, the concrete implementation is expected

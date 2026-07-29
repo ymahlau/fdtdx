@@ -905,10 +905,14 @@ class TestDispersiveDivisorStability:
     DT = 1.9e-16
 
     @staticmethod
-    def _ccpr_material(re_residue, eps_inf=2.0, electric_conductivity=0.0):
+    def _ccpr_material(re_residue, eps_inf=2.0, electric_conductivity=0.0, integrator="central"):
         from fdtdx.dispersion import CCPRPole, DispersionModel
 
-        pole = CCPRPole(pole=complex(-1e13, -2e15), residue=complex(re_residue, 1e15))
+        # These tests exercise the validator machinery on a divisor that actually
+        # goes negative, which needs the large c4 = b*dt/D of the "central"
+        # scheme. Under the "centered_edot" default the same pole has half that
+        # c4 and stays safe — see test_centered_edot_rescues_the_same_material.
+        pole = CCPRPole(pole=complex(-1e13, -2e15), residue=complex(re_residue, 1e15), integrator=integrator)
         return Material(
             permittivity=eps_inf,
             electric_conductivity=electric_conductivity,
@@ -959,8 +963,8 @@ class TestDispersiveDivisorStability:
         from fdtdx.materials import _min_dispersive_divisor, validate_dispersive_divisor_stability
 
         poles = (
-            CCPRPole(pole=complex(-2e14, -2e15), residue=complex(-1.2e16, 1e15)),  # strong b < 0
-            CCPRPole(pole=complex(-4e15, -8e15), residue=complex(3e15, 5e14)),  # b > 0
+            CCPRPole(pole=complex(-2e14, -2e15), residue=complex(-1.2e16, 1e15), integrator="central"),
+            CCPRPole(pole=complex(-4e15, -8e15), residue=complex(3e15, 5e14), integrator="central"),
         )
         mat = Material(permittivity=2.0, dispersion=DispersionModel(poles=poles))
         with pytest.raises(ValueError) as exc:
@@ -980,6 +984,46 @@ class TestDispersiveDivisorStability:
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             validate_dispersive_divisor_stability({"safe": mat}, dt=self.DT, courant_factor=0.99)
+
+    def test_centered_edot_rescues_the_same_material(self):
+        """The material that 'central' cannot run is safe under the default scheme.
+
+        'central' discretizes the b*dE/dt term with a forward difference, putting
+        the full b*dt on E^{n+1}; centering it halves that and lifts the divisor
+        back above zero. This is the practical payoff of the second-order scheme.
+        """
+        import warnings
+
+        from fdtdx.materials import _min_dispersive_divisor, validate_dispersive_divisor_stability
+
+        central = self._ccpr_material(-6e15, integrator="central")
+        centered = self._ccpr_material(-6e15, integrator="centered_edot")
+        div_central, _ = _min_dispersive_divisor(central, self.DT)
+        div_centered, _ = _min_dispersive_divisor(centered, self.DT)
+        assert div_central <= 0.0, "premise: 'central' must be unstable for this pole"
+        assert div_centered > 0.0
+        # Exactly the halving of c4: (1 + x) -> (1 + x/2).
+        assert div_centered == pytest.approx(0.5 * (1.0 + div_central), rel=1e-12)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            validate_dispersive_divisor_stability({"gold": centered}, dt=self.DT, courant_factor=0.99)
+
+    def test_bilinear_lorentz_is_not_skipped(self):
+        """Under 'bilinear' a Lorentz pole has c4 != 0, so the validator must not
+        skip it via the 'no dE/dt coupling' shortcut."""
+        import numpy as np
+
+        from fdtdx.dispersion import DispersionModel, LorentzPole, compute_pole_coefficients_tensor
+        from fdtdx.materials import _min_dispersive_divisor
+
+        model = DispersionModel(
+            poles=(LorentzPole(resonance_frequency=2e15, damping=1e13, delta_epsilon=1.5),)
+        ).with_integrator("bilinear")
+        mat = Material(permittivity=2.0, dispersion=model)
+        _, _, _, c4, _ = compute_pole_coefficients_tensor(model.poles, self.DT)
+        assert np.any(c4 != 0), "bilinear must give a non-zero c4 even at b = 0"
+        div, _ = _min_dispersive_divisor(mat, self.DT)
+        assert div > 0.0
 
     def test_lorentz_and_drude_are_skipped(self):
         import warnings

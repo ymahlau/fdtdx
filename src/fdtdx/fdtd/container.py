@@ -9,8 +9,10 @@ from typing import Callable, Iterator, Self, TypeVar
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
+from fdtdx.dispersion import compute_pole_coefficients_tensor
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.materials import Material
 from fdtdx.objects.boundaries.bloch import BlochBoundary
@@ -279,22 +281,31 @@ class ObjectContainer(TreeClass):
             default=0,
         )
 
-    @property
-    def has_dispersive_edot(self) -> bool:
-        """Whether any object uses a CCPR pole with a non-zero ``dE/dt`` coupling.
+    def needs_implicit_dispersion(self, dt: float) -> bool:
+        """Whether any pole yields a non-zero implicit ``c4`` at this time step.
 
-        This gates allocation of the ``dispersive_c4`` coefficient array: when
-        ``False`` (all poles are Lorentz/Drude, or there is no dispersion) the
-        ADE update takes the classic ``c4``-free path and stays bit-identical to
-        pre-CCPR behaviour.
+        This gates allocation of the ``dispersive_c4`` and ``dispersive_b0``
+        coefficient arrays together. It is ``True`` when a pole has a non-zero
+        ``dE/dt`` coupling under a central-difference scheme, and for *any* pole
+        under ``integrator="bilinear"`` (whose ``c4 = a / D_b`` is non-zero even
+        for Lorentz and Drude). When ``False`` — all poles Lorentz/Drude on a
+        central-difference scheme, or no dispersion at all — the ADE update takes
+        the explicit path and stays bit-identical to the pre-CCPR behaviour.
+
+        Args:
+            dt: Simulation time step (seconds); the coefficients depend on it.
+
+        Returns:
+            bool: Whether the implicit coefficient arrays must be allocated.
         """
 
-        def _material_has_edot(m: Material) -> bool:
-            if m.dispersion is None:
+        def _material_needs_implicit(m: Material) -> bool:
+            if m.dispersion is None or m.dispersion.num_poles == 0:
                 return False
-            return any(b != 0.0 for p in m.dispersion.poles for b in p.coupling_edot_axes)
+            _, _, _, c4, _ = compute_pole_coefficients_tensor(m.dispersion.poles, dt)
+            return bool(np.any(c4 != 0.0))
 
-        return any(_material_has_edot(m) for m in self._iter_materials())
+        return any(_material_needs_implicit(m) for m in self._iter_materials())
 
     def _is_material_fn_true_for_all(
         self,
@@ -380,13 +391,19 @@ class FieldState(TreeClass):
     #: object's name to a tuple of two arrays (each of shape ``pml.grid_shape``).
     psi_H: PmlAuxField
 
-    #: Dispersive ADE polarization state at time step ``n``. Shape
+    #: First state of the dispersive ADE at time step ``n``. Shape
     #: ``(num_poles, 3, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
-    dispersive_P_curr: jax.Array | None = None
+    #: The polarization is recovered as ``p^n = x1^n + c4 * E^n``, so this equals
+    #: ``p^n`` exactly when ``dispersive_c4`` is ``None``.
+    dispersive_x1: jax.Array | None = None
 
-    #: Dispersive ADE polarization state at time step ``n-1``. Shape
+    #: Second state of the dispersive ADE at time step ``n``. Shape
     #: ``(num_poles, 3, Nx, Ny, Nz)``. ``None`` for non-dispersive simulations.
-    dispersive_P_prev: jax.Array | None = None
+    #: This is the delta-basis state ``y2 = x1 + x2`` — neither ``x2`` nor
+    #: ``p^{n-1}``. It is ``O(x1^{n+1} - x1^n)`` where ``x2 ~ -x1`` was ``O(x1)``,
+    #: which is what keeps the float32 recurrence accurate; see
+    #: :mod:`fdtdx.dispersion`.
+    dispersive_y2: jax.Array | None = None
 
 
 @autoinit
@@ -419,30 +436,45 @@ class ArrayContainer(TreeClass):
     #: field for magnetic conductivity terms. Defaults to None.
     magnetic_conductivity: jax.Array | None = None
 
-    #: Per-cell dispersive recurrence coefficient c1. Shape
+    #: Per-cell delta-basis oscillator coefficient ``a1 = 2 - c1``. Shape
     #: ``(num_poles, num_components, Nx, Ny, Nz)`` with ``num_components`` 1
     #: (isotropic dispersion, broadcast over the field components) or 3
     #: (per-axis / diagonally anisotropic dispersion). ``None`` for
-    #: non-dispersive simulations.
-    dispersive_c1: jax.Array | None = None
+    #: non-dispersive simulations. This is **not** ``c1``: storing the residual
+    #: rather than ``c1 ~ 2`` is what gives it full float32 relative precision
+    #: (see :mod:`fdtdx.dispersion`).
+    dispersive_a1: jax.Array | None = None
 
-    #: Per-cell dispersive recurrence coefficient c2. Shape
+    #: Per-cell delta-basis oscillator coefficient ``a0 = 1 - c1 - c2``. Shape
     #: ``(num_poles, num_components, Nx, Ny, Nz)``, ``num_components in (1, 3)``.
-    #: ``None`` for non-dispersive simulations.
-    dispersive_c2: jax.Array | None = None
+    #: ``None`` for non-dispersive simulations. This is **not** ``c2``. For a real
+    #: pole it is ``O((omega_0 dt)^2)``, i.e. far below the float32 resolution of
+    #: ``c1``/``c2`` themselves, which is precisely why it is stored directly.
+    dispersive_a0: jax.Array | None = None
 
-    #: Per-cell dispersive field coupling c3. Shape
+    #: Per-cell delta-basis field coupling ``b1 = beta1 = c3 + c1 * c4``. Shape
     #: ``(num_poles, num_components, Nx, Ny, Nz)``, ``num_components in (1, 3, 9)``
     #: — 9 encodes a row-major 3x3 coupling tensor per pole (oriented poles,
     #: off-diagonal dispersion). ``None`` for non-dispersive simulations.
-    dispersive_c3: jax.Array | None = None
+    #: This is ``beta1``, **not** the P-form ``c3``; the two coincide only when
+    #: ``dispersive_c4`` is ``None``.
+    dispersive_b1: jax.Array | None = None
 
-    #: Per-cell dispersive recurrence coefficient c4 (the ``dE/dt`` / CCPR
-    #: coupling to ``E^{n+1}``). Shape ``(num_poles, num_components, Nx, Ny, Nz)``,
-    #: ``num_components in (1, 3)``. ``None`` unless at least one CCPR pole with
-    #: non-zero ``coupling_edot`` is present; Lorentz/Drude-only sims leave it
-    #: ``None`` and skip the CCPR update path.
+    #: Per-cell dispersive recurrence coefficient c4 (the implicit coupling to
+    #: ``E^{n+1}``). Shape ``(num_poles, num_components, Nx, Ny, Nz)``,
+    #: ``num_components in (1, 3)``. ``None`` unless at least one pole has a
+    #: non-zero ``c4`` — i.e. a non-zero ``coupling_edot`` under the
+    #: central-difference schemes, or any pole under ``"bilinear"``. Lorentz and
+    #: Drude poles on the default scheme leave it ``None`` and skip the implicit
+    #: update path entirely.
     dispersive_c4: jax.Array | None = None
+
+    #: Per-cell delta-basis field coupling ``b0 = beta1 + beta0``. Shape
+    #: ``(num_poles, num_components, Nx, Ny, Nz)``, ``num_components in (1, 3)``.
+    #: Allocated together with ``dispersive_c4`` and ``None`` under the same
+    #: conditions — and when it is ``None``, ``b0`` equals ``b1`` exactly
+    #: (``c4 = c5 = 0`` implies ``beta0 = 0``), which is how the update treats it.
+    dispersive_b0: jax.Array | None = None
 
     #: Backup of inverse permittivity values array.
     #: Only used when etching a device.
@@ -469,10 +501,10 @@ class ArrayContainer(TreeClass):
         Returns:
             A new ArrayContainer with reset dynamic state.
         """
-        # FieldState now holds the dispersive ADE polarization (dispersive_P_curr/prev)
-        # alongside E/H/psi, so this single tree.map zeroes all dynamic per-timestep
-        # state at once (``None`` leaves stay ``None`` for non-dispersive sims).
-        # Coefficient arrays (c1/c2/c3/c4) are material properties and preserved.
+        # FieldState now holds the dispersive ADE state (dispersive_x1/y2) alongside
+        # E/H/psi, so this single tree.map zeroes all dynamic per-timestep state at
+        # once (``None`` leaves stay ``None`` for non-dispersive sims). Coefficient
+        # arrays (a1/a0/b1/c4/b0) are material properties and preserved.
         arrays = self.aset("fields", jax.tree.map(jnp.zeros_like, self.fields))
 
         detector_states = self.detector_states

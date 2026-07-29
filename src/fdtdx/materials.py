@@ -7,7 +7,11 @@ import numpy as np
 from fdtdx import constants
 from fdtdx.core.jax.pytrees import TreeClass, frozen_field
 from fdtdx.core.wavelength import WaveCharacter
-from fdtdx.dispersion import DispersionModel, compute_pole_coefficients_tensor
+from fdtdx.dispersion import (
+    DispersionModel,
+    compute_pole_coefficients_tensor,
+    compute_pole_delta_coefficients_tensor,
+)
 
 
 def _normalize_material_property(
@@ -898,34 +902,35 @@ def compute_allowed_dispersive_coefficients(
     max_num_poles: int,
     num_components: int,
     coupling_components: int | None = None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Compute per-material discrete-time dispersive recurrence coefficients.
 
-    For each material (in the canonical sorted order used elsewhere), returns
-    the ``c1``, ``c2``, ``c3``, ``c4`` coefficients from
-    :func:`fdtdx.dispersion.compute_pole_coefficients_tensor`. Materials with
-    fewer poles than ``max_num_poles``, or non-dispersive materials, get
-    zero-padded slots (so the polarization term automatically vanishes on those
-    voxels). ``c4`` is zero for Lorentz/Drude poles and only non-zero for CCPR
-    poles.
+    For each material (in the canonical sorted order used elsewhere), returns the
+    **delta-basis** coefficients ``a1``, ``a0``, ``b1``, ``c4``, ``b0`` from
+    :func:`fdtdx.dispersion.compute_pole_delta_coefficients_tensor` — the set the
+    FDTD loop marches. Materials with fewer poles than ``max_num_poles``, or
+    non-dispersive materials, get zero-padded slots, which stay inert because
+    ``b1 = b0 = 0`` pins their state at zero. ``c4`` is zero for Lorentz/Drude
+    poles under the central-difference schemes (and then ``b0`` equals ``b1``),
+    and non-zero for every pole under ``integrator="bilinear"``.
 
     Args:
         materials: Dictionary mapping material names to Material objects.
         dt: Simulation time step (seconds).
         max_num_poles: Maximum pole count to pad every material to. When 0,
             returns zero-pole arrays.
-        num_components: Size of the trailing component axis of the recurrence
-            coefficients ``c1``/``c2`` — 1 when all materials have isotropic
+        num_components: Size of the trailing component axis of the oscillator
+            coefficients ``a1``/``a0`` — 1 when all materials have isotropic
             dispersion, 3 for per-axis dispersion.
         coupling_components: Size of the trailing axis of the field couplings
-            ``c3``/``c4`` — additionally allows 9 (row-major 3x3 coupling
-            tensor) when any material has oriented poles. Defaults to
+            ``b1``/``c4``/``b0`` — additionally allows 9 (row-major 3x3
+            coupling tensor) when any material has oriented poles. Defaults to
             ``num_components``.
 
     Returns:
-        Four numpy arrays: ``c1``, ``c2`` of shape
-        ``(num_materials, max_num_poles, num_components)`` and ``c3``, ``c4``
-        of shape ``(num_materials, max_num_poles, coupling_components)``.
+        Five numpy arrays: ``a1``, ``a0`` of shape
+        ``(num_materials, max_num_poles, num_components)`` and ``b1``, ``c4``,
+        ``b0`` of shape ``(num_materials, max_num_poles, coupling_components)``.
     """
     if coupling_components is None:
         coupling_components = num_components
@@ -935,12 +940,13 @@ def compute_allowed_dispersive_coefficients(
         raise ValueError(f"coupling_components must be 1, 3 or 9, got {coupling_components}.")
     ordered = compute_ordered_material_name_tuples(materials)
     num_mats = len(ordered)
-    c1 = np.zeros((num_mats, max_num_poles, num_components), dtype=np.float64)
-    c2 = np.zeros((num_mats, max_num_poles, num_components), dtype=np.float64)
-    c3 = np.zeros((num_mats, max_num_poles, coupling_components), dtype=np.float64)
+    a1 = np.zeros((num_mats, max_num_poles, num_components), dtype=np.float64)
+    a0 = np.zeros((num_mats, max_num_poles, num_components), dtype=np.float64)
+    b1 = np.zeros((num_mats, max_num_poles, coupling_components), dtype=np.float64)
     c4 = np.zeros((num_mats, max_num_poles, coupling_components), dtype=np.float64)
+    b0 = np.zeros((num_mats, max_num_poles, coupling_components), dtype=np.float64)
     if max_num_poles == 0:
-        return c1, c2, c3, c4
+        return a1, a0, b1, c4, b0
     diag_entries = (0, 4, 8)
     for m_idx, (_, mat) in enumerate(ordered):
         if mat.dispersion is None:
@@ -954,21 +960,24 @@ def compute_allowed_dispersive_coefficients(
                 "coupling_components < 9 requires axis-aligned dispersion, but a material has oriented poles."
             )
         poles = mat.dispersion.poles
-        c1_vals, c2_vals, c3_vals, c4_vals = compute_pole_coefficients_tensor(poles, dt)
+        a1_vals, a0_vals, b1_vals, c4_vals, b0_vals = compute_pole_delta_coefficients_tensor(poles, dt)
         n = len(poles)
         # For num_components == 1 the isotropy check above guarantees all three
         # axis columns are identical, so keeping only the first is exact. For
         # coupling_components < 9 the axis-alignment check guarantees the
         # coupling tensors are diagonal, so keeping diagonal entries is exact.
-        c1[m_idx, :n] = c1_vals[:, :num_components]
-        c2[m_idx, :n] = c2_vals[:, :num_components]
+        a1[m_idx, :n] = a1_vals[:, :num_components]
+        a0[m_idx, :n] = a0_vals[:, :num_components]
         if coupling_components == 9:
-            c3[m_idx, :n] = c3_vals
+            b1[m_idx, :n] = b1_vals
             c4[m_idx, :n] = c4_vals
+            b0[m_idx, :n] = b0_vals
         else:
-            c3[m_idx, :n] = c3_vals[:, diag_entries[:coupling_components]]
-            c4[m_idx, :n] = c4_vals[:, diag_entries[:coupling_components]]
-    return c1, c2, c3, c4
+            sel = diag_entries[:coupling_components]
+            b1[m_idx, :n] = b1_vals[:, sel]
+            c4[m_idx, :n] = c4_vals[:, sel]
+            b0[m_idx, :n] = b0_vals[:, sel]
+    return a1, a0, b1, c4, b0
 
 
 def _min_dispersive_divisor(mat: Material, dt: float) -> tuple[float, int]:
@@ -998,7 +1007,7 @@ def _min_dispersive_divisor(mat: Material, dt: float) -> tuple[float, int]:
     assert mat.dispersion is not None
     # tensor variant handles every pole type; oriented poles have no dE/dt
     # coupling, so their diagonal c4 entries are zero and drop out here
-    _, _, _, c4 = compute_pole_coefficients_tensor(mat.dispersion.poles, dt)
+    _, _, _, c4, _ = compute_pole_coefficients_tensor(mat.dispersion.poles, dt)
     sum_c4 = c4[:, (0, 4, 8)].sum(axis=0)  # (3,) diagonal c4 summed over poles, per axis
     eps_inf = (mat.permittivity[0], mat.permittivity[4], mat.permittivity[8])
     sigma = (mat.electric_conductivity[0], mat.electric_conductivity[4], mat.electric_conductivity[8])
@@ -1022,16 +1031,28 @@ def _max_safe_courant_factor(
     """Largest ``courant_factor`` below which ``mat`` stays stable at every step.
 
     ``dt`` is proportional to ``courant_factor`` on every grid type, so scaling
-    the time step by ``s`` scales directly to a ``courant_factor``. Each pole's
+    the time step by ``s`` scales directly to a ``courant_factor``. Under the
+    central-difference schemes each pole's
     ``c4_p(s) = b_p * (s * dt) / (1 + gamma_p * s * dt / 2)`` is individually
     monotonic in ``s`` (its sign is that of ``b_p``), but the *sum* over poles
     with mixed ``b_p`` signs and dampings — plus the linearly growing
     conductivity term — is not necessarily monotonic and may cross ``threshold``
-    several times. To keep it genuinely safe (every value below ``X``
-    stable), we search for the *first* crossing from ``s = 0`` (where the
-    divisor is ``~ 1``): a forward scan brackets it, then bisection refines.
-    Recomputing the divisor at each ``s * dt`` handles the weak
-    ``D = 1 + gamma * dt / 2`` nonlinearity exactly.
+    several times. Under ``"bilinear"`` the pole term instead *saturates* at
+    ``sum_p chi_p(0)`` as ``s`` grows, so it may never cross at all. To keep the
+    answer genuinely safe (every value below ``X`` stable), we search for the
+    *first* crossing from ``s = 0`` (where the divisor is ``~ 1``): a forward
+    scan brackets it, then bisection refines. Recomputing the divisor at each
+    ``s * dt`` handles the weak ``D = 1 + gamma * dt / 2`` nonlinearity exactly.
+
+    Args:
+        mat: A dispersive material.
+        dt: Simulation time step (seconds) at the configured ``courant_factor``.
+        courant_factor: The configured Courant factor.
+        threshold: Divisor value below which the material counts as unsafe.
+        scan_steps: Resolution of the initial bracketing scan.
+
+    Returns:
+        float: Largest safe ``courant_factor``, floored to 3 significant figures.
     """
     n = max(1, scan_steps)
     prev = 0.0  # last safe scale (divisor >= threshold); s = 0 gives divisor ~ 1
@@ -1044,9 +1065,10 @@ def _max_safe_courant_factor(
             break
         prev = s
     if hi is None:
-        # No sub-threshold scan point found. Unreachable via the validator (it
-        # only calls this when the divisor at s = 1 is already below threshold),
-        # but stay conservative if invoked directly.
+        # No sub-threshold scan point found anywhere in (0, 1]. The validator only
+        # calls this when the divisor at s = 1 is already below threshold, so this
+        # is reachable only for a non-monotonic divisor that dips below threshold
+        # between scan points; stay conservative.
         return 0.5 * courant_factor
     lo = prev  # bracket [lo, hi]: divisor(lo) >= threshold, divisor(hi) < threshold
     for _ in range(50):
@@ -1071,14 +1093,18 @@ def validate_dispersive_divisor_stability(
     courant_factor: float,
     near_zero_threshold: float = 0.01,
 ) -> None:
-    r"""Validate the per-cell implicit-update divisor of CCPR dispersive materials.
+    r"""Validate the per-cell implicit-update divisor of dispersive materials.
 
-    For CCPR poles (non-zero ``dE/dt`` coupling) the E-field update divides by a
-    per-cell factor ``1 + inv_eps * sum(c4) [+ conductivity term]`` (see
+    Whenever a pole has a non-zero ``c4`` the E-field update divides by a per-cell
+    factor ``1 + inv_eps * sum(c4) [+ conductivity term]`` (see
     :func:`fdtdx.fdtd.update.update_E`). This must stay positive; as it approaches
     ``0^+`` the transient gain (``~ 1/divisor``) explodes and accuracy collapses.
-    Lorentz and Drude poles have ``c4 = 0``, so their divisor is always ``>= 1``
-    and they are skipped.
+
+    Which poles have a non-zero ``c4`` is scheme-dependent, so it is resolved
+    through each pole's own :attr:`~fdtdx.dispersion.Pole.integrator` rather than
+    from the ``dE/dt`` coupling alone: Lorentz and Drude poles are safe under the
+    central-difference schemes (``c4 = 0``, divisor identically 1), but *not*
+    under ``"bilinear"``, whose ``c4 = a / D_b`` is non-zero for every pole.
 
     Checked per distinct material rather than per assembled cell: a cell holds one
     material's coefficients, so this covers every static cell, names the offending
@@ -1099,22 +1125,34 @@ def validate_dispersive_divisor_stability(
             unstable / NaN).
     """
     for name, mat in materials.items():
-        if mat.dispersion is None:
+        if mat.dispersion is None or mat.dispersion.num_poles == 0:
             continue
-        # c4 != 0 only for CCPR / non-zero dE/dt coupling; Lorentz & Drude are safe.
-        if not any(b != 0.0 for p in mat.dispersion.poles for b in p.coupling_edot_axes):
+        # A pole only constrains the divisor when its c4 is non-zero; resolve that
+        # through the pole's own integrator instead of assuming the central-scheme
+        # relation c4 != 0 <=> coupling_edot != 0 (false under "bilinear").
+        _, _, _, c4_all, _ = compute_pole_coefficients_tensor(mat.dispersion.poles, dt)
+        if not np.any(c4_all != 0.0):
             continue
         min_div, worst_ax = _min_dispersive_divisor(mat, dt)
         if min_div >= near_zero_threshold:
             continue
         cf_max = _max_safe_courant_factor(mat, dt, courant_factor, near_zero_threshold)
-        axis_note = f" on axis {'xyz'[worst_ax]}" if not (mat.is_all_isotropic and mat.dispersion.is_isotropic) else ""
+        isotropic = mat.is_all_isotropic and mat.dispersion.is_isotropic
+        axis_note = f" on axis {'xyz'[worst_ax]}" if not isotropic else ""
+        schemes = sorted({p.integrator for p in mat.dispersion.poles})
         detail = (
             f"Dispersive material '{name}' has an implicit E-update divisor = {min_div:.4g}{axis_note} "
             "(1 + inv_eps * sum(c4) [+ conductivity term]); this factor divides the E-field update, so as "
             "it approaches 0 the transient gain (~1/divisor) explodes and accuracy collapses. The divisor "
-            f"scales with the time step, so lower courant_factor to <= {cf_max:.3g} (currently {courant_factor:.3g})."
+            f"scales with the time step, so lower courant_factor to <= {cf_max:.3g} "
+            f"(currently {courant_factor:.3g})."
         )
+        if "central" in schemes:
+            detail += (
+                " This material uses integrator='central', which is only first-order accurate for a "
+                "non-zero dE/dt coupling and puts twice the correct weight on E^{n+1}; switching to "
+                "'centered_edot' halves c4 and typically restores a divisor near 1."
+            )
         if min_div <= 0.0:
             raise ValueError(
                 detail + " The divisor is non-positive, which makes the ADE update unconditionally unstable (NaN)."

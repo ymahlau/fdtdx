@@ -132,30 +132,33 @@ class PointDipoleSource(Source):
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
-        dispersive_c1: jax.Array | None = None,
-        dispersive_c2: jax.Array | None = None,
-        dispersive_c3: jax.Array | None = None,
+        dispersive_a1: jax.Array | None = None,
+        dispersive_a0: jax.Array | None = None,
+        dispersive_b1: jax.Array | None = None,
         electric_conductivity: jax.Array | None = None,
         dispersive_c4: jax.Array | None = None,
+        dispersive_b0: jax.Array | None = None,
     ) -> Self:
         del key, electric_conductivity
 
         # inv_permittivities shape: (num_components, Nx, Ny, Nz)
         inv_eps_slice = inv_permittivities[:, *self.grid_slice]
 
-        if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
-            c1_slice = dispersive_c1[:, :, *self.grid_slice]
-            c2_slice = dispersive_c2[:, :, *self.grid_slice]
-            c3_slice = dispersive_c3[:, :, *self.grid_slice]
+        if dispersive_a1 is not None and dispersive_a0 is not None and dispersive_b1 is not None:
+            a1_slice = dispersive_a1[:, :, *self.grid_slice]
+            a0_slice = dispersive_a0[:, :, *self.grid_slice]
+            b1_slice = dispersive_b1[:, :, *self.grid_slice]
             c4_slice = None if dispersive_c4 is None else dispersive_c4[:, :, *self.grid_slice]
+            b0_slice = None if dispersive_b0 is None else dispersive_b0[:, :, *self.grid_slice]
             inv_eps_slice = effective_inv_permittivity(
                 inv_eps=inv_eps_slice,
-                c1=c1_slice,
-                c2=c2_slice,
-                c3=c3_slice,
+                a1=a1_slice,
+                a0=a0_slice,
+                b1=b1_slice,
                 omega=2.0 * np.pi * self.wave_character.get_frequency(),
                 dt=self._config.time_step_duration,
                 c4=c4_slice,
+                b0=b0_slice,
             )
 
         if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:

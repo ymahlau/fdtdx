@@ -35,7 +35,9 @@ from fdtdx.core.physics.modes import compute_mode
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.dispersion import (
+    DISPERSION_INTEGRATORS,
     CCPRPole,
+    DispersionIntegrator,
     DispersionModel,
     DrudePole,
     LorentzPole,
@@ -45,6 +47,10 @@ from fdtdx.dispersion import (
     compute_pole_coefficients,
     compute_pole_coefficients_per_axis,
     compute_pole_coefficients_tensor,
+    compute_pole_delta_coefficients_per_axis,
+    compute_pole_delta_coefficients_tensor,
+    to_delta_form,
+    to_observer_form,
 )
 from fdtdx.fdtd.backward import full_backward
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, ParameterContainer, SimulationState
@@ -162,6 +168,7 @@ ParameterContainer = ParameterContainer
 SimulationState = SimulationState
 
 __all__ = [
+    "DISPERSION_INTEGRATORS",
     "ArrayContainer",
     "BinaryMedianFilterModule",
     "BlochBoundary",
@@ -180,6 +187,7 @@ __all__ = [
     "Device",
     "DiagonalSymmetry2D",
     "DiagonalSymmetry3D",
+    "DispersionIntegrator",
     "DispersionModel",
     "DrudePole",
     "DtypeConversion",
@@ -266,6 +274,8 @@ __all__ = [
     "compute_pole_coefficients",
     "compute_pole_coefficients_per_axis",
     "compute_pole_coefficients_tensor",
+    "compute_pole_delta_coefficients_per_axis",
+    "compute_pole_delta_coefficients_tensor",
     "compute_poynting_flux",
     "detectors_from_gds_ports",
     "export_arrays_snapshot_to_vti",
@@ -299,6 +309,8 @@ __all__ = [
     "run_fdtd",
     "setup_sparams_simulation",
     "sources_from_gds_ports",
+    "to_delta_form",
+    "to_observer_form",
     "unfold_array",
     "unfold_detector_states",
     "unfold_fields",

@@ -11,7 +11,14 @@ import pytest
 
 from fdtdx.config import SimulationConfig
 from fdtdx.constants import c as c0
-from fdtdx.dispersion import CCPRPole, DispersionModel, DrudePole, LorentzPole, compute_pole_coefficients
+from fdtdx.dispersion import (
+    CCPRPole,
+    DispersionModel,
+    DrudePole,
+    LorentzPole,
+    compute_pole_delta_coefficients_per_axis,
+    compute_pole_delta_coefficients_tensor,
+)
 from fdtdx.fdtd.initialization import apply_params, place_objects
 from fdtdx.materials import Material
 from fdtdx.objects.device.device import Device
@@ -19,6 +26,16 @@ from fdtdx.objects.device.parameters.discretization import ClosestIndex
 from fdtdx.objects.object import GridCoordinateConstraint
 from fdtdx.objects.static_material.sphere import Sphere
 from fdtdx.objects.static_material.static import SimulationVolume, UniformMaterialObject
+
+
+def _delta_coeffs(poles, dt):
+    """Delta-basis coefficients ``(a1, a0, b1, c4, b0)``, one scalar per pole.
+
+    The stored arrays hold the delta basis (see :mod:`fdtdx.dispersion`), so
+    reference values must come from there rather than from the P-form c1/c2.
+    Valid for isotropic poles, where all three axis columns coincide.
+    """
+    return tuple(v[:, 0] for v in compute_pole_delta_coefficients_per_axis(poles, dt))
 
 
 def _placed(container, name):
@@ -87,33 +104,33 @@ def test_dispersive_arrays_allocated(simple_config, simple_volume):
     placed = _placed(objects, "slab")
 
     Nx, Ny, Nz = simple_volume.partial_grid_shape  # type: ignore[misc]
-    assert arrays.fields.dispersive_P_curr is not None
-    assert arrays.fields.dispersive_P_prev is not None
-    assert arrays.dispersive_c1 is not None
-    assert arrays.dispersive_c2 is not None
-    assert arrays.dispersive_c3 is not None
-    assert arrays.fields.dispersive_P_curr.shape == (1, 3, Nx, Ny, Nz)
-    assert arrays.fields.dispersive_P_prev.shape == (1, 3, Nx, Ny, Nz)
-    assert arrays.dispersive_c1.shape == (1, 1, Nx, Ny, Nz)
-    assert arrays.dispersive_c2.shape == (1, 1, Nx, Ny, Nz)
-    assert arrays.dispersive_c3.shape == (1, 1, Nx, Ny, Nz)
+    assert arrays.fields.dispersive_x1 is not None
+    assert arrays.fields.dispersive_y2 is not None
+    assert arrays.dispersive_a1 is not None
+    assert arrays.dispersive_a0 is not None
+    assert arrays.dispersive_b1 is not None
+    assert arrays.fields.dispersive_x1.shape == (1, 3, Nx, Ny, Nz)
+    assert arrays.fields.dispersive_y2.shape == (1, 3, Nx, Ny, Nz)
+    assert arrays.dispersive_a1.shape == (1, 1, Nx, Ny, Nz)
+    assert arrays.dispersive_a0.shape == (1, 1, Nx, Ny, Nz)
+    assert arrays.dispersive_b1.shape == (1, 1, Nx, Ny, Nz)
     # polarization always starts at zero
-    assert jnp.all(arrays.fields.dispersive_P_curr == 0)
-    assert jnp.all(arrays.fields.dispersive_P_prev == 0)
+    assert jnp.all(arrays.fields.dispersive_x1 == 0)
+    assert jnp.all(arrays.fields.dispersive_y2 == 0)
 
     # Coefficient values inside the slab should match compute_pole_coefficients.
-    c1_ref, c2_ref, c3_ref, _c4_ref = compute_pole_coefficients(
+    a1_ref, a0_ref, b1_ref, _c4_ref, _ = _delta_coeffs(
         material.dispersion.poles,
         config.time_step_duration,  # type: ignore[union-attr]
     )
     xs, ys, zs = placed.grid_slice
-    assert jnp.allclose(arrays.dispersive_c1[0, 0, xs, ys, zs], c1_ref[0])
-    assert jnp.allclose(arrays.dispersive_c2[0, 0, xs, ys, zs], c2_ref[0])
-    assert jnp.allclose(arrays.dispersive_c3[0, 0, xs, ys, zs], c3_ref[0])
+    assert jnp.allclose(arrays.dispersive_a1[0, 0, xs, ys, zs], a1_ref[0])
+    assert jnp.allclose(arrays.dispersive_a0[0, 0, xs, ys, zs], a0_ref[0])
+    assert jnp.allclose(arrays.dispersive_b1[0, 0, xs, ys, zs], b1_ref[0])
 
     # c3 should be zero outside the slab (vacuum cells have no polarization)
     inside_mask = jnp.zeros((Nx, Ny, Nz), dtype=bool).at[xs, ys, zs].set(True)
-    assert jnp.all(arrays.dispersive_c3[0, 0][~inside_mask] == 0.0)
+    assert jnp.all(arrays.dispersive_b1[0, 0][~inside_mask] == 0.0)
 
 
 def test_no_dispersive_arrays_when_unused(simple_config, simple_volume):
@@ -126,11 +143,11 @@ def test_no_dispersive_arrays_when_unused(simple_config, simple_volume):
     key = jax.random.PRNGKey(0)
     _, arrays, _, _, _ = place_objects([simple_volume, obj], simple_config, [constraint], key)
 
-    assert arrays.fields.dispersive_P_curr is None
-    assert arrays.fields.dispersive_P_prev is None
-    assert arrays.dispersive_c1 is None
-    assert arrays.dispersive_c2 is None
-    assert arrays.dispersive_c3 is None
+    assert arrays.fields.dispersive_x1 is None
+    assert arrays.fields.dispersive_y2 is None
+    assert arrays.dispersive_a1 is None
+    assert arrays.dispersive_a0 is None
+    assert arrays.dispersive_b1 is None
 
 
 def test_pole_padding_mixed_pole_counts(simple_config, simple_volume):
@@ -152,17 +169,17 @@ def test_pole_padding_mixed_pole_counts(simple_config, simple_volume):
     placed2 = _placed(objects, "three_pole_slab")
 
     Nx, Ny, Nz = simple_volume.partial_grid_shape  # type: ignore[misc]
-    assert arrays.dispersive_c1.shape == (3, 1, Nx, Ny, Nz)
-    assert arrays.fields.dispersive_P_curr.shape == (3, 3, Nx, Ny, Nz)
+    assert arrays.dispersive_a1.shape == (3, 1, Nx, Ny, Nz)
+    assert arrays.fields.dispersive_x1.shape == (3, 3, Nx, Ny, Nz)
 
     # Inside the 1-pole slab: pole slot 0 is populated, slots 1 and 2 are zero.
     xs1, ys1, zs1 = placed1.grid_slice
-    c1_1p_slot0 = arrays.dispersive_c1[0, 0, xs1, ys1, zs1]
-    c1_1p_slot1 = arrays.dispersive_c1[1, 0, xs1, ys1, zs1]
-    c1_1p_slot2 = arrays.dispersive_c1[2, 0, xs1, ys1, zs1]
-    c3_1p_slot0 = arrays.dispersive_c3[0, 0, xs1, ys1, zs1]
-    c3_1p_slot1 = arrays.dispersive_c3[1, 0, xs1, ys1, zs1]
-    c3_1p_slot2 = arrays.dispersive_c3[2, 0, xs1, ys1, zs1]
+    c1_1p_slot0 = arrays.dispersive_a1[0, 0, xs1, ys1, zs1]
+    c1_1p_slot1 = arrays.dispersive_a1[1, 0, xs1, ys1, zs1]
+    c1_1p_slot2 = arrays.dispersive_a1[2, 0, xs1, ys1, zs1]
+    c3_1p_slot0 = arrays.dispersive_b1[0, 0, xs1, ys1, zs1]
+    c3_1p_slot1 = arrays.dispersive_b1[1, 0, xs1, ys1, zs1]
+    c3_1p_slot2 = arrays.dispersive_b1[2, 0, xs1, ys1, zs1]
     assert jnp.all(c1_1p_slot0 != 0.0)
     assert jnp.all(c1_1p_slot1 == 0.0)
     assert jnp.all(c1_1p_slot2 == 0.0)
@@ -173,7 +190,7 @@ def test_pole_padding_mixed_pole_counts(simple_config, simple_volume):
     # Inside the 3-pole slab: all three slots populated.
     xs2, ys2, zs2 = placed2.grid_slice
     for p in range(3):
-        c3_slot = arrays.dispersive_c3[p, 0, xs2, ys2, zs2]
+        c3_slot = arrays.dispersive_b1[p, 0, xs2, ys2, zs2]
         assert jnp.all(c3_slot > 0.0)
 
 
@@ -202,8 +219,8 @@ def test_non_dispersive_overlap_clears_dispersive_coefficients(simple_config, si
     placed_disp = _placed(objects, "disp")
     placed_plain = _placed(objects, "plain")
 
-    assert arrays.dispersive_c1 is not None
-    assert arrays.dispersive_c3 is not None
+    assert arrays.dispersive_a1 is not None
+    assert arrays.dispersive_b1 is not None
 
     Nx, Ny, Nz = simple_volume.partial_grid_shape  # type: ignore[misc]
     disp_mask = jnp.zeros((Nx, Ny, Nz), dtype=bool).at[placed_disp.grid_slice].set(True)
@@ -216,15 +233,15 @@ def test_non_dispersive_overlap_clears_dispersive_coefficients(simple_config, si
     assert jnp.any(disp_only_mask), "test setup: expected a disp-only region"
 
     # Overlap: coefficients must be zero (plain slab cleared them).
-    assert jnp.all(arrays.dispersive_c1[0, 0][overlap_mask] == 0.0), (
+    assert jnp.all(arrays.dispersive_a1[0, 0][overlap_mask] == 0.0), (
         "Non-dispersive overlap failed to clear c1 — stale pole coefficients remain"
     )
-    assert jnp.all(arrays.dispersive_c3[0, 0][overlap_mask] == 0.0), (
+    assert jnp.all(arrays.dispersive_b1[0, 0][overlap_mask] == 0.0), (
         "Non-dispersive overlap failed to clear c3 — ADE recurrence would fire on plain cells"
     )
 
     # Disp-only region: coefficients must still be populated.
-    assert jnp.all(arrays.dispersive_c3[0, 0][disp_only_mask] > 0.0)
+    assert jnp.all(arrays.dispersive_b1[0, 0][disp_only_mask] > 0.0)
 
 
 def test_dispersive_with_non_dispersive_object(simple_config, simple_volume):
@@ -243,13 +260,13 @@ def test_dispersive_with_non_dispersive_object(simple_config, simple_volume):
     placed_disp = _placed(objects, "disp")
     placed_plain = _placed(objects, "plain")
 
-    assert arrays.dispersive_c1 is not None
+    assert arrays.dispersive_a1 is not None
     xs_d, ys_d, zs_d = placed_disp.grid_slice
     xs_p, ys_p, zs_p = placed_plain.grid_slice
     # Dispersive slab: c3 non-zero
-    assert jnp.all(arrays.dispersive_c3[0, 0, xs_d, ys_d, zs_d] > 0.0)
+    assert jnp.all(arrays.dispersive_b1[0, 0, xs_d, ys_d, zs_d] > 0.0)
     # Non-dispersive slab: c3 zero
-    assert jnp.all(arrays.dispersive_c3[0, 0, xs_p, ys_p, zs_p] == 0.0)
+    assert jnp.all(arrays.dispersive_b1[0, 0, xs_p, ys_p, zs_p] == 0.0)
 
 
 # ---------------------------------------------------------------------------
@@ -275,18 +292,18 @@ def test_static_multi_material_dispersive(simple_config, simple_volume):
     objects, arrays, _, _, _ = place_objects([simple_volume, sphere], simple_config, [constraint], key)
     placed = _placed(objects, "sphere")
 
-    assert arrays.dispersive_c3 is not None
-    assert arrays.dispersive_c3.shape[0] == 1  # one pole total (Drude)
+    assert arrays.dispersive_b1 is not None
+    assert arrays.dispersive_b1.shape[0] == 1  # one pole total (Drude)
 
     # Outside the bounding box → strictly zero
     Nx, Ny, Nz = simple_volume.partial_grid_shape  # type: ignore[misc]
     xs, ys, zs = placed.grid_slice
     inside_mask = jnp.zeros((Nx, Ny, Nz), dtype=bool).at[xs, ys, zs].set(True)
-    assert jnp.all(arrays.dispersive_c3[0, 0][~inside_mask] == 0.0)
+    assert jnp.all(arrays.dispersive_b1[0, 0][~inside_mask] == 0.0)
 
     # Inside the voxel mask → non-zero
     voxel_mask = placed.get_voxel_mask_for_shape().astype(bool)
-    inside_slab = arrays.dispersive_c3[0, 0, xs, ys, zs]
+    inside_slab = arrays.dispersive_b1[0, 0, xs, ys, zs]
     assert jnp.any(inside_slab[voxel_mask] > 0.0)
     # Cells inside the bounding box but outside the sphere remain zero
     assert jnp.all(inside_slab[~voxel_mask] == 0.0)
@@ -323,29 +340,29 @@ def test_device_dispersive_continuous(simple_config, simple_volume):
     drude_params = {name: jnp.ones_like(p) for name, p in params.items()}
     arrays, objects, _ = apply_params(arrays, objects, drude_params, key)
 
-    assert arrays.dispersive_c1 is not None
-    assert arrays.dispersive_c1.shape == (1, 1, 30, 30, 30)
+    assert arrays.dispersive_a1 is not None
+    assert arrays.dispersive_a1.shape == (1, 1, 30, 30, 30)
 
     # Inside the device: coefficients should equal the drude coefficients.
-    c1_ref, c2_ref, c3_ref, _c4_ref = compute_pole_coefficients(
+    a1_ref, a0_ref, b1_ref, _c4_ref, _ = _delta_coeffs(
         materials["drude"].dispersion.poles,  # type: ignore[union-attr]
         config.time_step_duration,
     )
-    assert jnp.allclose(arrays.dispersive_c1[0, 0, xs, ys, zs], c1_ref[0])
-    assert jnp.allclose(arrays.dispersive_c2[0, 0, xs, ys, zs], c2_ref[0])
-    assert jnp.allclose(arrays.dispersive_c3[0, 0, xs, ys, zs], c3_ref[0])
+    assert jnp.allclose(arrays.dispersive_a1[0, 0, xs, ys, zs], a1_ref[0])
+    assert jnp.allclose(arrays.dispersive_a0[0, 0, xs, ys, zs], a0_ref[0])
+    assert jnp.allclose(arrays.dispersive_b1[0, 0, xs, ys, zs], b1_ref[0])
 
     # All-air: params=0 -> coefficients should be zero (air has no dispersion)
     air_params = {name: jnp.zeros_like(p) for name, p in params.items()}
     arrays2, _, _ = apply_params(arrays, objects, air_params, key)
-    assert jnp.all(arrays2.dispersive_c1[0, 0, xs, ys, zs] == 0.0)
-    assert jnp.all(arrays2.dispersive_c3[0, 0, xs, ys, zs] == 0.0)
+    assert jnp.all(arrays2.dispersive_a1[0, 0, xs, ys, zs] == 0.0)
+    assert jnp.all(arrays2.dispersive_b1[0, 0, xs, ys, zs] == 0.0)
 
     # Half interpolation: params=0.5 -> coefficients should be half the drude values
     half_params = {name: 0.5 * jnp.ones_like(p) for name, p in params.items()}
     arrays3, _, _ = apply_params(arrays, objects, half_params, key)
-    assert jnp.allclose(arrays3.dispersive_c1[0, 0, xs, ys, zs], 0.5 * c1_ref[0])
-    assert jnp.allclose(arrays3.dispersive_c3[0, 0, xs, ys, zs], 0.5 * c3_ref[0])
+    assert jnp.allclose(arrays3.dispersive_a1[0, 0, xs, ys, zs], 0.5 * a1_ref[0])
+    assert jnp.allclose(arrays3.dispersive_b1[0, 0, xs, ys, zs], 0.5 * b1_ref[0])
 
 
 def test_device_dispersive_discrete(simple_config, simple_volume):
@@ -374,17 +391,17 @@ def test_device_dispersive_discrete(simple_config, simple_volume):
     drude_params = {name: jnp.ones_like(p) for name, p in params.items()}
     arrays, objects, _ = apply_params(arrays, objects, drude_params, key)
 
-    c1_ref, _, c3_ref, _ = compute_pole_coefficients(
+    a1_ref, _, b1_ref, _, _ = _delta_coeffs(
         materials["drude"].dispersion.poles,  # type: ignore[union-attr]
         config.time_step_duration,
     )
-    assert jnp.allclose(arrays.dispersive_c1[0, 0, xs, ys, zs], c1_ref[0])
-    assert jnp.allclose(arrays.dispersive_c3[0, 0, xs, ys, zs], c3_ref[0])
+    assert jnp.allclose(arrays.dispersive_a1[0, 0, xs, ys, zs], a1_ref[0])
+    assert jnp.allclose(arrays.dispersive_b1[0, 0, xs, ys, zs], b1_ref[0])
 
     # All air: coefficients should be zero
     air_params = {name: jnp.zeros_like(p) for name, p in params.items()}
     arrays2, _, _ = apply_params(arrays, objects, air_params, key)
-    assert jnp.all(arrays2.dispersive_c3[0, 0, xs, ys, zs] == 0.0)
+    assert jnp.all(arrays2.dispersive_b1[0, 0, xs, ys, zs] == 0.0)
 
 
 def _aniso_plus_dispersive_scene(simple_volume):
@@ -410,9 +427,9 @@ def test_fully_anisotropic_plus_dispersive_allocates(simple_config, simple_volum
     key = jax.random.PRNGKey(0)
     _, arrays, _, _, _ = place_objects(objects_list, simple_config, constraints, key)
     assert arrays.inv_permittivities.shape[0] == 9
-    assert arrays.dispersive_c1 is not None
-    assert arrays.dispersive_c1.shape[1] == 1
-    assert arrays.dispersive_c3.shape[1] == 1
+    assert arrays.dispersive_a1 is not None
+    assert arrays.dispersive_a1.shape[1] == 1
+    assert arrays.dispersive_b1.shape[1] == 1
 
 
 def test_isotropic_dispersive_reversible_raises(simple_config, simple_volume):
@@ -439,15 +456,35 @@ def test_fully_anisotropic_plus_dispersive_reversible_raises(simple_config, simp
     objects_list, constraints = _aniso_plus_dispersive_scene(simple_volume)
     config = simple_config.aset("gradient_config", GradientConfig(method="reversible", recorder=Recorder(modules=[])))
     key = jax.random.PRNGKey(0)
-    with pytest.raises(NotImplementedError, match="checkpointed"):
+    with pytest.raises(NotImplementedError, match="under active development"):
         place_objects(objects_list, config, constraints, key)
 
 
-def _unstable_ccpr_material(eps_inf=2.0):
+def _unstable_ccpr_material(eps_inf=2.0, integrator="central"):
     """CCPR material whose implicit-update divisor goes non-positive at the
-    ``simple_config`` time step (~1.9e-16 s), i.e. large negative Re(residue)."""
-    pole = CCPRPole(pole=complex(-1e13, -2e15), residue=complex(-6e15, 1e15))
+    ``simple_config`` time step (~1.9e-16 s), i.e. large negative Re(residue).
+
+    Pinned to ``integrator="central"``: its forward-difference dE/dt term puts the
+    full ``b*dt`` on ``E^{n+1}``, which is what drives the divisor negative. The
+    default ``"centered_edot"`` halves that and keeps the same pole runnable, so
+    the rejection path can only be exercised with the legacy scheme.
+    """
+    pole = CCPRPole(pole=complex(-1e13, -2e15), residue=complex(-6e15, 1e15), integrator=integrator)
     return Material(permittivity=eps_inf, dispersion=DispersionModel(poles=(pole,)))
+
+
+def test_centered_edot_places_the_material_central_rejects(simple_config, simple_volume):
+    """The same pole that ``"central"`` cannot place is accepted under the default
+    scheme — the resolution ceiling the forward difference imposes is lifted."""
+    mat = _unstable_ccpr_material(integrator="centered_edot")
+    obj = UniformMaterialObject(name="gold", partial_grid_shape=(10, 10, 10), material=mat)
+    constraint = GridCoordinateConstraint(
+        object="gold", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+    key = jax.random.PRNGKey(0)
+    _, arrays, _, _, _ = place_objects([simple_volume, obj], simple_config, [constraint], key)
+    assert arrays.dispersive_c4 is not None
+    assert arrays.dispersive_b0 is not None
 
 
 def test_unstable_ccpr_material_raises_at_placement(simple_config, simple_volume):
@@ -543,16 +580,16 @@ def test_device_continuous_half_interpolation(simple_config, simple_volume):
     half_params = {name: 0.5 * jnp.ones_like(p) for name, p in params.items()}
     arrays_half, _, _ = apply_params(arrays, objects, half_params, key)
 
-    c1_ref, _, c3_ref, _ = compute_pole_coefficients(
+    a1_ref, _, b1_ref, _, _ = _delta_coeffs(
         materials["drude"].dispersion.poles,  # type: ignore[union-attr]
         config.time_step_duration,
     )
     # 0.5 * (air_coeffs = 0) + 0.5 * (drude_coeffs)
-    assert jnp.allclose(arrays_half.dispersive_c1[0, 0, xs, ys, zs], 0.5 * c1_ref[0])
-    assert jnp.allclose(arrays_half.dispersive_c3[0, 0, xs, ys, zs], 0.5 * c3_ref[0])
+    assert jnp.allclose(arrays_half.dispersive_a1[0, 0, xs, ys, zs], 0.5 * a1_ref[0])
+    assert jnp.allclose(arrays_half.dispersive_b1[0, 0, xs, ys, zs], 0.5 * b1_ref[0])
     # All coefficients outside the device slice remain zero
     mask = jnp.zeros(simple_volume.partial_grid_shape, dtype=bool).at[xs, ys, zs].set(True)  # type: ignore[misc]
-    assert jnp.all(arrays_half.dispersive_c1[0, 0][~mask] == 0.0)
+    assert jnp.all(arrays_half.dispersive_a1[0, 0][~mask] == 0.0)
 
 
 def test_dipole_source_samples_frequency_corrected_permittivity(simple_config, simple_volume):
@@ -674,7 +711,6 @@ def _per_axis_lorentz_material(eps_inf=(2.0, 2.0, 3.0)):
 def test_per_axis_dispersion_allocates_3_component_coefficients(simple_config, simple_volume):
     """A per-axis dispersive material widens the coefficient arrays to a
     3-entry component axis and bakes per-axis values inside the object slice."""
-    from fdtdx.dispersion import compute_pole_coefficients_per_axis
 
     material = _per_axis_lorentz_material()
     obj = UniformMaterialObject(name="slab", partial_grid_shape=(10, 10, 10), material=material)
@@ -686,27 +722,27 @@ def test_per_axis_dispersion_allocates_3_component_coefficients(simple_config, s
     placed = _placed(objects, "slab")
 
     Nx, Ny, Nz = simple_volume.partial_grid_shape  # type: ignore[misc]
-    assert arrays.dispersive_c1 is not None
-    assert arrays.dispersive_c1.shape == (1, 3, Nx, Ny, Nz)
-    assert arrays.dispersive_c2.shape == (1, 3, Nx, Ny, Nz)
-    assert arrays.dispersive_c3.shape == (1, 3, Nx, Ny, Nz)
+    assert arrays.dispersive_a1 is not None
+    assert arrays.dispersive_a1.shape == (1, 3, Nx, Ny, Nz)
+    assert arrays.dispersive_a0.shape == (1, 3, Nx, Ny, Nz)
+    assert arrays.dispersive_b1.shape == (1, 3, Nx, Ny, Nz)
     # polarization state keeps its (num_poles, 3, ...) shape
-    assert arrays.fields.dispersive_P_curr.shape == (1, 3, Nx, Ny, Nz)
+    assert arrays.fields.dispersive_x1.shape == (1, 3, Nx, Ny, Nz)
 
-    c1_ref, c2_ref, c3_ref, _ = compute_pole_coefficients_per_axis(
+    a1_ref, a0_ref, b1_ref, _, _ = compute_pole_delta_coefficients_per_axis(
         material.dispersion.poles,  # type: ignore[union-attr]
         config.time_step_duration,
     )
     xs, ys, zs = placed.grid_slice
     for ax in range(3):
-        assert jnp.allclose(arrays.dispersive_c1[0, ax, xs, ys, zs], c1_ref[0, ax])
-        assert jnp.allclose(arrays.dispersive_c2[0, ax, xs, ys, zs], c2_ref[0, ax])
-        assert jnp.allclose(arrays.dispersive_c3[0, ax, xs, ys, zs], c3_ref[0, ax])
+        assert jnp.allclose(arrays.dispersive_a1[0, ax, xs, ys, zs], a1_ref[0, ax])
+        assert jnp.allclose(arrays.dispersive_a0[0, ax, xs, ys, zs], a0_ref[0, ax])
+        assert jnp.allclose(arrays.dispersive_b1[0, ax, xs, ys, zs], b1_ref[0, ax])
     # the axis columns genuinely differ (x vs z resonance)
-    assert not jnp.allclose(arrays.dispersive_c1[0, 0, xs, ys, zs], arrays.dispersive_c1[0, 2, xs, ys, zs])
+    assert not jnp.allclose(arrays.dispersive_a1[0, 0, xs, ys, zs], arrays.dispersive_a1[0, 2, xs, ys, zs])
     # outside the slab everything is zero
     inside_mask = jnp.zeros((Nx, Ny, Nz), dtype=bool).at[xs, ys, zs].set(True)
-    assert jnp.all(arrays.dispersive_c3[0, :, ~inside_mask] == 0.0)
+    assert jnp.all(arrays.dispersive_b1[0, :, ~inside_mask] == 0.0)
 
 
 def test_isotropic_dispersion_keeps_1_component_axis(simple_config, simple_volume):
@@ -718,13 +754,12 @@ def test_isotropic_dispersion_keeps_1_component_axis(simple_config, simple_volum
     )
     key = jax.random.PRNGKey(0)
     _, arrays, _, _, _ = place_objects([simple_volume, obj], simple_config, [constraint], key)
-    assert arrays.dispersive_c1.shape[1] == 1
+    assert arrays.dispersive_a1.shape[1] == 1
 
 
 def test_static_multi_material_per_axis_coefficients(simple_config, simple_volume):
     """A Sphere with a per-axis Drude material bakes per-axis coefficients
     through the multi-material indexing path."""
-    from fdtdx.dispersion import compute_pole_coefficients_per_axis
 
     per_axis_drude = Material(
         permittivity=1.0,
@@ -745,29 +780,28 @@ def test_static_multi_material_per_axis_coefficients(simple_config, simple_volum
     objects, arrays, _, config, _ = place_objects([simple_volume, sphere], simple_config, [constraint], key)
     placed = _placed(objects, "sphere")
 
-    assert arrays.dispersive_c3 is not None
-    assert arrays.dispersive_c3.shape[1] == 3
+    assert arrays.dispersive_b1 is not None
+    assert arrays.dispersive_b1.shape[1] == 3
 
-    c1_ref, _, c3_ref, _ = compute_pole_coefficients_per_axis(
+    a1_ref, _, b1_ref, _, _ = compute_pole_delta_coefficients_per_axis(
         per_axis_drude.dispersion.poles,  # type: ignore[union-attr]
         config.time_step_duration,
     )
     xs, ys, zs = placed.grid_slice
     voxel_mask = placed.get_voxel_mask_for_shape().astype(bool)
-    inside_x = arrays.dispersive_c3[0, 0, xs, ys, zs]
-    inside_y = arrays.dispersive_c3[0, 1, xs, ys, zs]
+    inside_x = arrays.dispersive_b1[0, 0, xs, ys, zs]
+    inside_y = arrays.dispersive_b1[0, 1, xs, ys, zs]
     # x axis carries the plasma coupling, y axis has none
-    assert jnp.allclose(inside_x[voxel_mask], c3_ref[0, 0])
-    assert c3_ref[0, 0] > 0.0
+    assert jnp.allclose(inside_x[voxel_mask], b1_ref[0, 0])
+    assert b1_ref[0, 0] > 0.0
     assert jnp.all(inside_y[voxel_mask] == 0.0)
     # c1 is still non-zero on the y axis (recurrence exists, zero coupling)
-    assert jnp.allclose(arrays.dispersive_c1[0, 1, xs, ys, zs][voxel_mask], c1_ref[0, 1])
+    assert jnp.allclose(arrays.dispersive_a1[0, 1, xs, ys, zs][voxel_mask], a1_ref[0, 1])
 
 
 def test_device_per_axis_dispersive_continuous_and_discrete(simple_config, simple_volume):
     """Devices write per-axis coefficient stacks through both the CONTINUOUS
     interpolation branch and the DISCRETE selection branch."""
-    from fdtdx.dispersion import compute_pole_coefficients_per_axis
 
     per_axis_drude = Material(
         permittivity=1.0,
@@ -796,16 +830,16 @@ def test_device_per_axis_dispersive_continuous_and_discrete(simple_config, simpl
         drude_params = {name: jnp.ones_like(p) for name, p in params.items()}
         arrays, objects, _ = apply_params(arrays, objects, drude_params, key)
 
-        assert arrays.dispersive_c1.shape[1] == 3
-        c1_ref, _, c3_ref, _ = compute_pole_coefficients_per_axis(
+        assert arrays.dispersive_a1.shape[1] == 3
+        a1_ref, _, b1_ref, _, _ = compute_pole_delta_coefficients_per_axis(
             per_axis_drude.dispersion.poles,  # type: ignore[union-attr]
             config.time_step_duration,
         )
         for ax in range(3):
-            assert jnp.allclose(arrays.dispersive_c1[0, ax, xs, ys, zs], c1_ref[0, ax])
-            assert jnp.allclose(arrays.dispersive_c3[0, ax, xs, ys, zs], c3_ref[0, ax])
+            assert jnp.allclose(arrays.dispersive_a1[0, ax, xs, ys, zs], a1_ref[0, ax])
+            assert jnp.allclose(arrays.dispersive_b1[0, ax, xs, ys, zs], b1_ref[0, ax])
         # x and z couplings differ by construction
-        assert c3_ref[0, 0] != c3_ref[0, 2]
+        assert b1_ref[0, 0] != b1_ref[0, 2]
 
 
 def test_full_tensor_sigma_plus_dispersive_allocates(simple_config, simple_volume):
@@ -826,9 +860,9 @@ def test_full_tensor_sigma_plus_dispersive_allocates(simple_config, simple_volum
     _, arrays, _, _, _ = place_objects([simple_volume, obj1, obj2], simple_config, constraints, key)
     assert arrays.electric_conductivity is not None
     assert arrays.electric_conductivity.shape[0] == 9
-    assert arrays.dispersive_c3 is not None
+    assert arrays.dispersive_b1 is not None
     # axis-aligned dispersion keeps its natural coupling tier
-    assert arrays.dispersive_c3.shape[1] == 1
+    assert arrays.dispersive_b1.shape[1] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -857,7 +891,6 @@ def _oriented_lorentz_material(eps_inf=2.0):
 def test_oriented_dispersion_forces_tensor_tiers(simple_config, simple_volume):
     """An oriented pole widens the coupling to 9 components and forces the
     9-component permittivity tier so the fully anisotropic kernel runs."""
-    from fdtdx.dispersion import compute_pole_coefficients_tensor
 
     material = _oriented_lorentz_material()
     obj = UniformMaterialObject(name="slab", partial_grid_shape=(10, 10, 10), material=material)
@@ -869,21 +902,21 @@ def test_oriented_dispersion_forces_tensor_tiers(simple_config, simple_volume):
     placed = _placed(objects, "slab")
 
     assert arrays.inv_permittivities.shape[0] == 9
-    assert arrays.dispersive_c1.shape[1] == 3
-    assert arrays.dispersive_c3.shape[1] == 9
-    assert arrays.fields.dispersive_P_curr.shape[1] == 3
+    assert arrays.dispersive_a1.shape[1] == 3
+    assert arrays.dispersive_b1.shape[1] == 9
+    assert arrays.fields.dispersive_x1.shape[1] == 3
 
-    c1_ref, _, c3_ref, _ = compute_pole_coefficients_tensor(
+    a1_ref, _, b1_ref, _, _ = compute_pole_delta_coefficients_tensor(
         material.dispersion.poles,  # type: ignore[union-attr]
         config.time_step_duration,
     )
     xs, ys, zs = placed.grid_slice
     for entry in range(9):
-        assert jnp.allclose(arrays.dispersive_c3[0, entry, xs, ys, zs], c3_ref[0, entry])
+        assert jnp.allclose(arrays.dispersive_b1[0, entry, xs, ys, zs], b1_ref[0, entry])
     # the coupling tensor genuinely has off-diagonal weight (u = (1,1,0)/sqrt(2))
-    assert c3_ref[0, 1] != 0.0
+    assert b1_ref[0, 1] != 0.0
     for ax in range(3):
-        assert jnp.allclose(arrays.dispersive_c1[0, ax, xs, ys, zs], c1_ref[0, ax])
+        assert jnp.allclose(arrays.dispersive_a1[0, ax, xs, ys, zs], a1_ref[0, ax])
 
 
 def test_oriented_dispersion_reversible_raises(simple_config, simple_volume):
@@ -897,7 +930,7 @@ def test_oriented_dispersion_reversible_raises(simple_config, simple_volume):
     )
     config = simple_config.aset("gradient_config", GradientConfig(method="reversible", recorder=Recorder(modules=[])))
     key = jax.random.PRNGKey(0)
-    with pytest.raises(NotImplementedError, match="checkpointed"):
+    with pytest.raises(NotImplementedError, match="under active development"):
         place_objects([simple_volume, obj], config, [constraint], key)
 
 
@@ -939,7 +972,6 @@ def test_ccpr_edot_plus_tensor_path_raises(simple_config, simple_volume):
 def test_oriented_static_multi_material_and_device(simple_config, simple_volume):
     """Oriented coupling tensors bake correctly through the multi-material
     indexing path and the Device apply_params path."""
-    from fdtdx.dispersion import compute_pole_coefficients_tensor
 
     oriented = _oriented_lorentz_material(eps_inf=1.0)
     materials = {
@@ -957,16 +989,16 @@ def test_oriented_static_multi_material_and_device(simple_config, simple_volume)
     objects, arrays, _, config, _ = place_objects([simple_volume, sphere], simple_config, [constraint], key)
     placed = _placed(objects, "sphere")
 
-    assert arrays.dispersive_c3.shape[1] == 9
-    _, _, c3_ref, _ = compute_pole_coefficients_tensor(
+    assert arrays.dispersive_b1.shape[1] == 9
+    _, _, b1_ref, _, _ = compute_pole_delta_coefficients_tensor(
         oriented.dispersion.poles,  # type: ignore[union-attr]
         config.time_step_duration,
     )
     xs, ys, zs = placed.grid_slice
     voxel_mask = placed.get_voxel_mask_for_shape().astype(bool)
-    inside_xy = arrays.dispersive_c3[0, 1, xs, ys, zs]
-    assert jnp.allclose(inside_xy[voxel_mask], c3_ref[0, 1])
-    assert c3_ref[0, 1] != 0.0
+    inside_xy = arrays.dispersive_b1[0, 1, xs, ys, zs]
+    assert jnp.allclose(inside_xy[voxel_mask], b1_ref[0, 1])
+    assert b1_ref[0, 1] != 0.0
 
     device = Device(
         name="device",
@@ -983,5 +1015,73 @@ def test_oriented_static_multi_material_and_device(simple_config, simple_volume)
     xs, ys, zs = placed_device.grid_slice
     full_params = {name: jnp.ones_like(p) for name, p in params.items()}
     arrays, objects, _ = apply_params(arrays, objects, full_params, key)
-    assert arrays.dispersive_c3.shape[1] == 9
-    assert jnp.allclose(arrays.dispersive_c3[0, 1, xs, ys, zs], c3_ref[0, 1])
+    assert arrays.dispersive_b1.shape[1] == 9
+    assert jnp.allclose(arrays.dispersive_b1[0, 1, xs, ys, zs], b1_ref[0, 1])
+
+
+@pytest.mark.parametrize("integrator", ["centered_edot", "bilinear"])
+def test_min_dispersive_divisor_matches_what_the_kernel_forms(simple_config, simple_volume, integrator):
+    """``materials._min_dispersive_divisor`` must describe the divisor ``update_E``
+    actually builds from the STORED arrays.
+
+    The helper works from the P-form (c1..c5) in float64 and was deliberately left
+    alone by the delta-basis change, so nothing in the type system ties it to the
+    kernel any more — only this test does.
+    """
+    from fdtdx.constants import eta0
+    from fdtdx.materials import _min_dispersive_divisor
+
+    # Ag CCPR fit + static conductivity, i.e. c4 != 0 and the divisor non-trivial.
+    poles = tuple(
+        CCPRPole(pole=q, residue=r, integrator=integrator)
+        for q, r in (
+            (complex(-1.89e14, 0.0), complex(-1.00e18, 0.0)),
+            (complex(-5.46e14, -6.37e15), complex(1.30e15, 1.54e15)),
+            (complex(-5.68e14, -3.43e14), complex(1.61e17, 1.00e12)),
+        )
+    )
+    mat = Material(permittivity=3.07, electric_conductivity=1.49e7, dispersion=DispersionModel(poles=poles))
+    obj = UniformMaterialObject(name="silver", partial_grid_shape=(10, 10, 10), material=mat)
+    constraint = GridCoordinateConstraint(
+        object="silver", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
+    )
+    _, arrays, _, config, _ = place_objects([simple_volume, obj], simple_config, [constraint], jax.random.PRNGKey(0))
+    sl = (slice(10, 20), slice(10, 20), slice(10, 20))
+
+    c = config.courant_number
+    inv_eps = arrays.inv_permittivities[(slice(None), *sl)]
+    sigma_E = arrays.electric_conductivity[(slice(None), *sl)]
+    kappa = c * sigma_E * eta0 * inv_eps / 2
+    c4 = arrays.dispersive_c4[(slice(None), slice(None), *sl)]
+
+    kernel_fwd = 1 + inv_eps * jnp.sum(c4, axis=0) + kappa
+
+    dt = config.time_step_duration
+    helper_fwd, _ = _min_dispersive_divisor(mat, dt)
+
+    # isotropic material -> uniform over components and cells inside the slab
+    assert jnp.allclose(kernel_fwd, kernel_fwd.min(), rtol=1e-6)
+    # The helper is float64; the kernel expression above is rebuilt from the
+    # float32 stored arrays. `simple_config` has a very coarse dt, so the pole and
+    # conductivity terms are ~60x larger than the divisor they sum to (asserted
+    # below), and float32 caps the agreement at ~1e-5 relative. That gap is the
+    # test's own arithmetic, not a discrepancy in the helper.
+    assert float(kernel_fwd.min()) == pytest.approx(helper_fwd, rel=3e-4)
+    # not vacuous: the conductivity and pole terms are individually large and only
+    # nearly cancel, so a dropped or mis-signed term would move the divisor a lot
+    pole_term = float(jnp.abs(inv_eps * jnp.sum(c4, axis=0)).max())
+    assert pole_term > 10.0 * abs(helper_fwd)
+    assert float(jnp.abs(kappa).max()) > 10.0 * abs(helper_fwd)
+
+
+def test_lorentz_divisor_is_exactly_one():
+    """Lorentz/Drude poles on a central-difference scheme have c4 = 0, so the
+    divisor must be *exactly* 1 — no float drift from the delta-basis rewrite."""
+    from fdtdx.materials import _min_dispersive_divisor
+
+    for integrator in ("central", "centered_edot"):
+        model = DispersionModel(
+            poles=(LorentzPole(resonance_frequency=3e15, damping=1e14, delta_epsilon=2.0, integrator=integrator),)
+        )
+        mat = Material(permittivity=2.25, dispersion=model)
+        assert _min_dispersive_divisor(mat, 1e-18)[0] == 1.0

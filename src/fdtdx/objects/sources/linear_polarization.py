@@ -122,11 +122,12 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
-        dispersive_c1: jax.Array | None = None,
-        dispersive_c2: jax.Array | None = None,
-        dispersive_c3: jax.Array | None = None,
+        dispersive_a1: jax.Array | None = None,
+        dispersive_a0: jax.Array | None = None,
+        dispersive_b1: jax.Array | None = None,
         electric_conductivity: jax.Array | None = None,
         dispersive_c4: jax.Array | None = None,
+        dispersive_b0: jax.Array | None = None,
     ):
         del electric_conductivity
         # inv_permittivities shape: (3, Nx, Ny, Nz) - slice with component dimension
@@ -144,21 +145,23 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         # permittivity at the source carrier frequency so that the impedance and
         # energy normalization reflect the true medium the source sits in,
         # not just the high-frequency permittivity epsilon_infinity.
-        c1_slice = c2_slice = c3_slice = c4_slice = None
-        if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
+        a1_slice = a0_slice = b1_slice = c4_slice = b0_slice = None
+        if dispersive_a1 is not None and dispersive_a0 is not None and dispersive_b1 is not None:
             # dispersive_c* shape: (num_poles, 1, Nx, Ny, Nz) → slice spatial axes
-            c1_slice = dispersive_c1[:, :, *self.grid_slice]
-            c2_slice = dispersive_c2[:, :, *self.grid_slice]
-            c3_slice = dispersive_c3[:, :, *self.grid_slice]
+            a1_slice = dispersive_a1[:, :, *self.grid_slice]
+            a0_slice = dispersive_a0[:, :, *self.grid_slice]
+            b1_slice = dispersive_b1[:, :, *self.grid_slice]
             c4_slice = None if dispersive_c4 is None else dispersive_c4[:, :, *self.grid_slice]
+            b0_slice = None if dispersive_b0 is None else dispersive_b0[:, :, *self.grid_slice]
             inv_permittivities = effective_inv_permittivity(
                 inv_eps=inv_permittivities,
-                c1=c1_slice,
-                c2=c2_slice,
-                c3=c3_slice,
+                a1=a1_slice,
+                a0=a0_slice,
+                b1=b1_slice,
                 omega=2.0 * np.pi * self.wave_character.get_frequency(),
                 dt=self._config.time_step_duration,
                 c4=c4_slice,
+                b0=b0_slice,
             )
 
         # determine E/H polarization
@@ -284,18 +287,19 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         # ω_c. Precompute a filtered H-side temporal profile s_H(t) whose
         # spectrum is S(ω)·√(ε(ω)/ε(ω_c)) so that the injected H field has
         # the frequency-dependent impedance correction baked in.
-        if c1_slice is not None and c2_slice is not None and c3_slice is not None:
+        if a1_slice is not None and a0_slice is not None and b1_slice is not None:
             filtered = _build_dispersive_H_filter(
                 temporal_profile=self.temporal_profile,
                 wave_character=self.wave_character,
                 dt=self._config.time_step_duration,
                 num_time_steps=self._config.time_steps_total,
-                c1_slice=c1_slice,
-                c2_slice=c2_slice,
-                c3_slice=c3_slice,
+                a1_slice=a1_slice,
+                a0_slice=a0_slice,
+                b1_slice=b1_slice,
                 inv_eps_inf_slice=inv_eps_inf_slice,
                 dtype=self._config.dtype,
                 c4_slice=c4_slice,
+                b0_slice=b0_slice,
             )
             self = self.aset("_temporal_H_filter", filtered, create_new_ok=True)
         else:

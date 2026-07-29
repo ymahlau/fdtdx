@@ -28,6 +28,8 @@ API
     fdtdx.compute_pole_coefficients
     fdtdx.compute_pole_coefficients_per_axis
     fdtdx.compute_pole_coefficients_tensor
+    fdtdx.compute_pole_delta_coefficients_per_axis
+    fdtdx.compute_pole_delta_coefficients_tensor
     fdtdx.compute_poynting_flux
     fdtdx.ConnectHolesAndStructures
     fdtdx.CustomTimeSignalProfile
@@ -37,6 +39,8 @@ API
     fdtdx.Device
     fdtdx.DiagonalSymmetry2D
     fdtdx.DiagonalSymmetry3D
+    fdtdx.DISPERSION_INTEGRATORS
+    fdtdx.DispersionIntegrator
     fdtdx.DispersionModel
     fdtdx.DrudePole
     fdtdx.DtypeConversion
@@ -127,6 +131,8 @@ API
     fdtdx.TanhProjection
     fdtdx.TemporalProfile
     fdtdx.TFSFPlaneSourceRegion
+    fdtdx.to_delta_form
+    fdtdx.to_observer_form
     fdtdx.TreeClass
     fdtdx.unfold_array
     fdtdx.unfold_detector_states

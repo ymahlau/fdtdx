@@ -31,42 +31,211 @@ where ``coupling_sq`` is the effective squared coupling frequency
 
 Discrete update
 ---------------
-Central differences at integer time ``n``:
+Every integrator produces the same two-level rational map
 
 .. math::
-    p_p^{n+1} = c_1 p_p^{n} + c_2 p_p^{n-1} + c_3 E^{n}
+    \\chi_d(z) = \\frac{c_4 z^2 + c_3 z + c_5}{z^2 - c_1 z - c_2},
+    \\qquad z = e^{-i \\omega \\Delta t}
 
-with coefficients derived from the unified pole parameters and time
-step ``dt``:
+i.e. the "P-form" recurrence
 
 .. math::
-    c_1 = \\frac{2 - \\omega_0^2 \\Delta t^2}{1 + \\gamma \\Delta t / 2}, \\quad
-    c_2 = -\\frac{1 - \\gamma \\Delta t / 2}{1 + \\gamma \\Delta t / 2}, \\quad
-    c_3 = \\frac{K \\Delta t^2}{1 + \\gamma \\Delta t / 2}
+    p_p^{n+1} = c_1 p_p^{n} + c_2 p_p^{n-1} + c_3 E^{n} + c_4 E^{n+1}
+                + c_5 E^{n-1}.
 
-**Forward unit-circle (Jury) stability** constrains the coefficients and is
-enforced in :func:`compute_pole_coefficients_per_axis` (only on axes where the
-pole actually couples, since a zero-coupling axis keeps its polarization
-identically zero). The roots of :math:`z^2 - c_1 z - c_2 = 0` lie inside the
-unit circle iff :math:`|c_2| < 1` *and* :math:`|c_1| < 1 - c_2`. The first
-holds for every :math:`\\gamma \\Delta t > 0` (:math:`c_2 = 0` at
-:math:`\\gamma \\Delta t = 2` and :math:`|c_2| \\to 1` only as
-:math:`\\gamma \\Delta t \\to 0` or :math:`\\infty`), so it is not the binding
-constraint. The second is algebraically equivalent to
+Because the discrete Ampere law consumes only
+:math:`\\varepsilon_\\infty (E^{n+1} - E^n) + \\sum_p (p_p^{n+1} - p_p^n)`, the
+permittivity the grid actually realizes is exactly
+:math:`\\varepsilon_\\infty + \\chi_d(z)` — which is what
+:func:`susceptibility_from_coefficients` evaluates.
+
+Three schemes are available per pole via :attr:`Pole.integrator`
+(``D = 1 + \\gamma \\Delta t / 2``, ``K = 2 / \\Delta t``,
+``D_b = K^2 + \\gamma K + \\omega_0^2``):
+
+``"central"``
+    Central differences on the 2nd-order ODE with a **forward** difference on
+    the :math:`b \\dot E` term. Second-order accurate for :math:`b = 0`, but only
+    **first order** whenever :math:`b \\neq 0`, and its leading error is *real*,
+    so it perturbs the in-phase coupling :math:`a` rather than merely shifting
+    the pole. Kept for reproducing pre-existing results.
+
+    .. math::
+        c_1 = \\frac{2 - \\omega_0^2 \\Delta t^2}{D}, \\quad
+        c_2 = -\\frac{1 - \\gamma \\Delta t / 2}{D}, \\quad
+        c_3 = \\frac{a \\Delta t^2 - b \\Delta t}{D}, \\quad
+        c_4 = \\frac{b \\Delta t}{D}, \\quad c_5 = 0
+
+``"centered_edot"`` (default)
+    Same oscillator, with :math:`b \\dot E` **centred** so every term of the ODE
+    sits at time :math:`n`. Second order for all :math:`b`, and it halves
+    :math:`c_4`, which is what keeps the implicit divisor below well conditioned.
+
+    .. math::
+        c_3 = \\frac{a \\Delta t^2}{D}, \\quad
+        c_4 = \\frac{b \\Delta t}{2 D}, \\quad
+        c_5 = -\\frac{b \\Delta t}{2 D}
+
+    (:math:`c_1`, :math:`c_2` as for ``"central"``.) For :math:`b = 0` all five
+    coefficients coincide with ``"central"``, so Lorentz and Drude poles are
+    unaffected by the choice.
+
+``"bilinear"``
+    Trapezoidal / bilinear map :math:`s \\to K (z-1)/(z+1)`. Second order,
+    **unconditionally stable** (it maps the open left half-plane exactly onto
+    the open unit disk), and exact at DC. Not supported for oriented poles.
+
+    .. math::
+        c_1 = \\frac{2 (K^2 - \\omega_0^2)}{D_b}, \\quad
+        c_2 = -\\frac{K^2 - \\gamma K + \\omega_0^2}{D_b}, \\quad
+        c_3 = \\frac{2 a}{D_b}, \\quad
+        c_4 = \\frac{a + b K}{D_b}, \\quad
+        c_5 = \\frac{a - b K}{D_b}
+
+    Note :math:`c_4 \\neq 0` even for :math:`b = 0`, so *every* material becomes
+    implicit under this scheme.
+
+Observer-canonical realization
+------------------------------
+A non-zero :math:`c_5` would make the P-form need an :math:`E^{n-1}` array — an
+extra full field history per pole. The FDTD loop therefore marches the
+observer-canonical realization of the same :math:`\\chi_d(z)`:
+
+.. math::
+    x_1^{n+1} &= c_1 x_1^n + x_2^n + \\beta_1 E^n, \\qquad
+    \\beta_1 = c_3 + c_1 c_4 \\\\
+    x_2^{n+1} &= c_2 x_1^n \\phantom{{}+ x_2^n} + \\beta_0 E^n, \\qquad
+    \\beta_0 = c_5 + c_2 c_4 \\\\
+    p^{n+1}   &= x_1^{n+1} + c_4 E^{n+1}
+
+which carries every scheme with two state levels, no field history, and a
+purely per-cell polarization update. See :func:`to_observer_form`. This is the
+*algebraic* reference form; what the loop actually stores and marches is its
+delta-basis rewrite below.
+
+Delta basis (what is stored, and why)
+-------------------------------------
+The observer form above is mathematically exact but **numerically unusable in
+float32**. In the physical regime :math:`\\gamma \\Delta t, \\omega_0 \\Delta t
+\\ll 1` its coefficients crowd against fixed values,
+
+.. math::
+    c_1 \\to 2, \\qquad c_2 \\to -1,
+
+while every quantity of physical interest lives in the *residuals*. The
+denominator's constant term is the extreme case: for a **real** pole
+(:math:`\\mathrm{Im}\\,q = 0`, the near-DC pole of every vector-fitted metal),
+:math:`\\omega_0 = \\gamma / 2` gives a double root and
+
+.. math::
+    1 - c_1 - c_2 = \\frac{\\omega_0^2 \\Delta t^2}{D}
+    \\quad\\sim\\quad (\\omega_0 \\Delta t)^2 ,
+
+which is *quadratically* small. float32 resolves :math:`c_1 \\approx 2` only to
+:math:`1.2 \\times 10^{-7}` absolute, so once
+:math:`(\\omega_0 \\Delta t)^2` drops below that — for gold's
+:math:`|q| = 1.28 \\times 10^{14}\\,\\mathrm{s}^{-1}` this happens between 2 nm and
+1 nm — the pole's entire DC response is round-off noise. Because refining the
+grid *shrinks* :math:`\\Delta t`, the error **grows** under refinement: it
+overtakes the :math:`O(\\Delta t^2)` truncation error and the simulation gets
+less accurate the finer the grid.
+
+The cure is a change of basis. Expanding the same rational function in
+:math:`\\zeta = z - 1` instead of :math:`z`,
+
+.. math::
+    z^2 - c_1 z - c_2 &= \\zeta^2 + a_1 \\zeta + a_0, \\qquad
+    a_1 = 2 - c_1, \\quad a_0 = 1 - c_1 - c_2 \\\\
+    \\beta_1 z + \\beta_0 &= b_1 \\zeta + b_0, \\qquad
+    b_1 = \\beta_1, \\quad b_0 = \\beta_1 + \\beta_0
+
+puts the small residuals *in* the stored numbers, where float32 gives them full
+**relative** precision. They have closed forms that are sums of non-negative
+terms, so they are assembled without any subtraction (see
+:func:`_scheme_delta_coefficients`):
+
+.. math::
+    \\text{central / centered\\_edot:} \\quad
+    a_1 = \\frac{\\gamma \\Delta t + \\omega_0^2 \\Delta t^2}{D}, \\quad
+    a_0 = \\frac{\\omega_0^2 \\Delta t^2}{D} \\\\
+    \\text{bilinear:} \\quad
+    a_1 = \\frac{2 \\gamma K + 4 \\omega_0^2}{D_b}, \\quad
+    a_0 = \\frac{4 \\omega_0^2}{D_b}
+
+Since :math:`\\zeta` is the forward-difference operator, the time-domain
+realization is the observer form written **incrementally**. With the state
+:math:`(x_1, y_2) = (x_1, x_1 + x_2)` — an exact linear change of variables,
+both still zero-initialized:
+
+.. math::
+    \\Delta x_1^n &= y_2^n - a_1 x_1^n + b_1 E^n
+        \\qquad (= x_1^{n+1} - x_1^n) \\\\
+    y_2^{n+1} &= y_2^n - a_0 x_1^n + b_0 E^n \\\\
+    x_1^{n+1} &= x_1^n + \\Delta x_1^n \\\\
+    p^{n+1}   &= x_1^{n+1} + c_4 E^{n+1}
+
+This removes two further float32 cancellations for free: :math:`y_2 = x_1 + x_2`
+is :math:`O(\\Delta x_1)` where :math:`x_2 \\approx -x_1` was not, and the
+increment :math:`p^n - x_1^{n+1} = c_4 E^n - \\Delta x_1^n` that Ampere's law
+consumes is now *computed* rather than recovered by subtracting two nearly
+equal large numbers. Measured on gold at 1 nm, that increment's error drops from
+:math:`8 \\times 10^{-4}` to :math:`9 \\times 10^{-8}` (float32 machine
+precision), and the realized :math:`\\varepsilon''` error from +33% to +0.07%.
+
+Cost is nil: five coefficient arrays before and after, two state arrays before
+and after, and one extra add per pole per component per step.
+
+The stored arrays therefore hold :math:`(a_1, a_0, b_1, c_4, b_0)` —
+``dispersive_a1`` is :math:`2 - c_1` and ``dispersive_a0`` is
+:math:`1 - c_1 - c_2`, **not** :math:`c_1` and :math:`c_2`. Zero-padded and
+non-dispersive slots stay all-zero and remain inert (:math:`b_1 = b_0 = 0`
+keeps the state at zero forever), so they must be produced by zero-padding the
+delta coefficients, never by converting padded P-form zeros — the latter would
+yield :math:`(a_1, a_0) = (2, 1)`.
+``dispersive_y2`` holds :math:`x_1 + x_2`, which is neither :math:`x_2` nor
+:math:`p^{n-1}`.
+
+Stability
+---------
+**Forward unit-circle (Jury) stability** is enforced in
+:func:`compute_pole_coefficients_per_axis`, only on axes where the pole actually
+couples (a zero-coupling axis keeps its polarization identically zero). The
+roots of :math:`z^2 - c_1 z - c_2 = 0` lie inside the unit circle iff
+:math:`|c_2| < 1` *and* :math:`|c_1| < 1 - c_2`. For ``"central"`` /
+``"centered_edot"`` the first holds for every :math:`\\gamma \\Delta t > 0`
+(:math:`c_2 = 0` at :math:`\\gamma \\Delta t = 2` and :math:`|c_2| \\to 1` only
+as :math:`\\gamma \\Delta t \\to 0` or :math:`\\infty`), so it is not the binding
+constraint; the second is algebraically equivalent to
 :math:`\\omega_0 \\Delta t < 2` (independent of :math:`\\gamma`), which is
-therefore the stability bound.
+therefore the forward-stability bound. ``"bilinear"`` satisfies both for every
+:math:`\\Delta t` and carries no such bound.
 
-For CCPR poles the polarization couples to :math:`E^{n+1}` through
-:math:`c_4`, so the E-field update divides by a per-cell implicit factor
-:math:`1 + \\varepsilon_\\infty^{-1} \\sum_p c_{4,p}\\ (+\\ c\\,\\sigma\\,\\eta_0\\,\\varepsilon_\\infty^{-1} / 2)`.
-This must stay positive in every cell; as it approaches :math:`0^+` the
+Implicit divisor
+----------------
+When :math:`c_4 \\neq 0` the polarization couples to :math:`E^{n+1}`, so the
+E-field update divides by a per-cell factor
+
+.. math::
+    1 + \\varepsilon_\\infty^{-1} \\sum_p c_{4,p}
+    \\ (+\\ c\\,\\sigma\\,\\eta_0\\,\\varepsilon_\\infty^{-1} / 2)
+
+which must stay positive in every cell; as it approaches :math:`0^+` the
 transient gain (:math:`\\approx 1/\\text{divisor}`) explodes and accuracy
-collapses. Since :math:`c_4 \\propto \\Delta t \\propto` ``courant_factor``,
-the divisor can be kept safe by lowering ``courant_factor``. This per-cell
-condition is checked at initialization by
-:func:`fdtdx.materials.validate_dispersive_divisor_stability` (Lorentz and
-Drude poles have :math:`c_4 = 0`, so their divisor is always
-:math:`\\geq 1`).
+collapses. Checked at initialization by
+:func:`fdtdx.materials.validate_dispersive_divisor_stability`.
+
+For a *physical* CCPR fit the total :math:`1/\\omega` tail of
+:math:`\\varepsilon(\\omega)` must vanish, i.e.
+:math:`\\sum_p b_p = -\\sigma / \\varepsilon_0`. Since the static conductivity
+enters the same divisor trapezoidally as
+:math:`\\sigma \\Delta t / (2 \\varepsilon_0 \\varepsilon_\\infty)`, the
+``"centered_edot"`` :math:`c_4 = b \\Delta t / (2 D)` makes the two terms cancel
+and the divisor sit near 1 at every resolution. ``"central"`` puts twice that
+on :math:`E^{n+1}`, overshooting the cancellation and driving the divisor
+negative — which is why standard Drude-critical-point metal fits cannot be run
+above a few nanometres under that scheme. Lorentz and Drude poles have
+:math:`c_4 = 0` under both central-difference schemes, so their divisor is
+identically 1.
 
 Anisotropic (per-axis) dispersion
 ---------------------------------
@@ -95,13 +264,14 @@ fully anisotropic update path.
 Gradients
 ---------
 Dispersive simulations currently support only the ``checkpointed`` gradient
-method; the ``reversible`` method rejects them (reversing the ADE polarization
-recurrence is under active development).
+method; the ``reversible`` method rejects them (reversing the ADE recurrence is
+under active development).
 """
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Literal, get_args
 
 import jax
 import jax.numpy as jnp
@@ -109,6 +279,17 @@ import numpy as np
 
 from fdtdx.constants import eps0
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
+
+#: Time-integrator variants available per pole. See the module docstring for the
+#: coefficient formulas, accuracy order and stability bound of each.
+DispersionIntegrator = Literal["central", "centered_edot", "bilinear"]
+
+#: Tuple form of :data:`DispersionIntegrator` for validation and iteration.
+DISPERSION_INTEGRATORS: tuple[str, ...] = get_args(DispersionIntegrator)
+
+#: Schemes whose recurrence roots leave the unit circle for ``omega_0 * dt >= 2``
+#: and therefore keep that guard. ``"bilinear"`` is unconditionally stable.
+_CONDITIONALLY_STABLE: frozenset[str] = frozenset({"central", "centered_edot"})
 
 
 def _broadcast_axis_param(value: float | complex | tuple) -> tuple:
@@ -180,11 +361,16 @@ def _permute_pole_axes(p: "Pole", perm: tuple[int, int, int]) -> "Pole":
             resonance_frequency=_remap(p.resonance_frequency),
             damping=_remap(p.damping),
             delta_epsilon=_remap(p.delta_epsilon),
+            integrator=p.integrator,
         )
     if isinstance(p, DrudePole):
-        return DrudePole(plasma_frequency=_remap(p.plasma_frequency), damping=_remap(p.damping))
+        return DrudePole(
+            plasma_frequency=_remap(p.plasma_frequency),
+            damping=_remap(p.damping),
+            integrator=p.integrator,
+        )
     if isinstance(p, CCPRPole):
-        return CCPRPole(pole=_remap(p.pole), residue=_remap(p.residue))
+        return CCPRPole(pole=_remap(p.pole), residue=_remap(p.residue), integrator=p.integrator)
     raise TypeError(
         f"Cannot rotate pole of type {type(p).__name__}; construct oriented poles directly for custom pole types."
     )
@@ -201,16 +387,22 @@ def _oriented_pole_for_axis(p: "Pole", axis: int, direction: tuple[float, float,
             damping=float(g[axis]),
             delta_epsilon=float(de[axis]),
             orientation=direction,
+            integrator=p.integrator,
         )
     if isinstance(p, DrudePole):
         wp = _broadcast_axis_param(p.plasma_frequency)
         g = _broadcast_axis_param(p.damping)
-        return DrudePole(plasma_frequency=float(wp[axis]), damping=float(g[axis]), orientation=direction)
+        return DrudePole(
+            plasma_frequency=float(wp[axis]),
+            damping=float(g[axis]),
+            orientation=direction,
+            integrator=p.integrator,
+        )
     if isinstance(p, CCPRPole):
         q = _broadcast_axis_param(p.pole)
         r = _broadcast_axis_param(p.residue)
         # Raises at construction if the residue has a real part (dE/dt coupling).
-        return CCPRPole(pole=complex(q[axis]), residue=complex(r[axis]), orientation=direction)
+        return CCPRPole(pole=complex(q[axis]), residue=complex(r[axis]), orientation=direction, integrator=p.integrator)
     raise TypeError(
         f"Cannot rotate pole of type {type(p).__name__}; construct oriented poles directly for custom pole types."
     )
@@ -242,10 +434,27 @@ class Pole(TreeClass, ABC):
     #: tensor ``K * u u^T``; all other pole parameters must be scalars.
     orientation: tuple[float, float, float] | None = frozen_field(default=None)
 
+    #: Time-integrator used to discretize this pole's ODE. See the module
+    #: docstring for the coefficient formulas. ``"centered_edot"`` (the default)
+    #: is second-order accurate for every pole type; ``"central"`` reproduces
+    #: the historical scheme and is only first order when the ``dE/dt`` coupling
+    #: is non-zero; ``"bilinear"`` is unconditionally stable but makes every
+    #: material implicit and does not support oriented poles.
+    integrator: DispersionIntegrator = frozen_field(default="centered_edot")
+
     def _validate_orientation(self):
-        """Normalize and validate :attr:`orientation`. Concrete pole classes call
-        this from ``__post_init__`` (which ``autoinit`` only invokes when defined
-        directly on the class, not inherited)."""
+        """Normalize and validate :attr:`orientation` and :attr:`integrator`.
+        Concrete pole classes call this from ``__post_init__`` (which ``autoinit``
+        only invokes when defined directly on the class, not inherited)."""
+        if self.integrator not in DISPERSION_INTEGRATORS:
+            raise ValueError(
+                f"Unknown dispersion integrator {self.integrator!r}; expected one of {DISPERSION_INTEGRATORS}."
+            )
+        if self.orientation is not None and self.integrator == "bilinear":
+            raise NotImplementedError(
+                "Oriented poles are not supported with integrator='bilinear': its non-zero c4 at every pole would "
+                "turn the off-diagonal coupling into a per-cell 3x3 implicit solve. Use 'centered_edot' instead."
+            )
         if self.orientation is None:
             return
         vec = self.orientation
@@ -540,6 +749,7 @@ class CCPRPole(Pole):
         phase: float,
         resonance_frequency: float,
         damping: float,
+        integrator: DispersionIntegrator = "centered_edot",
     ) -> "CCPRPole":
         r"""Build a CCPR pole from critical-point (modified-Lorentz) parameters.
 
@@ -561,6 +771,8 @@ class CCPRPole(Pole):
             phase: Phase :math:`\phi` (radians).
             resonance_frequency: Resonance :math:`\Omega` (rad/s).
             damping: Broadening :math:`\Gamma` (rad/s), ``> 0`` for loss.
+            integrator: Time integrator for the resulting pole. Defaults to
+                ``"centered_edot"``; see :attr:`Pole.integrator`.
 
         Returns:
             CCPRPole: Equivalent pole with the ``(q, r)`` above.
@@ -569,7 +781,7 @@ class CCPRPole(Pole):
 
         q = complex(-damping, -resonance_frequency)
         r = 1j * amplitude * resonance_frequency * cmath.exp(1j * phase)
-        return cls(pole=q, residue=r)
+        return cls(pole=q, residue=r, integrator=integrator)
 
 
 @autoinit
@@ -599,6 +811,29 @@ class DispersionModel(TreeClass):
     def has_off_diagonal_coupling(self) -> bool:
         """Whether any pole is oriented (contributing an off-diagonal coupling tensor)."""
         return any(p.is_oriented for p in self.poles)
+
+    def with_integrator(self, integrator: DispersionIntegrator) -> "DispersionModel":
+        """Return a copy of this model with every pole switched to ``integrator``.
+
+        Convenience for multi-pole fits, where setting the scheme pole by pole is
+        tedious. See :attr:`Pole.integrator` for the available schemes.
+
+        Args:
+            integrator: Time integrator to apply to all poles.
+
+        Returns:
+            DispersionModel: Copy with every pole's ``integrator`` replaced.
+        """
+        if integrator not in DISPERSION_INTEGRATORS:
+            raise ValueError(f"Unknown dispersion integrator {integrator!r}; expected one of {DISPERSION_INTEGRATORS}.")
+        # ``aset`` bypasses ``__post_init__``, so re-check the one cross-field
+        # constraint here rather than letting an invalid pole through silently.
+        if integrator == "bilinear" and self.has_off_diagonal_coupling:
+            raise NotImplementedError(
+                "Oriented poles are not supported with integrator='bilinear': its non-zero c4 at every pole would "
+                "turn the off-diagonal coupling into a per-cell 3x3 implicit solve. Use 'centered_edot' instead."
+            )
+        return DispersionModel(poles=tuple(p.aset("integrator", integrator) for p in self.poles))
 
     def susceptibility_tensor(self, omega: complex | float) -> np.ndarray:
         """Evaluate the full 3x3 complex susceptibility tensor :math:`\\chi_{ij}(\\omega)`.
@@ -786,44 +1021,219 @@ class DispersionModel(TreeClass):
         return eps_inf + self.susceptibility(omega)
 
 
+def _scheme_coefficients(
+    scheme: str,
+    omega_0: float,
+    gamma: float,
+    coupling_sq: float,
+    coupling_edot: float,
+    dt: float,
+) -> tuple[float, float, float, float, float]:
+    """Discrete P-form coefficients ``(c1, c2, c3, c4, c5)`` of one pole on one axis.
+
+    See the module docstring for the per-scheme formulas and their derivation.
+    """
+    a, b = coupling_sq, coupling_edot
+    if scheme == "bilinear":
+        # Trapezoidal / bilinear map s -> K (z - 1) / (z + 1). Exact at DC and
+        # unconditionally stable; c4 != 0 even at b = 0.
+        k = 2.0 / dt
+        denom = k * k + gamma * k + omega_0**2
+        c1 = 2.0 * (k * k - omega_0**2) / denom
+        c2 = -(k * k - gamma * k + omega_0**2) / denom
+        c3 = 2.0 * a / denom
+        c4 = (a + b * k) / denom
+        c5 = (a - b * k) / denom
+        return c1, c2, c3, c4, c5
+
+    # Central differences on the 2nd-order ODE; the two variants differ only in
+    # how the b * dE/dt term is differenced.
+    denom = 1.0 + 0.5 * gamma * dt
+    c1 = (2.0 - (omega_0**2) * (dt**2)) / denom
+    c2 = -(1.0 - 0.5 * gamma * dt) / denom
+    if scheme == "central":
+        # Forward difference b (E^{n+1} - E^n) / dt: first order whenever b != 0.
+        c3 = (a * dt**2 - b * dt) / denom
+        c4 = (b * dt) / denom
+        c5 = 0.0
+    else:  # "centered_edot"
+        # Central difference b (E^{n+1} - E^{n-1}) / (2 dt): second order, and
+        # half the implicit c4 of the forward difference.
+        c3 = (a * dt**2) / denom
+        c4 = (b * dt) / (2.0 * denom)
+        c5 = -(b * dt) / (2.0 * denom)
+    return c1, c2, c3, c4, c5
+
+
+def _scheme_delta_coefficients(
+    scheme: str,
+    omega_0: float,
+    gamma: float,
+    coupling_sq: float,
+    coupling_edot: float,
+    dt: float,
+) -> tuple[float, float, float, float, float]:
+    r"""Delta-basis coefficients ``(a1, a0, b1, c4, b0)`` of one pole on one axis.
+
+    The same discrete transfer function as :func:`_scheme_coefficients`, expanded
+    in :math:`\zeta = z - 1` rather than :math:`z`:
+
+    .. math::
+        \chi_d(\zeta) = c_4 + \frac{b_1 \zeta + b_0}{\zeta^2 + a_1 \zeta + a_0}
+
+    so that ``a1 = 2 - c1``, ``a0 = 1 - c1 - c2``, ``b1 = beta1`` and
+    ``b0 = beta1 + beta0``. See the module docstring for why the FDTD loop stores
+    and marches these instead of ``(c1, c2, beta1, c4, beta0)``.
+
+    Every expression below is a sum of same-signed terms, so each coefficient
+    carries full *relative* accuracy — the whole point of the basis change.
+    Computing ``a0`` as ``1 - c1 - c2`` instead would already have lost
+    :math:`(\omega_0 \Delta t)^{-2}` digits before the float32 cast.
+    """
+    a, b = coupling_sq, coupling_edot
+    if scheme == "bilinear":
+        k = 2.0 / dt
+        denom = k * k + gamma * k + omega_0**2
+        a1 = (2.0 * gamma * k + 4.0 * omega_0**2) / denom
+        a0 = 4.0 * omega_0**2 / denom
+        c3 = 2.0 * a / denom
+        c4 = (a + b * k) / denom
+        # b0 = c3 + c5 + (1 - a0) c4, and c3 + c5 + c4 = 4a / D_b = 2 c3 exactly:
+        # the +-b*K terms of c5 and c4 cancel analytically.
+        b0 = 2.0 * c3 - a0 * c4
+        return a1, a0, c3 + (2.0 - a1) * c4, c4, b0
+
+    # Central differences. D = 1 + gamma dt / 2.
+    denom = 1.0 + 0.5 * gamma * dt
+    a1 = (gamma * dt + (omega_0**2) * (dt**2)) / denom
+    a0 = ((omega_0**2) * (dt**2)) / denom
+    if scheme == "central":
+        c3 = (a * dt**2 - b * dt) / denom
+        c4 = (b * dt) / denom
+    else:  # "centered_edot"
+        c3 = (a * dt**2) / denom
+        c4 = (b * dt) / (2.0 * denom)
+    # For both central-difference variants c3 + c5 + c4 = a dt^2 / D: the b dt
+    # terms cancel analytically, so b0 never forms that difference numerically.
+    b0 = (a * dt**2) / denom - a0 * c4
+    return a1, a0, c3 + (2.0 - a1) * c4, c4, b0
+
+
+def to_delta_form(
+    c1: np.ndarray,
+    c2: np.ndarray,
+    c3: np.ndarray,
+    c4: np.ndarray,
+    c5: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    r"""Convert P-form recurrence coefficients to the delta basis.
+
+    Returns ``(a1, a0, b1, c4, b0)`` with ``a1 = 2 - c1``, ``a0 = 1 - c1 - c2``,
+    ``b1 = c3 + c1 c4`` and ``b0 = b1 + c5 + c2 c4`` — the arrays the FDTD loop
+    stores. See the module docstring for the derivation.
+
+    Prefer :func:`compute_pole_delta_coefficients_per_axis` /
+    :func:`compute_pole_delta_coefficients_tensor`, which build the same values
+    from the pole parameters via cancellation-free closed forms. This converter
+    is exact in float64 but loses :math:`(\omega_0 \Delta t)^{-2}` digits of
+    ``a0``, which matters once the result is stored in float32.
+
+    .. warning::
+        Do **not** apply this to zero-padded pole slots: all-zero P-form
+        coefficients map to ``(a1, a0) = (2, 1)``, whereas padded slots must stay
+        all-zero to remain inert. Zero-pad the delta coefficients instead.
+
+    Args:
+        c1: P-form coefficient array.
+        c2: P-form coefficient array.
+        c3: P-form coefficient array.
+        c4: P-form coefficient array (the implicit ``E^{n+1}`` coupling).
+        c5: P-form coefficient array (the ``E^{n-1}`` coupling).
+
+    Returns:
+        ``(a1, a0, b1, c4, b0)`` — ``c4`` unchanged.
+    """
+    b1 = c3 + c1 * c4
+    b0 = b1 + (c5 + c2 * c4)
+    return 2.0 - c1, 1.0 - c1 - c2, b1, c4, b0
+
+
+def to_observer_form(
+    c1: np.ndarray,
+    c2: np.ndarray,
+    c3: np.ndarray,
+    c4: np.ndarray,
+    c5: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    r"""Convert P-form recurrence coefficients to the observer-canonical form.
+
+    The P-form ``p^{n+1} = c1 p^n + c2 p^{n-1} + c3 E^n + c4 E^{n+1} + c5 E^{n-1}``
+    needs an ``E^{n-1}`` array when ``c5 != 0`` — an extra full field history per
+    pole. The observer-canonical realization of the identical transfer function
+    :math:`\chi_d(z) = (c_4 z^2 + c_3 z + c_5)/(z^2 - c_1 z - c_2)`,
+
+    .. math::
+        x_1^{n+1} &= c_1 x_1^n + x_2^n + \beta_1 E^n \\
+        x_2^{n+1} &= c_2 x_1^n + \beta_0 E^n \\
+        p^{n+1}   &= x_1^{n+1} + c_4 E^{n+1}
+
+    with :math:`\beta_1 = c_3 + c_1 c_4` and :math:`\beta_0 = c_5 + c_2 c_4`,
+    carries every scheme with two state levels, no field history, and a purely
+    per-cell polarization update.
+
+    Args:
+        c1: P-form coefficient array.
+        c2: P-form coefficient array.
+        c3: P-form coefficient array.
+        c4: P-form coefficient array (the implicit ``E^{n+1}`` coupling).
+        c5: P-form coefficient array (the ``E^{n-1}`` coupling).
+
+    Returns:
+        ``(c1, c2, beta1, c4, beta0)`` — ``c1``, ``c2`` and ``c4`` unchanged.
+    """
+    beta1 = c3 + c1 * c4
+    beta0 = c5 + c2 * c4
+    return c1, c2, beta1, c4, beta0
+
+
 def compute_pole_coefficients_per_axis(
     poles: tuple[Pole, ...],
     dt: float,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Compute the per-axis discrete-time ADE recurrence coefficients.
 
-    For each pole and grid axis, returns ``(c1, c2, c3, c4)`` with
-    (``D = 1 + gamma dt / 2``)
+    For each pole and grid axis, returns the P-form coefficients
+    ``(c1, c2, c3, c4, c5)`` of
 
-    .. math::
-        c_1 = \\frac{2 - \\omega_0^2 \\Delta t^2}{D}, \\quad
-        c_2 = -\\frac{1 - \\gamma \\Delta t / 2}{D}, \\quad
-        c_3 = \\frac{a \\Delta t^2 - b \\Delta t}{D}, \\quad
-        c_4 = \\frac{b \\Delta t}{D},
+    :math:`p_p^{n+1} = c_1 p_p^n + c_2 p_p^{n-1} + c_3 E^n + c_4 E^{n+1} + c_5 E^{n-1}`
 
-    where ``a = coupling_sq`` is the ``E`` coupling and ``b = coupling_edot`` is
-    the ``dE/dt`` coupling, which is discretized with a forward difference:
-
-    :math:`p_p^{n+1} = c_1 p_p^n + c_2 p_p^{n-1} + c_3 E^n + c_4 E^{n+1}`.
+    under that pole's :attr:`Pole.integrator`. See the module docstring for the
+    per-scheme formulas; ``a = coupling_sq`` is the ``E`` coupling and
+    ``b = coupling_edot`` the ``dE/dt`` coupling.
 
     For isotropic poles the three axis columns are identical. For Lorentz and
-    Drude poles ``b = 0``, so ``c4 = 0`` and ``c3`` reduces to the classic
-    :math:`K \\Delta t^2 / D`.
+    Drude poles ``b = 0``, so the two central-difference schemes coincide and
+    give ``c4 = c5 = 0`` with ``c3 = a dt^2 / D``.
+
+    Use :func:`compute_pole_delta_coefficients_per_axis` for the coefficients the
+    FDTD loop actually stores and marches (:func:`to_observer_form` and
+    :func:`to_delta_form` convert these in place, at lower precision).
 
     Args:
         poles: Tuple of poles (may be empty).
         dt: Simulation time step (seconds).
 
     Returns:
-        Four ``numpy`` arrays of shape ``(len(poles), 3)`` with ``c1``, ``c2``,
-        ``c3``, ``c4`` per pole and axis. For an empty pole tuple, returns four
-        ``(0, 3)`` arrays.
+        Five ``numpy`` arrays of shape ``(len(poles), 3)`` with ``c1``, ``c2``,
+        ``c3``, ``c4``, ``c5`` per pole and axis. For an empty pole tuple,
+        returns five ``(0, 3)`` arrays.
     """
     n = len(poles)
     c1 = np.zeros((n, 3), dtype=np.float64)
     c2 = np.zeros((n, 3), dtype=np.float64)
     c3 = np.zeros((n, 3), dtype=np.float64)
     c4 = np.zeros((n, 3), dtype=np.float64)
+    c5 = np.zeros((n, 3), dtype=np.float64)
     for i, p in enumerate(poles):
         if p.is_oriented:
             raise ValueError(
@@ -834,33 +1244,33 @@ def compute_pole_coefficients_per_axis(
         coupling_sq = p.coupling_sq_axes
         coupling_edot = p.coupling_edot_axes
         for ax in range(3):
-            gamma_dt = gamma[ax] * dt
             omega0_dt = omega_0[ax] * dt
             # The stability bound only binds on axes where the pole actually
             # couples. A zero-coupling axis (e.g. a Lorentz pole with
             # delta_epsilon = 0 there, the documented way to express an absent
-            # resonance) has c3 = c4 = 0, so its polarization stays identically
-            # zero and its unused omega_0 / gamma are irrelevant.
+            # resonance) has c3 = c4 = c5 = 0, so its polarization stays
+            # identically zero and its unused omega_0 / gamma are irrelevant.
             axis_active = coupling_sq[ax] != 0.0 or coupling_edot[ax] != 0.0
-            if axis_active and omega0_dt >= 2.0:
+            # gamma * dt is unconstrained: |c2| < 1 holds for every gamma * dt > 0
+            # (c2 merely passes through zero at gamma * dt = 2), so the only
+            # binding forward bound is omega_0 * dt < 2.
+            if axis_active and omega0_dt >= 2.0 and p.integrator in _CONDITIONALLY_STABLE:
                 axis_note = "" if p.is_isotropic else f" on axis {'xyz'[ax]}"
                 raise ValueError(
                     f"Pole {i} ({type(p).__name__}) has omega_0 * dt = {omega0_dt:.4g} >= 2{axis_note}; "
-                    "the ADE recurrence roots leave the unit circle (requires omega_0 * dt < 2, "
-                    "physically omega_0 * dt << 1). Lower the resonance frequency or reduce the time step."
+                    f"the {p.integrator!r} ADE recurrence roots leave the unit circle (requires "
+                    "omega_0 * dt < 2, physically omega_0 * dt << 1). Lower the resonance frequency, "
+                    "reduce the time step, or use integrator='bilinear' (unconditionally stable)."
                 )
-            denom = 1.0 + 0.5 * gamma_dt
-            c1[i, ax] = (2.0 - (omega_0[ax] ** 2) * (dt**2)) / denom
-            c2[i, ax] = -(1.0 - 0.5 * gamma_dt) / denom
-            c3[i, ax] = (coupling_sq[ax] * dt**2 - coupling_edot[ax] * dt) / denom
-            c4[i, ax] = (coupling_edot[ax] * dt) / denom
-    return c1, c2, c3, c4
+            vals = _scheme_coefficients(p.integrator, omega_0[ax], gamma[ax], coupling_sq[ax], coupling_edot[ax], dt)
+            c1[i, ax], c2[i, ax], c3[i, ax], c4[i, ax], c5[i, ax] = vals
+    return c1, c2, c3, c4, c5
 
 
 def compute_pole_coefficients(
     poles: tuple[Pole, ...],
     dt: float,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Compute the discrete-time ADE recurrence coefficients of isotropic poles.
 
     Scalar-per-pole variant of :func:`compute_pole_coefficients_per_axis` (see
@@ -872,8 +1282,9 @@ def compute_pole_coefficients(
         dt: Simulation time step (seconds).
 
     Returns:
-        Four ``numpy`` arrays of shape ``(len(poles),)`` with ``c1``, ``c2``,
-        ``c3``, ``c4``. For an empty pole tuple, returns four empty arrays.
+        Five ``numpy`` arrays of shape ``(len(poles),)`` with ``c1``, ``c2``,
+        ``c3``, ``c4``, ``c5``. For an empty pole tuple, returns five empty
+        arrays.
     """
     for i, p in enumerate(poles):
         if not p.is_isotropic:
@@ -881,22 +1292,26 @@ def compute_pole_coefficients(
                 f"Pole {i} ({type(p).__name__}) has per-axis parameters or an orientation; "
                 "use compute_pole_coefficients_per_axis or compute_pole_coefficients_tensor instead."
             )
-    c1, c2, c3, c4 = compute_pole_coefficients_per_axis(poles, dt)
-    return c1[:, 0], c2[:, 0], c3[:, 0], c4[:, 0]
+    c1, c2, c3, c4, c5 = compute_pole_coefficients_per_axis(poles, dt)
+    return c1[:, 0], c2[:, 0], c3[:, 0], c4[:, 0], c5[:, 0]
 
 
 def compute_pole_coefficients_tensor(
     poles: tuple[Pole, ...],
     dt: float,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Compute ADE recurrence coefficients with full 3x3 coupling tensors.
 
     Generalizes :func:`compute_pole_coefficients_per_axis` to oriented poles:
     the recurrence coefficients ``c1``/``c2`` stay per-axis (uniform for an
     oriented pole, whose ``omega_0``/``gamma`` are scalars), while the field
-    couplings ``c3``/``c4`` become row-major 3x3 tensors per pole —
-    ``(K dt^2 / D) u u^T`` for a pole oriented along ``u``, diagonal for
+    couplings ``c3``/``c4``/``c5`` become row-major 3x3 tensors per pole —
+    proportional to ``u u^T`` for a pole oriented along ``u``, diagonal for
     per-axis and isotropic poles.
+
+    Oriented poles are restricted to ``integrator="central"`` /
+    ``"centered_edot"`` and have no ``dE/dt`` coupling, so their ``c4`` and
+    ``c5`` tensors are identically zero and the two schemes agree.
 
     Args:
         poles: Tuple of poles (may be empty). Oriented poles must have a
@@ -904,34 +1319,34 @@ def compute_pole_coefficients_tensor(
         dt: Simulation time step (seconds).
 
     Returns:
-        Four ``numpy`` arrays: ``c1``, ``c2`` of shape ``(len(poles), 3)`` and
-        ``c3``, ``c4`` of shape ``(len(poles), 9)``.
+        Five ``numpy`` arrays: ``c1``, ``c2`` of shape ``(len(poles), 3)`` and
+        ``c3``, ``c4``, ``c5`` of shape ``(len(poles), 9)``.
     """
     n = len(poles)
     c1 = np.zeros((n, 3), dtype=np.float64)
     c2 = np.zeros((n, 3), dtype=np.float64)
     c3 = np.zeros((n, 9), dtype=np.float64)
     c4 = np.zeros((n, 9), dtype=np.float64)
+    c5 = np.zeros((n, 9), dtype=np.float64)
     for i, p in enumerate(poles):
         gamma = p.gamma_axes
         omega_0 = p.omega_0_axes
         coupling_sq = p.coupling_sq_axes
         coupling_edot = p.coupling_edot_axes
         for ax in range(3):
-            gamma_dt = gamma[ax] * dt
             omega0_dt = omega_0[ax] * dt
             # Same forward-stability bound (and same zero-coupling exemption) as
             # compute_pole_coefficients_per_axis.
             axis_active = coupling_sq[ax] != 0.0 or coupling_edot[ax] != 0.0
-            if axis_active and omega0_dt >= 2.0:
+            if axis_active and omega0_dt >= 2.0 and p.integrator in _CONDITIONALLY_STABLE:
                 raise ValueError(
                     f"Pole {i} ({type(p).__name__}) has omega_0 * dt = {omega0_dt:.4g} >= 2; "
-                    "the ADE recurrence roots leave the unit circle (requires omega_0 * dt < 2, "
-                    "physically omega_0 * dt << 1). Lower the resonance frequency or reduce the time step."
+                    f"the {p.integrator!r} ADE recurrence roots leave the unit circle (requires "
+                    "omega_0 * dt < 2, physically omega_0 * dt << 1). Lower the resonance frequency, "
+                    "reduce the time step, or use integrator='bilinear' (unconditionally stable)."
                 )
-            denom = 1.0 + 0.5 * gamma_dt
-            c1[i, ax] = (2.0 - (omega_0[ax] ** 2) * (dt**2)) / denom
-            c2[i, ax] = -(1.0 - 0.5 * gamma_dt) / denom
+            row = _scheme_coefficients(p.integrator, omega_0[ax], gamma[ax], coupling_sq[ax], coupling_edot[ax], dt)
+            c1[i, ax], c2[i, ax] = row[0], row[1]
         if p.is_oriented:
             if coupling_sq[0] < 0.0:
                 raise ValueError(
@@ -941,15 +1356,118 @@ def compute_pole_coefficients_tensor(
                 )
             assert p.orientation is not None
             u = np.asarray(p.orientation, dtype=np.float64)
-            denom = 1.0 + 0.5 * gamma[0] * dt
-            c3[i] = ((coupling_sq[0] * dt**2 / denom) * np.outer(u, u)).reshape(-1)
-            # c4 is identically zero for oriented poles (validated at construction).
+            # coupling_edot is zero for oriented poles (validated at construction),
+            # so c4 and c5 stay zero and only the c3 tensor is populated.
+            _, _, c3_scalar, _, _ = _scheme_coefficients(p.integrator, omega_0[0], gamma[0], coupling_sq[0], 0.0, dt)
+            c3[i] = (c3_scalar * np.outer(u, u)).reshape(-1)
         else:
             for ax in range(3):
-                denom = 1.0 + 0.5 * gamma[ax] * dt
-                c3[i, 4 * ax] = (coupling_sq[ax] * dt**2 - coupling_edot[ax] * dt) / denom
-                c4[i, 4 * ax] = (coupling_edot[ax] * dt) / denom
-    return c1, c2, c3, c4
+                _, _, c3_ax, c4_ax, c5_ax = _scheme_coefficients(
+                    p.integrator, omega_0[ax], gamma[ax], coupling_sq[ax], coupling_edot[ax], dt
+                )
+                c3[i, 4 * ax] = c3_ax
+                c4[i, 4 * ax] = c4_ax
+                c5[i, 4 * ax] = c5_ax
+    return c1, c2, c3, c4, c5
+
+
+def compute_pole_delta_coefficients_per_axis(
+    poles: tuple[Pole, ...],
+    dt: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    r"""Per-axis delta-basis coefficients ``(a1, a0, b1, c4, b0)`` — what the loop stores.
+
+    Delta-basis counterpart of :func:`compute_pole_coefficients_per_axis`:
+    the same discrete transfer function expanded in :math:`\zeta = z - 1`, so
+    ``a1 = 2 - c1`` and ``a0 = 1 - c1 - c2`` are represented directly rather than
+    as differences of near-fixed :math:`O(1)` numbers. See the module docstring
+    for why this is what makes float32 dispersion usable.
+
+    Shares every stability guard with the P-form function.
+
+    Args:
+        poles: Tuple of non-oriented poles (may be empty).
+        dt: Simulation time step (seconds).
+
+    Returns:
+        Five ``numpy`` arrays of shape ``(len(poles), 3)`` with ``a1``, ``a0``,
+        ``b1``, ``c4``, ``b0`` per pole and axis.
+    """
+    # Delegate the guards (and the oriented-pole rejection) to the P-form path,
+    # then rebuild from the cancellation-free closed forms. Host-side numpy on
+    # (num_poles, 3) arrays, so the duplicated work is free.
+    compute_pole_coefficients_per_axis(poles, dt)
+    n = len(poles)
+    out = [np.zeros((n, 3), dtype=np.float64) for _ in range(5)]
+    for i, p in enumerate(poles):
+        omega_0, gamma = p.omega_0_axes, p.gamma_axes
+        coupling_sq, coupling_edot = p.coupling_sq_axes, p.coupling_edot_axes
+        for ax in range(3):
+            vals = _scheme_delta_coefficients(
+                p.integrator, omega_0[ax], gamma[ax], coupling_sq[ax], coupling_edot[ax], dt
+            )
+            for arr, v in zip(out, vals):
+                arr[i, ax] = v
+    return out[0], out[1], out[2], out[3], out[4]
+
+
+def compute_pole_delta_coefficients_tensor(
+    poles: tuple[Pole, ...],
+    dt: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    r"""Delta-basis coefficients with full 3x3 field-coupling tensors.
+
+    Delta-basis counterpart of :func:`compute_pole_coefficients_tensor` (see
+    there for the tensor layout, and the module docstring for the basis change).
+    The oscillator coefficients ``a1``/``a0`` stay per-axis while the field
+    couplings ``b1``/``c4``/``b0`` become row-major 3x3 tensors per pole.
+
+    Oriented poles have no ``dE/dt`` coupling, so their ``c4`` tensor is
+    identically zero and ``b0`` equals ``b1``.
+
+    Args:
+        poles: Tuple of poles (may be empty).
+        dt: Simulation time step (seconds).
+
+    Returns:
+        Five ``numpy`` arrays: ``a1``, ``a0`` of shape ``(len(poles), 3)`` and
+        ``b1``, ``c4``, ``b0`` of shape ``(len(poles), 9)``.
+    """
+    compute_pole_coefficients_tensor(poles, dt)  # guards + passivity checks
+    n = len(poles)
+    a1 = np.zeros((n, 3), dtype=np.float64)
+    a0 = np.zeros((n, 3), dtype=np.float64)
+    b1 = np.zeros((n, 9), dtype=np.float64)
+    c4 = np.zeros((n, 9), dtype=np.float64)
+    b0 = np.zeros((n, 9), dtype=np.float64)
+    for i, p in enumerate(poles):
+        omega_0, gamma = p.omega_0_axes, p.gamma_axes
+        coupling_sq, coupling_edot = p.coupling_sq_axes, p.coupling_edot_axes
+        for ax in range(3):
+            row = _scheme_delta_coefficients(
+                p.integrator, omega_0[ax], gamma[ax], coupling_sq[ax], coupling_edot[ax], dt
+            )
+            a1[i, ax], a0[i, ax] = row[0], row[1]
+        if p.is_oriented:
+            assert p.orientation is not None
+            u = np.asarray(p.orientation, dtype=np.float64)
+            # coupling_edot is zero for oriented poles (validated at construction),
+            # so c4 stays zero and b0 coincides with b1.
+            _, _, b1_scalar, _, b0_scalar = _scheme_delta_coefficients(
+                p.integrator, omega_0[0], gamma[0], coupling_sq[0], 0.0, dt
+            )
+            uu = np.outer(u, u).reshape(-1)
+            b1[i] = b1_scalar * uu
+            b0[i] = b0_scalar * uu
+        else:
+            for ax in range(3):
+                _, _, b1_ax, c4_ax, b0_ax = _scheme_delta_coefficients(
+                    p.integrator, omega_0[ax], gamma[ax], coupling_sq[ax], coupling_edot[ax], dt
+                )
+                b1[i, 4 * ax] = b1_ax
+                c4[i, 4 * ax] = c4_ax
+                b0[i, 4 * ax] = b0_ax
+    return a1, a0, b1, c4, b0
 
 
 def _tensor_from_components(arr: jax.Array) -> jax.Array:
@@ -986,100 +1504,99 @@ def _expand_recurrence_to_coupling(c: jax.Array, coupling_components: int) -> ja
 
 
 def susceptibility_from_coefficients(
-    c1: jax.Array,
-    c2: jax.Array,
-    c3: jax.Array,
+    a1: jax.Array,
+    a0: jax.Array,
+    b1: jax.Array,
     omega: float,
     dt: float,
     c4: jax.Array | None = None,
+    b0: jax.Array | None = None,
 ) -> jax.Array:
-    """Evaluate the per-cell complex susceptibility :math:`\\chi(\\omega)` from
-    the stored ADE recurrence coefficients.
+    """Evaluate the per-cell complex susceptibility from the stored ADE coefficients.
 
-    The coefficient arrays have shape ``(num_poles, ...)`` where the trailing
-    axes are the spatial (and optional component) dimensions. The inversion
-    (with ``D = 1 + \\gamma \\Delta t / 2``)
+    Evaluates the **discrete** transfer function each pole actually realizes on
+    the grid, in the delta basis the coefficients are stored in,
 
     .. math::
-        \\gamma \\Delta t     &= \\frac{2 (1 + c_2)}{1 - c_2},\\\\
-        \\omega_0^2 \\Delta t^2 &= 2 - c_1 D,\\\\
-        a \\Delta t^2          &= (c_3 + c_4) D,\\\\
-        b \\Delta t            &= c_4 D
+        \\chi_{d,p}(\\omega) = c_4
+            + \\frac{b_1 \\zeta + b_0}{\\zeta^2 + a_1 \\zeta + a_0},
+        \\qquad \\zeta = e^{-i \\omega \\Delta t} - 1
 
-    is applied pointwise, then each pole contributes
+    and sums over the leading pole axis. This is exact rather than approximate:
+    the discrete Ampere law consumes only
+    :math:`\\varepsilon_\\infty (E^{n+1} - E^n) + \\sum_p (p_p^{n+1} - p_p^n)`, so
+    :math:`\\varepsilon_\\infty + \\sum_p \\chi_{d,p}` *is* the permittivity the
+    simulation realizes. It differs from the continuum
+    :math:`\\chi(\\omega)` by the scheme's :math:`O((\\omega \\Delta t)^2)`
+    truncation, and is scheme-agnostic — it needs no knowledge of which
+    integrator produced the coefficients.
 
-    .. math::
-        \\chi_p(\\omega) = \\frac{a - i\\omega b}{\\omega_0^2 - \\omega^2 - i \\gamma \\omega}
+    Evaluating in :math:`\\zeta` also keeps the *evaluation* well conditioned:
+    at low frequency :math:`\\zeta \\to 0`, so the denominator is a sum of small
+    terms rather than a cancellation among :math:`O(1)` ones.
 
-    and the result is summed over the leading pole axis. Cells where the
-    coefficients are all zero (no pole) contribute exactly zero. When ``c4`` is
-    ``None`` (Lorentz/Drude) the ``b`` term vanishes and this reduces to the
-    classic real-numerator Lorentzian.
+    Cells with no pole have all-zero coefficients and contribute exactly zero
+    (the denominator is :math:`\\zeta^2 \\neq 0` there, so no masking is
+    required).
 
     Args:
-        c1: ADE coefficient array of shape ``(num_poles, ...)``.
-        c2: ADE coefficient array of shape ``(num_poles, ...)``.
-        c3: ADE coefficient array of shape ``(num_poles, ...)``.
+        a1: ADE coefficient array ``a1 = 2 - c1`` of shape ``(num_poles, ...)``
+            where the trailing axes are the spatial (and optional component)
+            dimensions.
+        a0: ADE coefficient array ``a0 = 1 - c1 - c2``, shape
+            ``(num_poles, ...)``.
+        b1: Field coupling ``b1 = beta1 = c3 + c1 c4``, shape
+            ``(num_poles, ...)``.
         omega: Angular frequency (rad/s) at which to evaluate the
             susceptibility.
         dt: Simulation time step (seconds) used to derive the coefficients.
-        c4: Optional ADE coefficient array (the ``dE/dt`` coupling), shape
-            ``(num_poles, ...)``. ``None`` is treated as all-zero.
+        c4: Optional implicit ``E^{n+1}`` coupling, shape ``(num_poles, ...)``.
+            ``None`` is treated as all-zero.
+        b0: Optional field coupling ``b0 = beta1 + beta0``, shape
+            ``(num_poles, ...)``. ``None`` means "equal to ``b1``", which is
+            exactly the case whenever no pole is implicit (``c4 = c5 = 0``
+            implies ``beta0 = 0``).
 
     Returns:
-        Complex ``jax.Array`` with shape ``c1.shape[1:]`` — the total
-        :math:`\\chi(\\omega)` summed over all poles, in every cell.
+        Complex ``jax.Array`` with shape ``b1.shape[1:]`` — the total
+        susceptibility summed over all poles, in every cell.
     """
-    c1 = jnp.asarray(c1)
-    c2 = jnp.asarray(c2)
-    c3 = jnp.asarray(c3)
-    c4 = jnp.zeros_like(c3) if c4 is None else jnp.asarray(c4)
-    if c1.ndim >= 2 and c3.ndim >= 2 and c3.shape[1] == 9:
+    a1 = jnp.asarray(a1)
+    a0 = jnp.asarray(a0)
+    b1 = jnp.asarray(b1)
+    c4 = jnp.zeros_like(b1) if c4 is None else jnp.asarray(c4)
+    b0 = b1 if b0 is None else jnp.asarray(b0)
+    if a1.ndim >= 2 and b1.ndim >= 2 and b1.shape[1] == 9:
         # 9-component coupling (oriented poles): the recurrence coefficients
         # expand so entry (i, j) uses the oscillator of row i; the result is
         # the per-entry chi_ij with shape (9, *spatial).
-        c1 = _expand_recurrence_to_coupling(c1, 9)
-        c2 = _expand_recurrence_to_coupling(c2, 9)
+        a1 = _expand_recurrence_to_coupling(a1, 9)
+        a0 = _expand_recurrence_to_coupling(a0, 9)
 
-    pole_mask = (c1 != 0.0) | (c3 != 0.0) | (c4 != 0.0)
-
-    one_minus_c2 = 1.0 - c2
-    safe_denom = jnp.where(one_minus_c2 == 0.0, 1.0, one_minus_c2)
-    gamma_dt = 2.0 * (1.0 + c2) / safe_denom
-    gamma_dt = jnp.where(pole_mask, gamma_dt, 0.0)
-
-    half_factor = 1.0 + 0.5 * gamma_dt
-    omega0_sq_dt2 = 2.0 - c1 * half_factor
-    omega0_sq_dt2 = jnp.where(pole_mask, omega0_sq_dt2, 0.0)
-    # a*dt^2 = (c3 + c4)*D, b*dt = c4*D (see compute_pole_coefficients).
-    a_dt2 = jnp.where(pole_mask, (c3 + c4) * half_factor, 0.0)
-    b_dt = jnp.where(pole_mask, c4 * half_factor, 0.0)
-
-    omega_dt = omega * dt
-    numer = a_dt2 - 1j * omega_dt * b_dt
-    denom = omega0_sq_dt2 - omega_dt * omega_dt - 1j * gamma_dt * omega_dt
-    safe_denom_cplx = jnp.where(pole_mask, denom, 1.0 + 0.0j)
-    chi_per_pole = jnp.where(pole_mask, numer / safe_denom_cplx, 0.0 + 0.0j)
-
+    zeta = jnp.exp(-1j * omega * dt) - 1.0
+    denom = zeta * zeta + a1 * zeta + a0
+    chi_per_pole = c4 + (b1 * zeta + b0) / denom
     return jnp.sum(chi_per_pole, axis=0)
 
 
 def compute_eps_spectrum_from_coefficients(
-    c1: jax.Array | np.ndarray,
-    c2: jax.Array | np.ndarray,
-    c3: jax.Array | np.ndarray,
+    a1: jax.Array | np.ndarray,
+    a0: jax.Array | np.ndarray,
+    b1: jax.Array | np.ndarray,
     inv_eps_inf: jax.Array | np.ndarray,
     omegas: np.ndarray,
     dt: float,
     weights: np.ndarray | None = None,
     c4: jax.Array | np.ndarray | None = None,
+    b0: jax.Array | np.ndarray | None = None,
 ) -> np.ndarray:
     """Spatially-averaged complex permittivity spectrum for a block of cells.
 
-    For each angular frequency in ``omegas``, evaluates the per-cell
-    complex permittivity :math:`\\varepsilon(\\omega) = \\varepsilon_\\infty + \\chi(\\omega)`
-    where :math:`\\chi` is reconstructed from the ADE recurrence coefficients,
-    and averages over the spatial axes (uniformly or with supplied weights).
+    For each angular frequency in ``omegas``, evaluates the per-cell complex
+    permittivity :math:`\\varepsilon_\\infty + \\chi_d(\\omega)` — with
+    :math:`\\chi_d` the discrete transfer function of
+    :func:`susceptibility_from_coefficients` — and averages over the spatial
+    axes (uniformly or with supplied weights).
 
     This is the broadband generalization of the single-frequency
     :func:`effective_inv_permittivity` used for carrier-frequency impedance
@@ -1089,13 +1606,14 @@ def compute_eps_spectrum_from_coefficients(
     :func:`compute_impedance_corrected_temporal_profile`.
 
     Args:
-        c1: ADE coefficient array of shape ``(num_poles, num_components, *spatial)``
-            as stored on :class:`~fdtdx.fdtd.container.ArrayContainer`, with
+        a1: ADE coefficient array ``a1 = 2 - c1`` of shape
+            ``(num_poles, num_components, *spatial)`` as stored on
+            :class:`~fdtdx.fdtd.container.ArrayContainer`, with
             ``num_components in (1, 3)`` (the material-component axis; size 3
             for per-axis anisotropic dispersion). Anisotropic components are
             averaged, mirroring the ``inv_eps_inf`` reduction.
-        c2: ADE coefficient array, same shape as ``c1``.
-        c3: ADE coefficient array, same shape as ``c1``.
+        a0: ADE coefficient array ``a0 = 1 - c1 - c2``, same shape as ``a1``.
+        b1: Field coupling array ``b1 = beta1``, same shape as ``a1``.
         inv_eps_inf: Per-cell inverse of the high-frequency permittivity,
             shape ``(num_components, *spatial)`` with
             ``num_components in (1, 3, 9)``. For anisotropic tensors
@@ -1104,33 +1622,25 @@ def compute_eps_spectrum_from_coefficients(
         dt: Simulation time step (seconds) used to derive the coefficients.
         weights: Optional spatial weights with the same shape as the
             trailing axes of ``c1``. If ``None``, uniform averaging.
+        c4: Optional implicit ``E^{n+1}`` coupling array. ``None`` is all-zero.
+        b0: Optional field coupling array ``b0 = beta1 + beta0``. ``None`` means
+            "equal to ``b1``" (exact whenever no pole is implicit).
 
     Returns:
         Complex numpy array of shape ``(len(omegas),)`` — the volume-averaged
         :math:`\\varepsilon(\\omega)` at each requested frequency.
     """
-    c1_np = np.asarray(c1)
-    c2_np = np.asarray(c2)
-    c3_np = np.asarray(c3)
-    c4_np = np.zeros_like(c3_np) if c4 is None else np.asarray(c4)
+    a1_np = np.asarray(a1)
+    a0_np = np.asarray(a0)
+    b1_np = np.asarray(b1)
+    c4_np = np.zeros_like(b1_np) if c4 is None else np.asarray(c4)
+    b0_np = b1_np if b0 is None else np.asarray(b0)
     inv_eps_np = np.asarray(inv_eps_inf)
     omegas_np = np.asarray(omegas, dtype=np.float64)
-    if c3_np.ndim >= 2 and c3_np.shape[1] == 9 and c1_np.shape[1] == 3:
+    if b1_np.ndim >= 2 and b1_np.shape[1] == 9 and a1_np.shape[1] == 3:
         # 9-component coupling (oriented poles): entry 3i+j uses oscillator row i.
-        c1_np = np.repeat(c1_np, 3, axis=1)
-        c2_np = np.repeat(c2_np, 3, axis=1)
-
-    # Reverse-engineer pole parameters from the ADE coefficients (same inversion
-    # as susceptibility_from_coefficients, duplicated in numpy for setup-time use).
-    pole_mask = (c1_np != 0.0) | (c3_np != 0.0) | (c4_np != 0.0)
-    one_minus_c2 = 1.0 - c2_np
-    safe_one_minus_c2 = np.where(one_minus_c2 == 0.0, 1.0, one_minus_c2)
-    gamma_dt = np.where(pole_mask, 2.0 * (1.0 + c2_np) / safe_one_minus_c2, 0.0)
-    half_factor = 1.0 + 0.5 * gamma_dt
-    omega0_sq_dt2 = np.where(pole_mask, 2.0 - c1_np * half_factor, 0.0)
-    # a*dt^2 = (c3 + c4)*D, b*dt = c4*D (numerator = a*dt^2 - i*omega*dt*b*dt).
-    a_dt2 = np.where(pole_mask, (c3_np + c4_np) * half_factor, 0.0)
-    b_dt = np.where(pole_mask, c4_np * half_factor, 0.0)
+        a1_np = np.repeat(a1_np, 3, axis=1)
+        a0_np = np.repeat(a0_np, 3, axis=1)
 
     # Reduce inv_eps_inf → scalar eps_inf per spatial cell.
     num_components = inv_eps_np.shape[0]
@@ -1148,11 +1658,12 @@ def compute_eps_spectrum_from_coefficients(
 
     # Broadcast: omegas over (M,); coefficient arrays have shape (P, C, *spatial)
     # with C in (1, 3). After [None, ...] prepend: (M, P, C, *spatial).
-    omega_dt = (omegas_np * dt).reshape((-1,) + (1,) * c1_np.ndim)
-    numer = a_dt2[None, ...] - 1j * omega_dt * b_dt[None, ...]
-    denom = omega0_sq_dt2[None, ...] - omega_dt**2 - 1j * gamma_dt[None, ...] * omega_dt
-    safe_denom = np.where(pole_mask[None, ...], denom, 1.0 + 0.0j)
-    chi_per_pole = np.where(pole_mask[None, ...], numer / safe_denom, 0.0 + 0.0j)
+    # Evaluates the same discrete chi_d(zeta) as susceptibility_from_coefficients;
+    # pole-free slots have all-zero coefficients and a denominator of zeta^2 != 0,
+    # so they contribute exactly zero without masking.
+    zeta = (np.exp(-1j * (omegas_np * dt)) - 1.0).reshape((-1,) + (1,) * a1_np.ndim)
+    denom = zeta * zeta + a1_np[None, ...] * zeta + a0_np[None, ...]
+    chi_per_pole = c4_np[None, ...] + (b1_np[None, ...] * zeta + b0_np[None, ...]) / denom
     chi_per_cell = chi_per_pole.sum(axis=1)  # sum over pole axis → (M, C, *spatial)
     # Average the material-component axis (identity for C = 1), mirroring the
     # eps_inf reduction above — this scalar spectrum feeds an impedance filter
@@ -1253,12 +1764,13 @@ def compute_impedance_corrected_temporal_profile(
 
 def effective_inv_permittivity(
     inv_eps: jax.Array,
-    c1: jax.Array | None,
-    c2: jax.Array | None,
-    c3: jax.Array | None,
+    a1: jax.Array | None,
+    a0: jax.Array | None,
+    b1: jax.Array | None,
     omega: float,
     dt: float,
     c4: jax.Array | None = None,
+    b0: jax.Array | None = None,
 ) -> jax.Array:
     """Per-cell real inverse permittivity :math:`1/\\text{Re}(\\varepsilon_\\infty + \\chi(\\omega))`.
 
@@ -1267,41 +1779,46 @@ def effective_inv_permittivity(
     absorption, which is already handled by the ADE update loop (injecting it
     into the source amplitude would double-count).
 
-    Cells with no pole (``c1 = c2 = c3 = 0``) contribute :math:`\\chi = 0` so
+    Cells with no pole (all-zero coefficients) contribute :math:`\\chi = 0` so
     their ``inv_eps`` is returned unchanged.
 
     Args:
         inv_eps: Per-cell :math:`1/\\varepsilon_\\infty` array. Typically
             has shape ``(num_components, ...)``; any shape broadcast-compatible
-            with ``c1.shape[1:]`` works.
-        c1: ADE coefficient array of shape ``(num_poles, ...)`` or ``None``.
-        c2: ADE coefficient array of shape ``(num_poles, ...)`` or ``None``.
-        c3: ADE coefficient array of shape ``(num_poles, ...)`` or ``None``.
+            with ``a1.shape[1:]`` works.
+        a1: Delta-basis coefficient ``a1 = 2 - c1``, shape
+            ``(num_poles, ...)`` or ``None``.
+        a0: Delta-basis coefficient ``a0 = 1 - c1 - c2``, shape
+            ``(num_poles, ...)`` or ``None``.
+        b1: Delta-basis field coupling ``b1 = beta1``, shape
+            ``(num_poles, ...)`` or ``None``.
         omega: Angular frequency (rad/s) at which to evaluate.
         dt: Simulation time step (seconds).
+        c4: Optional implicit ``E^{n+1}`` coupling array.
+        b0: Optional delta-basis field coupling ``b0``; ``None`` means equal to ``b1``.
 
     Returns:
         Real-valued ``jax.Array`` with the same shape and dtype as
-        ``inv_eps``. If any of ``c1``/``c2``/``c3`` is ``None``, returns
+        ``inv_eps``. If any of ``a1``/``a0``/``b1`` is ``None``, returns
         ``inv_eps`` unchanged.
     """
     inv_eps_arr = jnp.asarray(inv_eps)
-    coupling_c = jnp.asarray(c3).shape[1] if c3 is not None and jnp.asarray(c3).ndim >= 2 else 1
+    coupling_c = jnp.asarray(b1).shape[1] if b1 is not None and jnp.asarray(b1).ndim >= 2 else 1
     if inv_eps_arr.shape[0] == 9 or coupling_c == 9:
         # Tensor path: reconstruct the real permittivity matrix per cell, add
         # the (possibly off-diagonal) susceptibility, and invert per cell.
         # Elementwise 1/inv_eps would divide by the zero off-diagonal entries.
         eps_mat = jnp.real(_eps_matrix_from_inv(inv_eps_arr))
-        if c1 is not None and c2 is not None and c3 is not None:
-            chi = susceptibility_from_coefficients(c1=c1, c2=c2, c3=c3, omega=omega, dt=dt, c4=c4)
+        if a1 is not None and a0 is not None and b1 is not None:
+            chi = susceptibility_from_coefficients(a1=a1, a0=a0, b1=b1, omega=omega, dt=dt, c4=c4, b0=b0)
             eps_mat = eps_mat + jnp.real(_tensor_from_components(chi))
         inv_eff = _invert_3x3_matrix_field(eps_mat)
         return inv_eff.reshape(9, *inv_eff.shape[2:]).astype(inv_eps_arr.dtype)
 
-    if c1 is None or c2 is None or c3 is None:
+    if a1 is None or a0 is None or b1 is None:
         return inv_eps
 
-    chi = susceptibility_from_coefficients(c1=c1, c2=c2, c3=c3, omega=omega, dt=dt, c4=c4)
+    chi = susceptibility_from_coefficients(a1=a1, a0=a0, b1=b1, omega=omega, dt=dt, c4=c4, b0=b0)
     eps_inf = 1.0 / inv_eps_arr
     eps_eff = eps_inf + jnp.real(chi)
     return (1.0 / eps_eff).astype(inv_eps_arr.dtype)
@@ -1311,12 +1828,13 @@ def effective_complex_inv_permittivity(
     inv_eps: jax.Array,
     omega: float,
     dt: float,
-    c1: jax.Array | None = None,
-    c2: jax.Array | None = None,
-    c3: jax.Array | None = None,
+    a1: jax.Array | None = None,
+    a0: jax.Array | None = None,
+    b1: jax.Array | None = None,
     electric_conductivity: jax.Array | None = None,
     conductivity_spacing: float | None = None,
     c4: jax.Array | None = None,
+    b0: jax.Array | None = None,
 ) -> jax.Array:
     r"""Per-cell COMPLEX inverse permittivity :math:`1 / (\varepsilon_\infty + \chi(\omega) + i\sigma/(\varepsilon_0\omega))`.
 
@@ -1332,7 +1850,7 @@ def effective_complex_inv_permittivity(
     (positive imaginary part = loss):
 
     * the dispersive susceptibility :math:`\chi(\omega)` reconstructed from the
-      ADE coefficients (omitted when ``c1``/``c2``/``c3`` are ``None``), and
+      ADE coefficients (omitted when ``a1``/``a0``/``b1`` are ``None``), and
     * the conductivity loss :math:`i\,\sigma_\text{phys} / (\varepsilon_0 \omega)`,
       where :math:`\sigma_\text{phys} = \sigma_\text{array} / \Delta` recovers the
       physical S/m value from the resolution-scaled ``electric_conductivity``
@@ -1343,27 +1861,32 @@ def effective_complex_inv_permittivity(
         inv_eps: Per-cell ``1/eps_inf`` (real). Shape ``(num_components, ...)``.
         omega: Angular frequency (rad/s).
         dt: Simulation time step (seconds).
-        c1: ADE coefficient array of shape ``(num_poles, ...)`` or ``None``.
-        c2: ADE coefficient array of shape ``(num_poles, ...)`` or ``None``.
-        c3: ADE coefficient array of shape ``(num_poles, ...)`` or ``None``.
+        a1: Delta-basis coefficient ``a1 = 2 - c1``, shape
+            ``(num_poles, ...)`` or ``None``.
+        a0: Delta-basis coefficient ``a0 = 1 - c1 - c2``, shape
+            ``(num_poles, ...)`` or ``None``.
+        b1: Delta-basis field coupling ``b1 = beta1``, shape
+            ``(num_poles, ...)`` or ``None``.
         electric_conductivity: Resolution-scaled conductivity array, or ``None``.
         conductivity_spacing: Scaling factor used to recover the physical
             conductivity. Required when ``electric_conductivity`` is given.
+        c4: Optional implicit ``E^{n+1}`` coupling array.
+        b0: Optional delta-basis field coupling ``b0``; ``None`` means equal to ``b1``.
 
     Returns:
         Complex ``jax.Array`` broadcasting ``inv_eps`` against the loss terms.
     """
     inv_eps = jnp.asarray(inv_eps)
     complex_dtype = jnp.complex128 if inv_eps.dtype == jnp.float64 else jnp.complex64
-    coupling_c = jnp.asarray(c3).shape[1] if c3 is not None and jnp.asarray(c3).ndim >= 2 else 1
+    coupling_c = jnp.asarray(b1).shape[1] if b1 is not None and jnp.asarray(b1).ndim >= 2 else 1
     if inv_eps.shape[0] == 9 or coupling_c == 9:
         # Diagonal reduction for the mode solver: off-diagonal permittivity and
         # susceptibility entries are dropped, so modal geometry in monoclinic /
         # rotated media is a diagonal approximation.
         eps_mat = _eps_matrix_from_inv(inv_eps)
         eps = jnp.stack([eps_mat[0, 0], eps_mat[1, 1], eps_mat[2, 2]], axis=0).astype(complex_dtype)
-        if c1 is not None and c2 is not None and c3 is not None:
-            chi = susceptibility_from_coefficients(c1=c1, c2=c2, c3=c3, omega=omega, dt=dt, c4=c4)
+        if a1 is not None and a0 is not None and b1 is not None:
+            chi = susceptibility_from_coefficients(a1=a1, a0=a0, b1=b1, omega=omega, dt=dt, c4=c4, b0=b0)
             if chi.shape[0] == 9:
                 chi = jnp.stack([chi[0], chi[4], chi[8]], axis=0)
             eps = eps + chi
@@ -1377,8 +1900,8 @@ def effective_complex_inv_permittivity(
         return 1.0 / eps
 
     eps = (1.0 / inv_eps).astype(complex_dtype)
-    if c1 is not None and c2 is not None and c3 is not None:
-        eps = eps + susceptibility_from_coefficients(c1=c1, c2=c2, c3=c3, omega=omega, dt=dt, c4=c4)
+    if a1 is not None and a0 is not None and b1 is not None:
+        eps = eps + susceptibility_from_coefficients(a1=a1, a0=a0, b1=b1, omega=omega, dt=dt, c4=c4, b0=b0)
     if electric_conductivity is not None:
         if conductivity_spacing is None:
             raise ValueError("conductivity_spacing is required when electric_conductivity is given.")

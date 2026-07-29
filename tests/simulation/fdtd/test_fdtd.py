@@ -499,7 +499,7 @@ class TestReversibleVsCheckpointedGradient:
 
 
 class TestPerAxisDispersiveGradientCheckpointed:
-    """PER-AXIS (diagonally anisotropic) dispersion: the ``c3`` coefficient array
+    """PER-AXIS (diagonally anisotropic) dispersion: the ``b1`` coefficient array
     carries a 3-entry component axis instead of the broadcast size-1 axis, and
     each axis has different pole parameters.
 
@@ -527,18 +527,18 @@ class TestPerAxisDispersiveGradientCheckpointed:
     def test_gradient_matches_finite_difference_per_axis_float64(self):
         with _x64_enabled():
             obj, arrays, config = _build_slab_scene(dtype=jnp.float64, material=self._material())
-            assert arrays.dispersive_c3 is not None and arrays.dispersive_c3.shape[1] == 3
+            assert arrays.dispersive_b1 is not None and arrays.dispersive_b1.shape[1] == 3
             arrays, config = _attach_gradient(arrays, config, obj, method="checkpointed")
 
-            def loss_fn(c3):
+            def loss_fn(b1):
                 arr = ArrayContainer(
                     fields=FieldState(
                         E=arrays.fields.E,
                         H=arrays.fields.H,
                         psi_E=arrays.fields.psi_E,
                         psi_H=arrays.fields.psi_H,
-                        dispersive_P_curr=arrays.fields.dispersive_P_curr,
-                        dispersive_P_prev=arrays.fields.dispersive_P_prev,
+                        dispersive_x1=arrays.fields.dispersive_x1,
+                        dispersive_y2=arrays.fields.dispersive_y2,
                     ),
                     inv_permittivities=arrays.inv_permittivities,
                     inv_permeabilities=arrays.inv_permeabilities,
@@ -546,23 +546,23 @@ class TestPerAxisDispersiveGradientCheckpointed:
                     recording_state=arrays.recording_state,
                     electric_conductivity=arrays.electric_conductivity,
                     magnetic_conductivity=arrays.magnetic_conductivity,
-                    dispersive_c1=arrays.dispersive_c1,
-                    dispersive_c2=arrays.dispersive_c2,
-                    dispersive_c3=c3,
+                    dispersive_a1=arrays.dispersive_a1,
+                    dispersive_a0=arrays.dispersive_a0,
+                    dispersive_b1=b1,
                 )
                 _, out = checkpointed_fdtd(arr, obj, config, jax.random.PRNGKey(99), show_progress=False)
                 return jnp.sum(jnp.real(out.fields.E) ** 2)
 
-            c3 = arrays.dispersive_c3
-            loss, grad = jax.value_and_grad(loss_fn)(c3)
+            b1 = arrays.dispersive_b1
+            loss, grad = jax.value_and_grad(loss_fn)(b1)
             assert jnp.isfinite(loss) and jnp.all(jnp.isfinite(grad))
 
             # One active voxel per component axis: AD must match a central FD.
             for ax in range(3):
-                xs, ys, zs = jnp.where(c3[0, ax] != 0, size=1, fill_value=0)
+                xs, ys, zs = jnp.where(b1[0, ax] != 0, size=1, fill_value=0)
                 idx = (0, ax, int(xs[0]), int(ys[0]), int(zs[0]))
-                h = 1e-4 * float(jnp.abs(c3[idx])) + 1e-10
-                fd = (loss_fn(c3.at[idx].add(h)) - loss_fn(c3.at[idx].add(-h))) / (2.0 * h)
+                h = 1e-4 * float(jnp.abs(b1[idx])) + 1e-10
+                fd = (loss_fn(b1.at[idx].add(h)) - loss_fn(b1.at[idx].add(-h))) / (2.0 * h)
                 ad = grad[idx]
                 diff = float(jnp.abs(ad - fd))
                 rel = diff / (float(jnp.abs(ad) + jnp.abs(fd)) + 1e-30)
@@ -721,18 +721,18 @@ class TestOrientedDispersionGradients:
         )
 
         obj, arrays, config = _build_slab_scene(dtype=jnp.float32, material=oriented_material)
-        assert arrays.dispersive_c3 is not None and arrays.dispersive_c3.shape[1] == 9
+        assert arrays.dispersive_b1 is not None and arrays.dispersive_b1.shape[1] == 9
         arrays, config = _attach_gradient(arrays, config, obj, method="checkpointed")
 
-        def loss_fn(c3):
+        def loss_fn(b1):
             arr = ArrayContainer(
                 fields=FieldState(
                     E=arrays.fields.E,
                     H=arrays.fields.H,
                     psi_E=arrays.fields.psi_E,
                     psi_H=arrays.fields.psi_H,
-                    dispersive_P_curr=arrays.fields.dispersive_P_curr,
-                    dispersive_P_prev=arrays.fields.dispersive_P_prev,
+                    dispersive_x1=arrays.fields.dispersive_x1,
+                    dispersive_y2=arrays.fields.dispersive_y2,
                 ),
                 inv_permittivities=arrays.inv_permittivities,
                 inv_permeabilities=arrays.inv_permeabilities,
@@ -740,14 +740,14 @@ class TestOrientedDispersionGradients:
                 recording_state=arrays.recording_state,
                 electric_conductivity=arrays.electric_conductivity,
                 magnetic_conductivity=arrays.magnetic_conductivity,
-                dispersive_c1=arrays.dispersive_c1,
-                dispersive_c2=arrays.dispersive_c2,
-                dispersive_c3=c3,
+                dispersive_a1=arrays.dispersive_a1,
+                dispersive_a0=arrays.dispersive_a0,
+                dispersive_b1=b1,
             )
             _, out = checkpointed_fdtd(arr, obj, config, jax.random.PRNGKey(99), show_progress=False)
             return jnp.sum(jnp.real(out.fields.E) ** 2)
 
-        loss, grads = jax.value_and_grad(loss_fn)(arrays.dispersive_c3)
+        loss, grads = jax.value_and_grad(loss_fn)(arrays.dispersive_b1)
         assert jnp.isfinite(loss)
         assert bool(jnp.all(jnp.isfinite(grads)))
         # gradient reaches the off-diagonal coupling entries

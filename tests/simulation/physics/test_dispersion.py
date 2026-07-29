@@ -12,6 +12,7 @@ Layout mirrors ``test_fresnel.py`` — 3x3 periodic transverse, PMLs in z,
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
 
 import fdtdx
 from fdtdx.constants import c as c0
@@ -469,4 +470,45 @@ def test_ccpr_matches_equivalent_complex_permittivity():
     assert rel_err < _TOLERANCE, (
         f"CCPR transmission T={T_ccpr:.4f} disagrees with equivalent complex-ε "
         f"T={T_equiv:.4f} (ε(ω)={eps_omega:.3f}), rel_err={rel_err:.3f} > {_TOLERANCE}"
+    )
+
+
+@pytest.mark.parametrize("integrator", ["central", "centered_edot", "bilinear"])
+def test_ccpr_matches_equivalent_complex_permittivity_all_integrators(integrator):
+    """Every integrator must reproduce the same target ε(ω) on the grid.
+
+    Same construction as :func:`test_ccpr_matches_equivalent_complex_permittivity`
+    but per scheme. The three schemes place the discrete pole differently — and
+    ``"bilinear"`` additionally routes a plain-Lorentz-shaped material through the
+    implicit divisor — so agreement with the equivalent non-dispersive lossy
+    half-space is an end-to-end check that each one integrates the ADE correctly,
+    not just that the coefficients look right on the host.
+    """
+    model = _ccpr_model().with_integrator(integrator)
+    assert all(p.integrator == integrator for p in model.poles)
+    eps_inf = 1.0
+    eps_omega = eps_inf + complex(model.susceptibility(_OMEGA))
+
+    obj0, con0, cfg0, vol0 = _build_base()
+    _add_flux_det("flux_t", _DET_CCPR_Z, vol0, obj0, con0)
+    S0 = _mean_flux(_run(obj0, con0, cfg0), "flux_t")
+    assert S0 > 0
+
+    obj1, con1, cfg1, vol1 = _build_base()
+    _add_half_space(fdtdx.Material(permittivity=eps_inf, dispersion=model), vol1, obj1, con1)
+    _add_flux_det("flux_t", _DET_CCPR_Z, vol1, obj1, con1)
+    S_ccpr = _mean_flux(_run(obj1, con1, cfg1), "flux_t")
+
+    obj2, con2, cfg2, vol2 = _build_base()
+    equiv = fdtdx.Material.from_complex_permittivity(eps_omega, frequency=c0 / _WAVELENGTH)
+    _add_half_space(equiv, vol2, obj2, con2)
+    _add_flux_det("flux_t", _DET_CCPR_Z, vol2, obj2, con2)
+    S_equiv = _mean_flux(_run(obj2, con2, cfg2), "flux_t")
+
+    assert S_ccpr > 0 and S_equiv > 0, f"{integrator}: flux vanished"
+    T_ccpr, T_equiv = S_ccpr / S0, S_equiv / S0
+    rel_err = abs(T_ccpr - T_equiv) / T_equiv
+    assert rel_err < _TOLERANCE, (
+        f"{integrator}: CCPR T={T_ccpr:.4f} vs equivalent complex-ε T={T_equiv:.4f} "
+        f"(ε(ω)={eps_omega:.3f}), rel_err={rel_err:.3f} > {_TOLERANCE}"
     )

@@ -15,40 +15,39 @@ from fdtdx.dispersion import (
     LorentzPole,
     compute_eps_spectrum_from_coefficients,
     compute_impedance_corrected_temporal_profile,
-    compute_pole_coefficients,
+    compute_pole_delta_coefficients_per_axis,
 )
 
 _DT = 5e-18
 _SPATIAL_SHAPE = (2, 3, 4)  # arbitrary small block of cells
 
 
-def _broadcast_coeffs(c1_poles, c2_poles, c3_poles, spatial_shape):
-    """Expand a (num_poles,) coefficient vector to shape (num_poles, 1, *spatial).
+def _broadcast_coeffs(pole, spatial_shape, dt=_DT):
+    """Delta-basis coefficients of one pole in the ArrayContainer storage layout.
 
-    Matches the ArrayContainer storage layout used by fdtdx's ADE backend.
+    Returns ``(a1, a0, b1, b0)`` each of shape ``(1, 1, *spatial)``, matching
+    what fdtdx's ADE backend stores per cell.
     """
-    num_poles = c1_poles.shape[0]
-    target_shape = (num_poles, 1, *spatial_shape)
-    c1 = np.broadcast_to(c1_poles.reshape(num_poles, 1, 1, 1, 1), target_shape).copy()
-    c2 = np.broadcast_to(c2_poles.reshape(num_poles, 1, 1, 1, 1), target_shape).copy()
-    c3 = np.broadcast_to(c3_poles.reshape(num_poles, 1, 1, 1, 1), target_shape).copy()
-    return c1, c2, c3
+    vecs = compute_pole_delta_coefficients_per_axis((pole,), dt=dt)
+    a1, a0, b1, _c4, b0 = (np.asarray(v)[:, :1] for v in vecs)  # isotropic -> keep axis x
+    target_shape = (1, 1, *spatial_shape)
+    return tuple(np.broadcast_to(v.reshape(1, 1, 1, 1, 1), target_shape).copy() for v in (a1, a0, b1, b0))
 
 
 class TestEpsSpectrum:
     def test_non_dispersive_returns_eps_inf(self):
         """Zero ADE coefficients → spectrum is flat at eps_inf."""
-        c1 = np.zeros((0, 1, *_SPATIAL_SHAPE))
-        c2 = np.zeros((0, 1, *_SPATIAL_SHAPE))
-        c3 = np.zeros((0, 1, *_SPATIAL_SHAPE))
+        a1 = np.zeros((0, 1, *_SPATIAL_SHAPE))
+        a0 = np.zeros((0, 1, *_SPATIAL_SHAPE))
+        b1 = np.zeros((0, 1, *_SPATIAL_SHAPE))
         eps_inf_value = 2.25
         inv_eps_inf = np.full((1, *_SPATIAL_SHAPE), 1.0 / eps_inf_value)
 
         omegas = np.array([1e14, 1e15, 5e15], dtype=np.float64)
         spectrum = compute_eps_spectrum_from_coefficients(
-            c1=c1,
-            c2=c2,
-            c3=c3,
+            a1=a1,
+            a0=a0,
+            b1=b1,
             inv_eps_inf=inv_eps_inf,
             omegas=omegas,
             dt=_DT,
@@ -61,24 +60,19 @@ class TestEpsSpectrum:
     def test_matches_lorentz_model(self):
         """Reconstructed ε(ω) must match the analytic Lorentz formula."""
         pole = LorentzPole(resonance_frequency=2.0e15, damping=1.0e13, delta_epsilon=2.25)
-        c1_vec, c2_vec, c3_vec, _c4_vec = compute_pole_coefficients((pole,), dt=_DT)
-        c1, c2, c3 = _broadcast_coeffs(
-            np.asarray(c1_vec),
-            np.asarray(c2_vec),
-            np.asarray(c3_vec),
-            _SPATIAL_SHAPE,
-        )
+        a1, a0, b1, b0 = _broadcast_coeffs(pole, _SPATIAL_SHAPE)
         eps_inf = 1.0
         inv_eps_inf = np.full((1, *_SPATIAL_SHAPE), 1.0 / eps_inf)
 
         omegas = np.array([0.5e15, 1.0e15, 1.8e15, 3.0e15], dtype=np.float64)
         spectrum = compute_eps_spectrum_from_coefficients(
-            c1=c1,
-            c2=c2,
-            c3=c3,
+            a1=a1,
+            a0=a0,
+            b1=b1,
             inv_eps_inf=inv_eps_inf,
             omegas=omegas,
             dt=_DT,
+            b0=b0,
         )
 
         # The ADE discretization introduces O(ω·dt) warping; for dt=5e-18 and
@@ -95,24 +89,19 @@ class TestEpsSpectrum:
     def test_matches_drude_model(self):
         """Same check for a Drude pole (omega_0 = 0)."""
         pole = DrudePole(plasma_frequency=3.0e15, damping=5.0e13)
-        c1_vec, c2_vec, c3_vec, _c4_vec = compute_pole_coefficients((pole,), dt=_DT)
-        c1, c2, c3 = _broadcast_coeffs(
-            np.asarray(c1_vec),
-            np.asarray(c2_vec),
-            np.asarray(c3_vec),
-            _SPATIAL_SHAPE,
-        )
+        a1, a0, b1, b0 = _broadcast_coeffs(pole, _SPATIAL_SHAPE)
         eps_inf = 1.0
         inv_eps_inf = np.full((1, *_SPATIAL_SHAPE), 1.0 / eps_inf)
 
         omegas = np.array([1.5e15, 2.5e15, 4.0e15], dtype=np.float64)
         spectrum = compute_eps_spectrum_from_coefficients(
-            c1=c1,
-            c2=c2,
-            c3=c3,
+            a1=a1,
+            a0=a0,
+            b1=b1,
             inv_eps_inf=inv_eps_inf,
             omegas=omegas,
             dt=_DT,
+            b0=b0,
         )
         for w, got in zip(omegas, spectrum, strict=True):
             chi_analytic = -(pole.plasma_frequency**2) / (w**2 + 1j * pole.gamma * w)

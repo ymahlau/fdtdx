@@ -318,14 +318,15 @@ class SimulationObject(TreeClass, ABC):
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
-        dispersive_c1: jax.Array | None = None,
-        dispersive_c2: jax.Array | None = None,
-        dispersive_c3: jax.Array | None = None,
+        dispersive_a1: jax.Array | None = None,
+        dispersive_a0: jax.Array | None = None,
+        dispersive_b1: jax.Array | None = None,
         electric_conductivity: jax.Array | None = None,
         dispersive_c4: jax.Array | None = None,
+        dispersive_b0: jax.Array | None = None,
     ) -> Self:
         del key, inv_permittivities, inv_permeabilities
-        del dispersive_c1, dispersive_c2, dispersive_c3, dispersive_c4
+        del dispersive_a1, dispersive_a0, dispersive_b1, dispersive_c4, dispersive_b0
         del electric_conductivity
         return self
 

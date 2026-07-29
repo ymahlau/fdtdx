@@ -265,7 +265,7 @@ def test_monoclinic_oscillator_pair_is_stable():
     _, arrays = fdtdx.run_fdtd(arrays=arrays, objects=obj_container, config=cfg, key=key)
 
     assert bool(jnp.all(jnp.isfinite(arrays.fields.E))), "fields blew up in monoclinic medium"
-    assert bool(jnp.all(jnp.isfinite(arrays.fields.dispersive_P_curr)))
+    assert bool(jnp.all(jnp.isfinite(arrays.fields.dispersive_x1)))
     s_vac = _transmitted_flux(None, (_SQRT_HALF, _SQRT_HALF, 0.0))
     s_t = _mean_flux(arrays, "flux_t")
     assert 0.0 < s_t < s_vac, f"unphysical transmission through lossy monoclinic slab: {s_t} vs vacuum {s_vac}"

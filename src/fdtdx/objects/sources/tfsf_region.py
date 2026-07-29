@@ -166,11 +166,12 @@ class TFSFPlaneSourceRegion(TFSFPlaneSource):
         key: jax.Array,
         inv_permittivities: jax.Array,
         inv_permeabilities: jax.Array | float,
-        dispersive_c1: jax.Array | None = None,
-        dispersive_c2: jax.Array | None = None,
-        dispersive_c3: jax.Array | None = None,
+        dispersive_a1: jax.Array | None = None,
+        dispersive_a0: jax.Array | None = None,
+        dispersive_b1: jax.Array | None = None,
         electric_conductivity: jax.Array | None = None,
         dispersive_c4: jax.Array | None = None,
+        dispersive_b0: jax.Array | None = None,
     ) -> Self:
         del electric_conductivity
         config = self._config
@@ -247,20 +248,22 @@ class TFSFPlaneSourceRegion(TFSFPlaneSource):
             inv_eps_inf_face = inv_eps_face  # raw ε∞ before any carrier correction
 
             # dispersive carrier-frequency correction (matches the single-plane source)
-            c1_s = c2_s = c3_s = c4_s = None
-            if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
-                c1_s = dispersive_c1[:, :, *e_face_slice]
-                c2_s = dispersive_c2[:, :, *e_face_slice]
-                c3_s = dispersive_c3[:, :, *e_face_slice]
+            a1_s = a0_s = b1_s = c4_s = b0_s = None
+            if dispersive_a1 is not None and dispersive_a0 is not None and dispersive_b1 is not None:
+                a1_s = dispersive_a1[:, :, *e_face_slice]
+                a0_s = dispersive_a0[:, :, *e_face_slice]
+                b1_s = dispersive_b1[:, :, *e_face_slice]
                 c4_s = None if dispersive_c4 is None else dispersive_c4[:, :, *e_face_slice]
+                b0_s = None if dispersive_b0 is None else dispersive_b0[:, :, *e_face_slice]
                 inv_eps_face = effective_inv_permittivity(
                     inv_eps=inv_eps_face,
-                    c1=c1_s,
-                    c2=c2_s,
-                    c3=c3_s,
+                    a1=a1_s,
+                    a0=a0_s,
+                    b1=b1_s,
                     omega=omega_c,
                     dt=config.time_step_duration,
                     c4=c4_s,
+                    b0=b0_s,
                 )
 
             impedance = _source_impedance(inv_eps_face, inv_mu_face, e_pol, h_pol)
@@ -299,18 +302,19 @@ class TFSFPlaneSourceRegion(TFSFPlaneSource):
             )
 
             filt = None
-            if c1_s is not None and c2_s is not None and c3_s is not None:
+            if a1_s is not None and a0_s is not None and b1_s is not None:
                 filt = _build_dispersive_H_filter(
                     temporal_profile=self.temporal_profile,
                     wave_character=self.wave_character,
                     dt=config.time_step_duration,
                     num_time_steps=config.time_steps_total,
-                    c1_slice=c1_s,
-                    c2_slice=c2_s,
-                    c3_slice=c3_s,
+                    a1_slice=a1_s,
+                    a0_slice=a0_s,
+                    b1_slice=b1_s,
                     inv_eps_inf_slice=inv_eps_inf_face,
                     dtype=config.dtype,
                     c4_slice=c4_s,
+                    b0_slice=b0_s,
                 )
 
             normal_axes.append(normal_axis)
