@@ -110,7 +110,6 @@ def spectra():
     for name in ("rect", "tukey"):
         phasor = np.asarray(arrays.detector_states[name]["phasor"])
         out[name] = np.abs(phasor[0, :, 0])  # (num_freqs,) for Ex
-    print({k: np.array2string(v, precision=4) for k, v in out.items()})
     return out
 
 
