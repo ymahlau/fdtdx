@@ -15,6 +15,10 @@ Symmetry encoding (per axis, order ``(x, y, z)``): ``0`` = none, ``-1`` = PEC (e
 ``+1`` = PMC (magnetic wall). The symmetry plane is the geometric center of the axis; the upper
 half is kept so the plane lands at the reduced domain's min edge — matching the mode solver's
 "wall at the min edge" convention.
+
+The parity table itself (:func:`field_component_parity`) lives in
+:mod:`fdtdx.core.physics.symmetry` so that source and detector classes can use it without an
+import cycle; it is re-exported here, where it is documented.
 """
 
 from typing import Literal
@@ -26,6 +30,11 @@ from loguru import logger
 from fdtdx.config import SimulationConfig
 from fdtdx.core.misc import validate_symmetric_axis_cells
 from fdtdx.core.null import Null
+from fdtdx.core.physics.symmetry import (
+    component_sits_on_plane,
+    field_component_parity,
+    mirror_extend_low_side,
+)
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.objects.boundaries.bloch import BlochBoundary
 from fdtdx.objects.boundaries.boundary import BaseBoundary
@@ -57,45 +66,6 @@ _AXIS_NAMES = ("x", "y", "z")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Parity table
-# ──────────────────────────────────────────────────────────────────────────────
-
-
-def field_component_parity(
-    field_type: Literal["E", "H"],
-    component: int,
-    axis: int,
-    wall: int,
-) -> int:
-    """Mirror parity of a field component across a symmetry plane.
-
-    For a mirror plane normal to ``axis`` with the kept domain on the ``+axis`` side, this is the
-    sign that relates the field on the discarded side to its mirror image on the kept side. A PEC
-    wall forces tangential ``E`` (and normal ``H``) to zero on the plane; a PMC wall forces
-    tangential ``H`` (and normal ``E``) to zero.
-
-    Args:
-        field_type (Literal["E", "H"]): Which field the component belongs to.
-        component (int): Component axis index (0=x, 1=y, 2=z).
-        axis (int): Axis the mirror plane is normal to (0=x, 1=y, 2=z).
-        wall (int): ``-1`` for a PEC (electric) wall, ``+1`` for a PMC (magnetic) wall.
-
-    Returns:
-        int: ``+1`` (even / unchanged under reflection) or ``-1`` (odd / sign-flipped).
-    """
-    normal = component == axis
-    if wall == -1:  # PEC: tangential E = 0
-        if field_type == "E":
-            return 1 if normal else -1
-        return -1 if normal else 1
-    elif wall == 1:  # PMC: tangential H = 0
-        if field_type == "E":
-            return -1 if normal else 1
-        return 1 if normal else -1
-    raise ValueError(f"wall must be -1 (PEC) or +1 (PMC), got {wall}")
-
-
-# ──────────────────────────────────────────────────────────────────────────────
 # Reduction (used by place_objects)
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -105,7 +75,7 @@ def reduce_resolved_slices(
     object_map: dict[str, SimulationObject],
     config: SimulationConfig,
     volume_name: str,
-) -> tuple[dict[str, SliceTuple3D], set[str], tuple[int, int, int]]:
+) -> tuple[dict[str, SliceTuple3D], dict[str, SliceTuple3D], set[str], tuple[int, int, int]]:
     """Clip full-domain grid slices onto the symmetric (kept upper) half along each axis.
 
     Args:
@@ -115,9 +85,12 @@ def reduce_resolved_slices(
         volume_name (str): Name of the simulation volume object.
 
     Returns:
-        tuple: ``(new_slices, dropped_names, reduced_volume_shape)`` where ``new_slices`` excludes
-        the dropped objects, ``dropped_names`` lists objects entirely in the discarded half, and
-        ``reduced_volume_shape`` is the reduced volume grid shape ``(Nx', Ny', Nz')``.
+        tuple: ``(new_slices, unreduced_slices, dropped_names, reduced_volume_shape)`` where
+        ``new_slices`` excludes the dropped objects, ``unreduced_slices`` holds each surviving
+        object's *unclipped* slice shifted into the reduced coordinate frame (negative start on
+        axes where the object crossed the symmetry plane), ``dropped_names`` lists objects entirely
+        in the discarded half, and ``reduced_volume_shape`` is the reduced volume grid shape
+        ``(Nx', Ny', Nz')``.
     """
     symmetry = config.symmetry
     vol_slice = resolved_slices[volume_name]
@@ -144,14 +117,18 @@ def reduce_resolved_slices(
     )
 
     new_slices: dict[str, SliceTuple3D] = {}
+    unreduced_slices: dict[str, SliceTuple3D] = {}
     dropped: set[str] = set()
     for name, sl in resolved_slices.items():
         if name == volume_name:
             new_slices[name] = (new_vol[0], new_vol[1], new_vol[2])
+            shifted = [(sl[a][0] - mid_abs[a], sl[a][1] - mid_abs[a]) if symmetry[a] != 0 else sl[a] for a in range(3)]
+            unreduced_slices[name] = (shifted[0], shifted[1], shifted[2])
             continue
 
         obj = object_map[name]
         clipped: list[tuple[int, int]] = []
+        unclipped: list[tuple[int, int]] = []
         drop = False
         for a in range(3):
             s0, s1 = sl[a]
@@ -169,8 +146,10 @@ def reduce_resolved_slices(
                         f"the mirror of the kept half."
                     )
                 clipped.append((ns0, ns1))
+                unclipped.append((s0 - m, s1 - m))
             else:
                 clipped.append((s0, s1))
+                unclipped.append((s0, s1))
 
         if drop:
             dropped.add(name)
@@ -189,8 +168,9 @@ def reduce_resolved_slices(
             continue
 
         new_slices[name] = (clipped[0], clipped[1], clipped[2])
+        unreduced_slices[name] = (unclipped[0], unclipped[1], unclipped[2])
 
-    return new_slices, dropped, reduced_volume_shape
+    return new_slices, unreduced_slices, dropped, reduced_volume_shape
 
 
 def make_symmetry_walls(
@@ -244,67 +224,48 @@ def make_symmetry_walls(
             config=config,
             key=subkey,
         )
+        wall = wall.aset("_is_symmetry_wall", True)
         walls.append(wall)
     return walls
-
-
-def _derive_mode_symmetry(
-    propagation_axis: int,
-    reduced_slice: SliceTuple3D,
-    symmetry: tuple[int, int, int],
-) -> tuple[int, int]:
-    """Derive the mode-solver symmetry 2-tuple for a plane perpendicular to ``propagation_axis``.
-
-    The mode solver expects the two non-propagation axes in increasing index order, with ``0`` =
-    PEC and ``1`` = PMC at the min edge. A wall is imposed only when the plane sits on the
-    symmetry plane (its reduced slice starts at index 0 on that transverse axis).
-    """
-    transverse = [a for a in range(3) if a != propagation_axis]
-    result = []
-    for a in transverse:
-        if symmetry[a] == 1 and reduced_slice[a][0] == 0:
-            result.append(1)  # PMC
-        else:
-            result.append(0)  # PEC / electric wall (also the no-symmetry default)
-    return (result[0], result[1])
 
 
 def apply_mode_symmetry(
     placed_objects: list[SimulationObject],
     config: SimulationConfig,
 ) -> list[SimulationObject]:
-    """Forward the simulation symmetry to mode sources/detectors left at their default symmetry.
+    """Warn about explicit mode-solver symmetry tuples that ``config.symmetry`` supersedes.
 
-    For each :class:`ModePlaneSource` / :class:`ModeOverlapDetector` whose ``symmetry`` is still
-    the default ``(0, 0)``, set it to the value derived from the simulation symmetry and the
-    object's reduced placement. Explicit user-set values are respected (a mismatch warns).
+    Mode objects clipped by a symmetry plane no longer ask the mode solver for a symmetric solve:
+    :func:`~fdtdx.core.physics.modes.compute_mode_symmetry_reduced` mirrors the reduced
+    cross-section back to the full one, solves there and restricts the result, which reproduces the
+    mode the unreduced simulation would use (the solver's own symmetric solve does not, because
+    FDTDX hands it one cell-centred permittivity array per component while the solver samples
+    materials on its staggered grid). A user-set ``symmetry`` tuple is therefore inert here; say so
+    rather than silently ignoring it.
 
     Args:
         placed_objects (list[SimulationObject]): Objects already placed on the reduced grid.
         config (SimulationConfig): Simulation config.
 
     Returns:
-        list[SimulationObject]: The objects, with mode symmetry tuples filled in where applicable.
+        list[SimulationObject]: The objects, unchanged.
     """
-    result: list[SimulationObject] = []
+    del config
     for obj in placed_objects:
-        if isinstance(obj, (ModePlaneSource, ModeOverlapDetector)):
-            shape = obj.grid_shape
-            if 1 not in shape:
-                result.append(obj)
-                continue
-            propagation_axis = shape.index(1)
-            derived = _derive_mode_symmetry(propagation_axis, obj._grid_slice_tuple, config.symmetry)
-            if obj.symmetry == (0, 0):
-                obj = obj.aset("symmetry", derived)
-            elif obj.symmetry != derived:
-                logger.warning(
-                    f"Mode object '{obj.name}' has an explicit symmetry={obj.symmetry} that differs "
-                    f"from the value {derived} implied by config.symmetry={config.symmetry}. Keeping "
-                    f"the explicit value; ensure this is intended."
-                )
-        result.append(obj)
-    return result
+        if not isinstance(obj, (ModePlaneSource, ModeOverlapDetector)) or obj.symmetry == (0, 0):
+            continue
+        shape = obj.grid_shape
+        if 1 not in shape:
+            continue
+        propagation_axis = shape.index(1)
+        if obj.symmetry_mirror_axes(exclude_axis=propagation_axis):
+            logger.warning(
+                f"Mode object '{obj.name}' sets symmetry={obj.symmetry} for the mode solver, but "
+                f"config.symmetry already reduces its cross-section. The explicit value is ignored: the "
+                f"mode is solved on the mirrored full cross-section and restricted to the kept half. "
+                f"Remove it, or drop config.symmetry on those axes and keep your own PEC/PMC boundary."
+            )
+    return placed_objects
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -331,6 +292,13 @@ def unfold_fields(
     concatenates the mirror image in front of the kept half, so the symmetry plane ends up at the
     center of the reconstructed array.
 
+    Each component is mirrored with its own Yee index map: a component whose samples sit half a cell
+    off the plane (normal ``E``, tangential ``H``) mirrors one-to-one, while a component sampled *on*
+    the plane (tangential ``E``, normal ``H``) has its first sample as its own mirror, so only the
+    remaining ones produce images. One reconstructed cell per axis — the outermost of the mirrored
+    half, whose partner lies outside the kept domain — is filled by repeating its neighbour; it is the
+    far-boundary cell of the reconstructed domain (inside the absorbing layer in a typical setup).
+
     Args:
         field (jax.Array): Reduced field, shape ``(3, Nx, Ny, Nz)`` (component axis first).
         symmetry (tuple[int, int, int]): Per-axis symmetry ``(x, y, z)``; see module docstring.
@@ -346,12 +314,17 @@ def unfold_fields(
     for a in range(3):
         if symmetry[a] == 0:
             continue
-        signs = jnp.asarray(
-            [field_component_parity(field_type, c, a, symmetry[a]) for c in range(3)],
-            dtype=arr.dtype,
-        ).reshape((3, 1, 1, 1))
-        mirror = jnp.flip(arr, axis=a + 1) * signs
-        arr = jnp.concatenate([mirror, arr], axis=a + 1)
+        components = []
+        for c in range(3):
+            single = arr[c : c + 1]
+            low = mirror_extend_low_side(
+                single,
+                axis=a + 1,
+                parity=field_component_parity(field_type, c, a, symmetry[a]),
+                on_plane=component_sits_on_plane(field_type, c, a),
+            )
+            components.append(jnp.concatenate([low, single], axis=a + 1))
+        arr = jnp.concatenate(components, axis=0)
     return arr
 
 
@@ -425,11 +398,12 @@ def unfold_array(
     symmetry: tuple[int, int, int],
     spatial_axes: tuple[int, int, int],
     signs: dict[int, jax.Array] | None = None,
+    on_plane_axes: tuple[int, ...] = (),
 ) -> jax.Array:
     """Mirror-and-concatenate a spatial array along each symmetric axis.
 
     Generic building block used by :func:`unfold_detector_states`. For every axis ``a`` with
-    ``symmetry[a] != 0`` the array is flipped along its corresponding array axis
+    ``symmetry[a] != 0`` the array is mirrored along its corresponding array axis
     ``spatial_axes[a]`` (optionally multiplied by a broadcastable per-component sign), and the
     mirror image is concatenated in front of the original.
 
@@ -439,6 +413,10 @@ def unfold_array(
         spatial_axes (tuple[int, int, int]): For each physical axis, the corresponding array axis.
         signs (dict[int, jax.Array] | None): Optional mapping physical-axis → broadcastable sign
             array applied to the mirror image (defaults to ``+1``).
+        on_plane_axes (tuple[int, ...]): Physical axes whose samples lie *on* the symmetry plane
+            rather than half a cell off it. There the first sample is its own mirror, so it is not
+            duplicated and the outermost reconstructed sample repeats its neighbour. Detector output
+            co-located at ``(i, j, k+1/2)`` is on-plane for x and y, off-plane for z.
 
     Returns:
         jax.Array: The unfolded array.
@@ -449,9 +427,23 @@ def unfold_array(
             continue
         ax = spatial_axes[a]
         sign = 1.0 if signs is None else signs.get(a, 1.0)
-        mirror = jnp.flip(arr, axis=ax) * sign
+        if a in on_plane_axes:
+            mirror = mirror_extend_low_side(arr, axis=ax, parity=1, on_plane=True) * sign
+        else:
+            mirror = jnp.flip(arr, axis=ax) * sign
         arr = jnp.concatenate([mirror, arr], axis=ax)
     return arr
+
+
+def _colocated_on_plane_axes(detector) -> tuple[int, ...]:
+    """Which physical axes a detector's stored samples sit on, for the mirror index map.
+
+    With ``exact_interpolation`` the six components are co-located at the ``E_z`` Yee point
+    ``(i, j, k+1/2)``: integer along x and y — i.e. exactly on a symmetry plane normal to those axes
+    — and half a cell off along z. Without it the raw staggered components are stored, each with its
+    own offset, and no single index map fits; those fall back to the plain flip.
+    """
+    return (0, 1) if getattr(detector, "exact_interpolation", False) else ()
 
 
 def _stored_component_spec(components) -> list[tuple[Literal["E", "H"], int]]:
@@ -522,6 +514,7 @@ def _poynting_parity(component: int, axis: int, wall: int) -> int:
 def _unfold_poynting(detector, state: dict[str, jax.Array], touched: tuple[int, int, int]):
     """Unfold a PoyntingFluxDetector (scalar/vector, summed/spatial) via per-component flux parity."""
     arr = state["poynting_flux"]
+    on_plane = _colocated_on_plane_axes(detector)
     components = (0, 1, 2) if detector.keep_all_components else (detector.propagation_axis,)
     touched_axes = [a for a in range(3) if touched[a] != 0]
 
@@ -541,14 +534,18 @@ def _unfold_poynting(detector, state: dict[str, jax.Array], touched: tuple[int, 
             a: jnp.asarray([_poynting_parity(i, a, touched[a]) for i in components]).reshape((1, 3, 1, 1, 1))
             for a in touched_axes
         }
-        return {"poynting_flux": unfold_array(arr, touched, (2, 3, 4), signs)}
+        return {"poynting_flux": unfold_array(arr, touched, (2, 3, 4), signs, on_plane)}
     # (T, nx, ny, nz): single component along the propagation axis.
     p = detector.propagation_axis
     signs = {a: jnp.asarray(float(_poynting_parity(p, a, touched[a]))) for a in touched_axes}
-    return {"poynting_flux": unfold_array(arr, touched, (1, 2, 3), signs)}
+    return {"poynting_flux": unfold_array(arr, touched, (1, 2, 3), signs, on_plane)}
 
 
-def _unfold_energy_slices(state: dict[str, jax.Array], touched: tuple[int, int, int]):
+def _unfold_energy_slices(
+    state: dict[str, jax.Array],
+    touched: tuple[int, int, int],
+    on_plane_axes: tuple[int, ...] = (),
+):
     """Unfold an EnergyDetector(as_slices=True): mirror each 2D plane along its in-plane symmetric
     axes. Energy density is even, so the parity is ``+1``; the collapsed-axis mean is already the
     full-domain value (energy is symmetric about the plane)."""
@@ -567,7 +564,12 @@ def _unfold_energy_slices(state: dict[str, jax.Array], touched: tuple[int, int, 
             sub[phys] = touched[phys]
             spatial_axes[phys] = arr_axis
         if any(s != 0 for s in sub):
-            out[key] = unfold_array(arr, (sub[0], sub[1], sub[2]), (spatial_axes[0], spatial_axes[1], spatial_axes[2]))
+            out[key] = unfold_array(
+                arr,
+                (sub[0], sub[1], sub[2]),
+                (spatial_axes[0], spatial_axes[1], spatial_axes[2]),
+                on_plane_axes=tuple(a for a in on_plane_axes if a in phys_axes),
+            )
         else:
             out[key] = arr
     return out
@@ -610,7 +612,7 @@ def _unfold_one_detector(
             return {"phasor": arr * factor.astype(arr.dtype)}
         arr = state["phasor"]  # (1, num_freqs, num_components, nx, ny, nz)
         signs = _component_signs(spec, touched, arr.ndim, component_axis=2)
-        return {"phasor": unfold_array(arr, touched, (3, 4, 5), signs)}
+        return {"phasor": unfold_array(arr, touched, (3, 4, 5), signs, _colocated_on_plane_axes(detector))}
 
     if isinstance(detector, FieldDetector):
         spec = _stored_component_spec(detector.components)
@@ -623,15 +625,15 @@ def _unfold_one_detector(
             return {"fields": arr * factor.astype(arr.dtype)}
         arr = state["fields"]  # (T, num_components, nx, ny, nz)
         signs = _component_signs(spec, touched, arr.ndim, component_axis=1)
-        return {"fields": unfold_array(arr, touched, (2, 3, 4), signs)}
+        return {"fields": unfold_array(arr, touched, (2, 3, 4), signs, _colocated_on_plane_axes(detector))}
 
     if isinstance(detector, EnergyDetector):
         if detector.as_slices:
-            return _unfold_energy_slices(state, touched)
+            return _unfold_energy_slices(state, touched, _colocated_on_plane_axes(detector))
         if detector.reduce_volume:  # summed energy; energy density is even -> x2 per plane
             return {"energy": state["energy"] * (2**count)}
         arr = state["energy"]  # (T, nx, ny, nz)
-        return {"energy": unfold_array(arr, touched, (1, 2, 3))}
+        return {"energy": unfold_array(arr, touched, (1, 2, 3), on_plane_axes=_colocated_on_plane_axes(detector))}
 
     if isinstance(detector, PoyntingFluxDetector):
         return _unfold_poynting(detector, state, touched)
@@ -682,12 +684,13 @@ def unfold_detector_states(
         if detector is None:
             new_states[name] = state
             continue
-        det_slice = detector._grid_slice_tuple
-        # Symmetric axes whose reduced slice starts at the symmetry plane (min edge, index 0).
+        # Symmetric axes on which the detector was clipped because it crossed the symmetry plane.
+        # A detector that merely begins at the plane but lies entirely inside the kept half was not
+        # clipped, so its stored output is already the full-domain result on that axis.
         touched: tuple[int, int, int] = (
-            config.symmetry[0] if (config.symmetry[0] != 0 and det_slice[0][0] == 0) else 0,
-            config.symmetry[1] if (config.symmetry[1] != 0 and det_slice[1][0] == 0) else 0,
-            config.symmetry[2] if (config.symmetry[2] != 0 and det_slice[2][0] == 0) else 0,
+            config.symmetry[0] if detector.straddles_symmetry_plane(0) else 0,
+            config.symmetry[1] if detector.straddles_symmetry_plane(1) else 0,
+            config.symmetry[2] if detector.straddles_symmetry_plane(2) else 0,
         )
         count = sum(1 for a in range(3) if touched[a] != 0)
         if count == 0:

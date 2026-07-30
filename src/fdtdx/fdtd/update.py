@@ -1,3 +1,5 @@
+from typing import Literal
+
 import jax
 import jax.numpy as jnp
 
@@ -5,6 +7,7 @@ from fdtdx.config import SimulationConfig
 from fdtdx.constants import eta0
 from fdtdx.core.misc import expand_to_3x3, pad_fields
 from fdtdx.core.physics.curl import curl_E, curl_H, interpolate_fields
+from fdtdx.core.physics.symmetry import component_sits_on_plane, field_component_parity
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.misc import (
@@ -121,6 +124,61 @@ def pad_fields_for_boundaries(
     return padded
 
 
+def pad_fields_with_symmetry_mirror(
+    fields: jax.Array,
+    objects: ObjectContainer,
+    config: SimulationConfig,
+    field_type: Literal["E", "H"],
+) -> jax.Array:
+    """Pad fields, filling the halo of every ``config.symmetry`` wall with its mirror image.
+
+    :func:`pad_fields_for_boundaries` pads a terminating boundary with zeros. Behind a symmetry
+    wall the neighbouring cell is not empty though — it is the mirror image of the interior — and the
+    two consumers of that halo both need the true value: the curl of the ``E`` update reads it one
+    cell past the plane, and so do the co-location averages of
+    :func:`~fdtdx.core.physics.curl.interpolate_fields`. Each component therefore takes the
+    parity-weighted value of its own mirror partner, which is the neighbouring cell for components
+    sampled half a cell off the plane and the next one in for components sampled on it.
+
+    This is what makes a PMC symmetry plane exact. Its odd components (tangential ``H``, normal
+    ``E``) are sampled half a cell off the plane, so unlike PEC's they are *not* zero anywhere and
+    cannot be enforced after the update: the whole condition lives in this halo. Zero-padding it
+    instead loses the ``2 H_t`` jump across the plane, which for a transversely structured field is
+    an O(1) error on the plane row that then spreads inward (a uniform plane wave has no transverse
+    derivative and so never shows it).
+
+    Only walls created by ``config.symmetry`` are treated this way. A user-placed PEC/PMC boundary
+    makes no symmetry claim about the structure behind it, so its halo stays as it was.
+
+    Args:
+        fields: Field array of shape (3, Nx, Ny, Nz)
+        objects: Container with simulation objects including boundaries
+        config: Simulation configuration
+        field_type: Whether ``fields`` holds the electric or magnetic field
+
+    Returns:
+        Padded fields of shape (3, Nx+2, Ny+2, Nz+2)
+    """
+    padded = pad_fields_for_boundaries(fields, objects, config)
+    for boundary in objects.boundary_objects:
+        if not getattr(boundary, "_is_symmetry_wall", False):
+            continue
+        axis = boundary.axis
+        wall = config.symmetry[axis]
+        for component in range(3):
+            parity = field_component_parity(field_type, component, axis, wall)
+            # Padded index 0 is one cell below the domain. Its mirror partner is the domain's first
+            # cell for a half-cell-offset component (padded index 1) and the second one for a
+            # component sampled on the plane itself (padded index 2).
+            source_index = 2 if component_sits_on_plane(field_type, component, axis) else 1
+            target: list[slice] = [slice(None)] * 3
+            source: list[slice] = [slice(None)] * 3
+            target[axis] = slice(0, 1)
+            source[axis] = slice(source_index, source_index + 1)
+            padded = padded.at[component, *target].set(parity * padded[component, *source])
+    return padded
+
+
 def get_anisotropic_averaging_widths(
     config: SimulationConfig,
 ) -> tuple[jax.Array, jax.Array, jax.Array] | None:
@@ -204,7 +262,7 @@ def update_E(
     inv_eps = arrays.inv_permittivities
     sigma_E = arrays.electric_conductivity
     c = config.courant_number
-    H_pad = pad_fields_for_boundaries(arrays.fields.H, objects, config)
+    H_pad = pad_fields_with_symmetry_mirror(arrays.fields.H, objects, config, "H")
     curl, psi_E = curl_H(
         config,
         H_pad,
@@ -286,7 +344,7 @@ def update_E(
         A, B = compute_anisotropic_update_matrices(inv_eps, sigma_E, c, eta0)
 
         # We need to pad the fields to account for ghost cells when computing the averages
-        E_pad = pad_fields_for_boundaries(arrays.fields.E, objects, config)
+        E_pad = pad_fields_with_symmetry_mirror(arrays.fields.E, objects, config, "E")
 
         # Spacing weights for the off-diagonal average (None on a uniform grid).
         aniso_widths = get_anisotropic_averaging_widths(config)
@@ -375,7 +433,7 @@ def update_E(
             arrays = arrays.aset("fields->dispersive_P_prev", P_curr)
             arrays = arrays.aset("fields->dispersive_P_curr", P_hat)
 
-        curl_pad = pad_fields_for_boundaries(curl, objects, config)
+        curl_pad = pad_fields_with_symmetry_mirror(curl, objects, config, "E")
         curlHx_y_avg = avg_anisotropic_E_component(
             curl_pad, component=0, location=1, aniso_widths=aniso_widths
         )  # calc curl(H)x at location of Ey
@@ -509,7 +567,7 @@ def update_E_reverse(
     inv_eps = arrays.inv_permittivities
     sigma_E = arrays.electric_conductivity
     c = config.courant_number
-    H_pad = pad_fields_for_boundaries(arrays.fields.H, objects, config)
+    H_pad = pad_fields_with_symmetry_mirror(arrays.fields.H, objects, config, "H")
     curl, _ = curl_H(
         config,
         H_pad,
@@ -541,8 +599,8 @@ def update_E_reverse(
         A, B = compute_anisotropic_update_matrices_reverse(inv_eps, sigma_E, c, eta0)
 
         # We need to pad the fields and curl to account for ghost cells when computing the averages
-        E_pad = pad_fields_for_boundaries(E, objects, config)
-        curl_pad = pad_fields_for_boundaries(curl, objects, config)
+        E_pad = pad_fields_with_symmetry_mirror(E, objects, config, "E")
+        curl_pad = pad_fields_with_symmetry_mirror(curl, objects, config, "E")
 
         # Spacing weights for the off-diagonal average (None on a uniform grid).
         aniso_widths = get_anisotropic_averaging_widths(config)
@@ -640,7 +698,7 @@ def update_H(
     inv_mu = arrays.inv_permeabilities
     sigma_H = arrays.magnetic_conductivity
     c = config.courant_number
-    E_pad = pad_fields_for_boundaries(arrays.fields.E, objects, config)
+    E_pad = pad_fields_with_symmetry_mirror(arrays.fields.E, objects, config, "E")
     curl, psi_H = curl_E(
         config,
         E_pad,
@@ -682,8 +740,8 @@ def update_H(
         A, B = compute_anisotropic_update_matrices(inv_mu, sigma_H, c, 1 / eta0)
 
         # We need to pad the fields and curl to account for ghost cells when computing the averages
-        H_pad = pad_fields_for_boundaries(arrays.fields.H, objects, config)
-        curl_pad = pad_fields_for_boundaries(curl, objects, config)
+        H_pad = pad_fields_with_symmetry_mirror(arrays.fields.H, objects, config, "H")
+        curl_pad = pad_fields_with_symmetry_mirror(curl, objects, config, "H")
 
         # Spacing weights for the off-diagonal average (None on a uniform grid).
         aniso_widths = get_anisotropic_averaging_widths(config)
@@ -828,7 +886,7 @@ def update_H_reverse(
     inv_mu = arrays.inv_permeabilities
     sigma_H = arrays.magnetic_conductivity
     c = config.courant_number
-    E_pad = pad_fields_for_boundaries(arrays.fields.E, objects, config)
+    E_pad = pad_fields_with_symmetry_mirror(arrays.fields.E, objects, config, "E")
     curl, _ = curl_E(
         config,
         E_pad,
@@ -862,8 +920,8 @@ def update_H_reverse(
         A, B = compute_anisotropic_update_matrices_reverse(inv_mu, sigma_H, c, 1 / eta0)
 
         # We need to pad the fields and curl to account for ghost cells when computing the averages
-        H_pad = pad_fields_for_boundaries(H, objects, config)
-        curl_pad = pad_fields_for_boundaries(curl, objects, config)
+        H_pad = pad_fields_with_symmetry_mirror(H, objects, config, "H")
+        curl_pad = pad_fields_with_symmetry_mirror(curl, objects, config, "H")
 
         # Spacing weights for the off-diagonal average (None on a uniform grid).
         aniso_widths = get_anisotropic_averaging_widths(config)
@@ -1007,8 +1065,8 @@ def update_detector_states(
     full = None
     if any(d.exact_interpolation and not is_interior(d) for d in to_update):
         full = interpolate_fields(
-            E_pad=pad_fields_for_boundaries(arrays.fields.E, objects, config),
-            H_pad=pad_fields_for_boundaries((H_prev + arrays.fields.H) / 2, objects, config),
+            E_pad=pad_fields_with_symmetry_mirror(arrays.fields.E, objects, config, "E"),
+            H_pad=pad_fields_with_symmetry_mirror((H_prev + arrays.fields.H) / 2, objects, config, "H"),
             config=config,
         )
 

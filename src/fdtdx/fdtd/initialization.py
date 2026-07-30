@@ -162,8 +162,9 @@ def place_objects(
     # non-symmetric path is unchanged.
     dropped_names: set[str] = set()
     reduced_volume_shape = None
+    unreduced_slices: dict[str, Any] = {}
     if config.has_symmetry:
-        resolved_slices, dropped_names, reduced_volume_shape = reduce_resolved_slices(
+        resolved_slices, unreduced_slices, dropped_names, reduced_volume_shape = reduce_resolved_slices(
             resolved_slices=resolved_slices,
             object_map=object_map,
             config=config,
@@ -193,7 +194,10 @@ def place_objects(
     if grid.shape != volume_shape:
         raise ValueError(f"Configured grid shape {grid.shape} does not match simulation volume shape {volume_shape}.")
 
-    # Step 6: Place objects on grid based on resolved slice tuples
+    # Step 6: Place objects on grid based on resolved slice tuples. Under symmetry each object also
+    # remembers its unclipped extent (in reduced coordinates) so object *contents* that depend on
+    # the full extent - a Gaussian beam's centre, a mode cross-section - can be derived correctly
+    # even though the geometry was clipped onto the kept half.
     placed_objects = []
     for name, slice_tuple in resolved_slices.items():
         if name == volume_obj.name or name in dropped_names:
@@ -201,25 +205,26 @@ def place_objects(
         obj = object_map[name]
         assert key is not None
         key, subkey = jax.random.split(key)
-        placed_objects.append(
-            obj.place_on_grid(
-                grid_slice_tuple=slice_tuple,
-                config=config,
-                key=subkey,
-            )
+        placed = obj.place_on_grid(
+            grid_slice_tuple=slice_tuple,
+            config=config,
+            key=subkey,
         )
+        if name in unreduced_slices:
+            placed = placed.aset("_unreduced_grid_slice_tuple", unreduced_slices[name])
+        placed_objects.append(placed)
 
     # Step 7: Place volume first (index 0)
     assert key is not None
     key, subkey = jax.random.split(key)
-    placed_objects.insert(
-        0,
-        volume_obj.place_on_grid(
-            grid_slice_tuple=resolved_slices[volume_obj.name],
-            config=config,
-            key=subkey,
-        ),
+    placed_volume = volume_obj.place_on_grid(
+        grid_slice_tuple=resolved_slices[volume_obj.name],
+        config=config,
+        key=subkey,
     )
+    if volume_obj.name in unreduced_slices:
+        placed_volume = placed_volume.aset("_unreduced_grid_slice_tuple", unreduced_slices[volume_obj.name])
+    placed_objects.insert(0, placed_volume)
 
     # Step 8: Insert the PEC/PMC symmetry walls and forward the per-axis condition to mode
     # sources/detectors, then warn that the simulation now runs on the reduced domain.

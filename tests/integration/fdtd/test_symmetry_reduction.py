@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 
 import fdtdx
+from fdtdx.objects.detectors.diffractive import DiffractiveDetector
 
 
 def _symmetric_y_edges(n_cells, base):
@@ -132,17 +133,21 @@ def test_symmetry_clips_and_drops_objects():
     assert _by_name(oc, "dropme") is None
 
 
-def test_mode_symmetry_auto_derived():
+def test_mode_solver_symmetry_is_not_auto_derived():
     objects, constraints, config = _build((0, -1, 1))
     key = jax.random.PRNGKey(0)
     oc, _arrays, _params, _config, _info = fdtdx.place_objects(
         object_list=objects, config=config, constraints=constraints, key=key
     )
 
-    # +x propagation -> transverse axes (y, z). y is PEC (-> 0), z is PMC (-> 1).
+    # The mode-solver symmetry option is no longer used for the config.symmetry path: the mode is
+    # solved on the mirrored full cross-section and restricted, which reproduces the full-domain
+    # mode exactly, so the field stays at its default.
     source = _by_name(oc, "modesrc")
     assert source is not None
-    assert source.symmetry == (0, 1)
+    assert source.symmetry == (0, 0)
+    # The source spans the whole y/z plane, so it was clipped on both transverse axes.
+    assert source.symmetry_mirror_axes(exclude_axis=0) == (1, 2)
 
 
 def test_no_symmetry_is_unchanged():
@@ -156,6 +161,72 @@ def test_no_symmetry_is_unchanged():
     assert len(oc.pec_objects) == 0 and len(oc.pmc_objects) == 0
     assert _by_name(oc, "dropme") is not None
     assert _by_name(oc, "modesrc").symmetry == (0, 0)
+
+
+def _minimal_symmetric_model(symmetry=(0, -1, 0)):
+    """Volume + boundaries only, 20 cells per axis, symmetry plane at index 10."""
+    config = fdtdx.SimulationConfig(
+        grid=fdtdx.UniformGrid(spacing=50e-9), time=20e-15, dtype=jnp.float32, symmetry=symmetry
+    )
+    volume = fdtdx.SimulationVolume(partial_grid_shape=(20, 20, 20))
+    bound_dict, constraints = fdtdx.boundary_objects_from_config(
+        fdtdx.BoundaryConfig.from_uniform_bound(thickness=4), volume
+    )
+    return [volume, *bound_dict.values()], list(constraints), config, volume
+
+
+class TestUnsupportedObjectsUnderSymmetry:
+    """Objects a mirror plane cannot represent must fail at placement with a clear message."""
+
+    def test_point_dipole_on_symmetry_plane_raises(self):
+        objects, constraints, config, _volume = _minimal_symmetric_model()
+        dipole = fdtdx.PointDipoleSource(
+            name="dip",
+            partial_grid_shape=(1, 1, 1),
+            wave_character=fdtdx.WaveCharacter(wavelength=1e-6),
+            polarization=0,
+        )
+        # First cell of the kept half, i.e. right on the symmetry plane. (A dipole placed by
+        # place_at_center lands one cell lower, in the discarded half, and is dropped with a warning.)
+        constraints.append(dipole.set_grid_coordinates(axes=(0, 1, 2), sides=("-", "-", "-"), coordinates=(10, 10, 10)))
+        objects.append(dipole)
+        with pytest.raises(ValueError, match="cannot be centred on it"):
+            fdtdx.place_objects(object_list=objects, config=config, constraints=constraints, key=jax.random.PRNGKey(0))
+
+    def test_point_dipole_off_symmetry_plane_is_allowed(self):
+        objects, constraints, config, _volume = _minimal_symmetric_model()
+        dipole = fdtdx.PointDipoleSource(
+            name="dip",
+            partial_grid_shape=(1, 1, 1),
+            wave_character=fdtdx.WaveCharacter(wavelength=1e-6),
+            polarization=0,
+        )
+        constraints.append(dipole.set_grid_coordinates(axes=(0, 1, 2), sides=("-", "-", "-"), coordinates=(10, 14, 10)))
+        objects.append(dipole)
+        container, _arrays, _params, _config, _info = fdtdx.place_objects(
+            object_list=objects, config=config, constraints=constraints, key=jax.random.PRNGKey(0)
+        )
+        assert _by_name(container, "dip") is not None
+
+    def test_diffractive_detector_across_symmetry_plane_raises(self):
+        objects, constraints, config, volume = _minimal_symmetric_model()
+        detector = DiffractiveDetector(
+            name="diff",
+            partial_grid_shape=(None, None, 1),
+            frequencies=(3e14,),
+            direction="+",
+            plot=False,
+        )
+        constraints.extend(
+            [
+                detector.same_size(volume, axes=(0, 1)),
+                detector.same_position(volume, axes=(0, 1)),
+                detector.set_grid_coordinates(axes=(2,), sides=("-",), coordinates=(10,)),
+            ]
+        )
+        objects.append(detector)
+        with pytest.raises(ValueError, match="diffraction-order basis"):
+            fdtdx.place_objects(object_list=objects, config=config, constraints=constraints, key=jax.random.PRNGKey(0))
 
 
 def test_odd_cell_count_on_symmetric_axis_raises():

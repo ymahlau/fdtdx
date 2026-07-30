@@ -527,29 +527,88 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         )
         return azimuth_radians, elevation_radians
 
+    @property
+    def transverse_axes(self) -> tuple[int, int]:
+        """The (horizontal, vertical) axis pair of this source's plane."""
+        return self.horizontal_axis, self.vertical_axis
+
+    @property
+    def _transverse_axes_are_swapped(self) -> bool:
+        """Whether (horizontal, vertical) is *descending* in array-axis order.
+
+        True exactly for propagation along y, where ``get_oriented_transverse_axes(1) == (2, 0)``.
+        Transverse profiles are built in (horizontal, vertical) order, so on that axis they must be
+        transposed before being placed into the source's ``(Nx, Ny, Nz)`` slice.
+        """
+        return self.horizontal_axis > self.vertical_axis
+
+    def _hv_to_grid(self, profile_hv: jax.Array) -> jax.Array:
+        """Place a ``(horizontal, vertical)`` transverse profile into this source's grid shape."""
+        if self._transverse_axes_are_swapped:
+            profile_hv = profile_hv.T
+        return jnp.expand_dims(profile_hv, axis=self.propagation_axis)
+
+    def _grid_to_hv(self, profile_grid: jax.Array) -> jax.Array:
+        """Extract the ``(horizontal, vertical)`` transverse profile from a grid-shaped array."""
+        profile_2d = jnp.take(profile_grid, 0, axis=self.propagation_axis)
+        if self._transverse_axes_are_swapped:
+            profile_2d = profile_2d.T
+        return profile_2d
+
+    @property
+    def symmetry_profile_multiplicity(self) -> int:
+        """Number of copies of this source's plane in the full domain, ``2**k``.
+
+        ``k`` counts the transverse symmetry planes the source straddles. Amplitude
+        normalizations that sum over the source plane (the Gaussian profile normalization,
+        ``normalize_by_energy``) must divide by the *full-domain* sum, which for a profile that is
+        mirror-symmetric about each of those planes is this factor times the reduced-plane sum.
+        Without it, a symmetry-reduced run would inject ``2**(k/2)`` times the amplitude of the
+        equivalent full-domain run.
+        """
+        return 2 ** sum(1 for a in self.transverse_axes if self.straddles_symmetry_plane(a))
+
+    def _unreduced_transverse_bounds(self, axis: int) -> tuple[float, float]:
+        """Lower/upper coordinate of this source's *unclipped* extent along a transverse axis.
+
+        Returned in the same local coordinates the transverse profile is sampled in: cell indices
+        relative to the placed slice on a uniform grid (index ``i`` = centre of cell ``i``), metres
+        from the placed slice's lower edge on a non-uniform grid. Under ``config.symmetry`` an
+        object that crossed the symmetry plane extends to *negative* local coordinates, which is
+        what keeps a straddling Gaussian centred on the plane instead of on the kept quadrant.
+        """
+        placed_start = self.grid_slice_tuple[axis][0]
+        full_start, full_stop = self.unreduced_grid_slice_tuple[axis]
+        discarded = placed_start - full_start  # 0 unless a symmetry plane clipped this axis
+        if not self._config.has_nonuniform_grid:
+            return float(-discarded), float(full_stop - full_start - 1 - discarded)
+        grid = self._config.resolved_grid
+        assert grid is not None
+        edges = grid.edges(axis)
+        origin = edges[placed_start]
+        # The grid is validated mirror-symmetric about the plane, so the widths of the discarded
+        # cells equal those of the first kept cells: the lower bound mirrors edge ``discarded``.
+        lower = -float(edges[placed_start + discarded] - origin)
+        upper = float(edges[placed_start + (full_stop - full_start) - discarded] - origin)
+        return lower, upper
+
     def _get_center(self, key: jax.Array) -> jax.Array:  # shape(2,)
         """Calculate the randomized source center.
+
+        The center is the middle of the source's *unreduced* extent, so a source clipped by a
+        symmetry plane keeps the profile center of the full-domain source it stands for (half a
+        cell below the reduced min edge for a plane-symmetric source) instead of being re-centered
+        on the surviving part.
 
         Uniform-grid sources use the legacy index-space center.  On a
         non-uniform grid, tilted projections and Gaussian profiles are sampled in
         physical coordinates, so the returned center is measured in metres from
         the source-slice lower edge along the transverse axes.
         """
-        if self._config.has_nonuniform_grid:
-            grid = self._config.resolved_grid
-            assert grid is not None
-            local_edges = []
-            for axis in (self.horizontal_axis, self.vertical_axis):
-                lower, upper = self.grid_slice_tuple[axis]
-                edges = grid.edges(axis)[lower : upper + 1]
-                local_edges.append(edges - edges[0])
-            center_horizontal = 0.5 * local_edges[0][-1]
-            center_vertical = 0.5 * local_edges[1][-1]
-        else:
-            horizontal_size = self.grid_shape[self.horizontal_axis]
-            vertical_size = self.grid_shape[self.vertical_axis]
-            center_horizontal = (horizontal_size - 1) / 2
-            center_vertical = (vertical_size - 1) / 2
+        h_lower, h_upper = self._unreduced_transverse_bounds(self.horizontal_axis)
+        v_lower, v_upper = self._unreduced_transverse_bounds(self.vertical_axis)
+        center_horizontal = 0.5 * (h_lower + h_upper)
+        center_vertical = 0.5 * (v_lower + v_upper)
 
         key, subkey = jax.random.split(key)
         horizontal_offset = jax.random.uniform(
@@ -579,6 +638,44 @@ class TFSFPlaneSource(DirectionalPlaneSourceBase, ABC):
         azimuth, elevation = self._get_azimuth_elevation(subkey)
 
         return center, azimuth, elevation
+
+    def validate_placement(self, objects) -> list[str]:
+        """Reject source configurations that a symmetry-reduced domain cannot represent.
+
+        A reduced simulation replaces the discarded half by the mirror image of the kept half, so a
+        source clipped by a symmetry plane must itself be mirror-symmetric about it. An off-normal
+        (tilted) beam and a randomly displaced beam both break that, and a plane source sitting on a
+        symmetry plane normal to its own propagation axis would inject into the mirror wall.
+        """
+        errors = list(super().validate_placement(objects))
+        straddled = [a for a in self.transverse_axes if self.straddles_symmetry_plane(a)]
+        if straddled:
+            axis_names = ", ".join("xyz"[a] for a in straddled)
+            if self.azimuth_angle != 0.0 or self.elevation_angle != 0.0 or self.max_angle_random_offset != 0.0:
+                errors.append(
+                    f"Source '{self.name}' is tilted (azimuth={self.azimuth_angle}, "
+                    f"elevation={self.elevation_angle}, max_angle_random_offset="
+                    f"{self.max_angle_random_offset}) and crosses the {axis_names}-symmetry plane. A "
+                    f"tilted beam is not mirror-symmetric about that plane, so config.symmetry cannot "
+                    f"model it. Drop the tilt, or drop the symmetry on that axis."
+                )
+            if self.max_horizontal_offset != 0.0 or self.max_vertical_offset != 0.0:
+                errors.append(
+                    f"Source '{self.name}' has a random transverse offset "
+                    f"(max_horizontal_offset={self.max_horizontal_offset}, "
+                    f"max_vertical_offset={self.max_vertical_offset}) and crosses the "
+                    f"{axis_names}-symmetry plane. A displaced beam is not mirror-symmetric about that "
+                    f"plane, so config.symmetry cannot model it. Drop the offset, or drop the symmetry "
+                    f"on that axis."
+                )
+        if self.touches_symmetry_plane(self.propagation_axis):
+            errors.append(
+                f"Source '{self.name}' lies on the {'xyz'[self.propagation_axis]}-symmetry plane, which is "
+                f"normal to its propagation axis. The PEC/PMC mirror wall sits in exactly those cells "
+                f"and would clobber the injected field. Move the source off the plane, or drop the "
+                f"symmetry on that axis."
+            )
+        return errors
 
     @abstractmethod
     def apply(

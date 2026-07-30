@@ -3,7 +3,7 @@ from typing import Literal
 
 import jax
 
-from fdtdx.core.jax.pytrees import autoinit, frozen_field
+from fdtdx.core.jax.pytrees import autoinit, frozen_field, frozen_private_field
 from fdtdx.objects.object import SimulationObject
 from fdtdx.typing import GridShape3D, Slice3D, SliceTuple3D
 
@@ -22,6 +22,12 @@ class BaseBoundary(SimulationObject, ABC):
 
     #: Direction along axis ("+" or "-")
     direction: Literal["+", "-"] = frozen_field()
+
+    #: Whether this boundary was inserted by ``config.symmetry`` as a mirror plane rather than
+    #: requested by the user as an ordinary boundary. A symmetry wall asserts that the model is
+    #: mirror-symmetric about it, which lets the detector co-location stencil fill its halo with
+    #: the mirrored interior values instead of zeros. Set by ``make_symmetry_walls``.
+    _is_symmetry_wall: bool = frozen_private_field(default=False)
 
     @property
     @abstractmethod

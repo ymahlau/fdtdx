@@ -61,7 +61,17 @@ class PerfectMagneticConductor(BaseBoundary):
 
     @override
     def apply_post_H_update(self, H: jax.Array) -> jax.Array:
-        """Zeros tangential H components at this PMC boundary face."""
+        """Zeros tangential H components at this PMC boundary face.
+
+        Skipped for a ``config.symmetry`` mirror wall. There the condition is a reflection about the
+        cell edge at the domain's min face, and the tangential H components are sampled half a cell
+        *off* that plane, where the odd symmetry does not make them vanish - it relates them to their
+        mirror image. Zeroing them would impose a stronger (and half-a-cell displaced) condition than
+        the mirror; the reflection is carried entirely by the halo that
+        :func:`~fdtdx.fdtd.update.pad_fields_with_symmetry_mirror` fills instead.
+        """
+        if self._is_symmetry_wall:
+            return H
         comp1, comp2 = self.tangential_components
         sx, sy, sz = self.grid_slice
         H = H.at[comp1, sx, sy, sz].set(0)

@@ -41,6 +41,27 @@ class DiffractiveDetector(Detector):
         if len(self.orders) == 0:
             raise ValueError("DiffractiveDetector requires at least one diffraction order.")
 
+    def validate_placement(self, objects) -> list[str]:
+        """Reject a diffractive detector clipped by a symmetry plane.
+
+        The diffraction orders are defined by the plane's periodicity, which the reduction halves.
+        The efficiencies computed on the reduced plane therefore belong to a different order basis
+        than the full-domain ones and are not recoverable afterwards (see
+        :func:`fdtdx.unfold_detector_states`, which raises for the same reason).
+        """
+        errors = list(super().validate_placement(objects))
+        clipped = [a for a in range(3) if self.straddles_symmetry_plane(a)]
+        if clipped:
+            axis_names = ", ".join("xyz"[a] for a in clipped)
+            errors.append(
+                f"DiffractiveDetector '{self.name}' crosses the {axis_names}-symmetry plane. Its "
+                f"diffraction-order basis is set by the plane's period, which config.symmetry halves, so "
+                f"the computed efficiencies would refer to the reduced period rather than the physical "
+                f"one. Run without config.symmetry, or record the fields instead and recompute the "
+                f"orders after fdtdx.unfold_fields."
+            )
+        return errors
+
     @property
     def propagation_axis(self) -> int:
         """Determines the axis along which diffraction is measured.

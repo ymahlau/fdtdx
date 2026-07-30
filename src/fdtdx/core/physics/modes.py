@@ -7,11 +7,18 @@ import jax.numpy as jnp
 import numpy as np
 import tidy3d
 from jax.typing import ArrayLike
+from loguru import logger
 from tidy3d.components.mode.solver import compute_modes as _compute_modes
 
 from fdtdx.core.axis import get_transverse_axes
 from fdtdx.core.misc import expand_to_3x3
 from fdtdx.core.physics.metrics import normalize_by_poynting_flux
+from fdtdx.core.physics.symmetry import (
+    mirror_edge_coordinates,
+    mirror_material_cross_section,
+    project_onto_parity,
+    restrict_to_kept_half,
+)
 
 ModeTupleType = namedtuple("ModeTupleType", ["neff", "Ex", "Ey", "Ez", "Hx", "Hy", "Hz"])
 """A named tuple containing the mode fields and effective index.
@@ -375,6 +382,138 @@ def compute_mode(
     )
 
     return mode_E_norm, mode_H_norm, eff_idx
+
+
+def compute_mode_symmetry_reduced(
+    *,
+    mirrored_axes: tuple[int, ...],
+    walls: dict[int, int],
+    frequency: float,
+    inv_permittivities: jax.Array,
+    inv_permeabilities: jax.Array | float,
+    resolution: float | None = None,
+    direction: Literal["+", "-"] = "+",
+    mode_index: int = 0,
+    filter_pol: Literal["te", "tm"] | None = None,
+    dtype: jnp.dtype = jnp.float32,
+    bend_radius: float | None = None,
+    bend_axis: int | None = None,
+    transverse_coords: Sequence[jax.Array] | None = None,
+    object_name: str = "mode object",
+) -> tuple[jax.Array, jax.Array, jax.Array]:
+    """Solve a mode on a symmetry-reduced cross-section by way of the full cross-section.
+
+    A reduced simulation replaces the discarded half by the mirror image of the kept half, so the
+    mode it supports is the full-domain mode restricted to the kept half. Rather than asking the
+    mode solver for a *symmetric* solve on the reduced cross-section, this mirrors the reduced
+    material arrays back to the full cross-section, solves there, and restricts the result. The
+    detour matters: the mode solver interprets the permittivity arrays on its own staggered Yee
+    grid, while FDTDX rasterizes materials per cell and hands the same array to every component, so
+    a solve on the reduced cross-section is inconsistent with the full one at first order in the
+    cell size (an ``neff`` error of several percent for a high-index waveguide). Going through the
+    full cross-section reproduces exactly the mode the unreduced simulation would inject.
+
+    The solved mode is then projected onto the parity subspace the walls admit (see
+    :func:`~fdtdx.core.physics.symmetry.project_onto_parity`), which both removes the small
+    non-symmetric residue of the discrete mode and detects a wall type that does not match the mode
+    at all. Finally the fields are renormalized to unit Poynting flux through the *reduced* plane,
+    keeping the convention that a mode source launches unit power through the plane it occupies.
+
+    Args:
+        mirrored_axes (tuple[int, ...]): Physical axes clipped by a symmetry plane.
+        walls (dict[int, int]): Mirror axis to wall type (``-1`` PEC, ``+1`` PMC).
+        frequency (float): Operating frequency in Hz.
+        inv_permittivities (jax.Array): Reduced inverse permittivity on the mode plane.
+        inv_permeabilities (jax.Array | float): Reduced inverse permeability on the mode plane.
+        resolution (float | None): Uniform grid spacing, required without ``transverse_coords``.
+        direction (Literal["+", "-"]): Propagation direction.
+        mode_index (int): Index into the sorted mode list.
+        filter_pol (Literal["te", "tm"] | None): Optional polarization filter.
+        dtype (jnp.dtype): Float dtype of the simulation.
+        bend_radius (float | None): Waveguide bend radius, with ``bend_axis``.
+        bend_axis (int | None): Physical axis pointing toward the center of curvature.
+        transverse_coords (Sequence[jax.Array] | None): Reduced transverse edge coordinates, or
+            None on a uniform grid.
+        object_name (str): Name used in diagnostics.
+
+    Returns:
+        tuple[jax.Array, jax.Array, jax.Array]: ``(E, H, effective_index)`` on the reduced
+        cross-section.
+
+    Raises:
+        ValueError: If the parity projection removes almost the entire mode, which means the
+            configured wall types are incompatible with the selected mode.
+    """
+    propagation_axis = next(a for a in range(3) if inv_permittivities.shape[1:][a] == 1)
+    full_inv_permittivities = mirror_material_cross_section(inv_permittivities, mirrored_axes)
+    if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
+        full_inv_permeabilities: jax.Array | float = mirror_material_cross_section(inv_permeabilities, mirrored_axes)
+    else:
+        full_inv_permeabilities = inv_permeabilities
+
+    full_transverse_coords = transverse_coords
+    if transverse_coords is not None:
+        transverse_axes = get_transverse_axes(propagation_axis)
+        full_transverse_coords = [
+            mirror_edge_coordinates(coords) if axis in mirrored_axes else coords
+            for axis, coords in zip(transverse_axes, transverse_coords, strict=True)
+        ]
+
+    mode_E, mode_H, eff_index = compute_mode(
+        frequency=frequency,
+        inv_permittivities=full_inv_permittivities,
+        inv_permeabilities=full_inv_permeabilities,
+        resolution=resolution,
+        direction=direction,
+        mode_index=mode_index,
+        filter_pol=filter_pol,
+        dtype=dtype,
+        bend_radius=bend_radius,
+        bend_axis=bend_axis,
+        symmetry=(0, 0),
+        transverse_coords=full_transverse_coords,
+    )
+
+    mode_E, residual_E = project_onto_parity(mode_E, "E", walls)
+    mode_H, residual_H = project_onto_parity(mode_H, "H", walls)
+    residual = max(residual_E, residual_H)
+    wall_description = ", ".join(f"{'xyz'[axis]}={'PMC' if wall == 1 else 'PEC'}" for axis, wall in walls.items())
+    if residual > 0.9:
+        raise ValueError(
+            f"The mode selected for '{object_name}' has (almost) none of the symmetry imposed by the "
+            f"walls on {wall_description}: projecting it onto the admissible parity removes "
+            f"{residual:.1%} of the mode. The wall types do not match this mode - flip the sign of "
+            f"config.symmetry on those axes, pick a different mode_index/filter_pol, or run without "
+            f"config.symmetry."
+        )
+    if residual > 0.3:
+        logger.warning(
+            f"The mode of '{object_name}' is only approximately symmetric about the walls on "
+            f"{wall_description}: the parity projection removed {residual:.1%} of it. Check that the "
+            f"structure is mirror-symmetric there and that the wall types match the mode. A coarsely "
+            f"resolved cross-section alone can account for a residual of a few tens of percent - the "
+            f"mode solver samples materials on its staggered grid, so its discrete mode is only "
+            f"mirror-symmetric to first order in the cell size."
+        )
+
+    mode_E = restrict_to_kept_half(mode_E, mirrored_axes)
+    mode_H = restrict_to_kept_half(mode_H, mirrored_axes)
+
+    area_weights = None
+    if transverse_coords is not None:
+        widths = [jnp.diff(jnp.asarray(coords)) for coords in transverse_coords]
+        area_2d = widths[0][:, None] * widths[1][None, :]
+        weight_shape = [1, 1, 1]
+        for local_axis, axis in enumerate(get_transverse_axes(propagation_axis)):
+            weight_shape[axis] = area_2d.shape[local_axis]
+        area_weights = area_2d.reshape(weight_shape).astype(mode_E.real.dtype)
+    mode_E, mode_H = normalize_by_poynting_flux(
+        mode_E,
+        mode_H,
+        axis=propagation_axis,
+        area_weights=area_weights,
+    )
+    return mode_E, mode_H, eff_index
 
 
 def _is_reciprocal_tensor(components: Sequence[ArrayLike], tol: float = 1e-6) -> bool:

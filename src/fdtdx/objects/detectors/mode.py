@@ -15,7 +15,7 @@ from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
 from fdtdx.core.misc import tilted_polarization_vectors
 from fdtdx.core.null import Null
 from fdtdx.core.physics.metrics import normalize_by_poynting_flux
-from fdtdx.core.physics.modes import compute_mode
+from fdtdx.core.physics.modes import compute_mode, compute_mode_symmetry_reduced
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.dispersion import effective_complex_inv_permittivity
 from fdtdx.objects.detectors.detector import DetectorState
@@ -490,10 +490,12 @@ class ModeOverlapDetector(BaseModeOverlapDetector):
 
     #: Symmetry-plane condition at the min edge of each transverse axis (the two non-propagation
     #: physical axes, in increasing-index order): ``0`` = PEC mirror (electric wall, the default),
-    #: ``1`` = PMC mirror (magnetic wall). Set this when the detector plane's waveguide lies on a
-    #: symmetry plane of a reduced (half/quarter) domain so the reference mode is solved with the
-    #: same wall the FDTD uses (e.g. ``(0, 1)`` for PEC at y=0 and PMC at the z Si-mid plane).
-    #: Must match the corresponding ModePlaneSource for a consistent overlap.
+    #: ``1`` = PMC mirror (magnetic wall). Set this only for a **hand-built** half/quarter domain
+    #: (your own PEC/PMC boundary at the min edge), where it asks the mode solver for its own
+    #: symmetric solve; it must then match the corresponding ModePlaneSource. It is ignored when
+    #: ``config.symmetry`` performs the reduction: there the reference mode is solved on the mirrored
+    #: full cross-section and restricted, exactly like the mode source, so the overlap stays
+    #: consistent automatically.
     symmetry: tuple[int, int] = frozen_field(default=(0, 0))
 
     def place_on_grid(
@@ -556,6 +558,26 @@ class ModeOverlapDetector(BaseModeOverlapDetector):
         inv_permeability_slice: jax.Array | float,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
         """Solve the reference mode with the waveguide mode solver."""
+        mirrored_axes = self.symmetry_mirror_axes(exclude_axis=self.propagation_axis)
+        if mirrored_axes:
+            # Symmetry-reduced cross-section: mirror it back to the full one, solve there and
+            # restrict — the same route ModePlaneSource takes, so source and reference mode agree.
+            return compute_mode_symmetry_reduced(
+                mirrored_axes=mirrored_axes,
+                walls={axis: self._config.symmetry[axis] for axis in mirrored_axes},
+                frequency=wave_character.get_frequency(),
+                inv_permittivities=inv_permittivity_slice,
+                inv_permeabilities=inv_permeability_slice,
+                resolution=self._mode_solver_resolution(),
+                direction=self.direction,
+                mode_index=self.mode_index,
+                filter_pol=self.filter_pol,
+                dtype=self._config.dtype,
+                bend_radius=self.bend_radius,
+                bend_axis=self.bend_axis,
+                transverse_coords=self._transverse_edge_coordinates(),
+                object_name=self.name,
+            )
         return compute_mode(
             frequency=wave_character.get_frequency(),
             inv_permittivities=inv_permittivity_slice,
