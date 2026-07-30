@@ -74,7 +74,13 @@ from fdtdx.objects.detectors.field_projection import (
     FieldProjectionCartesianDetector,
     FieldProjectionKSpaceDetector,
 )
-from fdtdx.objects.detectors.mode import ModeOverlapDetector
+from fdtdx.objects.detectors.mode import (
+    BaseModeOverlapDetector,
+    CustomModeOverlapDetector,
+    GaussianModeOverlapDetector,
+    ModeOverlapDetector,
+    gaussian_mode_function,
+)
 from fdtdx.objects.detectors.phasor import PhasorDetector
 from fdtdx.objects.detectors.poynting_flux import (
     ClosedSurfacePhasorPoyntingFluxDetector,
@@ -170,6 +176,7 @@ SimulationState = SimulationState
 __all__ = [
     "DISPERSION_INTEGRATORS",
     "ArrayContainer",
+    "BaseModeOverlapDetector",
     "BinaryMedianFilterModule",
     "BlochBoundary",
     "BoundaryConfig",
@@ -180,6 +187,7 @@ __all__ = [
     "ClosestIndex",
     "Color",
     "ConnectHolesAndStructures",
+    "CustomModeOverlapDetector",
     "CustomTimeSignalProfile",
     "Cylinder",
     "Detector",
@@ -201,6 +209,7 @@ __all__ = [
     "GDSLayerObject",
     "GDSLayerSpec",
     "GDSPortSpec",
+    "GaussianModeOverlapDetector",
     "GaussianPlaneSource",
     "GaussianPulseProfile",
     "GaussianSmoothing2D",
@@ -291,6 +300,7 @@ __all__ = [
     "frozen_field",
     "frozen_private_field",
     "full_backward",
+    "gaussian_mode_function",
     "gds_layer_stack",
     "gds_layer_stack_from_component",
     "import_from_json",
