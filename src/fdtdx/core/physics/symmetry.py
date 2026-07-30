@@ -73,6 +73,40 @@ def component_sits_on_plane(field_type: Literal["E", "H"], component: int, axis:
     raise ValueError(f"field_type must be 'E' or 'H', got {field_type!r}")
 
 
+def mirror_pairs_on_plane(
+    field_type: Literal["E", "H"],
+    component: int,
+    axis: int,
+    wall: int,
+) -> bool:
+    """Whether a component's mirror map pairs its samples *about* a shared plane row.
+
+    This is the single place that decides the mirror index map, and it depends on the wall type, not
+    only on the Yee offsets:
+
+    * An **electric** plane sits on the tangential-``E`` node row at the reduced domain's min edge,
+      so a component sampled there (see :func:`component_sits_on_plane`) is its own mirror and the
+      pairs are ``m ± j``.
+    * A **magnetic** plane sits half a cell *below* the reduced domain. Sources and materials are
+      rasterized per cell, so their footprint is symmetric about the cell boundary below the min
+      edge — the tangential-``H`` node one cell out — and across that plane *every* component
+      mirrors one-to-one (the plain flip), whatever its Yee offset.
+
+    The parity itself (:func:`field_component_parity`) is unaffected: it is a property of the wall
+    type, not of where the plane sits.
+
+    Args:
+        field_type (Literal["E", "H"]): Which field the component belongs to.
+        component (int): Component axis index (0=x, 1=y, 2=z).
+        axis (int): Axis the mirror plane is normal to.
+        wall (int): ``-1`` for a PEC (electric) wall, ``+1`` for a PMC (magnetic) wall.
+
+    Returns:
+        bool: True if the samples pair as ``m ± j`` about a shared row, False for a plain flip.
+    """
+    return wall == -1 and component_sits_on_plane(field_type, component, axis)
+
+
 def mirror_material_array(
     array: jax.Array,
     axis: int,
@@ -220,8 +254,9 @@ def project_onto_parity(
     discrete mode is only mirror-symmetric to first order in the cell size), close to one when the
     wall type does not match the field at all.
 
-    Each component is mirrored with its own Yee index map (see
-    :func:`mirror_about_interior_plane`), matching how the FDTD wall treats it.
+    Each component is mirrored with the index map of its wall type (see
+    :func:`mirror_pairs_on_plane` and :func:`mirror_about_interior_plane`), matching how the reduced
+    FDTD run treats it.
 
     Args:
         field (jax.Array): Field array with a leading component axis and three spatial axes, spanning
@@ -237,7 +272,7 @@ def project_onto_parity(
         components = []
         for component in range(3):
             parity = field_component_parity(field_type, component, axis, wall)
-            on_plane = component_sits_on_plane(field_type, component, axis)
+            on_plane = mirror_pairs_on_plane(field_type, component, axis, wall)
             single = projected[component : component + 1]
             mirrored = mirror_about_interior_plane(single, axis + 1, on_plane)
             components.append(0.5 * (single + parity * mirrored))

@@ -6,15 +6,27 @@ provides the two halves of that machinery:
 
 * **Reduction** (used internally by ``place_objects``): clip every resolved grid slice onto the
   kept upper half along each symmetric axis, drop objects that fall entirely in the discarded
-  half, insert a PEC/PMC wall on the symmetry plane, and forward the matching per-axis condition
-  to mode sources/detectors.
+  half, and insert a PEC wall on each electric symmetry plane.
 * **Unfolding** (public helpers): reconstruct full-domain field and detector arrays from the
   reduced simulation, applying the correct per-component mirror parity.
 
 Symmetry encoding (per axis, order ``(x, y, z)``): ``0`` = none, ``-1`` = PEC (electric wall),
 ``+1`` = PMC (magnetic wall). The symmetry plane is the geometric center of the axis; the upper
-half is kept so the plane lands at the reduced domain's min edge — matching the mode solver's
-"wall at the min edge" convention.
+half is kept so the plane lands at the reduced domain's min edge.
+
+**Where the two wall types sit.** An electric plane sits *on* the reduced domain's min edge: the
+tangential ``E`` components are sampled there and the odd symmetry makes them vanish, which is a
+PEC face. A magnetic plane sits *half a cell below* it: sources and materials are rasterized per
+cell, so the discrete problem is mirror symmetric about the tangential-``H`` node one cell out,
+where tangential ``H`` vanishes — already supplied by the zero halo of the field padding, so no wall
+object is created for it (see :func:`make_symmetry_walls`). The same distinction sets the mirror
+index map used when unfolding (:func:`~fdtdx.core.physics.symmetry.mirror_pairs_on_plane`): across
+an electric plane, components sampled on it pair as ``m ± j``; across a magnetic plane every
+component mirrors one-to-one.
+
+Mode sources and mode-overlap detectors clipped by a symmetry plane do not use the mode solver's own
+symmetric solve; they mirror the reduced cross-section back to the full one, solve there and
+restrict (see :func:`~fdtdx.core.physics.modes.compute_mode_symmetry_reduced`).
 
 The parity table itself (:func:`field_component_parity`) lives in
 :mod:`fdtdx.core.physics.symmetry` so that source and detector classes can use it without an
@@ -31,15 +43,14 @@ from fdtdx.config import SimulationConfig
 from fdtdx.core.misc import validate_symmetric_axis_cells
 from fdtdx.core.null import Null
 from fdtdx.core.physics.symmetry import (
-    component_sits_on_plane,
     field_component_parity,
     mirror_extend_low_side,
+    mirror_pairs_on_plane,
 )
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.objects.boundaries.bloch import BlochBoundary
 from fdtdx.objects.boundaries.boundary import BaseBoundary
 from fdtdx.objects.boundaries.pec import PerfectElectricConductor
-from fdtdx.objects.boundaries.pmc import PerfectMagneticConductor
 from fdtdx.objects.detectors.diffractive import DiffractiveDetector
 from fdtdx.objects.detectors.energy import EnergyDetector
 from fdtdx.objects.detectors.field import FieldDetector
@@ -170,6 +181,17 @@ def reduce_resolved_slices(
         new_slices[name] = (clipped[0], clipped[1], clipped[2])
         unreduced_slices[name] = (unclipped[0], unclipped[1], unclipped[2])
 
+        if isinstance(obj, BlochBoundary) and symmetry[obj.axis] != 0:
+            # The min-side boundary of a symmetric axis is dropped above; a far-side one survives.
+            # Its wrap padding must not reach the min-side halo, which belongs to the mirror (see
+            # pad_fields_for_boundaries) - say so rather than let the axis look fully periodic.
+            logger.warning(
+                f"Periodic/Bloch boundary '{name}' sits on the {_AXIS_NAMES[obj.axis]}-symmetry "
+                f"axis. Periodic boundaries and mirror symmetry are mutually exclusive on the same "
+                f"axis: the halo behind the symmetry plane is set by the mirror, not by wrapping to "
+                f"this boundary. Use PML (or nothing) on the far side of a symmetric axis."
+            )
+
     return new_slices, unreduced_slices, dropped, reduced_volume_shape
 
 
@@ -179,7 +201,20 @@ def make_symmetry_walls(
     key: jax.Array,
     existing_names: set[str],
 ) -> list[SimulationObject]:
-    """Create the PEC/PMC wall objects sitting on each symmetry plane (reduced min edge).
+    """Create the PEC wall objects sitting on each *electric* symmetry plane (reduced min edge).
+
+    Only an electric (``-1``) plane gets a wall object. It sits on the tangential-``E`` node row at
+    the reduced domain's min edge, where the odd symmetry does make those components vanish, so the
+    condition is exactly a PEC face.
+
+    A magnetic (``+1``) plane gets **no wall object**. Its plane is half a cell below the reduced
+    domain: sources and materials are rasterized per cell, so the discrete problem is mirror
+    symmetric about the tangential-``H`` node one cell below the min edge, where tangential ``H``
+    vanishes — which is precisely what the zero halo of the field padding already supplies. Placing a
+    :class:`~fdtdx.PerfectMagneticConductor` there instead (zeroing tangential ``H`` at the first
+    cell, half a cell inside the domain) or filling that halo with ``-H_t[0]`` forces the mirror onto
+    the cell edge and displaces the plane by half a cell: a consistent discretization of the *wrong*
+    problem, which converges cleanly at first order and so looks plausible while being wrong.
 
     Args:
         config (SimulationConfig): Simulation config; ``config.symmetry`` selects the axes/types.
@@ -188,12 +223,13 @@ def make_symmetry_walls(
         existing_names (set[str]): Names already in use, so wall names can be made unique.
 
     Returns:
-        list[SimulationObject]: PEC/PMC boundary objects, already placed on the reduced grid.
+        list[SimulationObject]: PEC boundary objects for the electric symmetry planes, already
+        placed on the reduced grid. Empty if every symmetric axis is magnetic.
     """
     walls: list[SimulationObject] = []
     used = set(existing_names)
     for a in range(3):
-        if config.symmetry[a] == 0:
+        if config.symmetry[a] != -1:
             continue
         name = f"_sym_wall_{_AXIS_NAMES[a]}"
         suffix = 0
@@ -207,8 +243,7 @@ def make_symmetry_walls(
             1 if a == 1 else None,
             1 if a == 2 else None,
         )
-        wall_cls = PerfectElectricConductor if config.symmetry[a] == -1 else PerfectMagneticConductor
-        wall = wall_cls(
+        wall = PerfectElectricConductor(
             name=name,
             axis=a,
             partial_grid_shape=partial_grid_shape,
@@ -292,12 +327,15 @@ def unfold_fields(
     concatenates the mirror image in front of the kept half, so the symmetry plane ends up at the
     center of the reconstructed array.
 
-    Each component is mirrored with its own Yee index map: a component whose samples sit half a cell
-    off the plane (normal ``E``, tangential ``H``) mirrors one-to-one, while a component sampled *on*
-    the plane (tangential ``E``, normal ``H``) has its first sample as its own mirror, so only the
-    remaining ones produce images. One reconstructed cell per axis — the outermost of the mirrored
-    half, whose partner lies outside the kept domain — is filled by repeating its neighbour; it is the
-    far-boundary cell of the reconstructed domain (inside the absorbing layer in a typical setup).
+    The index map is chosen per axis from its wall type (see
+    :func:`~fdtdx.core.physics.symmetry.mirror_pairs_on_plane`). Across an **electric** plane, which
+    sits on the reduced domain's min edge, a component sampled *on* it (tangential ``E``, normal
+    ``H``) has its first sample as its own mirror, so only the remaining ones produce images, while
+    the half-cell-offset components mirror one-to-one. Across a **magnetic** plane, which sits half a
+    cell below the min edge, every component mirrors one-to-one. In the on-plane case one
+    reconstructed cell per axis — the outermost of the mirrored half, whose partner lies outside the
+    kept domain — is filled by repeating its neighbour; it is the far-boundary cell of the
+    reconstructed domain (inside the absorbing layer in a typical setup).
 
     Args:
         field (jax.Array): Reduced field, shape ``(3, Nx, Ny, Nz)`` (component axis first).
@@ -321,7 +359,7 @@ def unfold_fields(
                 single,
                 axis=a + 1,
                 parity=field_component_parity(field_type, c, a, symmetry[a]),
-                on_plane=component_sits_on_plane(field_type, c, a),
+                on_plane=mirror_pairs_on_plane(field_type, c, a, symmetry[a]),
             )
             components.append(jnp.concatenate([low, single], axis=a + 1))
         arr = jnp.concatenate(components, axis=0)
@@ -415,8 +453,9 @@ def unfold_array(
             array applied to the mirror image (defaults to ``+1``).
         on_plane_axes (tuple[int, ...]): Physical axes whose samples lie *on* the symmetry plane
             rather than half a cell off it. There the first sample is its own mirror, so it is not
-            duplicated and the outermost reconstructed sample repeats its neighbour. Detector output
-            co-located at ``(i, j, k+1/2)`` is on-plane for x and y, off-plane for z.
+            duplicated and the outermost reconstructed sample repeats its neighbour. Only an electric
+            plane can be on-plane at all — a magnetic one sits half a cell below the reduced domain,
+            so everything mirrors one-to-one across it; see :func:`_colocated_on_plane_axes`.
 
     Returns:
         jax.Array: The unfolded array.
@@ -435,15 +474,26 @@ def unfold_array(
     return arr
 
 
-def _colocated_on_plane_axes(detector) -> tuple[int, ...]:
+def _colocated_on_plane_axes(detector, touched: tuple[int, int, int]) -> tuple[int, ...]:
     """Which physical axes a detector's stored samples sit on, for the mirror index map.
 
     With ``exact_interpolation`` the six components are co-located at the ``E_z`` Yee point
-    ``(i, j, k+1/2)``: integer along x and y — i.e. exactly on a symmetry plane normal to those axes
-    — and half a cell off along z. Without it the raw staggered components are stored, each with its
-    own offset, and no single index map fits; those fall back to the plain flip.
+    ``(i, j, k+1/2)``: integer along x and y and half a cell off along z. An integer position lands on
+    an **electric** symmetry plane, which sits on the reduced domain's min edge, so those samples pair
+    as ``m ± j``. A **magnetic** plane sits half a cell below the min edge, so nothing is on-plane
+    there and every sample mirrors one-to-one (see
+    :func:`~fdtdx.core.physics.symmetry.mirror_pairs_on_plane`). Without ``exact_interpolation`` the
+    raw staggered components are stored, each with its own offset, and no single index map fits; those
+    fall back to the plain flip.
+
+    Args:
+        detector: The detector whose stored output is being unfolded.
+        touched (tuple[int, int, int]): Per-axis wall type of the symmetry planes this detector was
+            clipped by (``0`` where it was not).
     """
-    return (0, 1) if getattr(detector, "exact_interpolation", False) else ()
+    if not getattr(detector, "exact_interpolation", False):
+        return ()
+    return tuple(a for a in (0, 1) if touched[a] == -1)
 
 
 def _stored_component_spec(components) -> list[tuple[Literal["E", "H"], int]]:
@@ -514,7 +564,7 @@ def _poynting_parity(component: int, axis: int, wall: int) -> int:
 def _unfold_poynting(detector, state: dict[str, jax.Array], touched: tuple[int, int, int]):
     """Unfold a PoyntingFluxDetector (scalar/vector, summed/spatial) via per-component flux parity."""
     arr = state["poynting_flux"]
-    on_plane = _colocated_on_plane_axes(detector)
+    on_plane = _colocated_on_plane_axes(detector, touched)
     components = (0, 1, 2) if detector.keep_all_components else (detector.propagation_axis,)
     touched_axes = [a for a in range(3) if touched[a] != 0]
 
@@ -612,7 +662,7 @@ def _unfold_one_detector(
             return {"phasor": arr * factor.astype(arr.dtype)}
         arr = state["phasor"]  # (1, num_freqs, num_components, nx, ny, nz)
         signs = _component_signs(spec, touched, arr.ndim, component_axis=2)
-        return {"phasor": unfold_array(arr, touched, (3, 4, 5), signs, _colocated_on_plane_axes(detector))}
+        return {"phasor": unfold_array(arr, touched, (3, 4, 5), signs, _colocated_on_plane_axes(detector, touched))}
 
     if isinstance(detector, FieldDetector):
         spec = _stored_component_spec(detector.components)
@@ -625,15 +675,17 @@ def _unfold_one_detector(
             return {"fields": arr * factor.astype(arr.dtype)}
         arr = state["fields"]  # (T, num_components, nx, ny, nz)
         signs = _component_signs(spec, touched, arr.ndim, component_axis=1)
-        return {"fields": unfold_array(arr, touched, (2, 3, 4), signs, _colocated_on_plane_axes(detector))}
+        return {"fields": unfold_array(arr, touched, (2, 3, 4), signs, _colocated_on_plane_axes(detector, touched))}
 
     if isinstance(detector, EnergyDetector):
         if detector.as_slices:
-            return _unfold_energy_slices(state, touched, _colocated_on_plane_axes(detector))
+            return _unfold_energy_slices(state, touched, _colocated_on_plane_axes(detector, touched))
         if detector.reduce_volume:  # summed energy; energy density is even -> x2 per plane
             return {"energy": state["energy"] * (2**count)}
         arr = state["energy"]  # (T, nx, ny, nz)
-        return {"energy": unfold_array(arr, touched, (1, 2, 3), on_plane_axes=_colocated_on_plane_axes(detector))}
+        return {
+            "energy": unfold_array(arr, touched, (1, 2, 3), on_plane_axes=_colocated_on_plane_axes(detector, touched))
+        }
 
     if isinstance(detector, PoyntingFluxDetector):
         return _unfold_poynting(detector, state, touched)

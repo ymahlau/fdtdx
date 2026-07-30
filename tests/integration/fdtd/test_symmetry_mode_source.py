@@ -32,9 +32,7 @@ def _build(symmetry, mode_index=0, mode_symmetry=None, detector=False):
         dtype=jnp.float32,
         symmetry=symmetry,
     )
-    volume = fdtdx.SimulationVolume(
-        partial_grid_shape=(_PROPAGATION_CELLS, _TRANSVERSE_CELLS, _TRANSVERSE_CELLS)
-    )
+    volume = fdtdx.SimulationVolume(partial_grid_shape=(_PROPAGATION_CELLS, _TRANSVERSE_CELLS, _TRANSVERSE_CELLS))
     objects, constraints = [volume], []
     bound_dict, boundary_constraints = fdtdx.boundary_objects_from_config(
         fdtdx.BoundaryConfig.from_uniform_bound(thickness=2), volume
@@ -140,6 +138,14 @@ class TestModeSourceUnderSymmetry:
         # injected profile is the full-domain mode restricted to the kept half. It is not bit-equal:
         # the parity projection drops the part of the discrete mode that the wall cannot support (a
         # few percent of its norm at this resolution), so compare with a modal-fidelity measure.
+        #
+        # The amplitude tolerance is loose because the *discrete* mode is only mirror-symmetric to
+        # first order in the cell size: the solver samples materials on its staggered grid while
+        # FDTDX hands it one cell-centred permittivity array, so the solved mode's flux does not split
+        # exactly evenly between the halves. Measured here for the y axis: 0.446/0.554 at 25 nm and
+        # 0.473/0.527 at 12.5 nm, so renormalizing to unit flux over the reduced plane inflates the
+        # amplitude by 5.9% (25 nm) resp. 2.8% (12.5 nm) for that axis. The z axis splits to 0.2%. See
+        # test_magnetic_plane_projection_uses_the_plain_flip for the sharp check, which uses z only.
         full = _by_name(_apply((0, 0, 0))[0], "src")
         reduced = _by_name(_apply(symmetry)[0], "src")
         multiplicity = 2 ** sum(1 for s in symmetry if s != 0)
@@ -149,7 +155,7 @@ class TestModeSourceUnderSymmetry:
             actual = np.asarray(getattr(reduced, name)).ravel()
             assert actual.shape == expected.shape
             scale = float(np.vdot(expected, actual) / np.vdot(expected, expected))
-            assert abs(abs(scale) - np.sqrt(multiplicity)) < 0.1, f"{name}: unexpected amplitude scale {scale:.4f}"
+            assert abs(abs(scale) - np.sqrt(multiplicity)) < 0.15, f"{name}: unexpected amplitude scale {scale:.4f}"
             fidelity = abs(np.vdot(expected, actual)) / (np.linalg.norm(expected) * np.linalg.norm(actual))
             assert fidelity > 0.97, f"{name}: only {fidelity:.4f} overlap with the full-domain mode"
 
@@ -170,6 +176,22 @@ class TestModeSourceUnderSymmetry:
         assert abs(full_flux) > 0
         ratio = reduced_flux / full_flux
         assert abs(ratio - 1.0) < 2e-3, f"flux through the reduced plane is {ratio:.6f} of the full-domain one"
+
+    def test_magnetic_plane_projection_uses_the_plain_flip(self):
+        # The parity projection mirrors the solved mode with the index map of the wall type. A
+        # magnetic plane sits half a cell below the reduced domain, so that map is the plain flip;
+        # using the electric m±j map here instead (the same map for both wall types) costs an order
+        # of magnitude in both metrics below - measured 0.9978 fidelity and a 1.0% amplitude error
+        # versus 0.9990 and 0.2% - because it projects onto the parity of a plane half a cell away.
+        full = _by_name(_apply((0, 0, 0))[0], "src")
+        reduced = _by_name(_apply(_HALF_Z)[0], "src")
+        for name in ("_E", "_H"):
+            expected = _kept_half(np.asarray(getattr(full, name)), _HALF_Z).ravel()
+            actual = np.asarray(getattr(reduced, name)).ravel()
+            # sqrt(2) larger than the full-domain restriction (unit power through the reduced plane).
+            scale = abs(np.vdot(expected, actual) / np.vdot(expected, expected)) / np.sqrt(2.0)
+            assert abs(scale - 1.0) < 5e-3, f"{name}: amplitude is {scale:.4f} of the expected sqrt(2)"
+            assert _fidelity(expected, actual) > 0.9985, f"{name}: {_fidelity(expected, actual):.6f}"
 
     def test_explicit_mode_solver_symmetry_is_ignored_but_kept(self):
         # An explicit mode-solver symmetry tuple no longer does anything under config.symmetry (a

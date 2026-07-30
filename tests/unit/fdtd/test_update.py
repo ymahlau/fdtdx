@@ -14,6 +14,7 @@ from fdtdx.fdtd.update import (
     collect_interfaces,
     get_wrap_padding_axes,
     pad_fields_for_boundaries,
+    pad_fields_with_symmetry_mirror,
     update_detector_states,
     update_E,
     update_E_reverse,
@@ -68,11 +69,12 @@ def _make_objects(sources=None):
     return obj
 
 
-def _make_config(c=0.5):
+def _make_config(c=0.5, symmetry=(0, 0, 0)):
     cfg = Mock()
     cfg.courant_number = c
     cfg.uniform_spacing.return_value = 1.0
     cfg.has_nonuniform_grid = False
+    cfg.symmetry = symmetry
     return cfg
 
 
@@ -166,6 +168,7 @@ class TestPadFieldsForBoundaries:
         config.grid = grid
         config.has_nonuniform_grid = True
         config.resolved_grid = grid
+        config.symmetry = (0, 0, 0)
         config.uniform_spacing.side_effect = AssertionError("uniform spacing should not be required")
 
         boundary = Mock()
@@ -183,6 +186,85 @@ class TestPadFieldsForBoundaries:
         assert padded.shape == (3, 4, 3, 3)
         boundary.apply_pad_correction.assert_called_once()
         assert boundary.apply_pad_correction.call_args.args[2] == pytest.approx(1.0)
+
+    def test_symmetric_axis_does_not_wrap_its_min_side_halo(self):
+        # Reduction drops the min-side periodic boundary of a symmetric axis but keeps the far-side
+        # one, so the axis still reports wrap padding. Wrapping the min-side halo would fill it with
+        # the far side's field, overwriting what the mirror needs there; the far side is untouched.
+        boundary = Mock()
+        boundary.axis = 1
+        boundary.uses_wrap_padding = True
+        boundary.apply_pad_correction.side_effect = lambda padded, _shape, _spacing: padded
+        objects = Mock()
+        objects.boundary_objects = [boundary]
+        objects.volume.grid_shape = (NX, NY, NZ)
+
+        fields = jnp.arange(1, 3 * NX * NY * NZ + 1, dtype=jnp.float32).reshape(FIELD_SHAPE)
+        wrapped = pad_fields_for_boundaries(fields, objects, _make_config())
+        symmetric = pad_fields_for_boundaries(fields, objects, _make_config(symmetry=(0, 1, 0)))
+
+        assert jnp.allclose(wrapped[:, 1:-1, 0, 1:-1], fields[:, :, -1, :])  # wraps without symmetry
+        assert jnp.all(symmetric[:, :, 0, :] == 0.0)  # min side belongs to the mirror
+        assert jnp.allclose(symmetric[:, 1:-1, -1, 1:-1], fields[:, :, 0, :])  # far side still wraps
+
+
+class TestPadFieldsWithSymmetryMirror:
+    """The min-side halo the detector co-location stencil reads at a symmetry plane.
+
+    Only an *electric* plane gets the mirror: it sits on the reduced domain's min edge, so the halo's
+    true value is the parity-weighted mirror partner (the first cell for a component sampled half a
+    cell off the plane, the second for one sampled on it). A magnetic plane sits half a cell below the
+    domain, where the zero halo already *is* the mirror, and a user-placed boundary makes no symmetry
+    claim at all — both keep the plain zero padding.
+    """
+
+    def _objects(self, axis=1, is_symmetry_wall=True):
+        boundary = Mock()
+        boundary.axis = axis
+        boundary.uses_wrap_padding = False
+        boundary._is_symmetry_wall = is_symmetry_wall
+        boundary.apply_pad_correction.side_effect = lambda padded, _shape, _spacing: padded
+        objects = Mock()
+        objects.boundary_objects = [boundary]
+        objects.volume.grid_shape = (NX, NY, NZ)
+        return objects
+
+    def _fields(self):
+        # Distinct nonzero values everywhere, so a wrong source index cannot pass by coincidence.
+        return jnp.arange(1, 3 * NX * NY * NZ + 1, dtype=jnp.float32).reshape(FIELD_SHAPE)
+
+    def test_electric_plane_mirrors_each_component_with_its_own_index_map(self):
+        fields = self._fields()
+        config = _make_config(symmetry=(0, -1, 0))
+
+        # E across a PEC y-plane: Ex, Ez are tangential (odd) and sampled *on* the plane, so their
+        # halo is minus the *second* cell; Ey is normal (even) and half a cell off, so it is plus the
+        # first cell.
+        padded = pad_fields_with_symmetry_mirror(fields, self._objects(), config, "E")
+        assert jnp.allclose(padded[0, 1:-1, 0, 1:-1], -fields[0, :, 1, :])
+        assert jnp.allclose(padded[1, 1:-1, 0, 1:-1], fields[1, :, 0, :])
+        assert jnp.allclose(padded[2, 1:-1, 0, 1:-1], -fields[2, :, 1, :])
+
+        # H is the other way round: Hy is normal (odd) and sampled on the plane, Hx and Hz are
+        # tangential (even) and half a cell off.
+        padded = pad_fields_with_symmetry_mirror(fields, self._objects(), config, "H")
+        assert jnp.allclose(padded[0, 1:-1, 0, 1:-1], fields[0, :, 0, :])
+        assert jnp.allclose(padded[1, 1:-1, 0, 1:-1], -fields[1, :, 1, :])
+        assert jnp.allclose(padded[2, 1:-1, 0, 1:-1], fields[2, :, 0, :])
+
+    def test_magnetic_plane_keeps_the_zero_halo(self):
+        fields = self._fields()
+        config = _make_config(symmetry=(0, 1, 0))
+        for field_type in ("E", "H"):
+            padded = pad_fields_with_symmetry_mirror(fields, self._objects(), config, field_type)
+            assert jnp.all(padded[:, :, 0, :] == 0.0), field_type
+
+    def test_user_placed_boundary_keeps_the_zero_halo(self):
+        fields = self._fields()
+        config = _make_config(symmetry=(0, -1, 0))
+        objects = self._objects(is_symmetry_wall=False)
+        padded = pad_fields_with_symmetry_mirror(fields, objects, config, "E")
+        assert jnp.all(padded[:, :, 0, :] == 0.0)
 
 
 # ─── TestUpdateE ──────────────────────────────────────────────────────────────

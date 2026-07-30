@@ -278,16 +278,12 @@ class TestUnsupportedSymmetryPlacements:
     def test_tilted_source_straddling_plane_raises(self, kwargs):
         objects, constraints, config = _build(_compatible_symmetry(2, "hv"), **kwargs)
         with pytest.raises(ValueError, match="symmetry"):
-            fdtdx.place_objects(
-                object_list=objects, config=config, constraints=constraints, key=jax.random.PRNGKey(0)
-            )
+            fdtdx.place_objects(object_list=objects, config=config, constraints=constraints, key=jax.random.PRNGKey(0))
 
     def test_random_offset_source_straddling_plane_raises(self):
         objects, constraints, config = _build(_compatible_symmetry(2, "hv"), max_horizontal_offset=2e-7)
         with pytest.raises(ValueError, match="symmetry"):
-            fdtdx.place_objects(
-                object_list=objects, config=config, constraints=constraints, key=jax.random.PRNGKey(0)
-            )
+            fdtdx.place_objects(object_list=objects, config=config, constraints=constraints, key=jax.random.PRNGKey(0))
 
 
 class TestPolarizationWallCompatibility:

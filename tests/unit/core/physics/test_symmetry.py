@@ -12,6 +12,7 @@ from fdtdx.core.physics.symmetry import (
     mirror_extend_low_side,
     mirror_material_array,
     mirror_material_cross_section,
+    mirror_pairs_on_plane,
     project_onto_parity,
     restrict_to_kept_half,
 )
@@ -46,6 +47,25 @@ class TestComponentSitsOnPlane:
     def test_invalid_field_type(self):
         with pytest.raises(ValueError):
             component_sits_on_plane("B", 0, 0)  # type: ignore[arg-type]
+
+
+class TestMirrorPairsOnPlane:
+    """The mirror index map depends on the wall type, not only on the Yee offsets."""
+
+    def test_electric_plane_uses_the_yee_offsets(self):
+        for field_type in ("E", "H"):
+            for axis in range(3):
+                for component in range(3):
+                    assert mirror_pairs_on_plane(field_type, component, axis, -1) == component_sits_on_plane(
+                        field_type, component, axis
+                    )
+
+    def test_magnetic_plane_is_always_a_plain_flip(self):
+        # A magnetic plane sits half a cell below the reduced domain, so nothing is sampled on it.
+        for field_type in ("E", "H"):
+            for axis in range(3):
+                for component in range(3):
+                    assert mirror_pairs_on_plane(field_type, component, axis, 1) is False
 
 
 class TestMirrorMaterialArray:
@@ -115,13 +135,29 @@ class TestProjectOntoParity:
     def _mode(self, values):
         return jnp.asarray(values, dtype=jnp.float32).reshape(3, 1, 4, 1)
 
-    def test_symmetric_field_is_untouched(self):
-        # Ex is tangential to a y-wall and even under PMC; sampled on the plane (index 2 of 4), so a
-        # compatible profile satisfies f[1] == f[3].
-        field = self._mode([[0.0, 7.0, 9.0, 7.0], [0.0] * 4, [0.0] * 4])
+    def test_symmetric_field_is_untouched_across_a_magnetic_plane(self):
+        # Ex is tangential to a y-wall and even under PMC. A magnetic plane sits half a cell below the
+        # reduced domain, so its mirror map is the plain flip and a compatible profile is the one that
+        # is symmetric about the array centre: f[0] == f[3], f[1] == f[2].
+        field = self._mode([[7.0, 9.0, 9.0, 7.0], [0.0] * 4, [0.0] * 4])
         projected, residual = project_onto_parity(field, "E", {1: 1})
         assert residual < 1e-6
-        assert jnp.allclose(projected[0, 0, 1:, 0], field[0, 0, 1:, 0])
+        assert jnp.allclose(projected[0, 0, :, 0], field[0, 0, :, 0])
+
+    def test_symmetric_field_is_untouched_across_an_electric_plane(self):
+        # Ez is tangential to a y-wall and odd under PEC, and it is sampled *on* an electric plane
+        # (index 2 of 4), so a compatible profile vanishes there and satisfies f[1] == -f[3].
+        field = self._mode([[0.0] * 4, [0.0] * 4, [0.0, -7.0, 0.0, 7.0]])
+        projected, residual = project_onto_parity(field, "E", {1: -1})
+        assert residual < 1e-6
+        assert jnp.allclose(projected[2, 0, 1:, 0], field[2, 0, 1:, 0])
+
+    def test_magnetic_plane_map_differs_from_the_electric_one(self):
+        # The same profile cannot be compatible with both: across an electric plane the pairing is
+        # m±j about the plane row, across a magnetic plane it is the plain flip.
+        field = self._mode([[0.0, 7.0, 9.0, 7.0], [0.0] * 4, [0.0] * 4])
+        _projected, residual = project_onto_parity(field, "E", {1: 1})
+        assert residual > 0.1, "an m±j-symmetric profile is not plain-flip symmetric"
 
     def test_incompatible_field_is_annihilated(self):
         # The same profile against a PEC wall, where Ex is odd: nothing survives except the unpaired

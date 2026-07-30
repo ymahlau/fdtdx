@@ -243,7 +243,9 @@ def place_objects(
         wall_names = [w.name for w in walls]
         logger.warning(
             f"Symmetry {config.symmetry} reduces the simulation to grid shape {reduced_volume_shape} "
-            f"(walls added: {wall_names}; objects dropped: {sorted(dropped_names) or 'none'}). "
+            f"(PEC walls added on the electric planes: {wall_names or 'none'}; magnetic planes sit "
+            f"half a cell out and carry their mirror in the field halo, so they get no wall object; "
+            f"objects dropped: {sorted(dropped_names) or 'none'}). "
             f"Results are on the reduced domain — call fdtdx.unfold_detector_states / "
             f"fdtdx.unfold_fields to reconstruct the full domain."
         )

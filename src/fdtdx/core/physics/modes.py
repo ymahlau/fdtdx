@@ -419,6 +419,17 @@ def compute_mode_symmetry_reduced(
     at all. Finally the fields are renormalized to unit Poynting flux through the *reduced* plane,
     keeping the convention that a mode source launches unit power through the plane it occupies.
 
+    Both steps are limited by the same discretization the detour above avoids for ``neff``: because
+    the solver samples materials on its staggered grid, the discrete mode of a mirror-symmetric
+    cross-section is itself only symmetric to first order in the cell size, so its flux does not
+    split exactly evenly between the two halves. Measured for a 400x200 nm Si waveguide at 1.55 um:
+    0.446 / 0.554 along the solver's first transverse axis at 25 nm (0.473 / 0.527 at 12.5 nm), and
+    0.499 / 0.501 along its second. Renormalizing over the reduced plane therefore leaves the
+    returned profile up to ~6% (25 nm) resp. ~3% (12.5 nm) above ``sqrt(2**k)`` times the restriction
+    of the full-domain mode on such an axis, and the parity projection removes a few tenths of a
+    percent of its norm. Both vanish with refinement; the flux convention is exact by construction at
+    every resolution.
+
     Args:
         mirrored_axes (tuple[int, ...]): Physical axes clipped by a symmetry plane.
         walls (dict[int, int]): Mirror axis to wall type (``-1`` PEC, ``+1`` PMC).
