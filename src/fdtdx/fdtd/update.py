@@ -1,3 +1,5 @@
+from typing import Literal
+
 import jax
 import jax.numpy as jnp
 
@@ -5,6 +7,7 @@ from fdtdx.config import SimulationConfig
 from fdtdx.constants import eta0
 from fdtdx.core.misc import expand_to_3x3, pad_fields
 from fdtdx.core.physics.curl import curl_E, curl_H, interpolate_fields
+from fdtdx.core.physics.symmetry import field_component_parity, mirror_pairs_on_plane
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.misc import (
@@ -96,6 +99,13 @@ def pad_fields_for_boundaries(
     Combines wrap/constant padding with boundary-specific corrections
     (e.g. Bloch phase shifts) in a single call.
 
+    On a ``config.symmetry`` axis the *min-side* halo is never wrapped. Reduction drops the min-side
+    periodic/Bloch boundary but keeps the far-side one, so that axis still reports wrap padding — and
+    wrapping would fill the halo behind the symmetry plane with the far side's field, overwriting what
+    the mirror condition needs there (zero for a magnetic plane, the mirrored interior that
+    :func:`pad_fields_with_symmetry_mirror` writes for an electric one). The far-side halo keeps
+    whatever boundary the user placed.
+
     Args:
         fields: Field array of shape (3, Nx, Ny, Nz)
         objects: Container with simulation objects including boundaries
@@ -108,6 +118,11 @@ def pad_fields_for_boundaries(
     """
     periodic_axes = get_wrap_padding_axes(objects)
     padded = pad_fields(fields, periodic_axes)
+    for axis in range(3):
+        if config.symmetry[axis] != 0 and periodic_axes[axis]:
+            index: list[slice] = [slice(None)] * padded.ndim
+            index[axis + 1] = slice(0, 1)
+            padded = padded.at[tuple(index)].set(0)
     boundaries = objects.boundary_objects
     if boundaries:
         volume_shape = objects.volume.grid_shape
@@ -118,6 +133,68 @@ def pad_fields_for_boundaries(
             spacing = config.uniform_spacing()
         for boundary in boundaries:
             padded = boundary.apply_pad_correction(padded, volume_shape, spacing)
+    return padded
+
+
+def pad_fields_with_symmetry_mirror(
+    fields: jax.Array,
+    objects: ObjectContainer,
+    config: SimulationConfig,
+    field_type: Literal["E", "H"],
+) -> jax.Array:
+    """Pad fields, filling the halo of every *electric* ``config.symmetry`` plane with its mirror.
+
+    This exists for the detector co-location stencil of
+    :func:`~fdtdx.core.physics.curl.interpolate_fields`, which is the only consumer of the min-side
+    halo that a symmetry plane can get wrong. That stencil takes a backward half-step average, so for
+    a detector touching the plane it averages the first cell against the halo — and
+    :func:`pad_fields_for_boundaries` puts a zero there, where the true neighbour is the mirror image
+    of the interior. The detector then records exactly *half* the field in the plane row. Each
+    component instead takes the parity-weighted value of its own mirror partner: the neighbouring
+    cell for components sampled half a cell off the plane, the next one in for components sampled on
+    it.
+
+    The field updates do **not** use this: the halo along an axis is only read by the updates of the
+    components tangential to it (an update never differentiates along its own component axis), and on
+    an electric plane those are precisely the components the PEC wall zeroes right afterwards, so the
+    halo value cannot survive.
+
+    Only **electric** symmetry planes get the mirror. A magnetic plane sits half a cell below the
+    reduced domain, so the zero halo already *is* its exact mirror (tangential ``H`` vanishes there);
+    filling it would displace the plane by half a cell. See
+    :func:`~fdtdx.fdtd.symmetry.make_symmetry_walls`. A user-placed PEC/PMC boundary makes no
+    symmetry claim about the structure behind it either, so its halo also stays as it was.
+
+    Args:
+        fields: Field array of shape (3, Nx, Ny, Nz)
+        objects: Container with simulation objects including boundaries
+        config: Simulation configuration
+        field_type: Whether ``fields`` holds the electric or magnetic field
+
+    Returns:
+        Padded fields of shape (3, Nx+2, Ny+2, Nz+2)
+    """
+    padded = pad_fields_for_boundaries(fields, objects, config)
+    for boundary in objects.boundary_objects:
+        if not getattr(boundary, "_is_symmetry_wall", False):
+            continue
+        axis = boundary.axis
+        wall = config.symmetry[axis]
+        if wall != -1:
+            # Unreachable today (only electric planes get a wall object), but the mirror is wrong for
+            # a magnetic plane, so state the restriction here rather than inherit it by accident.
+            continue
+        for component in range(3):
+            parity = field_component_parity(field_type, component, axis, wall)
+            # Padded index 0 is one cell below the domain. Its mirror partner is the domain's first
+            # cell for a half-cell-offset component (padded index 1) and the second one for a
+            # component sampled on the plane itself (padded index 2).
+            source_index = 2 if mirror_pairs_on_plane(field_type, component, axis, wall) else 1
+            target: list[slice] = [slice(None)] * 3
+            source: list[slice] = [slice(None)] * 3
+            target[axis] = slice(0, 1)
+            source[axis] = slice(source_index, source_index + 1)
+            padded = padded.at[component, *target].set(parity * padded[component, *source])
     return padded
 
 
@@ -1028,8 +1105,8 @@ def update_detector_states(
     full = None
     if any(d.exact_interpolation and not is_interior(d) for d in to_update):
         full = interpolate_fields(
-            E_pad=pad_fields_for_boundaries(arrays.fields.E, objects, config),
-            H_pad=pad_fields_for_boundaries((H_prev + arrays.fields.H) / 2, objects, config),
+            E_pad=pad_fields_with_symmetry_mirror(arrays.fields.E, objects, config, "E"),
+            H_pad=pad_fields_with_symmetry_mirror((H_prev + arrays.fields.H) / 2, objects, config, "H"),
             config=config,
         )
 

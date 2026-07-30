@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
@@ -8,6 +9,7 @@ from fdtdx.core.physics.modes import (
     ModeTupleType,
     compute_mode,
     compute_mode_polarization_fraction,
+    compute_mode_symmetry_reduced,
     sort_modes,
     tidy3d_mode_computation_wrapper,
 )
@@ -946,3 +948,72 @@ class TestComputeModeBendPassthrough:
         kwargs = mock_wrapper.call_args.kwargs
         expected = (0.5 * 5 * resolution / 1e-6, 0.5 * 6 * resolution / 1e-6)
         assert kwargs["plane_center"] == pytest.approx(expected)
+
+
+class TestComputeModeSymmetryReduced:
+    """The symmetry-reduced route: mirror the cross-section, solve, project, restrict."""
+
+    def _make_mock_mode(self, shape):
+        return ModeTupleType(
+            neff=1.5 + 0.1j,
+            Ex=np.ones(shape, dtype=np.complex64),
+            Ey=np.ones(shape, dtype=np.complex64),
+            Ez=np.ones(shape, dtype=np.complex64),
+            Hx=np.ones(shape, dtype=np.complex64),
+            Hy=np.ones(shape, dtype=np.complex64),
+            Hz=np.ones(shape, dtype=np.complex64),
+        )
+
+    def _kwargs(self, **overrides):
+        # x-propagation (singleton at dim 1), 4 x 3 transverse cells.
+        kwargs = dict(
+            mirrored_axes=(2,),
+            walls={2: 1},
+            frequency=2e14,
+            inv_permittivities=jnp.ones((1, 1, 4, 3)),
+            inv_permeabilities=1.0,
+            resolution=1e-8,
+            object_name="modesrc",
+        )
+        kwargs.update(overrides)
+        return kwargs
+
+    def test_bend_about_a_mirrored_axis_raises(self):
+        # The conformal bend transform scales the index linearly across bend_axis, so the mirrored
+        # cross-section is not symmetric about a plane normal to it and the reduced run cannot
+        # represent the mode. Rejected before any solve.
+        with pytest.raises(ValueError, match="bends about the z-axis"):
+            compute_mode_symmetry_reduced(**self._kwargs(bend_radius=5e-6, bend_axis=2))
+
+    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
+    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
+    def test_bend_about_the_other_transverse_axis_is_allowed(self, mock_normalize, mock_wrapper):
+        # A bend leaves the axis it does not bend about mirror-symmetric, so mirroring that one is
+        # consistent: the pair (mirror z, bend y) is fine, unlike (mirror z, bend z) above.
+        mock_wrapper.return_value = [self._make_mock_mode((4, 6))]
+        mock_normalize.side_effect = lambda E, H, axis, area_weights=None: (E, H)
+
+        mode_E, mode_H, _neff = compute_mode_symmetry_reduced(**self._kwargs(bend_radius=5e-6, bend_axis=1))
+
+        assert mode_E.shape == (3, 1, 4, 3)  # solved on the mirrored plane, restricted to the kept half
+        assert mode_H.shape == (3, 1, 4, 3)
+
+    @patch("fdtdx.core.physics.modes.tidy3d_mode_computation_wrapper")
+    @patch("fdtdx.core.physics.modes.normalize_by_poynting_flux")
+    def test_survives_jit(self, mock_normalize, mock_wrapper):
+        # A mode source or mode-overlap detector overlapping a Device solves its mode inside
+        # apply_params, which callers trace. The parity residual must therefore not be concretized:
+        # its diagnostics are skipped under tracing instead.
+        mock_wrapper.return_value = [self._make_mock_mode((4, 6))]
+        mock_normalize.side_effect = lambda E, H, axis, area_weights=None: (E, H)
+
+        def traced(inv_permittivities):
+            mode_E, _mode_H, _neff = compute_mode_symmetry_reduced(
+                **self._kwargs(inv_permittivities=inv_permittivities)
+            )
+            return mode_E
+
+        eager = traced(jnp.ones((1, 1, 4, 3)))
+        jitted = jax.jit(traced)(jnp.ones((1, 1, 4, 3)))
+        assert jitted.shape == eager.shape
+        assert jnp.allclose(jitted, eager)

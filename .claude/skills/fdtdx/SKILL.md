@@ -242,7 +242,7 @@ bound_dict, constraint_list = fdtdx.boundary_objects_from_config(bound_cfg, volu
 
 ## Simulation Symmetry
 
-Mirror-symmetry exploitation: build the **full** model, set `config.symmetry`, and fdtdx runs the reduced half/quarter/octant internally (up to 8× less memory/compute), then you unfold results back to the full domain. Implemented in `src/fdtdx/fdtd/symmetry.py`; the FDTD time loop is untouched (the symmetry plane is just an added PEC/PMC wall object).
+Mirror-symmetry exploitation: build the **full** model, set `config.symmetry`, and fdtdx runs the reduced half/quarter/octant internally (up to 8× less memory/compute), then you unfold results back to the full domain. Implemented in `src/fdtdx/fdtd/symmetry.py`; the FDTD time loop is untouched (an electric plane is just an added PEC wall object, a magnetic one nothing at all — see below).
 
 **Encoding** — `symmetry: tuple[int, int, int]` on `SimulationConfig`, order `(x, y, z)`:
 - `0` = no symmetry on this axis
@@ -251,11 +251,16 @@ Mirror-symmetry exploitation: build the **full** model, set `config.symmetry`, a
 
 Distinct from manually placing PEC/PMC via `BoundaryConfig` (that still works unchanged); `config.symmetry` is the additive auto-reduce path.
 
+**Where each plane sits** (this is the key asymmetry between the two wall types, and it sets both the wall handling and the unfold map):
+- An **electric** plane sits *on* the reduced domain's min edge — the tangential `E` samples live there and the odd symmetry makes them vanish, so it is a PEC face and gets a `PerfectElectricConductor` wall object.
+- A **magnetic** plane sits *half a cell below* the min edge. Sources and materials are rasterized per cell, so the discrete problem is mirror symmetric about the tangential-`H` node one cell out, where tangential `H` vanishes — already supplied by the zero halo of the field padding. It gets **no wall object**: a `PerfectMagneticConductor` there would zero tangential `H` one cell *inside* the domain, imposing the condition half a cell off the plane (a clean first-order-wrong answer, ~4e-02 field error at 50 nm).
+- Detectors touching an **electric** plane need the mirror in their co-location halo (`pad_fields_with_symmetry_mirror` in `fdtd/update.py`), or the plane row records exactly *half* the field. Magnetic planes want no halo there.
+
 **Requirements / behavior:**
 - Each symmetric axis **must resolve to an even cell count** (else `place_objects` raises `ValueError`) — guarantees an exact split and cell-for-cell unfold.
-- The **upper half is kept** so the plane lands at the reduced domain's min edge (matching the mode solver's "wall at min edge" convention). Objects are clipped to that half during `place_objects`; centered objects keep their upper half, objects entirely in the discarded half are dropped (with a warning).
-- The min-side boundary on each symmetric axis is replaced by the PEC/PMC wall; the far (max) side keeps whatever the user set (use PML there, not periodic).
-- `ModePlaneSource` / `ModeOverlapDetector` get their mode-solver `symmetry` 2-tuple **auto-derived** (PMC→1, PEC/none→0 on the two transverse axes) unless explicitly set.
+- The **upper half is kept** so the plane lands at the reduced domain's min edge. Objects are clipped to that half during `place_objects`; centered objects keep their upper half, objects entirely in the discarded half are dropped (with a warning).
+- The min-side boundary on each symmetric axis is dropped; the far (max) side keeps whatever the user set (use PML there, not periodic — the halo *behind* the symmetry plane is set by the mirror and never by wrapping to the far side, and `place_objects` warns if a periodic/Bloch boundary survives on a symmetric axis).
+- `ModePlaneSource` / `ModeOverlapDetector` solve the mode on the **mirrored full cross-section** and restrict it to the kept half (`compute_mode_symmetry_reduced`), rather than using the mode solver's own symmetric solve — the solver samples materials on its staggered grid while FDTDX writes one cell-centred ε array per component, so a symmetric solve on the reduced cross-section shifts `neff` at first order in Δ. Their mode-solver `symmetry` 2-tuple is **not** auto-derived and is ignored (with a warning) under `config.symmetry`.
 - The user must place objects symmetrically about the center plane — asymmetric models are warned about but not corrected (true of every FDTD symmetry feature).
 
 **Usage:**
@@ -277,13 +282,14 @@ E_full = fdtdx.unfold_fields(arrays.fields.E, config.symmetry, "E")  # (3, Nx, N
 
 **Unfold helpers** (`fdtdx.unfold_fields`, `fdtdx.unfold_detector_states`, `fdtdx.unfold_source_mode`, `fdtdx.unfold_array`):
 - `unfold_fields(field, symmetry, field_type)` — reconstruct a full `(3, Nx, Ny, Nz)` E/H array via per-component parity mirror. The general escape hatch — derive any quantity from the full fields.
+- **Mirror index map** (`mirror_pairs_on_plane` in `core/physics/symmetry.py`, the single source of truth): across an **electric** plane, components sampled *on* it (tangential `E`, normal `H`) pair as `m±j` — the plane row is its own mirror — while half-cell-offset components mirror one-to-one; across a **magnetic** plane *every* component mirrors one-to-one (plain flip), because the plane is half a cell out. Applying one convention to both axes is wrong on one of them (~8e-02 vs ~1e-02 interior error).
 - `unfold_detector_states(arrays, objects, config)` — pure post-processing that rebuilds each detector's full-domain output from its stored reduced output + parity (no in-loop cost, no flags). Spatial outputs are mirrored per component; `reduce_volume` sums/means are rescaled per component (even doubles/keeps, **odd vanishes**); `as_slices` energy planes are mirrored in-plane.
 - `unfold_source_mode(source, config)` → `(E_full, H_full)` — reconstruct the full-domain mode profile a `ModePlaneSource` *injects* (its solved-on-the-reduced-cross-section `_E`/`_H`). Unfolds only the transverse axes (the propagation axis is never a symmetry plane). Run `apply_params` first. For the fields *recorded during the run*, prefer a detector on the source plane + `unfold_detector_states`.
 - **Guardrails:** unfolding a non-symmetric model (`symmetry=(0,0,0)`) raises `ValueError`; `place_objects` warns that results are on the reduced domain until unfolded.
 - **Not unfoldable:** `DiffractiveDetector` raises `NotImplementedError` (its diffraction-order basis depends on domain size — unfold the fields and recompute instead).
 - **Mode-overlap S-params** are already correct on the reduced domain (source + detector share the reduced plane), so they need no unfolding.
 
-**Mode sources are fully wired:** under symmetry, a `ModePlaneSource`'s cross-section is clipped to the reduced grid, its mode-solver `symmetry` 2-tuple is auto-derived from `config.symmetry`, and `compute_mode` solves/injects the half/quarter mode with the matching PEC/PMC wall. Use `unfold_source_mode` to inspect the reconstructed full profile.
+**Mode sources are fully wired:** under symmetry, a `ModePlaneSource`'s cross-section is clipped to the reduced grid, and `compute_mode_symmetry_reduced` mirrors that cross-section back to the full one, solves there, projects onto the walls' parity subspace and restricts — reproducing the full-domain mode (`neff` to ~1e-7 at every resolution) instead of the solver's own symmetric solve. A wall type the selected mode cannot support raises. Amplitudes follow the "unit power through the plane it occupies" convention, so the reduced profile is `√(2^k)` larger than the restriction of the full-domain mode — to within a few percent at coarse resolution, because the discrete mode's flux does not split exactly evenly between the halves (first order in Δ; see the docstring for measured numbers). Use `unfold_source_mode` to inspect the reconstructed full profile.
 
 **Gradient note:** the differentiable simulation runs on the reduced domain (correct and cheaper); unfolding is a post-hoc step on the output arrays.
 
@@ -463,3 +469,4 @@ assert jnp.all(jnp.isfinite(grads))
 - **Stacking objects with mixed dispersion**: `UniformMaterialObject` always writes a full zero-padded pole-coefficient stack into its `grid_slice`, so placing a non-dispersive object over a dispersive one cleanly overwrites stale coefficients. Rely on this rather than assuming "no dispersion = leave coefficients alone".
 - **Symmetry results look wrong / are half-size**: with `config.symmetry` set, `run_fdtd` returns *reduced-domain* arrays — you must call `fdtdx.unfold_detector_states` / `fdtdx.unfold_fields` to get full-domain results (see Simulation Symmetry). `place_objects` warns about this. Unfolding a non-symmetric model raises.
 - **Symmetry needs even cells + symmetric model**: each symmetric axis must resolve to an even cell count (`place_objects` raises otherwise), and the user's full model must actually be mirror-symmetric about the center plane — asymmetric objects are only warned about. Use PML (not periodic) on the far side of a symmetric axis.
+- **Symmetry wall type follows the polarization, and the two types are not mirror images of each other**: PEC where `E` is normal to the plane, PMC where it is tangential (a wrong choice is warned about, not corrected — the reduced run then faithfully simulates a field with the wrong parity). Only the electric type is a wall object; the magnetic one is a plane half a cell outside the domain carried by the zero halo. Anything that mirrors across a plane (unfold maps, mode parity projection) must branch on the wall type, never on the Yee offsets alone.

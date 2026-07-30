@@ -107,6 +107,26 @@ class PointDipoleSource(Source):
         if self.polarization not in (0, 1, 2):
             raise ValueError(f"polarization must be 0, 1, or 2, got {self.polarization}")
 
+    def validate_placement(self, objects) -> list[str]:
+        """Reject a dipole sitting on a symmetry plane.
+
+        The mirror plane lies on a cell *edge*, so no cell is centred on it. A dipole placed in the
+        first cell of the reduced domain therefore does not stand for one dipole on the plane: the
+        reduced simulation models it together with its mirror image, i.e. two dipoles half a cell
+        apart, which is not the model the user drew in the full domain.
+        """
+        errors = list(super().validate_placement(objects))
+        on_plane = [a for a in range(3) if self.touches_symmetry_plane(a)]
+        if on_plane:
+            axis_names = ", ".join("xyz"[a] for a in on_plane)
+            errors.append(
+                f"Point dipole '{self.name}' sits on the {axis_names}-symmetry plane. The plane lies on a "
+                f"cell edge, so a single dipole cannot be centred on it - the reduced simulation would "
+                f"model the dipole plus its mirror image, half a cell apart. Move the dipole off the "
+                f"plane, or drop the symmetry on that axis."
+            )
+        return errors
+
     @property
     def _orientation(self) -> jnp.ndarray:
         """Normalized orientation vector as a (3,) JAX array.

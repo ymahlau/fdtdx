@@ -71,11 +71,14 @@ class TestUnfoldFields:
         assert full.shape == (3, 2, 8, 2)
         assert jnp.allclose(full[:, :, 4:, :], half)
 
-        # Ey is normal to the PEC y-plane -> even about the center.
+        # Ey is normal to the y-plane, so it is sampled half a cell off it and mirrors one-to-one
+        # about the array center: even under PEC.
         assert jnp.allclose(full[1], jnp.flip(full[1], axis=1))
-        # Ex, Ez are tangential -> odd about the center.
-        assert jnp.allclose(full[0], -jnp.flip(full[0], axis=1))
-        assert jnp.allclose(full[2], -jnp.flip(full[2], axis=1))
+        # Ex and Ez are tangential: sampled *on* the plane (index 4 after unfolding), so index 4 is
+        # its own mirror and the pairs are 4-j <-> 4+j. Both are odd under PEC.
+        for component in (0, 2):
+            for offset in (1, 2, 3):
+                assert jnp.allclose(full[component, :, 4 - offset, :], -full[component, :, 4 + offset, :])
 
     def test_pmc_z_parities_for_H(self):
         half = self._half(seed=1)
@@ -83,11 +86,37 @@ class TestUnfoldFields:
         full = unfold_fields(half, symmetry, "H")
 
         assert full.shape == (3, 2, 4, 4)
-        # After indexing a component, spatial axes are (x=0, y=1, z=2); mirror about z is axis 2.
-        # Hz normal to PMC z-plane -> even; Hx, Hy tangential -> odd.
+        # A magnetic plane sits half a cell *below* the reduced domain (sources and materials are
+        # rasterized per cell), so across it every component mirrors one-to-one - the plain flip -
+        # whatever its Yee offset. After indexing a component, spatial axes are (x=0, y=1, z=2).
+        # Hz is normal to the plane and even under PMC.
         assert jnp.allclose(full[2], jnp.flip(full[2], axis=2))
+        # Hx, Hy are tangential and odd under PMC.
         assert jnp.allclose(full[0], -jnp.flip(full[0], axis=2))
         assert jnp.allclose(full[1], -jnp.flip(full[1], axis=2))
+        # Plain flip means the plane row *is* duplicated across the plane: index 2 is the first kept
+        # cell and index 1 its mirror (the m±j map would pair 1 with 3 instead).
+        assert jnp.allclose(full[2, :, :, 1], full[2, :, :, 2])
+
+    def test_wall_type_selects_the_index_map(self):
+        # The same reduced field unfolds differently across an electric and a magnetic plane, for a
+        # component sampled on the electric plane (Ex is tangential to y). Both are even here, so only
+        # the index map distinguishes them.
+        half = self._half(nx=1, nh=4, nz=1)
+        pmc = unfold_fields(half, (0, 1, 0), "E")  # plain flip: kept cell 0 mirrors into row 3
+        pec = unfold_fields(half, (0, -1, 0), "E")  # m±j: row 4 is its own mirror, cell 1 -> row 3
+        assert jnp.allclose(pmc[0, :, 3, :], half[0, :, 0, :])
+        assert jnp.allclose(pec[0, :, 3, :], -half[0, :, 1, :])
+        assert not jnp.allclose(pmc[0, :, 3, :], pec[0, :, 3, :])
+
+    def test_on_plane_components_are_not_duplicated(self):
+        # The sample on the plane is its own mirror, so unfolding must not repeat it: the row next to
+        # the plane belongs to the *second* kept cell, not the first.
+        half = self._half(nx=1, nh=4, nz=1)
+        full = unfold_fields(half, (0, -1, 0), "E")
+        # Ex is tangential to the y-plane (odd, sampled on it).
+        assert jnp.allclose(full[0, :, 4, :], half[0, :, 0, :])  # plane row passed through
+        assert jnp.allclose(full[0, :, 3, :], -half[0, :, 1, :])  # neighbour mirrors the *next* cell
 
     def test_two_axis_shape(self):
         half = self._half(nx=3, nh=4, nz=5)
@@ -195,8 +224,27 @@ class TestPerDetectorPostProcessing:
         assert out["XY Plane"].shape == (1, 3, 8)
         assert out["YZ Plane"].shape == (1, 8, 5)
         assert out["XZ Plane"].shape == (1, 3, 5)
-        # Energy is even -> the doubled axis is mirror-symmetric.
-        assert jnp.allclose(out["XY Plane"], jnp.flip(out["XY Plane"], axis=2))
+        # Energy is even, and the co-located samples sit on the plane along y (array index 4 after
+        # unfolding), so the mirror pairs are 4-j <-> 4+j.
+        for offset in (1, 2, 3):
+            assert jnp.allclose(out["XY Plane"][:, :, 4 - offset], out["XY Plane"][:, :, 4 + offset])
+
+    def test_colocated_map_is_per_wall_type(self):
+        # Same detector, same data: across an electric plane the co-located samples sit *on* it (they
+        # are integer along x and y), so the plane row is not duplicated; across a magnetic plane they
+        # mirror one-to-one and it is.
+        det = fdtdx.EnergyDetector(name="en2", as_slices=True, plot=False)
+        rng = np.random.default_rng(11)
+        plane = jnp.asarray(rng.standard_normal((1, 3, 4)), dtype=jnp.float32)
+        state = {
+            "XY Plane": plane,
+            "XZ Plane": jnp.zeros((1, 3, 5), dtype=jnp.float32),
+            "YZ Plane": jnp.zeros((1, 4, 5), dtype=jnp.float32),
+        }
+        pec = _unfold_one_detector(det, state, (0, -1, 0), count=1)["XY Plane"]
+        pmc = _unfold_one_detector(det, state, (0, 1, 0), count=1)["XY Plane"]
+        assert jnp.allclose(pec[:, :, 3], plane[:, :, 1])  # m±j: row 4 is the plane row
+        assert jnp.allclose(pmc[:, :, 3], plane[:, :, 0])  # plain flip: the plane row is duplicated
 
     def test_diffractive_raises(self):
         from fdtdx.objects.detectors.diffractive import DiffractiveDetector

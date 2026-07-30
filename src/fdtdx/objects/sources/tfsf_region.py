@@ -487,6 +487,19 @@ class TFSFPlaneSourceRegion(TFSFPlaneSource):
         rejected in v1 (it would require a matching Bloch phase).
         """
         errors: list[str] = []
+        # config.symmetry clips objects onto the kept half, which for a closed TFSF box means
+        # silently deleting the faces that fall in the discarded half - the box would no longer
+        # enclose anything. Reject it instead of injecting through a partial surface.
+        symmetry_axes = [a for a in range(3) if self._config.symmetry[a] != 0]
+        clipped = [a for a in symmetry_axes if self.straddles_symmetry_plane(a) or self.touches_symmetry_plane(a)]
+        if clipped:
+            axis_names = ", ".join("xyz"[a] for a in clipped)
+            errors.append(
+                f"TFSF region '{self.name}' reaches the {axis_names}-symmetry plane. A closed TFSF box "
+                f"cannot be split by a mirror plane: config.symmetry would drop the faces in the "
+                f"discarded half, leaving an open surface. Keep the box strictly inside the kept "
+                f"(upper) half of each symmetric axis, or drop config.symmetry."
+            )
         p_axis = self.propagation_axis
         transverse = get_oriented_transverse_axes(p_axis)
         periodic = tuple(self.periodic_axes)

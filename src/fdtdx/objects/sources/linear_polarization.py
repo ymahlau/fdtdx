@@ -4,11 +4,17 @@ from typing import Self
 import jax
 import jax.numpy as jnp
 import numpy as np
+from loguru import logger
 
 from fdtdx.core.grid import calculate_time_offset_yee
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
-from fdtdx.core.misc import linear_interpolated_indexing, tilted_polarization_vectors
+from fdtdx.core.misc import (
+    linear_interpolated_indexing,
+    normalize_polarization_for_source,
+    tilted_polarization_vectors,
+)
 from fdtdx.core.physics.metrics import compute_energy
+from fdtdx.core.physics.symmetry import field_component_parity
 from fdtdx.dispersion import effective_inv_permittivity
 from fdtdx.objects.sources.tfsf import TFSFPlaneSource, _build_dispersive_H_filter, _source_impedance
 
@@ -116,6 +122,49 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         """Whether transverse source coordinates are represented in metres."""
         return self._config.has_nonuniform_grid
 
+    def validate_placement(self, objects) -> list[str]:
+        """Warn when the polarization is incompatible with the symmetry walls it crosses.
+
+        The injected transverse profile is mirror-*even* about every symmetry plane the source
+        straddles. A wall makes some field components even and others odd (see
+        :func:`~fdtdx.core.physics.symmetry.field_component_parity`), so if a nonzero component is odd there,
+        the wall drives it toward zero and the reduced simulation models a different field than the
+        user drew. Picking the wall type per polarization is the single most common mistake with
+        ``config.symmetry``, and it is silent otherwise: this reports it with the fix.
+        """
+        errors = list(super().validate_placement(objects))
+        straddled = [a for a in self.transverse_axes if self.straddles_symmetry_plane(a)]
+        if not straddled:
+            return errors
+
+        e_pol, h_pol = normalize_polarization_for_source(
+            direction=self.direction,
+            propagation_axis=self.propagation_axis,
+            fixed_E_polarization_vector=self.fixed_E_polarization_vector,
+            fixed_H_polarization_vector=self.fixed_H_polarization_vector,
+            dtype=self._config.dtype,
+        )
+        for axis in straddled:
+            wall = self._config.symmetry[axis]
+            odd: list[str] = []
+            for field_type, polarization in (("E", e_pol), ("H", h_pol)):
+                for component in range(3):
+                    if abs(float(polarization[component])) < 1e-6:
+                        continue
+                    if field_component_parity(field_type, component, axis, wall) == -1:
+                        odd.append(f"{field_type}{'xyz'[component]}")
+            if odd:
+                wall_name = "PMC" if wall == 1 else "PEC"
+                other = "PEC (-1)" if wall == 1 else "PMC (+1)"
+                logger.warning(
+                    f"Source '{self.name}' crosses the {'xyz'[axis]}-symmetry plane, where "
+                    f"config.symmetry[{axis}]={wall:+d} ({wall_name}) makes {', '.join(odd)} odd — but the "
+                    f"source injects a mirror-even profile in those components. The wall will suppress "
+                    f"the injected field. For this polarization use {other} on that axis, or place the "
+                    f"source so it does not cross the plane."
+                )
+        return errors
+
     def apply(
         self: Self,
         key: jax.Array,
@@ -178,7 +227,7 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
         )
 
         # update is amplitude multiplied by polarization
-        amplitude_raw = self._get_amplitude_raw(center)[None, ...]
+        amplitude_raw = self._get_amplitude_raw(center)
 
         # map amplitude to propagation plane.  Uniform grids keep the legacy
         # index-space projection; non-uniform grids project physical transverse
@@ -199,18 +248,25 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
             )
         wh_coords = jnp.stack((w, h), axis=-1)
         wh_coords -= center
-        # basis in plane
+        # Orthonormal in-plane basis. u follows the horizontal axis (projected perpendicular to the
+        # wave vector for tilted incidence); v completes a right-handed triple with the *forward*
+        # propagation direction, so the untilted projection below is the identity for both
+        # directions. Deriving v from the signed wave vector instead would mirror the transverse
+        # profile about the center whenever direction == "-" (invisible for a centered, radially
+        # symmetric profile, wrong for every other one).
         h_list = [0, 0, 0]
         h_list[self.horizontal_axis] = 1
         h_axis = jnp.asarray(h_list, dtype=self._config.dtype)
         u_basis = h_axis - jnp.dot(h_axis, wave_vector) * wave_vector
         u_basis = u_basis / jnp.linalg.norm(u_basis)
-        v_basis = jnp.cross(wave_vector, u_basis)
+        direction_sign = 1.0 if self.direction == "+" else -1.0
+        v_basis = direction_sign * jnp.cross(wave_vector, u_basis)
 
         # projection
         def project(point):
-            point_list = [point[0], point[1]]
-            point_list.insert(self.propagation_axis, 0)
+            point_list = [jnp.zeros((), dtype=self._config.dtype)] * 3
+            point_list[self.horizontal_axis] = point[0]
+            point_list[self.vertical_axis] = point[1]
             point = jnp.asarray(point_list, dtype=self._config.dtype)
             projection = point - jnp.dot(point, wave_vector) * wave_vector
             # Convert to plane coordinates
@@ -220,19 +276,18 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
 
         float_projected = jax.vmap(project)(wh_coords.reshape(-1, 2))
         float_projected += center
+        profile_hv = self._grid_to_hv(amplitude_raw)
         if self._uses_physical_source_coordinates():
             index_fn = jax.vmap(
                 _linear_interpolate_rectilinear_2d,
                 in_axes=(0, None, None, None),
             )
-            profile_2d = jnp.take(amplitude_raw[0], 0, axis=self.propagation_axis)
-            interp = index_fn(float_projected, horizontal_centers, vertical_centers, profile_2d)
+            interp = index_fn(float_projected, horizontal_centers, vertical_centers, profile_hv)
         else:
             # interpolate floating indices in original array
             index_fn = jax.vmap(linear_interpolated_indexing, in_axes=(0, None))
-            profile_2d = jnp.take(amplitude_raw[0], 0, axis=self.propagation_axis)
-            interp = index_fn(float_projected, profile_2d)
-        amplitude = interp.reshape(*amplitude_raw.shape)
+            interp = index_fn(float_projected, profile_hv)
+        amplitude = self._hv_to_grid(interp.reshape(profile_hv.shape))[None, ...]
 
         E = amplitude * e_pol[:, None, None, None]
         H = amplitude * h_pol[:, None, None, None]
@@ -244,7 +299,12 @@ class LinearlyPolarizedPlaneSource(TFSFPlaneSource, ABC):
                 inv_permittivity=inv_permittivities,
                 inv_permeability=inv_permeabilities,
             )
-            total_energy_root = jnp.sqrt(energy.sum())
+            # Normalize by the energy of the *full-domain* source. Under config.symmetry the slice
+            # covers only one half/quarter of it, and the profile is mirror-symmetric about each
+            # symmetry plane it straddles, so the full-domain sum is the reduced sum times the
+            # plane multiplicity. Without this the reduced run would inject 2**(k/2) times the
+            # amplitude of the equivalent full-domain run.
+            total_energy_root = jnp.sqrt(energy.sum() * self.symmetry_profile_multiplicity)
             E = E / total_energy_root
             H = H / total_energy_root
 
@@ -320,6 +380,34 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
     std: float = frozen_field(default=1 / 3)  # relative to radius
 
     @staticmethod
+    def _gauss_profile_2d(
+        width: int,
+        height: int,
+        center: tuple[float, float] | jax.Array,
+        radii: tuple[float, float],
+        std: float,
+        normalization_multiplicity: int = 1,
+    ) -> jax.Array:  # shape (width, height)
+        """Truncated Gaussian spot on a ``(width, height)`` transverse grid, normalized to unit sum.
+
+        ``width``/``height``, ``center`` and ``radii`` are all in the same (horizontal, vertical)
+        order; an xy-indexed meshgrid would swap the coordinates on non-square planes and misplace
+        the spot. ``normalization_multiplicity`` divides out the number of copies of this plane in
+        the full domain (see ``TFSFPlaneSource.symmetry_profile_multiplicity``), so a plane clipped
+        by a symmetry plane still carries the amplitude of the full-domain profile it is part of.
+        """
+        grid = (
+            jnp.stack(jnp.meshgrid(jnp.arange(width), jnp.arange(height), indexing="ij"), axis=-1) - jnp.asarray(center)
+        ) / jnp.asarray(radii)
+        euc_dist = (grid**2).sum(axis=-1)
+
+        mask = euc_dist < 1
+        exp_part = jnp.exp(-0.5 * euc_dist / std**2)
+
+        profile = jnp.where(mask, exp_part, 0)
+        return profile / (profile.sum() * normalization_multiplicity)
+
+    @staticmethod
     def _gauss_profile(
         width: int,
         height: int,
@@ -327,30 +415,29 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
         center: tuple[float, float] | jax.Array,
         radii: tuple[float, float],
         std: float,
+        normalization_multiplicity: int = 1,
     ) -> jax.Array:  # shape (*grid_shape)
-        # (width, height, 2) grid in the same (horizontal, vertical) order as
-        # ``center`` and ``radii``; an xy-indexed meshgrid swaps the
-        # coordinates on non-square planes and misplaces the spot.
-        grid = (
-            jnp.stack(jnp.meshgrid(jnp.arange(width), jnp.arange(height), indexing="ij"), axis=-1) - jnp.asarray(center)
-        ) / jnp.asarray(radii)
-        euc_dist = (grid**2).sum(axis=-1)
+        """:meth:`_gauss_profile_2d` with a singleton inserted at ``axis``.
 
-        mask = euc_dist < 1
-        mask = jnp.expand_dims(mask, axis=axis)
-
-        exp_part = jnp.exp(-0.5 * euc_dist / std**2)
-        exp_part = jnp.expand_dims(exp_part, axis=axis)
-
-        profile = jnp.where(mask, exp_part, 0)
-        profile = profile / profile.sum()
-
-        return profile
+        ``width``/``height`` are the sizes along the two axes *other than* ``axis``, in ascending
+        array-axis order — which is (horizontal, vertical) for propagation along x or z but
+        (vertical, horizontal) for propagation along y.
+        """
+        profile = GaussianPlaneSource._gauss_profile_2d(
+            width=width,
+            height=height,
+            center=center,
+            radii=radii,
+            std=std,
+            normalization_multiplicity=normalization_multiplicity,
+        )
+        return jnp.expand_dims(profile, axis=axis)
 
     def _get_amplitude_raw(
         self,
         center: jax.Array,
     ) -> jax.Array:
+        multiplicity = self.symmetry_profile_multiplicity
         if self._config.has_nonuniform_grid:
             local_edges = self._local_edge_coordinates()
             assert local_edges is not None
@@ -370,19 +457,19 @@ class GaussianPlaneSource(LinearlyPolarizedPlaneSource):
             h_widths = horizontal_edges[1:] - horizontal_edges[:-1]
             v_widths = vertical_edges[1:] - vertical_edges[:-1]
             cell_areas = h_widths[:, None] * v_widths[None, :]
-            profile_2d = profile_2d / (profile_2d * cell_areas).sum()
-            return jnp.expand_dims(profile_2d, axis=self.propagation_axis)
+            profile_2d = profile_2d / ((profile_2d * cell_areas).sum() * multiplicity)
+            return self._hv_to_grid(profile_2d)
 
         grid_radius = self.radius / self._config.uniform_spacing()
-        profile = self._gauss_profile(
+        profile_hv = self._gauss_profile_2d(
             width=self.grid_shape[self.horizontal_axis],
             height=self.grid_shape[self.vertical_axis],
-            axis=self.propagation_axis,
             center=center,
             radii=(grid_radius, grid_radius),
             std=self.std,
+            normalization_multiplicity=multiplicity,
         )
-        return profile
+        return self._hv_to_grid(profile_hv)
 
 
 @autoinit
