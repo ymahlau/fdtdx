@@ -96,9 +96,13 @@ class SimulationConfig(TreeClass):
     #: ``+1`` = PMC (magnetic-wall) mirror on the axis center plane.
     #: When any entry is nonzero, :func:`fdtdx.place_objects` automatically reduces the
     #: domain to the symmetric half/quarter/octant (keeping the upper half along each
-    #: symmetric axis), clips every object onto that reduced grid, inserts the PEC/PMC
-    #: wall on the symmetry plane, and forwards the matching per-axis condition to the
-    #: mode solver. The FDTD then runs on the reduced domain; call
+    #: symmetric axis) and clips every object onto that reduced grid. An electric plane
+    #: lands on the reduced domain's min edge and gets a PEC wall there; a magnetic plane
+    #: sits half a cell below it (sources and materials are rasterized per cell), where the
+    #: zero field halo already is the exact mirror, so it gets no wall object. Mode sources
+    #: and mode-overlap detectors solve on the mirrored full cross-section and restrict,
+    #: rather than using the mode solver's own symmetric solve. The FDTD then runs on the
+    #: reduced domain; call
     #: :func:`fdtdx.unfold_fields` / :func:`fdtdx.unfold_detector_states` afterwards to
     #: reconstruct the full-domain arrays. This is additive and independent of manually
     #: specifying PEC/PMC as ordinary boundaries via :class:`fdtdx.BoundaryConfig`.
