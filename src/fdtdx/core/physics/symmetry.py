@@ -243,7 +243,7 @@ def project_onto_parity(
     field: jax.Array,
     field_type: Literal["E", "H"],
     walls: dict[int, int],
-) -> tuple[jax.Array, float]:
+) -> tuple[jax.Array, jax.Array]:
     """Project a full-cross-section ``(3, Nx, Ny, Nz)`` field onto the parity subspace of the walls.
 
     Keeps only the part of the field the walls admit: the even part of every component a wall makes
@@ -265,7 +265,11 @@ def project_onto_parity(
         walls (dict[int, int]): Mapping of mirror axis to wall type (``-1`` PEC, ``+1`` PMC).
 
     Returns:
-        tuple[jax.Array, float]: The projected field and the removed fraction (relative L2 norm).
+        tuple[jax.Array, jax.Array]: The projected field and the removed fraction (relative L2 norm),
+        as a JAX scalar so this stays usable inside ``jax.jit`` — a mode source or mode-overlap
+        detector overlapping a :class:`~fdtdx.Device` solves its mode inside
+        :func:`fdtdx.apply_params`, which callers do trace. Inspect the value only where it is
+        concrete (see :func:`fdtdx.core.jax.utils.is_jax_tracer`).
     """
     projected = field
     for axis, wall in walls.items():
@@ -279,7 +283,7 @@ def project_onto_parity(
         projected = jnp.concatenate(components, axis=0)
     norm = jnp.linalg.norm(jnp.abs(field))
     residual = jnp.where(norm > 0, jnp.linalg.norm(jnp.abs(field - projected)) / norm, 0.0)
-    return projected, float(residual)
+    return projected, residual
 
 
 def restrict_to_kept_half(array: jax.Array, axes: tuple[int, ...]) -> jax.Array:

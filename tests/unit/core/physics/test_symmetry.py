@@ -1,5 +1,6 @@
 """Unit tests for the low-level mirror-symmetry primitives."""
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
@@ -176,3 +177,18 @@ class TestProjectOntoParity:
         field = jnp.zeros((3, 1, 4, 1), dtype=jnp.float32)
         _projected, residual = project_onto_parity(field, "H", {1: 1})
         assert residual == 0.0
+
+    def test_residual_is_a_jax_scalar_and_survives_tracing(self):
+        # A mode source or mode-overlap detector that overlaps a Device solves its mode inside
+        # apply_params, which callers trace (jax.jit around an optimization step). Concretizing the
+        # residual there would raise ConcretizationTypeError, so it must stay a JAX scalar.
+        field = self._mode([[1.0, 2.0, 3.0, 4.0], [0.0] * 4, [0.0] * 4])
+        projected, residual = project_onto_parity(field, "E", {1: -1})
+        assert isinstance(residual, jax.Array) and residual.shape == ()
+
+        def traced(f):
+            return project_onto_parity(f, "E", {1: -1})
+
+        jit_projected, jit_residual = jax.jit(traced)(field)
+        assert jnp.allclose(jit_projected, projected)
+        assert float(jit_residual) == pytest.approx(float(residual), abs=1e-6)

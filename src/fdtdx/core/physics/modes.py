@@ -11,6 +11,7 @@ from loguru import logger
 from tidy3d.components.mode.solver import compute_modes as _compute_modes
 
 from fdtdx.core.axis import get_transverse_axes
+from fdtdx.core.jax.utils import is_jax_tracer
 from fdtdx.core.misc import expand_to_3x3
 from fdtdx.core.physics.metrics import normalize_by_poynting_flux
 from fdtdx.core.physics.symmetry import (
@@ -384,6 +385,50 @@ def compute_mode(
     return mode_E_norm, mode_H_norm, eff_idx
 
 
+def _check_parity_residual(residual: jax.Array, walls: dict[int, int], object_name: str) -> None:
+    """Diagnose a parity projection that removed too much of the mode.
+
+    Skipped when ``residual`` is a JAX tracer. A mode source or mode-overlap detector that overlaps a
+    :class:`~fdtdx.Device` solves its mode inside :func:`fdtdx.apply_params`, which callers routinely
+    trace (``jax.jit`` around an optimization step), and there the residual has no value yet:
+    concretizing it would raise, and comparing it would fire on a tracer. The check cannot be hoisted
+    out of the trace either — the residual depends on the device permittivity being traced over. It is
+    setup guidance, not something the solve depends on, so an eager ``apply_params`` surfaces it; and
+    ``place_objects`` already applies (hence checks) every mode object that does not overlap a device,
+    which is the overwhelming majority.
+
+    Args:
+        residual (jax.Array): Fraction of the mode the projection removed.
+        walls (dict[int, int]): Mirror axis to wall type, for the message.
+        object_name (str): Name used in diagnostics.
+
+    Raises:
+        ValueError: If the projection removed (almost) the whole mode, i.e. the configured wall types
+            are incompatible with the selected mode.
+    """
+    if is_jax_tracer(residual):
+        return
+    value = float(residual)
+    wall_description = ", ".join(f"{'xyz'[axis]}={'PMC' if wall == 1 else 'PEC'}" for axis, wall in walls.items())
+    if value > 0.9:
+        raise ValueError(
+            f"The mode selected for '{object_name}' has (almost) none of the symmetry imposed by the "
+            f"walls on {wall_description}: projecting it onto the admissible parity removes "
+            f"{value:.1%} of the mode. The wall types do not match this mode - flip the sign of "
+            f"config.symmetry on those axes, pick a different mode_index/filter_pol, or run without "
+            f"config.symmetry."
+        )
+    if value > 0.3:
+        logger.warning(
+            f"The mode of '{object_name}' is only approximately symmetric about the walls on "
+            f"{wall_description}: the parity projection removed {value:.1%} of it. Check that the "
+            f"structure is mirror-symmetric there and that the wall types match the mode. A coarsely "
+            f"resolved cross-section alone can account for a residual of a few tens of percent - the "
+            f"mode solver samples materials on its staggered grid, so its discrete mode is only "
+            f"mirror-symmetric to first order in the cell size."
+        )
+
+
 def compute_mode_symmetry_reduced(
     *,
     mirrored_axes: tuple[int, ...],
@@ -452,9 +497,22 @@ def compute_mode_symmetry_reduced(
         cross-section.
 
     Raises:
-        ValueError: If the parity projection removes almost the entire mode, which means the
-            configured wall types are incompatible with the selected mode.
+        ValueError: If a waveguide bend shares an axis with a symmetry plane, or if the parity
+            projection removes almost the entire mode, which means the configured wall types are
+            incompatible with the selected mode. The latter is only detectable where the residual is
+            concrete, i.e. not inside ``jax.jit`` (see :func:`_check_parity_residual`).
     """
+    if bend_radius is not None and bend_axis is not None and bend_axis in mirrored_axes:
+        raise ValueError(
+            f"'{object_name}' bends about the {'xyz'[bend_axis]}-axis and config.symmetry mirrors "
+            f"that same axis. The bend is modelled by a conformal transformation that scales the "
+            f"refractive index linearly across bend_axis, so the transformed cross-section is not "
+            f"mirror-symmetric about a plane normal to it: the mode has no definite parity there and "
+            f"the reduced simulation, which replaces the discarded half by the mirror of the kept "
+            f"half, cannot represent it. Drop config.symmetry on the {'xyz'[bend_axis]}-axis, or put "
+            f"the symmetry plane normal to the other transverse axis - a bend leaves that one "
+            f"mirror-symmetric."
+        )
     propagation_axis = next(a for a in range(3) if inv_permittivities.shape[1:][a] == 1)
     full_inv_permittivities = mirror_material_cross_section(inv_permittivities, mirrored_axes)
     if isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0:
@@ -487,25 +545,7 @@ def compute_mode_symmetry_reduced(
 
     mode_E, residual_E = project_onto_parity(mode_E, "E", walls)
     mode_H, residual_H = project_onto_parity(mode_H, "H", walls)
-    residual = max(residual_E, residual_H)
-    wall_description = ", ".join(f"{'xyz'[axis]}={'PMC' if wall == 1 else 'PEC'}" for axis, wall in walls.items())
-    if residual > 0.9:
-        raise ValueError(
-            f"The mode selected for '{object_name}' has (almost) none of the symmetry imposed by the "
-            f"walls on {wall_description}: projecting it onto the admissible parity removes "
-            f"{residual:.1%} of the mode. The wall types do not match this mode - flip the sign of "
-            f"config.symmetry on those axes, pick a different mode_index/filter_pol, or run without "
-            f"config.symmetry."
-        )
-    if residual > 0.3:
-        logger.warning(
-            f"The mode of '{object_name}' is only approximately symmetric about the walls on "
-            f"{wall_description}: the parity projection removed {residual:.1%} of it. Check that the "
-            f"structure is mirror-symmetric there and that the wall types match the mode. A coarsely "
-            f"resolved cross-section alone can account for a residual of a few tens of percent - the "
-            f"mode solver samples materials on its staggered grid, so its discrete mode is only "
-            f"mirror-symmetric to first order in the cell size."
-        )
+    _check_parity_residual(jnp.maximum(residual_E, residual_H), walls, object_name)
 
     mode_E = restrict_to_kept_half(mode_E, mirrored_axes)
     mode_H = restrict_to_kept_half(mode_H, mirrored_axes)
