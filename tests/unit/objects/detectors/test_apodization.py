@@ -48,7 +48,7 @@ def test_continuous_cw_amplitude_preserved_without_window(config):
     """Backward-compat: continuous-mode CW amplitude reconstruction is ~1."""
     det = PhasorDetector(name="d", wave_characters=(WaveCharacter(wavelength=1e-6),), reduce_volume=True)
     _, state = _run_cw(det, config, jax.random.PRNGKey(0), WaveCharacter(wavelength=1e-6).get_frequency())
-    assert float(jnp.abs(state["phasor"][0, 0, 0])) == pytest.approx(1.0, abs=2e-2)
+    assert float(jnp.abs(state["phasor"][0, 0, 0])) == pytest.approx(1.0, abs=2e-3)
 
 
 def test_continuous_cw_amplitude_preserved_with_tukey(config):
@@ -62,7 +62,9 @@ def test_continuous_cw_amplitude_preserved_with_tukey(config):
     )
     placed, state = _run_cw(det, config, jax.random.PRNGKey(0), f)
     assert placed._window_sum < placed.num_time_steps_recorded  # window tapers the edges
-    assert float(jnp.abs(state["phasor"][0, 0, 0])) == pytest.approx(1.0, abs=3e-2)
+    # Tapering suppresses the 2w residual, so the apodized reconstruction is ~1000x more
+    # accurate than the rectangular one (4.8e-7 vs 5.7e-4). 1e-5 is ~84 float32 ULP.
+    assert float(jnp.abs(state["phasor"][0, 0, 0])) == pytest.approx(1.0, abs=1e-5)
 
 
 def test_window_changes_a_transient_spectrum(config):
@@ -101,7 +103,10 @@ def test_window_changes_a_transient_spectrum(config):
     assert abs(rect - apod) > 1e-3 * abs(rect)
 
 
-@pytest.mark.parametrize("stride", [1, 4, 8])
+# Strides stay above 4 samples/period (17.5 undecimated), so amplitude sits on the numerical
+# floor and the same tolerance applies to all of them. Heavier strides alias by design --
+# that path is covered in test_phasor_subsample.py.
+@pytest.mark.parametrize("stride", [1, 2, 3, 4])
 def test_apodization_composes_with_dft_subsampling(config, stride):
     """Apodization and ``dft_subsample`` stack: CW amplitude survives both together.
 
@@ -125,7 +130,7 @@ def test_apodization_composes_with_dft_subsampling(config, stride):
     # The window is only accumulated on kept steps, so its sum tracks the thinned count.
     assert placed._window_sum <= placed.num_time_steps_recorded
     assert placed._window_sum == pytest.approx(float(jnp.sum(placed._window_at_time_step_arr)), rel=1e-6)
-    assert float(jnp.abs(state["phasor"][0, 0, 0])) == pytest.approx(1.0, abs=3e-2)
+    assert float(jnp.abs(state["phasor"][0, 0, 0])) == pytest.approx(1.0, abs=1e-5)
 
 
 def test_source_profile_rejected_as_apodization():
@@ -162,3 +167,33 @@ def test_underflowed_gaussian_window_is_rejected(config):
     )
     with pytest.raises(Exception, match="must be finite and positive"):
         det.place_on_grid(((0, 4), (0, 4), (0, 1)), config, jax.random.PRNGKey(0))
+
+
+def test_alpha_zero_tukey_is_identical_to_no_apodization(config):
+    """A rectangular Tukey over the full recorded interval must reproduce the un-apodized
+    result exactly.
+
+    Tolerance-free: one assertion covers window construction, alignment of the window's
+    support with the OnOffSwitch mask, and the coherent-gain path. Verified bit-identical
+    (0.0) at both unit and simulation tier, so an off-by-one at either recording edge -
+    which every amplitude tolerance above would absorb - fails here immediately.
+    """
+    f = WaveCharacter(wavelength=1e-6).get_frequency()
+    end = (config.time_steps_total - 1) * config.time_step_duration
+    win = TukeyWindowProfile(start_time=0.0, end_time=end, alpha=0.0)
+
+    def phasor(apodization):
+        det = PhasorDetector(
+            name="d",
+            wave_characters=(WaveCharacter(wavelength=1e-6),),
+            reduce_volume=True,
+            apodization=apodization,
+        )
+        placed, state = _run_cw(det, config, jax.random.PRNGKey(0), f)
+        return placed, np.asarray(state["phasor"])
+
+    placed_rect, rect = phasor(None)
+    placed_a0, a0 = phasor(win)
+
+    assert placed_a0._window_sum == pytest.approx(placed_rect._window_sum, rel=0, abs=0)
+    np.testing.assert_array_equal(a0, rect)

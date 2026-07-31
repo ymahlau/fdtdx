@@ -116,23 +116,40 @@ def spectra():
 def test_apodization_preserves_on_frequency_amplitude(spectra):
     """The 2 / sum(w) coherent-gain correction leaves the tone's amplitude unchanged.
 
-    Measured agreement is 0.05% for a stationary signal, so a missing or wrong gain
-    correction (the window's mean weight is ~0.75, a 33% error) cannot pass.
+    Measured agreement is 8.5e-4 relative at these settings and holds to 5.3e-4 under a 4x
+    refinement in space and time, so the deviation is a numerical floor (float32 DFT
+    accumulation plus the 2w residual), not a discretization artifact. CPU and GPU agree to
+    1.1e-7. A missing or wrong gain correction (the window's mean weight is 1 - alpha/2 = 0.75,
+    a 25% error) misses by ~300x the tolerance.
     """
     rect, tukey = spectra["rect"][0], spectra["tukey"][0]
     assert rect > 0
-    assert tukey == pytest.approx(rect, rel=0.01), f"on-frequency amplitude changed: {rect:.4e} -> {tukey:.4e}"
+    assert tukey == pytest.approx(rect, rel=2e-3), f"on-frequency amplitude changed: {rect:.4e} -> {tukey:.4e}"
 
 
 @pytest.mark.parametrize("index,offset", list(enumerate(_BIN_OFFSETS, start=1)))
 def test_apodization_suppresses_off_frequency_leakage(spectra, index, offset):
     """Off-tone response drops once the recording edges are tapered.
 
-    Measured suppression is 3.0x at 2.5 bins and 3.9x at 4.5 bins; requiring 2x leaves
-    headroom while still failing if the window is not actually applied to the DFT.
+    Measured suppression at these settings is 3.01x at 2.5 bins and 3.85x at 4.5 bins;
+    requiring 2.5x leaves ~17% headroom on the tighter of the two. Suppression is
+    setting-dependent (2.85x at 2.5 bins under a 4x refinement), so these numbers apply to the
+    constants above and must be re-measured if the domain or timing changes.
     """
     rect = spectra["rect"][index] / spectra["rect"][0]
     tukey = spectra["tukey"][index] / spectra["tukey"][0]
     # The leakage must genuinely be there, or "suppression" would be vacuous.
     assert rect > 0.03, f"{offset} bins: no rectangular leakage to suppress ({rect:.3e})"
-    assert tukey < 0.5 * rect, f"{offset} bins: Tukey {tukey:.3e} vs rectangular {rect:.3e} (need <2x)"
+    assert tukey < 0.4 * rect, f"{offset} bins: Tukey {tukey:.3e} vs rectangular {rect:.3e} (need <2.5x)"
+
+
+def test_suppression_grows_with_bin_offset(spectra):
+    """A tapered window's sidelobes fall off faster than a rectangular gate's, so suppression
+    must increase with distance from the tone. Structural, no calibrated threshold: catches a
+    window that is applied but wrong (bad alpha, wrong axis) where a flat ratio bound would not.
+    """
+    supp = [
+        (spectra["rect"][i] / spectra["rect"][0]) / (spectra["tukey"][i] / spectra["tukey"][0])
+        for i in range(1, len(_BIN_OFFSETS) + 1)
+    ]
+    assert supp == sorted(supp), f"suppression not monotonic in bin offset: {supp}"
