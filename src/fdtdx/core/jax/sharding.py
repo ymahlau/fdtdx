@@ -13,18 +13,20 @@ from fdtdx.typing import BackendOption
 def get_named_sharding_from_shape(
     shape: tuple[int, ...],
     sharding_axis: int,
+    backend: BackendOption | None = None,
 ) -> jax.sharding.NamedSharding:
     """Creates a NamedSharding object for distributing an array across devices.
 
     Args:
         shape (tuple[int, ...]): Shape of the array to be sharded
         sharding_axis (int): Which axis to shard the array along
+        backend (BackendOption | None): Device backend used to construct the mesh
 
     Returns:
         jax.sharding.NamedSharding: NamedSharding object specifying how to distribute the array
             across available devices.
     """
-    compute_devices = jax.devices()
+    compute_devices = jax.devices(backend=backend)
     num_dims = len(shape)
     device_shape = (len(compute_devices),)
     axis_names = tuple(SHARD_STR if i == sharding_axis else None for i in range(num_dims))
@@ -43,6 +45,26 @@ counter = 0
 
 def get_dtype_bytes(dtype: jnp.dtype) -> int:
     return jnp.dtype(dtype).itemsize
+
+
+def _local_shape_from_global_index(
+    shape: tuple[int, ...],
+    global_index: tuple[Any, ...] | None,
+) -> tuple[int, ...]:
+    """Derive a process-local shard shape from its global array index."""
+    if global_index is None or len(global_index) != len(shape):
+        raise ValueError(f"Invalid shard index {global_index!r} for global shape {shape}")
+
+    local_shape = []
+    for axis, (axis_size, axis_index) in enumerate(zip(shape, global_index, strict=True)):
+        if not isinstance(axis_index, slice):
+            raise ValueError(
+                f"Expected a slice for shard axis {axis}, got {axis_index!r} in global index {global_index!r}"
+            )
+        start, stop, step = axis_index.indices(axis_size)
+        local_shape.append(len(range(start, stop, step)))
+
+    return tuple(local_shape)
 
 
 def pretty_print_sharding(sharding: jax.sharding.Sharding) -> str:
@@ -88,6 +110,7 @@ def create_named_sharded_matrix(
     named_sharding = get_named_sharding_from_shape(
         shape=shape,
         sharding_axis=sharding_axis,
+        backend=backend,
     )
     compute_devices = jax.devices(backend=backend)
     num_devices = len(compute_devices)
@@ -104,10 +127,17 @@ def create_named_sharded_matrix(
     def value_fn(arr, val):
         return arr * val
 
+    addressable_map = named_sharding.addressable_devices_indices_map(shape)
     matrices = []
-    for device in compute_devices[::-1]:
+    for device, global_index in addressable_map.items():
+        local_shape = _local_shape_from_global_index(shape, global_index)
+        if local_shape != per_device_shape:
+            raise ValueError(
+                "Mapped local shard shape does not match the expected evenly divided shape, "
+                f"got {local_shape=} and {per_device_shape=} for {device=} and {global_index=}"
+            )
         device_matrix = jnp.ones(
-            per_device_shape,
+            local_shape,
             dtype=dtype,
             device=device,
         )
