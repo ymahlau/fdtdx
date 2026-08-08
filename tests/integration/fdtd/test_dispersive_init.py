@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.constants import SHARD_STR
 from fdtdx.constants import c as c0
 from fdtdx.dispersion import CCPRPole, DispersionModel, DrudePole, LorentzPole, compute_pole_coefficients
 from fdtdx.fdtd.initialization import apply_params, place_objects
@@ -97,6 +98,9 @@ def test_dispersive_arrays_allocated(simple_config, simple_volume):
     assert arrays.dispersive_c1.shape == (1, 1, Nx, Ny, Nz)
     assert arrays.dispersive_c2.shape == (1, 1, Nx, Ny, Nz)
     assert arrays.dispersive_c3.shape == (1, 1, Nx, Ny, Nz)
+    expected_spec = jax.sharding.PartitionSpec(None, None, SHARD_STR, None, None)
+    for coefficient in (arrays.dispersive_c1, arrays.dispersive_c2, arrays.dispersive_c3):
+        assert coefficient.sharding.spec == expected_spec
     # polarization always starts at zero
     assert jnp.all(arrays.fields.dispersive_P_curr == 0)
     assert jnp.all(arrays.fields.dispersive_P_prev == 0)

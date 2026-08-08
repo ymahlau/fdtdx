@@ -1,23 +1,25 @@
-"""Run the multi-process sharding regression test on a TPU VM slice.
+"""Run the multi-process sharding regression tests on a TPU VM slice.
 
 Invoke this script simultaneously from the repository root on every TPU
-worker. It initializes JAX distributed and validates the addressable-device
-contract in the same interpreter.
+worker. It initializes JAX distributed and invokes pytest in the same
+interpreter so all integration checks share the initialized runtime.
 """
 
 import json
+from pathlib import Path
 
 import jax
-import jax.numpy as jnp
 
 
 def main() -> None:
+    """Initialize distributed JAX and run the multi-host integration tests."""
     jax.distributed.initialize()
     if jax.default_backend() != "tpu":
         raise RuntimeError(f"Expected TPU backend, got {jax.default_backend()!r}")
 
+    import pytest
+
     import fdtdx
-    from fdtdx.core.jax.sharding import create_named_sharded_matrix
 
     process_count = jax.process_count()
     global_device_count = jax.device_count()
@@ -26,24 +28,10 @@ def main() -> None:
     assert process_count > 1
     assert global_device_count > local_device_count
 
-    shape = (3, 2 * global_device_count, 8, 8)
-    array = create_named_sharded_matrix(
-        shape=shape,
-        value=2.0,
-        sharding_axis=1,
-        dtype=jnp.float32,
-        backend="tpu",
-    )
-    addressable_map = array.sharding.addressable_devices_indices_map(shape)
-
-    assert array.shape == shape
-    assert len(array.devices()) == global_device_count
-    assert len(array.addressable_shards) == local_device_count
-    assert len(array.addressable_shards) == len(addressable_map)
-
-    for shard in array.addressable_shards:
-        assert shard.data.shape == (3, 2, 8, 8)
-        assert bool(jnp.all(shard.data == 2.0).block_until_ready())
+    test_path = Path(__file__).parents[1] / "tests" / "integration" / "core" / "jax" / "test_multihost_sharding.py"
+    exit_code = pytest.main(["-q", "-p", "no:cacheprovider", str(test_path)])
+    if exit_code != pytest.ExitCode.OK:
+        raise RuntimeError(f"Multi-host sharding regression failed with {exit_code=}")
 
     print(
         json.dumps(
@@ -53,7 +41,7 @@ def main() -> None:
                 "process_count": process_count,
                 "global_device_count": global_device_count,
                 "local_device_count": local_device_count,
-                "addressable_shards": len(array.addressable_shards),
+                "tests": 2,
                 "fdtdx_file": fdtdx.__file__,
             },
             sort_keys=True,

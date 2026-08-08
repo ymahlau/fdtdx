@@ -6,6 +6,7 @@ import pytest
 
 from fdtdx import constants
 from fdtdx.config import GradientConfig, SimulationConfig
+from fdtdx.constants import SHARD_STR
 from fdtdx.core.grid import RectilinearGrid, UniformGrid
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer
 from fdtdx.fdtd.initialization import place_objects
@@ -108,6 +109,31 @@ def test_place_objects_initializes_arrays(simple_config, simple_volume, simple_m
     )
 
 
+def test_full_domain_uniform_material_preserves_named_sharding():
+    """Preserve NamedSharding for full-domain uniform material initialization."""
+    device_count = jax.device_count(backend="cpu")
+    volume = SimulationVolume(
+        name="volume",
+        partial_grid_shape=(2 * device_count, 8, 8),
+        material=Material(permittivity=2.0),
+    )
+    config = SimulationConfig(grid=UniformGrid(spacing=1.0), time=100e-15, backend="cpu")
+
+    _objects, arrays, _params, _config, _info = place_objects(
+        [volume],
+        config,
+        [],
+        jax.random.PRNGKey(0),
+    )
+
+    inv_permittivities = arrays.inv_permittivities
+    assert isinstance(inv_permittivities.sharding, jax.sharding.NamedSharding)
+    assert inv_permittivities.sharding.spec == jax.sharding.PartitionSpec(None, SHARD_STR, None, None)
+    assert len(inv_permittivities.devices()) == device_count
+    assert {shard.data.shape for shard in inv_permittivities.addressable_shards} == {(1, 2, 8, 8)}
+    assert jnp.allclose(inv_permittivities, 0.5)
+
+
 def test_place_objects_raises_on_unresolvable_constraint(simple_config, simple_volume, simple_material):
     """place_objects should raise ValueError when constraints can't be resolved."""
     obj = UniformMaterialObject(name="obj1", material=simple_material)
@@ -151,6 +177,15 @@ def test_diagonally_anisotropic_material(simple_config, simple_volume):
     # electric and magnetic conductivity arrays created
     assert arrays.electric_conductivity is not None
     assert arrays.magnetic_conductivity is not None
+    expected_spec = jax.sharding.PartitionSpec(None, SHARD_STR, None, None)
+    for array in (
+        arrays.inv_permittivities,
+        arrays.inv_permeabilities,
+        arrays.electric_conductivity,
+        arrays.magnetic_conductivity,
+    ):
+        assert isinstance(array.sharding, jax.sharding.NamedSharding)
+        assert array.sharding.spec == expected_spec
 
 
 def test_nonuniform_grid_initializes_conductive_volume():

@@ -14,6 +14,8 @@ from fdtdx.core.jax.sharding import (
     get_dtype_bytes,
     get_named_sharding_from_shape,
     pretty_print_sharding,
+    sharding_preserving_add,
+    sharding_preserving_set,
 )
 
 CPU_DEVICES = jax.devices("cpu")
@@ -264,3 +266,44 @@ class TestCreateNamedShardedMatrix:
     def test_has_named_sharding(self):
         result = create_named_sharded_matrix(shape=(4, 6), value=1.0, sharding_axis=0, dtype=jnp.float32, backend="cpu")
         assert isinstance(result.sharding, jax.sharding.NamedSharding)
+
+
+class TestShardingPreservingIndexedUpdate:
+    """Tests indexed updates that keep the destination's sharding contract."""
+
+    @pytest.mark.parametrize(
+        ("update", "initial_value", "update_value", "expected_value"),
+        [
+            (sharding_preserving_set, 0.0, 2.0, 2.0),
+            (sharding_preserving_add, 1.0, 2.0, 3.0),
+        ],
+    )
+    def test_full_domain_update_preserves_named_sharding(
+        self,
+        update,
+        initial_value,
+        update_value,
+        expected_value,
+    ):
+        """Preserve NamedSharding and values for full-domain indexed updates."""
+        device_count = len(CPU_DEVICES)
+        shape = (1, 2 * device_count, 4, 4)
+        array = create_named_sharded_matrix(
+            shape=shape,
+            value=initial_value,
+            sharding_axis=1,
+            dtype=jnp.float32,
+            backend="cpu",
+        )
+        original_sharding = array.sharding
+
+        result = update(
+            array,
+            (slice(None),) * len(shape),
+            jnp.asarray([[[[update_value]]]], dtype=jnp.float32),
+        )
+
+        assert result.sharding == original_sharding
+        assert result.sharding.spec == jax.sharding.PartitionSpec(None, SHARD_STR, None, None)
+        assert {shard.data.shape for shard in result.addressable_shards} == {(1, 2, 4, 4)}
+        assert jnp.allclose(result, expected_value)

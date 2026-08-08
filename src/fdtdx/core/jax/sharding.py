@@ -79,6 +79,51 @@ def pretty_print_sharding(sharding: jax.sharding.Sharding) -> str:
         return str(sharding)
 
 
+def _sharding_preserving_indexed_update(
+    array: jax.Array,
+    index: Any,
+    values: Any,
+    *,
+    operation: str,
+) -> jax.Array:
+    """Apply an indexed update without losing the destination sharding."""
+    if operation == "set":
+
+        def update(destination, update_values):
+            return destination.at[index].set(update_values)
+
+    elif operation == "add":
+
+        def update(destination, update_values):
+            return destination.at[index].add(update_values)
+
+    else:
+        raise ValueError(f"Unsupported indexed update operation: {operation}")
+
+    sharded_update = jax.jit(
+        update,
+        out_shardings=array.sharding,
+        donate_argnums=(0,),
+    )
+    return cast(Any, sharded_update)(array, values)
+
+
+def sharding_preserving_set(array: jax.Array, index: Any, values: Any) -> jax.Array:
+    """Set indexed values while preserving and donating the destination sharding.
+
+    The input array must not be used after this call because its buffers may be donated.
+    """
+    return _sharding_preserving_indexed_update(array, index, values, operation="set")
+
+
+def sharding_preserving_add(array: jax.Array, index: Any, values: Any) -> jax.Array:
+    """Add indexed values while preserving and donating the destination sharding.
+
+    The input array must not be used after this call because its buffers may be donated.
+    """
+    return _sharding_preserving_indexed_update(array, index, values, operation="add")
+
+
 def create_named_sharded_matrix(
     shape: tuple[int, ...],
     value: float,
