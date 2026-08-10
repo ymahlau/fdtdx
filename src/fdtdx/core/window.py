@@ -55,7 +55,7 @@ def tukey_envelope(
     return jnp.where(in_range, window, 0.0)
 
 
-class WindowProfile(TreeClass, ABC):
+class TemporalWindow(TreeClass, ABC):
     """Base class for carrier-free temporal windows used as detector apodization."""
 
     @abstractmethod
@@ -72,7 +72,7 @@ class WindowProfile(TreeClass, ABC):
 
 
 @autoinit
-class GaussianWindowProfile(WindowProfile):
+class GaussianWindow(TemporalWindow):
     """Gaussian window ``exp(-(t - center_time)^2 / (2 sigma_time^2))``.
 
     Shares its shape with :class:`~fdtdx.GaussianPulseProfile` via
@@ -94,7 +94,7 @@ class GaussianWindowProfile(WindowProfile):
 
 
 @autoinit
-class TukeyWindowProfile(WindowProfile):
+class TukeyWindow(TemporalWindow):
     """Tukey (tapered-cosine) window over ``[start_time, end_time]``.
 
     Flat top of value 1 with cosine-tapered edges occupying a fraction ``alpha`` of the

@@ -67,6 +67,7 @@ API
     fdtdx.GaussianPlaneSource
     fdtdx.GaussianPulseProfile
     fdtdx.GaussianSmoothing2D
+    fdtdx.GaussianWindow
     fdtdx.GradientConfig
     fdtdx.GridCoordinateConstraint
     fdtdx.HorizontalSymmetry2D
@@ -130,8 +131,10 @@ API
     fdtdx.SubpixelSmoothedProjection
     fdtdx.TanhProjection
     fdtdx.TemporalProfile
+    fdtdx.TemporalWindow
     fdtdx.TFSFPlaneSourceRegion
     fdtdx.TreeClass
+    fdtdx.TukeyWindow
     fdtdx.unfold_array
     fdtdx.unfold_detector_states
     fdtdx.unfold_fields
@@ -142,9 +145,6 @@ API
     fdtdx.VerticalSymmetry2D
     fdtdx.VerticalSymmetry3D
     fdtdx.WaveCharacter
-    fdtdx.WindowProfile
-    fdtdx.TukeyWindowProfile
-    fdtdx.GaussianWindowProfile
     fdtdx.wavelength_to_period
     fdtdx.GDSLayerObject
     fdtdx.GDSLayerSpec

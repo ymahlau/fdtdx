@@ -34,7 +34,7 @@ from fdtdx.core.physics.metrics import (
 from fdtdx.core.physics.modes import compute_mode
 from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
-from fdtdx.core.window import GaussianWindowProfile, TukeyWindowProfile, WindowProfile
+from fdtdx.core.window import GaussianWindow, TemporalWindow, TukeyWindow
 from fdtdx.dispersion import (
     CCPRPole,
     DispersionModel,
@@ -206,7 +206,7 @@ __all__ = [
     "GaussianPlaneSource",
     "GaussianPulseProfile",
     "GaussianSmoothing2D",
-    "GaussianWindowProfile",
+    "GaussianWindow",
     "GradientConfig",
     "GridCoordinateConstraint",
     "HorizontalSymmetry2D",
@@ -256,15 +256,15 @@ __all__ = [
     "TFSFPlaneSourceRegion",
     "TanhProjection",
     "TemporalProfile",
+    "TemporalWindow",
     "TreeClass",
-    "TukeyWindowProfile",
+    "TukeyWindow",
     "UniformGrid",
     "UniformMaterialObject",
     "UniformPlaneSource",
     "VerticalSymmetry2D",
     "VerticalSymmetry3D",
     "WaveCharacter",
-    "WindowProfile",
     "apply_params",
     "autoinit",
     "boundary_objects_from_config",

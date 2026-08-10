@@ -8,7 +8,7 @@ import pytest
 from fdtdx.config import SimulationConfig
 from fdtdx.core.grid import UniformGrid
 from fdtdx.core.wavelength import WaveCharacter
-from fdtdx.core.window import GaussianWindowProfile, TukeyWindowProfile
+from fdtdx.core.window import GaussianWindow, TukeyWindow
 from fdtdx.objects.detectors.phasor import PhasorDetector
 
 
@@ -54,9 +54,7 @@ def test_continuous_cw_amplitude_preserved_without_window(config):
 def test_continuous_cw_amplitude_preserved_with_tukey(config):
     """The 2/sum(w) coherent-gain correction keeps CW amplitude ~1 under apodization."""
     f = WaveCharacter(wavelength=1e-6).get_frequency()
-    win = TukeyWindowProfile(
-        start_time=0.0, end_time=(config.time_steps_total - 1) * config.time_step_duration, alpha=0.5
-    )
+    win = TukeyWindow(start_time=0.0, end_time=(config.time_steps_total - 1) * config.time_step_duration, alpha=0.5)
     det = PhasorDetector(
         name="d", wave_characters=(WaveCharacter(wavelength=1e-6),), reduce_volume=True, apodization=win
     )
@@ -70,9 +68,7 @@ def test_continuous_cw_amplitude_preserved_with_tukey(config):
 def test_window_changes_a_transient_spectrum(config):
     """For a non-CW (decaying) signal, the apodized phasor differs from the rectangular one."""
     f = WaveCharacter(wavelength=1e-6).get_frequency()
-    win = TukeyWindowProfile(
-        start_time=0.0, end_time=(config.time_steps_total - 1) * config.time_step_duration, alpha=0.8
-    )
+    win = TukeyWindow(start_time=0.0, end_time=(config.time_steps_total - 1) * config.time_step_duration, alpha=0.8)
 
     def run(det):
         det = det.place_on_grid(((0, 4), (0, 4), (0, 1)), config, jax.random.PRNGKey(0))
@@ -115,9 +111,7 @@ def test_apodization_composes_with_dft_subsampling(config, stride):
     by the stride.
     """
     wc = WaveCharacter(wavelength=1e-6)
-    win = TukeyWindowProfile(
-        start_time=0.0, end_time=(config.time_steps_total - 1) * config.time_step_duration, alpha=0.5
-    )
+    win = TukeyWindow(start_time=0.0, end_time=(config.time_steps_total - 1) * config.time_step_duration, alpha=0.5)
     det = PhasorDetector(
         name="d",
         wave_characters=(wc,),
@@ -137,7 +131,7 @@ def test_source_profile_rejected_as_apodization():
     """A source profile is refused as an apodization window."""
     from fdtdx.objects.sources.profile import SingleFrequencyProfile
 
-    with pytest.raises(Exception, match="must be a WindowProfile"):
+    with pytest.raises(Exception, match="must be a TemporalWindow"):
         PhasorDetector(
             name="d",
             wave_characters=(WaveCharacter(wavelength=1e-6),),
@@ -151,7 +145,7 @@ def test_window_outside_recorded_interval_is_rejected(config):
     det = PhasorDetector(
         name="d",
         wave_characters=(WaveCharacter(wavelength=1e-6),),
-        apodization=TukeyWindowProfile(start_time=10 * dur, end_time=11 * dur),
+        apodization=TukeyWindow(start_time=10 * dur, end_time=11 * dur),
     )
     with pytest.raises(Exception, match="must be finite and positive"):
         det.place_on_grid(((0, 4), (0, 4), (0, 1)), config, jax.random.PRNGKey(0))
@@ -163,7 +157,7 @@ def test_underflowed_gaussian_window_is_rejected(config):
     det = PhasorDetector(
         name="d",
         wave_characters=(WaveCharacter(wavelength=1e-6),),
-        apodization=GaussianWindowProfile(center_time=1e6 * dur, sigma_time=1e-18),
+        apodization=GaussianWindow(center_time=1e6 * dur, sigma_time=1e-18),
     )
     with pytest.raises(Exception, match="must be finite and positive"):
         det.place_on_grid(((0, 4), (0, 4), (0, 1)), config, jax.random.PRNGKey(0))
@@ -180,7 +174,7 @@ def test_alpha_zero_tukey_is_identical_to_no_apodization(config):
     """
     f = WaveCharacter(wavelength=1e-6).get_frequency()
     end = (config.time_steps_total - 1) * config.time_step_duration
-    win = TukeyWindowProfile(start_time=0.0, end_time=end, alpha=0.0)
+    win = TukeyWindow(start_time=0.0, end_time=end, alpha=0.0)
 
     def phasor(apodization):
         det = PhasorDetector(

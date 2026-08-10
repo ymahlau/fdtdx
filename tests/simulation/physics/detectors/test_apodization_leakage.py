@@ -74,7 +74,7 @@ def _build():
     objects.append(source)
 
     # The window spans exactly the recorded interval, so it tapers both of its edges.
-    window = fdtdx.TukeyWindowProfile(start_time=_RECORD_START, end_time=duration, alpha=0.5)
+    window = fdtdx.TukeyWindow(start_time=_RECORD_START, end_time=duration, alpha=0.5)
     switch = fdtdx.OnOffSwitch(start_time=_RECORD_START)
     for name, apodization in (("rect", None), ("tukey", window)):
         det = fdtdx.PhasorDetector(

@@ -1,4 +1,4 @@
-"""Tests for the shared temporal envelope helpers and the detector WindowProfiles."""
+"""Tests for the shared temporal envelope helpers and the detector apodization windows."""
 
 import jax.numpy as jnp
 import numpy as np
@@ -6,9 +6,9 @@ import pytest
 
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.core.window import (
-    GaussianWindowProfile,
-    TukeyWindowProfile,
-    WindowProfile,
+    GaussianWindow,
+    TemporalWindow,
+    TukeyWindow,
     gaussian_envelope,
     linear_rampup,
     tukey_envelope,
@@ -54,39 +54,35 @@ class TestWindowShapes:
         assert float(w[0]) == 0.0 and float(w[2]) == 0.0
 
 
-class TestWindowProfiles:
-    """WindowProfile wraps the envelopes with the carrier-free detector interface."""
+class TestTemporalWindows:
+    """TemporalWindow wraps the envelopes with the carrier-free detector interface."""
 
-    def test_gaussian_window_profile_matches_envelope(self):
+    def test_gaussian_window_matches_envelope(self):
         t = jnp.linspace(0, 1e-12, 50)
-        prof = GaussianWindowProfile(center_time=5e-13, sigma_time=1e-13)
-        np.testing.assert_allclose(
-            np.array(prof.get_window(t)), np.array(gaussian_envelope(t, 5e-13, 1e-13)), atol=1e-7
-        )
+        win = GaussianWindow(center_time=5e-13, sigma_time=1e-13)
+        np.testing.assert_allclose(np.array(win.get_window(t)), np.array(gaussian_envelope(t, 5e-13, 1e-13)), atol=1e-7)
 
-    def test_tukey_window_profile_matches_envelope(self):
+    def test_tukey_window_matches_envelope(self):
         t = jnp.linspace(0, 1e-12, 50)
-        prof = TukeyWindowProfile(start_time=0.0, end_time=1e-12, alpha=0.5)
-        np.testing.assert_allclose(
-            np.array(prof.get_window(t)), np.array(tukey_envelope(t, 0.0, 1e-12, 0.5)), atol=1e-7
-        )
+        win = TukeyWindow(start_time=0.0, end_time=1e-12, alpha=0.5)
+        np.testing.assert_allclose(np.array(win.get_window(t)), np.array(tukey_envelope(t, 0.0, 1e-12, 0.5)), atol=1e-7)
 
     def test_windows_are_non_negative(self):
         """Window weights never change sign."""
         t = jnp.linspace(-1e-12, 2e-12, 200)
-        for prof in (
-            GaussianWindowProfile(center_time=5e-13, sigma_time=1e-13),
-            TukeyWindowProfile(start_time=0.0, end_time=1e-12, alpha=0.5),
+        for win in (
+            GaussianWindow(center_time=5e-13, sigma_time=1e-13),
+            TukeyWindow(start_time=0.0, end_time=1e-12, alpha=0.5),
         ):
-            assert bool(jnp.all(prof.get_window(t) >= 0.0))
+            assert bool(jnp.all(win.get_window(t) >= 0.0))
 
-    def test_window_profiles_are_not_temporal_profiles(self):
+    def test_windows_are_not_temporal_profiles(self):
         """Windows and source profiles are separate hierarchies."""
-        assert issubclass(GaussianWindowProfile, WindowProfile)
-        assert issubclass(TukeyWindowProfile, WindowProfile)
-        assert not issubclass(GaussianWindowProfile, TemporalProfile)
-        assert not issubclass(SingleFrequencyProfile, WindowProfile)
-        assert not issubclass(GaussianPulseProfile, WindowProfile)
+        assert issubclass(GaussianWindow, TemporalWindow)
+        assert issubclass(TukeyWindow, TemporalWindow)
+        assert not issubclass(GaussianWindow, TemporalProfile)
+        assert not issubclass(SingleFrequencyProfile, TemporalWindow)
+        assert not issubclass(GaussianPulseProfile, TemporalWindow)
 
 
 class TestProfileRefactorRegression:
@@ -121,19 +117,19 @@ class TestWindowValidation:
     @pytest.mark.parametrize("sigma", [0.0, -1e-13])
     def test_gaussian_rejects_non_positive_sigma(self, sigma):
         with pytest.raises(ValueError, match="sigma_time must be positive"):
-            GaussianWindowProfile(center_time=5e-13, sigma_time=sigma)
+            GaussianWindow(center_time=5e-13, sigma_time=sigma)
 
     @pytest.mark.parametrize("end", [0.0, -1e-12, 1e-12])
     def test_tukey_rejects_non_increasing_bounds(self, end):
         with pytest.raises(ValueError, match="end_time must exceed start_time"):
-            TukeyWindowProfile(start_time=1e-12, end_time=end)
+            TukeyWindow(start_time=1e-12, end_time=end)
 
     @pytest.mark.parametrize("alpha", [-0.1, 1.5])
     def test_tukey_rejects_alpha_outside_unit_interval(self, alpha):
         with pytest.raises(ValueError, match=r"alpha must lie in \[0, 1\]"):
-            TukeyWindowProfile(start_time=0.0, end_time=1e-12, alpha=alpha)
+            TukeyWindow(start_time=0.0, end_time=1e-12, alpha=alpha)
 
     @pytest.mark.parametrize("alpha", [0.0, 0.5, 1.0])
     def test_tukey_accepts_the_closed_unit_interval(self, alpha):
-        prof = TukeyWindowProfile(start_time=0.0, end_time=1e-12, alpha=alpha)
-        assert bool(jnp.all(jnp.isfinite(prof.get_window(jnp.linspace(0, 1e-12, 20)))))
+        win = TukeyWindow(start_time=0.0, end_time=1e-12, alpha=alpha)
+        assert bool(jnp.all(jnp.isfinite(win.get_window(jnp.linspace(0, 1e-12, 20)))))

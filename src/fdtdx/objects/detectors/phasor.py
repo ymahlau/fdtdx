@@ -8,7 +8,7 @@ from loguru import logger
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, field, frozen_field, frozen_private_field, private_field
 from fdtdx.core.wavelength import WaveCharacter
-from fdtdx.core.window import WindowProfile
+from fdtdx.core.window import TemporalWindow
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 from fdtdx.typing import SliceTuple3D
 
@@ -65,7 +65,7 @@ class PhasorDetector(Detector):
     #: suppresses the spectral leakage that the gate's discontinuity causes; the
     #: continuous-mode scale is corrected by the window's coherent gain so reconstructed
     #: amplitudes stay correct.
-    apodization: WindowProfile | None = frozen_field(default=None)
+    apodization: TemporalWindow | None = frozen_field(default=None)
 
     #: Per-time-step window weights (on-mask times apodization), length ``time_steps_total``.
     _window_at_time_step_arr: jax.Array = private_field()
@@ -78,9 +78,9 @@ class PhasorDetector(Detector):
     ):
         if self.dtype not in [jnp.complex64, jnp.complex128]:
             raise Exception(f"Invalid dtype in PhasorDetector: {self.dtype}")
-        if self.apodization is not None and not isinstance(self.apodization, WindowProfile):
+        if self.apodization is not None and not isinstance(self.apodization, TemporalWindow):
             raise Exception(
-                f"apodization must be a WindowProfile, got {type(self.apodization).__name__}. "
+                f"apodization must be a TemporalWindow, got {type(self.apodization).__name__}. "
                 "Source temporal profiles are not valid windows."
             )
 
