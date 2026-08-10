@@ -243,6 +243,30 @@ class TestCreateNamedShardedMatrix:
         assert matrices[0].shape == (2, 6)
         assert jnp.allclose(matrices[0], 2.0)
 
+    def test_rejects_mapped_local_shape_mismatch(self):
+        """Reject addressable mappings that violate the even-shard contract."""
+        cpu = CPU_DEVICES[0]
+        fake_sharding = MagicMock()
+        fake_sharding.addressable_devices_indices_map.return_value = {
+            cpu: (slice(0, 3), slice(None)),
+        }
+
+        with (
+            mock.patch.object(jax, "devices", return_value=[cpu, cpu]),
+            mock.patch(
+                "fdtdx.core.jax.sharding.get_named_sharding_from_shape",
+                return_value=fake_sharding,
+            ),
+            pytest.raises(ValueError, match="Mapped local shard shape"),
+        ):
+            create_named_sharded_matrix(
+                shape=(4, 6),
+                value=1.0,
+                sharding_axis=0,
+                dtype=jnp.float32,
+                backend="cpu",
+            )
+
     def test_counter_increments(self):
         old_counter = sharding_module.counter
         create_named_sharded_matrix(shape=(2, 4), value=1.0, sharding_axis=0, dtype=jnp.float32, backend="cpu")
@@ -307,3 +331,13 @@ class TestShardingPreservingIndexedUpdate:
         assert result.sharding.spec == jax.sharding.PartitionSpec(None, SHARD_STR, None, None)
         assert {shard.data.shape for shard in result.addressable_shards} == {(1, 2, 4, 4)}
         assert jnp.allclose(result, expected_value)
+
+    def test_rejects_unsupported_operation(self):
+        """Reject indexed-update operations outside the supported set/add contract."""
+        with pytest.raises(ValueError, match="Unsupported indexed update operation"):
+            sharding_module._sharding_preserving_indexed_update(
+                jnp.ones((1,)),
+                slice(None),
+                1.0,
+                operation="multiply",
+            )
