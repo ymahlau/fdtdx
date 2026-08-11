@@ -87,3 +87,4 @@ python-version = "3.14"
 
 [tool.hatch.metadata]
 allow-direct-references = true
+

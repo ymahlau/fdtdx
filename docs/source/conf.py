@@ -37,6 +37,14 @@ extensions = [
 templates_path = ['_templates']
 exclude_patterns = []
 
+# Hides the class/module nae in the right sidebar
+toc_object_entries_show_parents = 'hide'
+# the 'fdtdx.' module prefix from signature in the main body
+add_module_names = False
+
+autodoc_preserve_defaults = True
+
+
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -47,6 +55,7 @@ html_static_path = ['_static']
 html_css_files = [
     'custom.css',
 ]
+
 html_favicon = '_static/fdtdx_icon_64.ico'
 html_logo = '_static/fdtdx_icon_200.png'
 
@@ -90,3 +99,8 @@ mathjax3_config = {
         'displayMath': [['$$', '$$'], ['\\[', '\\]']],
     }
 }
+
+
+import sphinx.util.inspect
+
+_original_object_description = sphinx.util.inspect.object_description
