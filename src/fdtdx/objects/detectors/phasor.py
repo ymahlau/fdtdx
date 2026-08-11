@@ -6,8 +6,9 @@ import jax.numpy as jnp
 from loguru import logger
 
 from fdtdx.config import SimulationConfig
-from fdtdx.core.jax.pytrees import autoinit, field, frozen_field, frozen_private_field
+from fdtdx.core.jax.pytrees import autoinit, field, frozen_field, frozen_private_field, private_field
 from fdtdx.core.wavelength import WaveCharacter
+from fdtdx.core.window import TemporalWindow
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 from fdtdx.typing import SliceTuple3D
 
@@ -44,8 +45,9 @@ class PhasorDetector(Detector):
     #: Whether to plot the measured data. Defaults to False.
     plot: bool = frozen_field(default=False)
 
-    #: Scaling of the resulting phasor. In continuous mode, the result is scaled by a factor of 2 / N, where N is
-    #: the number of time steps recorded. This allows accurate reconstruction of a continuous signal.
+    #: Scaling of the resulting phasor. In continuous mode, the result is scaled by the window's
+    #: coherent gain 2 / sum(w), which is 2 / N with N the number of time steps recorded when no
+    #: ``apodization`` is set. This allows accurate reconstruction of a continuous signal.
     #: In pulse mode, the result is not scaled.
     scaling_mode: Literal["continuous", "pulse"] = frozen_field(default="continuous")
 
@@ -58,11 +60,29 @@ class PhasorDetector(Detector):
     #: Concrete recording stride, resolved from dft_subsample at placement (1 = every active step).
     _dft_stride: int = frozen_private_field(default=1)
 
+    #: Optional smooth temporal **apodization** window applied to each sample before the DFT.
+    #: ``None`` (default) is a hard rectangular gate over the recorded steps. A window
+    #: suppresses the spectral leakage that the gate's discontinuity causes; the
+    #: continuous-mode scale is corrected by the window's coherent gain so reconstructed
+    #: amplitudes stay correct.
+    apodization: TemporalWindow | None = frozen_field(default=None)
+
+    #: Per-time-step window weights (on-mask times apodization), length ``time_steps_total``.
+    _window_at_time_step_arr: jax.Array = private_field()
+
+    #: Sum of the window weights over the recorded steps (coherent gain times N).
+    _window_sum: float = frozen_private_field()
+
     def __post_init__(
         self,
     ):
         if self.dtype not in [jnp.complex64, jnp.complex128]:
             raise Exception(f"Invalid dtype in PhasorDetector: {self.dtype}")
+        if self.apodization is not None and not isinstance(self.apodization, TemporalWindow):
+            raise Exception(
+                f"apodization must be a TemporalWindow, got {type(self.apodization).__name__}. "
+                "Source temporal profiles are not valid windows."
+            )
 
     @property
     def _angular_frequencies(self) -> jax.Array:
@@ -115,20 +135,41 @@ class PhasorDetector(Detector):
                 )
         # Store the concrete stride so update() reads a plain int (no host concretization under jit).
         self = self.aset("_dft_stride", stride, create_new_ok=True)
+
+        # Build the window from the (already thinned) on-mask, so its coherent gain is summed
+        # over exactly the steps that get recorded.
+        on_arr = self._is_on_at_time_step_arr  # bool, (time_steps_total,)
+        if self.apodization is None:
+            window = on_arr.astype(jnp.float32)
+        else:
+            time = jnp.arange(self._config.time_steps_total) * self._config.time_step_duration
+            window = self.apodization.get_window(time) * on_arr.astype(jnp.float32)
+        self = self.aset("_window_at_time_step_arr", window, create_new_ok=True)
+        window_sum = float(jnp.sum(window))
+        if not math.isfinite(window_sum) or window_sum <= 0.0:
+            # e.g. a window whose support lies entirely outside the recorded interval, which
+            # would make the continuous-mode 2 / sum(w) scale divide by zero.
+            raise Exception(
+                f"Detector '{self.name}': the apodization window sums to {window_sum} over the recorded "
+                "time steps; it must be finite and positive. Check that the window's support overlaps "
+                "the detector's active interval."
+            )
+        self = self.aset("_window_sum", window_sum, create_new_ok=True)
         return self
 
     def _static_scale(self) -> float | int:
         """Computes the static scale factor for the configured scaling mode.
 
-        In continuous mode, the result is scaled by 2 / N with N the number of recorded time
-        steps. In pulse mode, each kept sample is weighted by the dft_subsample stride so that
+        In continuous mode, the result is scaled by the window's coherent gain ``2 / sum(w)``,
+        which reduces to ``2 / N`` with N the number of recorded time steps when no
+        apodization is set. In pulse mode, each kept sample is weighted by the dft_subsample stride so that
         subsampled recording matches the every-step DFT sum.
 
         Returns:
             float | int: Scale factor applied to each recorded sample.
         """
         if self.scaling_mode == "continuous":
-            return 2 / self.num_time_steps_recorded
+            return 2 / self._window_sum
         if self.scaling_mode == "pulse":
             return self._dft_stride
         raise Exception(f"Invalid scaling mode: {self.scaling_mode=}")
@@ -158,6 +199,7 @@ class PhasorDetector(Detector):
         del inv_permeability, inv_permittivity
         time_passed = time_step * self._config.time_step_duration
         static_scale = self._static_scale()
+        window_weight = self._window_at_time_step_arr[time_step]
 
         fields = []
         if "Ex" in self.components:
@@ -180,7 +222,7 @@ class PhasorDetector(Detector):
         phasors = jnp.exp(1j * phase_angles)  # Shape: (num_freqs,)
         # Reshape phasors to (num_freqs, 1, 1, 1, 1) for proper broadcasting with EH (num_components, x, y, z)
         phasors = phasors.reshape((len(self._angular_frequencies),) + (1,) * EH.ndim)
-        new_phasors = EH * phasors * static_scale  # Shape: (num_freqs, num_components, *grid_shape)
+        new_phasors = EH * phasors * static_scale * window_weight  # Shape: (num_freqs, num_components, *grid_shape)
 
         if self.reduce_volume:
             # Average over spatial dimensions using physical cell volumes.
