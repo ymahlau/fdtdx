@@ -100,6 +100,13 @@ def _sharding_preserving_indexed_update(
     else:
         raise ValueError(f"Unsupported indexed update operation: {operation}")
 
+    # A fully addressable array may still span multiple devices. In that case,
+    # an unconstrained indexed update can silently return a replicated result.
+    # Only single-device arrays are safe to update without an output-sharding
+    # contract.
+    if len(array.devices()) == 1:
+        return update(array, values)
+
     sharded_update = jax.jit(
         update,
         out_shardings=array.sharding,
@@ -109,17 +116,17 @@ def _sharding_preserving_indexed_update(
 
 
 def sharding_preserving_set(array: jax.Array, index: Any, values: Any) -> jax.Array:
-    """Set indexed values while preserving and donating the destination sharding.
+    """Set indexed values while preserving the destination sharding.
 
-    The input array must not be used after this call because its buffers may be donated.
+    Multi-device input buffers may be donated and must not be reused.
     """
     return _sharding_preserving_indexed_update(array, index, values, operation="set")
 
 
 def sharding_preserving_add(array: jax.Array, index: Any, values: Any) -> jax.Array:
-    """Add indexed values while preserving and donating the destination sharding.
+    """Add indexed values while preserving the destination sharding.
 
-    The input array must not be used after this call because its buffers may be donated.
+    Multi-device input buffers may be donated and must not be reused.
     """
     return _sharding_preserving_indexed_update(array, index, values, operation="add")
 

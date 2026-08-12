@@ -77,9 +77,10 @@ def test_full_domain_material_placement_preserves_global_sharding():
     inv_permittivities = arrays.inv_permittivities
 
     assert inv_permittivities.shape == (1, 2 * global_device_count, 8, 8)
+    assert not inv_permittivities.is_fully_addressable
+    assert len(inv_permittivities.devices()) == global_device_count
     assert isinstance(inv_permittivities.sharding, jax.sharding.NamedSharding)
     assert inv_permittivities.sharding.spec == jax.sharding.PartitionSpec(None, SHARD_STR, None, None)
-    assert len(inv_permittivities.devices()) == global_device_count
     assert len(inv_permittivities.addressable_shards) == local_device_count
     for shard in inv_permittivities.addressable_shards:
         assert shard.data.shape == (1, 2, 8, 8)

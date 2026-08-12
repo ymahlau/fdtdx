@@ -302,6 +302,56 @@ class TestShardingPreservingIndexedUpdate:
             (sharding_preserving_add, 1.0, 2.0, 3.0),
         ],
     )
+    def test_single_device_update_bypasses_jit(
+        self,
+        update,
+        initial_value,
+        update_value,
+        expected_value,
+    ):
+        """Avoid per-object JIT compilation when the array uses one device."""
+        array = jnp.full((2, 4), initial_value, dtype=jnp.float32)
+        assert len(array.devices()) == 1
+
+        with mock.patch.object(jax, "jit") as jit:
+            result = update(array, (slice(None), slice(None)), update_value)
+
+        jit.assert_not_called()
+        assert jnp.allclose(result, expected_value)
+
+    @pytest.mark.parametrize("is_fully_addressable", [True, False])
+    def test_multi_device_update_uses_sharded_jit(self, is_fully_addressable):
+        """Retain the constrained donated JIT path for every multi-device array."""
+        array = MagicMock()
+        array.is_fully_addressable = is_fully_addressable
+        array.devices.return_value = (object(), object())
+        array.sharding = object()
+        expected = object()
+        sharded_update = MagicMock(return_value=expected)
+
+        with mock.patch.object(jax, "jit", return_value=sharded_update) as jit:
+            result = sharding_module._sharding_preserving_indexed_update(
+                array,
+                slice(None),
+                2.0,
+                operation="set",
+            )
+
+        assert result is expected
+        jit.assert_called_once()
+        assert jit.call_args.kwargs == {
+            "out_shardings": array.sharding,
+            "donate_argnums": (0,),
+        }
+        sharded_update.assert_called_once_with(array, 2.0)
+
+    @pytest.mark.parametrize(
+        ("update", "initial_value", "update_value", "expected_value"),
+        [
+            (sharding_preserving_set, 0.0, 2.0, 2.0),
+            (sharding_preserving_add, 1.0, 2.0, 3.0),
+        ],
+    )
     def test_full_domain_update_preserves_named_sharding(
         self,
         update,
@@ -320,6 +370,8 @@ class TestShardingPreservingIndexedUpdate:
             backend="cpu",
         )
         original_sharding = array.sharding
+        assert array.is_fully_addressable
+        assert len(array.devices()) == 1
 
         result = update(
             array,
