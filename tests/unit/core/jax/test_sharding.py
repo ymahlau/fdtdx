@@ -14,6 +14,8 @@ from fdtdx.core.jax.sharding import (
     get_dtype_bytes,
     get_named_sharding_from_shape,
     pretty_print_sharding,
+    sharding_preserving_add,
+    sharding_preserving_set,
 )
 
 CPU_DEVICES = jax.devices("cpu")
@@ -41,6 +43,31 @@ class TestGetDtypeBytes:
     )
     def test_returns_correct_byte_size(self, dtype, expected):
         assert get_dtype_bytes(dtype) == expected
+
+
+# ---- _local_shape_from_global_index ----
+
+
+class TestLocalShapeFromGlobalIndex:
+    """Tests for deriving local buffer shapes from JAX's global shard indices."""
+
+    @pytest.mark.parametrize(
+        "shape, global_index, expected",
+        [
+            ((64, 8), (slice(16, 32), slice(None)), (16, 8)),
+            ((3, 64, 8), (slice(None), slice(48, 64), slice(None)), (3, 16, 8)),
+            ((10,), (slice(1, 9, 2),), (4,)),
+        ],
+    )
+    def test_derives_shape_from_slices(self, shape, global_index, expected):
+        """Derive each local shard dimension from its global slice."""
+        assert sharding_module._local_shape_from_global_index(shape, global_index) == expected
+
+    @pytest.mark.parametrize("global_index", [None, (slice(None),), (0, slice(None))])
+    def test_rejects_invalid_indices(self, global_index):
+        """Reject missing, incomplete, and non-slice shard indices."""
+        with pytest.raises(ValueError, match=r"Invalid shard index|Expected a slice"):
+            sharding_module._local_shape_from_global_index((4, 6), global_index)
 
 
 # ---- pretty_print_sharding ----
@@ -137,6 +164,13 @@ class TestCreateNamedShardedMatrix:
         with mock.patch.object(jax, "devices", return_value=CPU_DEVICES):
             yield
 
+    def test_uses_requested_backend(self):
+        """Use the requested backend for validation and mesh construction."""
+        with mock.patch.object(jax, "devices", return_value=CPU_DEVICES) as devices:
+            create_named_sharded_matrix(shape=(4, 6), value=1.0, sharding_axis=0, dtype=jnp.float32, backend="cpu")
+
+        assert devices.call_args_list == [mock.call(backend="cpu"), mock.call(backend="cpu")]
+
     def test_returns_jax_array(self):
         result = create_named_sharded_matrix(shape=(4, 6), value=1.0, sharding_axis=0, dtype=jnp.float32, backend="cpu")
         assert isinstance(result, jax.Array)
@@ -175,6 +209,64 @@ class TestCreateNamedShardedMatrix:
                     backend="cpu",
                 )
 
+    def test_constructs_only_addressable_device_arrays(self):
+        """Construct input arrays only for locally addressable devices."""
+        cpu = CPU_DEVICES[0]
+        global_devices = [cpu] * 4
+        shape = (8, 6)
+        fake_sharding = MagicMock()
+        fake_sharding.addressable_devices_indices_map.return_value = {
+            cpu: (slice(4, 6), slice(None)),
+        }
+        expected = object()
+
+        with (
+            mock.patch.object(jax, "devices", return_value=global_devices),
+            mock.patch(
+                "fdtdx.core.jax.sharding.get_named_sharding_from_shape",
+                return_value=fake_sharding,
+            ),
+            mock.patch.object(jax, "make_array_from_single_device_arrays", return_value=expected) as make_array,
+        ):
+            result = create_named_sharded_matrix(
+                shape=shape,
+                value=2.0,
+                sharding_axis=0,
+                dtype=jnp.float32,
+                backend="cpu",
+            )
+
+        assert result is expected
+        fake_sharding.addressable_devices_indices_map.assert_called_once_with(shape)
+        matrices = make_array.call_args.args[2]
+        assert len(matrices) == len(fake_sharding.addressable_devices_indices_map.return_value)
+        assert matrices[0].shape == (2, 6)
+        assert jnp.allclose(matrices[0], 2.0)
+
+    def test_rejects_mapped_local_shape_mismatch(self):
+        """Reject addressable mappings that violate the even-shard contract."""
+        cpu = CPU_DEVICES[0]
+        fake_sharding = MagicMock()
+        fake_sharding.addressable_devices_indices_map.return_value = {
+            cpu: (slice(0, 3), slice(None)),
+        }
+
+        with (
+            mock.patch.object(jax, "devices", return_value=[cpu, cpu]),
+            mock.patch(
+                "fdtdx.core.jax.sharding.get_named_sharding_from_shape",
+                return_value=fake_sharding,
+            ),
+            pytest.raises(ValueError, match="Mapped local shard shape"),
+        ):
+            create_named_sharded_matrix(
+                shape=(4, 6),
+                value=1.0,
+                sharding_axis=0,
+                dtype=jnp.float32,
+                backend="cpu",
+            )
+
     def test_counter_increments(self):
         old_counter = sharding_module.counter
         create_named_sharded_matrix(shape=(2, 4), value=1.0, sharding_axis=0, dtype=jnp.float32, backend="cpu")
@@ -198,3 +290,106 @@ class TestCreateNamedShardedMatrix:
     def test_has_named_sharding(self):
         result = create_named_sharded_matrix(shape=(4, 6), value=1.0, sharding_axis=0, dtype=jnp.float32, backend="cpu")
         assert isinstance(result.sharding, jax.sharding.NamedSharding)
+
+
+class TestShardingPreservingIndexedUpdate:
+    """Tests indexed updates that keep the destination's sharding contract."""
+
+    @pytest.mark.parametrize(
+        ("update", "initial_value", "update_value", "expected_value"),
+        [
+            (sharding_preserving_set, 0.0, 2.0, 2.0),
+            (sharding_preserving_add, 1.0, 2.0, 3.0),
+        ],
+    )
+    def test_single_device_update_bypasses_jit(
+        self,
+        update,
+        initial_value,
+        update_value,
+        expected_value,
+    ):
+        """Avoid per-object JIT compilation when the array uses one device."""
+        array = jnp.full((2, 4), initial_value, dtype=jnp.float32)
+        assert len(array.devices()) == 1
+
+        with mock.patch.object(jax, "jit") as jit:
+            result = update(array, (slice(None), slice(None)), update_value)
+
+        jit.assert_not_called()
+        assert jnp.allclose(result, expected_value)
+
+    @pytest.mark.parametrize("is_fully_addressable", [True, False])
+    def test_multi_device_update_uses_sharded_jit(self, is_fully_addressable):
+        """Retain the constrained donated JIT path for every multi-device array."""
+        array = MagicMock()
+        array.is_fully_addressable = is_fully_addressable
+        array.devices.return_value = (object(), object())
+        array.sharding = object()
+        expected = object()
+        sharded_update = MagicMock(return_value=expected)
+
+        with mock.patch.object(jax, "jit", return_value=sharded_update) as jit:
+            result = sharding_module._sharding_preserving_indexed_update(
+                array,
+                slice(None),
+                2.0,
+                operation="set",
+            )
+
+        assert result is expected
+        jit.assert_called_once()
+        assert jit.call_args.kwargs == {
+            "out_shardings": array.sharding,
+            "donate_argnums": (0,),
+        }
+        sharded_update.assert_called_once_with(array, 2.0)
+
+    @pytest.mark.parametrize(
+        ("update", "initial_value", "update_value", "expected_value"),
+        [
+            (sharding_preserving_set, 0.0, 2.0, 2.0),
+            (sharding_preserving_add, 1.0, 2.0, 3.0),
+        ],
+    )
+    def test_full_domain_update_preserves_named_sharding(
+        self,
+        update,
+        initial_value,
+        update_value,
+        expected_value,
+    ):
+        """Preserve NamedSharding and values for full-domain indexed updates."""
+        device_count = len(CPU_DEVICES)
+        shape = (1, 2 * device_count, 4, 4)
+        array = create_named_sharded_matrix(
+            shape=shape,
+            value=initial_value,
+            sharding_axis=1,
+            dtype=jnp.float32,
+            backend="cpu",
+        )
+        original_sharding = array.sharding
+        assert array.is_fully_addressable
+        assert len(array.devices()) == 1
+
+        result = update(
+            array,
+            (slice(None),) * len(shape),
+            jnp.asarray([[[[update_value]]]], dtype=jnp.float32),
+        )
+
+        assert result.sharding == original_sharding
+        assert result.sharding.spec == jax.sharding.PartitionSpec(None, SHARD_STR, None, None)
+        assert {shard.data.shape for shard in result.addressable_shards} == {(1, 2, 4, 4)}
+        assert jnp.allclose(result, expected_value)
+
+    def test_rejects_unsupported_operation(self):
+        """Reject indexed-update operations outside the supported set/add contract."""
+        with pytest.raises(ValueError, match="Unsupported indexed update operation"):
+            sharding_module._sharding_preserving_indexed_update(
+                jnp.ones((1,)),
+                slice(None),
+                1.0,
+                operation="multiply",
+            )

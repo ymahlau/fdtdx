@@ -72,7 +72,7 @@ dev = [
     "sphinx-copybutton>=0.5.2",
     "chex>=0.1.91",
     "sphinx-design",
-    "ty>=0.0.49",
+    "ty==0.0.66",
 ]
 
 [tool.pyright]

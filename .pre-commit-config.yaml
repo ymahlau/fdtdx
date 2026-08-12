@@ -40,9 +40,9 @@ repos:
   - repo: local
     hooks:
       - id: ty
-        name: ty (via uvx)
-        # This executes exactly what you run in the terminal
-        entry: uvx ty check --error-on-warning
+        name: ty (from uv.lock)
+        # Use the project-managed version for reproducible local and CI checks.
+        entry: uv run --locked ty check --error-on-warning
         language: system
         types: [python]
-        pass_filenames: false  
+        pass_filenames: false

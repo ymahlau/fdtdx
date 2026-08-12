@@ -44,7 +44,7 @@ uv run pre-commit run -a
 
 ### Type checking
 ```bash
-uvx ty check --error-on-warning
+uv run --locked ty check --error-on-warning
 ```
 
 ### Build docs
@@ -56,7 +56,7 @@ sh docs/scripts/sync_notebooks.sh && uv run sphinx-build -W --keep-going docs/so
 
 - **Ruff** for linting and formatting: target Python 3.12, line length 120, import sorting enabled
 - Ruff excludes: `examples/`, `slurm/`, `checks/`, `docs/`
-- Type checking via **ty** (run with `uvx ty check --error-on-warning`), excludes `tests/`
+- Type checking via **ty** (run with `uv run --locked ty check --error-on-warning`), excludes `tests/`
 
 ## Architecture
 

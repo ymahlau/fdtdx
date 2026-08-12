@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 from fdtdx.config import SimulationConfig
+from fdtdx.constants import SHARD_STR
 from fdtdx.constants import c as c0
 from fdtdx.dispersion import CCPRPole, DispersionModel, DrudePole, LorentzPole, compute_pole_coefficients
 from fdtdx.fdtd.initialization import apply_params, place_objects
@@ -97,6 +98,9 @@ def test_dispersive_arrays_allocated(simple_config, simple_volume):
     assert arrays.dispersive_c1.shape == (1, 1, Nx, Ny, Nz)
     assert arrays.dispersive_c2.shape == (1, 1, Nx, Ny, Nz)
     assert arrays.dispersive_c3.shape == (1, 1, Nx, Ny, Nz)
+    expected_spec = jax.sharding.PartitionSpec(None, None, SHARD_STR, None, None)
+    for coefficient in (arrays.dispersive_c1, arrays.dispersive_c2, arrays.dispersive_c3):
+        assert coefficient.sharding.spec == expected_spec
     # polarization always starts at zero
     assert jnp.all(arrays.fields.dispersive_P_curr == 0)
     assert jnp.all(arrays.fields.dispersive_P_prev == 0)
@@ -290,6 +294,57 @@ def test_static_multi_material_dispersive(simple_config, simple_volume):
     assert jnp.any(inside_slab[voxel_mask] > 0.0)
     # Cells inside the bounding box but outside the sphere remain zero
     assert jnp.all(inside_slab[~voxel_mask] == 0.0)
+
+
+def test_static_multi_material_updates_preserve_named_sharding(simple_config, simple_volume):
+    """Preserve sharding for every material array updated by a static object."""
+    pole = CCPRPole(pole=complex(-1e13, -2e15), residue=complex(-2e15, 1e15))
+    materials = {
+        "background": Material(permittivity=1.0),
+        "lossy": Material(
+            permittivity=2.0,
+            permeability=1.5,
+            electric_conductivity=0.2,
+            magnetic_conductivity=0.3,
+            dispersion=DispersionModel(poles=(pole,)),
+        ),
+    }
+    sphere = Sphere(
+        name="sphere",
+        materials=materials,
+        material_name="lossy",
+        radius=5.0 * simple_config.uniform_spacing(),
+    )
+    constraint = GridCoordinateConstraint(object="sphere", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[8, 8, 8])
+
+    objects, arrays, _, _, _ = place_objects(
+        [simple_volume, sphere],
+        simple_config,
+        [constraint],
+        jax.random.PRNGKey(0),
+    )
+
+    material_spec = jax.sharding.PartitionSpec(None, SHARD_STR, None, None)
+    material_arrays = (
+        arrays.inv_permittivities,
+        arrays.inv_permeabilities,
+        arrays.electric_conductivity,
+        arrays.magnetic_conductivity,
+    )
+    for material_array in material_arrays:
+        assert isinstance(material_array, jax.Array)
+        assert material_array.sharding.spec == material_spec
+
+    assert isinstance(arrays.dispersive_c4, jax.Array)
+    assert arrays.dispersive_c4.sharding.spec == jax.sharding.PartitionSpec(None, None, SHARD_STR, None, None)
+
+    placed = _placed(objects, "sphere")
+    xs, ys, zs = placed.grid_slice
+    mask = placed.get_voxel_mask_for_shape().astype(bool)
+    assert jnp.any(arrays.inv_permeabilities[0, xs, ys, zs][mask] != 1.0)
+    assert jnp.any(arrays.electric_conductivity[0, xs, ys, zs][mask] > 0.0)
+    assert jnp.any(arrays.magnetic_conductivity[0, xs, ys, zs][mask] > 0.0)
+    assert jnp.any(arrays.dispersive_c4[0, 0, xs, ys, zs][mask] != 0.0)
 
 
 # ---------------------------------------------------------------------------
