@@ -39,7 +39,9 @@ fix = true
 exclude = ["examples", "slurm", "checks", "docs"]
 
 [tool.ruff.lint]
-extend-select = ["I", "RUF"]
+# Explicit rather than extend-select: ruff's default rule set grows between releases,
+# so extend-select silently pulls in new linter families on every version bump.
+select = ["E4", "E7", "E9", "F", "I", "RUF"]
 ignore = []
 allowed-confusables = ["α", "β", "γ", "δ", "ε", "ζ", "η", "θ", "ι", "κ", "λ", "μ", "ν", "ξ", "π", "ρ", "σ", "τ", "υ", "φ", "χ", "ψ", "ω", "Α", "Β", "Γ", "Δ", "Ε", "Ζ", "Η", "Θ", "Ι", "Κ", "Λ", "Μ", "Ν", "Ξ", "Π", "Ρ", "Σ", "Τ", "Υ", "Φ", "Χ", "Ψ", "Ω"]
 
