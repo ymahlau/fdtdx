@@ -12,7 +12,7 @@ import pytest
 from fdtdx.config import SimulationConfig
 from fdtdx.constants import SHARD_STR
 from fdtdx.constants import c as c0
-from fdtdx.dispersion import CCPRPole, DispersionModel, DrudePole, LorentzPole, compute_pole_coefficients
+from fdtdx.dispersion import DispersionModel, DrudePole, LorentzPole, compute_pole_coefficients
 from fdtdx.fdtd.initialization import apply_params, place_objects
 from fdtdx.materials import Material
 from fdtdx.objects.device.device import Device
@@ -106,7 +106,7 @@ def test_dispersive_arrays_allocated(simple_config, simple_volume):
     assert jnp.all(arrays.fields.dispersive_P_prev == 0)
 
     # Coefficient values inside the slab should match compute_pole_coefficients.
-    c1_ref, c2_ref, c3_ref, _c4_ref = compute_pole_coefficients(
+    c1_ref, c2_ref, c3_ref = compute_pole_coefficients(
         material.dispersion.poles,
         config.time_step_duration,  # type: ignore[union-attr]
     )
@@ -298,7 +298,7 @@ def test_static_multi_material_dispersive(simple_config, simple_volume):
 
 def test_static_multi_material_updates_preserve_named_sharding(simple_config, simple_volume):
     """Preserve sharding for every material array updated by a static object."""
-    pole = CCPRPole(pole=complex(-1e13, -2e15), residue=complex(-2e15, 1e15))
+    pole = LorentzPole(resonance_frequency=2e15, damping=1e13, delta_epsilon=1.5)
     materials = {
         "background": Material(permittivity=1.0),
         "lossy": Material(
@@ -335,8 +335,8 @@ def test_static_multi_material_updates_preserve_named_sharding(simple_config, si
         assert isinstance(material_array, jax.Array)
         assert material_array.sharding.spec == material_spec
 
-    assert isinstance(arrays.dispersive_c4, jax.Array)
-    assert arrays.dispersive_c4.sharding.spec == jax.sharding.PartitionSpec(None, None, SHARD_STR, None, None)
+    assert isinstance(arrays.dispersive_c3, jax.Array)
+    assert arrays.dispersive_c3.sharding.spec == jax.sharding.PartitionSpec(None, None, SHARD_STR, None, None)
 
     placed = _placed(objects, "sphere")
     xs, ys, zs = placed.grid_slice
@@ -344,7 +344,7 @@ def test_static_multi_material_updates_preserve_named_sharding(simple_config, si
     assert jnp.any(arrays.inv_permeabilities[0, xs, ys, zs][mask] != 1.0)
     assert jnp.any(arrays.electric_conductivity[0, xs, ys, zs][mask] > 0.0)
     assert jnp.any(arrays.magnetic_conductivity[0, xs, ys, zs][mask] > 0.0)
-    assert jnp.any(arrays.dispersive_c4[0, 0, xs, ys, zs][mask] != 0.0)
+    assert jnp.any(arrays.dispersive_c3[0, 0, xs, ys, zs][mask] != 0.0)
 
 
 # ---------------------------------------------------------------------------
@@ -382,7 +382,7 @@ def test_device_dispersive_continuous(simple_config, simple_volume):
     assert arrays.dispersive_c1.shape == (1, 1, 30, 30, 30)
 
     # Inside the device: coefficients should equal the drude coefficients.
-    c1_ref, c2_ref, c3_ref, _c4_ref = compute_pole_coefficients(
+    c1_ref, c2_ref, c3_ref = compute_pole_coefficients(
         materials["drude"].dispersion.poles,  # type: ignore[union-attr]
         config.time_step_duration,
     )
@@ -429,7 +429,7 @@ def test_device_dispersive_discrete(simple_config, simple_volume):
     drude_params = {name: jnp.ones_like(p) for name, p in params.items()}
     arrays, objects, _ = apply_params(arrays, objects, drude_params, key)
 
-    c1_ref, _, c3_ref, _ = compute_pole_coefficients(
+    c1_ref, _, c3_ref = compute_pole_coefficients(
         materials["drude"].dispersion.poles,  # type: ignore[union-attr]
         config.time_step_duration,
     )
@@ -498,65 +498,6 @@ def test_fully_anisotropic_plus_dispersive_reversible_raises(simple_config, simp
         place_objects(objects_list, config, constraints, key)
 
 
-def _unstable_ccpr_material(eps_inf=2.0):
-    """CCPR material whose implicit-update divisor goes non-positive at the
-    ``simple_config`` time step (~1.9e-16 s), i.e. large negative Re(residue)."""
-    pole = CCPRPole(pole=complex(-1e13, -2e15), residue=complex(-6e15, 1e15))
-    return Material(permittivity=eps_inf, dispersion=DispersionModel(poles=(pole,)))
-
-
-def test_unstable_ccpr_material_raises_at_placement(simple_config, simple_volume):
-    """A CCPR material with a non-positive implicit divisor must be rejected by
-    place_objects (via _init_arrays -> validate_dispersive_divisor_stability)."""
-    obj = UniformMaterialObject(name="gold", partial_grid_shape=(10, 10, 10), material=_unstable_ccpr_material())
-    constraint = GridCoordinateConstraint(
-        object="gold", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
-    )
-    key = jax.random.PRNGKey(0)
-    with pytest.raises(ValueError, match="gold"):
-        place_objects([simple_volume, obj], simple_config, [constraint], key)
-
-
-def test_lowering_courant_factor_stabilizes_ccpr(simple_config, simple_volume):
-    """The remediation actually works: the same material places cleanly once the
-    courant_factor is lowered below the value reported in the error message."""
-    obj = UniformMaterialObject(name="gold", partial_grid_shape=(10, 10, 10), material=_unstable_ccpr_material())
-    constraint = GridCoordinateConstraint(
-        object="gold", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
-    )
-    key = jax.random.PRNGKey(0)
-    with pytest.raises(ValueError) as exc:
-        place_objects([simple_volume, obj], simple_config, [constraint], key)
-    cf_max = float(str(exc.value).split("lower courant_factor to <= ")[1].split(" ")[0])
-    safe_config = simple_config.aset("courant_factor", 0.9 * cf_max)
-    # Must not raise now.
-    place_objects([simple_volume, obj], safe_config, [constraint], key)
-
-
-def test_stable_ccpr_material_places_cleanly(simple_config, simple_volume):
-    """A CCPR material with a comfortably positive divisor places without error."""
-    pole = CCPRPole(pole=complex(-1e13, -2e15), residue=complex(-2e15, 1e15))
-    mat = Material(permittivity=2.0, dispersion=DispersionModel(poles=(pole,)))
-    obj = UniformMaterialObject(name="metal", partial_grid_shape=(10, 10, 10), material=mat)
-    constraint = GridCoordinateConstraint(
-        object="metal", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
-    )
-    key = jax.random.PRNGKey(0)
-    _, arrays, _, _, _ = place_objects([simple_volume, obj], simple_config, [constraint], key)
-    assert arrays.dispersive_c4 is not None
-
-
-def test_lorentz_material_unaffected_by_ccpr_validation(simple_config, simple_volume):
-    """A Lorentz-only sim (c4 = 0) is not subject to the divisor validation and
-    places cleanly even at the default courant_factor."""
-    obj = UniformMaterialObject(name="slab", partial_grid_shape=(10, 10, 10), material=_lorentz_material(eps_inf=2.0))
-    constraint = GridCoordinateConstraint(
-        object="slab", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[10, 10, 10]
-    )
-    key = jax.random.PRNGKey(0)
-    place_objects([simple_volume, obj], simple_config, [constraint], key)
-
-
 def test_non_dispersive_unused_import_guard():
     """Guard against accidental regression: importing the dispersion module
     should not break anything for non-dispersive materials."""
@@ -598,7 +539,7 @@ def test_device_continuous_half_interpolation(simple_config, simple_volume):
     half_params = {name: 0.5 * jnp.ones_like(p) for name, p in params.items()}
     arrays_half, _, _ = apply_params(arrays, objects, half_params, key)
 
-    c1_ref, _, c3_ref, _ = compute_pole_coefficients(
+    c1_ref, _, c3_ref = compute_pole_coefficients(
         materials["drude"].dispersion.poles,  # type: ignore[union-attr]
         config.time_step_duration,
     )
@@ -748,7 +689,7 @@ def test_per_axis_dispersion_allocates_3_component_coefficients(simple_config, s
     # polarization state keeps its (num_poles, 3, ...) shape
     assert arrays.fields.dispersive_P_curr.shape == (1, 3, Nx, Ny, Nz)
 
-    c1_ref, c2_ref, c3_ref, _ = compute_pole_coefficients_per_axis(
+    c1_ref, c2_ref, c3_ref = compute_pole_coefficients_per_axis(
         material.dispersion.poles,  # type: ignore[union-attr]
         config.time_step_duration,
     )
@@ -803,7 +744,7 @@ def test_static_multi_material_per_axis_coefficients(simple_config, simple_volum
     assert arrays.dispersive_c3 is not None
     assert arrays.dispersive_c3.shape[1] == 3
 
-    c1_ref, _, c3_ref, _ = compute_pole_coefficients_per_axis(
+    c1_ref, _, c3_ref = compute_pole_coefficients_per_axis(
         per_axis_drude.dispersion.poles,  # type: ignore[union-attr]
         config.time_step_duration,
     )
@@ -852,7 +793,7 @@ def test_device_per_axis_dispersive_continuous_and_discrete(simple_config, simpl
         arrays, objects, _ = apply_params(arrays, objects, drude_params, key)
 
         assert arrays.dispersive_c1.shape[1] == 3
-        c1_ref, _, c3_ref, _ = compute_pole_coefficients_per_axis(
+        c1_ref, _, c3_ref = compute_pole_coefficients_per_axis(
             per_axis_drude.dispersion.poles,  # type: ignore[union-attr]
             config.time_step_duration,
         )
@@ -928,7 +869,7 @@ def test_oriented_dispersion_forces_tensor_tiers(simple_config, simple_volume):
     assert arrays.dispersive_c3.shape[1] == 9
     assert arrays.fields.dispersive_P_curr.shape[1] == 3
 
-    c1_ref, _, c3_ref, _ = compute_pole_coefficients_tensor(
+    c1_ref, _, c3_ref = compute_pole_coefficients_tensor(
         material.dispersion.poles,  # type: ignore[union-attr]
         config.time_step_duration,
     )
@@ -970,27 +911,6 @@ def test_oriented_dispersion_nonuniform_grid_raises():
         place_objects([volume], config, [], key)
 
 
-def test_ccpr_edot_plus_tensor_path_raises(simple_config, simple_volume):
-    """A CCPR pole with dE/dt coupling cannot be combined with off-diagonal
-    material tensors: the tensor-branch ADE has no implicit c4 solve."""
-    from fdtdx.dispersion import CCPRPole
-
-    ccpr_material = Material(
-        permittivity=1.0,
-        dispersion=DispersionModel(poles=(CCPRPole(pole=complex(-2e13, -1.8e15), residue=complex(3e14, -6e14)),)),
-    )
-    aniso = Material(permittivity=(2.0, 0.1, 0.0, 0.1, 2.5, 0.0, 0.0, 0.0, 3.0))
-    obj1 = UniformMaterialObject(name="ccpr", partial_grid_shape=(6, 6, 6), material=ccpr_material)
-    obj2 = UniformMaterialObject(name="aniso", partial_grid_shape=(6, 6, 6), material=aniso)
-    constraints = [
-        GridCoordinateConstraint(object="ccpr", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[2, 2, 2]),
-        GridCoordinateConstraint(object="aniso", axes=[0, 1, 2], sides=["-", "-", "-"], coordinates=[15, 15, 15]),
-    ]
-    key = jax.random.PRNGKey(0)
-    with pytest.raises(NotImplementedError, match="dE/dt"):
-        place_objects([simple_volume, obj1, obj2], simple_config, constraints, key)
-
-
 def test_oriented_static_multi_material_and_device(simple_config, simple_volume):
     """Oriented coupling tensors bake correctly through the multi-material
     indexing path and the Device apply_params path."""
@@ -1013,7 +933,7 @@ def test_oriented_static_multi_material_and_device(simple_config, simple_volume)
     placed = _placed(objects, "sphere")
 
     assert arrays.dispersive_c3.shape[1] == 9
-    _, _, c3_ref, _ = compute_pole_coefficients_tensor(
+    _, _, c3_ref = compute_pole_coefficients_tensor(
         oriented.dispersion.poles,  # type: ignore[union-attr]
         config.time_step_duration,
     )

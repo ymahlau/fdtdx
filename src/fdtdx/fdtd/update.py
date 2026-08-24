@@ -319,35 +319,20 @@ def update_E(
             disp_c1 = arrays.dispersive_c1
             disp_c2 = arrays.dispersive_c2
             disp_c3 = arrays.dispersive_c3
-            disp_c4 = arrays.dispersive_c4
             assert P_prev is not None and disp_c1 is not None and disp_c2 is not None and disp_c3 is not None
             # disp_c* are (num_poles, 1|3, Nx, Ny, Nz) — the component axis is 1
             # (isotropic dispersion, broadcast) or 3 (per-axis anisotropic
             # dispersion); arrays.fields.E is (3, Nx, Ny, Nz). Right-aligned
             # broadcasting produces (num_poles, 3, Nx, Ny, Nz) either way without
             # an explicit newaxis — skip the reshape so the HLO stays flat.
-            # P_hat is the explicit part of the recurrence (independent of E^{n+1}).
             P_hat = disp_c1 * P_curr + disp_c2 * P_prev + disp_c3 * arrays.fields.E
-            delta_hat = jnp.sum(P_curr - P_hat, axis=0)
-            E = E + inv_eps * delta_hat
-            if disp_c4 is not None:
-                # CCPR: the polarization couples to E^{n+1} through c4. Fold the
-                # per-cell D_kappa = inv_eps*sum(c4) into the implicit divide
-                # (alongside the conductivity loss factor), then reconstruct the
-                # full P^{n+1} = P_hat + c4*E^{n+1} once E^{n+1} is known.
-                divisor = 1 + inv_eps * jnp.sum(disp_c4, axis=0)
-                if sigma_E is not None:
-                    divisor = divisor + c * sigma_E * eta0 * inv_eps / 2
-                E = E / divisor
-                P_new = P_hat + disp_c4 * E
-                arrays = arrays.aset("fields->dispersive_P_prev", P_curr)
-                arrays = arrays.aset("fields->dispersive_P_curr", P_new)
-            else:
-                arrays = arrays.aset("fields->dispersive_P_prev", P_curr)
-                arrays = arrays.aset("fields->dispersive_P_curr", P_hat)
-                if sigma_E is not None:
-                    # lossy update formula. Noop for conductivity = 0; see Schneider 3.12
-                    E = E / (1 + c * sigma_E * eta0 * inv_eps / 2)
+            delta = jnp.sum(P_curr - P_hat, axis=0)
+            E = E + inv_eps * delta
+            arrays = arrays.aset("fields->dispersive_P_prev", P_curr)
+            arrays = arrays.aset("fields->dispersive_P_curr", P_hat)
+            if sigma_E is not None:
+                # lossy update formula. Noop for conductivity = 0; see Schneider 3.12
+                E = E / (1 + c * sigma_E * eta0 * inv_eps / 2)
         elif sigma_E is not None:
             # update formula for lossy material. Simplifies to Noop for conductivity = 0
             # for details see Schneider, chapter 3.12
@@ -395,7 +380,6 @@ def update_E(
         # the RHS of Ampere's law): since B = c * M1^-1 @ inv_eps, folding
         # curl += delta / c before the curl averages yields M1^-1 @ inv_eps @ delta
         # including its off-diagonal spatial averaging — no extra solve needed.
-        # CCPR c4 poles are rejected at initialization for this branch.
         if arrays.fields.dispersive_P_curr is not None:
             P_curr = arrays.fields.dispersive_P_curr
             P_prev = arrays.fields.dispersive_P_prev
@@ -403,7 +387,6 @@ def update_E(
             disp_c2 = arrays.dispersive_c2
             disp_c3 = arrays.dispersive_c3
             assert P_prev is not None and disp_c1 is not None and disp_c2 is not None and disp_c3 is not None
-            assert arrays.dispersive_c4 is None
             if disp_c3.shape[1] == 9:
                 # E at each row's Yee location: diagonal entries use the local
                 # component, off-diagonal entries the averaged neighbor with

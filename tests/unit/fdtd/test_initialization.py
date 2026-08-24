@@ -700,7 +700,6 @@ def _make_arrays_mock(shape=(10, 10, 10)):
     arrays.dispersive_c1 = None
     arrays.dispersive_c2 = None
     arrays.dispersive_c3 = None
-    arrays.dispersive_c4 = None
     arrays.electric_conductivity = None
     arrays.dispersive_P_curr = None
     arrays.dispersive_P_prev = None
@@ -717,7 +716,6 @@ def _make_arrays_mock(shape=(10, 10, 10)):
             result.dispersive_c1 = None
             result.dispersive_c2 = None
             result.dispersive_c3 = None
-            result.dispersive_c4 = None
             result.electric_conductivity = None
             result.at = at_accessor
             return result
@@ -817,7 +815,6 @@ def test_apply_params_isotropic_components(mock_compute_perm):
     arrays.dispersive_c1 = None
     arrays.dispersive_c2 = None
     arrays.dispersive_c3 = None
-    arrays.dispersive_c4 = None
     arrays.electric_conductivity = None
     arrays.dispersive_P_curr = None
     arrays.dispersive_P_prev = None
@@ -833,7 +830,6 @@ def test_apply_params_isotropic_components(mock_compute_perm):
             dispersive_c1=None,
             dispersive_c2=None,
             dispersive_c3=None,
-            dispersive_c4=None,
             electric_conductivity=None,
             at=at_accessor,
         )
@@ -878,7 +874,6 @@ def test_apply_params_fully_anisotropic_continuous(mock_compute_perm):
     arrays.dispersive_c1 = None
     arrays.dispersive_c2 = None
     arrays.dispersive_c3 = None
-    arrays.dispersive_c4 = None
     arrays.electric_conductivity = None
     arrays.dispersive_P_curr = None
     arrays.dispersive_P_prev = None
@@ -894,7 +889,6 @@ def test_apply_params_fully_anisotropic_continuous(mock_compute_perm):
             dispersive_c1=None,
             dispersive_c2=None,
             dispersive_c3=None,
-            dispersive_c4=None,
             electric_conductivity=None,
             at=at_accessor,
         )
@@ -940,7 +934,6 @@ def test_apply_params_fully_anisotropic_discrete(mock_ste, mock_compute_perm):
     arrays.dispersive_c1 = None
     arrays.dispersive_c2 = None
     arrays.dispersive_c3 = None
-    arrays.dispersive_c4 = None
     arrays.electric_conductivity = None
     arrays.dispersive_P_curr = None
     arrays.dispersive_P_prev = None
@@ -956,7 +949,6 @@ def test_apply_params_fully_anisotropic_discrete(mock_ste, mock_compute_perm):
             dispersive_c1=None,
             dispersive_c2=None,
             dispersive_c3=None,
-            dispersive_c4=None,
             electric_conductivity=None,
             at=at_accessor,
         )
@@ -1006,7 +998,6 @@ def test_apply_params_use_etching_continuous_isotropic(mock_compute_perm):
     arrays.dispersive_c1 = None
     arrays.dispersive_c2 = None
     arrays.dispersive_c3 = None
-    arrays.dispersive_c4 = None
     arrays.electric_conductivity = None
     arrays.dispersive_P_curr = None
     arrays.dispersive_P_prev = None
@@ -1024,7 +1015,6 @@ def test_apply_params_use_etching_continuous_isotropic(mock_compute_perm):
             result.dispersive_c1 = None
             result.dispersive_c2 = None
             result.dispersive_c3 = None
-            result.dispersive_c4 = None
             result.electric_conductivity = None
             result.dispersive_P_curr = None
             result.dispersive_P_prev = None
@@ -1087,7 +1077,6 @@ def test_apply_params_use_etching_continuous_fully_anisotropic(mock_compute_perm
     arrays.dispersive_c1 = None
     arrays.dispersive_c2 = None
     arrays.dispersive_c3 = None
-    arrays.dispersive_c4 = None
     arrays.electric_conductivity = None
     arrays.dispersive_P_curr = None
     arrays.dispersive_P_prev = None
@@ -1105,7 +1094,6 @@ def test_apply_params_use_etching_continuous_fully_anisotropic(mock_compute_perm
             result.dispersive_c1 = None
             result.dispersive_c2 = None
             result.dispersive_c3 = None
-            result.dispersive_c4 = None
             result.electric_conductivity = None
             result.dispersive_P_curr = None
             result.dispersive_P_prev = None

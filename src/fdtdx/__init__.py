@@ -36,7 +36,6 @@ from fdtdx.core.switch import OnOffSwitch
 from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.core.window import GaussianWindow, TemporalWindow, TukeyWindow
 from fdtdx.dispersion import (
-    CCPRPole,
     DispersionModel,
     DrudePole,
     LorentzPole,
@@ -175,7 +174,6 @@ __all__ = [
     "BlochBoundary",
     "BoundaryConfig",
     "BrushConstraint2D",
-    "CCPRPole",
     "ClosedSurfacePhasorPoyntingFluxDetector",
     "ClosedSurfacePoyntingFluxDetector",
     "ClosestIndex",

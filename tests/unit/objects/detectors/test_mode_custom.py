@@ -236,13 +236,13 @@ class TestDispersionHandling:
     def _dispersive_coeffs(det, pole):
         """Single-pole Lorentz ADE coefficients for a test medium."""
         dt = det._config.time_step_duration
-        c1, c2, c3, c4 = compute_pole_coefficients((pole,), dt)
+        c1, c2, c3 = compute_pole_coefficients((pole,), dt)
 
         def mk(a):  # broadcast a per-pole scalar to (num_poles, 1, Nx, Ny, Nz)
             """Build a placed detector for the given mode function."""
             return jnp.full((1, 1, 8, 8, 8), float(a[0]), dtype=jnp.float32)
 
-        return mk(c1), mk(c2), mk(c3), mk(c4), dt
+        return mk(c1), mk(c2), mk(c3), dt
 
     def test_gaussian_and_custom_use_effective_permittivity(self, simulation_config, plane_grid_slice, random_key):
         """Both analytic detectors see eps(omega_c), not eps_infinity."""
@@ -254,30 +254,26 @@ class TestDispersionHandling:
 
         det = GaussianModeOverlapDetector(wave_characters=[wc], mode_radius=3e-7, direction="+")
         det = det.place_on_grid(plane_grid_slice, simulation_config, random_key)
-        c1, c2, c3, c4, dt = self._dispersive_coeffs(det, pole)
+        c1, c2, c3, dt = self._dispersive_coeffs(det, pole)
 
         # Independently compute the expected effective index on the detector plane slice,
         # using the very same helper apply() calls internally.
         sl = (slice(None), slice(0, 8), slice(0, 8), slice(0, 1))
         csl = (slice(None), slice(None), slice(0, 8), slice(0, 8), slice(0, 1))
-        inv_eps_eff = effective_inv_permittivity(inv_eps[sl], c1[csl], c2[csl], c3[csl], omega, dt, c4=c4[csl])
+        inv_eps_eff = effective_inv_permittivity(inv_eps[sl], c1[csl], c2[csl], c3[csl], omega, dt)
         n_eff_expected = float(jnp.sqrt(jnp.mean(1.0 / inv_eps_eff)))
         assert abs(n_eff_expected - eps_inf**0.5) > 1e-3  # the pole genuinely shifts the index
 
         # Gaussian: without dispersion args -> ε∞; with them -> ε(ω_c).
         n_inf = det.apply(random_key, inv_eps, 1.0)._mode_neff[0]
-        n_disp = det.apply(
-            random_key, inv_eps, 1.0, dispersive_c1=c1, dispersive_c2=c2, dispersive_c3=c3, dispersive_c4=c4
-        )._mode_neff[0]
+        n_disp = det.apply(random_key, inv_eps, 1.0, dispersive_c1=c1, dispersive_c2=c2, dispersive_c3=c3)._mode_neff[0]
         assert float(jnp.real(n_inf)) == pytest.approx(eps_inf**0.5, rel=1e-5)
         assert float(jnp.real(n_disp)) == pytest.approx(n_eff_expected, rel=1e-4)
 
         # Custom detector reports the same effective index (its callable saw ε(ω_c)).
         cdet = CustomModeOverlapDetector(wave_characters=[wc], mode_function=_constant_mode_function)
         cdet = cdet.place_on_grid(plane_grid_slice, simulation_config, random_key)
-        cdet = cdet.apply(
-            random_key, inv_eps, 1.0, dispersive_c1=c1, dispersive_c2=c2, dispersive_c3=c3, dispersive_c4=c4
-        )
+        cdet = cdet.apply(random_key, inv_eps, 1.0, dispersive_c1=c1, dispersive_c2=c2, dispersive_c3=c3)
         assert float(jnp.real(cdet._mode_neff[0])) == pytest.approx(n_eff_expected, rel=1e-4)
 
 

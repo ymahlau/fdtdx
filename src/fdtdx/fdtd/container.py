@@ -255,7 +255,7 @@ class ObjectContainer(TreeClass):
         """Whether no dispersive material carries oriented poles.
 
         When ``False``, at least one material has an off-diagonal coupling
-        tensor: the field couplings ``c3``/``c4`` are widened to 9 components
+        tensor: the field coupling ``c3`` is widened to 9 components
         and the simulation runs through the fully anisotropic update path.
         """
 
@@ -278,23 +278,6 @@ class ObjectContainer(TreeClass):
             (m.dispersion.num_poles for m in self._iter_materials() if m.dispersion is not None),
             default=0,
         )
-
-    @property
-    def has_dispersive_edot(self) -> bool:
-        """Whether any object uses a CCPR pole with a non-zero ``dE/dt`` coupling.
-
-        This gates allocation of the ``dispersive_c4`` coefficient array: when
-        ``False`` (all poles are Lorentz/Drude, or there is no dispersion) the
-        ADE update takes the classic ``c4``-free path and stays bit-identical to
-        pre-CCPR behaviour.
-        """
-
-        def _material_has_edot(m: Material) -> bool:
-            if m.dispersion is None:
-                return False
-            return any(b != 0.0 for p in m.dispersion.poles for b in p.coupling_edot_axes)
-
-        return any(_material_has_edot(m) for m in self._iter_materials())
 
     def _is_material_fn_true_for_all(
         self,
@@ -437,13 +420,6 @@ class ArrayContainer(TreeClass):
     #: off-diagonal dispersion). ``None`` for non-dispersive simulations.
     dispersive_c3: jax.Array | None = None
 
-    #: Per-cell dispersive recurrence coefficient c4 (the ``dE/dt`` / CCPR
-    #: coupling to ``E^{n+1}``). Shape ``(num_poles, num_components, Nx, Ny, Nz)``,
-    #: ``num_components in (1, 3)``. ``None`` unless at least one CCPR pole with
-    #: non-zero ``coupling_edot`` is present; Lorentz/Drude-only sims leave it
-    #: ``None`` and skip the CCPR update path.
-    dispersive_c4: jax.Array | None = None
-
     #: Backup of inverse permittivity values array.
     #: Only used when etching a device.
     initial_inv_permittivities: jax.Array | None = None
@@ -472,7 +448,7 @@ class ArrayContainer(TreeClass):
         # FieldState now holds the dispersive ADE polarization (dispersive_P_curr/prev)
         # alongside E/H/psi, so this single tree.map zeroes all dynamic per-timestep
         # state at once (``None`` leaves stay ``None`` for non-dispersive sims).
-        # Coefficient arrays (c1/c2/c3/c4) are material properties and preserved.
+        # Coefficient arrays (c1/c2/c3) are material properties and preserved.
         arrays = self.aset("fields", jax.tree.map(jnp.zeros_like, self.fields))
 
         detector_states = self.detector_states

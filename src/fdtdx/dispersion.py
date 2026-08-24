@@ -56,18 +56,6 @@ constraint. The second is algebraically equivalent to
 :math:`\\omega_0 \\Delta t < 2` (independent of :math:`\\gamma`), which is
 therefore the stability bound.
 
-For CCPR poles the polarization couples to :math:`E^{n+1}` through
-:math:`c_4`, so the E-field update divides by a per-cell implicit factor
-:math:`1 + \\varepsilon_\\infty^{-1} \\sum_p c_{4,p}\\ (+\\ c\\,\\sigma\\,\\eta_0\\,\\varepsilon_\\infty^{-1} / 2)`.
-This must stay positive in every cell; as it approaches :math:`0^+` the
-transient gain (:math:`\\approx 1/\\text{divisor}`) explodes and accuracy
-collapses. Since :math:`c_4 \\propto \\Delta t \\propto` ``courant_factor``,
-the divisor can be kept safe by lowering ``courant_factor``. This per-cell
-condition is checked at initialization by
-:func:`fdtdx.materials.validate_dispersive_divisor_stability` (Lorentz and
-Drude poles have :math:`c_4 = 0`, so their divisor is always
-:math:`\\geq 1`).
-
 Anisotropic (per-axis) dispersion
 ---------------------------------
 Every pole parameter accepts either a scalar (isotropic, applied to all
@@ -111,7 +99,7 @@ from fdtdx.constants import eps0
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, frozen_field
 
 
-def _broadcast_axis_param(value: float | complex | tuple) -> tuple:
+def _broadcast_axis_param(value: float | tuple) -> tuple:
     """Normalize a pole parameter to a per-axis 3-tuple ``(x, y, z)``.
 
     Scalars are broadcast to all three axes; 3-tuples pass through unchanged.
@@ -183,8 +171,6 @@ def _permute_pole_axes(p: "Pole", perm: tuple[int, int, int]) -> "Pole":
         )
     if isinstance(p, DrudePole):
         return DrudePole(plasma_frequency=_remap(p.plasma_frequency), damping=_remap(p.damping))
-    if isinstance(p, CCPRPole):
-        return CCPRPole(pole=_remap(p.pole), residue=_remap(p.residue))
     raise TypeError(
         f"Cannot rotate pole of type {type(p).__name__}; construct oriented poles directly for custom pole types."
     )
@@ -206,11 +192,6 @@ def _oriented_pole_for_axis(p: "Pole", axis: int, direction: tuple[float, float,
         wp = _broadcast_axis_param(p.plasma_frequency)
         g = _broadcast_axis_param(p.damping)
         return DrudePole(plasma_frequency=float(wp[axis]), damping=float(g[axis]), orientation=direction)
-    if isinstance(p, CCPRPole):
-        q = _broadcast_axis_param(p.pole)
-        r = _broadcast_axis_param(p.residue)
-        # Raises at construction if the residue has a real part (dE/dt coupling).
-        return CCPRPole(pole=complex(q[axis]), residue=complex(r[axis]), orientation=direction)
     raise TypeError(
         f"Cannot rotate pole of type {type(p).__name__}; construct oriented poles directly for custom pole types."
     )
@@ -269,10 +250,6 @@ class Pole(TreeClass, ABC):
                     f"Oriented poles are single 1D oscillators and require scalar parameters, "
                     f"but '{name}' differs per axis. Use one oriented pole per direction instead."
                 )
-        if any(b != 0.0 for b in self.coupling_edot_axes):
-            raise NotImplementedError(
-                "Oriented CCPR poles with a dE/dt coupling (non-zero Re(residue)) are not supported."
-            )
 
     def _uniform_or_raise(self, axes: tuple, name: str) -> float:
         if not _is_uniform(axes):
@@ -303,21 +280,9 @@ class Pole(TreeClass, ABC):
         ``omega_p**2`` for a Drude pole.
 
         This is the coefficient ``a`` of the ``E`` driving term in the unified
-        2nd-order ODE ``p'' + gamma p' + omega_0**2 p = a E + b E'``.
+        2nd-order ODE ``p'' + gamma p' + omega_0**2 p = a E``.
         """
         raise NotImplementedError
-
-    @property
-    def coupling_edot_axes(self) -> tuple[float, float, float]:
-        """Per-axis coefficient ``b`` of the ``dE/dt`` driving term (rad/s).
-
-        Zero for Lorentz and Drude poles (their susceptibility numerator has no
-        ``omega`` term). A non-zero value is what distinguishes a general
-        complex-conjugate pole-residue (CCPR) pole — it corresponds to a
-        non-zero real part of the residue and adds the ``b E'`` term to the ADE.
-        Defaults to all-zero so existing pole types need not override it.
-        """
-        return (0.0, 0.0, 0.0)
 
     @property
     def is_oriented(self) -> bool:
@@ -332,7 +297,6 @@ class Pole(TreeClass, ABC):
             and _is_uniform(self.omega_0_axes)
             and _is_uniform(self.gamma_axes)
             and _is_uniform(self.coupling_sq_axes)
-            and _is_uniform(self.coupling_edot_axes)
         )
 
     @property
@@ -358,14 +322,6 @@ class Pole(TreeClass, ABC):
         Raises ``ValueError`` for per-axis poles; use :attr:`coupling_sq_axes`.
         """
         return self._uniform_or_raise(self.coupling_sq_axes, "coupling_sq")
-
-    @property
-    def coupling_edot(self) -> float:
-        """Coefficient ``b`` of the ``dE/dt`` driving term (rad/s).
-
-        Raises ``ValueError`` for per-axis poles; use :attr:`coupling_edot_axes`.
-        """
-        return self._uniform_or_raise(self.coupling_edot_axes, "coupling_edot")
 
 
 @autoinit
@@ -456,123 +412,6 @@ class DrudePole(Pole):
 
 
 @autoinit
-class CCPRPole(Pole):
-    r"""General complex-conjugate pole-residue (CCPR) pole.
-
-    A single conjugate pair contributes to the susceptibility (in the
-    ``exp(-i omega t)`` convention, Laplace variable ``s = -i omega``):
-
-    .. math::
-        \chi_p(\omega) = \frac{r}{-i\omega - q} + \frac{r^*}{-i\omega - q^*}
-
-    with **complex** pole ``q`` and **complex** residue ``r``. Summing the pair
-    with its conjugate guarantees a real time-domain response. Combined over a
-    common denominator this equals the unified 2nd-order form
-
-    .. math::
-        \chi_p(\omega) = \frac{a - i\omega b}{\omega_0^2 - \omega^2 - i\gamma\omega}
-
-    with
-
-    .. math::
-        \omega_0^2 = |q|^2, \quad \gamma = -2\,\mathrm{Re}(q), \quad
-        a = -2\,\mathrm{Re}(r q^*), \quad b = 2\,\mathrm{Re}(r).
-
-    Lorentz and Drude poles are the special case ``b = 0`` (purely imaginary
-    residue). A non-zero ``b`` (``= coupling_edot``) is the extra degree of
-    freedom that lets CCPR fit metals (gold, silver) and arbitrary
-    vector-fitted permittivity data.
-
-    A stable, passive (lossy) medium requires ``Re(q) < 0`` (so ``gamma > 0``).
-
-    Both ``pole`` and ``residue`` are either scalars (isotropic) or per-axis
-    3-tuples ``(x, y, z)`` for diagonally anisotropic dispersion (e.g. a
-    vector-fitted uniaxial material with a different ``(q, r)`` set per axis).
-    """
-
-    #: Complex pole ``q`` (rad/s). ``Re(q) < 0`` for a stable, lossy medium.
-    #: Scalar or per-axis 3-tuple.
-    pole: complex | tuple[complex, complex, complex] = frozen_field()
-
-    #: Complex residue ``r`` (rad/s). Scalar or per-axis 3-tuple.
-    residue: complex | tuple[complex, complex, complex] = frozen_field()
-
-    def __post_init__(self):
-        self._validate_orientation()
-
-    @property
-    def omega_0_axes(self) -> tuple[float, float, float]:
-        q = _broadcast_axis_param(self.pole)
-        return (float(abs(complex(q[0]))), float(abs(complex(q[1]))), float(abs(complex(q[2]))))
-
-    @property
-    def gamma_axes(self) -> tuple[float, float, float]:
-        q = _broadcast_axis_param(self.pole)
-        return (
-            float(-2.0 * complex(q[0]).real),
-            float(-2.0 * complex(q[1]).real),
-            float(-2.0 * complex(q[2]).real),
-        )
-
-    @property
-    def coupling_sq_axes(self) -> tuple[float, float, float]:
-        q = _broadcast_axis_param(self.pole)
-        r = _broadcast_axis_param(self.residue)
-        return (
-            float(-2.0 * (complex(r[0]) * complex(q[0]).conjugate()).real),
-            float(-2.0 * (complex(r[1]) * complex(q[1]).conjugate()).real),
-            float(-2.0 * (complex(r[2]) * complex(q[2]).conjugate()).real),
-        )
-
-    @property
-    def coupling_edot_axes(self) -> tuple[float, float, float]:
-        r = _broadcast_axis_param(self.residue)
-        return (
-            float(2.0 * complex(r[0]).real),
-            float(2.0 * complex(r[1]).real),
-            float(2.0 * complex(r[2]).real),
-        )
-
-    @classmethod
-    def from_critical_point(
-        cls,
-        amplitude: float,
-        phase: float,
-        resonance_frequency: float,
-        damping: float,
-    ) -> "CCPRPole":
-        r"""Build a CCPR pole from critical-point (modified-Lorentz) parameters.
-
-        The critical-point model term (``exp(-i omega t)`` convention) is
-
-        .. math::
-            \chi_p(\omega) = A\,\Omega\left[
-                \frac{e^{i\phi}}{\Omega - \omega - i\Gamma}
-                + \frac{e^{-i\phi}}{\Omega + \omega + i\Gamma}\right],
-
-        which is the parameterization commonly reported for fitted metal
-        permittivities. This maps to the complex pole/residue
-
-        .. math::
-            q = -\Gamma - i\Omega, \qquad r = i\,A\,\Omega\,e^{i\phi}.
-
-        Args:
-            amplitude: Dimensionless amplitude :math:`A`.
-            phase: Phase :math:`\phi` (radians).
-            resonance_frequency: Resonance :math:`\Omega` (rad/s).
-            damping: Broadening :math:`\Gamma` (rad/s), ``> 0`` for loss.
-
-        Returns:
-            CCPRPole: Equivalent pole with the ``(q, r)`` above.
-        """
-        import cmath
-
-        q = complex(-damping, -resonance_frequency)
-        r = 1j * amplitude * resonance_frequency * cmath.exp(1j * phase)
-        return cls(pole=q, residue=r)
-
-
-@autoinit
 class DispersionModel(TreeClass):
     """Linear susceptibility built from a sum of 2nd-order ADE poles.
 
@@ -619,18 +458,15 @@ class DispersionModel(TreeClass):
             omega_0 = p.omega_0_axes
             gamma = p.gamma_axes
             coupling_sq = p.coupling_sq_axes
-            coupling_edot = p.coupling_edot_axes
             if p.is_oriented:
                 assert p.orientation is not None
                 denom = omega_0[0] ** 2 - w * w - 1j * gamma[0] * w
-                numer = coupling_sq[0] - 1j * w * coupling_edot[0]
                 u = np.asarray(p.orientation, dtype=np.float64)
-                total += (numer / denom) * np.outer(u, u)
+                total += (coupling_sq[0] / denom) * np.outer(u, u)
             else:
                 for ax in range(3):
                     denom = omega_0[ax] ** 2 - w * w - 1j * gamma[ax] * w
-                    numer = coupling_sq[ax] - 1j * w * coupling_edot[ax]
-                    total[ax, ax] += numer / denom
+                    total[ax, ax] += coupling_sq[ax] / denom
         return total
 
     def permittivity_tensor(
@@ -693,7 +529,7 @@ class DispersionModel(TreeClass):
                 new_poles.append(_permute_pole_axes(p, perm))
             else:
                 for ax in range(3):
-                    if p.coupling_sq_axes[ax] == 0.0 and p.coupling_edot_axes[ax] == 0.0:
+                    if p.coupling_sq_axes[ax] == 0.0:
                         continue
                     direction = (float(r_mat[0, ax]), float(r_mat[1, ax]), float(r_mat[2, ax]))
                     new_poles.append(_oriented_pole_for_axis(p, ax, direction))
@@ -723,11 +559,9 @@ class DispersionModel(TreeClass):
             omega_0 = p.omega_0_axes
             gamma = p.gamma_axes
             coupling_sq = p.coupling_sq_axes
-            coupling_edot = p.coupling_edot_axes
             for ax in range(3):
                 denom = omega_0[ax] ** 2 - w * w - 1j * gamma[ax] * w
-                numer = coupling_sq[ax] - 1j * w * coupling_edot[ax]
-                totals[ax] = totals[ax] + numer / denom
+                totals[ax] = totals[ax] + coupling_sq[ax] / denom
         return (totals[0], totals[1], totals[2])
 
     def susceptibility(self, omega: complex | float) -> complex:
@@ -789,41 +623,36 @@ class DispersionModel(TreeClass):
 def compute_pole_coefficients_per_axis(
     poles: tuple[Pole, ...],
     dt: float,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Compute the per-axis discrete-time ADE recurrence coefficients.
 
-    For each pole and grid axis, returns ``(c1, c2, c3, c4)`` with
+    For each pole and grid axis, returns ``(c1, c2, c3)`` with
     (``D = 1 + gamma dt / 2``)
 
     .. math::
         c_1 = \\frac{2 - \\omega_0^2 \\Delta t^2}{D}, \\quad
         c_2 = -\\frac{1 - \\gamma \\Delta t / 2}{D}, \\quad
-        c_3 = \\frac{a \\Delta t^2 - b \\Delta t}{D}, \\quad
-        c_4 = \\frac{b \\Delta t}{D},
+        c_3 = \\frac{K \\Delta t^2}{D},
 
-    where ``a = coupling_sq`` is the ``E`` coupling and ``b = coupling_edot`` is
-    the ``dE/dt`` coupling, which is discretized with a forward difference:
+    where ``K = coupling_sq`` is the ``E`` coupling of the unified ODE:
 
-    :math:`p_p^{n+1} = c_1 p_p^n + c_2 p_p^{n-1} + c_3 E^n + c_4 E^{n+1}`.
+    :math:`p_p^{n+1} = c_1 p_p^n + c_2 p_p^{n-1} + c_3 E^n`.
 
-    For isotropic poles the three axis columns are identical. For Lorentz and
-    Drude poles ``b = 0``, so ``c4 = 0`` and ``c3`` reduces to the classic
-    :math:`K \\Delta t^2 / D`.
+    For isotropic poles the three axis columns are identical.
 
     Args:
         poles: Tuple of poles (may be empty).
         dt: Simulation time step (seconds).
 
     Returns:
-        Four ``numpy`` arrays of shape ``(len(poles), 3)`` with ``c1``, ``c2``,
-        ``c3``, ``c4`` per pole and axis. For an empty pole tuple, returns four
+        Three ``numpy`` arrays of shape ``(len(poles), 3)`` with ``c1``, ``c2``,
+        ``c3`` per pole and axis. For an empty pole tuple, returns three
         ``(0, 3)`` arrays.
     """
     n = len(poles)
     c1 = np.zeros((n, 3), dtype=np.float64)
     c2 = np.zeros((n, 3), dtype=np.float64)
     c3 = np.zeros((n, 3), dtype=np.float64)
-    c4 = np.zeros((n, 3), dtype=np.float64)
     for i, p in enumerate(poles):
         if p.is_oriented:
             raise ValueError(
@@ -832,16 +661,15 @@ def compute_pole_coefficients_per_axis(
         omega_0 = p.omega_0_axes
         gamma = p.gamma_axes
         coupling_sq = p.coupling_sq_axes
-        coupling_edot = p.coupling_edot_axes
         for ax in range(3):
             gamma_dt = gamma[ax] * dt
             omega0_dt = omega_0[ax] * dt
             # The stability bound only binds on axes where the pole actually
             # couples. A zero-coupling axis (e.g. a Lorentz pole with
             # delta_epsilon = 0 there, the documented way to express an absent
-            # resonance) has c3 = c4 = 0, so its polarization stays identically
+            # resonance) has c3 = 0, so its polarization stays identically
             # zero and its unused omega_0 / gamma are irrelevant.
-            axis_active = coupling_sq[ax] != 0.0 or coupling_edot[ax] != 0.0
+            axis_active = coupling_sq[ax] != 0.0
             if axis_active and omega0_dt >= 2.0:
                 axis_note = "" if p.is_isotropic else f" on axis {'xyz'[ax]}"
                 raise ValueError(
@@ -852,15 +680,14 @@ def compute_pole_coefficients_per_axis(
             denom = 1.0 + 0.5 * gamma_dt
             c1[i, ax] = (2.0 - (omega_0[ax] ** 2) * (dt**2)) / denom
             c2[i, ax] = -(1.0 - 0.5 * gamma_dt) / denom
-            c3[i, ax] = (coupling_sq[ax] * dt**2 - coupling_edot[ax] * dt) / denom
-            c4[i, ax] = (coupling_edot[ax] * dt) / denom
-    return c1, c2, c3, c4
+            c3[i, ax] = (coupling_sq[ax] * dt**2) / denom
+    return c1, c2, c3
 
 
 def compute_pole_coefficients(
     poles: tuple[Pole, ...],
     dt: float,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Compute the discrete-time ADE recurrence coefficients of isotropic poles.
 
     Scalar-per-pole variant of :func:`compute_pole_coefficients_per_axis` (see
@@ -872,8 +699,8 @@ def compute_pole_coefficients(
         dt: Simulation time step (seconds).
 
     Returns:
-        Four ``numpy`` arrays of shape ``(len(poles),)`` with ``c1``, ``c2``,
-        ``c3``, ``c4``. For an empty pole tuple, returns four empty arrays.
+        Three ``numpy`` arrays of shape ``(len(poles),)`` with ``c1``, ``c2``,
+        ``c3``. For an empty pole tuple, returns three empty arrays.
     """
     for i, p in enumerate(poles):
         if not p.is_isotropic:
@@ -881,20 +708,20 @@ def compute_pole_coefficients(
                 f"Pole {i} ({type(p).__name__}) has per-axis parameters or an orientation; "
                 "use compute_pole_coefficients_per_axis or compute_pole_coefficients_tensor instead."
             )
-    c1, c2, c3, c4 = compute_pole_coefficients_per_axis(poles, dt)
-    return c1[:, 0], c2[:, 0], c3[:, 0], c4[:, 0]
+    c1, c2, c3 = compute_pole_coefficients_per_axis(poles, dt)
+    return c1[:, 0], c2[:, 0], c3[:, 0]
 
 
 def compute_pole_coefficients_tensor(
     poles: tuple[Pole, ...],
     dt: float,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Compute ADE recurrence coefficients with full 3x3 coupling tensors.
 
     Generalizes :func:`compute_pole_coefficients_per_axis` to oriented poles:
     the recurrence coefficients ``c1``/``c2`` stay per-axis (uniform for an
     oriented pole, whose ``omega_0``/``gamma`` are scalars), while the field
-    couplings ``c3``/``c4`` become row-major 3x3 tensors per pole —
+    coupling ``c3`` becomes a row-major 3x3 tensor per pole —
     ``(K dt^2 / D) u u^T`` for a pole oriented along ``u``, diagonal for
     per-axis and isotropic poles.
 
@@ -904,25 +731,23 @@ def compute_pole_coefficients_tensor(
         dt: Simulation time step (seconds).
 
     Returns:
-        Four ``numpy`` arrays: ``c1``, ``c2`` of shape ``(len(poles), 3)`` and
-        ``c3``, ``c4`` of shape ``(len(poles), 9)``.
+        Three ``numpy`` arrays: ``c1``, ``c2`` of shape ``(len(poles), 3)`` and
+        ``c3`` of shape ``(len(poles), 9)``.
     """
     n = len(poles)
     c1 = np.zeros((n, 3), dtype=np.float64)
     c2 = np.zeros((n, 3), dtype=np.float64)
     c3 = np.zeros((n, 9), dtype=np.float64)
-    c4 = np.zeros((n, 9), dtype=np.float64)
     for i, p in enumerate(poles):
         gamma = p.gamma_axes
         omega_0 = p.omega_0_axes
         coupling_sq = p.coupling_sq_axes
-        coupling_edot = p.coupling_edot_axes
         for ax in range(3):
             gamma_dt = gamma[ax] * dt
             omega0_dt = omega_0[ax] * dt
             # Same forward-stability bound (and same zero-coupling exemption) as
             # compute_pole_coefficients_per_axis.
-            axis_active = coupling_sq[ax] != 0.0 or coupling_edot[ax] != 0.0
+            axis_active = coupling_sq[ax] != 0.0
             if axis_active and omega0_dt >= 2.0:
                 raise ValueError(
                     f"Pole {i} ({type(p).__name__}) has omega_0 * dt = {omega0_dt:.4g} >= 2; "
@@ -943,13 +768,11 @@ def compute_pole_coefficients_tensor(
             u = np.asarray(p.orientation, dtype=np.float64)
             denom = 1.0 + 0.5 * gamma[0] * dt
             c3[i] = ((coupling_sq[0] * dt**2 / denom) * np.outer(u, u)).reshape(-1)
-            # c4 is identically zero for oriented poles (validated at construction).
         else:
             for ax in range(3):
                 denom = 1.0 + 0.5 * gamma[ax] * dt
-                c3[i, 4 * ax] = (coupling_sq[ax] * dt**2 - coupling_edot[ax] * dt) / denom
-                c4[i, 4 * ax] = (coupling_edot[ax] * dt) / denom
-    return c1, c2, c3, c4
+                c3[i, 4 * ax] = (coupling_sq[ax] * dt**2) / denom
+    return c1, c2, c3
 
 
 def _tensor_from_components(arr: jax.Array) -> jax.Array:
@@ -991,7 +814,6 @@ def susceptibility_from_coefficients(
     c3: jax.Array,
     omega: float,
     dt: float,
-    c4: jax.Array | None = None,
 ) -> jax.Array:
     """Evaluate the per-cell complex susceptibility :math:`\\chi(\\omega)` from
     the stored ADE recurrence coefficients.
@@ -1003,18 +825,15 @@ def susceptibility_from_coefficients(
     .. math::
         \\gamma \\Delta t     &= \\frac{2 (1 + c_2)}{1 - c_2},\\\\
         \\omega_0^2 \\Delta t^2 &= 2 - c_1 D,\\\\
-        a \\Delta t^2          &= (c_3 + c_4) D,\\\\
-        b \\Delta t            &= c_4 D
+        K \\Delta t^2          &= c_3 D
 
     is applied pointwise, then each pole contributes
 
     .. math::
-        \\chi_p(\\omega) = \\frac{a - i\\omega b}{\\omega_0^2 - \\omega^2 - i \\gamma \\omega}
+        \\chi_p(\\omega) = \\frac{K}{\\omega_0^2 - \\omega^2 - i \\gamma \\omega}
 
     and the result is summed over the leading pole axis. Cells where the
-    coefficients are all zero (no pole) contribute exactly zero. When ``c4`` is
-    ``None`` (Lorentz/Drude) the ``b`` term vanishes and this reduces to the
-    classic real-numerator Lorentzian.
+    coefficients are all zero (no pole) contribute exactly zero.
 
     Args:
         c1: ADE coefficient array of shape ``(num_poles, ...)``.
@@ -1023,8 +842,6 @@ def susceptibility_from_coefficients(
         omega: Angular frequency (rad/s) at which to evaluate the
             susceptibility.
         dt: Simulation time step (seconds) used to derive the coefficients.
-        c4: Optional ADE coefficient array (the ``dE/dt`` coupling), shape
-            ``(num_poles, ...)``. ``None`` is treated as all-zero.
 
     Returns:
         Complex ``jax.Array`` with shape ``c1.shape[1:]`` — the total
@@ -1033,7 +850,6 @@ def susceptibility_from_coefficients(
     c1 = jnp.asarray(c1)
     c2 = jnp.asarray(c2)
     c3 = jnp.asarray(c3)
-    c4 = jnp.zeros_like(c3) if c4 is None else jnp.asarray(c4)
     if c1.ndim >= 2 and c3.ndim >= 2 and c3.shape[1] == 9:
         # 9-component coupling (oriented poles): the recurrence coefficients
         # expand so entry (i, j) uses the oscillator of row i; the result is
@@ -1041,7 +857,7 @@ def susceptibility_from_coefficients(
         c1 = _expand_recurrence_to_coupling(c1, 9)
         c2 = _expand_recurrence_to_coupling(c2, 9)
 
-    pole_mask = (c1 != 0.0) | (c3 != 0.0) | (c4 != 0.0)
+    pole_mask = (c1 != 0.0) | (c3 != 0.0)
 
     one_minus_c2 = 1.0 - c2
     safe_denom = jnp.where(one_minus_c2 == 0.0, 1.0, one_minus_c2)
@@ -1051,15 +867,13 @@ def susceptibility_from_coefficients(
     half_factor = 1.0 + 0.5 * gamma_dt
     omega0_sq_dt2 = 2.0 - c1 * half_factor
     omega0_sq_dt2 = jnp.where(pole_mask, omega0_sq_dt2, 0.0)
-    # a*dt^2 = (c3 + c4)*D, b*dt = c4*D (see compute_pole_coefficients).
-    a_dt2 = jnp.where(pole_mask, (c3 + c4) * half_factor, 0.0)
-    b_dt = jnp.where(pole_mask, c4 * half_factor, 0.0)
+    # K*dt^2 = c3*D (see compute_pole_coefficients).
+    k_dt2 = jnp.where(pole_mask, c3 * half_factor, 0.0)
 
     omega_dt = omega * dt
-    numer = a_dt2 - 1j * omega_dt * b_dt
     denom = omega0_sq_dt2 - omega_dt * omega_dt - 1j * gamma_dt * omega_dt
     safe_denom_cplx = jnp.where(pole_mask, denom, 1.0 + 0.0j)
-    chi_per_pole = jnp.where(pole_mask, numer / safe_denom_cplx, 0.0 + 0.0j)
+    chi_per_pole = jnp.where(pole_mask, k_dt2 / safe_denom_cplx, 0.0 + 0.0j)
 
     return jnp.sum(chi_per_pole, axis=0)
 
@@ -1072,7 +886,6 @@ def compute_eps_spectrum_from_coefficients(
     omegas: np.ndarray,
     dt: float,
     weights: np.ndarray | None = None,
-    c4: jax.Array | np.ndarray | None = None,
 ) -> np.ndarray:
     """Spatially-averaged complex permittivity spectrum for a block of cells.
 
@@ -1112,7 +925,6 @@ def compute_eps_spectrum_from_coefficients(
     c1_np = np.asarray(c1)
     c2_np = np.asarray(c2)
     c3_np = np.asarray(c3)
-    c4_np = np.zeros_like(c3_np) if c4 is None else np.asarray(c4)
     inv_eps_np = np.asarray(inv_eps_inf)
     omegas_np = np.asarray(omegas, dtype=np.float64)
     if c3_np.ndim >= 2 and c3_np.shape[1] == 9 and c1_np.shape[1] == 3:
@@ -1122,15 +934,14 @@ def compute_eps_spectrum_from_coefficients(
 
     # Reverse-engineer pole parameters from the ADE coefficients (same inversion
     # as susceptibility_from_coefficients, duplicated in numpy for setup-time use).
-    pole_mask = (c1_np != 0.0) | (c3_np != 0.0) | (c4_np != 0.0)
+    pole_mask = (c1_np != 0.0) | (c3_np != 0.0)
     one_minus_c2 = 1.0 - c2_np
     safe_one_minus_c2 = np.where(one_minus_c2 == 0.0, 1.0, one_minus_c2)
     gamma_dt = np.where(pole_mask, 2.0 * (1.0 + c2_np) / safe_one_minus_c2, 0.0)
     half_factor = 1.0 + 0.5 * gamma_dt
     omega0_sq_dt2 = np.where(pole_mask, 2.0 - c1_np * half_factor, 0.0)
-    # a*dt^2 = (c3 + c4)*D, b*dt = c4*D (numerator = a*dt^2 - i*omega*dt*b*dt).
-    a_dt2 = np.where(pole_mask, (c3_np + c4_np) * half_factor, 0.0)
-    b_dt = np.where(pole_mask, c4_np * half_factor, 0.0)
+    # K*dt^2 = c3*D (numerator of the Lorentzian).
+    k_dt2 = np.where(pole_mask, c3_np * half_factor, 0.0)
 
     # Reduce inv_eps_inf → scalar eps_inf per spatial cell.
     num_components = inv_eps_np.shape[0]
@@ -1149,10 +960,9 @@ def compute_eps_spectrum_from_coefficients(
     # Broadcast: omegas over (M,); coefficient arrays have shape (P, C, *spatial)
     # with C in (1, 3). After [None, ...] prepend: (M, P, C, *spatial).
     omega_dt = (omegas_np * dt).reshape((-1,) + (1,) * c1_np.ndim)
-    numer = a_dt2[None, ...] - 1j * omega_dt * b_dt[None, ...]
     denom = omega0_sq_dt2[None, ...] - omega_dt**2 - 1j * gamma_dt[None, ...] * omega_dt
     safe_denom = np.where(pole_mask[None, ...], denom, 1.0 + 0.0j)
-    chi_per_pole = np.where(pole_mask[None, ...], numer / safe_denom, 0.0 + 0.0j)
+    chi_per_pole = np.where(pole_mask[None, ...], k_dt2[None, ...] / safe_denom, 0.0 + 0.0j)
     chi_per_cell = chi_per_pole.sum(axis=1)  # sum over pole axis → (M, C, *spatial)
     # Average the material-component axis (identity for C = 1), mirroring the
     # eps_inf reduction above — this scalar spectrum feeds an impedance filter
@@ -1258,7 +1068,6 @@ def effective_inv_permittivity(
     c3: jax.Array | None,
     omega: float,
     dt: float,
-    c4: jax.Array | None = None,
 ) -> jax.Array:
     """Per-cell real inverse permittivity :math:`1/\\text{Re}(\\varepsilon_\\infty + \\chi(\\omega))`.
 
@@ -1293,7 +1102,7 @@ def effective_inv_permittivity(
         # Elementwise 1/inv_eps would divide by the zero off-diagonal entries.
         eps_mat = jnp.real(_eps_matrix_from_inv(inv_eps_arr))
         if c1 is not None and c2 is not None and c3 is not None:
-            chi = susceptibility_from_coefficients(c1=c1, c2=c2, c3=c3, omega=omega, dt=dt, c4=c4)
+            chi = susceptibility_from_coefficients(c1=c1, c2=c2, c3=c3, omega=omega, dt=dt)
             eps_mat = eps_mat + jnp.real(_tensor_from_components(chi))
         inv_eff = _invert_3x3_matrix_field(eps_mat)
         return inv_eff.reshape(9, *inv_eff.shape[2:]).astype(inv_eps_arr.dtype)
@@ -1301,7 +1110,7 @@ def effective_inv_permittivity(
     if c1 is None or c2 is None or c3 is None:
         return inv_eps
 
-    chi = susceptibility_from_coefficients(c1=c1, c2=c2, c3=c3, omega=omega, dt=dt, c4=c4)
+    chi = susceptibility_from_coefficients(c1=c1, c2=c2, c3=c3, omega=omega, dt=dt)
     eps_inf = 1.0 / inv_eps_arr
     eps_eff = eps_inf + jnp.real(chi)
     return (1.0 / eps_eff).astype(inv_eps_arr.dtype)
@@ -1316,7 +1125,6 @@ def effective_complex_inv_permittivity(
     c3: jax.Array | None = None,
     electric_conductivity: jax.Array | None = None,
     conductivity_spacing: float | None = None,
-    c4: jax.Array | None = None,
 ) -> jax.Array:
     r"""Per-cell COMPLEX inverse permittivity :math:`1 / (\varepsilon_\infty + \chi(\omega) + i\sigma/(\varepsilon_0\omega))`.
 
@@ -1363,7 +1171,7 @@ def effective_complex_inv_permittivity(
         eps_mat = _eps_matrix_from_inv(inv_eps)
         eps = jnp.stack([eps_mat[0, 0], eps_mat[1, 1], eps_mat[2, 2]], axis=0).astype(complex_dtype)
         if c1 is not None and c2 is not None and c3 is not None:
-            chi = susceptibility_from_coefficients(c1=c1, c2=c2, c3=c3, omega=omega, dt=dt, c4=c4)
+            chi = susceptibility_from_coefficients(c1=c1, c2=c2, c3=c3, omega=omega, dt=dt)
             if chi.shape[0] == 9:
                 chi = jnp.stack([chi[0], chi[4], chi[8]], axis=0)
             eps = eps + chi
@@ -1378,7 +1186,7 @@ def effective_complex_inv_permittivity(
 
     eps = (1.0 / inv_eps).astype(complex_dtype)
     if c1 is not None and c2 is not None and c3 is not None:
-        eps = eps + susceptibility_from_coefficients(c1=c1, c2=c2, c3=c3, omega=omega, dt=dt, c4=c4)
+        eps = eps + susceptibility_from_coefficients(c1=c1, c2=c2, c3=c3, omega=omega, dt=dt)
     if electric_conductivity is not None:
         if conductivity_spacing is None:
             raise ValueError("conductivity_spacing is required when electric_conductivity is given.")

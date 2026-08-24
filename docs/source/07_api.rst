@@ -15,7 +15,6 @@ API
     fdtdx.BrushConstraint2D
     fdtdx.calculate_sparam
     fdtdx.calculate_sparams
-    fdtdx.CCPRPole
     fdtdx.circular_brush
     fdtdx.ClosedSurfacePhasorPoyntingFluxDetector
     fdtdx.ClosedSurfacePoyntingFluxDetector

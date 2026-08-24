@@ -170,7 +170,6 @@ class TFSFPlaneSourceRegion(TFSFPlaneSource):
         dispersive_c2: jax.Array | None = None,
         dispersive_c3: jax.Array | None = None,
         electric_conductivity: jax.Array | None = None,
-        dispersive_c4: jax.Array | None = None,
     ) -> Self:
         del electric_conductivity
         config = self._config
@@ -247,12 +246,11 @@ class TFSFPlaneSourceRegion(TFSFPlaneSource):
             inv_eps_inf_face = inv_eps_face  # raw ε∞ before any carrier correction
 
             # dispersive carrier-frequency correction (matches the single-plane source)
-            c1_s = c2_s = c3_s = c4_s = None
+            c1_s = c2_s = c3_s = None
             if dispersive_c1 is not None and dispersive_c2 is not None and dispersive_c3 is not None:
                 c1_s = dispersive_c1[:, :, *e_face_slice]
                 c2_s = dispersive_c2[:, :, *e_face_slice]
                 c3_s = dispersive_c3[:, :, *e_face_slice]
-                c4_s = None if dispersive_c4 is None else dispersive_c4[:, :, *e_face_slice]
                 inv_eps_face = effective_inv_permittivity(
                     inv_eps=inv_eps_face,
                     c1=c1_s,
@@ -260,7 +258,6 @@ class TFSFPlaneSourceRegion(TFSFPlaneSource):
                     c3=c3_s,
                     omega=omega_c,
                     dt=config.time_step_duration,
-                    c4=c4_s,
                 )
 
             impedance = _source_impedance(inv_eps_face, inv_mu_face, e_pol, h_pol)
@@ -310,7 +307,6 @@ class TFSFPlaneSourceRegion(TFSFPlaneSource):
                     c3_slice=c3_s,
                     inv_eps_inf_slice=inv_eps_inf_face,
                     dtype=config.dtype,
-                    c4_slice=c4_s,
                 )
 
             normal_axes.append(normal_axis)
