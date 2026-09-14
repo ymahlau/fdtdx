@@ -5,12 +5,7 @@ import re
 import sys
 from pathlib import Path
 
-try:
-    import yaml
-except ImportError:
-    sys.exit(
-        "generate_cards.py requires PyYAML. Install it with: pip install pyyaml"
-    )
+import yaml
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if (SCRIPT_DIR / "notebooks").is_dir():
