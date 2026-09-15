@@ -42,7 +42,7 @@ repos:
       - id: ty
         name: ty (from uv.lock)
         # Use the project-managed version for reproducible local and CI checks.
-        entry: uv run --locked ty check --error-on-warning
+        entry: uv run --locked --extra dev ty check --error-on-warning
         language: system
         types: [python]
         pass_filenames: false
