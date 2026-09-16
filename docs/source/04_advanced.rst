@@ -19,5 +19,6 @@ Welcome to the Advanced guides!
 .. toctree::
    :maxdepth: 2
    :hidden:
+   :glob:
 
-   notebooks/advanced/01_2d_simulation.ipynb
+   notebooks/advanced/*

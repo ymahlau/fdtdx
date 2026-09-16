@@ -25,6 +25,6 @@ Welcome to the Phyiscs Tutorials! These tutorials dive into the phyics behind FD
 .. toctree::
    :maxdepth: 2
    :hidden:
+   :glob:
 
-   notebooks/physics/01_maxwell.ipynb
-   notebooks/physics/02_fdtd.ipynb
+   notebooks/physics/*

@@ -7,11 +7,9 @@ Welcome to the Quickstart Guide! These interactive Jupyter notebooks are designe
 .. toctree::
    :maxdepth: 2
    :hidden:
+   :glob:
 
-   notebooks/quickstart/01_jax_introduction.ipynb
-   notebooks/quickstart/02_basic_materials.ipynb
-   notebooks/quickstart/03_object_placement_guide.ipynb
-   notebooks/quickstart/04_basic_simulation.ipynb
+   notebooks/quickstart/*
 
 .. grid:: 1 2 2 2
    :gutter: 3
