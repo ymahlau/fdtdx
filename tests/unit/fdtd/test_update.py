@@ -775,6 +775,44 @@ class TestUpdateDetectorStates:
         assert mock_interp.call_args.kwargs.get("region_slice") is None
         assert jnp.allclose(det.update.call_args.kwargs["E"], full[0])  # EDGE_GST spans the whole domain
 
+        det._is_on_at_time_step_arr = [False] * 100
+        with (
+            patch("fdtdx.fdtd.update.interpolate_fields") as inactive_interp,
+            patch("fdtdx.fdtd.update.pad_fields_with_symmetry_mirror") as inactive_pad,
+            patch("fdtdx.fdtd.update.jax.lax.cond", side_effect=lambda cond, t, f, *args: f(*args)),
+        ):
+            update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=False)
+        inactive_interp.assert_not_called()
+        inactive_pad.assert_not_called()
+
+        det._is_on_at_time_step_arr = [True] * 100
+        det2 = self._make_detector(name="det2", exact_interpolation=True, grid_slice_tuple=self.EDGE_GST)
+        det2._uses_padded_fields = True
+        objects = self._make_det_objects(forward_detectors=[det, det2])
+        arrays = _make_arrays(detector_states={**self._init_state(det), **self._init_state(det2)})
+        with (
+            patch("fdtdx.fdtd.update.interpolate_fields", return_value=full) as shared_interp,
+            patch(
+                "fdtdx.fdtd.update.pad_fields_with_symmetry_mirror",
+                wraps=pad_fields_with_symmetry_mirror,
+            ) as shared_pad,
+            patch("fdtdx.fdtd.update.jax.lax.cond", side_effect=lambda cond, t, f, *args: t(*args)),
+        ):
+            update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=False)
+        shared_interp.assert_called_once()
+        assert shared_pad.call_count == 2
+
+        det._is_on_at_time_step_arr = [False] * 100
+        det2._is_on_at_time_step_arr = [False] * 100
+        with (
+            patch("fdtdx.fdtd.update.interpolate_fields") as inactive_shared_interp,
+            patch("fdtdx.fdtd.update.pad_fields_with_symmetry_mirror") as inactive_shared_pad,
+            patch("fdtdx.fdtd.update.jax.lax.cond", side_effect=lambda cond, t, f, *args: f(*args)),
+        ):
+            update_detector_states(jnp.array(0), arrays, objects, _make_config(), H_prev, inverse=False)
+        inactive_shared_interp.assert_not_called()
+        inactive_shared_pad.assert_not_called()
+
     def test_non_exact_passes_raw_region_slice(self):
         """exact_interpolation=False: detector receives the raw (non-interpolated) region slice."""
         det = self._make_detector(exact_interpolation=False, grid_slice_tuple=self.INTERIOR_GST)

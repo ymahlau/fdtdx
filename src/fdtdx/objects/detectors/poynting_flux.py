@@ -5,7 +5,10 @@ import jax.numpy as jnp
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.pytrees import autoinit, frozen_field, private_field
-from fdtdx.core.physics.metrics import compute_poynting_flux, net_poynting_flux_through_box
+from fdtdx.core.physics.metrics import (
+    colocate_yee_fields_to_surface,
+    compute_poynting_flux,
+)
 from fdtdx.objects.detectors.detector import Detector, DetectorState
 from fdtdx.objects.detectors.phasor import PhasorDetector
 from fdtdx.typing import SliceTuple3D
@@ -69,6 +72,52 @@ def _phasor_poynting_vector(phasors: jax.Array) -> jax.Array:
     """
     E_ph, H_ph = phasors[:, :3], phasors[:, 3:]
     return compute_poynting_flux(E_ph, H_ph, axis=1).real
+
+
+def _surface_field_block(
+    fields: jax.Array,
+    axis: int,
+    side: Literal["min", "max"],
+) -> jax.Array:
+    """Extract a two-cell Yee block straddling one face of a haloed detector region."""
+    face_slice = []
+    for current_axis in range(3):
+        if current_axis == axis:
+            face_slice.append(slice(0, 2) if side == "min" else slice(-2, None))
+        else:
+            face_slice.append(slice(None))
+    return fields[:, *face_slice]
+
+
+def _surface_h_weights(
+    config: SimulationConfig,
+    slice_tuple: SliceTuple3D,
+    axis: int,
+    side: Literal["min", "max"],
+) -> tuple[float, float]:
+    """Distance weights for interpolating adjacent H samples to a rectilinear face."""
+    grid = config.resolved_grid
+    if grid is None:
+        return 0.5, 0.5
+    widths = grid.cell_widths(axis)
+    boundary = slice_tuple[axis][0 if side == "min" else 1]
+    lower_width = float(widths[max(boundary - 1, 0)])
+    upper_width = float(widths[min(boundary, widths.shape[0] - 1)])
+    total = lower_width + upper_width
+    return upper_width / total, lower_width / total
+
+
+def _surface_fields(
+    E: jax.Array,
+    H: jax.Array,
+    axis: int,
+    side: Literal["min", "max"],
+    h_weights: tuple[float, float],
+) -> tuple[jax.Array, jax.Array]:
+    """Return E/H co-located on one face from a haloed detector region."""
+    E_block = _surface_field_block(E, axis, side)
+    H_block = _surface_field_block(H, axis, side)
+    return colocate_yee_fields_to_surface(E_block, H_block, axis, h_weights)
 
 
 @autoinit
@@ -210,10 +259,13 @@ class ClosedSurfacePoyntingFluxDetector(Detector):
     weighting makes the surface integral exact on non-uniform grids, where cell
     areas differ across a single face.
 
-    A face pair on an axis of size one cancels to zero, so the default
-    ``axes`` (all axes with more than one cell) naturally reduces to a 4-face
-    surface for a quasi-2D / periodic setup and a 6-face surface in full 3D.
+    The default ``axes`` skips size-one dimensions, naturally reducing to a 4-face surface for a
+    quasi-2D / periodic setup and a 6-face surface in full 3D. A size-one axis may still be selected
+    explicitly when its two distinct geometric faces should contribute.
     """
+
+    #: Surface-current integration requires co-located electric and magnetic fields.
+    exact_interpolation: bool = frozen_field(default=True, init=False)
 
     #: ``"outward"`` (default) counts net power leaving the box as positive.
     #: ``"inward"`` flips the sign (net power entering, e.g. absorbed power).
@@ -224,9 +276,12 @@ class ClosedSurfacePoyntingFluxDetector(Detector):
     axes: tuple[int, ...] | None = frozen_field(default=None)
 
     _face_area_weights_per_axis: tuple | None = private_field(default=None)
+    _surface_h_weights_per_axis: tuple | None = private_field(default=None)
 
     # Net flux is signed (can be positive or negative).
     _signed_data: ClassVar[bool] = True
+
+    _uses_padded_fields: ClassVar[bool] = True
 
     def _resolve_active_axes(self) -> tuple[int, ...]:
         """Return the axes whose faces contribute (validated, size-one skipped by default)."""
@@ -251,7 +306,11 @@ class ClosedSurfacePoyntingFluxDetector(Detector):
             _resolve_face_area_weights(self._config, self.grid_slice_tuple, axis, self.dtype) for axis in range(3)
         )
         self = self.aset("_face_area_weights_per_axis", weights, create_new_ok=True)
-        return self
+        h_weights = tuple(
+            tuple(_surface_h_weights(self._config, self.grid_slice_tuple, axis, side) for side in ("min", "max"))
+            for axis in range(3)
+        )
+        return self.aset("_surface_h_weights_per_axis", h_weights, create_new_ok=True)
 
     def _shape_dtype_single_time_step(
         self,
@@ -268,14 +327,22 @@ class ClosedSurfacePoyntingFluxDetector(Detector):
         inv_permeability: jax.Array | float,
     ) -> DetectorState:
         del inv_permeability, inv_permittivity
-        if self._face_area_weights_per_axis is None:
+        if self._face_area_weights_per_axis is None or self._surface_h_weights_per_axis is None:
             raise Exception("Detector is not yet placed on the grid")
-        pf = compute_poynting_flux(E, H).real
-        net = net_poynting_flux_through_box(
-            poynting_vector=pf,
-            active_axes=self._resolve_active_axes(),
-            area_weights=self._face_area_weights_per_axis,
-        )
+        net = jnp.zeros((), dtype=self.dtype)
+        sides: tuple[tuple[Literal["min", "max"], float], ...] = (("min", -1.0), ("max", 1.0))
+        for axis in self._resolve_active_axes():
+            area = _slice_face(self._face_area_weights_per_axis[axis], axis, "min")
+            for side_index, (side, sign) in enumerate(sides):
+                E_face, H_face = _surface_fields(
+                    E,
+                    H,
+                    axis,
+                    side,
+                    self._surface_h_weights_per_axis[axis][side_index],
+                )
+                flux = compute_poynting_flux(E_face, H_face).real[axis]
+                net = net + sign * jnp.sum(flux * area)
         if self.orientation == "inward":
             net = -net
         net = net.reshape((1,)).astype(self.dtype)
@@ -400,10 +467,13 @@ class ClosedSurfacePhasorPoyntingFluxDetector(PhasorDetector):
     state is therefore ``O(surface)`` rather than ``O(volume)`` -- the interior
     phasors would be pure waste since the surface integral reads only the faces.
 
-    A face pair on an axis of size one cancels, so the default ``axes`` (every
-    axis with more than one cell) reduces to a 4-face surface for a quasi-2D setup
-    and a 6-face surface in full 3D, exactly like the time-domain version.
+    The default ``axes`` skips size-one dimensions, reducing to a 4-face surface for a quasi-2D
+    setup and a 6-face surface in full 3D. A size-one axis may still be selected explicitly when
+    its two distinct geometric faces should contribute, exactly like the time-domain version.
     """
+
+    #: Surface-current integration requires co-located electric and magnetic fields.
+    exact_interpolation: bool = frozen_field(default=True, init=False)
 
     #: ``"outward"`` (default) counts net power leaving the box as positive.
     #: ``"inward"`` flips the sign (net power entering, e.g. absorbed power).
@@ -427,9 +497,12 @@ class ClosedSurfacePhasorPoyntingFluxDetector(PhasorDetector):
 
     #: Per-axis face-area weights, each already reduced to a single boundary plane (size one on the normal axis).
     _face_area_weights_per_axis: tuple | None = private_field(default=None)
+    _surface_h_weights_per_axis: tuple | None = private_field(default=None)
 
     # Net flux is signed (can be positive or negative).
     _signed_data: ClassVar[bool] = True
+
+    _uses_padded_fields: ClassVar[bool] = True
 
     def _resolve_active_axes(self) -> tuple[int, ...]:
         """Return the axes whose faces contribute (validated, size-one skipped by default)."""
@@ -457,7 +530,11 @@ class ClosedSurfacePhasorPoyntingFluxDetector(PhasorDetector):
             for axis in range(3)
         )
         self = self.aset("_face_area_weights_per_axis", weights, create_new_ok=True)
-        return self
+        h_weights = tuple(
+            tuple(_surface_h_weights(self._config, self.grid_slice_tuple, axis, side) for side in ("min", "max"))
+            for axis in range(3)
+        )
+        return self.aset("_surface_h_weights_per_axis", h_weights, create_new_ok=True)
 
     def _shape_dtype_single_time_step(
         self,
@@ -483,20 +560,28 @@ class ClosedSurfacePhasorPoyntingFluxDetector(PhasorDetector):
         inv_permeability: jax.Array | float,
     ) -> DetectorState:
         del inv_permeability, inv_permittivity
+        if self._surface_h_weights_per_axis is None:
+            raise Exception("Detector is not yet placed on the grid")
         time_passed = time_step * self._config.time_step_duration
         static_scale = self._static_scale()
 
-        EH = jnp.stack([E[0], E[1], E[2], H[0], H[1], H[2]], axis=0)  # (6, nx, ny, nz)
         phase_angles = self._angular_frequencies * time_passed  # (num_freqs,)
-        phasors = jnp.exp(1j * phase_angles).reshape((len(self._angular_frequencies),) + (1,) * EH.ndim)
-        new_phasors = EH * phasors * static_scale  # (num_freqs, 6, nx, ny, nz)
 
         new_state = dict(state)
+        sides: tuple[Literal["min", "max"], ...] = ("min", "max")
         for a in self._resolve_active_axes():
-            # Spatial axis a maps to array axis a + 2 (leading freq and component axes).
-            for side in ("min", "max"):
+            for side_index, side in enumerate(sides):
                 key = f"phasor_axis{a}_{side}"
-                face = _slice_face(new_phasors, a + 2, side)[None, ...]  # (1, num_freqs, 6, *plane)
+                E_face, H_face = _surface_fields(
+                    E,
+                    H,
+                    a,
+                    side,
+                    self._surface_h_weights_per_axis[a][side_index],
+                )
+                EH = jnp.concatenate((E_face, H_face), axis=0)
+                phasors = jnp.exp(1j * phase_angles).reshape((len(self._angular_frequencies),) + (1,) * EH.ndim)
+                face = (EH * phasors * static_scale)[None, ...]
                 if self.inverse:
                     new_state[key] = (state[key] - face).astype(self.dtype)
                 else:
@@ -520,7 +605,7 @@ class ClosedSurfacePhasorPoyntingFluxDetector(PhasorDetector):
         real_dtype = jnp.float64 if self.dtype == jnp.complex128 else jnp.float32
         net = jnp.zeros((num_freqs,), dtype=real_dtype)
         for a in active_axes:
-            area = self._face_area_weights_per_axis[a]  # (*plane) with normal axis size one
+            area = self._face_area_weights_per_axis[a]
             for side, sign in (("max", 1.0), ("min", -1.0)):
                 phasors = state[f"phasor_axis{a}_{side}"][0]  # (num_freqs, 6, *plane)
                 s_a = _phasor_poynting_vector(phasors)[:, a]  # (num_freqs, *plane)

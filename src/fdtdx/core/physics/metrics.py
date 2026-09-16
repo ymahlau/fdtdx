@@ -157,6 +157,61 @@ def net_poynting_flux_through_box(
     return net
 
 
+def colocate_yee_fields_to_surface(
+    E: jax.Array,
+    H: jax.Array,
+    axis: int,
+    h_weights: tuple[float | jax.Array, float | jax.Array] = (0.5, 0.5),
+) -> tuple[jax.Array, jax.Array]:
+    """Co-locate Yee fields at the cell centers of a geometric surface.
+
+    The input has two cells across the surface normal and one halo cell on each transverse side.
+    Components centered across the normal are interpolated to the face using ``h_weights``;
+    components already on the face use local index 1. Along each transverse axis, edge samples are
+    averaged to the face-cell center and centered samples are restricted to the detector region.
+
+    Args:
+        E: Electric field with component axis first, two normal cells and transverse halos.
+        H: Magnetic field with the same layout as ``E``.
+        axis: Surface-normal spatial axis.
+        h_weights: Weights for the lower- and upper-cell magnetic samples. Uniform grids use
+            ``(0.5, 0.5)``; rectilinear grids use distance-based weights.
+
+    Returns:
+        The electric and magnetic fields on the face, retaining a singleton normal dimension.
+    """
+    if axis not in (0, 1, 2):
+        raise ValueError(f"axis must be 0, 1, or 2, got {axis}")
+    spatial_axis = axis + 1
+    if E.shape[spatial_axis] < 2 or H.shape[spatial_axis] < 2:
+        raise ValueError(f"Surface field slices need two cells along axis {axis}; got {E.shape=} and {H.shape=}")
+    if any(E.shape[a + 1] < 3 or H.shape[a + 1] < 3 for a in range(3) if a != axis):
+        raise ValueError(f"Surface field slices need transverse halos; got {E.shape=} and {H.shape=}")
+
+    def colocate_component(field: jax.Array, component: int, electric: bool) -> jax.Array:
+        centered_normal = component == axis if electric else component != axis
+        lower = jnp.take(field[component], jnp.asarray([0]), axis=axis)
+        upper = jnp.take(field[component], jnp.asarray([1]), axis=axis)
+        result = h_weights[0] * lower + h_weights[1] * upper if centered_normal else upper
+        for transverse_axis in range(3):
+            if transverse_axis == axis:
+                continue
+            centered = transverse_axis == component if electric else transverse_axis != component
+            index = [slice(None)] * 3
+            index[transverse_axis] = slice(1, -1)
+            inner = result[tuple(index)]
+            if centered:
+                result = inner
+            else:
+                index[transverse_axis] = slice(2, None)
+                result = 0.5 * (inner + result[tuple(index)])
+        return result
+
+    E_surface = jnp.stack([colocate_component(E, component, True) for component in range(3)])
+    H_surface = jnp.stack([colocate_component(H, component, False) for component in range(3)])
+    return E_surface, H_surface
+
+
 def compute_integrated_power(
     E: jax.Array,
     H: jax.Array,
