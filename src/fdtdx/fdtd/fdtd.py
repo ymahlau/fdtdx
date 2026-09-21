@@ -254,10 +254,19 @@ def reversible_fdtd(
         sr_tuple,
         start_time_step: int,
     ):
+        """Whether another reverse step is due.
+
+        ``body_fn`` steps the reconstruction *back* before taking the VJP, so entering the body at
+        ``time_step = k`` back-propagates the forward step that produced state ``k``, i.e. forward
+        step ``k - 1``. The forward pass runs steps ``0 .. time_steps_total - 1``, so the last one
+        needing a VJP is entered at ``time_step = start_time_step + 1`` and the loop must stop on
+        reaching ``start_time_step`` itself. A ``>=`` here runs one extra body call, which
+        reconstructs ``start_time_step - 1`` and pulls back a forward step that never happened.
+        """
         s_k, r_k = sr_tuple
         del r_k
         time_step = s_k[0]
-        return time_step >= start_time_step
+        return time_step > start_time_step
 
     def fdtd_bwd(
         residual,
