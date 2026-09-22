@@ -69,6 +69,10 @@ class Detector(SimulationObject, ABC):
     #: non-negative quantities.
     _signed_data: ClassVar[bool] = True
 
+    #: Whether ``update`` receives a detector region with a one-cell Yee halo. Surface detectors use
+    #: this to sample both sides of their geometric faces.
+    _uses_padded_fields: ClassVar[bool] = False
+
     _num_time_steps_on: int = frozen_private_field()
     _is_on_at_time_step_arr: jax.Array = private_field()
     _time_step_to_arr_idx: jax.Array = private_field()
@@ -255,9 +259,10 @@ class Detector(SimulationObject, ABC):
     ) -> DetectorState:
         """Updates detector state with current field values.
 
-        Note that fields and materials arrive already restricted to this detector's ``grid_slice``
-        and, when ``exact_interpolation`` is set, already co-located onto the E_z Yee point, so
-        implementations must not slice ``grid_slice`` again.
+        Fields and materials normally arrive already restricted to this detector's ``grid_slice``
+        and, when ``exact_interpolation`` is set, co-located onto the E_z Yee point. Detectors with
+        the internal ``_uses_padded_fields`` flag instead receive a one-cell-haloed region so they
+        can sample both sides of geometric surfaces.
 
         Args:
             time_step (jax.Array): Current simulation time step.
