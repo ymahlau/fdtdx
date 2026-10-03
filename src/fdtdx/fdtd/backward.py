@@ -42,6 +42,11 @@ def full_backward(
     Returns:
         SimulationState: Final state after backward propagation
     """
+    if config.gradient_config is not None and config.gradient_config.recording_mode == "segmented":
+        raise Exception(
+            "full_backward replays the interface record of the whole run, which recording_mode='segmented' "
+            "does not keep. Use recording_mode='full'."
+        )
     key = default_key(key)
     s0 = eqxi.while_loop(
         cond_fun=partial(cond_fn, start_time_step=start_time_step),
@@ -67,6 +72,7 @@ def backward(
     record_detectors: bool = True,
     reset_fields: bool = True,
     fields_to_reset: Sequence[str] = ("E", "H"),
+    record_time_offset: int | jax.Array = 0,
 ) -> SimulationState:
     """Perform one step of backward FDTD propagation.
 
@@ -82,6 +88,8 @@ def backward(
         record_detectors (bool): Whether to record detector states
         reset_fields (bool): Whether to reset fields after updates
         fields_to_reset (Sequence[str], optional): Which fields to reset if reset_fields is True. Defaults to ("E", "H").
+        record_time_offset (int | jax.Array, optional): Time step stored at index 0 of the recorder buffer, see
+            :func:`~fdtdx.fdtd.update.add_interfaces`. Defaults to 0.
 
     Returns:
         SimulationState: Updated state after one backward step
@@ -96,6 +104,7 @@ def backward(
         objects=objects,
         config=config,
         key=key,
+        record_time_offset=record_time_offset,
     )
 
     H = arrays.fields.H

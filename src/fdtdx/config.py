@@ -9,6 +9,7 @@ from fdtdx import constants
 from fdtdx.core.grid import QuasiUniformGrid, RectilinearGrid, UniformGrid
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field
 from fdtdx.interfaces.recorder import Recorder
+from fdtdx.interfaces.time_filter import TimeStepFilter
 from fdtdx.typing import BackendOption
 
 
@@ -44,6 +45,22 @@ class GradientConfig(TreeClass):
     #: by the ``"checkpointed"`` method. Must not exceed ``time_steps_total - 1``.
     num_checkpoints_reversible: int = frozen_field(default=0)
 
+    #: How the ``"reversible"`` method stores the PML interface values that its reverse pass replays.
+    #:
+    #: ``"full"`` (default): the forward pass records the interface values of every time step, so the
+    #: recorder buffer holds ``time_steps_total`` entries.
+    #:
+    #: ``"segmented"``: the forward pass records nothing and only keeps the full-field checkpoints at the
+    #: ``num_checkpoints_reversible`` interior slice boundaries. The backward pass re-simulates each slice
+    #: from the checkpoint at its start to regenerate the interface record of that slice alone, then
+    #: reverses it. The recorder buffer therefore holds a single slice
+    #: (``ceil(time_steps_total / (num_checkpoints_reversible + 1))`` entries) at the cost of one extra
+    #: forward pass, so the interface memory of the exact (uncompressed) gradient no longer grows with the
+    #: length of the run. Requires ``num_checkpoints_reversible >= 1`` and a recorder without a
+    #: :class:`~fdtdx.LinearReconstructEveryK` (or other time-step filter), whose sample times are
+    #: defined over the whole run.
+    recording_mode: Literal["full", "segmented"] = frozen_field(default="full")
+
     def __post_init__(self):
         if self.method == "reversible" and self.recorder is None:
             raise Exception("Need Recorder in gradient config to compute reversible gradients")
@@ -51,6 +68,29 @@ class GradientConfig(TreeClass):
             raise Exception("Need Checkpoint Number in gradient config to compute checkpointed gradients")
         if self.num_checkpoints_reversible < 0:
             raise Exception("num_checkpoints_reversible must be >= 0")
+        if self.recording_mode not in ("full", "segmented"):
+            raise Exception(f"recording_mode must be 'full' or 'segmented', got {self.recording_mode!r}")
+        if self.recording_mode == "segmented":
+            if self.method != "reversible":
+                raise Exception("recording_mode='segmented' requires method='reversible'")
+            if self.num_checkpoints_reversible < 1:
+                raise Exception("recording_mode='segmented' requires num_checkpoints_reversible >= 1")
+            if self.recorder is not None and any(isinstance(m, TimeStepFilter) for m in self.recorder.modules):
+                raise Exception("recording_mode='segmented' does not support time-step filters in the recorder")
+
+    def recorder_time_steps(self, time_steps_total: int) -> int:
+        """Number of time steps the recorder buffer has to hold for a run of ``time_steps_total`` steps.
+
+        Args:
+            time_steps_total (int): Total number of forward time steps of the simulation.
+
+        Returns:
+            int: ``time_steps_total`` in ``"full"`` recording mode, the length of the longest slice
+            (``ceil(time_steps_total / (num_checkpoints_reversible + 1))``) in ``"segmented"`` mode.
+        """
+        if self.recording_mode == "segmented":
+            return -(-time_steps_total // (self.num_checkpoints_reversible + 1))
+        return time_steps_total
 
 
 @autoinit

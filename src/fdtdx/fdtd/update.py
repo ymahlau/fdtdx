@@ -1126,6 +1126,7 @@ def collect_interfaces(
     objects: ObjectContainer,
     config: SimulationConfig,
     key: jax.Array,
+    record_time_offset: int | jax.Array = 0,
 ) -> ArrayContainer:
     """Collects field values at PML interfaces for gradient computation.
 
@@ -1139,6 +1140,8 @@ def collect_interfaces(
         objects (ObjectContainer): Container with PML and other simulation objects
         config (SimulationConfig): Simulation configuration with gradient settings
         key (jax.Array): Random key for compression
+        record_time_offset (int | jax.Array, optional): Time step stored at index 0 of the recorder
+            buffer; the values are recorded at index ``time_step - record_time_offset``. Defaults to 0.
 
     Returns:
         ArrayContainer: Updated ArrayContainer with recorded interface values
@@ -1154,7 +1157,7 @@ def collect_interfaces(
     recording_state = config.gradient_config.recorder.compress(
         values=values,
         state=arrays.recording_state,
-        time_step=time_step,
+        time_step=time_step - record_time_offset,
         key=key,
     )
     arrays = arrays.aset("recording_state", recording_state)
@@ -1167,6 +1170,7 @@ def add_interfaces(
     objects: ObjectContainer,
     config: SimulationConfig,
     key: jax.Array,
+    record_time_offset: int | jax.Array = 0,
 ) -> ArrayContainer:
     """Adds previously collected interface values back to the fields.
 
@@ -1180,6 +1184,8 @@ def add_interfaces(
         objects (ObjectContainer): Container with PML and other simulation objects
         config (SimulationConfig): Simulation configuration with gradient settings
         key (jax.Array): Random key for decompression
+        record_time_offset (int | jax.Array, optional): Time step stored at index 0 of the recorder
+            buffer; the values are read from index ``time_step - record_time_offset``. Defaults to 0.
 
     Returns:
         ArrayContainer: Updated ArrayContainer with restored interface values
@@ -1191,7 +1197,7 @@ def add_interfaces(
 
     values, state = config.gradient_config.recorder.decompress(
         state=arrays.recording_state,
-        time_step=time_step,
+        time_step=time_step - record_time_offset,
         key=key,
     )
     arrays = arrays.aset("recording_state", state)

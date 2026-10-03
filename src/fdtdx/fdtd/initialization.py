@@ -1074,7 +1074,7 @@ def _init_arrays(
         recorder = config.gradient_config.recorder
         recorder, recording_state = recorder.init_state(
             input_shape_dtypes=input_shape_dtypes,
-            max_time_steps=config.time_steps_total,
+            max_time_steps=config.gradient_config.recorder_time_steps(config.time_steps_total),
             backend=config.backend,
         )
         grad_cfg = config.gradient_config.aset(

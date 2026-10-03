@@ -88,6 +88,7 @@ def forward(
     record_detectors: bool,
     record_boundaries: bool,
     simulate_boundaries: bool,
+    record_time_offset: int | jax.Array = 0,
 ) -> SimulationState:
     """Performs one forward time step of the FDTD simulation.
 
@@ -110,6 +111,8 @@ def forward(
         record_detectors (bool): Whether to record detector values
         record_boundaries (bool): Whether to record boundary values for gradients
         simulate_boundaries (bool): Whether to apply PML boundary conditions
+        record_time_offset (int | jax.Array): Time step stored at index 0 of the recorder buffer, see
+            :func:`~fdtdx.fdtd.update.collect_interfaces`. Defaults to 0.
 
     Returns:
         SimulationState: Updated simulation state for the next time step
@@ -139,6 +142,7 @@ def forward(
                 objects=objects,
                 config=config,
                 key=key,
+                record_time_offset=record_time_offset,
             )
         )
 

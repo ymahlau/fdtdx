@@ -193,6 +193,7 @@ class TestForward:
                 objects=objects,
                 config=config,
                 key=key,
+                record_time_offset=0,
             )
             # stop_gradient wraps the collect_interfaces result
             mock_sg.assert_called_once_with(collected)
