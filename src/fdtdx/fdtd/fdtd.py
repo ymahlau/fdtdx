@@ -133,6 +133,13 @@ def reversible_fdtd(
                 f"The recorder holds {recorder_steps} time steps, but recording_mode='{grad_cfg.recording_mode}' "
                 f"needs {required_steps}. Initialize the arrays with the gradient config that is used here."
             )
+    # The slices are recorded during the backward pass, in reverse order, so a recorder module that carries
+    # state from one compressed step to the next would see a different state sequence than in full mode.
+    if segmented and arrays.recording_state is not None and arrays.recording_state.state:
+        raise Exception(
+            "recording_mode='segmented' does not support recorder modules with internal state "
+            f"({sorted(arrays.recording_state.state)}), because the slices are recorded out of order."
+        )
     slice_boundaries = jnp.asarray(
         _reversible_slice_boundaries(config.time_steps_total, num_slices),
         dtype=jnp.int32,

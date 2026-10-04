@@ -58,7 +58,8 @@ class GradientConfig(TreeClass):
     #: forward pass, so the interface memory of the exact (uncompressed) gradient no longer grows with the
     #: length of the run. Requires ``num_checkpoints_reversible >= 1`` and a recorder without a
     #: :class:`~fdtdx.LinearReconstructEveryK` (or other time-step filter), whose sample times are
-    #: defined over the whole run.
+    #: defined over the whole run, and without compression modules that carry state between steps, since
+    #: the slices are recorded out of order.
     recording_mode: Literal["full", "segmented"] = frozen_field(default="full")
 
     def __post_init__(self):

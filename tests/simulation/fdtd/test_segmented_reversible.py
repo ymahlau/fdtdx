@@ -1,6 +1,4 @@
-"""Tests for ``GradientConfig(recording_mode="segmented")`` (not part of the branch; optional for the PR).
-
-Intended location: ``tests/simulation/fdtd/test_segmented_reversible.py``. Runs on CPU in about a minute.
+"""Tests for ``GradientConfig(recording_mode="segmented")``.
 
 Segmented mode regenerates the PML interface record slice by slice during the backward pass instead of recording it
 for the whole run. It replays exactly what full mode records, so its gradient must equal the full-mode gradient with
@@ -19,7 +17,9 @@ import fdtdx
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.constants import c as c0
 from fdtdx.core.grid import UniformGrid
+from fdtdx.core.jax.pytrees import autoinit
 from fdtdx.fdtd.fdtd import _reversible_slice_boundaries
+from fdtdx.interfaces.modules import CompressionModule
 from fdtdx.interfaces.recorder import Recorder
 
 _RESOLUTION = 50e-9
@@ -187,6 +187,25 @@ class TestSegmentedGradient:
             np.testing.assert_array_equal(g_seg, g_full)
 
 
+@autoinit
+class _CountingModule(CompressionModule):
+    """A compression module with state: it counts the steps it has compressed."""
+
+    def init_shapes(self, input_shape_dtypes):
+        self = self.aset("_input_shape_dtypes", input_shape_dtypes, create_new_ok=True)
+        self = self.aset("_output_shape_dtypes", input_shape_dtypes, create_new_ok=True)
+        return self, input_shape_dtypes, {"count": jax.ShapeDtypeStruct((2,), jnp.float32)}
+
+    def compress(self, values, state, key):
+        del key
+        state.state["count"] = state.state["count"] + 1
+        return values, state
+
+    def decompress(self, values, state, key):
+        del state, key
+        return values
+
+
 class TestMisuse:
     def test_recorder_too_short_raises(self):
         obj, arrays, config, key = _build(_gradient_config("reversible", 7, "segmented"))
@@ -202,3 +221,14 @@ class TestMisuse:
         state = fdtdx.run_fdtd(arrays, obj, config, key, show_progress=False)
         with pytest.raises(Exception, match="full_backward replays"):
             fdtdx.full_backward(state, obj, config, key)
+
+    def test_stateful_recorder_module_raises(self):
+        gradient_config = GradientConfig(
+            method="reversible",
+            recorder=Recorder(modules=[_CountingModule()]),
+            num_checkpoints_reversible=3,
+            recording_mode="segmented",
+        )
+        obj, arrays, config, key = _build(gradient_config)
+        with pytest.raises(Exception, match="internal state"):
+            fdtdx.run_fdtd(arrays, obj, config, key, show_progress=False)
