@@ -114,6 +114,8 @@ def reversible_fdtd(
     # recording mode the checkpoints are also where each slice's interface record is regenerated from.
     grad_cfg = config.gradient_config
     num_ckpt = 0 if grad_cfg is None else grad_cfg.num_checkpoints_reversible
+    if not isinstance(num_ckpt, int):
+        raise Exception("num_checkpoints_reversible='auto' is resolved by place_objects; use the config it returns")
     segmented = grad_cfg is not None and grad_cfg.recording_mode == "segmented"
     num_slices = num_ckpt + 1
     # Only the interior checkpoints (num_ckpt >= 1) impose the slice-length constraint; the default

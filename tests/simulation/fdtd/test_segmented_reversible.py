@@ -2,11 +2,11 @@
 
 Segmented mode regenerates the PML interface record slice by slice during the backward pass instead of recording it
 for the whole run. It replays exactly what full mode records, so its gradient must equal the full-mode gradient with
-the same ``num_checkpoints_reversible`` bit for bit, and match the exact (checkpointed) autodiff gradient.
+the same ``num_checkpoints_reversible`` bit for bit, and match the exact (checkpointed) autodiff gradient (float64).
+Configuration, recorder sizing and misuse are covered by the unit and integration tests.
 """
 
 from contextlib import contextmanager
-from itertools import pairwise
 
 import jax
 import jax.numpy as jnp
@@ -17,9 +17,6 @@ import fdtdx
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.constants import c as c0
 from fdtdx.core.grid import UniformGrid
-from fdtdx.core.jax.pytrees import autoinit
-from fdtdx.fdtd.fdtd import _reversible_slice_boundaries
-from fdtdx.interfaces.modules import CompressionModule
 from fdtdx.interfaces.recorder import Recorder
 
 _RESOLUTION = 50e-9
@@ -117,56 +114,7 @@ def _grad(gradient_config, sim_time=_SIM_TIME):
     return value, np.asarray(grad)[..., p:-p, p:-p, p:-p], config
 
 
-class TestGradientConfig:
-    def test_default_is_full(self):
-        assert GradientConfig(method="reversible", recorder=Recorder(modules=[])).recording_mode == "full"
-
-    @pytest.mark.parametrize(
-        "kwargs, match",
-        [
-            (dict(method="reversible", recording_mode="segmented"), "num_checkpoints_reversible >= 1"),
-            (
-                dict(method="reversible", recording_mode="partial", num_checkpoints_reversible=2),
-                "recording_mode must be",
-            ),
-            (
-                dict(
-                    method="checkpointed", num_checkpoints=4, recording_mode="segmented", num_checkpoints_reversible=2
-                ),
-                "requires method='reversible'",
-            ),
-        ],
-    )
-    def test_invalid(self, kwargs, match):
-        if kwargs["method"] == "reversible":
-            kwargs = dict(kwargs, recorder=Recorder(modules=[]))
-        with pytest.raises(Exception, match=match):
-            GradientConfig(**kwargs)
-
-    def test_time_step_filter_rejected(self):
-        with pytest.raises(Exception, match="time-step filters"):
-            GradientConfig(
-                method="reversible",
-                recorder=Recorder(modules=[fdtdx.LinearReconstructEveryK(k=2)]),
-                num_checkpoints_reversible=3,
-                recording_mode="segmented",
-            )
-
-    def test_recorder_time_steps_is_longest_slice(self):
-        for total in range(1, 300):
-            for n in range(1, total):
-                cfg = _gradient_config("reversible", n, "segmented")
-                b = _reversible_slice_boundaries(total, n + 1)
-                assert cfg.recorder_time_steps(total) == max(hi - lo for lo, hi in pairwise(b))
-        assert _gradient_config("reversible", 5).recorder_time_steps(123) == 123
-
-
 class TestSegmentedGradient:
-    def test_recorder_holds_one_slice(self):
-        _, arrays, config, _ = _build(_gradient_config("reversible", 7, "segmented"))
-        expected = -(-config.time_steps_total // 8)
-        assert {v.shape[0] for v in arrays.recording_state.data.values()} == {expected}
-
     @pytest.mark.parametrize("num_checkpoints", [1, 4])
     def test_equals_full_mode_and_autodiff(self, num_checkpoints):
         with _x64_enabled():
@@ -185,50 +133,3 @@ class TestSegmentedGradient:
             _, g_full, _ = _grad(_gradient_config("reversible", n, "full"), sim_time)
             _, g_seg, _ = _grad(_gradient_config("reversible", n, "segmented"), sim_time)
             np.testing.assert_array_equal(g_seg, g_full)
-
-
-@autoinit
-class _CountingModule(CompressionModule):
-    """A compression module with state: it counts the steps it has compressed."""
-
-    def init_shapes(self, input_shape_dtypes):
-        self = self.aset("_input_shape_dtypes", input_shape_dtypes, create_new_ok=True)
-        self = self.aset("_output_shape_dtypes", input_shape_dtypes, create_new_ok=True)
-        return self, input_shape_dtypes, {"count": jax.ShapeDtypeStruct((2,), jnp.float32)}
-
-    def compress(self, values, state, key):
-        del key
-        state.state["count"] = state.state["count"] + 1
-        return values, state
-
-    def decompress(self, values, state, key):
-        del state, key
-        return values
-
-
-class TestMisuse:
-    def test_recorder_too_short_raises(self):
-        obj, arrays, config, key = _build(_gradient_config("reversible", 7, "segmented"))
-        full = config.aset(
-            "gradient_config",
-            _gradient_config("reversible", 0, "full").aset("recorder", config.gradient_config.recorder),
-        )
-        with pytest.raises(Exception, match="The recorder holds"):
-            fdtdx.run_fdtd(arrays, obj, full, key, show_progress=False)
-
-    def test_full_backward_raises(self):
-        obj, arrays, config, key = _build(_gradient_config("reversible", 3, "segmented"))
-        state = fdtdx.run_fdtd(arrays, obj, config, key, show_progress=False)
-        with pytest.raises(Exception, match="full_backward replays"):
-            fdtdx.full_backward(state, obj, config, key)
-
-    def test_stateful_recorder_module_raises(self):
-        gradient_config = GradientConfig(
-            method="reversible",
-            recorder=Recorder(modules=[_CountingModule()]),
-            num_checkpoints_reversible=3,
-            recording_mode="segmented",
-        )
-        obj, arrays, config, key = _build(gradient_config)
-        with pytest.raises(Exception, match="internal state"):
-            fdtdx.run_fdtd(arrays, obj, config, key, show_progress=False)

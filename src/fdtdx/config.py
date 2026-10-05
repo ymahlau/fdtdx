@@ -43,7 +43,11 @@ class GradientConfig(TreeClass):
     #: cost of O(k) field memory. The default ``0`` reproduces the classic single full reverse pass
     #: (no interior checkpoints; only the final field, which is available for free, is used). Ignored
     #: by the ``"checkpointed"`` method. Must not exceed ``time_steps_total - 1``.
-    num_checkpoints_reversible: int = frozen_field(default=0)
+    #:
+    #: ``"auto"`` (``recording_mode="segmented"`` only): :func:`~fdtdx.place_objects` replaces it with the
+    #: count that minimises the memory of the segmented backward pass (see
+    #: :meth:`resolve_num_checkpoints_reversible`) and returns a config holding that number.
+    num_checkpoints_reversible: int | Literal["auto"] = frozen_field(default=0)
 
     #: How the ``"reversible"`` method stores the PML interface values that its reverse pass replays.
     #:
@@ -56,7 +60,7 @@ class GradientConfig(TreeClass):
     #: reverses it. The recorder buffer therefore holds a single slice
     #: (``ceil(time_steps_total / (num_checkpoints_reversible + 1))`` entries) at the cost of one extra
     #: forward pass, so the interface memory of the exact (uncompressed) gradient no longer grows with the
-    #: length of the run. Requires ``num_checkpoints_reversible >= 1`` and a recorder without a
+    #: length of the run. Requires ``num_checkpoints_reversible >= 1`` (or ``"auto"``) and a recorder without a
     #: :class:`~fdtdx.LinearReconstructEveryK` (or other time-step filter), whose sample times are
     #: defined over the whole run, and without compression modules that carry state between steps, since
     #: the slices are recorded out of order.
@@ -67,14 +71,20 @@ class GradientConfig(TreeClass):
             raise Exception("Need Recorder in gradient config to compute reversible gradients")
         if self.method == "checkpointed" and self.num_checkpoints is None:
             raise Exception("Need Checkpoint Number in gradient config to compute checkpointed gradients")
-        if self.num_checkpoints_reversible < 0:
-            raise Exception("num_checkpoints_reversible must be >= 0")
         if self.recording_mode not in ("full", "segmented"):
             raise Exception(f"recording_mode must be 'full' or 'segmented', got {self.recording_mode!r}")
+        num_ckpt = self.num_checkpoints_reversible
+        if isinstance(num_ckpt, str):
+            if num_ckpt != "auto":
+                raise Exception(f"num_checkpoints_reversible must be an integer or 'auto', got {num_ckpt!r}")
+            if self.recording_mode != "segmented":
+                raise Exception("num_checkpoints_reversible='auto' requires recording_mode='segmented'")
+        elif num_ckpt < 0:
+            raise Exception("num_checkpoints_reversible must be >= 0")
         if self.recording_mode == "segmented":
             if self.method != "reversible":
                 raise Exception("recording_mode='segmented' requires method='reversible'")
-            if self.num_checkpoints_reversible < 1:
+            if isinstance(num_ckpt, int) and num_ckpt < 1:
                 raise Exception("recording_mode='segmented' requires num_checkpoints_reversible >= 1")
             if self.recorder is not None and any(isinstance(m, TimeStepFilter) for m in self.recorder.modules):
                 raise Exception("recording_mode='segmented' does not support time-step filters in the recorder")
@@ -90,8 +100,39 @@ class GradientConfig(TreeClass):
             (``ceil(time_steps_total / (num_checkpoints_reversible + 1))``) in ``"segmented"`` mode.
         """
         if self.recording_mode == "segmented":
-            return -(-time_steps_total // (self.num_checkpoints_reversible + 1))
+            num_ckpt = self.num_checkpoints_reversible
+            if not isinstance(num_ckpt, int):
+                raise Exception(
+                    "num_checkpoints_reversible='auto' is resolved by place_objects; use the config it returns"
+                )
+            return -(-time_steps_total // (num_ckpt + 1))
         return time_steps_total
+
+    def resolve_num_checkpoints_reversible(
+        self,
+        time_steps_total: int,
+        record_bytes_per_step: int,
+        field_state_bytes: int,
+    ) -> "GradientConfig":
+        """Replace ``num_checkpoints_reversible="auto"`` by the count that minimises segmented-mode memory.
+
+        With ``n`` checkpoints the segmented backward pass holds ``n`` field states and two record buffers of
+        ``ceil(time_steps_total / (n + 1))`` steps (the one created by :func:`~fdtdx.place_objects` and the one
+        the backward pass writes). Their total is smallest at ``n + 1 = sqrt(2 * time_steps_total * I / F)``,
+        with ``I`` the recorded bytes per step and ``F`` the bytes of one field state.
+
+        Args:
+            time_steps_total (int): Total number of forward time steps of the simulation.
+            record_bytes_per_step (int): Bytes the recorder stores per time step (``I``).
+            field_state_bytes (int): Bytes of one full field state, i.e. of one checkpoint (``F``).
+
+        Returns:
+            GradientConfig: A copy with the resolved count if it was ``"auto"``, otherwise this config.
+        """
+        if self.num_checkpoints_reversible != "auto":
+            return self
+        num_ckpt = round(math.sqrt(2 * time_steps_total * record_bytes_per_step / max(field_state_bytes, 1))) - 1
+        return self.aset("num_checkpoints_reversible", max(1, min(num_ckpt, time_steps_total - 1)))
 
 
 @autoinit

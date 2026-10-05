@@ -1,6 +1,7 @@
 """Unit tests for fdtdx.config module."""
 
 import math
+from itertools import pairwise
 from unittest.mock import MagicMock, patch
 
 import jax.numpy as jnp
@@ -9,6 +10,10 @@ import pytest
 from fdtdx import constants
 from fdtdx.config import DUMMY_SIMULATION_CONFIG, GradientConfig, SimulationConfig
 from fdtdx.core.grid import RectilinearGrid, UniformGrid
+from fdtdx.fdtd.fdtd import _reversible_slice_boundaries
+from fdtdx.interfaces.modules import DtypeConversion
+from fdtdx.interfaces.recorder import Recorder
+from fdtdx.interfaces.time_filter import LinearReconstructEveryK
 
 
 class TestGradientConfigConstruction:
@@ -53,6 +58,77 @@ class TestGradientConfigConstruction:
         """A negative interior-checkpoint count is rejected."""
         with pytest.raises(Exception, match="num_checkpoints_reversible must be >= 0"):
             GradientConfig(method="reversible", recorder=MagicMock(), num_checkpoints_reversible=-1)
+
+
+def _segmented(num_checkpoints_reversible, modules=()):
+    return GradientConfig(
+        method="reversible",
+        recorder=Recorder(modules=list(modules)),
+        num_checkpoints_reversible=num_checkpoints_reversible,
+        recording_mode="segmented",
+    )
+
+
+class TestGradientConfigRecordingMode:
+    """Tests for ``GradientConfig.recording_mode`` and ``num_checkpoints_reversible="auto"``."""
+
+    def test_recording_mode_defaults_to_full(self):
+        assert GradientConfig(method="reversible", recorder=Recorder(modules=[])).recording_mode == "full"
+
+    @pytest.mark.parametrize(
+        "kwargs, match",
+        [
+            (dict(recording_mode="segmented"), "requires num_checkpoints_reversible >= 1"),
+            (dict(recording_mode="partial", num_checkpoints_reversible=2), "recording_mode must be"),
+            (dict(num_checkpoints_reversible="auto"), "'auto' requires recording_mode='segmented'"),
+            (dict(recording_mode="segmented", num_checkpoints_reversible="many"), "an integer or 'auto'"),
+        ],
+    )
+    def test_invalid_reversible_configs_raise(self, kwargs, match):
+        with pytest.raises(Exception, match=match):
+            GradientConfig(method="reversible", recorder=Recorder(modules=[]), **kwargs)
+
+    def test_segmented_requires_reversible_method(self):
+        with pytest.raises(Exception, match="requires method='reversible'"):
+            GradientConfig(
+                method="checkpointed", num_checkpoints=4, recording_mode="segmented", num_checkpoints_reversible=2
+            )
+
+    def test_segmented_rejects_time_step_filters(self):
+        with pytest.raises(Exception, match="does not support time-step filters"):
+            _segmented(3, modules=[LinearReconstructEveryK(k=2)])
+
+    def test_segmented_accepts_dtype_conversion_and_auto(self):
+        assert _segmented(3, modules=[DtypeConversion(dtype=jnp.float16)]).recording_mode == "segmented"
+        assert _segmented("auto").num_checkpoints_reversible == "auto"
+
+    def test_recorder_time_steps_is_longest_slice(self):
+        for total in range(1, 200):
+            for n in range(1, total):
+                b = _reversible_slice_boundaries(total, n + 1)
+                assert _segmented(n).recorder_time_steps(total) == max(hi - lo for lo, hi in pairwise(b))
+
+    def test_recorder_time_steps_full_mode_is_whole_run(self):
+        config = GradientConfig(method="reversible", recorder=Recorder(modules=[]), num_checkpoints_reversible=7)
+        assert config.recorder_time_steps(1234) == 1234
+
+    def test_recorder_time_steps_rejects_unresolved_auto(self):
+        with pytest.raises(Exception, match="resolved by place_objects"):
+            _segmented("auto").recorder_time_steps(100)
+
+    def test_resolve_auto_minimises_memory(self):
+        # n + 1 = round(sqrt(2 * T * I / F)): T = 20000 steps, I = 0.92 MB per step, F = 17.2 MB per checkpoint.
+        resolved = _segmented("auto").resolve_num_checkpoints_reversible(20000, 921600, 17203200)
+        assert resolved.num_checkpoints_reversible == 45
+        assert resolved.recording_mode == "segmented"
+
+    def test_resolve_auto_is_clamped_to_valid_counts(self):
+        assert _segmented("auto").resolve_num_checkpoints_reversible(500, 1, 10**9).num_checkpoints_reversible == 1
+        assert _segmented("auto").resolve_num_checkpoints_reversible(5, 10**9, 1).num_checkpoints_reversible == 4
+
+    def test_resolve_keeps_explicit_count(self):
+        config = _segmented(7)
+        assert config.resolve_num_checkpoints_reversible(20000, 921600, 17203200) is config
 
 
 def _create_mock_backend(platform="cpu"):

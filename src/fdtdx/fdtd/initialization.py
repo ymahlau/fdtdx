@@ -20,6 +20,7 @@ from fdtdx.core.jax.ste import straight_through_estimator
 from fdtdx.dispersion import compute_pole_coefficients_tensor
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, ParameterContainer
 from fdtdx.fdtd.symmetry import apply_mode_symmetry, make_symmetry_walls, reduce_resolved_slices
+from fdtdx.interfaces.modules import CompressionModule
 from fdtdx.materials import (
     compute_allowed_dispersive_coefficients,
     compute_allowed_electric_conductivities,
@@ -1071,13 +1072,26 @@ def _init_arrays(
             extended_shape = (3, *cur_shape)
             input_shape_dtypes[f"{boundary.name}_E"] = jax.ShapeDtypeStruct(shape=extended_shape, dtype=field_dtype)
             input_shape_dtypes[f"{boundary.name}_H"] = jax.ShapeDtypeStruct(shape=extended_shape, dtype=field_dtype)
+        grad_cfg = config.gradient_config
         recorder = config.gradient_config.recorder
+        if grad_cfg.num_checkpoints_reversible == "auto":
+            # Bytes per recorded step after the compression modules (segmented mode admits no time-step filters).
+            step_shape_dtypes = input_shape_dtypes
+            for module in recorder.modules:
+                if isinstance(module, CompressionModule):
+                    _, step_shape_dtypes, _ = module.init_shapes(step_shape_dtypes)
+            grad_cfg = grad_cfg.resolve_num_checkpoints_reversible(
+                time_steps_total=config.time_steps_total,
+                record_bytes_per_step=sum(math.prod(v.shape) * v.dtype.itemsize for v in step_shape_dtypes.values()),
+                field_state_bytes=sum(x.nbytes for x in jax.tree.leaves((E, H, psi_E, psi_H))),
+            )
+            logger.info(f"num_checkpoints_reversible='auto' resolved to {grad_cfg.num_checkpoints_reversible}")
         recorder, recording_state = recorder.init_state(
             input_shape_dtypes=input_shape_dtypes,
-            max_time_steps=config.gradient_config.recorder_time_steps(config.time_steps_total),
+            max_time_steps=grad_cfg.recorder_time_steps(config.time_steps_total),
             backend=config.backend,
         )
-        grad_cfg = config.gradient_config.aset(
+        grad_cfg = grad_cfg.aset(
             "recorder",
             recorder,
         )
