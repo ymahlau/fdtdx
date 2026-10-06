@@ -52,7 +52,10 @@ def reversible_fdtd(
     requiring O(1) memory storage instead of O(T) where T is the number of time steps.
 
     The only exception is boundary conditions which break time-reversal symmetry - these are
-    recorded during the forward pass and replayed during backpropagation.
+    recorded during the forward pass and replayed during backpropagation. With
+    ``config.gradient_config.recording_mode == "segmented"`` they are instead regenerated slice by
+    slice during backpropagation, by re-simulating each slice from the full-field checkpoint at its
+    start, so that only a single slice of them is stored at any time.
 
     Args:
         arrays (ArrayContainer): Initial state of the simulation containing:
@@ -107,8 +110,13 @@ def reversible_fdtd(
     # full-field checkpoint at each interior boundary during the forward pass, so the reverse
     # reconstruction can be reset to the exact field at every boundary (bounding reconstruction
     # drift for lossy materials). ``num_checkpoints_reversible == 0`` (the default)
-    # gives a single slice and reproduces the classic full reverse pass exactly.
-    num_ckpt = 0 if config.gradient_config is None else config.gradient_config.num_checkpoints_reversible
+    # gives a single slice and reproduces the classic full reverse pass exactly. In segmented
+    # recording mode the checkpoints are also where each slice's interface record is regenerated from.
+    grad_cfg = config.gradient_config
+    num_ckpt = 0 if grad_cfg is None else grad_cfg.num_checkpoints_reversible
+    if not isinstance(num_ckpt, int):
+        raise Exception("num_checkpoints_reversible='auto' is resolved by place_objects; use the config it returns")
+    segmented = grad_cfg is not None and grad_cfg.recording_mode == "segmented"
     num_slices = num_ckpt + 1
     # Only the interior checkpoints (num_ckpt >= 1) impose the slice-length constraint; the default
     # single slice (num_ckpt == 0) is always valid, including the ``time_steps_total == 0`` edge case.
@@ -117,8 +125,27 @@ def reversible_fdtd(
             "num_checkpoints_reversible must be <= time_steps_total - 1 "
             f"(got num_checkpoints_reversible={num_ckpt}, time_steps_total={config.time_steps_total})"
         )
-    slice_boundaries = _reversible_slice_boundaries(config.time_steps_total, num_slices)
-    checkpoint_times = slice_boundaries[1:-1]  # interior boundaries s_1 .. s_{k-1}
+    # The recorder buffer is sized when the arrays are initialized, and the gradient config can be swapped
+    # afterwards. An index past its end would be clamped silently, so check it here.
+    if grad_cfg is not None and grad_cfg.recorder is not None:
+        required_steps = grad_cfg.recorder_time_steps(config.time_steps_total)
+        recorder_steps = getattr(grad_cfg.recorder, "_max_time_steps", None)
+        if recorder_steps is not None and recorder_steps < required_steps:
+            raise Exception(
+                f"The recorder holds {recorder_steps} time steps, but recording_mode='{grad_cfg.recording_mode}' "
+                f"needs {required_steps}. Initialize the arrays with the gradient config that is used here."
+            )
+    # The slices are recorded during the backward pass, in reverse order, so a recorder module that carries
+    # state from one compressed step to the next would see a different state sequence than in full mode.
+    if segmented and arrays.recording_state is not None and arrays.recording_state.state:
+        raise Exception(
+            "recording_mode='segmented' does not support recorder modules with internal state "
+            f"({sorted(arrays.recording_state.state)}), because the slices are recorded out of order."
+        )
+    slice_boundaries = jnp.asarray(
+        _reversible_slice_boundaries(config.time_steps_total, num_slices),
+        dtype=jnp.int32,
+    )
 
     pbar = _make_pbar(
         show_progress=show_progress,
@@ -128,50 +155,51 @@ def reversible_fdtd(
     )
 
     # Build the (optionally instrumented) forward body function once so both
-    # reversible_fdtd_base and fdtd_bwd share the same wrapping logic.
+    # reversible_fdtd_primal and fdtd_fwd share the same wrapping logic. In segmented recording
+    # mode nothing is recorded here: the backward pass regenerates the record slice by slice.
     _forward_body = partial(
         forward,
         config=config,
         objects=objects,
         key=key,
         record_detectors=True,
-        record_boundaries=config.invertible_optimization,
+        record_boundaries=config.invertible_optimization and not segmented,
         simulate_boundaries=True,
     )
     _forward_body_with_progress, _close_pbar = _wrap_body_with_progress(_forward_body, pbar)
 
+    def run_until(state: SimulationState, end_time_step: int | jax.Array, body_fun: Callable) -> SimulationState:
+        """Advance ``state`` with ``body_fun`` until its time step reaches ``end_time_step``."""
+        return eqxi.while_loop(
+            cond_fun=lambda s: end_time_step > s[0],
+            body_fun=body_fun,
+            init_val=state,
+            kind="lax",
+        )
+
     def segmented_forward(
         arr: ArrayContainer,
-    ) -> tuple[SimulationState, list[FieldState]]:
-        """Run the forward pass in ``num_slices`` consecutive segments, capturing checkpoints.
+    ) -> tuple[SimulationState, FieldState]:
+        """Run the forward pass slice by slice, capturing the field state at every interior boundary.
 
-        This is the single source of truth for the reversible forward stepping. After each of the
-        first ``num_slices - 1`` segments the current full ``FieldState`` at the interior boundary
-        ``s_i`` is captured. For a single slice (``num_slices == 1``) this runs exactly one
-        while-loop over ``[0, time_steps_total]`` and returns an empty checkpoint list.
+        The checkpoints are stacked along a leading axis (``checkpoints.E[i]`` is the field at
+        ``slice_boundaries[i + 1]``) and the slices run in a ``fori_loop``, so the size of the compiled
+        program does not depend on the number of checkpoints. The boundary at the end of the last slice is
+        the primal output and is not stored (``mode="drop"``).
         """
         state = (jnp.asarray(0, dtype=jnp.int32), arr)
-        checkpoints: list[FieldState] = []
-        for seg in range(num_slices):
-            hi = slice_boundaries[seg + 1]
-            state = eqxi.while_loop(
-                max_steps=hi - slice_boundaries[seg],
-                cond_fun=lambda s, _hi=hi: _hi > s[0],
-                body_fun=_forward_body_with_progress,
-                init_val=state,
-                kind="lax",
-            )
-            if seg < num_slices - 1:
-                checkpoints.append(state[1].fields)
-        return (state[0], state[1]), checkpoints
+        checkpoints = jax.tree.map(lambda x: jnp.zeros((num_ckpt, *x.shape), x.dtype), arr.fields)
+        if num_slices == 1:
+            # Without interior checkpoints the forward pass is a single loop, exactly as without slicing.
+            return run_until(state, config.time_steps_total, _forward_body_with_progress), checkpoints
 
-    def reversible_fdtd_base(
-        arr: ArrayContainer,
-    ) -> SimulationState:
-        # Delegates to segmented_forward (single source of truth for the forward stepping) and
-        # discards the checkpoints - the non-gradient primal path needs only the final state.
-        state, _ = segmented_forward(arr)
-        return state
+        def slice_body(i, carry):
+            state, checkpoints = carry
+            state = run_until(state, slice_boundaries[i + 1], _forward_body_with_progress)
+            checkpoints = jax.tree.map(lambda buf, x: buf.at[i].set(x, mode="drop"), checkpoints, state[1].fields)
+            return state, checkpoints
+
+        return jax.lax.fori_loop(0, num_slices, slice_body, (state, checkpoints))
 
     @jax.custom_vjp
     def reversible_fdtd_primal(
@@ -199,7 +227,8 @@ def reversible_fdtd(
             magnetic_conductivity=arrays.magnetic_conductivity,
             initial_inv_permittivities=arrays.initial_inv_permittivities,
         )
-        state = reversible_fdtd_base(arr)
+        # The non-gradient primal path needs only the final state, so it takes no checkpoints.
+        state = run_until((jnp.asarray(0, dtype=jnp.int32), arr), config.time_steps_total, _forward_body_with_progress)
         return (
             state[0],
             state[1].fields.E,
@@ -214,6 +243,7 @@ def reversible_fdtd(
 
     def body_fn(
         sr_tuple,
+        record_time_offset: int | jax.Array,
     ):
         state, cot = sr_tuple
         state = backward(
@@ -223,6 +253,7 @@ def reversible_fdtd(
             key=key,
             record_detectors=False,
             reset_fields=False,
+            record_time_offset=record_time_offset,
         )
         _, update_vjp = jax.vjp(
             partial(
@@ -252,7 +283,7 @@ def reversible_fdtd(
 
     def cond_fun(
         sr_tuple,
-        start_time_step: int,
+        start_time_step: int | jax.Array,
     ):
         """Whether another reverse step is due.
 
@@ -284,52 +315,72 @@ def reversible_fdtd(
             res_detector_states,
             res_recording_state,
         ) = primal_out
+        del res_time_step
+        final_fields = FieldState(E=res_E, H=res_H, psi_E=res_psi_E, psi_H=res_psi_H)
 
-        s_k = ArrayContainer(
-            fields=FieldState(
-                E=res_E,
-                H=res_H,
-                psi_E=res_psi_E,
-                psi_H=res_psi_H,
-            ),
-            inv_permittivities=res_inv_permittivities,
-            inv_permeabilities=res_inv_permeabilities,
-            detector_states=res_detector_states,
-            recording_state=res_recording_state,
-            electric_conductivity=arrays.electric_conductivity,
-            magnetic_conductivity=arrays.magnetic_conductivity,
-            initial_inv_permittivities=arrays.initial_inv_permittivities,
-        )
+        def make_container(fields: FieldState, recording_state: RecordingState | None) -> ArrayContainer:
+            return ArrayContainer(
+                fields=fields,
+                inv_permittivities=res_inv_permittivities,
+                inv_permeabilities=res_inv_permeabilities,
+                detector_states=res_detector_states,
+                recording_state=recording_state,
+                electric_conductivity=arrays.electric_conductivity,
+                magnetic_conductivity=arrays.magnetic_conductivity,
+                initial_inv_permittivities=arrays.initial_inv_permittivities,
+            )
 
-        # For a single slice ``checkpoints`` is empty and the reverse loop runs the unmodified
-        # ``body_fn`` (bit-identical to the classic full reverse pass). Otherwise, wrap ``body_fn``
-        # so that at each interior boundary ``s_i`` the reconstructed primal field is reset to the
-        # exact stored checkpoint before the reverse step, bounding reconstruction drift. The
-        # cotangent carry is threaded through untouched, keeping the field adjoint continuous.
-        if checkpoints:
+        def fields_at_boundary(i: jax.Array) -> FieldState:
+            """Exact field state at ``slice_boundaries[i]``: zero at the start of the run (the fields are
+            reset on entry), an interior checkpoint, or the primal output at the end of the run."""
+            branches = [lambda: jax.tree.map(jnp.zeros_like, final_fields)]
+            if num_ckpt > 0:
+                branches.append(lambda: jax.tree.map(lambda buf: buf[jnp.clip(i - 1, 0, num_ckpt - 1)], checkpoints))
+            branches.append(lambda: final_fields)
+            branch = jnp.where(i == 0, 0, jnp.where(i == num_slices, len(branches) - 1, 1))
+            return jax.lax.switch(branch, branches)
 
-            def reverse_body(sr_tuple):
-                state, running_cot = sr_tuple
-                time_step, arrs = state
-                for ckpt_fields, s_i in zip(checkpoints, checkpoint_times):
-                    cur_fields = arrs.fields
-                    new_fields = jax.lax.cond(
-                        time_step == s_i,
-                        lambda cf=ckpt_fields: cf,
-                        lambda cf=cur_fields: cf,
-                    )
-                    arrs = arrs.aset("fields", new_fields)
-                return body_fn(((time_step, arrs), running_cot))
+        def reverse_slice(j, carry):
+            """Reverse slice ``num_slices - 1 - j``, starting from the exact field state at its end."""
+            recording_state, running_cot = carry
+            i = num_slices - 1 - j
+            slice_start, slice_end = slice_boundaries[i], slice_boundaries[i + 1]
+            record_time_offset: int | jax.Array = 0
+            if segmented:
+                # Regenerate the interface record of this slice (stored from buffer index 0) by
+                # re-simulating it from the checkpoint at its start.
+                record_time_offset = slice_start
+                re_forward_body = partial(
+                    forward,
+                    config=config,
+                    objects=objects,
+                    key=key,
+                    record_detectors=False,
+                    record_boundaries=True,
+                    simulate_boundaries=True,
+                    record_time_offset=slice_start,
+                )
+                _, re_arrays = run_until(
+                    (slice_start, make_container(fields_at_boundary(i), recording_state)),
+                    slice_end,
+                    re_forward_body,
+                )
+                recording_state = re_arrays.recording_state
+            fields_end = final_fields if num_slices == 1 else fields_at_boundary(i + 1)
+            (_, arrays_start), running_cot = eqxi.while_loop(
+                cond_fun=partial(cond_fun, start_time_step=slice_start),
+                body_fun=partial(body_fn, record_time_offset=record_time_offset),
+                init_val=((slice_end, make_container(fields_end, recording_state)), running_cot),
+                kind="lax",
+            )
+            return arrays_start.recording_state, running_cot
 
+        if num_slices == 1:
+            # The default single slice is reversed outside of a loop, which compiles to exactly the classic
+            # reverse pass.
+            _, cot = reverse_slice(0, (res_recording_state, cot))
         else:
-            reverse_body = body_fn
-
-        _, cot = eqxi.while_loop(
-            cond_fun=partial(cond_fun, start_time_step=0),
-            body_fun=reverse_body,
-            init_val=((res_time_step, s_k), cot),
-            kind="lax",
-        )
+            _, cot = jax.lax.fori_loop(0, num_slices, reverse_slice, (res_recording_state, cot))
         return (
             None,  # cot[1],   E
             None,  # cot[2],   H
@@ -379,9 +430,9 @@ def reversible_fdtd(
             s_k[1].detector_states,
             s_k[1].recording_state,  # None
         )
-        # ``checkpoints`` holds the interior full-field snapshots (empty for a single slice); they
-        # are threaded to ``fdtd_bwd`` via the residual so the reverse reconstruction can be reset
-        # to the exact field at each boundary.
+        # ``checkpoints`` holds the stacked interior full-field snapshots (empty for a single slice); they
+        # are threaded to ``fdtd_bwd`` via the residual so the reverse reconstruction can be reset to the
+        # exact field at each boundary (and, in segmented recording mode, each slice can be re-simulated).
         residual = (primal_out, checkpoints)
         return primal_out, residual
 

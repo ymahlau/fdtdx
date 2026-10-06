@@ -6,9 +6,11 @@ import pytest
 
 from fdtdx.config import GradientConfig, SimulationConfig
 from fdtdx.core.grid import UniformGrid
+from fdtdx.core.jax.pytrees import autoinit
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer
 from fdtdx.fdtd.fdtd import _reversible_slice_boundaries, checkpointed_fdtd, custom_fdtd_forward, reversible_fdtd
 from fdtdx.fdtd.stop_conditions import TimeStepCondition
+from fdtdx.interfaces.modules import CompressionModule
 from fdtdx.interfaces.recorder import Recorder
 from fdtdx.objects.object import SimulationObject
 
@@ -162,6 +164,91 @@ class TestSlicedReversibleFdtd:
         arrays = dummy_arrays.aset("recording_state", recording_state)
         with pytest.raises(Exception, match="num_checkpoints_reversible must be <="):
             reversible_fdtd(arrays, dummy_objects, config, key, show_progress=False)
+
+
+@autoinit
+class _CountingModule(CompressionModule):
+    """A compression module with state: it counts the steps it has compressed."""
+
+    def init_shapes(self, input_shape_dtypes):
+        self = self.aset("_input_shape_dtypes", input_shape_dtypes, create_new_ok=True)
+        self = self.aset("_output_shape_dtypes", input_shape_dtypes, create_new_ok=True)
+        return self, input_shape_dtypes, {"count": jax.ShapeDtypeStruct((2,), jnp.float32)}
+
+    def compress(self, values, state, key):
+        del key
+        state.state["count"] = state.state["count"] + 1
+        return values, state
+
+    def decompress(self, values, state, key):
+        del state, key
+        return values
+
+
+def _segmented_grad_config(config, num_ckpt, modules=()):
+    """Attach a segmented-recording GradientConfig and its one-slice recording_state (no PML in the dummy scene)."""
+    gradient_config = GradientConfig(
+        method="reversible",
+        recorder=Recorder(modules=list(modules)),
+        num_checkpoints_reversible=num_ckpt,
+        recording_mode="segmented",
+    )
+    recorder, recording_state = gradient_config.recorder.init_state(
+        input_shape_dtypes={},
+        max_time_steps=gradient_config.recorder_time_steps(config.time_steps_total),
+        backend="cpu",
+    )
+    return config.aset("gradient_config", gradient_config.aset("recorder", recorder)), recording_state
+
+
+class TestSegmentedReversibleFdtd:
+    """Smoke tests for ``recording_mode="segmented"``: the re-simulation of each slice under jax.grad, and misuse."""
+
+    @staticmethod
+    def _value_and_grad(arrays, objects, config, key):
+        def loss(inv_eps):
+            a = arrays.aset("inv_permittivities", inv_eps)
+            _, out = reversible_fdtd(a, objects, config, key, show_progress=False)
+            return jnp.sum(out.fields.E**2) + jnp.sum(out.fields.H**2)
+
+        return jax.value_and_grad(loss)(arrays.inv_permittivities)
+
+    def test_grad_matches_full_mode(self, dummy_arrays, dummy_objects, config_few_steps, key):
+        config, recording_state = _segmented_grad_config(config_few_steps, num_ckpt=2)
+        val, grad = self._value_and_grad(
+            dummy_arrays.aset("recording_state", recording_state), dummy_objects, config, key
+        )
+        full_config, full_state = _reversible_grad_config(config_few_steps, num_ckpt=2)
+        full_val, full_grad = self._value_and_grad(
+            dummy_arrays.aset("recording_state", full_state), dummy_objects, full_config, key
+        )
+        assert jnp.isfinite(val)
+        assert grad.shape == dummy_arrays.inv_permittivities.shape
+        assert val == full_val
+        assert jnp.array_equal(grad, full_grad)
+
+    def test_recorder_too_short_for_full_mode_raises(self, dummy_arrays, dummy_objects, config_few_steps, key):
+        config, recording_state = _segmented_grad_config(config_few_steps, num_ckpt=2)
+        full_config = config.aset(
+            "gradient_config",
+            config.gradient_config.aset("recording_mode", "full").aset("num_checkpoints_reversible", 0),
+        )
+        arrays = dummy_arrays.aset("recording_state", recording_state)
+        with pytest.raises(Exception, match="The recorder holds"):
+            reversible_fdtd(arrays, dummy_objects, full_config, key, show_progress=False)
+
+    def test_stateful_recorder_module_raises(self, dummy_arrays, dummy_objects, config_few_steps, key):
+        config, recording_state = _segmented_grad_config(config_few_steps, num_ckpt=2, modules=[_CountingModule()])
+        arrays = dummy_arrays.aset("recording_state", recording_state)
+        with pytest.raises(Exception, match="internal state"):
+            reversible_fdtd(arrays, dummy_objects, config, key, show_progress=False)
+
+    def test_unresolved_auto_raises(self, dummy_arrays, dummy_objects, config_few_steps, key):
+        config, recording_state = _segmented_grad_config(config_few_steps, num_ckpt=2)
+        auto_config = config.aset("gradient_config", config.gradient_config.aset("num_checkpoints_reversible", "auto"))
+        arrays = dummy_arrays.aset("recording_state", recording_state)
+        with pytest.raises(Exception, match="resolved by place_objects"):
+            reversible_fdtd(arrays, dummy_objects, auto_config, key, show_progress=False)
 
 
 class TestReversibleFdtd:

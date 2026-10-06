@@ -21,6 +21,14 @@ class TestCondFn:
 
 
 class TestFullBackward:
+    def test_raises_in_segmented_recording_mode(self):
+        config = Mock(spec=SimulationConfig)
+        config.gradient_config.recording_mode = "segmented"
+        with pytest.raises(Exception, match="full_backward replays"):
+            full_backward(
+                state=(5, Mock()), objects=Mock(spec=ObjectContainer), config=config, key=jax.random.PRNGKey(0)
+            )
+
     @patch("fdtdx.fdtd.backward.eqxi.while_loop")
     def test_calls_while_loop_with_correct_args(self, mock_while_loop):
         state = (5, Mock())
