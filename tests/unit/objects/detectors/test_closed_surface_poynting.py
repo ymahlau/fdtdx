@@ -91,6 +91,11 @@ def _fields_for_Sx(ramp, shape):
     return E, H
 
 
+def _pad_fields(E, H):
+    padding = ((0, 0), (1, 1), (1, 1), (1, 1))
+    return jnp.pad(E, padding, mode="edge"), jnp.pad(H, padding, mode="edge")
+
+
 class TestClosedSurfaceDetector:
     def test_uniform_grid_constant_field_net_zero(self):
         config = SimulationConfig(
@@ -99,6 +104,7 @@ class TestClosedSurfaceDetector:
         placed = _place(config, ((0, 4), (0, 4), (0, 4)))
         shape = (4, 4, 4)
         E, H = _fields_for_Sx(jnp.ones(shape), shape)  # constant S_x
+        E, H = _pad_fields(E, H)
         state = placed.init_state()
         new_state = placed.update(jnp.asarray(0), E, H, state, jnp.ones((1, *shape)), 1.0)
         assert abs(float(new_state["poynting_flux"][0, 0])) < 1e-5
@@ -115,15 +121,32 @@ class TestClosedSurfaceDetector:
         config = SimulationConfig(time=20e-15, grid=grid, backend="cpu", dtype=jnp.float32, gradient_config=None)
         shape = (4, 3, 2)
         placed = _place(config, ((0, 4), (0, 3), (0, 2)))
-        E, H = _fields_for_Sx(_x_ramp(shape), shape)  # S_x = x cell index
+        E, H = _fields_for_Sx(_x_ramp(shape), shape)
+        E = jnp.pad(E, ((0, 0), (1, 1), (1, 1), (1, 1)), mode="edge")
+        H = jnp.pad(H, ((0, 0), (1, 1), (1, 1), (1, 1)), mode="edge")
+        # Ey is sampled on x-normal Yee faces. Set the upper ghost-face sample to nx so
+        # Sx=x has the analytic flux difference nx across an nx-cell-wide box.
+        E = E.at[1, -1, 1:-1, 1:-1].set(shape[0])
         state = placed.init_state()
         new_state = placed.update(jnp.asarray(0), E, H, state, jnp.ones((1, *shape)), 1.0)
         net = float(new_state["poynting_flux"][0, 0])
-        # Net = (S_x@max - S_x@min) * sum(dy_j * dz_k) = (nx-1) * A_x, using per-cell areas.
+        # Net = (S_x@max - S_x@min) * sum(dy_j * dz_k) = nx * A_x, using the requested
+        # geometric faces and per-cell transverse areas.
         dy = jnp.diff(grid.y_edges)
         dz = jnp.diff(grid.z_edges)
         area_x = float((dy[:, None] * dz[None, :]).sum())
-        assert net == pytest.approx((shape[0] - 1) * area_x, rel=1e-4)
+        assert net == pytest.approx(shape[0] * area_x, rel=1e-4)
+
+        # A transverse linear Ey profile is sampled on z edges and must be averaged to each
+        # face-cell center before multiplication by its nonuniform area.
+        E_linear = jnp.zeros_like(E).at[1, -1, 1:-1, 1:].set(jnp.asarray([0.0, 2.0, 3.0]))
+        H_linear = jnp.zeros_like(H).at[2].set(1.0)
+        linear_state = placed.update(
+            jnp.asarray(0), E_linear, H_linear, placed.init_state(), jnp.ones((1, *shape)), 1.0
+        )
+        z_centers = 0.5 * (jnp.asarray([0.0, 2.0]) + jnp.asarray([2.0, 3.0]))
+        expected_linear = float(dy.sum() * jnp.sum(z_centers * dz))
+        assert float(linear_state["poynting_flux"][0, 0]) == pytest.approx(expected_linear, rel=1e-4)
 
     def test_orientation_inward_negates(self):
         config = SimulationConfig(
@@ -131,6 +154,8 @@ class TestClosedSurfaceDetector:
         )
         shape = (4, 3, 3)
         E, H = _fields_for_Sx(_x_ramp(shape), shape)
+        E, H = _pad_fields(E, H)
+        E = E.at[1, -1, 1:-1, 1:-1].set(shape[0])
         out = _place(config, ((0, 4), (0, 3), (0, 3)), orientation="outward")
         inw = _place(config, ((0, 4), (0, 3), (0, 3)), orientation="inward")
         net_out = float(
@@ -139,8 +164,8 @@ class TestClosedSurfaceDetector:
         net_in = float(
             inw.update(jnp.asarray(0), E, H, inw.init_state(), jnp.ones((1, *shape)), 1.0)["poynting_flux"][0, 0]
         )
-        # (nx-1) * ny * nz * spacing**2 is the outward net for S_x = x cell index.
-        expected = (shape[0] - 1) * shape[1] * shape[2] * (1e-7) ** 2
+        # nx * ny * nz * spacing**2 is the outward net between the two geometric faces.
+        expected = shape[0] * shape[1] * shape[2] * (1e-7) ** 2
         assert net_out == pytest.approx(expected, rel=1e-4)
         assert net_in == pytest.approx(-net_out, rel=1e-5)
 
@@ -160,8 +185,11 @@ class TestClosedSurfaceDetector:
         H = jnp.stack([zeros2, zeros2, jnp.ones((2, ny, nz))])  # H_z = 1 -> S_x = E_y
 
         box = _place(config, ((0, 2), (0, ny), (0, nz)), axes=(0,))
+        E_box, H_box = _pad_fields(E, H)
         net = float(
-            box.update(jnp.asarray(0), E, H, box.init_state(), jnp.ones((1, 2, ny, nz)), 1.0)["poynting_flux"][0, 0]
+            box.update(jnp.asarray(0), E_box, H_box, box.init_state(), jnp.ones((1, 2, ny, nz)), 1.0)["poynting_flux"][
+                0, 0
+            ]
         )
 
         # Plane detector reading the max-x face (S_x = c there).

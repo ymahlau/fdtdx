@@ -4,6 +4,7 @@ import jax.numpy as jnp
 import pytest
 
 from fdtdx.core.physics.metrics import (
+    colocate_yee_fields_to_surface,
     compute_energy,
     compute_poynting_flux,
     normalize_by_energy,
@@ -11,6 +12,43 @@ from fdtdx.core.physics.metrics import (
 )
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.mark.parametrize("axis", (0, 1, 2))
+def test_colocate_yee_fields_to_surface_respects_component_staggering(axis):
+    transverse_e = (axis + 1) % 3
+    transverse_h = (axis + 2) % 3
+    shape = [4, 4, 4]
+    shape[axis] = 2
+    E = jnp.zeros((3, *shape))
+    H = jnp.zeros_like(E)
+
+    edge_index = jnp.arange(shape[transverse_h], dtype=E.dtype).reshape(
+        tuple(shape[dim] if dim == transverse_h else 1 for dim in range(3))
+    )
+    normal_values = jnp.asarray([2.0, 6.0], dtype=H.dtype).reshape(
+        tuple(shape[dim] if dim == axis else 1 for dim in range(3))
+    )
+    E = E.at[transverse_e].set(jnp.broadcast_to(edge_index, shape))
+    H = H.at[transverse_h].set(jnp.broadcast_to(normal_values, shape))
+
+    E_surface, H_surface = colocate_yee_fields_to_surface(E, H, axis, h_weights=(0.25, 0.75))
+    flux = compute_poynting_flux(E_surface, H_surface)[axis]
+
+    expected_edge_values = jnp.asarray([1.5, 2.5])
+    expected = 5.0 * expected_edge_values.reshape(tuple(2 if dim == transverse_h else 1 for dim in range(3)))
+    assert flux.shape == tuple(1 if dim == axis else 2 for dim in range(3))
+    assert jnp.allclose(flux, expected)
+
+
+def test_colocate_yee_fields_to_surface_validates_surface_block():
+    fields = jnp.zeros((3, 2, 4, 4))
+    with pytest.raises(ValueError, match="axis must"):
+        colocate_yee_fields_to_surface(fields, fields, axis=3)
+    with pytest.raises(ValueError, match="two cells"):
+        colocate_yee_fields_to_surface(fields[:, :1], fields[:, :1], axis=0)
+    with pytest.raises(ValueError, match="transverse halos"):
+        colocate_yee_fields_to_surface(fields[:, :, :2], fields[:, :, :2], axis=0)
 
 
 def test_compute_energy_basic():

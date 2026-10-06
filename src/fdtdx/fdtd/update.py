@@ -1,3 +1,4 @@
+from functools import partial
 from typing import Literal
 
 import jax
@@ -1063,25 +1064,48 @@ def update_detector_states(
         # The co-location stencil reads domain indices [s-1 .. e]; interior iff that stays in-bounds.
         return all(s >= 1 and e <= grid_shape[a] - 1 for a, (s, e) in enumerate(detector.grid_slice_tuple))
 
-    # The full-domain interpolation is only needed for exact detectors whose stencil reaches a domain edge.
-    full = None
-    if any(d.exact_interpolation and not is_interior(d) for d in to_update):
-        full = interpolate_fields(
-            E_pad=pad_fields_with_symmetry_mirror(arrays.fields.E, objects, config, "E"),
-            H_pad=pad_fields_with_symmetry_mirror((H_prev + arrays.fields.H) / 2, objects, config, "H"),
-            config=config,
-        )
-
-    def helper_fn(E: jax.Array, H: jax.Array, H_prev: jax.Array, detector: Detector) -> DetectorState:
+    def helper_fn(
+        E: jax.Array,
+        H: jax.Array,
+        H_prev: jax.Array,
+        detector: Detector,
+        detector_state: DetectorState,
+        *,
+        uses_padded_fields: bool,
+        shared_padded_fields: tuple[jax.Array, jax.Array] | None = None,
+        shared_full_fields: tuple[jax.Array, jax.Array] | None = None,
+    ) -> DetectorState:
         gs = detector.grid_slice
-        if not detector.exact_interpolation:
+        if uses_padded_fields:
+            if is_interior(detector):
+                block = (slice(None), *(slice(s - 1, e + 1) for s, e in detector.grid_slice_tuple))
+                E_reg = E[block]
+                H_reg = (H_prev[block] + H[block]) / 2
+            else:
+                padded_fields = shared_padded_fields
+                if padded_fields is None:
+                    padded_fields = (
+                        pad_fields_with_symmetry_mirror(E, objects, config, "E"),
+                        pad_fields_with_symmetry_mirror((H_prev + H) / 2, objects, config, "H"),
+                    )
+                block = (slice(None), *(slice(s, e + 2) for s, e in detector.grid_slice_tuple))
+                E_reg, H_reg = padded_fields[0][block], padded_fields[1][block]
+        elif not detector.exact_interpolation:
             E_reg, H_reg = E[:, *gs], H[:, *gs]
         elif is_interior(detector):
             block = (slice(None), *(slice(s - 1, e + 1) for (s, e) in detector.grid_slice_tuple))
             H_avg = (H_prev[block] + H[block]) / 2
             E_reg, H_reg = interpolate_fields(E[block], H_avg, config=config, region_slice=detector.grid_slice_tuple)
         else:
-            assert full is not None  # built above whenever an edge-touching exact detector exists
+            full = shared_full_fields
+            if full is None:
+                padded_fields = shared_padded_fields
+                if padded_fields is None:
+                    padded_fields = (
+                        pad_fields_with_symmetry_mirror(E, objects, config, "E"),
+                        pad_fields_with_symmetry_mirror((H_prev + H) / 2, objects, config, "H"),
+                    )
+                full = interpolate_fields(E_pad=padded_fields[0], H_pad=padded_fields[1], config=config)
             E_reg, H_reg = full[0][:, *gs], full[1][:, *gs]
         # inv_permeabilities is a plain scalar when all materials are non-magnetic.
         inv_mu = arrays.inv_permeabilities
@@ -1090,32 +1114,114 @@ def update_detector_states(
                 time_step=time_step,
                 E=E_reg,
                 H=H_reg,
-                state=state[detector.name],
+                state=detector_state,
                 inv_permittivity=arrays.inv_permittivities[:, *gs],
                 inv_permeability=inv_mu[:, *gs] if isinstance(inv_mu, jax.Array) and inv_mu.ndim > 0 else inv_mu,
             )
         except Exception as e:
             raise Exception(
-                f"Detector '{detector.name}': update() raised while recording (see exception above). Fields "
-                "and materials are passed to Detector.update() already restricted to the detector's "
-                "grid_slice, so slicing self.grid_slice inside update() (double slicing) is a common cause "
-                "of shape errors here."
+                f"Detector '{detector.name}': update() raised while recording (see exception above). Detector "
+                "inputs are already prepared for its sampling region, so slicing self.grid_slice again "
+                "(double slicing) is a common cause of shape errors."
             ) from e
-        _check_updated_state_layout(detector, state[detector.name], new_state)
+        _check_updated_state_layout(detector, detector_state, new_state)
         return new_state
 
-    for d in to_update:
+    def update_one(
+        detector: Detector,
+        detector_state: DetectorState,
+        shared_padded_fields: tuple[jax.Array, jax.Array] | None = None,
+        shared_full_fields: tuple[jax.Array, jax.Array] | None = None,
+    ) -> DetectorState:
         # E already lives at the detector's integer time step; H lives at half steps, so exact
         # detectors time-center H as (H_prev + H) / 2 on their region inside the branch.
-        state[d.name] = jax.lax.cond(
-            d._is_on_at_time_step_arr[time_step],
+        active_update = partial(
             helper_fn,
-            lambda e, h, h_prev, detector: state[detector.name],
+            detector_state=detector_state,
+            uses_padded_fields=getattr(detector, "_uses_padded_fields", False) is True,
+            shared_padded_fields=shared_padded_fields,
+            shared_full_fields=shared_full_fields,
+        )
+        return jax.lax.cond(
+            detector._is_on_at_time_step_arr[time_step],
+            active_update,
+            lambda e, h, h_prev, detector: detector_state,
             arrays.fields.E,
             arrays.fields.H,
             H_prev,
-            d,
+            detector,
         )
+
+    padded_edge_detectors = [
+        detector
+        for detector in to_update
+        if not is_interior(detector) and getattr(detector, "_uses_padded_fields", False) is True
+    ]
+    exact_edge_detectors = [
+        detector
+        for detector in to_update
+        if not is_interior(detector)
+        and detector.exact_interpolation
+        and getattr(detector, "_uses_padded_fields", False) is not True
+    ]
+    edge_detectors = padded_edge_detectors + exact_edge_detectors
+    grouped_names = {detector.name for detector in edge_detectors} if len(edge_detectors) > 1 else set()
+
+    for detector in to_update:
+        if detector.name not in grouped_names:
+            state[detector.name] = update_one(detector, state[detector.name])
+
+    def update_shared_edge_detectors(detector_states: dict[str, DetectorState]) -> dict[str, DetectorState]:
+        any_active = jnp.any(jnp.stack([detector._is_on_at_time_step_arr[time_step] for detector in edge_detectors]))
+
+        def active_updates(current_states):
+            padded_fields = (
+                pad_fields_with_symmetry_mirror(arrays.fields.E, objects, config, "E"),
+                pad_fields_with_symmetry_mirror((H_prev + arrays.fields.H) / 2, objects, config, "H"),
+            )
+            updated_states = dict(current_states)
+            for detector in padded_edge_detectors:
+                updated_states[detector.name] = update_one(
+                    detector,
+                    current_states[detector.name],
+                    shared_padded_fields=padded_fields,
+                )
+
+            if exact_edge_detectors:
+                exact_states = {detector.name: current_states[detector.name] for detector in exact_edge_detectors}
+
+                def active_exact_updates(current_exact_states):
+                    full_fields = interpolate_fields(E_pad=padded_fields[0], H_pad=padded_fields[1], config=config)
+                    return {
+                        detector.name: update_one(
+                            detector,
+                            current_exact_states[detector.name],
+                            shared_padded_fields=padded_fields,
+                            shared_full_fields=full_fields,
+                        )
+                        for detector in exact_edge_detectors
+                    }
+
+                if padded_edge_detectors:
+                    exact_active = jnp.any(
+                        jnp.stack([detector._is_on_at_time_step_arr[time_step] for detector in exact_edge_detectors])
+                    )
+                    exact_states = jax.lax.cond(
+                        exact_active,
+                        active_exact_updates,
+                        lambda current_exact_states: current_exact_states,
+                        exact_states,
+                    )
+                else:
+                    exact_states = active_exact_updates(exact_states)
+                updated_states.update(exact_states)
+            return updated_states
+
+        return jax.lax.cond(any_active, active_updates, lambda current_states: current_states, detector_states)
+
+    if grouped_names:
+        grouped_states = {name: state[name] for name in grouped_names}
+        state.update(update_shared_edge_detectors(grouped_states))
     arrays = arrays.aset("detector_states", state)
     return arrays
 
