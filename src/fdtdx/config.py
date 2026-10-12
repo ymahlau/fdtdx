@@ -44,7 +44,7 @@ class GradientConfig(TreeClass):
     #: (no interior checkpoints; only the final field, which is available for free, is used). Ignored
     #: by the ``"checkpointed"`` method. Must not exceed ``time_steps_total - 1``.
     #:
-    #: ``"auto"`` (``recording_mode="segmented"`` only): :func:`~fdtdx.place_objects` replaces it with the
+    #: ``"auto"`` (``recording_mode`` in ``"segmented"`` or ``"local_segmented"``): :func:`~fdtdx.place_objects` replaces it with the
     #: count that minimises the memory of the segmented backward pass (see
     #: :meth:`resolve_num_checkpoints_reversible`) and returns a config holding that number.
     num_checkpoints_reversible: int | Literal["auto"] = frozen_field(default=0)
@@ -66,7 +66,7 @@ class GradientConfig(TreeClass):
     #: the slices are recorded out of order.
     #:
     #: ``"local_segmented"``: the forward pass records nothing and keeps full-field checkpoints at the
-    #: ``num_checkpoints_reversible`` interior slice boundaries. The backward pass re-simulates each slice
+    #: ``num_checkpoints_reversible`` interior slice boundaries (or 0 for single-slice replay). The backward pass re-simulates each slice
     #: from the checkpoint at its start to record only the one-cell shell around the bounding box of
     #: ``objects.devices``, then reverses only the interior of the design region. Full-domain PML interfaces
     #: are not recorded.
@@ -105,8 +105,8 @@ class GradientConfig(TreeClass):
         if self.recording_mode in ("segmented", "local_segmented"):
             if self.method != "reversible":
                 raise Exception(f"recording_mode='{self.recording_mode}' requires method='reversible'")
-            if isinstance(num_ckpt, int) and num_ckpt < 1:
-                raise Exception(f"recording_mode='{self.recording_mode}' requires num_checkpoints_reversible >= 1")
+            if self.recording_mode == "segmented" and isinstance(num_ckpt, int) and num_ckpt < 1:
+                raise Exception("recording_mode='segmented' requires num_checkpoints_reversible >= 1")
             if self.recorder is not None and any(isinstance(m, TimeStepFilter) for m in self.recorder.modules):
                 raise Exception(
                     f"recording_mode='{self.recording_mode}' does not support time-step filters in the recorder"

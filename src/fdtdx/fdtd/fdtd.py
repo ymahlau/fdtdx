@@ -20,6 +20,47 @@ from fdtdx.objects.detectors.detector import DetectorState
 from fdtdx.objects.detectors.field import FieldDetector
 from fdtdx.objects.detectors.phasor import PhasorDetector
 
+_HOST_CHECKPOINT_STORE: dict[tuple[int, int], tuple[np.ndarray, ...]] = {}
+_ACTIVE_HOST_SESSIONS: list[int] = []
+_MAX_CACHED_HOST_SESSIONS = 16
+_SESSION_COUNTER = 0
+
+
+def _get_next_session_id() -> int:
+    global _SESSION_COUNTER
+    _SESSION_COUNTER = (_SESSION_COUNTER + 1) % (2**31 - 1)
+    return _SESSION_COUNTER
+
+
+def _save_to_host(session_id: int, slice_idx: int, *field_leaves):
+    sid = int(session_id)
+    idx = int(slice_idx)
+    _HOST_CHECKPOINT_STORE[(sid, idx)] = tuple(np.asarray(f) for f in field_leaves)
+    if sid not in _ACTIVE_HOST_SESSIONS:
+        _ACTIVE_HOST_SESSIONS.append(sid)
+        if len(_ACTIVE_HOST_SESSIONS) > _MAX_CACHED_HOST_SESSIONS:
+            old_sid = _ACTIVE_HOST_SESSIONS.pop(0)
+            keys_to_del = [k for k in _HOST_CHECKPOINT_STORE if k[0] == old_sid]
+            for k in keys_to_del:
+                _HOST_CHECKPOINT_STORE.pop(k, None)
+    return ()
+
+
+def _load_from_host(session_id: int, slice_idx: int):
+    sid = int(session_id)
+    idx = int(slice_idx)
+    return _HOST_CHECKPOINT_STORE[(sid, idx)]
+
+
+def _cleanup_callback(grad, session_id: int):
+    sid = int(session_id)
+    keys_to_del = [k for k in _HOST_CHECKPOINT_STORE if k[0] == sid]
+    for k in keys_to_del:
+        _HOST_CHECKPOINT_STORE.pop(k, None)
+    if sid in _ACTIVE_HOST_SESSIONS:
+        _ACTIVE_HOST_SESSIONS.remove(sid)
+    return grad
+
 
 def _validate_local_segmented_guards(
     arrays: ArrayContainer,
@@ -64,9 +105,14 @@ def _validate_local_segmented_guards(
         if objects.backward_detectors:
             raise ValueError("split_detector_adjoint does not support backward detectors")
         for d in objects.forward_detectors:
-            if not isinstance(d, PhasorDetector) or d.inverse or d.reduce_volume or not d.exact_interpolation:
+            if (
+                not isinstance(d, (PhasorDetector, FieldDetector))
+                or d.inverse
+                or d.reduce_volume
+                or not d.exact_interpolation
+            ):
                 raise ValueError(
-                    f"split_detector_adjoint requires forward, exact, non-reduced PhasorDetectors, "
+                    f"split_detector_adjoint requires forward, exact, non-reduced PhasorDetectors or FieldDetectors, "
                     f"but detector '{d.name}' does not satisfy this"
                 )
             if not all(s >= 1 and e <= grid_shape[a] - 1 for a, (s, e) in enumerate(d.grid_slice_tuple)):
@@ -232,25 +278,7 @@ def reversible_fdtd(
     )
 
     host_offload = grad_cfg is not None and grad_cfg.host_offload
-    if host_offload:
-        cpu_dev = jax.devices("cpu")[0]
-        try:
-            target_dev = jax.devices(config.backend)[0]
-        except Exception:
-            target_dev = jax.devices()[0]
-
-        def to_host(tree):
-            return jax.tree.map(lambda x: jax.device_put(x, cpu_dev), tree)
-
-        def to_device(tree):
-            return jax.tree.map(lambda x: jax.device_put(x, target_dev), tree)
-    else:
-
-        def to_host(tree):
-            return tree
-
-        def to_device(tree):
-            return tree
+    session_id = _get_next_session_id() if host_offload else 0
 
     pbar = _make_pbar(
         show_progress=show_progress,
@@ -284,7 +312,7 @@ def reversible_fdtd(
 
     def segmented_forward(
         arr: ArrayContainer,
-    ) -> tuple[SimulationState, FieldState]:
+    ) -> tuple[SimulationState, FieldState | jax.Array]:
         """Run the forward pass slice by slice, capturing the field state at every interior boundary.
 
         The checkpoints are stacked along a leading axis (``checkpoints.E[i]`` is the field at
@@ -293,7 +321,10 @@ def reversible_fdtd(
         the primal output and is not stored (``mode="drop"``).
         """
         state = (jnp.asarray(0, dtype=jnp.int32), arr)
-        checkpoints = jax.tree.map(lambda x: jnp.zeros((num_ckpt, *x.shape), x.dtype), arr.fields)
+        if host_offload:
+            checkpoints = jnp.zeros(0, dtype=jnp.int32)
+        else:
+            checkpoints = jax.tree.map(lambda x: jnp.zeros((num_ckpt, *x.shape), x.dtype), arr.fields)
         if num_slices == 1:
             # Without interior checkpoints the forward pass is a single loop, exactly as without slicing.
             return run_until(state, config.time_steps_total, _forward_body_with_progress), checkpoints
@@ -301,8 +332,11 @@ def reversible_fdtd(
         def slice_body(i, carry):
             state, checkpoints = carry
             state = run_until(state, slice_boundaries[i + 1], _forward_body_with_progress)
-            ckpt_fields = to_host(state[1].fields) if host_offload else state[1].fields
-            checkpoints = jax.tree.map(lambda buf, x: buf.at[i].set(x, mode="drop"), checkpoints, ckpt_fields)
+            if host_offload:
+                leaves = jax.tree.leaves(state[1].fields)
+                jax.experimental.io_callback(_save_to_host, None, session_id, i, *leaves)
+            else:
+                checkpoints = jax.tree.map(lambda buf, x: buf.at[i].set(x, mode="drop"), checkpoints, state[1].fields)
             return state, checkpoints
 
         return jax.lax.fori_loop(0, num_slices, slice_body, (state, checkpoints))
@@ -436,17 +470,31 @@ def reversible_fdtd(
                 initial_inv_permittivities=arrays.initial_inv_permittivities,
             )
 
+        field_treedef = jax.tree.structure(final_fields)
+        field_leaf_shapes = tuple(jax.ShapeDtypeStruct(x.shape, x.dtype) for x in jax.tree.leaves(final_fields))
+
         def fields_at_boundary(i: jax.Array) -> FieldState:
             """Exact field state at ``slice_boundaries[i]``: zero at the start of the run (the fields are
             reset on entry), an interior checkpoint, or the primal output at the end of the run."""
             branches = [lambda: jax.tree.map(jnp.zeros_like, final_fields)]
             if num_ckpt > 0:
-                branches.append(
-                    lambda: jax.tree.map(
-                        lambda buf: to_device(buf[jnp.clip(i - 1, 0, num_ckpt - 1)]),
-                        checkpoints,
+                if host_offload:
+
+                    def _load_branch():
+                        slice_idx = jnp.clip(i - 1, 0, num_ckpt - 1)
+                        loaded_leaves = jax.experimental.io_callback(
+                            _load_from_host, field_leaf_shapes, session_id, slice_idx
+                        )
+                        return jax.tree.unflatten(field_treedef, loaded_leaves)
+
+                    branches.append(_load_branch)
+                else:
+                    branches.append(
+                        lambda: jax.tree.map(
+                            lambda buf: buf[jnp.clip(i - 1, 0, num_ckpt - 1)],
+                            checkpoints,
+                        )
                     )
-                )
             branches.append(lambda: final_fields)
             branch = jnp.where(i == 0, 0, jnp.where(i == num_slices, len(branches) - 1, 1))
             return jax.lax.switch(branch, branches)
@@ -493,12 +541,20 @@ def reversible_fdtd(
                 _, cot = reverse_slice(0, (res_recording_state, cot))
             else:
                 _, cot = jax.lax.fori_loop(0, num_slices, reverse_slice, (res_recording_state, cot))
+            ret_eps = cot[5]
+            if host_offload and ret_eps is not None:
+                ret_eps = jax.experimental.io_callback(
+                    _cleanup_callback,
+                    jax.ShapeDtypeStruct(ret_eps.shape, ret_eps.dtype),
+                    ret_eps,
+                    session_id,
+                )
             return (
                 None,  # cot[1],   E
                 None,  # cot[2],   H
                 None,  # cot[3],   psi_E
                 None,  # cot[4],   psi_H
-                cot[5],  #         inv_permittivities
+                ret_eps,  #        inv_permittivities
                 cot[6],  #         inv_permeabilities
                 None,  # cot[7],   detector_states
                 None,  # cot[8],   recording_state
@@ -757,6 +813,13 @@ def reversible_fdtd(
         direct_cot_eps = jnp.zeros_like(res_inv_permittivities) if cot[5] is None else cot[5]
         direct_cot_mu = jnp.zeros_like(res_inv_permeabilities) if cot[6] is None else cot[6]
         full_grad_eps = jnp.zeros_like(res_inv_permittivities).at[selected].set(final_grad) + direct_cot_eps
+        if host_offload:
+            full_grad_eps = jax.experimental.io_callback(
+                _cleanup_callback,
+                jax.ShapeDtypeStruct(full_grad_eps.shape, full_grad_eps.dtype),
+                full_grad_eps,
+                session_id,
+            )
 
         return (
             None,

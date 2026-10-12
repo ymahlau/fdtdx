@@ -88,6 +88,8 @@ def _build_base_scene(
         det = fdtdx.PhasorDetector(
             name="det", partial_grid_shape=(4, 4, 1), wave_characters=(wave,), components=("Ex",), plot=False
         )
+    elif detector_type == "field":
+        det = fdtdx.FieldDetector(name="det", partial_grid_shape=(4, 4, 1), components=("Ex",), plot=False)
     elif detector_type == "poynting":
         det = PoyntingFluxDetector(name="det", partial_grid_shape=(4, 4, 1), plot=False)
     else:
@@ -158,3 +160,23 @@ class TestLocalSegmentedGuards:
         arrays_aniso = arrays.aset("inv_permittivities", jnp.ones(shape))
         with pytest.raises(ValueError, match=r"only supports real isotropic.*or diagonal anisotropic"):
             fdtdx.run_fdtd(arrays_aniso, obj, config, key)
+
+    def test_accept_field_detector_split_adjoint(self):
+        # FieldDetector with split_detector_adjoint=True must be accepted by guards
+        grad_cfg = GradientConfig(
+            method="reversible",
+            recording_mode="local_segmented",
+            split_detector_adjoint=True,
+        )
+        obj, _arrays, _config, _key = _build_base_scene(gradient_config=grad_cfg, detector_type="field")
+        assert len(obj.forward_detectors) == 1
+        assert isinstance(obj.forward_detectors[0], fdtdx.FieldDetector)
+
+    def test_accept_default_construction_local_segmented(self):
+        # Default GradientConfig with recording_mode="local_segmented" (num_checkpoints_reversible=0)
+        grad_cfg = GradientConfig(
+            method="reversible",
+            recording_mode="local_segmented",
+        )
+        _obj, _arrays, config, _key = _build_base_scene(gradient_config=grad_cfg)
+        assert config.gradient_config.num_checkpoints_reversible == 0

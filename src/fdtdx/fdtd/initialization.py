@@ -1094,24 +1094,6 @@ def _init_arrays(
                 )
                 logger.info(f"num_checkpoints_reversible='auto' resolved to {grad_cfg.num_checkpoints_reversible}")
                 config = config.aset("gradient_config", grad_cfg)
-            if grad_cfg.recorder is not None:
-                input_shape_dtypes = {}
-                for boundary in objects.pml_objects:
-                    cur_shape = boundary.interface_grid_shape()
-                    extended_shape = (3, *cur_shape)
-                    input_shape_dtypes[f"{boundary.name}_E"] = jax.ShapeDtypeStruct(
-                        shape=extended_shape, dtype=field_dtype
-                    )
-                    input_shape_dtypes[f"{boundary.name}_H"] = jax.ShapeDtypeStruct(
-                        shape=extended_shape, dtype=field_dtype
-                    )
-                recorder, recording_state = grad_cfg.recorder.init_state(
-                    input_shape_dtypes=input_shape_dtypes,
-                    max_time_steps=grad_cfg.recorder_time_steps(config.time_steps_total),
-                    backend=config.backend,
-                )
-                grad_cfg = grad_cfg.aset("recorder", recorder)
-                config = config.aset("gradient_config", grad_cfg)
         else:
             for boundary in objects.pml_objects:
                 cur_shape = boundary.interface_grid_shape()

@@ -131,16 +131,26 @@ class TestGradientConfigRecordingMode:
         assert config.resolve_num_checkpoints_reversible(20000, 921600, 17203200) is config
 
     def test_local_segmented_construction(self):
+        # Default construction without explicit num_checkpoints_reversible (defaults to 0, 1 slice)
         config = GradientConfig(
+            method="reversible",
+            recording_mode="local_segmented",
+        )
+        assert config.recording_mode == "local_segmented"
+        assert config.num_checkpoints_reversible == 0
+        assert config.recorder is None
+        assert config.host_offload is False
+        assert config.split_detector_adjoint is True
+        assert config.recorder_time_steps(100) == 100
+
+        # Construction with sliced checkpoints
+        config_sliced = GradientConfig(
             method="reversible",
             recording_mode="local_segmented",
             num_checkpoints_reversible=2,
         )
-        assert config.recording_mode == "local_segmented"
-        assert config.recorder is None
-        assert config.host_offload is False
-        assert config.split_detector_adjoint is True
-        assert config.recorder_time_steps(100) == 34
+        assert config_sliced.num_checkpoints_reversible == 2
+        assert config_sliced.recorder_time_steps(100) == 34
 
     def test_local_segmented_rejects_recorder(self):
         with pytest.raises(Exception, match="does not use a Recorder"):
@@ -151,12 +161,12 @@ class TestGradientConfigRecordingMode:
                 recorder=Recorder(modules=[]),
             )
 
-    def test_local_segmented_requires_positive_checkpoints(self):
-        with pytest.raises(Exception, match="requires num_checkpoints_reversible >= 1"):
+    def test_local_segmented_rejects_negative_checkpoints(self):
+        with pytest.raises(Exception, match="num_checkpoints_reversible must be >= 0"):
             GradientConfig(
                 method="reversible",
                 recording_mode="local_segmented",
-                num_checkpoints_reversible=0,
+                num_checkpoints_reversible=-1,
             )
 
     def test_host_offload_flags(self):
