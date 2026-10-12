@@ -244,6 +244,8 @@ class TestClosedSurfacePhasorDetector:
         shape = (4, 4, 4)
         E = jnp.stack([jnp.zeros(shape), jnp.ones(shape), jnp.zeros(shape)])
         H = jnp.stack([jnp.zeros(shape), jnp.zeros(shape), jnp.ones(shape)])
+        padding = ((0, 0), (1, 1), (1, 1), (1, 1))
+        E, H = jnp.pad(E, padding, mode="edge"), jnp.pad(H, padding, mode="edge")
         s1 = box.update(jnp.asarray(0), E, H, box.init_state(), jnp.ones((1, *shape)), 1.0)
         s2 = box.update(jnp.asarray(0), E, H, s1, jnp.ones((1, *shape)), 1.0)
         # two updates at the same time step exactly double every stored face
