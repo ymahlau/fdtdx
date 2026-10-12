@@ -735,7 +735,7 @@ def reversible_fdtd(
 
         samples_template = collect(local_fields(final_fields))
         max_slice_len = -(-config.time_steps_total // num_slices)
-        record_shapes = tuple((max_slice_len, *v.shape) for v in samples_template)
+        record_specs = tuple(((max_slice_len, *v.shape), v.dtype) for v in samples_template)
 
         def reverse_local_slice(j, carry):
             running_cot, running_grad = carry
@@ -761,7 +761,7 @@ def reversible_fdtd(
                 return next_arr, recs
 
             init_container = make_container(start_fields, None)
-            init_records = tuple(jnp.zeros(s, res_inv_permittivities.dtype) for s in record_shapes)
+            init_records = tuple(jnp.zeros(shape, dtype=dtype) for shape, dtype in record_specs)
             _, records = jax.lax.fori_loop(slice_start, slice_end, re_step, (init_container, init_records))
 
             first = collect(local_fields(start_fields))
