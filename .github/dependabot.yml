@@ -28,6 +28,9 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-patch"]
+      # Keep in sync with the "sphinx<9.0" pin in pyproject.toml
+      - dependency-name: "sphinx"
+        versions: [">=9"]
 
   - package-ecosystem: "pre-commit"
     directory: "/"
