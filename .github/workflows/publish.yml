@@ -35,8 +35,6 @@ jobs:
         run: python -m build
 
       - name: Publish distribution 📦 to PyPI
-        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
+        uses: pypa/gh-action-pypi-publish@<sha-of-v1.14.2> # v1.14.2
         with:
-          # We don't need a password/token input because we use 
-          # Trusted Publishing (id-token permission above).
-          print_hash: true
+          print-hash: true
