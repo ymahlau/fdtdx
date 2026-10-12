@@ -12,7 +12,7 @@ dependencies = [
     "loguru>=0.7.3",
     "pytreeclass>=0.11",
     "jax>=0.4.36",
-    "moviepy@git+https://github.com/Zulko/moviepy@7ffa4f00376237137a25fe1c777355c37753e9af",
+    "imageio-ffmpeg>=0.6.0",
     "optax>=0.2.4",
     "equinox>=0.11.10",
     "trimesh>=4.5.3",
@@ -20,6 +20,7 @@ dependencies = [
     "seaborn>=0.13.2",
     "matplotlib>=3.9.4",
     "rich>=13.9.4",
+    "tqdm>=4.66.0",
     "typing-extensions>=4.14.1",
     "gdstk>=0.9",
 ]
@@ -86,6 +87,3 @@ exclude = ["tests"]
 
 [tool.ty.environment]
 python-version = "3.14"
-
-[tool.hatch.metadata]
-allow-direct-references = true

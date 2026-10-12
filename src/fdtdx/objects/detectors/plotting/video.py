@@ -1,13 +1,15 @@
+import contextlib
 import multiprocessing as mp
+import subprocess
 import tempfile
 from functools import partial
-from typing import Callable, Literal, cast
+from typing import Callable, Iterable, Literal, cast
 
+import imageio_ffmpeg
 import matplotlib
 
 matplotlib.use("agg")
 import matplotlib.pyplot as plt
-import moviepy as mpy
 import numpy as np
 from rich.progress import Progress
 
@@ -66,10 +68,92 @@ def plot_from_slices(
     return data
 
 
-def _make_animation_frame(t: float | int, precomputed_figs, fps):
-    t = int(t * fps)
-    fig = precomputed_figs[t]
-    return fig
+# The yuv420p pixel format, which H.264 players widely support, requires even frame dimensions.
+_FRAME_ALIGNMENT = 2
+
+
+def _pad_to_even_size(frame: np.ndarray) -> np.ndarray:
+    """Pads an RGB frame by one row at the bottom and/or one column at the right, repeating the border
+    pixels, such that both dimensions are even."""
+    height, width = frame.shape[:2]
+    pad_h, pad_w = -height % _FRAME_ALIGNMENT, -width % _FRAME_ALIGNMENT
+    if pad_h or pad_w:
+        frame = np.pad(frame, ((0, pad_h), (0, pad_w), (0, 0)), mode="edge")
+    return frame
+
+
+def _ffmpeg_command(path: str, width: int, height: int, fps: int) -> list[str]:
+    """Builds the ffmpeg command that encodes raw RGB frames from stdin as H.264 (yuv420p) into an MP4 file."""
+    # fmt: off
+    return [
+        imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error",
+        # input: raw RGB frames piped through stdin
+        "-f", "rawvideo", "-vcodec", "rawvideo", "-s", f"{width}x{height}", "-pix_fmt", "rgb24",
+        "-r", f"{fps:.02f}", "-an", "-i", "-",
+        # output: H.264 with the encoder's default quality, readable by virtually all players
+        "-vcodec", "libx264", "-pix_fmt", "yuv420p", path,
+    ]
+    # fmt: on
+
+
+def _write_mp4(path: str, frames: Iterable[np.ndarray], fps: int, on_frame: Callable[[], None]) -> None:
+    """Encodes a stream of equally sized uint8 RGB frames as an H.264 MP4 file using the ffmpeg binary
+    bundled with imageio-ffmpeg. on_frame is called after each frame has been written.
+
+    ffmpeg is started directly instead of through imageio_ffmpeg.write_frames, because the latter uses a
+    preexec_fn on POSIX systems, which is unsafe in multithreaded processes such as those running JAX.
+    """
+    proc = None
+    first_shape = None
+    # ffmpeg's error output goes to a file instead of a pipe, so it can never fill up and block ffmpeg
+    with tempfile.TemporaryFile() as stderr_file:
+        try:
+            for frame in frames:
+                if frame.ndim != 3 or frame.shape[2] != 3:
+                    raise ValueError(f"Expected RGB frames of shape (height, width, 3), got {frame.shape}")
+                if first_shape is None:
+                    first_shape = frame.shape
+                elif frame.shape != first_shape:
+                    raise ValueError(f"All video frames must have the same shape, got {frame.shape} and {first_shape}")
+                frame = np.ascontiguousarray(_pad_to_even_size(frame), dtype=np.uint8)
+                if proc is None:
+                    proc = subprocess.Popen(
+                        _ffmpeg_command(path, width=frame.shape[1], height=frame.shape[0], fps=fps),
+                        stdin=subprocess.PIPE,
+                        stdout=subprocess.DEVNULL,
+                        stderr=stderr_file,
+                        # do not open a console window on Windows
+                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                    )
+                assert proc.stdin is not None
+                try:
+                    proc.stdin.write(frame.data)
+                except BrokenPipeError:
+                    # ffmpeg exited early, its error is reported below
+                    break
+                on_frame()
+            if proc is None:
+                raise ValueError("Cannot write a video without frames")
+            assert proc.stdin is not None
+            try:
+                proc.stdin.close()
+            except BrokenPipeError:
+                pass
+            return_code = proc.wait()
+        except BaseException:
+            # do not leave a running ffmpeg process behind on errors or KeyboardInterrupt
+            if proc is not None:
+                proc.kill()
+                if proc.stdin is not None:
+                    with contextlib.suppress(OSError):
+                        # flushing frames buffered for the killed process fails, but closes the pipe anyway
+                        proc.stdin.close()
+                proc.wait()
+            raise
+        if return_code != 0:
+            stderr_file.seek(0)
+            ffmpeg_error = stderr_file.read().decode(errors="replace").strip()
+            raise RuntimeError(f"ffmpeg failed with exit code {return_code} while writing {path}:\n{ffmpeg_error}")
 
 
 def generate_video_from_slices(
@@ -155,7 +239,6 @@ def generate_video_from_slices(
     if progress is None:
         progress = Progress()
     task_id = progress.add_task("Generating video", total=time_steps)
-    precomputed_figs = []
     partial_fn = partial(
         plt_fn,
         resolutions=resolutions,
@@ -169,23 +252,11 @@ def generate_video_from_slices(
         signed_data=signed_data,
     )
     slice_arr_list = [(xy_slice[t], xz_slice[t], yz_slice[t]) for t in range(time_steps)]
-    if num_worker is None:
-        # no multiprocessing, render video frames on after the other
-        for s in slice_arr_list:
-            fig = partial_fn(s)
-            precomputed_figs.append(fig)
-            progress.update(task_id, advance=1)
-    else:
-        # multiprocessing pool to render video frames in parallel
-        with mp.Pool(num_worker) as pool:
-            for fig in pool.imap(partial_fn, slice_arr_list):
-                precomputed_figs.append(fig)
-                progress.update(task_id, advance=1)
-    animation = mpy.VideoClip(
-        lambda t: _make_animation_frame(t, precomputed_figs, fps),
-        duration=time_steps / fps,
-    )
-    animation.write_videofile(path, fps=fps, logger=None)
+    # without workers, frames are rendered one after the other. Otherwise, a multiprocessing pool renders
+    # them in parallel. In both cases, frames are encoded in order as soon as they are available.
+    with mp.Pool(num_worker) if num_worker is not None else contextlib.nullcontext() as pool:
+        frames = map(partial_fn, slice_arr_list) if pool is None else pool.imap(partial_fn, slice_arr_list)
+        _write_mp4(path, frames, fps=fps, on_frame=lambda: progress.update(task_id, advance=1))
     progress.update(task_id, visible=False)
 
     return path
