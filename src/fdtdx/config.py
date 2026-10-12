@@ -64,30 +64,53 @@ class GradientConfig(TreeClass):
     #: :class:`~fdtdx.LinearReconstructEveryK` (or other time-step filter), whose sample times are
     #: defined over the whole run, and without compression modules that carry state between steps, since
     #: the slices are recorded out of order.
-    recording_mode: Literal["full", "segmented"] = frozen_field(default="full")
+    #:
+    #: ``"local_segmented"``: the forward pass records nothing and keeps full-field checkpoints at the
+    #: ``num_checkpoints_reversible`` interior slice boundaries. The backward pass re-simulates each slice
+    #: from the checkpoint at its start to record only the one-cell shell around the bounding box of
+    #: ``objects.devices``, then reverses only the interior of the design region. Full-domain PML interfaces
+    #: are not recorded.
+    recording_mode: Literal["full", "segmented", "local_segmented"] = frozen_field(default="full")
+
+    #: Whether to offload checkpoints to host CPU memory to decrease GPU memory consumption. Defaults to False.
+    host_offload: bool = frozen_field(default=False)
+
+    #: Whether to compute detector adjoint sources on local detector subdomains instead of full-grid step VJP.
+    #: Defaults to True.
+    split_detector_adjoint: bool = frozen_field(default=True)
 
     def __post_init__(self):
-        if self.method == "reversible" and self.recorder is None:
+        if self.method == "reversible" and self.recording_mode != "local_segmented" and self.recorder is None:
             raise Exception("Need Recorder in gradient config to compute reversible gradients")
         if self.method == "checkpointed" and self.num_checkpoints is None:
             raise Exception("Need Checkpoint Number in gradient config to compute checkpointed gradients")
-        if self.recording_mode not in ("full", "segmented"):
-            raise Exception(f"recording_mode must be 'full' or 'segmented', got {self.recording_mode!r}")
+        if self.recording_mode not in ("full", "segmented", "local_segmented"):
+            raise Exception(
+                f"recording_mode must be 'full', 'segmented', or 'local_segmented', got {self.recording_mode!r}"
+            )
         num_ckpt = self.num_checkpoints_reversible
         if isinstance(num_ckpt, str):
             if num_ckpt != "auto":
                 raise Exception(f"num_checkpoints_reversible must be an integer or 'auto', got {num_ckpt!r}")
-            if self.recording_mode != "segmented":
-                raise Exception("num_checkpoints_reversible='auto' requires recording_mode='segmented'")
+            if self.recording_mode not in ("segmented", "local_segmented"):
+                raise Exception(
+                    "num_checkpoints_reversible='auto' requires recording_mode='segmented' or 'local_segmented'"
+                )
         elif num_ckpt < 0:
             raise Exception("num_checkpoints_reversible must be >= 0")
-        if self.recording_mode == "segmented":
+        if self.recording_mode == "local_segmented" and self.recorder is not None:
+            raise Exception("recording_mode='local_segmented' does not use a Recorder")
+        if self.host_offload and self.recording_mode not in ("segmented", "local_segmented"):
+            raise Exception("host_offload=True requires recording_mode='segmented' or 'local_segmented'")
+        if self.recording_mode in ("segmented", "local_segmented"):
             if self.method != "reversible":
-                raise Exception("recording_mode='segmented' requires method='reversible'")
+                raise Exception(f"recording_mode='{self.recording_mode}' requires method='reversible'")
             if isinstance(num_ckpt, int) and num_ckpt < 1:
-                raise Exception("recording_mode='segmented' requires num_checkpoints_reversible >= 1")
+                raise Exception(f"recording_mode='{self.recording_mode}' requires num_checkpoints_reversible >= 1")
             if self.recorder is not None and any(isinstance(m, TimeStepFilter) for m in self.recorder.modules):
-                raise Exception("recording_mode='segmented' does not support time-step filters in the recorder")
+                raise Exception(
+                    f"recording_mode='{self.recording_mode}' does not support time-step filters in the recorder"
+                )
 
     def recorder_time_steps(self, time_steps_total: int) -> int:
         """Number of time steps the recorder buffer has to hold for a run of ``time_steps_total`` steps.
@@ -99,7 +122,7 @@ class GradientConfig(TreeClass):
             int: ``time_steps_total`` in ``"full"`` recording mode, the length of the longest slice
             (``ceil(time_steps_total / (num_checkpoints_reversible + 1))``) in ``"segmented"`` mode.
         """
-        if self.recording_mode == "segmented":
+        if self.recording_mode in ("segmented", "local_segmented"):
             num_ckpt = self.num_checkpoints_reversible
             if not isinstance(num_ckpt, int):
                 raise Exception(
@@ -386,7 +409,7 @@ class SimulationConfig(TreeClass):
         """
         if self.gradient_config is None:
             return False
-        return self.gradient_config.recorder is not None
+        return self.gradient_config.recorder is not None or self.gradient_config.recording_mode == "local_segmented"
 
 
 DUMMY_SIMULATION_CONFIG = SimulationConfig(

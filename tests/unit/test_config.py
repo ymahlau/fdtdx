@@ -130,6 +130,68 @@ class TestGradientConfigRecordingMode:
         config = _segmented(7)
         assert config.resolve_num_checkpoints_reversible(20000, 921600, 17203200) is config
 
+    def test_local_segmented_construction(self):
+        config = GradientConfig(
+            method="reversible",
+            recording_mode="local_segmented",
+            num_checkpoints_reversible=2,
+        )
+        assert config.recording_mode == "local_segmented"
+        assert config.recorder is None
+        assert config.host_offload is False
+        assert config.split_detector_adjoint is True
+        assert config.recorder_time_steps(100) == 34
+
+    def test_local_segmented_rejects_recorder(self):
+        with pytest.raises(Exception, match="does not use a Recorder"):
+            GradientConfig(
+                method="reversible",
+                recording_mode="local_segmented",
+                num_checkpoints_reversible=2,
+                recorder=Recorder(modules=[]),
+            )
+
+    def test_local_segmented_requires_positive_checkpoints(self):
+        with pytest.raises(Exception, match="requires num_checkpoints_reversible >= 1"):
+            GradientConfig(
+                method="reversible",
+                recording_mode="local_segmented",
+                num_checkpoints_reversible=0,
+            )
+
+    def test_host_offload_flags(self):
+        config = GradientConfig(
+            method="reversible",
+            recording_mode="local_segmented",
+            num_checkpoints_reversible=2,
+            host_offload=True,
+        )
+        assert config.host_offload is True
+
+        with pytest.raises(Exception, match="host_offload=True requires"):
+            GradientConfig(
+                method="reversible",
+                recorder=Recorder(modules=[]),
+                recording_mode="full",
+                host_offload=True,
+            )
+
+    def test_split_detector_adjoint_flags(self):
+        config = GradientConfig(
+            method="reversible",
+            recording_mode="local_segmented",
+            num_checkpoints_reversible=2,
+            split_detector_adjoint=False,
+        )
+        assert config.split_detector_adjoint is False
+
+        config_default = GradientConfig(
+            method="reversible",
+            recording_mode="local_segmented",
+            num_checkpoints_reversible=2,
+        )
+        assert config_default.split_detector_adjoint is True
+
 
 def _create_mock_backend(platform="cpu"):
     """Helper to create mock backend for SimulationConfig tests."""

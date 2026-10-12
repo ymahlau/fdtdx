@@ -1065,37 +1065,84 @@ def _init_arrays(
 
     # interfaces
     recording_state = None
-    if config.gradient_config is not None and config.gradient_config.recorder is not None:
+    if config.gradient_config is not None and (
+        config.gradient_config.recorder is not None or config.gradient_config.recording_mode == "local_segmented"
+    ):
         input_shape_dtypes = {}
-        for boundary in objects.pml_objects:
-            cur_shape = boundary.interface_grid_shape()
-            extended_shape = (3, *cur_shape)
-            input_shape_dtypes[f"{boundary.name}_E"] = jax.ShapeDtypeStruct(shape=extended_shape, dtype=field_dtype)
-            input_shape_dtypes[f"{boundary.name}_H"] = jax.ShapeDtypeStruct(shape=extended_shape, dtype=field_dtype)
         grad_cfg = config.gradient_config
-        recorder = config.gradient_config.recorder
-        if grad_cfg.num_checkpoints_reversible == "auto":
-            # Bytes per recorded step after the compression modules (segmented mode admits no time-step filters).
-            step_shape_dtypes = input_shape_dtypes
-            for module in recorder.modules:
-                if isinstance(module, CompressionModule):
-                    _, step_shape_dtypes, _ = module.init_shapes(step_shape_dtypes)
-            grad_cfg = grad_cfg.resolve_num_checkpoints_reversible(
-                time_steps_total=config.time_steps_total,
-                record_bytes_per_step=sum(math.prod(v.shape) * v.dtype.itemsize for v in step_shape_dtypes.values()),
-                field_state_bytes=sum(x.nbytes for x in jax.tree.leaves((E, H, psi_E, psi_H))),
+        if grad_cfg.recording_mode == "local_segmented":
+            if grad_cfg.num_checkpoints_reversible == "auto":
+                if objects.devices:
+                    bounds = tuple(
+                        (
+                            min(d.grid_slice_tuple[a][0] for d in objects.devices),
+                            max(d.grid_slice_tuple[a][1] for d in objects.devices),
+                        )
+                        for a in range(3)
+                    )
+                    box_shape = tuple(hi - lo + 2 for lo, hi in bounds)
+                    shell_voxels = 2 * (
+                        box_shape[1] * box_shape[2] + box_shape[0] * box_shape[2] + box_shape[0] * box_shape[1]
+                    )
+                    local_record_bytes = 2 * 3 * shell_voxels * field_dtype.itemsize
+                else:
+                    local_record_bytes = 1
+                grad_cfg = grad_cfg.resolve_num_checkpoints_reversible(
+                    time_steps_total=config.time_steps_total,
+                    record_bytes_per_step=local_record_bytes,
+                    field_state_bytes=sum(x.nbytes for x in jax.tree.leaves((E, H, psi_E, psi_H))),
+                )
+                logger.info(f"num_checkpoints_reversible='auto' resolved to {grad_cfg.num_checkpoints_reversible}")
+                config = config.aset("gradient_config", grad_cfg)
+            if grad_cfg.recorder is not None:
+                input_shape_dtypes = {}
+                for boundary in objects.pml_objects:
+                    cur_shape = boundary.interface_grid_shape()
+                    extended_shape = (3, *cur_shape)
+                    input_shape_dtypes[f"{boundary.name}_E"] = jax.ShapeDtypeStruct(
+                        shape=extended_shape, dtype=field_dtype
+                    )
+                    input_shape_dtypes[f"{boundary.name}_H"] = jax.ShapeDtypeStruct(
+                        shape=extended_shape, dtype=field_dtype
+                    )
+                recorder, recording_state = grad_cfg.recorder.init_state(
+                    input_shape_dtypes=input_shape_dtypes,
+                    max_time_steps=grad_cfg.recorder_time_steps(config.time_steps_total),
+                    backend=config.backend,
+                )
+                grad_cfg = grad_cfg.aset("recorder", recorder)
+                config = config.aset("gradient_config", grad_cfg)
+        else:
+            for boundary in objects.pml_objects:
+                cur_shape = boundary.interface_grid_shape()
+                extended_shape = (3, *cur_shape)
+                input_shape_dtypes[f"{boundary.name}_E"] = jax.ShapeDtypeStruct(shape=extended_shape, dtype=field_dtype)
+                input_shape_dtypes[f"{boundary.name}_H"] = jax.ShapeDtypeStruct(shape=extended_shape, dtype=field_dtype)
+            recorder = config.gradient_config.recorder
+            if grad_cfg.num_checkpoints_reversible == "auto":
+                # Bytes per recorded step after the compression modules (segmented mode admits no time-step filters).
+                step_shape_dtypes = input_shape_dtypes
+                for module in recorder.modules:
+                    if isinstance(module, CompressionModule):
+                        _, step_shape_dtypes, _ = module.init_shapes(step_shape_dtypes)
+                grad_cfg = grad_cfg.resolve_num_checkpoints_reversible(
+                    time_steps_total=config.time_steps_total,
+                    record_bytes_per_step=sum(
+                        math.prod(v.shape) * v.dtype.itemsize for v in step_shape_dtypes.values()
+                    ),
+                    field_state_bytes=sum(x.nbytes for x in jax.tree.leaves((E, H, psi_E, psi_H))),
+                )
+                logger.info(f"num_checkpoints_reversible='auto' resolved to {grad_cfg.num_checkpoints_reversible}")
+            recorder, recording_state = recorder.init_state(
+                input_shape_dtypes=input_shape_dtypes,
+                max_time_steps=grad_cfg.recorder_time_steps(config.time_steps_total),
+                backend=config.backend,
             )
-            logger.info(f"num_checkpoints_reversible='auto' resolved to {grad_cfg.num_checkpoints_reversible}")
-        recorder, recording_state = recorder.init_state(
-            input_shape_dtypes=input_shape_dtypes,
-            max_time_steps=grad_cfg.recorder_time_steps(config.time_steps_total),
-            backend=config.backend,
-        )
-        grad_cfg = grad_cfg.aset(
-            "recorder",
-            recorder,
-        )
-        config = config.aset("gradient_config", grad_cfg)
+            grad_cfg = grad_cfg.aset(
+                "recorder",
+                recorder,
+            )
+            config = config.aset("gradient_config", grad_cfg)
 
     # Save backup of initial inv_permittivities when using etched_devices
     using_etching = any(d.use_etching for d in objects.devices)
@@ -1121,6 +1168,11 @@ def _init_arrays(
         dispersive_c3=dispersive_c3,
         initial_inv_permittivities=initial_inv_permittivities,
     )
+    if config.gradient_config is not None and config.gradient_config.recording_mode == "local_segmented":
+        from fdtdx.fdtd.fdtd import _validate_local_segmented_guards
+
+        _validate_local_segmented_guards(arrays, objects, config)
+
     return arrays, config, info
 
 

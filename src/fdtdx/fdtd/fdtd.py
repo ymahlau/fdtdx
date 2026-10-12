@@ -6,8 +6,10 @@ from functools import partial
 import equinox.internal as eqxi
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from fdtdx.config import SimulationConfig
+from fdtdx.core.physics.curl import _metric_scale, interpolate_fields
 from fdtdx.core.progress import _make_pbar, _wrap_body_with_progress
 from fdtdx.fdtd.backward import backward
 from fdtdx.fdtd.container import ArrayContainer, FieldState, ObjectContainer, PmlAuxField, SimulationState
@@ -15,6 +17,84 @@ from fdtdx.fdtd.forward import forward, forward_single_args_wrapper
 from fdtdx.fdtd.stop_conditions import StoppingCondition, TimeStepCondition
 from fdtdx.interfaces.state import RecordingState
 from fdtdx.objects.detectors.detector import DetectorState
+from fdtdx.objects.detectors.field import FieldDetector
+from fdtdx.objects.detectors.phasor import PhasorDetector
+
+
+def _validate_local_segmented_guards(
+    arrays: ArrayContainer,
+    objects: ObjectContainer,
+    config: SimulationConfig,
+) -> tuple[tuple[tuple[int, int], tuple[int, int], tuple[int, int]], tuple[int, int, int]]:
+    """Validate defensive guards for local_segmented reversible gradient mode.
+
+    Returns:
+        bounds: Tight bounding box ((x_min, x_max), (y_min, y_max), (z_min, z_max))
+        grid_shape: Simulation volume shape (Nx, Ny, Nz)
+    """
+    if arrays.dispersive_c1 is not None or arrays.fields.dispersive_P_curr is not None:
+        raise ValueError("recording_mode='local_segmented' does not support dispersive materials")
+    if arrays.electric_conductivity is not None or arrays.magnetic_conductivity is not None:
+        raise ValueError("recording_mode='local_segmented' requires lossless materials (conductivity must be None)")
+    inv_eps = arrays.inv_permittivities
+    if inv_eps.shape[0] not in (1, 3) or jnp.issubdtype(inv_eps.dtype, jnp.complexfloating):
+        raise ValueError(
+            f"recording_mode='local_segmented' only supports real isotropic (1) or diagonal anisotropic (3) "
+            f"inverse permittivity, got shape[0]={inv_eps.shape[0]}, dtype={inv_eps.dtype}"
+        )
+    inv_mu = arrays.inv_permeabilities
+    if (np.ndim(inv_mu) > 0 and inv_mu.shape[0] not in (1, 3)) or jnp.issubdtype(
+        getattr(inv_mu, "dtype", float), jnp.complexfloating
+    ):
+        raise ValueError(
+            f"recording_mode='local_segmented' only supports real isotropic or diagonal permeability, "
+            f"got shape={getattr(inv_mu, 'shape', ())}"
+        )
+
+    for d in objects.detectors:
+        if not isinstance(d, (PhasorDetector, FieldDetector)):
+            raise ValueError(
+                f"recording_mode='local_segmented' only supports linear detectors (PhasorDetector, FieldDetector), "
+                f"got {type(d).__name__} ('{d.name}')"
+            )
+
+    grad_cfg = config.gradient_config
+    grid_shape = tuple(inv_eps.shape[1:])
+    if grad_cfg is not None and grad_cfg.split_detector_adjoint:
+        if objects.backward_detectors:
+            raise ValueError("split_detector_adjoint does not support backward detectors")
+        for d in objects.forward_detectors:
+            if not isinstance(d, PhasorDetector) or d.inverse or d.reduce_volume or not d.exact_interpolation:
+                raise ValueError(
+                    f"split_detector_adjoint requires forward, exact, non-reduced PhasorDetectors, "
+                    f"but detector '{d.name}' does not satisfy this"
+                )
+            if not all(s >= 1 and e <= grid_shape[a] - 1 for a, (s, e) in enumerate(d.grid_slice_tuple)):
+                raise ValueError(
+                    f"split_detector_adjoint requires interior detectors with at least 1-cell boundary margin, "
+                    f"but detector '{d.name}' touches the domain boundary"
+                )
+
+    if len(objects.devices) == 0:
+        raise ValueError("recording_mode='local_segmented' requires at least one optimizable device in objects.devices")
+
+    bounds = tuple(
+        (
+            min(d.grid_slice_tuple[a][0] for d in objects.devices),
+            max(d.grid_slice_tuple[a][1] for d in objects.devices),
+        )
+        for a in range(3)
+    )
+    if any(lo < 1 or hi >= size for (lo, hi), size in zip(bounds, grid_shape)):
+        raise ValueError("Variable device region needs at least a one-cell shell inside the full grid")
+
+    for obj in objects.pml_objects + objects.sources:
+        if all(max(lo - 1, s.start) < min(hi + 1, s.stop) for (lo, hi), s in zip(bounds, obj.grid_slice)):
+            raise ValueError(
+                f"Local reconstruction bounding box (including 1-cell shell) intersects {type(obj).__name__} '{obj.name}'"
+            )
+
+    return bounds, grid_shape
 
 
 def _reversible_slice_boundaries(time_steps_total: int, num_slices: int) -> list[int]:
@@ -95,6 +175,11 @@ def reversible_fdtd(
     # if arrays.magnetic_conductivity is not None or arrays.electric_conductivity is not None:
     #     raise Exception(f"Reversible FDTD does not work with Conductive Materials")
 
+    grad_cfg = config.gradient_config
+    local_segmented = grad_cfg is not None and grad_cfg.recording_mode == "local_segmented"
+    if local_segmented:
+        bounds, _grid_shape = _validate_local_segmented_guards(arrays, objects, config)
+
     # Checked here in addition to initialization time, since the gradient config can be
     # swapped after ``place_objects`` and this function can be called directly, bypassing
     # ``run_fdtd``.
@@ -112,7 +197,6 @@ def reversible_fdtd(
     # drift for lossy materials). ``num_checkpoints_reversible == 0`` (the default)
     # gives a single slice and reproduces the classic full reverse pass exactly. In segmented
     # recording mode the checkpoints are also where each slice's interface record is regenerated from.
-    grad_cfg = config.gradient_config
     num_ckpt = 0 if grad_cfg is None else grad_cfg.num_checkpoints_reversible
     if not isinstance(num_ckpt, int):
         raise Exception("num_checkpoints_reversible='auto' is resolved by place_objects; use the config it returns")
@@ -137,15 +221,36 @@ def reversible_fdtd(
             )
     # The slices are recorded during the backward pass, in reverse order, so a recorder module that carries
     # state from one compressed step to the next would see a different state sequence than in full mode.
-    if segmented and arrays.recording_state is not None and arrays.recording_state.state:
+    if (segmented or local_segmented) and arrays.recording_state is not None and arrays.recording_state.state:
         raise Exception(
-            "recording_mode='segmented' does not support recorder modules with internal state "
+            f"recording_mode='{grad_cfg.recording_mode}' does not support recorder modules with internal state "
             f"({sorted(arrays.recording_state.state)}), because the slices are recorded out of order."
         )
     slice_boundaries = jnp.asarray(
         _reversible_slice_boundaries(config.time_steps_total, num_slices),
         dtype=jnp.int32,
     )
+
+    host_offload = grad_cfg is not None and grad_cfg.host_offload
+    if host_offload:
+        cpu_dev = jax.devices("cpu")[0]
+        try:
+            target_dev = jax.devices(config.backend)[0]
+        except Exception:
+            target_dev = jax.devices()[0]
+
+        def to_host(tree):
+            return jax.tree.map(lambda x: jax.device_put(x, cpu_dev), tree)
+
+        def to_device(tree):
+            return jax.tree.map(lambda x: jax.device_put(x, target_dev), tree)
+    else:
+
+        def to_host(tree):
+            return tree
+
+        def to_device(tree):
+            return tree
 
     pbar = _make_pbar(
         show_progress=show_progress,
@@ -163,7 +268,7 @@ def reversible_fdtd(
         objects=objects,
         key=key,
         record_detectors=True,
-        record_boundaries=config.invertible_optimization and not segmented,
+        record_boundaries=config.invertible_optimization and not (segmented or local_segmented),
         simulate_boundaries=True,
     )
     _forward_body_with_progress, _close_pbar = _wrap_body_with_progress(_forward_body, pbar)
@@ -196,7 +301,8 @@ def reversible_fdtd(
         def slice_body(i, carry):
             state, checkpoints = carry
             state = run_until(state, slice_boundaries[i + 1], _forward_body_with_progress)
-            checkpoints = jax.tree.map(lambda buf, x: buf.at[i].set(x, mode="drop"), checkpoints, state[1].fields)
+            ckpt_fields = to_host(state[1].fields) if host_offload else state[1].fields
+            checkpoints = jax.tree.map(lambda buf, x: buf.at[i].set(x, mode="drop"), checkpoints, ckpt_fields)
             return state, checkpoints
 
         return jax.lax.fori_loop(0, num_slices, slice_body, (state, checkpoints))
@@ -335,7 +441,12 @@ def reversible_fdtd(
             reset on entry), an interior checkpoint, or the primal output at the end of the run."""
             branches = [lambda: jax.tree.map(jnp.zeros_like, final_fields)]
             if num_ckpt > 0:
-                branches.append(lambda: jax.tree.map(lambda buf: buf[jnp.clip(i - 1, 0, num_ckpt - 1)], checkpoints))
+                branches.append(
+                    lambda: jax.tree.map(
+                        lambda buf: to_device(buf[jnp.clip(i - 1, 0, num_ckpt - 1)]),
+                        checkpoints,
+                    )
+                )
             branches.append(lambda: final_fields)
             branch = jnp.where(i == 0, 0, jnp.where(i == num_slices, len(branches) - 1, 1))
             return jax.lax.switch(branch, branches)
@@ -375,21 +486,287 @@ def reversible_fdtd(
             )
             return arrays_start.recording_state, running_cot
 
-        if num_slices == 1:
-            # The default single slice is reversed outside of a loop, which compiles to exactly the classic
-            # reverse pass.
-            _, cot = reverse_slice(0, (res_recording_state, cot))
+        if not local_segmented:
+            if num_slices == 1:
+                # The default single slice is reversed outside of a loop, which compiles to exactly the classic
+                # reverse pass.
+                _, cot = reverse_slice(0, (res_recording_state, cot))
+            else:
+                _, cot = jax.lax.fori_loop(0, num_slices, reverse_slice, (res_recording_state, cot))
+            return (
+                None,  # cot[1],   E
+                None,  # cot[2],   H
+                None,  # cot[3],   psi_E
+                None,  # cot[4],   psi_H
+                cot[5],  #         inv_permittivities
+                cot[6],  #         inv_permeabilities
+                None,  # cot[7],   detector_states
+                None,  # cot[8],   recording_state
+            )
+
+        # Local reversible adjoint reconstruction
+        core = tuple(slice(lo, hi) for lo, hi in bounds)
+        box = tuple(slice(lo - 1, hi + 1) for lo, hi in bounds)
+        selected = (slice(None), *core)
+        core_shape = tuple(hi - lo for lo, hi in bounds)
+        box_shape = tuple(n + 2 for n in core_shape)
+
+        mask_np = np.zeros(core_shape, dtype=bool)
+        for d in objects.devices:
+            rel_slice = tuple(slice(s - lo, e - lo) for (s, e), (lo, hi) in zip(d.grid_slice_tuple, bounds))
+            mask_np[rel_slice] = True
+        if res_inv_permittivities.shape[0] == 3:
+            mask_np = np.broadcast_to(mask_np[None, ...], (3, *core_shape))
         else:
-            _, cot = jax.lax.fori_loop(0, num_slices, reverse_slice, (res_recording_state, cot))
+            mask_np = mask_np[None, ...]
+        mask = jnp.asarray(mask_np)
+
+        mu = res_inv_permeabilities
+        local_mu = mu if np.ndim(mu) == 0 else mu[selected]
+        local_eps = res_inv_permittivities[selected]
+        c = config.courant_number
+
+        faces = []
+        for axis, size in enumerate(box_shape):
+            for position in (0, size - 1):
+                face = [slice(None)] * 4
+                face[axis + 1] = slice(position, position + 1)
+                faces.append(tuple(face))
+
+        def local_fields(f_state: FieldState):
+            return (f_state.E[(slice(None), *box)], f_state.H[(slice(None), *box)])
+
+        def collect(f_tuple):
+            return tuple(f[face] for f in f_tuple for face in faces)
+
+        def restore(f_arr, values):
+            for face, val in zip(faces, values):
+                f_arr = f_arr.at[face].set(val)
+            return f_arr
+
+        interior = (slice(None), slice(1, -1), slice(1, -1), slice(1, -1))
+
+        grid_shape = tuple(res_inv_permittivities.shape[1:])
+        scales = {}
+        for stencil in ("forward", "backward"):
+            values = []
+            for axis, (lo, hi) in enumerate(bounds):
+                value = _metric_scale(config, axis, grid_shape, stencil)
+                if np.ndim(value):
+                    sl = [slice(None)] * 3
+                    sl[axis] = slice(lo, hi)
+                    value = value[tuple(sl)]
+                values.append(value)
+            scales[stencil] = values
+
+        def local_curl(field, stencil):
+            x, y, z = field
+            center = (slice(1, -1), slice(1, -1), slice(1, -1))
+            dx, dy, dz = scales[stencil]
+            if stencil == "forward":
+                dyz = (z[1:-1, 2:, 1:-1] - z[center]) * dy
+                dzy = (y[1:-1, 1:-1, 2:] - y[center]) * dz
+                dzx = (x[1:-1, 1:-1, 2:] - x[center]) * dz
+                dxz = (z[2:, 1:-1, 1:-1] - z[center]) * dx
+                dxy = (y[2:, 1:-1, 1:-1] - y[center]) * dx
+                dyx = (x[1:-1, 2:, 1:-1] - x[center]) * dy
+            else:
+                dyz = (z[center] - z[1:-1, :-2, 1:-1]) * dy
+                dzy = (y[center] - y[1:-1, 1:-1, :-2]) * dz
+                dzx = (x[center] - x[1:-1, 1:-1, :-2]) * dz
+                dxz = (z[center] - z[:-2, 1:-1, 1:-1]) * dx
+                dxy = (y[center] - y[:-2, 1:-1, 1:-1]) * dx
+                dyx = (x[center] - x[1:-1, :-2, 1:-1]) * dy
+            return jnp.stack((dyz - dzy, dzx - dxz, dxy - dyx), axis=0)
+
+        zero = jax.tree.map(jnp.zeros_like, (final_fields, res_detector_states))
+        zero_fields = zero[0]
+        zero_detectors = zero[1]
+
+        def whole_adjoint(state_cot, eps, n):
+            def step(state):
+                arr = ArrayContainer(
+                    fields=state[0],
+                    inv_permittivities=eps,
+                    inv_permeabilities=res_inv_permeabilities,
+                    detector_states=state[1],
+                    recording_state=None,
+                    electric_conductivity=None,
+                    magnetic_conductivity=None,
+                    initial_inv_permittivities=arrays.initial_inv_permittivities,
+                )
+                next_arr = forward(
+                    (n, arr),
+                    config=config,
+                    objects=objects,
+                    key=key,
+                    record_detectors=True,
+                    record_boundaries=False,
+                    simulate_boundaries=True,
+                )[1]
+                return next_arr.fields, next_arr.detector_states
+
+            _, pullback = jax.vjp(step, zero)
+            next_cot = pullback(state_cot)[0]
+            return next_cot, next_cot[0].E[selected]
+
+        if grad_cfg.split_detector_adjoint:
+            detectors = objects.forward_detectors
+            detector_blocks = []
+            for d in detectors:
+                t = d.grid_slice_tuple
+                detector_blocks.append(((slice(None), *(slice(s - 1, e + 1) for s, e in t)), t))
+            full_shape = tuple(res_E.shape)
+
+            def field_step(fields, eps, n):
+                arr = ArrayContainer(
+                    fields=fields,
+                    inv_permittivities=eps,
+                    inv_permeabilities=res_inv_permeabilities,
+                    detector_states=zero_detectors,
+                    recording_state=None,
+                    electric_conductivity=None,
+                    magnetic_conductivity=None,
+                    initial_inv_permittivities=arrays.initial_inv_permittivities,
+                )
+                return forward(
+                    (n, arr),
+                    config=config,
+                    objects=objects,
+                    key=key,
+                    record_detectors=False,
+                    record_boundaries=False,
+                    simulate_boundaries=True,
+                )[1].fields
+
+            def detector_increment(d, region, E, H, H_prev, n):
+                E_reg, H_reg = interpolate_fields(E, (H_prev + H) / 2, config=config, region_slice=region)
+                increment = d.update(
+                    time_step=n,
+                    E=E_reg,
+                    H=H_reg,
+                    state=zero_detectors[d.name],
+                    inv_permittivity=None,
+                    inv_permeability=None,
+                )
+                on = d._is_on_at_time_step_arr[n]
+                return jax.tree.map(lambda x: jnp.where(on, x, 0), increment)
+
+            def split_adjoint(state_cot, eps, n):
+                field_cot, detector_cot = state_cot
+                _, field_pullback = jax.vjp(lambda f: field_step(f, eps, n), zero_fields)
+                add_E, add_H, add_H_prev = [], [], []
+                for d, (block, region) in zip(detectors, detector_blocks):
+                    z = jnp.zeros((3, *(b.stop - b.start for b in block[1:])), field_cot.E.dtype)
+                    _, pullback = jax.vjp(lambda E, H, Hp: detector_increment(d, region, E, H, Hp, n), z, z, z)
+                    g_E, g_H, g_H_prev = pullback(detector_cot[d.name])
+                    pad = [(0, 0)] + [(b.start, full_shape[i + 1] - b.stop) for i, b in enumerate(block[1:])]
+                    add_E.append(jnp.pad(g_E, pad))
+                    add_H.append(jnp.pad(g_H, pad))
+                    add_H_prev.append((block, g_H_prev))
+                E_mod = field_cot.E + sum(add_E) if add_E else field_cot.E
+                H_mod = field_cot.H + sum(add_H) if add_H else field_cot.H
+                old = field_pullback(field_cot.aset("E", E_mod).aset("H", H_mod))[0]
+                H = old.H
+                for block, g in add_H_prev:
+                    H = H.at[block].add(g)
+                cot_out = (old.aset("H", H), detector_cot)
+                return cot_out, cot_out[0].E[selected]
+
+            adjoint = split_adjoint
+        else:
+            adjoint = whole_adjoint
+
+        samples_template = collect(local_fields(final_fields))
+        max_slice_len = -(-config.time_steps_total // num_slices)
+        record_shapes = tuple((max_slice_len, *v.shape) for v in samples_template)
+
+        def reverse_local_slice(j, carry):
+            running_cot, running_grad = carry
+            i = num_slices - 1 - j
+            slice_start, slice_end = slice_boundaries[i], slice_boundaries[i + 1]
+            slice_len = slice_end - slice_start
+            start_fields = fields_at_boundary(i)
+            end_fields = final_fields if num_slices == 1 else fields_at_boundary(i + 1)
+
+            def re_step(n, c_arr):
+                state, recs = c_arr
+                next_arr = forward(
+                    (n, state),
+                    config=config,
+                    objects=objects,
+                    key=key,
+                    record_detectors=False,
+                    record_boundaries=False,
+                    simulate_boundaries=True,
+                )[1]
+                cur_samples = collect(local_fields(next_arr.fields))
+                recs = tuple(r.at[n - slice_start].set(v) for r, v in zip(recs, cur_samples))
+                return next_arr, recs
+
+            init_container = make_container(start_fields, None)
+            init_records = tuple(jnp.zeros(s, res_inv_permittivities.dtype) for s in record_shapes)
+            _, records = jax.lax.fori_loop(slice_start, slice_end, re_step, (init_container, init_records))
+
+            first = collect(local_fields(start_fields))
+
+            def rev_body(step_idx, carry_rev):
+                fields, cot_rev, grad_rev = carry_rev
+                step_k = slice_len - 1 - step_idx
+                time_n = slice_start + step_k
+                prev_shell = jax.lax.cond(
+                    step_k > 0,
+                    lambda: tuple(r[step_k - 1] for r in records),
+                    lambda: first,
+                )
+                E_box, H_box = fields
+                H_box = H_box.at[interior].set(H_box[interior] + c * local_curl(E_box, "forward") * local_mu)
+                H_box = restore(H_box, prev_shell[6:])
+                curl_h = local_curl(H_box, "backward")
+                E_box = E_box.at[interior].set(E_box[interior] - c * curl_h * local_eps)
+                E_box = restore(E_box, prev_shell[:6])
+                cot_rev, e_cot = adjoint(cot_rev, res_inv_permittivities, time_n)
+                contribution = (c * curl_h) * e_cot
+                if res_inv_permittivities.shape[0] == 1:
+                    contribution = jnp.sum(contribution, axis=0, keepdims=True)
+                grad_rev = grad_rev + jnp.where(mask, contribution, 0)
+                return (E_box, H_box), cot_rev, grad_rev
+
+            init_fields = local_fields(end_fields)
+            _, running_cot, running_grad = jax.lax.fori_loop(
+                0, slice_len, rev_body, (init_fields, running_cot, running_grad)
+            )
+            return running_cot, running_grad
+
+        init_E = jnp.zeros_like(final_fields.E) if cot[1] is None else cot[1]
+        init_H = jnp.zeros_like(final_fields.H) if cot[2] is None else cot[2]
+        init_psi_E = jax.tree.map(jnp.zeros_like, final_fields.psi_E) if cot[3] is None else cot[3]
+        init_psi_H = jax.tree.map(jnp.zeros_like, final_fields.psi_H) if cot[4] is None else cot[4]
+        init_fields_cot = FieldState(E=init_E, H=init_H, psi_E=init_psi_E, psi_H=init_psi_H)
+        init_detector_cot = jax.tree.map(jnp.zeros_like, res_detector_states) if cot[7] is None else cot[7]
+        init_state_cot = (init_fields_cot, init_detector_cot)
+        init_grad = jnp.zeros_like(res_inv_permittivities[selected])
+
+        if num_slices == 1:
+            _running_cot, final_grad = reverse_local_slice(0, (init_state_cot, init_grad))
+        else:
+            _running_cot, final_grad = jax.lax.fori_loop(
+                0, num_slices, reverse_local_slice, (init_state_cot, init_grad)
+            )
+
+        direct_cot_eps = jnp.zeros_like(res_inv_permittivities) if cot[5] is None else cot[5]
+        direct_cot_mu = jnp.zeros_like(res_inv_permeabilities) if cot[6] is None else cot[6]
+        full_grad_eps = jnp.zeros_like(res_inv_permittivities).at[selected].set(final_grad) + direct_cot_eps
+
         return (
-            None,  # cot[1],   E
-            None,  # cot[2],   H
-            None,  # cot[3],   psi_E
-            None,  # cot[4],   psi_H
-            cot[5],  #         inv_permittivities
-            cot[6],  #         inv_permeabilities
-            None,  # cot[7],   detector_states
-            None,  # cot[8],   recording_state
+            None,
+            None,
+            None,
+            None,
+            full_grad_eps,
+            direct_cot_mu,
+            None,
+            None,
         )
 
     def fdtd_fwd(
