@@ -27,8 +27,9 @@ class GradientConfig(TreeClass):
     #: Method for gradient computation.
     #: ``"reversible"`` uses the time reversible autodiff, ``"checkpointed"`` the exact checkpointing algorithm
     #: and ``"adjoint"`` the frequency-domain adjoint method (see :func:`~fdtdx.fdtd.adjoint.adjoint_fdtd`),
-    #: which only stores Fourier transforms of the fields inside the Devices. The adjoint method supports
-    #: losses of phasor-detector states and computes gradients inside Devices only.
+    #: which only stores Fourier transforms of the fields in its gradient regions. The adjoint method supports
+    #: losses of phasor-detector states and computes material gradients only inside the objects named by
+    #: ``adjoint_gradient_objects`` (by default all Devices).
     method: Literal["reversible", "checkpointed", "adjoint"] = frozen_field(default="reversible")
 
     #: Optional recorder for invertible differentiation. Needs to be provided for reversible autodiff. Defaults to None
@@ -93,6 +94,12 @@ class GradientConfig(TreeClass):
     #: simulation time. The adjoint fields must decay within it.
     adjoint_time: float | None = frozen_field(default=None)
 
+    #: Names of the objects whose cells receive material gradients in the ``"adjoint"`` method; the gradient of
+    #: the inverse permittivity and permeability is zero elsewhere. ``None`` (default) uses every Device. The
+    #: objects must not overlap a PML or a source. Name for example a ``UniformMaterialObject`` whose material is
+    #: optimized outside of a Device, or set this when the simulation has no Device.
+    adjoint_gradient_objects: tuple[str, ...] | None = frozen_field(default=None)
+
     #: Band of the exact adjoint mode: every DFT frequency at which the spectrum of a source exceeds
     #: this fraction of its peak. A smaller value is more accurate and stores more frequencies. ``None``
     #: (default) uses a value matched to the precision of the simulation dtype.
@@ -107,6 +114,14 @@ class GradientConfig(TreeClass):
             raise Exception(f"adjoint_time must be positive, got {self.adjoint_time}")
         # Options of the frequency mode are checked when the simulation runs: CW sources use it under the
         # default adjoint_mode="exact" as well.
+        if self.adjoint_gradient_objects is not None and (
+            isinstance(self.adjoint_gradient_objects, str)
+            or len(self.adjoint_gradient_objects) == 0
+            or not all(isinstance(name, str) for name in self.adjoint_gradient_objects)
+        ):
+            raise Exception(
+                f"adjoint_gradient_objects must be a non-empty tuple of object names, got {self.adjoint_gradient_objects!r}"
+            )
         if self.adjoint_band_tolerance is not None:
             if self.adjoint_mode != "exact":
                 raise Exception("adjoint_band_tolerance only applies to adjoint_mode='exact'")

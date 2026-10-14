@@ -317,6 +317,72 @@ def test_several_devices_with_overlapping_halos(mode):
     _assert_match(_gradients(_dipole_scene(False, jnp.float32, devices=devices), mode=mode), rtol=1e-4)
 
 
+def _block(name="block", corner=(5, 5, 7), shape=(6, 6, 3)):
+    block = fdtdx.UniformMaterialObject(name=name, partial_grid_shape=shape, material=fdtdx.Material(permittivity=2.5))
+    return block, block.set_grid_coordinates(axes=(0, 1, 2), sides=("-", "-", "-"), coordinates=corner)
+
+
+def _material_gradients(entries, gradient_objects, mode):
+    """Gradient of the phasor power w.r.t. the full inverse permittivity for checkpointed and the adjoint mode."""
+    results = {}
+    for method in ("checkpointed", mode):
+        objects, constraints = [], []
+        _box(objects, constraints)
+        for obj, constraint in entries():
+            objects.append(obj)
+            constraints.append(constraint)
+        config = _config(_PULSE_TIME, jnp.float32, method)
+        if method != "checkpointed":
+            config = config.aset(
+                "gradient_config", config.gradient_config.aset("adjoint_gradient_objects", gradient_objects)
+            )
+        obj, arrays, params, config = _place(objects, constraints, config)
+        key = jax.random.PRNGKey(1)
+        arrays, obj, _ = fdtdx.apply_params(arrays, obj, params, key)
+
+        def loss_fn(inv_eps, arrays=arrays, obj=obj, config=config):
+            _, out = fdtdx.run_fdtd(arrays.aset("inv_permittivities", inv_eps), obj, config, key, show_progress=False)
+            return _phasor_power(out, obj)
+
+        results[method] = (np.asarray(jax.jit(jax.grad(loss_fn))(arrays.inv_permittivities)), obj)
+    return results["checkpointed"][0], *results[mode]
+
+
+@_MODES
+def test_gradient_region_without_device(mode):
+    """A UniformMaterialObject named as gradient region in a simulation without any Device."""
+
+    def entries():
+        return [_dipole(_pulse_profile()), _block(), _phasor((760e-9, 850e-9), False)]
+
+    reference, adjoint, obj = _material_gradients(entries, ("block",), mode)
+    region = (slice(None), *obj["block"].grid_slice)
+    rel = np.linalg.norm(adjoint[region] - reference[region]) / np.linalg.norm(reference[region])
+    assert rel < 1e-4, f"gradient in the region: relative error {rel:.3e}"
+    outside = np.ones(adjoint.shape, dtype=bool)
+    outside[region] = False
+    assert np.all(adjoint[outside] == 0)
+
+
+@_MODES
+def test_gradient_regions_device_and_object(mode):
+    """A Device and a separate material block, both named; the gradient is returned on both."""
+
+    def entries():
+        return [
+            _dipole(_pulse_profile()),
+            _device(shape=(4, 4, 2), corner=(6, 6, 6)),
+            _block(corner=(5, 5, 9), shape=(6, 6, 1)),
+            _phasor((760e-9, 850e-9), False),
+        ]
+
+    reference, adjoint, obj = _material_gradients(entries, ("dev", "block"), mode)
+    for name in ("dev", "block"):
+        region = (slice(None), *obj[name].grid_slice)
+        rel = np.linalg.norm(adjoint[region] - reference[region]) / np.linalg.norm(reference[region])
+        assert rel < 1e-4, f"gradient in '{name}': relative error {rel:.3e}"
+
+
 def test_sharded_over_two_devices():
     """Fields sharded over two devices (forced CPU devices, so a fresh process: the count is fixed at start-up)."""
     script = textwrap.dedent(
@@ -674,6 +740,33 @@ def test_unused_nonlinear_detector_is_fine():
     )
     grad = _grad_of(_phasor_power, obj, arrays, params, config)
     assert all(bool(jnp.all(jnp.isfinite(g))) for g in jax.tree.leaves(grad))
+
+
+def test_without_device_a_gradient_region_is_required():
+    objects, constraints = [], []
+    _box(objects, constraints)
+    for obj, constraint in (_dipole(_pulse_profile()), _block(), _phasor((800e-9,), False)):
+        objects.append(obj)
+        constraints.append(constraint)
+    obj, arrays, _, config = _place(objects, constraints, _config(30e-15, jnp.float32, "default"))
+    key = jax.random.PRNGKey(1)
+
+    def loss_fn(inv_eps):
+        _, out = fdtdx.run_fdtd(arrays.aset("inv_permittivities", inv_eps), obj, config, key, show_progress=False)
+        return _phasor_power(out, obj)
+
+    with pytest.raises(ValueError, match="adjoint_gradient_objects"):
+        jax.grad(loss_fn)(arrays.inv_permittivities)
+    config = config.aset("gradient_config", config.gradient_config.aset("adjoint_gradient_objects", ("blok",)))
+    with pytest.raises(ValueError, match="not objects of the simulation"):
+        jax.grad(loss_fn)(arrays.inv_permittivities)
+
+
+def test_gradient_region_overlapping_a_source_raises():
+    obj, arrays, params, config = _error_scene(extra=[_block(corner=(5, 5, 4), shape=(6, 6, 3))])
+    config = config.aset("gradient_config", config.gradient_config.aset("adjoint_gradient_objects", ("block",)))
+    with pytest.raises(ValueError, match="overlaps the source 'dip'"):
+        _grad_of(_phasor_power, obj, arrays, params, config)
 
 
 def test_device_in_pml_raises():

@@ -15,7 +15,8 @@ phasors is then
 
 with ``B(s, l) = (d(L s)/dkappa)^T l`` the bilinear parameter term of one step and ``r_k`` the adjoint
 source obtained from the VJP of the detector samples. ``B`` is local, so ``X_k`` and ``Lambda_k`` are only
-needed on the devices (plus a halo of :data:`_HALO` cells for the update stencils).
+needed on the gradient regions (``GradientConfig.adjoint_gradient_objects``, by default the Devices) plus a halo
+of :data:`_HALO` cells for the update stencils.
 
 ``Lambda_k`` is computed by stepping ``mu_{m+1} = L^T mu_m + r_m`` with the VJP of the source-free forward
 step: its DTFT solves ``A(w)^T mu(w) = r(w)``. The adjoint source ``r_m`` is a short pulse whose spectrum
@@ -57,7 +58,7 @@ from fdtdx.fdtd.forward import forward
 from fdtdx.fdtd.update import colocate_detector_fields, get_wrap_padding_axes
 from fdtdx.objects.detectors.detector import DetectorState
 from fdtdx.objects.detectors.phasor import PhasorDetector
-from fdtdx.objects.sources.dipole import PointDipoleSource
+from fdtdx.objects.object import SimulationObject
 from fdtdx.objects.sources.profile import GaussianPulseProfile, SingleFrequencyProfile
 from fdtdx.typing import SliceTuple3D
 
@@ -90,6 +91,10 @@ _DFT_BLOCK = 32
 #: Both reach the rounding floor of the dtype; float64 stays above the spectral floor of about 2e-9 that the
 #: truncation of a GaussianPulseProfile at t = 0 (6 sigma before its peak) leaves.
 _BAND_TOLERANCE = {np.dtype(np.float32): 1e-6, np.dtype(np.float64): 1e-8}
+
+#: Storage of the forward and adjoint DFTs, in copies of the full-grid E and H fields, above which the adjoint
+#: method warns that a smaller gradient region, the frequency mode or checkpointing may need less memory.
+_STORAGE_WARN_COPIES = 32
 
 #: Fraction (amplitude) of the forward spectrum outside the band of the exact mode above which it warns. It
 #: bounds the relative gradient error (the adjoint spectrum is small outside the band, so the error is
@@ -174,9 +179,9 @@ class _AdjointSpec:
     forward_leakage: np.ndarray
     #: Per-step averaging weights ``(first half, second half)`` of the CW DFT window, used for the steadiness check.
     window_halves: tuple[np.ndarray, np.ndarray] | None
-    #: Device regions dilated by :data:`_HALO`.
+    #: Gradient regions dilated by :data:`_HALO`.
     design_boxes: tuple[_Box, ...]
-    #: Union of the device grid slices, shape ``(Nx, Ny, Nz)``.
+    #: Union of the gradient-region grid slices, shape ``(Nx, Ny, Nz)``.
     design_mask: np.ndarray
     groups: tuple[_AdjointGroup, ...]
 
@@ -193,9 +198,9 @@ class _ExactSpec:
     band_mask: np.ndarray
     #: Number of forward time steps ``N``.
     num_steps: int
-    #: Device regions dilated by :data:`_HALO`.
+    #: Gradient regions dilated by :data:`_HALO`.
     design_boxes: tuple[_Box, ...]
-    #: Union of the device grid slices, shape ``(Nx, Ny, Nz)``.
+    #: Union of the gradient-region grid slices, shape ``(Nx, Ny, Nz)``.
     design_mask: np.ndarray
 
 
@@ -396,21 +401,41 @@ def _validate(arrays: ArrayContainer, objects: ObjectContainer, config: Simulati
         raise NotImplementedError("The adjoint gradient method does not support complex fields (Bloch boundaries) yet.")
     if arrays.dispersive_c1 is not None or arrays.fields.dispersive_P_curr is not None:
         raise NotImplementedError("The adjoint gradient method does not support dispersive materials yet.")
-    if not objects.devices:
-        raise ValueError("The adjoint gradient method computes gradients inside Devices, but there is no Device.")
-    for device in objects.devices:
+    for region in _gradient_objects(objects, config):
         for pml in objects.pml_objects:
-            if _overlaps(device.grid_slice_tuple, pml.grid_slice_tuple):
+            if _overlaps(region.grid_slice_tuple, pml.grid_slice_tuple):
                 raise ValueError(
-                    f"Device '{device.name}' overlaps the PML '{pml.name}', which the adjoint gradient method "
-                    "does not support."
+                    f"The gradient region '{region.name}' overlaps the PML '{pml.name}', which the adjoint gradient "
+                    "method does not support."
                 )
         for source in objects.sources:
-            if isinstance(source, PointDipoleSource) and _overlaps(device.grid_slice_tuple, source.grid_slice_tuple):
-                raise NotImplementedError(
-                    f"Source '{source.name}' lies inside Device '{device.name}'. Its injection depends on the "
-                    "permittivity, which the adjoint gradient method does not differentiate."
+            if _overlaps(region.grid_slice_tuple, source.grid_slice_tuple):
+                raise ValueError(
+                    f"The gradient region '{region.name}' overlaps the source '{source.name}'. Source injections are "
+                    "not differentiated by the adjoint gradient method, so gradient regions must not contain sources."
                 )
+
+
+def _gradient_objects(objects: ObjectContainer, config: SimulationConfig) -> list[SimulationObject]:
+    """The objects whose cells receive material gradients: ``GradientConfig.adjoint_gradient_objects`` or the Devices."""
+    grad_cfg = config.gradient_config
+    assert grad_cfg is not None
+    if grad_cfg.adjoint_gradient_objects is None:
+        if not objects.devices:
+            raise ValueError(
+                "The adjoint gradient method computes material gradients inside Devices by default, but the "
+                "simulation has no Device. Set GradientConfig.adjoint_gradient_objects to the names of the objects "
+                "whose material should receive gradients."
+            )
+        return list(objects.devices)
+    by_name = {obj.name: obj for obj in objects.objects}
+    missing = [name for name in grad_cfg.adjoint_gradient_objects if name not in by_name]
+    if missing:
+        raise ValueError(
+            f"GradientConfig.adjoint_gradient_objects names {missing}, which are not objects of the simulation "
+            f"(objects: {sorted(by_name)})."
+        )
+    return [by_name[name] for name in grad_cfg.adjoint_gradient_objects]
 
 
 def _uses_exact_mode(objects: ObjectContainer, config: SimulationConfig) -> bool:
@@ -449,7 +474,8 @@ def _build_spec(objects: ObjectContainer, config: SimulationConfig) -> _AdjointS
         window_halves = (first / max(first.sum(), 1.0), second / max(second.sum(), 1.0))
         forward_leakage = 0.5 * (weights @ _phase_table(2 * omegas, times))
 
-    design_boxes, design_mask = _design_regions(objects)
+    design_boxes, design_mask = _design_regions(objects, config)
+    _check_storage(len(omegas), design_boxes, objects.volume.grid_shape, config)
     adjoint_steps = num_steps if grad_cfg.adjoint_time is None else round(grad_cfg.adjoint_time / dt)
     if adjoint_steps < 1:
         raise ValueError(f"The adjoint run needs at least one time step, got {adjoint_steps}.")
@@ -469,15 +495,36 @@ def _build_spec(objects: ObjectContainer, config: SimulationConfig) -> _AdjointS
     )
 
 
-def _design_regions(objects: ObjectContainer) -> tuple[tuple[_Box, ...], np.ndarray]:
-    """Device regions dilated by :data:`_HALO` and the mask of the device cells."""
+def _design_regions(objects: ObjectContainer, config: SimulationConfig) -> tuple[tuple[_Box, ...], np.ndarray]:
+    """Gradient regions dilated by :data:`_HALO` and the mask of the gradient cells."""
     grid_shape = objects.volume.grid_shape
     wrap_axes = get_wrap_padding_axes(objects)
-    design_boxes = tuple(_support_box(d.grid_slice_tuple, _HALO, grid_shape, wrap_axes) for d in objects.devices)
+    regions = _gradient_objects(objects, config)
+    design_boxes = tuple(_support_box(r.grid_slice_tuple, _HALO, grid_shape, wrap_axes) for r in regions)
     design_mask = np.zeros(grid_shape, dtype=bool)
-    for device in objects.devices:
-        design_mask[device.grid_slice] = True
+    for region in regions:
+        design_mask[region.grid_slice] = True
     return design_boxes, design_mask
+
+
+def _check_storage(num_frequencies: int, boxes: tuple[_Box, ...], grid_shape: tuple[int, ...], config) -> None:
+    """Warn when the forward and adjoint DFTs on the gradient regions need a lot of memory."""
+    cells = sum(math.prod(box.shape) for box in boxes)
+    # forward and adjoint DFT, complex, 6 components per cell; one field state is E and H, real
+    copies = 2 * 2 * num_frequencies * cells / math.prod(grid_shape)
+    if copies > _STORAGE_WARN_COPIES:
+        gib = 2 * num_frequencies * 6 * cells * 2 * np.dtype(config.dtype).itemsize / 2**30
+        grad_cfg = config.gradient_config
+        alternative = (
+            "adjoint_mode='frequency' (DFTs at the objective frequencies only), "
+            if grad_cfg is not None and grad_cfg.adjoint_mode == "exact"
+            else ""
+        )
+        logger.warning(
+            f"The adjoint gradient stores the Fourier transforms of the fields at {num_frequencies} frequencies on "
+            f"{cells} cells of its gradient regions: about {gib:.2f} GiB, as much as {copies:.0f} copies of the field "
+            f"state. Smaller gradient regions, {alternative}or method='checkpointed' may need less memory."
+        )
 
 
 def _source_spectrum(objects: ObjectContainer, config: SimulationConfig) -> np.ndarray:
@@ -528,7 +575,8 @@ def _build_exact_spec(objects: ObjectContainer, config: SimulationConfig) -> _Ex
             "one field copy per frequency; consider adjoint_mode='frequency' or a larger tolerance."
         )
     pair_weights = np.where((bins == 0) | (2 * bins == num_steps), 1.0, 2.0) / num_steps
-    design_boxes, design_mask = _design_regions(objects)
+    design_boxes, design_mask = _design_regions(objects, config)
+    _check_storage(bins.size, design_boxes, objects.volume.grid_shape, config)
     return _ExactSpec(
         bins=bins,
         pair_weights=pair_weights,
@@ -598,7 +646,8 @@ def adjoint_fdtd(
 ) -> SimulationState:
     """Run an FDTD simulation whose gradient is computed with the frequency-domain adjoint method.
 
-    The forward pass is a plain simulation that additionally records the DFT of the fields inside every
+    The forward pass is a plain simulation that additionally records the DFT of the fields in the gradient
+    regions: the objects named by ``GradientConfig.adjoint_gradient_objects``, by default every
     :class:`~fdtdx.Device`. The backward pass converts the cotangents of the phasor detectors into adjoint
     sources, runs the transposed simulation and pairs both DFTs. No boundary values are recorded.
 
@@ -614,7 +663,8 @@ def adjoint_fdtd(
 
     The loss may depend on the states of phasor detectors (:class:`~fdtdx.PhasorDetector` and its
     subclasses such as :class:`~fdtdx.ModeOverlapDetector` and :class:`~fdtdx.PhasorPoyntingFluxDetector`)
-    and on the material arrays. Gradients are only computed inside Devices. With pulsed sources the fields
+    and on the material arrays. Material gradients are only computed in the gradient regions, which must not
+    overlap a PML or a source. With pulsed sources the fields
     must have decayed by the end of the run; with CW sources they must be periodic in the DFT window
     (``GradientConfig.adjoint_window``, by default the last half of the run).
 
@@ -632,10 +682,11 @@ def adjoint_fdtd(
         SimulationState: Tuple of the final time step and the ArrayContainer with the final state.
 
     Raises:
-        NotImplementedError: For complex fields, dispersive materials, a dipole source inside a Device,
-            or a loss depending on outputs other than phasor-detector states and material arrays.
-        ValueError: For simulations without Devices or phasor detectors, Devices overlapping a PML, a mix
-            of CW and pulsed sources, or options of the adjoint mode that does not run.
+        NotImplementedError: For complex fields, dispersive materials, or a loss depending on outputs other
+            than phasor-detector states and material arrays.
+        ValueError: For simulations without phasor detectors, without gradient regions (no Device and no
+            ``adjoint_gradient_objects``), gradient regions overlapping a PML or a source, a mix of CW and pulsed
+            sources, or options of the adjoint mode that does not run.
     """
     _validate(arrays, objects, config)
     grad_cfg = config.gradient_config
@@ -1032,7 +1083,7 @@ def _adjoint_gradient(
     template: ArrayContainer,
     show_progress: bool = False,
 ) -> tuple[jax.Array, jax.Array | None]:
-    """Gradients w.r.t. the inverse permittivity and (if it is an array) permeability, zero outside Devices."""
+    """Gradients w.r.t. the inverse permittivity and (if it is an array) permeability, zero outside the regions."""
     grid_shape = objects.volume.grid_shape
     wrap_axes = get_wrap_padding_axes(objects)
     magnetic = isinstance(inv_permeabilities, jax.Array) and inv_permeabilities.ndim > 0
@@ -1324,7 +1375,7 @@ def _exact_adjoint_gradient(
     template: ArrayContainer,
     show_progress: bool = False,
 ) -> tuple[jax.Array, jax.Array | None]:
-    """Exact-mode gradients w.r.t. the inverse permittivity and (if it is an array) permeability, zero outside Devices.
+    """Exact-mode gradients w.r.t. the inverse permittivity and (if it is an array) permeability, zero outside regions.
 
     The adjoint ``lambda_n = L^T lambda_{n+1} + g_n`` starts from zero after the last step. A phasor
     detector samples ``Q(s_{n+1}, s_n)`` with coefficient ``c(n)`` at step ``n``, so it contributes

@@ -13,9 +13,11 @@ from fdtdx.fdtd.adjoint import (
     _ADJOINT_PULSE_FRACTION,
     _DFT_BLOCK,
     _GROUP_SEPARATION,
+    _STORAGE_WARN_COPIES,
     _block_phases,
     _blocked_dft,
     _Box,
+    _check_storage,
     _phase_table,
     _plan_groups,
     _source_regime,
@@ -131,6 +133,10 @@ def test_gradient_config_exact_mode_options():
     fdtdx.GradientConfig(method="adjoint", adjoint_frequencies=(fdtdx.WaveCharacter(wavelength=1e-6),))
     with pytest.raises(Exception, match="only applies to adjoint_mode='exact'"):
         fdtdx.GradientConfig(method="adjoint", adjoint_mode="frequency", adjoint_band_tolerance=1e-4)
+    with pytest.raises(Exception, match="non-empty tuple of object names"):
+        fdtdx.GradientConfig(method="adjoint", adjoint_gradient_objects=())
+    with pytest.raises(Exception, match="non-empty tuple of object names"):
+        fdtdx.GradientConfig(method="adjoint", adjoint_gradient_objects="dev")  # type: ignore[arg-type]
     with pytest.raises(Exception, match=r"must lie in \(0, 1\)"):
         fdtdx.GradientConfig(method="adjoint", adjoint_mode="exact", adjoint_band_tolerance=1.5)
 
@@ -197,3 +203,21 @@ def test_cw_window_leakage_correction_recovers_phasor():
     assert abs(X_hat - X) > 1e-4  # the leakage is not negligible here
     assert (X_hat - kappa * np.conj(X_hat)) / (1 - abs(kappa) ** 2) == pytest.approx(X, rel=1e-10)
     assert math.isfinite(abs(kappa))
+
+
+def test_storage_warning_for_large_gradient_regions():
+    """The DFT storage is compared with copies of the full-grid field state (forward + adjoint, complex)."""
+    from loguru import logger
+
+    config = SimpleNamespace(dtype=np.float32, gradient_config=SimpleNamespace(adjoint_mode="exact"))
+    grid_shape = (10, 10, 10)
+    full = (_Box(lo=(0, 0, 0), hi=grid_shape),)
+    messages = []
+    sink = logger.add(lambda message: messages.append(str(message)), level="WARNING")
+    try:
+        _check_storage(_STORAGE_WARN_COPIES // 4, full, grid_shape, config)  # exactly at the threshold: silent
+        assert not messages
+        _check_storage(_STORAGE_WARN_COPIES // 4 + 1, full, grid_shape, config)
+    finally:
+        logger.remove(sink)
+    assert len(messages) == 1 and "adjoint_mode='frequency'" in messages[0]
