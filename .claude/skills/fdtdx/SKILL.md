@@ -276,6 +276,12 @@ E_full = fdtdx.unfold_fields(arrays.fields.E, config.symmetry, "E")  # (3, Nx, N
 - Configurable memory/compute tradeoff via `num_checkpoints`
 - Dispersive coefficients flow gradient naturally through the tape.
 
+**Adjoint FDTD** (`method="adjoint"`, `src/fdtdx/fdtd/adjoint.py`, derivation in its module docstring):
+- Gradients of losses of **phasor-detector** states (`PhasorDetector` and subclasses; `_adjoint_linear` flag) via an adjoint run of the transposed source-free step. Stores only DFTs of the fields in the gradient regions (+2-cell halo): the objects named in `adjoint_gradient_objects`, default all Devices (required when there is none). Material gradients are **zero outside the regions**; regions must not overlap a PML or a source.
+- `adjoint_mode="exact"` (default, pulses): one time-domain adjoint run, paired with the forward run over all DFT bins of the source band (`adjoint_band_tolerance`). Matches `checkpointed` to float precision; memory ∝ source bandwidth × sim time.
+- `adjoint_mode="frequency"` (always used for CW): DFTs at the objective frequencies only, memory independent of sim time; close frequencies need extra adjoint runs. Options: `adjoint_frequencies`, `adjoint_window` (CW), `adjoint_time`.
+- Pulsed fields must decay by the end of the run, CW fields must be steady (diagnostics warn, also for large DFT storage). Raises for losses of final fields or time-domain detectors (`PoyntingFluxDetector`, …), dispersive materials, complex fields.
+
 **Setup pattern:**
 ```python
 recorder = fdtdx.Recorder(modules=[fdtdx.DtypeConversion(dtype=jnp.bfloat16)])

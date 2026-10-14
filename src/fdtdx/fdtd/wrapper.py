@@ -6,6 +6,7 @@ import jax
 
 from fdtdx.config import SimulationConfig
 from fdtdx.core.jax.default_key import default_key
+from fdtdx.fdtd.adjoint import adjoint_fdtd
 from fdtdx.fdtd.container import ArrayContainer, ObjectContainer, SimulationState
 from fdtdx.fdtd.fdtd import checkpointed_fdtd, reversible_fdtd
 from fdtdx.fdtd.stop_conditions import StoppingCondition
@@ -42,6 +43,15 @@ def run_fdtd(
         )
     if config.gradient_config.method == "reversible":
         return reversible_fdtd(
+            arrays=arrays,
+            objects=objects,
+            config=config,
+            key=key,
+            show_progress=show_progress,
+            progress_callback=progress_callback,
+        )
+    elif config.gradient_config.method == "adjoint":
+        return adjoint_fdtd(
             arrays=arrays,
             objects=objects,
             config=config,

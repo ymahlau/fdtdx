@@ -89,6 +89,7 @@ def forward(
     record_boundaries: bool,
     simulate_boundaries: bool,
     record_time_offset: int | jax.Array = 0,
+    inject_sources: bool = True,
 ) -> SimulationState:
     """Performs one forward time step of the FDTD simulation.
 
@@ -113,6 +114,8 @@ def forward(
         simulate_boundaries (bool): Whether to apply PML boundary conditions
         record_time_offset (int | jax.Array): Time step stored at index 0 of the recorder buffer, see
             :func:`~fdtdx.fdtd.update.collect_interfaces`. Defaults to 0.
+        inject_sources (bool): Whether to add the source contributions. Without them the step is linear
+            in the field state. Defaults to True.
 
     Returns:
         SimulationState: Updated simulation state for the next time step
@@ -125,6 +128,7 @@ def forward(
         objects=objects,
         config=config,
         simulate_boundaries=simulate_boundaries,
+        inject_sources=inject_sources,
     )
     arrays = update_H(
         time_step=time_step,
@@ -132,6 +136,7 @@ def forward(
         objects=objects,
         config=config,
         simulate_boundaries=simulate_boundaries,
+        inject_sources=inject_sources,
     )
 
     if record_boundaries:

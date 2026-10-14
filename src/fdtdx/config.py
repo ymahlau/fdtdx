@@ -8,6 +8,8 @@ from loguru import logger
 from fdtdx import constants
 from fdtdx.core.grid import QuasiUniformGrid, RectilinearGrid, UniformGrid
 from fdtdx.core.jax.pytrees import TreeClass, autoinit, field, frozen_field
+from fdtdx.core.switch import OnOffSwitch
+from fdtdx.core.wavelength import WaveCharacter
 from fdtdx.interfaces.recorder import Recorder
 from fdtdx.interfaces.time_filter import TimeStepFilter
 from fdtdx.typing import BackendOption
@@ -17,14 +19,18 @@ from fdtdx.typing import BackendOption
 class GradientConfig(TreeClass):
     """Configuration for gradient computation in simulations.
 
-    This class handles settings for automatic differentiation, supporting either
-    invertible differentiation with a recorder or checkpointing-based differentiation.
+    This class handles settings for automatic differentiation, supporting invertible differentiation
+    with a recorder, checkpointing-based differentiation, or the frequency-domain adjoint method.
 
     """
 
     #: Method for gradient computation.
-    #: Can be either "reversible" when using the time reversible autodiff, or "checkpointed" for the exact checkpointing algorithm.
-    method: Literal["reversible", "checkpointed"] = frozen_field(default="reversible")
+    #: ``"reversible"`` uses the time reversible autodiff, ``"checkpointed"`` the exact checkpointing algorithm
+    #: and ``"adjoint"`` the frequency-domain adjoint method (see :func:`~fdtdx.fdtd.adjoint.adjoint_fdtd`),
+    #: which only stores Fourier transforms of the fields in its gradient regions. The adjoint method supports
+    #: losses of phasor-detector states and computes material gradients only inside the objects named by
+    #: ``adjoint_gradient_objects`` (by default all Devices).
+    method: Literal["reversible", "checkpointed", "adjoint"] = frozen_field(default="reversible")
 
     #: Optional recorder for invertible differentiation. Needs to be provided for reversible autodiff. Defaults to None
     recorder: Recorder | None = field(default=None)
@@ -66,7 +72,61 @@ class GradientConfig(TreeClass):
     #: the slices are recorded out of order.
     recording_mode: Literal["full", "segmented"] = frozen_field(default="full")
 
+    #: Variant of the ``"adjoint"`` method. ``"exact"`` (default) runs the time-domain adjoint once and pairs
+    #: both runs at every DFT frequency inside the source band, which reproduces the checkpointed gradient for
+    #: any number of objective frequencies; its memory grows with the source bandwidth times the simulation
+    #: time. ``"frequency"`` pairs the forward and adjoint fields at the objective frequencies only, with a
+    #: memory independent of the simulation time; frequencies too close to be separated within the adjoint
+    #: run need separate adjoint runs. CW sources always use the frequency mode, since their fields are not
+    #: band-limited. Both are exact once the fields have decayed (pulses) or are periodic in the DFT window (CW).
+    adjoint_mode: Literal["exact", "frequency"] = frozen_field(default="exact")
+
+    #: Objective frequencies of the frequency adjoint mode. ``None`` (default) uses every frequency recorded by
+    #: a phasor detector. Detector frequencies missing from an explicit list do not contribute to the gradient.
+    adjoint_frequencies: tuple[WaveCharacter, ...] | None = frozen_field(default=None)
+
+    #: DFT window of the forward fields for CW sources in the frequency adjoint mode. It must lie in the
+    #: steady state. ``None`` (default) uses the last half of the run, snapped to whole periods of the lowest
+    #: objective frequency. Ignored for pulsed sources, whose fields are transformed over the whole run.
+    adjoint_window: OnOffSwitch | None = frozen_field(default=None)
+
+    #: Duration in seconds of each adjoint run of the frequency adjoint mode. ``None`` (default) uses the
+    #: simulation time. The adjoint fields must decay within it.
+    adjoint_time: float | None = frozen_field(default=None)
+
+    #: Names of the objects whose cells receive material gradients in the ``"adjoint"`` method; the gradient of
+    #: the inverse permittivity and permeability is zero elsewhere. ``None`` (default) uses every Device. The
+    #: objects must not overlap a PML or a source. Name for example a ``UniformMaterialObject`` whose material is
+    #: optimized outside of a Device, or set this when the simulation has no Device.
+    adjoint_gradient_objects: tuple[str, ...] | None = frozen_field(default=None)
+
+    #: Band of the exact adjoint mode: every DFT frequency at which the spectrum of a source exceeds
+    #: this fraction of its peak. A smaller value is more accurate and stores more frequencies. ``None``
+    #: (default) uses a value matched to the precision of the simulation dtype.
+    adjoint_band_tolerance: float | None = frozen_field(default=None)
+
     def __post_init__(self):
+        if self.method not in ("reversible", "checkpointed", "adjoint"):
+            raise Exception(f"Unknown gradient computation method: {self.method!r}")
+        if self.adjoint_mode not in ("exact", "frequency"):
+            raise Exception(f"adjoint_mode must be 'exact' or 'frequency', got {self.adjoint_mode!r}")
+        if self.adjoint_time is not None and self.adjoint_time <= 0:
+            raise Exception(f"adjoint_time must be positive, got {self.adjoint_time}")
+        # Options of the frequency mode are checked when the simulation runs: CW sources use it under the
+        # default adjoint_mode="exact" as well.
+        if self.adjoint_gradient_objects is not None and (
+            isinstance(self.adjoint_gradient_objects, str)
+            or len(self.adjoint_gradient_objects) == 0
+            or not all(isinstance(name, str) for name in self.adjoint_gradient_objects)
+        ):
+            raise Exception(
+                f"adjoint_gradient_objects must be a non-empty tuple of object names, got {self.adjoint_gradient_objects!r}"
+            )
+        if self.adjoint_band_tolerance is not None:
+            if self.adjoint_mode != "exact":
+                raise Exception("adjoint_band_tolerance only applies to adjoint_mode='exact'")
+            if not 0 < self.adjoint_band_tolerance < 1:
+                raise Exception(f"adjoint_band_tolerance must lie in (0, 1), got {self.adjoint_band_tolerance}")
         if self.method == "reversible" and self.recorder is None:
             raise Exception("Need Recorder in gradient config to compute reversible gradients")
         if self.method == "checkpointed" and self.num_checkpoints is None:

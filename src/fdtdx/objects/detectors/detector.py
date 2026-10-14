@@ -69,6 +69,12 @@ class Detector(SimulationObject, ABC):
     #: non-negative quantities.
     _signed_data: ClassVar[bool] = True
 
+    #: Whether the state update is ``state + coefficient(t) * sample(E, H)`` with a sample that is linear
+    #: in the fields and a coefficient that does not depend on them (see
+    #: :class:`~fdtdx.objects.detectors.phasor.PhasorDetector`). Only such detectors can define the
+    #: objective of the ``"adjoint"`` gradient method.
+    _adjoint_linear: ClassVar[bool] = False
+
     _num_time_steps_on: int = frozen_private_field()
     _is_on_at_time_step_arr: jax.Array = private_field()
     _time_step_to_arr_idx: jax.Array = private_field()
