@@ -4,10 +4,15 @@ Every test compares the adjoint gradient of a phasor-detector loss with the grad
 checkpointed path. The adjoint method is exact once the fields have decayed (pulsed sources) or are
 periodic in the DFT window (CW sources); the scenes are small PML boxes in which both hold to float
 precision, so the tolerances are close to machine precision. Scenes with pulsed sources run in both
-adjoint modes ("adjoint" is the default frequency mode, "exact" the exact mode).
+adjoint modes ("frequency" and "exact"); "default" is ``GradientConfig(method="adjoint")`` as users write it.
 """
 
+import os
+import subprocess
+import sys
+import textwrap
 from contextlib import contextmanager
+from pathlib import Path
 
 import jax
 import jax.numpy as jnp
@@ -24,7 +29,7 @@ _PML = 4
 _PULSE_TIME = 100e-15
 _CW_TIME = 200e-15
 
-_MODES = pytest.mark.parametrize("mode", ["adjoint", "exact"])
+_MODES = pytest.mark.parametrize("mode", ["frequency", "exact"])
 
 
 @contextmanager
@@ -98,17 +103,18 @@ def _place(objects, constraints, config):
     return obj, arrays, params, config
 
 
-def _config(sim_time, dtype, method, symmetry=(0, 0, 0)):
-    """``method`` is "checkpointed", "adjoint" (frequency mode) or "exact" (adjoint method, exact mode)."""
+def _config(sim_time, dtype, method, symmetry=(0, 0, 0), grid=None):
+    """``method`` is "checkpointed", "frequency" or "exact" (adjoint modes), or "default" (adjoint method)."""
     if method == "checkpointed":
         grad_cfg = fdtdx.GradientConfig(method="checkpointed", num_checkpoints=40)
-    elif method == "exact":
-        grad_cfg = fdtdx.GradientConfig(method="adjoint", adjoint_mode="exact")
+    elif method in ("frequency", "exact"):
+        grad_cfg = fdtdx.GradientConfig(method="adjoint", adjoint_mode=method)
     else:
+        assert method == "default"
         grad_cfg = fdtdx.GradientConfig(method="adjoint")
     return fdtdx.SimulationConfig(
         time=sim_time,
-        grid=fdtdx.UniformGrid(spacing=_RESOLUTION),
+        grid=grid or fdtdx.UniformGrid(spacing=_RESOLUTION),
         backend="cpu",
         dtype=dtype,
         gradient_config=grad_cfg,
@@ -121,7 +127,7 @@ def _phasor_power(arrays, objects):
     return jnp.sum(jnp.abs(arrays.detector_states["ph"]["phasor"]) ** 2)
 
 
-def _gradients(build, loss=_phasor_power, mode="adjoint"):
+def _gradients(build, loss=_phasor_power, mode="frequency"):
     """Loss and parameter gradient for the checkpointed method and the adjoint method in ``mode``."""
     results = {}
     for method in ("checkpointed", mode):
@@ -147,7 +153,7 @@ def _assert_match(results, rtol):
     assert rel < rtol, f"adjoint vs checkpointed gradient: relative error {rel:.3e} >= {rtol:.1e}"
 
 
-def _dipole_scene(cw, dtype, wavelengths=(760e-9, 800e-9, 850e-9), sim_time=None):
+def _dipole_scene(cw, dtype, wavelengths=(760e-9, 800e-9, 850e-9), sim_time=None, devices=None, detector_dtype=None):
     sim_time = sim_time or (_CW_TIME if cw else _PULSE_TIME)
 
     def build(method):
@@ -156,8 +162,14 @@ def _dipole_scene(cw, dtype, wavelengths=(760e-9, 800e-9, 850e-9), sim_time=None
         profile = fdtdx.SingleFrequencyProfile() if cw else _pulse_profile()
         for obj, constraint in (
             _dipole(profile),
-            _device(),
-            _phasor(wavelengths if not cw else (_WAVELENGTH,), cw, sim_time=sim_time, components=("Ex", "Ey", "Hy")),
+            *(devices() if devices else [_device()]),
+            _phasor(
+                wavelengths if not cw else (_WAVELENGTH,),
+                cw,
+                sim_time=sim_time,
+                components=("Ex", "Ey", "Hy"),
+                dtype=detector_dtype or jnp.complex64,
+            ),
         ):
             objects.append(obj)
             constraints.append(constraint)
@@ -166,15 +178,18 @@ def _dipole_scene(cw, dtype, wavelengths=(760e-9, 800e-9, 850e-9), sim_time=None
     return build
 
 
+# CW scenes use the default config: CW sources run the frequency mode under the default adjoint_mode="exact".
 @pytest.mark.parametrize("cw", [False, True], ids=["pulse", "cw"])
 def test_dipole_float32(cw):
-    _assert_match(_gradients(_dipole_scene(cw, jnp.float32)), rtol=1e-4 if not cw else 5e-4)
+    mode = "default" if cw else "frequency"
+    _assert_match(_gradients(_dipole_scene(cw, jnp.float32), mode=mode), rtol=1e-4 if not cw else 5e-4)
 
 
 @pytest.mark.parametrize("cw", [False, True], ids=["pulse", "cw"])
 def test_dipole_float64(cw):
+    mode = "default" if cw else "frequency"
     with _x64_enabled():
-        _assert_match(_gradients(_dipole_scene(cw, jnp.float64)), rtol=1e-8 if not cw else 2e-5)
+        _assert_match(_gradients(_dipole_scene(cw, jnp.float64), mode=mode), rtol=1e-8 if not cw else 2e-5)
 
 
 @pytest.mark.parametrize("dtype", ["float32", "float64"])
@@ -192,7 +207,7 @@ def test_exact_dense_frequencies_in_one_adjoint_run():
 
     wavelengths = tuple(np.linspace(760e-9, 850e-9, 12))
     build = _dipole_scene(False, jnp.float32, wavelengths=wavelengths)
-    obj, _, _, config = build("adjoint")
+    obj, _, _, config = build("frequency")
     assert len(_build_spec(obj, config).groups) > 4
     _assert_match(_gradients(build, mode="exact"), rtol=1e-5)
 
@@ -223,15 +238,150 @@ def test_exact_detector_windows():
     _assert_match(_gradients(build, mode="exact"), rtol=1e-5)
 
 
-def test_exact_mode_rejects_cw_sources():
-    objects, constraints = [], []
-    _box(objects, constraints)
-    for obj, constraint in (_dipole(fdtdx.SingleFrequencyProfile()), _device(), _phasor((800e-9,), True)):
-        objects.append(obj)
-        constraints.append(constraint)
-    obj, arrays, params, config = _place(objects, constraints, _config(_CW_TIME, jnp.float32, "exact"))
-    with pytest.raises(ValueError, match="pulsed sources"):
-        _grad_of(_phasor_power, obj, arrays, params, config)
+def test_options_of_the_mode_that_does_not_run_raise():
+    """Frequency-mode options with pulsed sources under the default exact mode, a band tolerance with CW sources."""
+    obj, arrays, params, config = _dipole_scene(False, jnp.float32)("default")
+    grad_cfg = config.gradient_config.aset("adjoint_frequencies", (fdtdx.WaveCharacter(wavelength=800e-9),))
+    with pytest.raises(ValueError, match="only apply to the frequency adjoint mode"):
+        _grad_of(_phasor_power, obj, arrays, params, config.aset("gradient_config", grad_cfg))
+    obj, arrays, params, config = _dipole_scene(True, jnp.float32)("default")
+    grad_cfg = config.gradient_config.aset("adjoint_band_tolerance", 1e-4)
+    with pytest.raises(ValueError, match="only applies to the exact adjoint mode"):
+        _grad_of(_phasor_power, obj, arrays, params, config.aset("gradient_config", grad_cfg))
+
+
+@_MODES
+def test_nonuniform_grid(mode):
+    """Graded cell sizes on all axes (rectilinear grid): detector co-location and the step use the true spacings.
+
+    Index-space placement is not available on non-uniform grids, so the objects are placed in real space.
+    """
+
+    def edges(phase):
+        widths = 1.0 + 0.25 * np.sin(np.arange(_N) * 0.7 + phase)
+        return jnp.asarray(np.concatenate([[0.0], np.cumsum(widths)]) * _RESOLUTION)
+
+    grid = fdtdx.RectilinearGrid(x_edges=edges(0.0), y_edges=edges(1.0), z_edges=edges(2.0))
+
+    def build(method):
+        objects, constraints = [], []
+        volume = _box(objects, constraints)
+        source = fdtdx.PointDipoleSource(
+            name="dip",
+            partial_grid_shape=(1, 1, 1),
+            wave_character=fdtdx.WaveCharacter(wavelength=_WAVELENGTH),
+            polarization=0,
+            temporal_profile=_pulse_profile(),
+        )
+        device = fdtdx.Device(
+            name="dev",
+            partial_real_shape=(0.2e-6, 0.2e-6, 0.1e-6),
+            partial_voxel_grid_shape=(1, 1, 1),
+            materials={"air": fdtdx.Material(permittivity=1.0), "die": fdtdx.Material(permittivity=4.0)},
+            param_transforms=[],
+        )
+        detector = fdtdx.PhasorDetector(
+            name="ph",
+            partial_grid_shape=(None, None, 1),
+            partial_real_shape=(0.3e-6, 0.3e-6, None),
+            wave_characters=[fdtdx.WaveCharacter(wavelength=w) for w in (760e-9, 850e-9)],
+            scaling_mode="pulse",
+            plot=False,
+            components=("Ex", "Ey", "Hy"),
+        )
+        constraints += [
+            source.place_at_center(volume, axes=(0, 1)),
+            source.place_relative_to(volume, axes=(2,), own_positions=(-1,), other_positions=(-1,), margins=(0.25e-6,)),
+            device.place_at_center(volume),
+            detector.place_at_center(volume, axes=(0, 1)),
+            detector.place_relative_to(
+                volume, axes=(2,), own_positions=(1,), other_positions=(1,), margins=(-0.25e-6,)
+            ),
+        ]
+        objects += [source, device, detector]
+        return _place(objects, constraints, _config(_PULSE_TIME, jnp.float32, method, grid=grid))
+
+    _assert_match(_gradients(build, mode=mode), rtol=1e-4)
+
+
+@_MODES
+def test_several_devices_with_overlapping_halos(mode):
+    """Two devices one cell apart: their recording boxes (devices plus halo) overlap."""
+
+    def devices():
+        return [
+            _device("lower", shape=(4, 4, 2), corner=(6, 6, 6)),
+            _device("upper", shape=(4, 4, 2), corner=(6, 6, 9)),
+        ]
+
+    _assert_match(_gradients(_dipole_scene(False, jnp.float32, devices=devices), mode=mode), rtol=1e-4)
+
+
+def test_sharded_over_two_devices():
+    """Fields sharded over two devices (forced CPU devices, so a fresh process: the count is fixed at start-up)."""
+    script = textwrap.dedent(
+        f"""
+        import sys
+        import jax, jax.numpy as jnp, numpy as np
+        sys.path.insert(0, {str(Path(__file__).parent)!r})
+        import test_adjoint_gradient as T
+
+        assert jax.device_count(backend="cpu") == 2
+        obj, arrays, params, config = T._dipole_scene(False, jnp.float32)("exact")
+        assert len(arrays.fields.E.devices()) == 2
+        for mode in ("frequency", "exact"):
+            T._assert_match(T._gradients(T._dipole_scene(False, jnp.float32), mode=mode), rtol=1e-4)
+        """
+    )
+    env = dict(os.environ, XLA_FLAGS="--xla_force_host_platform_device_count=2", JAX_PLATFORMS="cpu")
+    result = subprocess.run([sys.executable, "-c", script], env=env, capture_output=True, text=True, timeout=1200)
+    assert result.returncode == 0, result.stderr[-4000:]
+
+
+@_MODES
+def test_progress_bar_of_the_adjoint_run(mode, capsys):
+    obj, arrays, params, config = _error_scene(method=mode)
+    key = jax.random.PRNGKey(1)
+
+    def loss_fn(params):
+        arr, objs, _ = fdtdx.apply_params(arrays, obj, params, key)
+        _, out = fdtdx.run_fdtd(arr, objs, config, key, show_progress=True)
+        return _phasor_power(out, objs)
+
+    jax.block_until_ready(jax.grad(loss_fn)(params))
+    err = capsys.readouterr().err
+    assert "FDTD (adjoint)" in err and "FDTD (adjoint, backward)" in err
+
+
+def test_finite_differences_float64():
+    """Both adjoint modes agree with central finite differences of the simulated loss (independent of autodiff)."""
+    with _x64_enabled():
+        # a complex128 detector, so that the loss differences are not rounded to float32
+        build = _dipole_scene(False, jnp.float64, wavelengths=(760e-9, 850e-9), detector_dtype=jnp.complex128)
+        key = jax.random.PRNGKey(1)
+        gradients, losses = {}, {}
+        for mode in ("frequency", "exact"):
+            obj, arrays, params, config = build(mode)
+            arrays, obj, _ = fdtdx.apply_params(arrays, obj, params, key)
+
+            def loss(inv_eps, arrays=arrays, obj=obj, config=config):
+                _, out = fdtdx.run_fdtd(
+                    arrays.aset("inv_permittivities", inv_eps), obj, config, key, show_progress=False
+                )
+                return _phasor_power(out, obj)
+
+            gradients[mode] = np.asarray(jax.jit(jax.grad(loss))(arrays.inv_permittivities))
+            losses[mode] = (jax.jit(loss), arrays.inv_permittivities)
+        # the cells with the largest gradient inside the device
+        loss_fn, inv_eps = losses["exact"]
+        flat = np.argsort(np.abs(gradients["exact"]).ravel())[-3:]
+        h = 1e-5
+        for cell in zip(*np.unravel_index(flat, inv_eps.shape)):
+            plus = float(loss_fn(inv_eps.at[cell].add(h)))
+            minus = float(loss_fn(inv_eps.at[cell].add(-h)))
+            fd = (plus - minus) / (2 * h)
+            for mode, grad in gradients.items():
+                assert grad[cell] == pytest.approx(fd, rel=1e-6), f"{mode} at {cell}: {grad[cell]:.10e} vs fd {fd:.10e}"
 
 
 def test_frequencies_sharing_one_adjoint_run():
@@ -239,7 +389,7 @@ def test_frequencies_sharing_one_adjoint_run():
     from fdtdx.fdtd.adjoint import _build_spec
 
     build = _dipole_scene(False, jnp.float32, wavelengths=(600e-9, 800e-9))
-    obj, _, _, config = build("adjoint")
+    obj, _, _, config = build("frequency")
     assert len(_build_spec(obj, config).groups) == 1
     _assert_match(_gradients(build), rtol=1e-4)
 
@@ -250,7 +400,7 @@ def test_adjoint_frequencies_override():
 
     def build(method):
         obj, arrays, params, config = scene(method)
-        if method == "adjoint":
+        if method == "frequency":
             grad_cfg = config.gradient_config.aset("adjoint_frequencies", (fdtdx.WaveCharacter(wavelength=800e-9),))
             config = config.aset("gradient_config", grad_cfg)
         return obj, arrays, params, config
@@ -473,7 +623,7 @@ def test_arrays_as_jit_arguments(mode):
     assert np.linalg.norm(grad - reference) / np.linalg.norm(reference) < 1e-4
 
 
-def _error_scene(extra=None, device_in_pml=False, detector=None, cw_and_pulse=False, method="adjoint"):
+def _error_scene(extra=None, device_in_pml=False, detector=None, cw_and_pulse=False, method="default"):
     objects, constraints = [], []
     _box(objects, constraints)
     entries = [_dipole(_pulse_profile()), _device(corner=(1, 6, 7) if device_in_pml else (6, 6, 7))]

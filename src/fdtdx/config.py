@@ -71,29 +71,29 @@ class GradientConfig(TreeClass):
     #: the slices are recorded out of order.
     recording_mode: Literal["full", "segmented"] = frozen_field(default="full")
 
-    #: Variant of the ``"adjoint"`` method. ``"frequency"`` (default) pairs the forward and adjoint fields at
-    #: the objective frequencies only; the result is exact once the fields have decayed (pulsed sources) or
-    #: are periodic in the DFT window (CW sources). Frequencies too close to be separated within the adjoint
-    #: run need separate adjoint runs. ``"exact"`` (pulsed sources only) runs the time-domain adjoint once
-    #: and pairs both runs at every DFT frequency inside the source band, which reproduces the checkpointed
-    #: gradient for any number of objective frequencies in one adjoint run. Its memory grows with the source
-    #: bandwidth times the simulation time.
-    adjoint_mode: Literal["frequency", "exact"] = frozen_field(default="frequency")
+    #: Variant of the ``"adjoint"`` method. ``"exact"`` (default) runs the time-domain adjoint once and pairs
+    #: both runs at every DFT frequency inside the source band, which reproduces the checkpointed gradient for
+    #: any number of objective frequencies; its memory grows with the source bandwidth times the simulation
+    #: time. ``"frequency"`` pairs the forward and adjoint fields at the objective frequencies only, with a
+    #: memory independent of the simulation time; frequencies too close to be separated within the adjoint
+    #: run need separate adjoint runs. CW sources always use the frequency mode, since their fields are not
+    #: band-limited. Both are exact once the fields have decayed (pulses) or are periodic in the DFT window (CW).
+    adjoint_mode: Literal["exact", "frequency"] = frozen_field(default="exact")
 
-    #: Objective frequencies of the ``"adjoint"`` method. ``None`` (default) uses every frequency recorded by
+    #: Objective frequencies of the frequency adjoint mode. ``None`` (default) uses every frequency recorded by
     #: a phasor detector. Detector frequencies missing from an explicit list do not contribute to the gradient.
     adjoint_frequencies: tuple[WaveCharacter, ...] | None = frozen_field(default=None)
 
-    #: DFT window of the forward fields for CW sources in the ``"adjoint"`` method. It must lie in the
+    #: DFT window of the forward fields for CW sources in the frequency adjoint mode. It must lie in the
     #: steady state. ``None`` (default) uses the last half of the run, snapped to whole periods of the lowest
     #: objective frequency. Ignored for pulsed sources, whose fields are transformed over the whole run.
     adjoint_window: OnOffSwitch | None = frozen_field(default=None)
 
-    #: Duration in seconds of each adjoint run of the ``"adjoint"`` method. ``None`` (default) uses the
+    #: Duration in seconds of each adjoint run of the frequency adjoint mode. ``None`` (default) uses the
     #: simulation time. The adjoint fields must decay within it.
     adjoint_time: float | None = frozen_field(default=None)
 
-    #: Band of the ``"exact"`` adjoint mode: every DFT frequency at which the spectrum of a source exceeds
+    #: Band of the exact adjoint mode: every DFT frequency at which the spectrum of a source exceeds
     #: this fraction of its peak. A smaller value is more accurate and stores more frequencies. ``None``
     #: (default) uses a value matched to the precision of the simulation dtype.
     adjoint_band_tolerance: float | None = frozen_field(default=None)
@@ -101,18 +101,12 @@ class GradientConfig(TreeClass):
     def __post_init__(self):
         if self.method not in ("reversible", "checkpointed", "adjoint"):
             raise Exception(f"Unknown gradient computation method: {self.method!r}")
-        if self.adjoint_mode not in ("frequency", "exact"):
-            raise Exception(f"adjoint_mode must be 'frequency' or 'exact', got {self.adjoint_mode!r}")
+        if self.adjoint_mode not in ("exact", "frequency"):
+            raise Exception(f"adjoint_mode must be 'exact' or 'frequency', got {self.adjoint_mode!r}")
         if self.adjoint_time is not None and self.adjoint_time <= 0:
             raise Exception(f"adjoint_time must be positive, got {self.adjoint_time}")
-        frequency_only = {
-            "adjoint_frequencies": self.adjoint_frequencies,
-            "adjoint_window": self.adjoint_window,
-            "adjoint_time": self.adjoint_time,
-        }
-        if self.adjoint_mode == "exact" and any(v is not None for v in frequency_only.values()):
-            used = [k for k, v in frequency_only.items() if v is not None]
-            raise Exception(f"{', '.join(used)} only apply to adjoint_mode='frequency'")
+        # Options of the frequency mode are checked when the simulation runs: CW sources use it under the
+        # default adjoint_mode="exact" as well.
         if self.adjoint_band_tolerance is not None:
             if self.adjoint_mode != "exact":
                 raise Exception("adjoint_band_tolerance only applies to adjoint_mode='exact'")

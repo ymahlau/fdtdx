@@ -115,7 +115,7 @@ def test_source_regime():
 
 def test_gradient_config_adjoint():
     config = fdtdx.GradientConfig(method="adjoint")
-    assert config.recorder is None and config.adjoint_mode == "frequency"
+    assert config.recorder is None and config.adjoint_mode == "exact"
     with pytest.raises(Exception, match="adjoint_time"):
         fdtdx.GradientConfig(method="adjoint", adjoint_time=-1.0)
     with pytest.raises(Exception, match="Unknown gradient computation method"):
@@ -127,14 +127,10 @@ def test_gradient_config_adjoint():
 def test_gradient_config_exact_mode_options():
     config = fdtdx.GradientConfig(method="adjoint", adjoint_mode="exact", adjoint_band_tolerance=1e-4)
     assert config.adjoint_band_tolerance == 1e-4
-    with pytest.raises(Exception, match="adjoint_frequencies only apply to adjoint_mode='frequency'"):
-        fdtdx.GradientConfig(
-            method="adjoint", adjoint_mode="exact", adjoint_frequencies=(fdtdx.WaveCharacter(wavelength=1e-6),)
-        )
-    with pytest.raises(Exception, match="adjoint_time only apply"):
-        fdtdx.GradientConfig(method="adjoint", adjoint_mode="exact", adjoint_time=1e-13)
+    # frequency-mode options are checked at run time, since CW sources use the frequency mode by default too
+    fdtdx.GradientConfig(method="adjoint", adjoint_frequencies=(fdtdx.WaveCharacter(wavelength=1e-6),))
     with pytest.raises(Exception, match="only applies to adjoint_mode='exact'"):
-        fdtdx.GradientConfig(method="adjoint", adjoint_band_tolerance=1e-4)
+        fdtdx.GradientConfig(method="adjoint", adjoint_mode="frequency", adjoint_band_tolerance=1e-4)
     with pytest.raises(Exception, match=r"must lie in \(0, 1\)"):
         fdtdx.GradientConfig(method="adjoint", adjoint_mode="exact", adjoint_band_tolerance=1.5)
 

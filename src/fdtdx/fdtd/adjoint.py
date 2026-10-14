@@ -25,7 +25,7 @@ the adjoint run are handled in separate runs (groups).
 The result equals the exact gradient of the simulated loss when the forward and adjoint fields have
 decayed by the end of their runs (pulses) or the forward field is periodic in its DFT window (CW).
 
-The exact mode (``adjoint_mode="exact"``, pulses only) instead runs the time-domain adjoint
+The exact mode (``adjoint_mode="exact"``, the default; CW sources always use the frequency mode) instead runs the time-domain adjoint
 ``lambda_n = L^T lambda_{n+1} + g_n`` backwards over the same ``N`` steps, driven by the cotangents ``g_n`` of
 the detector samples. The gradient of the simulated loss is exactly
 
@@ -375,10 +375,22 @@ def _plan_groups(
 def _validate(arrays: ArrayContainer, objects: ObjectContainer, config: SimulationConfig) -> None:
     grad_cfg = config.gradient_config
     assert grad_cfg is not None
-    if grad_cfg.adjoint_mode == "exact" and _source_regime(objects) != "pulse":
+    if _uses_exact_mode(objects, config):
+        frequency_only = {
+            "adjoint_frequencies": grad_cfg.adjoint_frequencies,
+            "adjoint_window": grad_cfg.adjoint_window,
+            "adjoint_time": grad_cfg.adjoint_time,
+        }
+        used = [name for name, value in frequency_only.items() if value is not None]
+        if used:
+            raise ValueError(
+                f"{', '.join(used)} only apply to the frequency adjoint mode, but pulsed sources use the exact mode "
+                "by default. Set GradientConfig.adjoint_mode='frequency' to use them."
+            )
+    elif grad_cfg.adjoint_band_tolerance is not None:
         raise ValueError(
-            "adjoint_mode='exact' needs pulsed sources, whose fields are band-limited; use adjoint_mode='frequency' "
-            "for CW sources."
+            "adjoint_band_tolerance only applies to the exact adjoint mode, which needs pulsed sources; CW sources and "
+            "adjoint_mode='frequency' use the frequency mode."
         )
     if jnp.iscomplexobj(arrays.fields.E):
         raise NotImplementedError("The adjoint gradient method does not support complex fields (Bloch boundaries) yet.")
@@ -399,6 +411,21 @@ def _validate(arrays: ArrayContainer, objects: ObjectContainer, config: Simulati
                     f"Source '{source.name}' lies inside Device '{device.name}'. Its injection depends on the "
                     "permittivity, which the adjoint gradient method does not differentiate."
                 )
+
+
+def _uses_exact_mode(objects: ObjectContainer, config: SimulationConfig) -> bool:
+    """Whether the exact mode runs: it is selected and the sources are pulsed (CW fields are not band-limited)."""
+    grad_cfg = config.gradient_config
+    assert grad_cfg is not None
+    return grad_cfg.adjoint_mode == "exact" and _source_regime(objects) == "pulse"
+
+
+def _adjoint_progress(show_progress: bool, total_steps: int) -> tuple[Callable[[jax.Array], None], Callable[[], None]]:
+    """Step and close callbacks of the progress bar of the adjoint runs (no-ops without a bar)."""
+    pbar = _make_pbar(show_progress=show_progress, total_steps=total_steps, desc="FDTD (adjoint, backward)")
+    if pbar is None:
+        return (lambda step: None), (lambda: None)
+    return pbar.get_callbacks()
 
 
 def _build_spec(objects: ObjectContainer, config: SimulationConfig) -> _AdjointSpec:
@@ -577,13 +604,13 @@ def adjoint_fdtd(
 
     ``GradientConfig.adjoint_mode`` selects how:
 
-    - ``"frequency"`` (default): the DFTs are taken at the objective frequencies and the adjoint runs are
-      driven by short pulses with the right spectrum there. The memory does not grow with the simulation
-      time, but frequencies too close to be separated within one adjoint run need separate runs.
-    - ``"exact"`` (pulsed sources only): one time-domain adjoint run over the same steps, paired with the
-      forward run at every DFT frequency inside the source band. This reproduces the checkpointed gradient
-      for any number of objective frequencies; its memory grows with the source bandwidth times the
-      simulation time.
+    - ``"exact"`` (default): one time-domain adjoint run over the same steps, paired with the forward run
+      at every DFT frequency inside the source band. This reproduces the checkpointed gradient for any
+      number of objective frequencies; its memory grows with the source bandwidth times the simulation
+      time. CW sources are not band-limited and always use the frequency mode.
+    - ``"frequency"``: the DFTs are taken at the objective frequencies and the adjoint runs are driven by
+      short pulses with the right spectrum there. The memory does not grow with the simulation time, but
+      frequencies too close to be separated within one adjoint run need separate runs.
 
     The loss may depend on the states of phasor detectors (:class:`~fdtdx.PhasorDetector` and its
     subclasses such as :class:`~fdtdx.ModeOverlapDetector` and :class:`~fdtdx.PhasorPoyntingFluxDetector`)
@@ -596,8 +623,10 @@ def adjoint_fdtd(
         objects (ObjectContainer): Collection of physical objects in the simulation.
         config (SimulationConfig): Simulation parameters; ``config.gradient_config.method == "adjoint"``.
         key (jax.Array): JAX PRNGKey for any stochastic operations.
-        show_progress (bool): Display a tqdm progress bar for the forward run. Defaults to True.
-        progress_callback (Callable[[int, int], None] | None): Optional callback for progress updates.
+        show_progress (bool): Display tqdm progress bars for the forward run and, when the gradient is
+            computed, for the adjoint runs. Defaults to True.
+        progress_callback (Callable[[int, int], None] | None): Optional callback for progress updates of
+            the forward run.
 
     Returns:
         SimulationState: Tuple of the final time step and the ArrayContainer with the final state.
@@ -606,7 +635,7 @@ def adjoint_fdtd(
         NotImplementedError: For complex fields, dispersive materials, a dipole source inside a Device,
             or a loss depending on outputs other than phasor-detector states and material arrays.
         ValueError: For simulations without Devices or phasor detectors, Devices overlapping a PML, a mix
-            of CW and pulsed sources, or CW sources in the exact mode.
+            of CW and pulsed sources, or options of the adjoint mode that does not run.
     """
     _validate(arrays, objects, config)
     grad_cfg = config.gradient_config
@@ -679,7 +708,7 @@ def adjoint_fdtd(
         arr = make_container(E, H, psi_E, psi_H, inv_permittivities, inv_permeabilities, detector_states)
         return outputs(run_forward(arr))
 
-    if grad_cfg.adjoint_mode == "exact":
+    if _uses_exact_mode(objects, config):
         exact_spec = _build_exact_spec(objects, config)
 
         def forward_with_dft(arr: ArrayContainer):
@@ -696,6 +725,7 @@ def adjoint_fdtd(
                 config=config,
                 key=key,
                 template=arrays,
+                show_progress=show_progress,
             )
 
     else:
@@ -715,6 +745,7 @@ def adjoint_fdtd(
                 config=config,
                 key=key,
                 template=arrays,
+                show_progress=show_progress,
             )
 
     def fdtd_fwd(E, H, psi_E, psi_H, inv_permittivities, inv_permeabilities, detector_states, recording_state):
@@ -999,6 +1030,7 @@ def _adjoint_gradient(
     config: SimulationConfig,
     key: jax.Array,
     template: ArrayContainer,
+    show_progress: bool = False,
 ) -> tuple[jax.Array, jax.Array | None]:
     """Gradients w.r.t. the inverse permittivity and (if it is an array) permeability, zero outside Devices."""
     grid_shape = objects.volume.grid_shape
@@ -1038,8 +1070,12 @@ def _adjoint_gradient(
         jnp.zeros_like,
         (template.fields.E, template.fields.H, template.fields.psi_E, template.fields.psi_H),
     )
+    report_step, close_progress = _adjoint_progress(show_progress, sum(g.source_signals.shape[0] for g in spec.groups))
+    offset = 0
 
     for group in spec.groups:
+        group_offset = offset
+        offset += group.source_signals.shape[0]
         group_sources = []
         for box, indices, r_E, r_H in sources:
             local, position = [], []
@@ -1066,6 +1102,7 @@ def _adjoint_gradient(
             # after the loop. Injecting after the step instead defeats the in-place update of the loop
             # carry and makes every step several times slower.
             mu, lam, peak, _ = carry
+            report_step(group_offset + m)
             E, H, psi_E, psi_H = mu
             for box, _, position, r_E, r_H in group_sources:
                 beta = signals[m][position]  # (F,)
@@ -1091,6 +1128,7 @@ def _adjoint_gradient(
         grad_eps = grad_eps + g_eps
         grad_mu = grad_mu + g_mu
 
+    close_progress()
     mask = jnp.asarray(spec.design_mask)[None]
     grad_eps = jnp.where(mask, grad_eps, 0)
     if not magnetic:
@@ -1284,6 +1322,7 @@ def _exact_adjoint_gradient(
     config: SimulationConfig,
     key: jax.Array,
     template: ArrayContainer,
+    show_progress: bool = False,
 ) -> tuple[jax.Array, jax.Array | None]:
     """Exact-mode gradients w.r.t. the inverse permittivity and (if it is an array) permeability, zero outside Devices.
 
@@ -1317,9 +1356,11 @@ def _exact_adjoint_gradient(
 
     step = _source_free_step(objects, config, key, template)
     transpose_step = _transposed_step(step, inv_permittivities, inv_permeabilities)
+    report_step, close_progress = _adjoint_progress(show_progress, num_steps)
 
     def body(m, nu):
         # Inject g_{n+1} into nu_{n+1} = L^T lambda_{n+2} to form lambda_{n+1}, record it and step back.
+        report_step(m)
         n = num_steps - 1 - m
         E, H, psi_E, psi_H = nu
         for box, coefficients, Z_E_post, Z_H_post, Z_H_pre in sources:
@@ -1333,6 +1374,7 @@ def _exact_adjoint_gradient(
     _, adjoint_dft, _, _ = _blocked_dft(
         body, nu0, num_steps, spec.design_boxes, _block_phases(spec.bins, num_steps, offset=1), real_dtype
     )
+    close_progress()
     weights = jnp.asarray(spec.pair_weights, dtype=complex_dtype)[:, None, None, None, None]
     lam = [(weights * le, weights * lh) for le, lh in adjoint_dft]
     grad_eps, grad_mu = _pair(

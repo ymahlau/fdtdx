@@ -191,3 +191,45 @@ def test_alpha_zero_tukey_is_identical_to_no_apodization(config):
 
     assert placed_a0._window_sum == pytest.approx(placed_rect._window_sum, rel=0, abs=0)
     np.testing.assert_array_equal(a0, rect)
+
+
+def _surface_detectors():
+    from fdtdx.objects.detectors.field_projection import FieldProjectionAngleDetector
+    from fdtdx.objects.detectors.poynting_flux import ClosedSurfacePhasorPoyntingFluxDetector
+
+    return [
+        pytest.param(ClosedSurfacePhasorPoyntingFluxDetector, {}, id="closed_surface_flux"),
+        pytest.param(FieldProjectionAngleDetector, {"exclude_surfaces": ("z+",)}, id="box_field_projection"),
+    ]
+
+
+@pytest.mark.parametrize("cls, kwargs", _surface_detectors())
+def test_apodization_weights_box_surface_samples(config, cls, kwargs):
+    """Detectors storing per-face phasors weight each sample by the apodization window like PhasorDetector.
+
+    With pulse scaling (no coherent-gain normalization) the apodized update is the plain update times the
+    window value of the step.
+    """
+    grid_slice = ((0, 4), (0, 5), (0, 6))
+    key = jax.random.PRNGKey(0)
+    common = dict(name="d", wave_characters=(WaveCharacter(wavelength=1e-6),), scaling_mode="pulse", **kwargs)
+    total = (config.time_steps_total - 1) * config.time_step_duration
+    window = TukeyWindow(start_time=0.0, end_time=total, alpha=0.8)
+    plain = cls(**common).place_on_grid(grid_slice, config, key)
+    apodized = cls(**common, apodization=window).place_on_grid(grid_slice, config, key)
+    rng = np.random.default_rng(0)
+    E = jnp.asarray(rng.normal(size=(3, 4, 5, 6)), dtype=jnp.float32)
+    H = jnp.asarray(rng.normal(size=(3, 4, 5, 6)), dtype=jnp.float32)
+    step = 5  # inside the cosine taper, so the window weight is strictly between 0 and 1
+    weight = float(apodized._window_at_time_step_arr[step])
+    assert 0.0 < weight < 0.99
+
+    def record(detector):
+        return detector.update(jnp.asarray(step), E, H, detector.init_state(), jnp.ones((3, 4, 5, 6)), 1.0)
+
+    plain_state, apodized_state = record(plain), record(apodized)
+    assert set(apodized_state) == set(plain_state) and len(plain_state) > 1
+    for state_key in plain_state:
+        np.testing.assert_allclose(
+            np.asarray(apodized_state[state_key]), weight * np.asarray(plain_state[state_key]), rtol=1e-6, atol=1e-7
+        )
