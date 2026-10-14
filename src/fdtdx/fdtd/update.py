@@ -259,6 +259,7 @@ def update_E(
     objects: ObjectContainer,
     config: SimulationConfig,
     simulate_boundaries: bool,
+    inject_sources: bool = True,
 ) -> ArrayContainer:
     """Updates the electric field (E) according to Maxwell's equations using the FDTD method.
 
@@ -273,6 +274,8 @@ def update_E(
         objects (ObjectContainer): Container with sources, boundaries and other simulation objects
         config (SimulationConfig): Simulation configuration parameters
         simulate_boundaries (bool): Whether to apply boundary conditions
+        inject_sources (bool): Whether to add the source contributions. Without them the update is
+            linear in the field state, which the adjoint gradient method transposes. Defaults to True.
 
     Returns:
         ArrayContainer: Updated ArrayContainer with new E field values
@@ -474,7 +477,7 @@ def update_E(
 
         E = jnp.stack((Ex, Ey, Ez), axis=0)
 
-    for source in objects.sources:
+    for source in objects.sources if inject_sources else []:
         if _source_uses_default_always_on_switch(source):
             E = source.update_E(
                 E=E,
@@ -675,6 +678,7 @@ def update_H(
     objects: ObjectContainer,
     config: SimulationConfig,
     simulate_boundaries: bool,
+    inject_sources: bool = True,
 ) -> ArrayContainer:
     """Updates the magnetic field (H) according to Maxwell's equations using the FDTD method.
 
@@ -692,6 +696,7 @@ def update_H(
         objects (ObjectContainer): Container with sources, boundaries and other simulation objects
         config (SimulationConfig): Simulation configuration parameters
         simulate_boundaries (bool): Whether to apply boundary conditions
+        inject_sources (bool): Whether to add the source contributions. Defaults to True.
 
     Returns:
         ArrayContainer: Updated ArrayContainer with new H field values
@@ -804,7 +809,7 @@ def update_H(
 
         H = jnp.stack((Hx, Hy, Hz), axis=0)
 
-    for source in objects.sources:
+    for source in objects.sources if inject_sources else []:
         if _source_uses_default_always_on_switch(source):
             H = source.update_H(
                 H=H,
@@ -1020,6 +1025,67 @@ def _check_updated_state_layout(detector: Detector, old: DetectorState, new: Det
         )
 
 
+def _detector_stencil_is_interior(detector: Detector, grid_shape: tuple[int, ...]) -> bool:
+    """Whether the co-location stencil of ``detector`` (domain indices ``[s-1 .. e]``) stays in-bounds."""
+    return all(s >= 1 and e <= grid_shape[a] - 1 for a, (s, e) in enumerate(detector.grid_slice_tuple))
+
+
+def _colocate_full_domain(
+    E: jax.Array,
+    H: jax.Array,
+    H_prev: jax.Array,
+    objects: ObjectContainer,
+    config: SimulationConfig,
+) -> tuple[jax.Array, jax.Array]:
+    """Co-locate E and the time-centered H on the whole domain, including the boundary padding."""
+    return interpolate_fields(
+        E_pad=pad_fields_with_symmetry_mirror(E, objects, config, "E"),
+        H_pad=pad_fields_with_symmetry_mirror((H_prev + H) / 2, objects, config, "H"),
+        config=config,
+    )
+
+
+def colocate_detector_fields(
+    detector: Detector,
+    E: jax.Array,
+    H: jax.Array,
+    H_prev: jax.Array,
+    objects: ObjectContainer,
+    config: SimulationConfig,
+    full: tuple[jax.Array, jax.Array] | None = None,
+) -> tuple[jax.Array, jax.Array]:
+    """Restrict the fields to a detector's ``grid_slice`` the way :meth:`Detector.update` receives them.
+
+    With ``exact_interpolation`` all six components are co-located onto the E_z Yee point and H is
+    time-centered as ``(H_prev + H) / 2``. A strictly interior detector is interpolated over its region
+    plus a one-cell halo; a detector touching a domain edge reads the full-domain interpolation, where
+    the boundary padding matters. The map is linear in ``(E, H, H_prev)``.
+
+    Args:
+        detector (Detector): The detector whose input fields are formed.
+        E (jax.Array): Electric field after the current step, shape ``(3, Nx, Ny, Nz)``.
+        H (jax.Array): Magnetic field after the current step, shape ``(3, Nx, Ny, Nz)``.
+        H_prev (jax.Array): Magnetic field before the current step, shape ``(3, Nx, Ny, Nz)``.
+        objects (ObjectContainer): Container with the simulation objects.
+        config (SimulationConfig): Simulation configuration.
+        full (tuple[jax.Array, jax.Array] | None): Precomputed full-domain co-location, shared between
+            several edge-touching detectors. Computed here when needed and not given.
+
+    Returns:
+        tuple[jax.Array, jax.Array]: ``(E_reg, H_reg)``, each of shape ``(3, *detector.grid_shape)``.
+    """
+    gs = detector.grid_slice
+    if not detector.exact_interpolation:
+        return E[:, *gs], H[:, *gs]
+    if _detector_stencil_is_interior(detector, objects.volume.grid_shape):
+        block = (slice(None), *(slice(s - 1, e + 1) for (s, e) in detector.grid_slice_tuple))
+        H_avg = (H_prev[block] + H[block]) / 2
+        return interpolate_fields(E[block], H_avg, config=config, region_slice=detector.grid_slice_tuple)
+    if full is None:
+        full = _colocate_full_domain(E, H, H_prev, objects, config)
+    return full[0][:, *gs], full[1][:, *gs]
+
+
 def update_detector_states(
     time_step: jax.Array,
     arrays: ArrayContainer,
@@ -1059,30 +1125,14 @@ def update_detector_states(
 
     grid_shape = objects.volume.grid_shape
 
-    def is_interior(detector: Detector) -> bool:
-        # The co-location stencil reads domain indices [s-1 .. e]; interior iff that stays in-bounds.
-        return all(s >= 1 and e <= grid_shape[a] - 1 for a, (s, e) in enumerate(detector.grid_slice_tuple))
-
     # The full-domain interpolation is only needed for exact detectors whose stencil reaches a domain edge.
     full = None
-    if any(d.exact_interpolation and not is_interior(d) for d in to_update):
-        full = interpolate_fields(
-            E_pad=pad_fields_with_symmetry_mirror(arrays.fields.E, objects, config, "E"),
-            H_pad=pad_fields_with_symmetry_mirror((H_prev + arrays.fields.H) / 2, objects, config, "H"),
-            config=config,
-        )
+    if any(d.exact_interpolation and not _detector_stencil_is_interior(d, grid_shape) for d in to_update):
+        full = _colocate_full_domain(arrays.fields.E, arrays.fields.H, H_prev, objects, config)
 
     def helper_fn(E: jax.Array, H: jax.Array, H_prev: jax.Array, detector: Detector) -> DetectorState:
         gs = detector.grid_slice
-        if not detector.exact_interpolation:
-            E_reg, H_reg = E[:, *gs], H[:, *gs]
-        elif is_interior(detector):
-            block = (slice(None), *(slice(s - 1, e + 1) for (s, e) in detector.grid_slice_tuple))
-            H_avg = (H_prev[block] + H[block]) / 2
-            E_reg, H_reg = interpolate_fields(E[block], H_avg, config=config, region_slice=detector.grid_slice_tuple)
-        else:
-            assert full is not None  # built above whenever an edge-touching exact detector exists
-            E_reg, H_reg = full[0][:, *gs], full[1][:, *gs]
+        E_reg, H_reg = colocate_detector_fields(detector, E, H, H_prev, objects, config, full=full)
         # inv_permeabilities is a plain scalar when all materials are non-magnetic.
         inv_mu = arrays.inv_permeabilities
         try:

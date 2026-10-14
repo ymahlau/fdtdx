@@ -327,54 +327,24 @@ class FieldProjectionDetectorBase(PhasorDetector):
             for surface in self._included_box_surfaces()
         }
 
-    def update(
-        self,
-        time_step: jax.Array,
-        E: jax.Array,
-        H: jax.Array,
-        state: DetectorState,
-        inv_permittivity: jax.Array,
-        inv_permeability: jax.Array | float,
-    ) -> DetectorState:
-        """Record frequency-domain phasors for every included detector face.
+    def _phasor_samples(self, E: jax.Array, H: jax.Array) -> dict[str, jax.Array]:
+        """Sample the field phasors for every included detector face.
 
-        Planar detectors use the inherited ``PhasorDetector`` update. Box detectors slice each included boundary face
+        Planar detectors use the inherited ``PhasorDetector`` sample. Box detectors slice each included boundary face
         from the detector volume and store one phasor array per surface so post-processing can apply each outward normal
         with the correct phase reference.
         """
         if self._projection_mode == "surface":
-            return super().update(
-                time_step=time_step,
-                E=E,
-                H=H,
-                state=state,
-                inv_permittivity=inv_permittivity,
-                inv_permeability=inv_permeability,
-            )
-
-        del inv_permeability, inv_permittivity
-        time_passed = time_step * self._config.time_step_duration
-        static_scale = self._static_scale()
+            return super()._phasor_samples(E, H)
 
         fields = jnp.concatenate((E, H), axis=0)
-        phase_angles = self._angular_frequencies * time_passed
-        phasors = jnp.exp(1j * phase_angles)
-        phasors = phasors.reshape((len(self._angular_frequencies),) + (1,) * fields.ndim)
-
-        new_state: DetectorState = {}
+        samples: dict[str, jax.Array] = {}
         for surface in self._included_box_surfaces():
             axis, direction = _surface_axis_direction(surface)
             face_slices: list[slice] = [slice(None), slice(None), slice(None), slice(None)]
             face_slices[axis + 1] = slice(0, 1) if direction == "-" else slice(self.grid_shape[axis] - 1, None)
-            face_fields = fields[tuple(face_slices)]
-            new_phasors = face_fields * phasors * static_scale
-            state_key = _surface_state_key(surface)
-            if self.inverse:
-                result = state[state_key] - new_phasors[None, ...]
-            else:
-                result = state[state_key] + new_phasors[None, ...]
-            new_state[state_key] = result.astype(self.dtype)
-        return new_state
+            samples[_surface_state_key(surface)] = fields[tuple(face_slices)]
+        return samples
 
     def _axis_centers(self, axis: int) -> jax.Array:
         """Return physical cell-center coordinates for one detector axis."""

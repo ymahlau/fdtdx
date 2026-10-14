@@ -82,6 +82,7 @@ class TestForward:
                 objects=objects,
                 config=config,
                 simulate_boundaries=False,
+                inject_sources=True,
             )
             # update_H called with arrays returned by update_E
             mock_H.assert_called_once_with(
@@ -90,6 +91,7 @@ class TestForward:
                 objects=objects,
                 config=config,
                 simulate_boundaries=False,
+                inject_sources=True,
             )
 
     def test_simulate_boundaries_passed_through(self, arrays, updated_arrays, config, objects, key):

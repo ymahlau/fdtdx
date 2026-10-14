@@ -1,5 +1,5 @@
 import math
-from typing import Literal, Self, Sequence
+from typing import ClassVar, Literal, Self, Sequence
 
 import jax
 import jax.numpy as jnp
@@ -66,6 +66,9 @@ class PhasorDetector(Detector):
     #: continuous-mode scale is corrected by the window's coherent gain so reconstructed
     #: amplitudes stay correct.
     apodization: TemporalWindow | None = frozen_field(default=None)
+
+    #: The phasor update is linear in the fields, see :meth:`_phasor_samples`.
+    _adjoint_linear: ClassVar[bool] = True
 
     #: Per-time-step window weights (on-mask times apodization), length ``time_steps_total``.
     _window_at_time_step_arr: jax.Array = private_field()
@@ -187,20 +190,38 @@ class PhasorDetector(Detector):
         phasor_shape = (num_frequencies, num_components, *grid_shape)
         return {"phasor": jax.ShapeDtypeStruct(shape=phasor_shape, dtype=field_dtype)}
 
-    def update(
-        self,
-        time_step: jax.Array,
-        E: jax.Array,
-        H: jax.Array,
-        state: DetectorState,
-        inv_permittivity: jax.Array,
-        inv_permeability: jax.Array | float,
-    ) -> DetectorState:
-        del inv_permeability, inv_permittivity
-        time_passed = time_step * self._config.time_step_duration
-        static_scale = self._static_scale()
-        window_weight = self._window_at_time_step_arr[time_step]
+    def _dft_coefficients(self, time_step: jax.Array) -> jax.Array:
+        """Complex weight of the sample taken at ``time_step`` for every recorded frequency.
 
+        The phasor accumulates ``sum_n _dft_coefficients(n)[k] * _phasor_samples(E_n, H_n)`` over the
+        recorded steps: the DFT phase ``exp(i * omega_k * t_n)`` times the static scale and the window
+        weight of the step.
+
+        Args:
+            time_step (jax.Array): Current simulation time step.
+
+        Returns:
+            jax.Array: Coefficients of shape ``(num_frequencies,)``.
+        """
+        time_passed = time_step * self._config.time_step_duration
+        phasors = jnp.exp(1j * self._angular_frequencies * time_passed)
+        return phasors * self._static_scale() * self._window_at_time_step_arr[time_step]
+
+    def _phasor_samples(self, E: jax.Array, H: jax.Array) -> dict[str, jax.Array]:
+        """Time-independent sample of the detector fields for every state entry.
+
+        The sample is linear in the fields and carries no frequency axis; :meth:`update` multiplies it
+        by :meth:`_dft_coefficients`. Subclasses that store differently shaped states override this
+        method only. The adjoint gradient method relies on this split to read off the spatial pattern
+        and the time signal of the detector separately.
+
+        Args:
+            E (jax.Array): Electric field restricted to the detector region.
+            H (jax.Array): Magnetic field restricted to the detector region.
+
+        Returns:
+            dict[str, jax.Array]: State key to sample of shape ``state[key].shape[2:]``.
+        """
         fields = []
         if "Ex" in self.components:
             fields.append(E[0])
@@ -215,21 +236,30 @@ class PhasorDetector(Detector):
         if "Hz" in self.components:
             fields.append(H[2])
 
-        EH = jnp.stack(fields, axis=0)
-
-        # Vectorized phasor calculation for all frequencies
-        phase_angles = self._angular_frequencies * time_passed  # Shape: (num_freqs,)
-        phasors = jnp.exp(1j * phase_angles)  # Shape: (num_freqs,)
-        # Reshape phasors to (num_freqs, 1, 1, 1, 1) for proper broadcasting with EH (num_components, x, y, z)
-        phasors = phasors.reshape((len(self._angular_frequencies),) + (1,) * EH.ndim)
-        new_phasors = EH * phasors * static_scale * window_weight  # Shape: (num_freqs, num_components, *grid_shape)
-
+        EH = jnp.stack(fields, axis=0)  # (num_components, *grid_shape)
         if self.reduce_volume:
             # Average over spatial dimensions using physical cell volumes.
-            new_phasors = self._volume_weighted_spatial_mean(new_phasors, leading_dims=2)
+            EH = self._volume_weighted_spatial_mean(EH, leading_dims=1)
+        return {"phasor": EH}
 
-        if self.inverse:
-            result = state["phasor"] - new_phasors[None, ...]
-        else:
-            result = state["phasor"] + new_phasors[None, ...]
-        return {"phasor": result.astype(self.dtype)}
+    def update(
+        self,
+        time_step: jax.Array,
+        E: jax.Array,
+        H: jax.Array,
+        state: DetectorState,
+        inv_permittivity: jax.Array,
+        inv_permeability: jax.Array | float,
+    ) -> DetectorState:
+        del inv_permeability, inv_permittivity
+        coefficients = self._dft_coefficients(time_step)  # (num_freqs,)
+        new_state = dict(state)
+        for key, sample in self._phasor_samples(E, H).items():
+            # (num_freqs, 1, ..., 1) * (*sample.shape) -> (num_freqs, *sample.shape)
+            new_phasors = coefficients.reshape((-1,) + (1,) * sample.ndim) * sample[None, ...]
+            if self.inverse:
+                result = state[key] - new_phasors[None, ...]
+            else:
+                result = state[key] + new_phasors[None, ...]
+            new_state[key] = result.astype(self.dtype)
+        return new_state

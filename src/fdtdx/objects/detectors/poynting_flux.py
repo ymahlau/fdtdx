@@ -473,35 +473,14 @@ class ClosedSurfacePhasorPoyntingFluxDetector(PhasorDetector):
             result[f"phasor_axis{a}_max"] = jax.ShapeDtypeStruct(shape, field_dtype)
         return result
 
-    def update(
-        self,
-        time_step: jax.Array,
-        E: jax.Array,
-        H: jax.Array,
-        state: DetectorState,
-        inv_permittivity: jax.Array,
-        inv_permeability: jax.Array | float,
-    ) -> DetectorState:
-        del inv_permeability, inv_permittivity
-        time_passed = time_step * self._config.time_step_duration
-        static_scale = self._static_scale()
-
+    def _phasor_samples(self, E: jax.Array, H: jax.Array) -> dict[str, jax.Array]:
         EH = jnp.stack([E[0], E[1], E[2], H[0], H[1], H[2]], axis=0)  # (6, nx, ny, nz)
-        phase_angles = self._angular_frequencies * time_passed  # (num_freqs,)
-        phasors = jnp.exp(1j * phase_angles).reshape((len(self._angular_frequencies),) + (1,) * EH.ndim)
-        new_phasors = EH * phasors * static_scale  # (num_freqs, 6, nx, ny, nz)
-
-        new_state = dict(state)
+        samples = {}
         for a in self._resolve_active_axes():
-            # Spatial axis a maps to array axis a + 2 (leading freq and component axes).
+            # Spatial axis a maps to array axis a + 1 (leading component axis).
             for side in ("min", "max"):
-                key = f"phasor_axis{a}_{side}"
-                face = _slice_face(new_phasors, a + 2, side)[None, ...]  # (1, num_freqs, 6, *plane)
-                if self.inverse:
-                    new_state[key] = (state[key] - face).astype(self.dtype)
-                else:
-                    new_state[key] = (state[key] + face).astype(self.dtype)
-        return new_state
+                samples[f"phasor_axis{a}_{side}"] = _slice_face(EH, a + 1, side)  # (6, *plane)
+        return samples
 
     def compute_net_flux(self, state: DetectorState) -> jax.Array:
         """Net time-averaged Poynting flux through the closed surface at every wavelength.
