@@ -18,8 +18,13 @@ from fdtdx.fdtd.adjoint import (
     _blocked_dft,
     _Box,
     _check_storage,
+    _objective_frequencies,
+    _overlaps,
     _phase_table,
     _plan_groups,
+    _report_adjoint_diagnostics,
+    _report_exact_forward_diagnostics,
+    _report_forward_diagnostics,
     _source_regime,
     _support_box,
 )
@@ -221,3 +226,82 @@ def test_storage_warning_for_large_gradient_regions():
     finally:
         logger.remove(sink)
     assert len(messages) == 1 and "adjoint_mode='frequency'" in messages[0]
+
+
+class _Warnings:
+    def __enter__(self):
+        from loguru import logger
+
+        self._logger = logger
+        self.messages = []
+        self._sink = logger.add(lambda message: self.messages.append(str(message)), level="WARNING")
+        return self
+
+    def __exit__(self, *exc):
+        self._logger.remove(self._sink)
+
+
+def test_overlaps():
+    assert _overlaps(((0, 2), (0, 2), (0, 2)), ((1, 3), (1, 3), (1, 3)))
+    assert not _overlaps(((0, 2), (0, 2), (0, 2)), ((2, 3), (0, 2), (0, 2)))
+
+
+def test_objective_frequencies_override_is_deduplicated_and_positive():
+    def config(*frequencies):
+        waves = tuple(SimpleNamespace(get_frequency=lambda f=f: f) for f in frequencies)
+        return SimpleNamespace(gradient_config=SimpleNamespace(adjoint_frequencies=waves))
+
+    omegas = _objective_frequencies(SimpleNamespace(), config(3e14, 3e14 * (1 + 1e-12), 2e14))  # type: ignore[arg-type]
+    np.testing.assert_allclose(omegas, 2 * np.pi * np.asarray([2e14, 3e14]))
+    with pytest.raises(ValueError, match="must be positive"):
+        _objective_frequencies(SimpleNamespace(), config(-1e14))  # type: ignore[arg-type]
+
+
+def test_short_adjoint_run_and_ill_conditioned_mixing_warn(monkeypatch):
+    import fdtdx.fdtd.adjoint as adjoint
+
+    with _Warnings() as warnings:
+        _plan_groups(2 * np.pi * np.asarray([3.7e14]), 100, _DT, source_bandwidth=None)
+    assert any("non-negligible DC content" in m for m in warnings.messages)
+    monkeypatch.setattr(adjoint, "_CONDITION_WARN", 0.0)
+    with _Warnings() as warnings:
+        _plan_groups(2 * np.pi * np.asarray([3.0e14, 5.0e14]), _STEPS, _DT, source_bandwidth=None)
+    assert any("ill-conditioned" in m for m in warnings.messages)
+
+
+@pytest.mark.parametrize(
+    "regime, diag, warned",
+    [
+        ("pulse", [1.0, 1.0, 0.0, 0.0], "have not decayed"),
+        ("pulse", [1.0, 1e-12, 0.0, 0.0], None),
+        ("cw", [0.0, 0.0, 1.0, 2.0], "not steady"),
+        ("cw", [0.0, 0.0, 1.0, 1.0], None),
+        ("cw", [0.0, 0.0, 0.0, 0.0], None),
+    ],
+)
+def test_forward_diagnostics(regime, diag, warned):
+    with _Warnings() as warnings:
+        _report_forward_diagnostics(regime, np.asarray(diag))
+    assert any(warned in m for m in warnings.messages) if warned else not warnings.messages
+
+
+def test_adjoint_diagnostics():
+    with _Warnings() as warnings:
+        _report_adjoint_diagnostics(np.asarray(1.0), np.asarray(1e-12))
+        assert not warnings.messages
+        _report_adjoint_diagnostics(np.asarray(1.0), np.asarray(0.5))
+    assert any("adjoint fields" in m and "adjoint_time" in m for m in warnings.messages)
+
+
+def test_exact_forward_diagnostics_measure_out_of_band_content():
+    num_steps = 64
+    band = np.zeros(num_steps // 2 + 1, dtype=bool)
+    band[5:8] = True
+    times = np.arange(num_steps)
+    in_band = np.cos(2 * np.pi * 6 * times / num_steps)
+    with _Warnings() as warnings:
+        _report_exact_forward_diagnostics(band, np.asarray([1.0, 0.0]), in_band)
+        _report_exact_forward_diagnostics(band, np.asarray([0.0, 0.0]), np.zeros(num_steps))
+        assert not warnings.messages
+        _report_exact_forward_diagnostics(band, np.asarray([1.0, 0.0]), in_band + 0.1 * np.cos(np.pi * times / 2))
+    assert any("outside the band" in m for m in warnings.messages)
