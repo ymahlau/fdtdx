@@ -87,9 +87,10 @@ class GDSPortSpec:
     """Specification for a GDS port marker layer used to auto-generate sources or detectors.
 
     A port marker is a polygon (typically a thin rectangle) on a dedicated GDS layer.
-    Its centroid determines the x/y position of the source or detector plane inside the
-    simulation.  The source/detector is made 1 grid cell thick along ``propagation_axis``
-    and spans the full simulation cross-section on the remaining two axes.
+    Its centroid determines the position of the source or detector plane along
+    ``propagation_axis``.  The source/detector is made 1 grid cell thick along
+    ``propagation_axis``, covers the marker's extent on the other in-plane axis and spans
+    the full simulation height.
     """
 
     #: GDS layer containing the port marker polygons.
@@ -555,6 +556,7 @@ class _PortEntry:
     prop_axis: int  # simulation propagation axis (0 or 1)
     trans_axis: int  # simulation transverse axis (the other of 0/1)
     sim_prop_pos: float  # left-face position along prop_axis in simulation real-space (metres)
+    sim_trans_pos: float  # left-face position along trans_axis in simulation real-space (metres)
 
 
 def _iter_port_placements(
@@ -599,6 +601,7 @@ def _iter_port_placements(
             # neighbouring waveguides and corrupting mode-overlap integrals.
             points = np.array(poly.points) * lib.unit
             transverse_width = float(np.max(points[:, trans_axis]) - np.min(points[:, trans_axis]))
+            sim_trans_pos = _gds_to_sim(float(np.min(points[:, trans_axis])), gds_center[trans_axis])
 
             pgshape_list: list[int | None] = [None, None, None]
             pgshape_list[spec.propagation_axis] = 1
@@ -615,6 +618,7 @@ def _iter_port_placements(
                 prop_axis=spec.propagation_axis,
                 trans_axis=trans_axis,
                 sim_prop_pos=sim_prop_pos,
+                sim_trans_pos=sim_trans_pos,
             )
 
 
@@ -797,7 +801,7 @@ def sources_from_gds_ports(
 
     Each polygon on a port marker layer becomes one source.  The polygon's centroid
     determines the position of the source's left face along ``propagation_axis``; the
-    source's width is set to match the port marker polygon's width on the transverse axis.
+    source's width and position on the transverse axis match the port marker polygon.
 
     Args:
         gds_source: Path to a ``.gds`` file or an already-loaded :class:`gdstk.Library`.
@@ -819,7 +823,7 @@ def sources_from_gds_ports(
 
     Returns:
         ``(sources, constraints)`` — four constraints per source: propagation position,
-        transverse center, full-height size, and vertical center.
+        transverse position, full-height size, and vertical center.
 
     Raises:
         ValueError: If ``propagation_axis`` is not 0 or 1, or if
@@ -845,11 +849,16 @@ def sources_from_gds_ports(
             sides=("-",),
             coordinates=(entry.sim_prop_pos,),
         )
-        trans_center_constraint = src.place_at_center(simulation_volume, axes=(entry.trans_axis,))
+        trans_constraint = RealCoordinateConstraint(
+            object=entry.name,
+            axes=(entry.trans_axis,),
+            sides=("-",),
+            coordinates=(entry.sim_trans_pos,),
+        )
         height_constraint = src.same_size(simulation_volume, axes=(height_axis,))
         vert_center_constraint = src.place_at_center(simulation_volume, axes=(height_axis,))
         sources.append(src)
-        constraints.extend([prop_constraint, trans_center_constraint, height_constraint, vert_center_constraint])
+        constraints.extend([prop_constraint, trans_constraint, height_constraint, vert_center_constraint])
 
     return sources, constraints
 
@@ -897,7 +906,7 @@ def detectors_from_gds_ports(
 
     Returns:
         ``(detectors, constraints)`` — four constraints per detector: propagation position,
-        transverse center, full-height size, and vertical center.
+        transverse position, full-height size, and vertical center.
 
     Raises:
         ValueError: If ``propagation_axis`` is not 0 or 1, or if
@@ -923,10 +932,15 @@ def detectors_from_gds_ports(
             sides=("-",),
             coordinates=(entry.sim_prop_pos,),
         )
-        trans_center_constraint = det.place_at_center(simulation_volume, axes=(entry.trans_axis,))
+        trans_constraint = RealCoordinateConstraint(
+            object=entry.name,
+            axes=(entry.trans_axis,),
+            sides=("-",),
+            coordinates=(entry.sim_trans_pos,),
+        )
         height_constraint = det.same_size(simulation_volume, axes=(height_axis,))
         vert_center_constraint = det.place_at_center(simulation_volume, axes=(height_axis,))
         detectors.append(det)
-        constraints.extend([prop_constraint, trans_center_constraint, height_constraint, vert_center_constraint])
+        constraints.extend([prop_constraint, trans_constraint, height_constraint, vert_center_constraint])
 
     return detectors, constraints

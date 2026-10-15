@@ -947,3 +947,23 @@ def test_sources_from_gds_ports_nonzero_gds_center():
 
     assert x_origin == (6, 7), f"expected (6,7) got {x_origin}"
     assert x_shifted == (10, 11), f"expected (10,11) got {x_shifted}"
+
+
+def test_detectors_from_gds_ports_off_centre():
+    """Ports off the volume's centre line get detectors on their own markers, not on y = 0."""
+    lib = gdstk.Library(unit=1e-6, precision=1e-9)
+    cell = lib.new_cell("TOP")
+    for y in (-0.5, 0.5):
+        cell.add(gdstk.rectangle((0.45, y - 0.2), (0.55, y + 0.2), layer=10))
+    vol = _volume()
+    detectors, constraints = fdtdx.detectors_from_gds_ports(
+        gds_source=lib,
+        cell_name="TOP",
+        port_specs=[fdtdx.GDSPortSpec(gds_layer=10, propagation_axis=0)],
+        wave_characters=[fdtdx.WaveCharacter(wavelength=1.55e-6)],
+        simulation_volume=vol,
+        gds_center=(0.0, 0.0),
+    )
+    slices = _resolve(vol, detectors, constraints)
+    assert _sl(slices, detectors[0])[1] == (3, 7)
+    assert _sl(slices, detectors[1])[1] == (13, 17)
