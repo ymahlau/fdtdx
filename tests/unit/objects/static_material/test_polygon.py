@@ -395,3 +395,46 @@ class TestAutoRealShape:
         )
         assert poly.partial_real_shape[0] == pytest.approx(300e-9)
         assert poly.partial_real_shape[1] == pytest.approx(100e-9)
+
+
+# ---------------------------------------------------------------------------
+# Mirror symmetry: a polygon clipped at the symmetry planes
+# ---------------------------------------------------------------------------
+
+
+def _placed_inv_permittivities(symmetry, grid_type):
+    """Place a trapezoid centred on the mirror planes and return the inverse permittivity array."""
+    import fdtdx
+
+    spacing = 50e-9
+    shape = (40, 24, 16)
+    grid = UniformGrid(spacing=spacing)
+    if grid_type == "rectilinear":
+        grid = grid.resolve(shape)
+    config = SimulationConfig(time=100e-15, grid=grid, backend="cpu", symmetry=symmetry)
+    volume = fdtdx.SimulationVolume(partial_grid_shape=shape, material=Material(permittivity=1.0))
+    # trapezoid, wider on the right
+    poly = ExtrudedPolygon(
+        name="poly",
+        axis=2,
+        materials={"si": Material(permittivity=12.25)},
+        material_name="si",
+        vertices=np.array([[-0.8e-6, -0.2e-6], [0.8e-6, -0.5e-6], [0.8e-6, 0.5e-6], [-0.8e-6, 0.2e-6]]),
+        partial_real_shape=(None, None, 0.4e-6),
+    )
+    constraints = [poly.place_at_center(volume)]
+    _, arrays, _, _, _ = fdtdx.place_objects(
+        object_list=[volume, poly], config=config, constraints=constraints, key=jax.random.PRNGKey(0)
+    )
+    return np.asarray(arrays.inv_permittivities)
+
+
+@pytest.mark.parametrize("grid_type", ["uniform", "rectilinear"])
+def test_polygon_clipped_by_symmetry_matches_quarter_of_full(grid_type):
+    """The polygon clipped onto the kept quarter must equal that quarter of the unclipped polygon."""
+    full = _placed_inv_permittivities((0, 0, 0), grid_type)
+    quarter = _placed_inv_permittivities((0, -1, 1), grid_type)
+    _, _, ny, nz = full.shape
+    assert quarter.shape[1:] == (40, ny // 2, nz // 2)
+    np.testing.assert_array_equal(full[:, :, ny // 2 :, nz // 2 :], quarter)
+    assert (full < 0.5).any()  # the polygon is actually there

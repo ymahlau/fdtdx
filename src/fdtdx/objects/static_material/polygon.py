@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from fdtdx.core.axis import get_transverse_axes
-from fdtdx.core.grid import polygon_to_mask, polygon_to_mask_at_points
+from fdtdx.core.grid import polygon_to_mask_at_points
 from fdtdx.core.jax.pytrees import autoinit, frozen_field
 from fdtdx.materials import compute_ordered_names
 from fdtdx.objects.static_material.static import StaticMultiMaterialObject
@@ -64,39 +64,44 @@ class ExtrudedPolygon(StaticMultiMaterialObject):
         """Gets the vertical axis perpendicular to the fiber axis."""
         return get_transverse_axes(self.axis)[1]
 
-    def get_voxel_mask_for_shape(self) -> jax.Array:
-        n_horizontal = self.grid_shape[self.horizontal_axis]
-        n_vertical = self.grid_shape[self.vertical_axis]
+    def _axis_sample_points(self, axis: int) -> tuple[np.ndarray, float]:
+        """Cell centres of this object along ``axis``, measured from the start of the *unclipped* object.
 
-        # Shift vertices from object-center coords to local grid coords.
-        center_h = 0.5 * self.real_shape[self.horizontal_axis]
-        center_v = 0.5 * self.real_shape[self.vertical_axis]
-        grid_vertices = self.vertices + np.array([center_h, center_v])
+        With mirror symmetry (``config.symmetry``) an object that crosses a symmetry plane is clipped to
+        the kept half, but the polygon is defined on the full object. The cells that were cut off at the
+        lower end are the mirror image of the first kept cells, so the kept cells start that many cells
+        (``lost``) after the beginning of the full object. Without clipping ``lost`` is zero.
+
+        Returns:
+            tuple[np.ndarray, float]: the cell-centre coordinates in metres, and the extent of the full
+            (unclipped) object along ``axis`` in metres.
+        """
+        lower, upper = self.grid_slice_tuple[axis]
+        lost = lower - self.unreduced_grid_slice_tuple[axis][0]
 
         grid = self._config.resolved_grid
         if grid is None:
             spacing = self._config.uniform_spacing()
-            half_res = 0.5 * spacing
-            max_horizontal = (n_horizontal - 0.5) * spacing
-            max_vertical = (n_vertical - 0.5) * spacing
+            centers = (np.arange(upper - lower) + lost + 0.5) * spacing
+            return centers, (upper - lower + lost) * spacing
 
-            mask_2d = polygon_to_mask(
-                boundary=(half_res, half_res, max_horizontal, max_vertical),
-                resolution=spacing,
-                polygon_vertices=grid_vertices,
-            )
-        else:
-            h_lower, h_upper = self.grid_slice_tuple[self.horizontal_axis]
-            v_lower, v_upper = self.grid_slice_tuple[self.vertical_axis]
-            h_edges = np.asarray(grid.edges(self.horizontal_axis))
-            v_edges = np.asarray(grid.edges(self.vertical_axis))
-            h_centers = 0.5 * (h_edges[h_lower:h_upper] + h_edges[h_lower + 1 : h_upper + 1]) - h_edges[h_lower]
-            v_centers = 0.5 * (v_edges[v_lower:v_upper] + v_edges[v_lower + 1 : v_upper + 1]) - v_edges[v_lower]
-            mask_2d = polygon_to_mask_at_points(
-                x_coords=h_centers,
-                y_coords=v_centers,
-                polygon_vertices=grid_vertices,
-            )
+        edges = np.asarray(grid.edges(axis))
+        shift = edges[lower + lost] - edges[lower]  # extent of the lost cells (mirror of the first kept cells)
+        centers = 0.5 * (edges[lower:upper] + edges[lower + 1 : upper + 1]) - edges[lower] + shift
+        return centers, float(edges[upper] - edges[lower] + shift)
+
+    def get_voxel_mask_for_shape(self) -> jax.Array:
+        h_centers, h_extent = self._axis_sample_points(self.horizontal_axis)
+        v_centers, v_extent = self._axis_sample_points(self.vertical_axis)
+
+        # Shift vertices from object-center coords to local grid coords.
+        grid_vertices = self.vertices + np.array([0.5 * h_extent, 0.5 * v_extent])
+
+        mask_2d = polygon_to_mask_at_points(
+            x_coords=h_centers,
+            y_coords=v_centers,
+            polygon_vertices=grid_vertices,
+        )
         extrusion_height = self.grid_shape[self.axis]
         mask = jnp.repeat(
             jnp.expand_dims(jnp.asarray(mask_2d, dtype=jnp.bool), axis=self.axis),
