@@ -131,6 +131,7 @@ from fdtdx.objects.sources.profile import (
 )
 from fdtdx.objects.sources.tfsf_region import TFSFPlaneSourceRegion
 from fdtdx.objects.static_material.cylinder import Cylinder
+from fdtdx.objects.static_material.gds_gdsfactory import gds_layer_stack_from_gdsfactory
 from fdtdx.objects.static_material.gds_layer_stack import (
     GDSLayerObject,
     GDSLayerSpec,
@@ -295,6 +296,7 @@ __all__ = [
     "gaussian_mode_function",
     "gds_layer_stack",
     "gds_layer_stack_from_component",
+    "gds_layer_stack_from_gdsfactory",
     "import_from_json",
     "metric_efficiency",
     "normalize_by_energy",
