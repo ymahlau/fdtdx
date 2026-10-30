@@ -151,4 +151,5 @@ API
     fdtdx.detectors_from_gds_ports
     fdtdx.gds_layer_stack
     fdtdx.gds_layer_stack_from_component
+    fdtdx.gds_layer_stack_from_gdsfactory
     fdtdx.sources_from_gds_ports

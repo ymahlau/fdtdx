@@ -80,6 +80,13 @@ class GDSLayerSpec:
     #: :attr:`~fdtdx.objects.static_material.gds_layer_stack.GDSLayerObject.fill_supersample`.
     fill_supersample: int = 8
     color: Color | None = XKCD_LIGHT_GREY
+    #: Order in which static objects are written to the material arrays. An object with a higher value is
+    #: applied later and wins where objects overlap. Forwarded to
+    #: :attr:`~fdtdx.objects.object.OrderableObject.placement_order` of the :class:`GDSLayerObject`.
+    placement_order: int = 0
+    #: If ``True``, the material fills the full layer except the inside of the polygons. See
+    #: :attr:`~fdtdx.objects.static_material.gds_layer_stack.GDSLayerObject.invert`.
+    invert: bool = False
 
 
 @dataclass(frozen=True)
@@ -146,6 +153,12 @@ class GDSLayerObject(StaticMultiMaterialObject):
     #: smoothing (see :meth:`get_fill_fraction_for_shape`). Higher values give a more accurate fill
     #: fraction / interface normal at a quadratic cost in this (CPU-side, one-time) rasterization step.
     fill_supersample: int = frozen_field(default=8)
+
+    #: If ``True``, the material fills the full object except the inside of ``polygons``. The polygons are then
+    #: areas without material. Use it for a layer that covers the whole simulation volume (for example a
+    #: cladding), for every volume size. ``sidewall_angle`` keeps its meaning for the material: an angle
+    #: ``< 90`` makes the material narrower toward the top, thus the areas without material become wider.
+    invert: bool = frozen_field(default=False)
 
     def __post_init__(self):
         if not 0.0 < self.sidewall_angle < 180.0:
@@ -215,6 +228,8 @@ class GDSLayerObject(StaticMultiMaterialObject):
     def _base_mask_2d(self) -> np.ndarray:
         """Rasterize the (vertical-extrusion) polygon footprint to a 2-D boolean mask.
 
+        For ``invert=True``, the footprint is the area outside of the polygons.
+
         Returns:
             np.ndarray: Boolean array of shape ``(n_horizontal, n_vertical)``.
         """
@@ -260,7 +275,8 @@ class GDSLayerObject(StaticMultiMaterialObject):
                     for poly in local_polygons
                 ]
                 mask_2d = np.any(np.stack(masks, axis=0), axis=0)
-        return np.asarray(mask_2d, dtype=bool)
+        mask_2d = np.asarray(mask_2d, dtype=bool)
+        return ~mask_2d if self.invert else mask_2d
 
     def _z_centers(self, extrusion_height: int) -> np.ndarray:
         """Physical z cell-center coordinates relative to the layer base, one per z-slice."""
@@ -382,7 +398,7 @@ class GDSLayerObject(StaticMultiMaterialObject):
 
         ``offset`` (metres) laterally erodes (``offset > 0``) or dilates (``offset < 0``) the footprint
         before rasterizing — the fractional analogue of :func:`_offset_mask`, used for the trapezoidal
-        sidewall profile.
+        sidewall profile. For ``invert=True``, the footprint is the area outside of the polygons.
         """
         n_h = self.grid_shape[self.horizontal_axis]
         n_v = self.grid_shape[self.vertical_axis]
@@ -390,10 +406,13 @@ class GDSLayerObject(StaticMultiMaterialObject):
         origin_h = self.gds_center[0]
         origin_v = self.gds_center[1]
         local_polygons = [poly - np.array([origin_h, origin_v]) for poly in self.polygons]
-        if abs(offset) > 1e-15 and len(local_polygons) > 0:
-            local_polygons = _offset_polygons(local_polygons, offset)
+        # For an inverted footprint, the polygons are the areas without material. When the material is
+        # eroded by ``offset``, these areas grow by the same distance.
+        polygon_offset = -offset if self.invert else offset
+        if abs(polygon_offset) > 1e-15 and len(local_polygons) > 0:
+            local_polygons = _offset_polygons(local_polygons, polygon_offset)
         if len(local_polygons) == 0:
-            return np.zeros((n_h, n_v), dtype=float)
+            return np.full((n_h, n_v), 1.0 if self.invert else 0.0, dtype=float)
 
         grid = self._config.resolved_grid
         if grid is None:
@@ -427,7 +446,7 @@ class GDSLayerObject(StaticMultiMaterialObject):
         for poly in local_polygons:
             inside |= polygon_to_mask_at_points(x_coords=h_sub, y_coords=v_sub, polygon_vertices=poly)
         frac = inside.reshape(n_h, supersample, n_v, supersample).mean(axis=(1, 3))
-        return np.asarray(frac, dtype=float)
+        return np.asarray(1.0 - frac if self.invert else frac, dtype=float)
 
     def _z_fill_fraction(self) -> np.ndarray:
         """Fraction of each z-cell overlapped by the layer extent ``[0, thickness]``, shape ``(n_z,)``."""
@@ -496,6 +515,10 @@ def _offset_mask(mask_2d: np.ndarray, offset: float, pitch_h: float, pitch_v: fl
 
     if abs(offset) < 1e-15 or not mask_2d.any():
         # No taper here, or nothing to taper. A purely-dilated empty mask stays empty.
+        return mask_2d.copy()
+    if offset > 0 and mask_2d.all():
+        # No void cell to erode from: the material continues past the array border. The distance transform
+        # of a mask without void cells measures from a point outside of a corner, which would be wrong.
         return mask_2d.copy()
 
     sampling = (pitch_h, pitch_v)
@@ -707,6 +730,8 @@ def gds_layer_stack(
             subpixel_smoothing=spec.subpixel_smoothing,
             subpixel_full_tensor=spec.subpixel_full_tensor,
             fill_supersample=spec.fill_supersample,
+            placement_order=spec.placement_order,
+            invert=spec.invert,
             partial_real_shape=(None, None, spec.thickness),
         )
 

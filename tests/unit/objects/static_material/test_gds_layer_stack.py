@@ -477,6 +477,87 @@ class TestSidewallAngle:
         assert objects[0].reference_plane == "middle"
 
 
+# ---------------------------------------------------------------------------
+# invert — material outside of the polygons
+# ---------------------------------------------------------------------------
+
+
+class TestInvert:
+    SPACING = 25e-9
+    NZ = 20  # 500 nm tall stack
+    N_XY = 40  # 1 µm cross-section
+    HALF = 300e-9  # 600 nm square hole
+
+    def _placed(self, materials, key, *, invert, polygons, sidewall_angle=90.0, spacing=SPACING, n_xy=N_XY, nz=NZ):
+        obj = GDSLayerObject(
+            materials=materials,
+            polygons=polygons,
+            gds_center=(0.0, 0.0),
+            material_name="si",
+            axis=2,
+            thickness=nz * spacing,
+            sidewall_angle=sidewall_angle,
+            invert=invert,
+        )
+        slices = ((0, n_xy), (0, n_xy), (0, nz))
+        return obj.place_on_grid(grid_slice_tuple=slices, config=_sidewall_config(spacing, nz), key=key)
+
+    def test_no_polygons_fills_object(self, key, two_materials):
+        placed = self._placed(two_materials, key, invert=True, polygons=[])
+        assert bool(jnp.all(placed.get_voxel_mask_for_shape()))
+        assert np.allclose(np.asarray(placed.get_fill_fraction_for_shape()), 1.0)
+
+    def test_fill_does_not_depend_on_object_size(self, key, two_materials):
+        """A 20 mm wide object on a 1 mm grid is filled completely: no fixed fill size limits it."""
+        placed = self._placed(two_materials, key, invert=True, polygons=[], spacing=1e-3, n_xy=20, nz=2)
+        assert bool(jnp.all(placed.get_voxel_mask_for_shape()))
+
+    def test_mask_is_complement(self, key, two_materials):
+        square = [_square_polygon(half_side=self.HALF)]
+        normal = self._placed(two_materials, key, invert=False, polygons=square).get_voxel_mask_for_shape()
+        inverted = self._placed(two_materials, key, invert=True, polygons=square).get_voxel_mask_for_shape()
+        assert bool(jnp.any(normal)) and bool(jnp.any(inverted))
+        assert jnp.array_equal(inverted, ~normal)
+
+    def test_angled_wall_grows_the_holes(self, key, two_materials):
+        """Material that narrows toward the top (70 deg) around a hole is the complement of a polygon that
+        widens toward the top (110 deg), for the binary mask and for the sub-pixel fill fraction."""
+        square = [_square_polygon(half_side=self.HALF)]
+        inverted = self._placed(two_materials, key, invert=True, polygons=square, sidewall_angle=70.0)
+        normal = self._placed(two_materials, key, invert=False, polygons=square, sidewall_angle=110.0)
+        inv_mask = inverted.get_voxel_mask_for_shape()
+        assert jnp.array_equal(inv_mask, ~normal.get_voxel_mask_for_shape())
+        # the hole is wider at the top than at the bottom
+        assert int(jnp.sum(inv_mask[:, :, -1])) < int(jnp.sum(inv_mask[:, :, 0]))
+        np.testing.assert_allclose(
+            np.asarray(inverted.get_fill_fraction_for_shape()),
+            1.0 - np.asarray(normal.get_fill_fraction_for_shape()),
+            atol=1e-12,
+        )
+
+    def test_full_footprint_not_eroded_by_angled_wall(self, key, two_materials):
+        """A footprint without void cells continues past the object border and keeps all cells for an
+        angle < 90 (no erosion from the corner of the array)."""
+        inverted = self._placed(two_materials, key, invert=True, polygons=[], sidewall_angle=70.0)
+        assert bool(jnp.all(inverted.get_voxel_mask_for_shape()))
+        covering = [_square_polygon(half_side=10e-6)]
+        normal = self._placed(two_materials, key, invert=False, polygons=covering, sidewall_angle=70.0)
+        assert bool(jnp.all(normal.get_voxel_mask_for_shape()))
+
+    def test_spec_default_and_forwarded(self, square_lib, sim_volume, two_materials):
+        assert GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9).invert is False
+        spec = GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9, invert=True)
+        objects, _ = gds_layer_stack(
+            gds_source=square_lib,
+            cell_name="TOP",
+            layers=[spec],
+            materials=two_materials,
+            simulation_volume=sim_volume,
+            gds_center=(0.0, 0.0),
+        )
+        assert objects[0].invert is True
+
+
 @pytest.mark.unit
 class TestSidewallVsTidy3D:
     """Cross-check the discrete sidewall mask footprint against Tidy3D.PolySlab geometry.
@@ -794,6 +875,18 @@ class TestGdsLayerStack:
         """Spec with name=None → auto-generated name encodes layer and datatype."""
         objects, _ = _stack(square_lib, sim_volume, two_materials, [_spec(name=None)])
         assert objects[0].name == "gds_1_0"
+
+    def test_placement_order_defaults_to_zero(self, square_lib, sim_volume, two_materials):
+        """Without a value in the spec, the object keeps the default placement order 0."""
+        assert _spec().placement_order == 0
+        objects, _ = _stack(square_lib, sim_volume, two_materials, [_spec()])
+        assert objects[0].placement_order == 0
+
+    def test_placement_order_forwarded(self, square_lib, sim_volume, two_materials):
+        """GDSLayerSpec.placement_order is forwarded onto the GDSLayerObject."""
+        spec = GDSLayerSpec(gds_layer=1, material_name="si", thickness=200e-9, placement_order=-7)
+        objects, _ = _stack(square_lib, sim_volume, two_materials, [spec])
+        assert objects[0].placement_order == -7
 
 
 # ---------------------------------------------------------------------------
