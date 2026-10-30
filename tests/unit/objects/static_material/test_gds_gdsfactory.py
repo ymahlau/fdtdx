@@ -64,9 +64,7 @@ def _no_warnings(stack, **kwargs):
 
 def _mask_at(polygons, x, y):
     """True if the point (x, y) in metres is inside one of the polygons."""
-    return any(
-        bool(polygon_to_mask_at_points(np.array([x]), np.array([y]), polygon)[0, 0]) for polygon in polygons
-    )
+    return any(bool(polygon_to_mask_at_points(np.array([x]), np.array([y]), polygon)[0, 0]) for polygon in polygons)
 
 
 def _area(polygons):
