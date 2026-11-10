@@ -180,6 +180,36 @@ class TestHardConstantAmplitudePlanceSource:
         # With inverse=True, H should be unchanged
         assert jnp.allclose(H_updated, H)
 
+    @pytest.mark.parametrize(
+        ("e_pol", "h_pol"),
+        [((1.0, 0.0, 0.0), None), (None, (0.0, 1.0, 0.0)), ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0))],
+    )
+    def test_H_follows_its_own_polarization(self, micro_config, jax_key, e_pol, h_pol):
+        """E along x and H along y for a +z plane, whichever polarization is given (both, E only, H only).
+
+        Both updates passed fixed_E_polarization_vector as the H polarization: with E given H was injected parallel to
+        it, and with only H given the source raised (no polarization seen).
+        """
+        source = HardConstantAmplitudePlanceSource(
+            partial_grid_shape=(8, 8, 1),
+            wave_character=WaveCharacter(wavelength=1.55e-6),
+            direction="+",
+            fixed_E_polarization_vector=e_pol,
+            fixed_H_polarization_vector=h_pol,
+        )
+        placed = source.place_on_grid(grid_slice_tuple=((0, 8), (0, 8), (4, 5)), config=micro_config, key=jax_key)
+        zeros = jnp.zeros((3, 8, 8, 8), dtype=jnp.float32)
+        inv_perm = jnp.ones((1, 8, 8, 8), dtype=jnp.float32)
+        time_step = jnp.array(10)
+
+        E = np.asarray(placed.update_E(zeros, inv_perm, 1.0, time_step, inverse=False))[:, 3, 3, 4]
+        H = np.asarray(placed.update_H(zeros, inv_perm, 1.0, time_step, inverse=False))[:, 3, 3, 4]
+
+        magnitude = E[0]
+        assert abs(magnitude) > 0.1  # the carrier is not at a zero crossing at this step
+        np.testing.assert_allclose(E, magnitude * np.array([1.0, 0.0, 0.0]), atol=1e-6)
+        np.testing.assert_allclose(H, magnitude * np.array([0.0, 1.0, 0.0]), atol=1e-6)
+
     def test_update_with_static_amplitude_factor(self, micro_config, jax_key):
         """Test update with static_amplitude_factor."""
         source = HardConstantAmplitudePlanceSource(
