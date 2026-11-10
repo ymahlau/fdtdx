@@ -10,9 +10,12 @@ supporting both relative and absolute positioning in the output files.
 
 import math
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
-import trimesh
+
+if TYPE_CHECKING:  # imported on first use by export_stl: importing trimesh takes ~0.5 s
+    import trimesh
 
 
 def idx_to_xyz(idx: np.ndarray, shape: tuple[int, int, int]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -37,7 +40,7 @@ def export_stl(
     matrix: np.ndarray,
     stl_filename: Path | str | None = None,
     voxel_grid_size: tuple[int, int, int] = (1, 1, 1),
-) -> trimesh.Trimesh:
+) -> "trimesh.Trimesh":
     """Export a 3D boolean matrix to an STL file.
 
     Converts a 3D boolean matrix into a mesh representation and saves it as an STL file.
@@ -132,6 +135,8 @@ def export_stl(
     vertex_arr = vertex_arr * scaling_factor
 
     # export to trimesh
+    import trimesh
+
     mesh = trimesh.Trimesh(
         vertices=vertex_arr,
         faces=faces,

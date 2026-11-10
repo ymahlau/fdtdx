@@ -1,6 +1,7 @@
 import numpy as np
-import seaborn as sns
 from matplotlib import pyplot as plt
+
+# seaborn (with scipy.stats and pandas, ~1 s) is imported by the functions that use it, not by `import fdtdx`
 
 
 def plot_line_over_time(
@@ -9,6 +10,8 @@ def plot_line_over_time(
     metric_name: str,
     xlabel: str = "Time [s]",
 ):
+    import seaborn as sns
+
     fig, ax = plt.subplots(figsize=(12, 6))
     ax = sns.lineplot(x=time_steps, y=arr, ax=ax)
     ax.set_xlabel(xlabel)
@@ -31,6 +34,8 @@ def plot_waterfall_over_time(
     s_min, s_max = min(spatial_steps), max(spatial_steps)
 
     # Plot as a heatmap/waterfall
+    import seaborn as sns
+
     cmap = sns.diverging_palette(220, 20, as_cmap=True)
     im = ax.imshow(
         arr.T,  # Transpose to have time on x-axis, space on y-axis

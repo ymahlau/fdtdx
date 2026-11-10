@@ -5,10 +5,8 @@ from typing import List, Literal, Sequence
 import jax
 import jax.numpy as jnp
 import numpy as np
-import tidy3d
 from jax.typing import ArrayLike
 from loguru import logger
-from tidy3d.components.mode.solver import compute_modes as _compute_modes
 
 from fdtdx.core.axis import get_transverse_axes
 from fdtdx.core.jax.utils import is_jax_tracer
@@ -33,6 +31,17 @@ Attributes:
     Hy: y-component of the magnetic field
     Hz: z-component of the magnetic field
 """
+
+
+def _compute_modes(*args, **kwargs):
+    """Tidy3D's mode solver (``tidy3d.components.mode.solver.compute_modes``), imported on first use.
+
+    Importing tidy3d takes about two seconds, which ``import fdtdx`` should not pay when no mode is
+    solved.
+    """
+    from tidy3d.components.mode.solver import compute_modes
+
+    return compute_modes(*args, **kwargs)
 
 
 def compute_mode_polarization_fraction(
@@ -373,7 +382,9 @@ def compute_mode(
     mode_H = jnp.expand_dims(mode_H_raw, axis=propagation_axis + 1)
 
     # Tidy3D uses different scaling internally, so convert back
-    mode_H = mode_H * tidy3d.constants.ETA_0
+    from tidy3d.constants import ETA_0  # imported on first use (see _compute_modes)
+
+    mode_H = mode_H * ETA_0
 
     mode_E_norm, mode_H_norm = normalize_by_poynting_flux(
         mode_E,

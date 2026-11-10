@@ -1,6 +1,5 @@
 import jax
 import numpy as np
-import seaborn as sns
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -56,6 +55,8 @@ def device_matrix_index_figure(
     fig, ax = plt.subplots(figsize=(12, 12))
     assert isinstance(fig, Figure)
     assert isinstance(ax, Axes)
+    import seaborn as sns  # imported on first use (with scipy.stats and pandas, ~1 s)
+
     image_palette = sns.color_palette("YlOrBr", as_cmap=True)
     background_name = get_background_material_name(material)
     ordered_name_list = compute_ordered_names(material)

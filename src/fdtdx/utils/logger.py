@@ -10,7 +10,6 @@ from typing import Any, Sequence, cast
 import jax
 import jax.numpy as jnp
 import numpy as np
-import seaborn as sns
 from loguru import logger
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
@@ -108,6 +107,8 @@ class Logger:
     def __init__(
         self, experiment_name: str, name: str | None = None, save_source: bool = False, save_script: bool = True
     ):
+        import seaborn as sns  # imported on first use (with scipy.stats and pandas, ~1 s)
+
         sns.set_theme(context="paper", style="white", palette="colorblind")
         self.cwd = init_working_directory(experiment_name, wd_name=name)
         self.console = Console()
